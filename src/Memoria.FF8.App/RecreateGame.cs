@@ -244,7 +244,7 @@ internal sealed class RecreateGame : Game
                 }
                 if (dialogue.CanConfirm && (input.Confirm || input.Cancel && (dialogue.CancelChoice.HasValue || !dialogue.IsNamePrompt && dialogue.FirstChoice is null)))
                 {
-                    PlayerAction action = dialogue.IsNamePrompt ? new PlayerAction(PlayerActionKind.EnterName, Text: enteredName) : dialogue.FirstChoice.HasValue ? new PlayerAction(PlayerActionKind.Choose, input.Cancel ? dialogue.CancelChoice!.Value : selectedChoice) : new PlayerAction(PlayerActionKind.Confirm);
+                    PlayerAction action = input.Cancel && !input.Confirm ? new PlayerAction(PlayerActionKind.Cancel) : dialogue.IsNamePrompt ? new PlayerAction(PlayerActionKind.EnterName, Text: enteredName) : dialogue.FirstChoice.HasValue ? new PlayerAction(PlayerActionKind.Choose, selectedChoice) : new PlayerAction(PlayerActionKind.Confirm);
                     if (world.Apply(action).Accepted)
                     {
                         session.SetDialogueDraft(null);
@@ -258,11 +258,11 @@ internal sealed class RecreateGame : Game
                 {
                     if (input.Confirm)
                     {
-                        int? target = events.SelectInteractionTarget();
-                        if (target is not null)
-                        {
-                            world.Apply(new PlayerAction(PlayerActionKind.Interact, target.Value));
-                        }
+                        metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).FramesAdvanced);
+                    }
+                    else if (input.Cancel)
+                    {
+                        metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Cancel)).FramesAdvanced);
                     }
                 }
             }
@@ -580,7 +580,7 @@ internal sealed class RecreateGame : Game
                 error = exception.Message;
                 throw;
             }
-            if (result.Accepted && action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Choose or PlayerActionKind.EnterName)
+            if (result.Accepted && action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Choose or PlayerActionKind.EnterName or PlayerActionKind.Cancel)
             {
                 session.SetDialogueDraft(null);
             }

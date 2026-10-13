@@ -40,10 +40,6 @@ public sealed partial class EventEngine
 
     private string? UnsupportedDrawPointAccess(JsmOperation operation)
     {
-        if (operation.Opcode == Jsm.Opcode.CLEAR)
-        {
-            return UnsupportedDrawPointAliases(true);
-        }
         int width = operation.Opcode switch
         {
             Jsm.Opcode.PSHM_B or Jsm.Opcode.POPM_B => 1,

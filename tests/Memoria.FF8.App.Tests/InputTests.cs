@@ -5,6 +5,22 @@ namespace Memoria.FF8.App.Tests;
 public sealed class InputTests
 {
     [Fact]
+    public void Confirm_and_cancel_rearm_only_after_release()
+    {
+        KeyboardInput keyboard = new();
+        Assert.True(keyboard.Read(new KeyboardState(Keys.Enter), true).Confirm);
+        Assert.False(keyboard.Read(new KeyboardState(Keys.Enter), true).Confirm);
+        keyboard.Read(new KeyboardState(), true);
+        Assert.True(keyboard.Read(new KeyboardState(Keys.Space), true).Confirm);
+        Assert.False(keyboard.Read(new KeyboardState(Keys.Space), true).Confirm);
+        keyboard.Read(new KeyboardState(), true);
+        Runtime.InputFrame cancel = keyboard.Read(new KeyboardState(Keys.Escape), true);
+        Assert.True(cancel.Cancel);
+        Assert.False(cancel.Confirm);
+        Assert.False(keyboard.Read(new KeyboardState(Keys.Escape), true).Cancel);
+    }
+
+    [Fact]
     public void Gameplay_bindings_preserve_held_movement_edge_actions_and_focus_safety()
     {
         var keyboard = new KeyboardInput();

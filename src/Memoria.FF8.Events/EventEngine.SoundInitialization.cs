@@ -19,6 +19,11 @@ public sealed partial class EventEngine
                 // These canonical aliases are proved BYTE party indices.
                 continue;
             }
+            if (address <= 196 && Scene.PartyBindingMemory is { Version: 1 } memory && value == memory.At(address - 194))
+            {
+                // Native save BYTE194..196 survives field allocation, before the new compact actor mapping exists.
+                continue;
+            }
             if (TryReadSoundVolumeByte(address, out int known) && value == known)
             {
                 continue;
@@ -34,13 +39,9 @@ public sealed partial class EventEngine
         {
             return FieldId >= 72 ? UnsupportedSoundInitializationAliases() : "Native INITSOUND requires an ordinary field";
         }
-        if (operation.Opcode == Jsm.Opcode.MUSICVOL && (Scene.SoundMusicVolume197 is not null || Scene.SoundMusicVolume198 is not null || Scene.MusicChannel108 is not null || Scene.MusicChannel112 is not null))
+        if (operation.Opcode is Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS)
         {
-            return UnsupportedMusicVolume(fiber);
-        }
-        if (operation.Opcode == Jsm.Opcode.MUSICVOLTRANS && (Scene.SoundMusicVolume197 is not null || Scene.SoundMusicVolume198 is not null))
-        {
-            return "Music volume command requires its original channel-to-B197/198 write contract before replacing known sound bytes";
+            return UnsupportedMusicVolume(fiber, operation.Opcode);
         }
         int width = operation.Opcode switch
         {
@@ -93,6 +94,10 @@ public sealed partial class EventEngine
     private void ValidateSoundInitializationCheckpoint(Checkpoint saved)
     {
         SceneEventState scene = saved.Scene;
+        if (scene.PartyBindingMemory is NativePartyBindingMemory memory && (memory.Version != 1 || Enumerable.Range(0, 3).Any(slot => saved.Variables.TryGetValue(194 + slot, out int alias) && alias != memory.At(slot))))
+        {
+            throw new InvalidDataException("Saved native party-binding BYTE authority disagrees with its exact aliases.");
+        }
         foreach (int address in new[] { 197, 198 })
         {
             byte? known = address == 197 ? scene.SoundMusicVolume197 : scene.SoundMusicVolume198;

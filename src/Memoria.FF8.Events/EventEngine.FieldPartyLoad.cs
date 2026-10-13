@@ -237,6 +237,7 @@ public sealed partial class EventEngine
         {
             variables[194 + slot] = load.Bindings[slot];
         }
+        RecordPartyBindingMemory();
         Scene.PartyTrace = load.Trace;
         Scene.NativePlayerPosition = load.PlayerPosition;
         // Native 477C90 clears 1CDBFED during the actual normal field setup.

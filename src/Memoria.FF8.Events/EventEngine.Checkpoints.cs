@@ -49,7 +49,7 @@ public sealed partial class EventEngine
             1, FieldId, programHash, Frame, accumulatedSeconds, randomState, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,
             colorStartFrame, colorEndFrame, colorStart, colorEnd, subtractColor, fadeStartFrame, fadeEndFrame, fadeStart, fadeEnd, backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot)).ToArray(),
-            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.LegacyProgress, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), new Dictionary<int, int>(variables), Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.NativeVariableValues is { Count: > 0 } nativeMemory ? new Dictionary<int, NativeMemoryValue>(nativeMemory) : null);
+            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.LegacyProgress, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), new Dictionary<int, int>(variables), Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.NativeVariableValues is { Count: > 0 } nativeMemory ? new Dictionary<int, NativeMemoryValue>(nativeMemory) : null, services.CharacterVitals);
         return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
     }
 
@@ -79,6 +79,8 @@ public sealed partial class EventEngine
         }
         ValidatePreviousFieldCheckpoint(saved);
         saved.ExamTimer?.Validate();
+        saved.CharacterVitals?.Validate();
+        saved.Scene.ButtonInput?.Validate(saved.Frame);
         if (saved.Dialogues.Select(dialogue => dialogue.Channel).Distinct().Count() != saved.Dialogues.Length || saved.Dialogues.Any(dialogue => (uint)dialogue.Channel >= 8) || saved.CurrentDialogueChannel is int focusedChannel && !saved.Dialogues.Any(dialogue => dialogue.Channel == focusedChannel))
         {
             throw new InvalidDataException("Saved dialogue channels must be distinct original window IDs and contain the focused channel.");
@@ -345,6 +347,10 @@ public sealed partial class EventEngine
         {
             services.SetExamTimer(savedTimer);
         }
+        if (saved.CharacterVitals is NativeCharacterVitals savedVitals)
+        {
+            services.SetCharacterVitals(savedVitals);
+        }
         axisTarget = saved.AxisTarget;
         axisDuration = saved.AxisDuration;
         axisElapsed = saved.AxisElapsed;
@@ -455,5 +461,5 @@ public sealed partial class EventEngine
 
     private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null);
     private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, float Progress, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false);
-    private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, uint RandomState, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, long ColorStartFrame, long ColorEndFrame, Vector3 ColorStart, Vector3 ColorEnd, bool SubtractColor, long FadeStartFrame, long FadeEndFrame, float FadeStart, float FadeEnd, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, Dictionary<int, int> Variables, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<int, NativeMemoryValue>? NativeVariableValues = null);
+    private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, uint RandomState, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, long ColorStartFrame, long ColorEndFrame, Vector3 ColorStart, Vector3 ColorEnd, bool SubtractColor, long FadeStartFrame, long FadeEndFrame, float FadeStart, float FadeEnd, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, Dictionary<int, int> Variables, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<int, NativeMemoryValue>? NativeVariableValues = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null);
 }

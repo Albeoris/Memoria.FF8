@@ -88,7 +88,8 @@ internal static partial class Program
         EventEngine special = Create(Content(), 1);
         ExpectDrawPointFault(special, "SETDRAWPOINT", 7, 1);
         EventEngine retainedAliases = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), variables: new Dictionary<int, int> { [238] = 5 });
-        ExpectDrawPointFault(retainedAliases, "CLEAR", 1);
+        retainedAliases.Step();
+        Require(retainedAliases.LastFault is null && retainedAliases.Capture().GetProperty("Variables").GetProperty("238").GetInt32() == 5, "Native CLEAR changed an alias outside its original256..1279 range.");
 
         byte[] knownContent = Content();
         EventEngine known = Create(knownContent);

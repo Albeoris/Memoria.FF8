@@ -34,6 +34,7 @@ public sealed class GameSession : IEventServices
     public MoviePlaybackState? ReplayMoviePlayback => State.MoviePlayback;
     public NativeWorldControlState? WorldControls => State.WorldControls;
     public NativeExamTimerState? ExamTimer => State.ExamTimer;
+    public NativeCharacterVitals? CharacterVitals => State.CharacterVitals;
     public IReadOnlyDictionary<int, NativeMemoryValue>? NativeVariableValues => State.NativeVariableValues;
     public bool CanStoreNativeVariableValues => true;
     public string? Dialog { get; private set; }
@@ -297,6 +298,21 @@ public sealed class GameSession : IEventServices
         State = State with { ExamTimer = timer };
     }
 
+    public void InitializeNewGameCharacterVitals(NativeCharacterVitals vitals)
+    {
+        if (State.CharacterVitals is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            throw new NotSupportedException("Character initialization requires the untouched authentic New Game before its first engine transaction.");
+        }
+        SetCharacterVitals(vitals);
+    }
+
+    public void SetCharacterVitals(NativeCharacterVitals vitals)
+    {
+        vitals.Validate();
+        State = State with { CharacterVitals = vitals with { Records = vitals.Records.ToArray(), CombatParty = vitals.CombatParty.ToArray() } };
+    }
+
     public void SetNativeVariableValues(Dictionary<int, NativeMemoryValue>? values)
     {
         if (values is not null)
@@ -389,6 +405,19 @@ public sealed class GameSession : IEventServices
                 throw new InvalidDataException("Root and event world-control checkpoints disagree.");
             }
         }
+        if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
+        {
+            NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
+            vitals.Validate();
+            if (state.CharacterVitals is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.CharacterVitals), JsonSerializer.SerializeToElement(vitals)))
+            {
+                throw new InvalidDataException("Root and event character vitals checkpoints disagree.");
+            }
+        }
+        else if (currentVm is not null && state.CharacterVitals is not null)
+        {
+            throw new InvalidDataException("Root character vitals require matching history in the active event checkpoint.");
+        }
         if (currentVm is JsonElement timerVm && timerVm.TryGetProperty("ExamTimer", out JsonElement timerJson) && timerJson.ValueKind != JsonValueKind.Null)
         {
             NativeExamTimerState timer = timerJson.Deserialize<NativeExamTimerState>(JsonOptions) ?? throw new InvalidDataException("Empty event exam timer state.");
@@ -471,6 +500,7 @@ public sealed class GameSession : IEventServices
         state.SavedWorld?.Validate();
         state.WorldControls?.Validate();
         state.ExamTimer?.Validate();
+        state.CharacterVitals?.Validate();
         if (state.NativeVariableValues is not null)
         {
             NativeMemoryValue.Validate(state.NativeVariableValues, state.Variables);

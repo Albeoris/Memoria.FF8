@@ -11,7 +11,8 @@ public enum PlayerActionKind
     Interact,
     Move,
     Wait,
-    SkipMovie
+    SkipMovie,
+    Cancel
 }
 
 public enum PlayerTriggerKind
@@ -85,13 +86,41 @@ public sealed partial class EventEngine
                     accepted = CanConfirmDialogue && CurrentDialogue?.FirstChoice is null && CurrentDialogue?.IsNamePrompt == false;
                     if (accepted)
                     {
+                        QueueConfirmEdge();
                         ConfirmDialogue();
+                    }
+                    else if (CurrentDialogue is null && program is not null && !services.IsMoviePlaying && !transitionRequested)
+                    {
+                        accepted = true;
+                        QueueConfirmEdge();
+                        if (SelectInteractionTarget() is int target)
+                        {
+                            InteractWith(target);
+                        }
+                        Step();
+                        advanced = 1;
+                    }
+                    break;
+                case PlayerActionKind.Cancel:
+                    accepted = CurrentDialogue is { CanConfirm: true } cancelDialogue && (cancelDialogue.CancelChoice is not null || !cancelDialogue.IsNamePrompt && cancelDialogue.FirstChoice is null);
+                    if (accepted)
+                    {
+                        QueueButtonEdge(0x10);
+                        ConfirmDialogue(CurrentDialogue!.CancelChoice);
+                    }
+                    else if (CurrentDialogue is null && program is not null && !services.IsMoviePlaying && !transitionRequested)
+                    {
+                        accepted = true;
+                        QueueButtonEdge(0x10);
+                        Step();
+                        advanced = 1;
                     }
                     break;
                 case PlayerActionKind.Choose:
                     accepted = CurrentDialogue?.FirstChoice is not null;
                     if (accepted)
                     {
+                        QueueConfirmEdge();
                         ConfirmDialogue(action.Value);
                     }
                     break;
@@ -99,11 +128,16 @@ public sealed partial class EventEngine
                     accepted = CurrentDialogue?.IsNamePrompt == true;
                     if (accepted)
                     {
+                        QueueConfirmEdge();
                         ConfirmDialogue(name: action.Text);
                     }
                     break;
                 case PlayerActionKind.Interact:
                     accepted = InteractWith(action.Value);
+                    if (accepted)
+                    {
+                        QueueConfirmEdge();
+                    }
                     break;
                 case PlayerActionKind.Move:
                     if (!float.IsFinite(action.Horizontal) || !float.IsFinite(action.Vertical) || Math.Abs(action.Horizontal) > 1 || Math.Abs(action.Vertical) > 1)

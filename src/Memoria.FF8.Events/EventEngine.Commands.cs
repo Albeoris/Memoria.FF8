@@ -299,13 +299,15 @@ public sealed partial class EventEngine
                 ExecuteSplit(fiber);
                 break;
             case Jsm.Opcode.CLEAR:
-                if (services.NativeVariableValues is { Count: > 0 })
+                if (services.NativeVariableValues is { Count: > 0 } retainedMemory)
                 {
-                    services.SetNativeVariableValues(null);
+                    services.SetNativeVariableValues(retainedMemory.Where(pair => pair.Key < 256 || pair.Key >= 1280).ToDictionary());
                 }
-                variables.Clear();
-                Scene.Members.Clear();
-                Scene.Party.Clear();
+                // Original51D8B0 clears exactly event bytes256..1279, outside party and character records.
+                foreach (int address in variables.Keys.Where(address => address is >= 256 and < 1280).ToArray())
+                {
+                    variables.Remove(address);
+                }
                 break;
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;
@@ -759,6 +761,10 @@ public sealed partial class EventEngine
                 Scene.BackgroundShade = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
                 Scene.BackgroundShades[fiber.BackgroundId] = Scene.BackgroundShade;
                 break;
+            case Jsm.Opcode.KEYON:
+                args = Pop(fiber, 1);
+                fiber.Results[0] = (unchecked((uint)args[0]) & Scene.ButtonInput!.Pressed) != 0 ? 1 : 0;
+                break;
             case Jsm.Opcode.DCOLADD:
             case Jsm.Opcode.DCOLSUB:
                 args = Pop(fiber, 3);
@@ -885,6 +891,7 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 if (!Scene.Party.Contains(args[0]))
                 {
+                    AddCombatPartyCharacter(args[0]);
                     Scene.Party.Add(args[0]);
                 }
                 break;
@@ -893,8 +900,12 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SETPARTY:
                 args = Pop(fiber, 3);
+                SetCombatParty(args);
                 Scene.Party.Clear();
                 Scene.Party.AddRange(args.Where(id => id != 255));
+                break;
+            case Jsm.Opcode.DYING:
+                services.SetCharacterVitals(services.CharacterVitals!.RepairDyingParty());
                 break;
             case Jsm.Opcode.HOLD:
                 args = Pop(fiber, 3);
@@ -957,11 +968,8 @@ public sealed partial class EventEngine
                 args = ExecuteMusicStop(fiber);
                 break;
             case Jsm.Opcode.MUSICVOL:
-                args = ExecuteMusicVolume(fiber);
-                break;
             case Jsm.Opcode.MUSICVOLTRANS:
-                args = Pop(fiber, 3);
-                Scene.MusicVolume = args[2];
+                args = ExecuteMusicVolume(fiber, opcode);
                 break;
             default:
                 throw Fault(fiber, $"Unsupported required opcode {opcode} (parameter {parameter}); no state was fabricated.");

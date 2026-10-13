@@ -41,6 +41,15 @@ public sealed class GameAssets : IDisposable
 
     public string GameDirectory { get; }
     public string? NativeExecutableHash { get; }
+    public NativeCharacterVitals ReadNewGameCharacterVitals()
+    {
+        if (NativeRuntimeProfile is null)
+        {
+            throw new NotSupportedException("Native character initialization requires the proved installed executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeCharacterInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
+    }
     public NativeFieldRuntimeProfile? NativeRuntimeProfile => NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash ? NativeFieldRuntimeProfile.FF8En : null;
 
     public FieldAssets LoadField(int fieldId)

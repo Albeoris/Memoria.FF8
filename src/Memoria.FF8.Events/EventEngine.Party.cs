@@ -1,5 +1,20 @@
 namespace Memoria.FF8.Events;
 
+/// <summary>Proved global save BYTE194..196 writes, independent of the currently allocated field's actor mapping.</summary>
+public sealed record NativePartyBindingMemory(int Version, byte First, byte Second, byte Third)
+{
+    public byte At(int slot)
+    {
+        return slot switch
+        {
+            0 => First,
+            1 => Second,
+            2 => Third,
+            _ => throw new ArgumentOutOfRangeException(nameof(slot))
+        };
+    }
+}
+
 public sealed partial class EventEngine
 {
     private string? UnsupportedPartyQuery(Fiber fiber)
@@ -73,6 +88,12 @@ public sealed partial class EventEngine
             Scene.FieldPartyNativeActorIds.Add(nativeActor);
             variables[194 + slot] = nativeActor;
         }
+        RecordPartyBindingMemory();
+    }
+
+    private void RecordPartyBindingMemory()
+    {
+        Scene.PartyBindingMemory = new NativePartyBindingMemory(1, checked((byte)Scene.FieldPartyNativeActorIds[0]), checked((byte)Scene.FieldPartyNativeActorIds[1]), checked((byte)Scene.FieldPartyNativeActorIds[2]));
     }
 
     private ActorState? ResolvePartyActor(int slot)

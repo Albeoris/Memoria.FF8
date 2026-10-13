@@ -20,8 +20,20 @@ internal sealed partial class GameWorld : IDisposable
     {
         this.session = session;
         assets = new GameAssets(gameDirectory);
+        bool initializedNativeParty = false;
+        if (session.State.CharacterVitals is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+            initializedNativeParty = true;
+        }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session, session.State.Variables);
+        if (initializedNativeParty)
+        {
+            // Native470560 writes field-party DWORD1CFE990=FFFFFF00 after actual New Game.
+            Events.Scene.Party.Add(0);
+            Events.Scene.Members.Add(0);
+        }
         Events.MoviePlayback = () => clock.State;
         Events.MovieSkipRequested += clock.Skip;
         Events.LoadSoundResource = _ => SoundResourceStatus.Muted;

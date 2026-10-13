@@ -29,6 +29,7 @@ public sealed partial class EventEngine
     {
         int[] operands = Pop(fiber, 1);
         int character = unchecked((byte)operands[0]);
+        RemoveCombatPartyCharacter((byte)character);
         int slot = Scene.Party.IndexOf(character);
         if (slot >= 0)
         {
@@ -36,7 +37,7 @@ public sealed partial class EventEngine
             Scene.Party.RemoveAt(slot);
         }
         // Native bindings, actor activity and Members remain unchanged until their own executed commands.
-        // TODO(TD-009): model 52CC50 combat-slot removal, optional 4ACE50 junction reset, 495EF0 stat rebuild and surviving-member HP/status repair when native combat is implemented
+        // TODO(TD-009): exact junction/stat rebuilding remains deferred; authenticated combat slots and zero-HP/status repair are shared with DYING
         return operands;
     }
 }

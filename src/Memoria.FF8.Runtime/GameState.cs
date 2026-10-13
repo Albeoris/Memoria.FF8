@@ -34,6 +34,8 @@ public sealed record GameState
     public NativeWorldControlState? WorldControls { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeExamTimerState? ExamTimer { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeCharacterVitals? CharacterVitals { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<int, NativeMemoryValue>? NativeVariableValues { get; init; }
@@ -73,6 +75,11 @@ public interface IEventServices
         throw new NotSupportedException("Typed uncertain native memory is not implemented by this event service.");
     }
     NativeExamTimerState? ExamTimer => null;
+    NativeCharacterVitals? CharacterVitals => null;
+    void SetCharacterVitals(NativeCharacterVitals vitals)
+    {
+        throw new NotSupportedException("Native character vitals are not implemented by this event service.");
+    }
     void SetExamTimer(NativeExamTimerState timer)
     {
         throw new NotSupportedException("Native exam timer state is not implemented by this event service.");

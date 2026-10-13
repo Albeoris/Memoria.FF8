@@ -28,6 +28,9 @@ public sealed record DialogueWindow(int Channel, int X, int Y, int Width, int He
 public sealed class SceneEventState
 {
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldButtonInput? ButtonInput { get; internal set; }
+    [JsonInclude]
     public bool RandomBattlesEnabled { get; internal set; } = true;
     [JsonInclude]
     public bool SalaryEnabled { get; internal set; } = true;
@@ -122,6 +125,9 @@ public sealed class SceneEventState
     public HashSet<int> Members { get; } = [];
     public List<int> Party { get; } = [];
     public List<int> FieldPartyNativeActorIds { get; } = [];
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativePartyBindingMemory? PartyBindingMemory { get; internal set; }
     [JsonInclude]
     public int NativeActorLayoutVersion { get; internal set; }
     [JsonInclude]

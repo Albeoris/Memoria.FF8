@@ -50,13 +50,27 @@ public sealed partial class EventEngine
             Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.SETLINE or
             Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.BATTLEOFF or Jsm.Opcode.BATTLEON or Jsm.Opcode.SARALYOFF or
             Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or
-            Jsm.Opcode.HOLD or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
+            Jsm.Opcode.HOLD or Jsm.Opcode.KEYON or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
             Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.OFFSETSYNC => true,
         _ => false
     };
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        string? keyOn = UnsupportedKeyOn(fiber, operation);
+        if (keyOn is not null)
+        {
+            return keyOn;
+        }
+        string? characterVitals = UnsupportedCharacterVitals(fiber, operation);
+        if (characterVitals is not null)
+        {
+            return characterVitals;
+        }
+        if (operation.Opcode == Jsm.Opcode.CLEAR && services.NativeVariableValues is { } memory && memory.Any(pair => pair.Key < 256 && pair.Key + pair.Value.Width > 256 || pair.Key < 1280 && pair.Key + pair.Value.Width > 1280))
+        {
+            return "CLEAR partially overlaps an uncertain native scalar; its original byte projection requires a separate contract";
+        }
         string? scalarAccess = UnsupportedNativeScalarAccess(fiber, operation);
         if (scalarAccess is not null)
         {

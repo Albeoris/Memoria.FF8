@@ -142,6 +142,7 @@ public sealed partial class EventEngine
         Scene.MusicStop = previousScene.MusicStop;
         Scene.Members.UnionWith(previousScene.Members);
         Scene.Party.AddRange(previousScene.Party);
+        Scene.PartyBindingMemory = previousScene.PartyBindingMemory;
         Scene.UnlockedTutorials.UnionWith(previousScene.UnlockedTutorials);
         Scene.AcquiredGuardianForces.UnionWith(previousScene.AcquiredGuardianForces);
         Scene.MinimalMenuCompletions.AddRange(previousScene.MinimalMenuCompletions);
@@ -211,6 +212,7 @@ public sealed partial class EventEngine
         ValidatePendingNativeLineCrossings();
         StepNativeTimerBeforeVm();
         Frame++;
+        SampleFieldButtons();
         CompleteNativeBattleReturnBeforeVm();
         if (!defaultsStarted && Scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Allocated } initialization)
         {
