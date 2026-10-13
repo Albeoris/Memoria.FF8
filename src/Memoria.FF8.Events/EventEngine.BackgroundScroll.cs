@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
@@ -131,23 +132,27 @@ public sealed partial class EventEngine
             return "Native CSCROLLP cannot replace unknown actor-scroll center history";
         }
         int[] top = fiber.Stack.ToArray();
-        if (top.Length < 2 || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || (uint)top[1] >= 3 || ResolvePartyActor(top[1]) is null || (short)top[0] < 0)
+        if (top.Length < 2 || (short)top[0] < 0 || (uint)top[1] >= 3 || program is null || NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.PartyBindingMemory is not { Version: 1 })
         {
             return "Native CSCROLLP needs a retained original party actor and supported signed-word duration";
         }
-        byte nativeActor = (byte)Scene.FieldPartyNativeActorIds[top[1]];
-        if (variables.TryGetValue(194 + top[1], out int alias) && (byte)alias != nativeActor)
+        byte nativeActor = Scene.PartyBindingMemory.At(top[1]);
+        if (nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(194 + top[1], out int alias) && alias != nativeActor)
         {
             return "Native CSCROLLP party binding disagrees with its save194 alias";
         }
-        return CanSetPartyBackgroundScroll?.Invoke(top[1], nativeActor, (short)top[0]) == true ? null : "Native CSCROLLP needs a certified projected/clamped zero target and renderer before mutation";
+        return CanSetPartyBackgroundScroll?.Invoke(top[1], nativeActor, (short)top[0]) == true ? null : "Native CSCROLLP needs the actual retained saved-party body, authentic current center and certified dynamic projection before mutation";
     }
 
     private int[] ExecutePartyBackgroundScroll(Fiber fiber)
     {
         int[] args = Pop(fiber, 2);
-        BackgroundScrollPosition previous = TakeBackgroundScrollPosition(0);
-        Scene.BackgroundScrollPositions[0] = previous with { Duration = (short)args[1], NativeActorId = (byte)Scene.FieldPartyNativeActorIds[args[0]], Mode = 2, Status = 0, NativeLinearVersion = 0 };
+        byte nativeActor = Scene.PartyBindingMemory!.At(args[0]);
+        int objectId = Scene.NativeActorObjectIds[nativeActor];
+        int rawObjectId = Enumerable.Range(0, program!.NativeObjects.Count).Single(index => program.NativeObjects[index] == objectId);
+        // 520EF0 samples saved B194+slot once, writes mode2/status0 and
+        // lowWORD duration, preserves current/previous/counter and returns2.
+        BeginNativeActorBackgroundScroll(rawObjectId, objectId, nativeActor, args[0], mode: 2, duration: (short)args[1]);
         return args;
     }
 
@@ -200,15 +205,14 @@ public sealed partial class EventEngine
                 Scene.BackgroundScrollPositions[layer] = state with { X = x, Y = y, Counter = state.Counter == state.Duration ? state.Counter : (short)(state.Counter + 1), Status = state.Counter == state.Duration ? (byte)2 : (byte)1 };
                 continue;
             }
-            if (state.Mode is 2 or 5 && state.Status is 0 or 1)
+            if (state.Mode == 5 && state.Status is 0 or 1)
             {
                 if (state.Status == 0)
                 {
                     state = state with { PreviousX = state.X, PreviousY = state.Y, Counter = 0, Status = 1 };
                 }
-                // Mode2's host certificate proves the projected actor is clamped to zero.
-                int targetX = state.Mode == 2 ? 0 : state.TargetX;
-                int targetY = state.Mode == 2 ? 0 : state.TargetY;
+                int targetX = state.TargetX;
+                int targetY = state.TargetY;
                 short x = (short)FaceCosineInterpolate(state.PreviousX, targetX, state.Duration, state.Counter);
                 short y = (short)FaceCosineInterpolate(state.PreviousY, targetY, state.Duration, state.Counter);
                 Scene.BackgroundScrollPositions[layer] = state with { X = x, Y = y, Counter = state.Counter == state.Duration ? state.Counter : (short)(state.Counter + 1), Status = state.Counter == state.Duration ? (byte)2 : (byte)1 };
@@ -243,7 +247,7 @@ public sealed partial class EventEngine
         {
             return state.Status is 0 or 2 && (state.Status == 0 || state.X == state.TargetX && state.Y == state.TargetY && state.Counter == 0);
         }
-        if (state.Mode is not (2 or 5) || state.Status is not (0 or 1 or 2) || state.Duration < 0 || state.Mode == 2 && (layer != 0 || state.NativeActorId is not byte actor || actor == 0xFF || scene.NativeActorLayoutVersion != 1 || actor >= scene.NativeActorObjectIds.Count))
+        if (state.Mode != 5 || state.Status is not (0 or 1 or 2) || state.Duration < 0)
         {
             return false;
         }
@@ -256,8 +260,8 @@ public sealed partial class EventEngine
             return false;
         }
         int elapsed = state.Status == 2 ? state.Counter : state.Counter - 1;
-        int targetX = state.Mode == 2 ? 0 : state.TargetX;
-        int targetY = state.Mode == 2 ? 0 : state.TargetY;
+        int targetX = state.TargetX;
+        int targetY = state.TargetY;
         return state.X == (short)FaceCosineInterpolate(state.PreviousX, targetX, state.Duration, elapsed) && state.Y == (short)FaceCosineInterpolate(state.PreviousY, targetY, state.Duration, elapsed);
     }
 

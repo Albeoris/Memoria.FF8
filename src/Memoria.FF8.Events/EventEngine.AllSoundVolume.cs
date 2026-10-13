@@ -28,7 +28,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        ValidateSoundVolumeLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
+        ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         if (request.Version != 1 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 0 || request.Volume != (request.RawVolume & 127) || request.DurationMilliseconds != 0 || request.FirstVoice != 0 || request.VoiceCount != 32 || request.BackendStatus != GlobalSoundBackendStatus.Muted)
         {
             throw new InvalidDataException("Saved ALLSEVOL lost its original DWORD, seven-bit volume, immediate duration, voice range or muted backend.");

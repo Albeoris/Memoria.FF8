@@ -30,7 +30,7 @@ public sealed partial class EventEngine
             return;
         }
         byte duration = unchecked((byte)request.RawDuration);
-        ValidateSoundVolumeLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
+        ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         int milliseconds = 10 * duration;
         int doubled = unchecked(2 * request.RawVolume);
         if (request.Version != 1 || request.FieldId < 72 || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 0 || request.DurationByte != duration || request.DurationMilliseconds != (milliseconds < 50 ? 0 : milliseconds) || request.DoubledVolume != doubled || request.Volume != (doubled & 127) || request.FirstVoice != 1 || request.VoiceCount != 29 || request.BackendStatus != GlobalSoundBackendStatus.Muted)

@@ -397,8 +397,16 @@ public sealed partial class EventEngine
                 actor.Y = args[1];
                 actor.Z = args[2];
                 actor.WalkmeshTriangle = parameter;
-                actor.MovementTarget = null;
-                actor.NativeScriptMovement = null;
+                if (actor.NativeScriptMovement is { } positionedMovement)
+                {
+                    // Native51D780 changes400/404/408/506 only. Preserve
+                    // mode572, target436..444, completion542 and physical flags.
+                    actor.NativeScriptMovement = positionedMovement with { FixedX = args[0] << 12, FixedY = args[1] << 12, FixedZ = args[2] << 12, Triangle = actor.WalkmeshTriangle };
+                }
+                else
+                {
+                    actor.MovementTarget = null;
+                }
                 actor.NativeJump = null;
                 RecordNativeScriptPlacement(actor);
                 break;
@@ -408,7 +416,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.DIR:
                 args = Pop(fiber, 1);
                 actor.Direction = args[0] & 255;
-                if (actor.NativeScriptMovement is { } previousMovement && (!previousMovement.Active || previousMovement.HoldsFacing))
+                if (actor.NativeScriptMovement is { } previousMovement && (!previousMovement.Active || previousMovement.Suspended || NativeMoveFacingHold(previousMovement) != 0))
                 {
                     actor.NativeScriptMovement = previousMovement with { FacingDirection = (byte)actor.Direction };
                 }

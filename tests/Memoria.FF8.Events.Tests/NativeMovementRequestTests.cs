@@ -96,6 +96,7 @@ internal static partial class Program
                 }
             }
         }
+        NativeSingleBackupOverwriteContract();
         NativeTurnMoveCallbackOrderContract();
         NativeHaltedModuleRequestContract();
         Console.WriteLine("Native REQ slot2/MOVE above held default MOVEA: single target/stop/speed backup, independent upper operands/results, current-position RET8 restore, MSPEED current/base distinction, HALT occupied slot and corrupt-backup atomic rejection passed.");

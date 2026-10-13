@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,60 +9,75 @@ namespace Memoria.FF8.App.Tests;
 public sealed class PartyScrollRenderTests
 {
     [Fact]
-    public void ReachedPartyCameraUsesOriginalActorOrderAndCertifiedCosinePhases()
+    public void AuthenticWithdrawalPrefixRestoresSavedPartyCosineStatePixelsAndNextWait()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
-        Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(AppContext.BaseDirectory);
         while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
         {
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        var session = new GameSession(GameSession.Load(source));
-        using var world = new GameWorld(session, directory);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic withdrawal journal and installed field corpus are required.");
+        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
+        GameSession session = new(current);
+        using GameWorld world = new(session, directory, persistReplayJournal: false);
         world.EnsureField();
-        BackgroundScrollPosition? pending = null;
+        Assert.Equal(322, world.Field!.Id);
+        BackgroundScrollPosition start = world.Events.Scene.BackgroundScrollPositions[0];
+        Assert.Equal(((short)0, (short)-220), (start.X, start.Y));
+        Assert.True(BackgroundScrollCertificate.CanSetPartyPosition(world.Field, world.Events.Scene, world.Events.Actors, 0, 0, 10));
+        int[]? operands = null;
         world.Events.CommandExecuted += command =>
         {
             if (command.Name == "CSCROLLP")
             {
-                pending = world.Events.Scene.BackgroundScrollPositions[0];
+                operands = command.Arguments.ToArray();
             }
         };
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         Assert.Null(world.Events.LastFault);
-        Assert.Equal(8, world.Events.Frame);
-        Assert.NotNull(pending);
-        Assert.Equal((byte)2, pending.Mode);
-        Assert.Equal((short)15, pending.Duration);
-        Assert.Equal((byte)0, pending.NativeActorId);
-        BackgroundScrollPosition final = world.Events.Scene.BackgroundScrollPositions[0];
-        Assert.Equal((byte)3, final.Mode);
-        Assert.Equal((byte)2, final.Status);
-        Assert.Equal((short)224, final.Y);
-        Assert.Equal((short)15, final.Duration);
-        Assert.Equal((byte)0, final.NativeActorId);
-        byte[] originalPixels = world.Render(TimeSpan.Zero).ToArray();
-        using var resumed = new GameWorld(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
-        resumed.EnsureField();
-        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), resumed.Events.Capture()));
-        Assert.Equal(originalPixels, resumed.Render(TimeSpan.Zero));
-        Assert.False(BackgroundScrollCertificate.CanSetPartyPosition(world.Field!, world.Events.Scene, 0, 0, 14));
-        Assert.False(BackgroundScrollCertificate.CanSetPartyPosition(world.Field!, world.Events.Scene, 1, 1, 15));
-        // Isolated renderer-phase checks, not additional player progression.
-        for (short elapsed = 0; elapsed <= 15; elapsed++)
+        Assert.NotNull(operands);
+        Assert.Equal([0, 10], operands);
+        NativeActorBackgroundScroll curve = Assert.IsType<NativeActorBackgroundScroll>(world.Events.Scene.ActorBackgroundScroll);
+        Assert.Equal((byte)2, curve.Mode);
+        Assert.Equal(0, curve.PartySlot);
+        Assert.Equal(world.Events.Scene.PartyBindingMemory!.First, curve.NativeActorId);
+        Assert.Equal(curve.ObjectId, world.Events.Scene.NativeActorObjectIds[curve.NativeActorId]);
+        Assert.Equal((short)10, curve.Duration);
+        Assert.Equal((short)1, curve.Counter);
+        Assert.Equal((byte)1, curve.Status);
+        Assert.Equal((start.X, start.Y), (curve.X, curve.Y));
+        Assert.Equal((start.X, start.Y), (curve.PreviousX, curve.PreviousY));
+        Assert.NotEqual(((short)0, (short)0), (curve.ProjectedTargetX!.Value, curve.ProjectedTargetY!.Value));
+        Assert.Equal((curve.ProjectedTargetX.Value, curve.ProjectedTargetY.Value), ActorBackgroundScrollCertificate.Resolve(world.Field, world.Events.Scene, world.Events.Actors, curve.NativeActorId)!.Value);
+        Assert.Equal(new Vector2(0, 220), ActorBackgroundScrollCertificate.Prepare(world.Field, world.Events.Scene)!.ActorOffset);
+
+        JsonElement entry = world.Events.Capture();
+        foreach ((string name, int value) in new[] { ("PartySlot", 3), ("ProjectedTargetY", curve.ProjectedTargetY.Value + 1), ("Counter", 2) })
         {
-            short y = (short)NativeCosineInterpolation.Interpolate(224, 0, 15, elapsed);
-            world.Events.Scene.BackgroundScrollPositions[0] = final with { Mode = 2, Status = elapsed == 15 ? (byte)2 : (byte)1, Counter = elapsed == 15 ? elapsed : (short)(elapsed + 1), PreviousY = 224, Y = y };
-            BackgroundScrollFrame frame = BackgroundScrollCertificate.Prepare(world.Field!, world.Events.Scene);
-            Assert.Equal(new Vector2(0, -y), frame.ActorOffset);
-            Assert.Equal(Vector2.Zero, frame.LayerOffsets.GetValueOrDefault(1));
-            _ = world.Render(TimeSpan.Zero);
+            JsonNode corrupt = JsonNode.Parse(entry.GetRawText())!;
+            corrupt["Scene"]!["ActorBackgroundScroll"]![name] = value;
+            Assert.Throws<InvalidDataException>(() => world.Events.Restore(JsonSerializer.SerializeToElement(corrupt)));
+            Assert.True(JsonElement.DeepEquals(entry, world.Events.Capture()));
         }
-        world.Events.Scene.BackgroundScrollPositions[0] = final with { Mode = 2, Status = 1, Counter = 4, PreviousY = 224, Y = 999 };
-        Assert.False(BackgroundScrollCertificate.Supports(world.Field!, world.Events.Scene));
-        world.Events.Scene.BackgroundScrollPositions[0] = final with { Mode = 2, Status = 1, Counter = 4, PreviousY = 224, Y = 123 };
-        Assert.False(BackgroundScrollCertificate.Supports(world.Field!, world.Events.Scene));
+        GameState saved = session.State with { EventState = entry };
+        GameSession resumedSession = new(saved);
+        using GameWorld restored = new(resumedSession, directory, persistReplayJournal: false);
+        restored.EnsureField();
+        AssertStateAndPixels();
+        Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), restored.Apply(new PlayerAction(PlayerActionKind.Wait)));
+        Assert.Null(world.Events.LastFault);
+        AssertStateAndPixels();
+        NativeActorBackgroundScroll next = world.Events.Scene.ActorBackgroundScroll!;
+        Assert.True(NativeActorScrollPhase.IsValid(next));
+        Assert.Equal((next.ProjectedTargetX!.Value, next.ProjectedTargetY!.Value), ActorBackgroundScrollCertificate.Resolve(world.Field, world.Events.Scene, world.Events.Actors, next.NativeActorId)!.Value);
+
+        void AssertStateAndPixels()
+        {
+            Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { EventState = world.Events.Capture(), ReplayJournal = null }), JsonSerializer.SerializeToElement(resumedSession.State with { EventState = restored.Events.Capture(), ReplayJournal = null })));
+            Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
+        }
     }
 }

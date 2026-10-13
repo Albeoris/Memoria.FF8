@@ -86,6 +86,10 @@ public sealed partial class EventEngine
         {
             return false;
         }
+        if (IsNativeActorRequest(objectId) && Scene.NativeActorObjectIds.Contains(objectId))
+        {
+            return TalkTo(objectId);
+        }
         // Scoped direct native slot7 translation. Other fields retain their
         // bounded legacy script scheduling until their action dispatch is proved.
         if (FieldId == 129 && programHash == Native129TalkProgramHash && objectId is 10 or 11)

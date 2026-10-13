@@ -142,7 +142,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
         Events.CanSetNativeActorLinearBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
-        Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, partySlot, nativeActorId, duration);
+        Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, Events.Actors, partySlot, nativeActorId, duration);
         Events.CanSetCosineBackgroundScroll = (layer, x, y, duration) => BackgroundScrollCertificate.CanSetCosinePosition(next, Events.Scene, layer, x, y, duration);
         Events.ResolveNativeNormalBackgroundScrollCenter = () => DirectBackgroundScrollCertificate.ResolveNormalCenter(next, Events.Scene, Events.Actors);
         Events.ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(next.Walkmesh, x, y, z);

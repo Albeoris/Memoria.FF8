@@ -14,7 +14,7 @@ public static class NativeActorScrollPhase
         {
             return state.Status is 0 or 1 && (state.Status == 0 || state.X.HasValue) && state.Duration == 0 && state.Counter == 0 && state.ProjectedTargetX is null;
         }
-        if (state.Mode is not (1 or 2) || state.Mode == 2 && state.PartySlot is not null || state.Duration < 0 || state.Status is not (0 or 1 or 2) || state.X is not short x || state.Y is not short y)
+        if (state.Mode is not (1 or 2) || state.Duration < 0 || state.Status is not (0 or 1 or 2) || state.X is not short x || state.Y is not short y)
         {
             return false;
         }

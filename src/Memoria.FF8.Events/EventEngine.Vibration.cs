@@ -30,7 +30,7 @@ public static class NativeVibrationPatternTable
     }
 }
 
-public sealed record NativeVibrationRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawPattern, int RawPriority, int EffectivePriority, string ExecutableHash, string TableHash, int PatternOffset, NativeVibrationReturnDomain ReturnDomain, NativeVibrationBackendStatus BackendStatus)
+public sealed record NativeVibrationRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawPattern, int RawPriority, int EffectivePriority, string ExecutableHash, string TableHash, int PatternOffset, NativeVibrationReturnDomain ReturnDomain, NativeVibrationBackendStatus BackendStatus, [property: JsonRequired] long LoadEpoch)
 {
     [JsonIgnore]
     public IReadOnlyList<int> PossibleNativeReturns => [-1, 0];
@@ -66,7 +66,7 @@ public sealed partial class EventEngine
         // 51F620 passes the full DWORD priority|1 to4A29A0. Its zero
         // pointer entry returns-1, or an unavailable queue returns0 first.
         // Both branches leave the original queue and hardware unchanged.
-        Scene.VibrationRequest = new NativeVibrationRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], args[1], args[1] | 1, NativeRuntimeProfile!.ExecutableHash, NativeVibrationPatternTable.Hash, NativeVibrationPatternTable.Offset(args[0]), NativeVibrationReturnDomain.MissingPatternOrNoQueue, NativeVibrationBackendStatus.Muted);
+        Scene.VibrationRequest = new NativeVibrationRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], args[1], args[1] | 1, NativeRuntimeProfile!.ExecutableHash, NativeVibrationPatternTable.Hash, NativeVibrationPatternTable.Offset(args[0]), NativeVibrationReturnDomain.MissingPatternOrNoQueue, NativeVibrationBackendStatus.Muted, Scene.AudioLoadEpoch);
         return args;
     }
 
@@ -80,10 +80,11 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved SETVIBRATE request lost its original pattern, DWORD operands, native return domain or muted backend.");
         }
+        ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         if (request.FieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(actor => actor.Index == request.ObjectId)?.Scripts.FirstOrDefault(candidate => candidate.Id == request.ScriptId);
-            if (request.Frame > saved.Frame || script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.SETVIBRATE)
+            if (script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.SETVIBRATE)
             {
                 throw new InvalidDataException("Saved SETVIBRATE request does not identify its executed original instruction.");
             }

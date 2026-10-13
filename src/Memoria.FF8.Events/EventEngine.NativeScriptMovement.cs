@@ -23,10 +23,12 @@ public sealed record NativeScriptGroundProbe(int FixedX, int FixedY, int NativeH
 public sealed record NativeScriptMovementProposal(int FixedX, int FixedY, byte Direction, IReadOnlyList<NativeScriptGroundProbe> FanProbes);
 public sealed record NativeScriptMovementResult(NativeScriptMovementStatus Status, int FixedX, int FixedY, int FixedZ, int Triangle, byte Direction, IReadOnlyList<NativeScriptMovementProposal> Proposals);
 /// <summary>Active movement owns the current body direction; an inactive completed record retains its last movement body direction and raw XYZ while later turns independently change actor577.</summary>
-public sealed record NativeScriptMovementState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int TargetX, int TargetY, int TargetZ, short Speed, short StopDistance, byte Completion, byte MovementDirection, byte FacingDirection, short TurnAccumulator, byte DirectionLimit, bool Asynchronous = false, bool AutomaticAnimation = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TargetNativeObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ResetAnimationOnCompletion = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Cancelled = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HoldsFacing = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Suspended = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AnimationFlag40000 = null);
+public sealed record NativeScriptMovementState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int TargetX, int TargetY, int TargetZ, short Speed, short StopDistance, byte Completion, byte MovementDirection, byte FacingDirection, short TurnAccumulator, byte DirectionLimit, bool Asynchronous = false, bool AutomaticAnimation = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TargetNativeObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ResetAnimationOnCompletion = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Cancelled = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HoldsFacing = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Suspended = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AnimationFlag40000 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? FacingHold576 = null);
 
 public sealed partial class EventEngine
 {
+    private static byte NativeMoveFacingHold(NativeScriptMovementState movement) => movement.FacingHold576 ?? (movement.HoldsFacing ? (byte)1 : (byte)0);
+
     public Func<ActorState, bool>? CanUseNativeScriptMove { get; set; }
     public Func<NativeScriptDirectionQuery, NativeScriptDirectionResult?>? ResolveNativeScriptDirection { get; set; }
     public Func<NativeScriptMovementQuery, NativeScriptMovementResult?>? ResolveNativeScriptMovement { get; set; }
@@ -43,15 +45,25 @@ public sealed partial class EventEngine
         {
             return "Native held-facing MOVE requires known native movement/facing-hold bytes before issue";
         }
-        if (program!.Operations[fiber.Position].Opcode is Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE && actor.NativeMotionAuthority is not { Version: 1, FacingHold: 0 })
+        if (program!.Operations[fiber.Position].Opcode is Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE && actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 })
         {
-            return "Native RFMOVE requires known native motion scalars and cleared facing hold before its asynchronous issue";
+            return "Native RFMOVE requires known native motion scalars and preserved facing hold before its asynchronous issue";
         }
-        if (actor.NativeMotionAuthority is { Version: not 1 } || !holdsFacing && actor.NativeMotionAuthority is { FacingHold: not 0 })
+        if (actor.NativeMotionAuthority is { Version: not 1 } or { FacingHold: > 1 })
         {
-            return "Native MOVE requires schema1 motion authority with facing hold576 cleared";
+            return "Native MOVE requires schema1 motion authority and known facing hold576";
         }
         bool replacingRequest = IsNativeMovementRequestIssue(actor, fiber);
+        if (fiber.NativeMoveOperation is int issued)
+        {
+            bool actorTargetIssued = program.Operations[issued].Opcode == Jsm.Opcode.MOVEA;
+            NativeScriptMovementState? physical = actor.NativeScriptMovement;
+            if (issued != fiber.Position || physical is null || physical.Suspended || physical.Asynchronous || !physical.Active && physical.Completion != 2 || CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || ReadNativeScriptPosition(actor) is null || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || actorTargetIssued && (fiber.Stack.Count == 0 || fiber.NativeMoveTarget != (int)fiber.Stack.Peek() || ReadNativeActorMoveTarget(fiber.Stack.Peek()) is null))
+            {
+                return "Issued native MOVE requires its held instruction, actual shared mode1 body and remaining target operand";
+            }
+            return null;
+        }
         if (!replacingRequest && actor.NativeScriptMovement is { Active: true, Asynchronous: false } running)
         {
             if (running.TargetNativeObjectId is int targetId && (fiber.Stack.Count == 0 || fiber.Stack.Peek() != targetId || ReadNativeActorMoveTarget(targetId) is null))
@@ -123,13 +135,13 @@ public sealed partial class EventEngine
         {
             int[] actorArgs = fiber.Stack.Take(2).Reverse().ToArray();
             FieldFixedPosition target = ReadNativeActorMoveTarget(actorArgs[0]) ?? throw new NotSupportedException("Native MOVEA target has no preserved raw placement.");
-            return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, target.X, target.Y, target.Z, (short)actor.MovementSpeed, (short)actorArgs[1], 0, movementDirection, (byte)actor.Direction, 0, actor.MovementDirectionLimit, Asynchronous: opcode == Jsm.Opcode.RMOVEA, TargetNativeObjectId: actorArgs[0]);
+            return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, target.X, target.Y, target.Z, (short)actor.MovementSpeed, (short)actorArgs[1], 0, movementDirection, (byte)actor.Direction, 0, actor.MovementDirectionLimit, Asynchronous: opcode == Jsm.Opcode.RMOVEA, TargetNativeObjectId: actorArgs[0], FacingHold576: actor.NativeMotionAuthority?.FacingHold == 1 ? (byte?)1 : null);
         }
         int[] args = fiber.Stack.Take(4).Reverse().ToArray();
         bool holdsFacing = opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE;
         bool automaticAnimation = opcode is not (Jsm.Opcode.RFMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE);
-        bool? inheritedAnimation = !automaticAnimation && actor.NativeScriptMovement is { } previous && (previous.Active || previous.Cancelled) && (previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation) ? true : null;
-        return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, args[0] << 12, args[1] << 12, args[2] << 12, (short)actor.MovementSpeed, (short)args[3], 0, movementDirection, (byte)actor.Direction, 0, holdsFacing ? (byte)0 : actor.MovementDirectionLimit, opcode is Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.RCMOVE, automaticAnimation, ResetAnimationOnCompletion: inheritedAnimation, HoldsFacing: holdsFacing);
+        bool? inheritedAnimation = !automaticAnimation && actor.NativeScriptMovement is { } previous && (previous.Active || previous.Cancelled) && (previous.AnimationFlag40000 ?? previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation) ? true : null;
+        return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, args[0] << 12, args[1] << 12, args[2] << 12, (short)actor.MovementSpeed, (short)args[3], 0, movementDirection, (byte)actor.Direction, 0, holdsFacing ? (byte)0 : actor.MovementDirectionLimit, opcode is Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.RCMOVE, automaticAnimation, ResetAnimationOnCompletion: inheritedAnimation, HoldsFacing: holdsFacing, FacingHold576: !holdsFacing && actor.NativeMotionAuthority?.FacingHold == 1 ? (byte?)1 : null);
     }
 
     private FieldFixedPosition? ReadNativeActorMoveTarget(int nativeObjectId)
@@ -146,7 +158,18 @@ public sealed partial class EventEngine
     {
         ActorState actor = actors[fiber.ObjectId];
         int[] operands = [];
-        if (IsNativeMovementRequestIssue(actor, fiber) || actor.NativeScriptMovement is not { Active: true, Asynchronous: false })
+        if (fiber.NativeMoveOperation is int issued && actor.NativeScriptMovement is { } shared && (shared.FiberSequence != fiber.Sequence || shared.Operation != issued))
+        {
+            // The native373 issued bit belongs to the VM slot, independently of
+            // the shared572/542 body and its single physical backup. Return4
+            // preserves that bit even after another request consumed the backup.
+            Jsm.Opcode opcode = program!.Operations[issued].Opcode;
+            bool held = opcode == Jsm.Opcode.CMOVE;
+            bool automatic = opcode is Jsm.Opcode.MOVE or Jsm.Opcode.MOVEA;
+            int? target = opcode == Jsm.Opcode.MOVEA ? (int)fiber.Stack.Peek() : null;
+            actor.NativeScriptMovement = shared with { FiberSequence = fiber.Sequence, ScriptId = fiber.Script.Id, Operation = issued, Asynchronous = false, AutomaticAnimation = automatic, TargetNativeObjectId = target, HoldsFacing = held, ResetAnimationOnCompletion = null, AnimationFlag40000 = shared.AnimationFlag40000 ?? (shared.Active && (shared.ResetAnimationOnCompletion ?? shared.AutomaticAnimation)), FacingHold576 = actor.NativeMotionAuthority!.FacingHold == (held ? 1 : 0) ? null : actor.NativeMotionAuthority.FacingHold };
+        }
+        if (fiber.NativeMoveOperation is null)
         {
             actor.NativeScriptMovement = CreateNativeScriptMove(fiber, true);
             actor.NativeJump = null;
@@ -171,7 +194,7 @@ public sealed partial class EventEngine
             actor.MovementFlags = actor.NativeScriptMovement.StopDistance;
             actor.MovementIgnoresWalkmesh = false;
         }
-        if (actor.NativeScriptMovement.Asynchronous)
+        if (actor.NativeScriptMovement!.Asynchronous)
         {
             // Native524550 return3 advances PC and yields without waiting for542.
             WaitFrames(fiber, 1);
@@ -187,7 +210,9 @@ public sealed partial class EventEngine
             {
                 Pop(fiber, 1);
             }
-            actor.NativeScriptMovement = actor.NativeScriptMovement with { Active = false };
+            actor.NativeScriptMovement = actor.NativeScriptMovement with { Active = false, AnimationFlag40000 = false };
+            fiber.NativeMoveOperation = null;
+            fiber.NativeMoveTarget = null;
             actor.NativeMotionAuthority = new NativeMotionAuthority(1, actor.NativeScriptMovement.MovementDirection, 0);
             actor.MovementTarget = null;
             return operands;
@@ -199,12 +224,15 @@ public sealed partial class EventEngine
             actor.MovementTarget = new Vector3(target.X / 4096f, target.Y / 4096f, target.Z / 4096f);
         }
         fiber.Position--;
+        fiber.NativeMoveOperation = fiber.Position;
+        fiber.NativeMoveTarget = actor.NativeScriptMovement.TargetNativeObjectId;
         fiber.WaitReason = WaitReason.NativeScriptMovement;
         return operands;
     }
 
     private void CompleteNativeAsyncMovement(ActorState actor)
     {
+        CompleteNativeJumpAsyncMovement(actor);
         // Native529FF0 consumes flag20000/completion542 after this actor's VM.
         // RFMOVE preserves animation; RMOVE additionally carries flag40000.
         if (actor.NativeScriptMovement is { Active: true, Asynchronous: true, Completion: 2 } completed)
@@ -220,13 +248,13 @@ public sealed partial class EventEngine
 
     private NativeScriptMovementState PrepareNativeScriptStep(ActorState actor, NativeScriptMovementState state, bool issuing = false)
     {
-        byte held = state.HoldsFacing ? (byte)1 : (byte)0;
+        byte held = NativeMoveFacingHold(state);
         bool resettingHold = issuing && state.HoldsFacing;
         if (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || !resettingHold && state.DirectionLimit != actor.MovementDirectionLimit || state.Speed != actor.MovementSpeed || actor.NativeMotionAuthority is { Version: not 1 } || !resettingHold && actor.NativeMotionAuthority is { } authority && authority.FacingHold != held)
         {
             throw new NotSupportedException("Native scripted MOVE lost its certified actor, direction limit or speed; original substep preserved.");
         }
-        NativeScriptDirectionQuery directionQuery = new(actor.ObjectId, state.FixedX, state.FixedY, state.TargetX, state.TargetY, state.Speed, state.StopDistance, (ushort)actor.PushRadius, state.MovementDirection, state.FacingDirection, state.TurnAccumulator, state.DirectionLimit, state.HoldsFacing);
+        NativeScriptDirectionQuery directionQuery = new(actor.ObjectId, state.FixedX, state.FixedY, state.TargetX, state.TargetY, state.Speed, state.StopDistance, (ushort)actor.PushRadius, state.MovementDirection, state.FacingDirection, state.TurnAccumulator, state.DirectionLimit, held != 0);
         NativeScriptDirectionResult direction = ResolveNativeScriptDirection(directionQuery) ?? throw new NotSupportedException("Native scripted MOVE direction/stop proposal is outside its proved bounds.");
         if (!Enum.IsDefined(direction.Status) || direction.Status != NativeScriptDirectionStatus.Snapped && (direction.FixedX != state.FixedX || direction.FixedY != state.FixedY) || direction.Status == NativeScriptDirectionStatus.Snapped && (direction.FixedX != state.TargetX || direction.FixedY != state.TargetY) || direction.Status != NativeScriptDirectionStatus.Moving && (direction.Direction != state.MovementDirection || direction.TurnAccumulator != state.TurnAccumulator))
         {
@@ -264,7 +292,7 @@ public sealed partial class EventEngine
                 }
             }
         }
-        return state with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Triangle = movement.Triangle, MovementDirection = movement.Direction, FacingDirection = state.HoldsFacing ? state.FacingDirection : movement.Direction, TurnAccumulator = direction.TurnAccumulator, Completion = 1 };
+        return state with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Triangle = movement.Triangle, MovementDirection = movement.Direction, FacingDirection = held != 0 ? state.FacingDirection : movement.Direction, TurnAccumulator = direction.TurnAccumulator, Completion = 1 };
     }
 
     private void EnsureNativeScriptFanClear(ActorState moving, NativeScriptGroundProbe probe)
@@ -351,7 +379,7 @@ public sealed partial class EventEngine
                 throw new EventScriptException($"Field{FieldId} native MOVE{current.Operation}: {exception.Message}", exception);
             }
             actor.NativeScriptMovement = next;
-            actor.NativeMotionAuthority = new NativeMotionAuthority(1, next.MovementDirection, next.HoldsFacing ? (byte)1 : (byte)0);
+            actor.NativeMotionAuthority = new NativeMotionAuthority(1, next.MovementDirection, NativeMoveFacingHold(next));
             actor.X = next.FixedX / 4096f;
             actor.Y = next.FixedY / 4096f;
             actor.Z = next.FixedZ / 4096f;

@@ -402,7 +402,30 @@ public sealed partial class EventEngine
         {
             services.MarkReplayUnavailable("A direct talk request bypassed the engine interaction journal.");
         }
-        Queue(objectId, obj.Scripts[2].Id, 1, false);
+        if (IsNativeActorRequest(objectId) && Scene.NativeActorObjectIds.Contains(objectId))
+        {
+            if (RequestPriorityOccupied(objectId, 7))
+            {
+                return false;
+            }
+            ActorState actor = actors[objectId];
+            if (actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true } || actor.NativeJump is { Active: true })
+            {
+                throw new NotSupportedException("Native talk action requires proved body-mode suspension; original request preserved.");
+            }
+            string? suspension = UnsupportedNativeMovementRequest(actor, 7, obj.Scripts[2].Id);
+            if (suspension is not null)
+            {
+                throw new NotSupportedException(suspension);
+            }
+            Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
+            action.NativeActorSlot = 7;
+            SuspendNativeMovementForRequest(actor, action);
+        }
+        else
+        {
+            Queue(objectId, obj.Scripts[2].Id, 1, false);
+        }
         return true;
     }
 
@@ -667,6 +690,8 @@ public sealed partial class EventEngine
         public int SoundResourceId;
         public byte? NativeDoorSlot;
         public byte? NativeActorSlot;
+        public int? NativeMoveOperation;
+        public int? NativeMoveTarget;
     }
 
     private bool WaitReady(Fiber fiber)

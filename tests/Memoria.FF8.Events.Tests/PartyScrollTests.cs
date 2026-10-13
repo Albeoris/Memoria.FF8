@@ -1,7 +1,6 @@
-using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
-using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -11,83 +10,90 @@ internal static partial class Program
 {
     private static void NativePartyScrollAndBoundary(string gameDirectory)
     {
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 65551), (Jsm.Opcode.CSCROLLP, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(8), 1);
-        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(12), 2);
-        BinaryPrimitives.WriteUInt16LittleEndian(program.AsSpan(14), 11);
-        EventEngine CreateSynthetic()
-        {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { CanSetPartyBackgroundScroll = (slot, actor, duration) => slot == 0 && actor == 0 && duration == 15 };
-            engine.LoadField(100, program, []);
-            engine.Step();
-            engine.Scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
-            engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 224, 0, 224, 0, 0, 0, 3, 2);
-            return engine;
-        }
-        EventEngine phase = CreateSynthetic();
-        phase.Step();
-        BackgroundScrollPosition initial = phase.Scene.BackgroundScrollPositions[0];
-        Require(initial.Mode == 2 && initial.Status == 1 && initial.Counter == 1 && initial.Duration == 15 && initial.NativeActorId == 0 && initial.Y == 224 && initial.PreviousY == 224 && initial.TargetY == 224 && phase.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 9, "CSCROLLP lost lowWORD duration, unused target, dense actor, entry phase or immediate continuation.");
-        EventEngine independent = CreateSynthetic();
-        independent.Restore(phase.Capture());
-        for (int elapsed = 1; elapsed <= 15; elapsed++)
-        {
-            phase.Step();
-            independent.Step();
-            BackgroundScrollPosition state = phase.Scene.BackgroundScrollPositions[0];
-            Require(state.Y == NativeCosineInterpolation.Interpolate(224, 0, 15, elapsed) && state.Counter == Math.Min(elapsed + 1, 15) && state.Status == (elapsed == 15 ? 2 : 1) && JsonElement.DeepEquals(phase.Capture(), independent.Capture()), "Cosine party scroll lost native same-update phase, completion or independent midphase restore.");
-        }
-        Require(phase.Scene.BackgroundScrollPositions[0].Y == 0 && phase.Scene.BackgroundScrollPositions[0].Counter == 15, "CSCROLLP did not complete after counter0 through15 inclusive.");
-        EventEngine refused = CreateSynthetic();
-        refused.CanSetPartyBackgroundScroll = (_, _, _) => false;
-        try
-        {
-            refused.Step();
-            throw new InvalidOperationException("CSCROLLP ignored a missing projection/renderer certificate.");
-        }
-        catch (EventScriptException) when (refused.LastFault?.Opcode == "CSCROLLP")
-        {
-        }
-        JsonElement refusedFiber = refused.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        Require(refusedFiber.GetProperty("Position").GetInt32() == 5 && refusedFiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([65551, 0]) && refused.Scene.BackgroundScrollPositions[0].Mode == 3, "Refused CSCROLLP changed original PC, stack or scroll state.");
+        NativePartyCosineScrollContract();
+    }
 
-        using GameAssets assets = new(gameDirectory);
-        FieldAssets field = assets.LoadField(172);
-        EventEngine CreateActual()
+    private static void NativePartyCosineScrollContract()
+    {
+        EventEngine Create(int slot = 0, int duration = 65540, bool certificate = true, bool knownStart = true)
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine engine = new(session, session.State.Variables)
-            {
-                AnimationFrameCount = field.GetAnimationFrameCount,
-                LoadSoundResource = _ => SoundResourceStatus.Muted,
-                ResolveGlobalSoundResource = MutedGlobalSample,
-                ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(field.Walkmesh, triangle, x, y),
-                ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z),
-                CanSetPartyBackgroundScroll = (slot, actor, duration) => slot == 0 && actor == 0 && duration == 15,
-                CanSetBackgroundScrollPosition = (layer, x, y) => layer == 0 && x == 0 && y is 0 or 224
-            };
-            engine.LoadField(172, field.Jsm, field.Messages, session.State.FieldArrival);
-            engine.Restore(session.State.EventState!.Value);
+            (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] curve = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.CSCROLLP, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] second = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
+            GameSession session = new(new GameState());
+            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1 };
+            engine.ResolveNativeNormalBackgroundScrollCenter = () => knownStart ? ((short)40, (short)-80) : null;
+            engine.ResolveNativeActorScrollCenter = actor => actor < engine.Scene.NativeActorObjectIds.Count ? ((short)(100 * actor + engine.Frame), (short)-engine.Frame) : null;
+            engine.CanSetPartyBackgroundScroll = (partySlot, actor, ticks) => certificate && ticks >= 0 && engine.Scene.NormalBackgroundScrollCenter is not null && engine.Scene.PartyBindingMemory?.At(partySlot) == actor;
+            engine.CanRestoreNativeActorScroll = (scene, actors) => scene.ActorBackgroundScroll is NativeActorBackgroundScroll state && actors.Any(actor => actor.ObjectId == state.ObjectId && actor.Active);
+            engine.LoadField(600, SyntheticObjects([1, 16 << 7], [init, curve, second]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return engine;
         }
-        EventEngine actual = CreateActual();
-        EventEngine retry = CreateActual();
-        bool transient = false;
-        actual.CommandExecuted += command =>
+
+        EventEngine live = Create();
+        NativeActorBackgroundScroll? pending = null;
+        live.CommandExecuted += command =>
         {
-            if (command.Name == "CSCROLLP")
+            if (command.Name == nameof(Jsm.Opcode.CSCROLLP))
             {
-                BackgroundScrollPosition pending = actual.Scene.BackgroundScrollPositions[0];
-                transient = pending.Mode == 2 && pending.Status == 0 && pending.Duration == 15 && pending.NativeActorId == 0 && pending.Y == 224;
+                pending = live.Scene.ActorBackgroundScroll;
             }
         };
-        actual.Step();
-        retry.Step();
-        BackgroundScrollPosition reached = actual.Scene.BackgroundScrollPositions[0];
-        Require(transient && actual.Frame == 8 && reached.Mode == 3 && reached.Status == 2 && reached.Counter == 0 && reached.Duration == 15 && reached.NativeActorId == 0 && reached.Y == 224 && reached.TargetY == 224 && JsonElement.DeepEquals(actual.Capture(), retry.Capture()), $"Actual frame7 ordinary Wait1 failed reached CSCROLLP and later native-order DSCROLL2 overwrite: {reached}, transient {transient}.");
-        retry.Restore(actual.Capture());
-        Require(JsonElement.DeepEquals(actual.Capture(), retry.Capture()), "Actual CSCROLLP entry phase failed saved VM restore.");
-        Console.WriteLine($"Original172 CSCROLLP: ordinary Wait1/frame7→8 sets duration15/dense actor0/mode2; later native-order controller147 DSCROLL2 overwrites mode3/status2/currentY224, retains duration/actor; exact restore. Synthetic cosine completes16 updates with independent midphase restore; next {actual.NextTrigger.Kind}.");
+        live.Step();
+        Require(live.Scene.FieldPartyNativeActorIds[0] == 255 && live.Scene.PartyBindingMemory!.First == 0 && pending is { Mode: 2, Status: 0, PartySlot: 0, NativeActorId: 0, Duration: 4, X: 40, Y: -80, ProjectedTargetX: null }, "CSCROLLP lost saved B194 despite detached follow alias, lowWORD duration, genuine current center or same-budget entry.");
+        Require(live.Scene.ActorBackgroundScroll is { Mode: 2, Status: 1, Counter: 1, X: 40, Y: -80, PreviousX: 40, PreviousY: -80, ProjectedTargetX: 2, ProjectedTargetY: -2 }, "CSCROLLP lost counter0 or actual nonzero callback target.");
+        EventEngine restored = Create();
+        restored.Restore(live.Capture());
+        for (short elapsed = 1; elapsed <= 4; elapsed++)
+        {
+            live.Step();
+            restored.Step();
+            NativeActorBackgroundScroll state = live.Scene.ActorBackgroundScroll!;
+            Require(state.X == NativeCosineInterpolation.Interpolate(40, (int)live.Frame, 4, elapsed) && state.Y == NativeCosineInterpolation.Interpolate(-80, -(int)live.Frame, 4, elapsed) && state.Counter == Math.Min(elapsed + 1, 4) && state.Status == (elapsed == 4 ? 2 : 1) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "CSCROLLP froze its selected actor, changed cosine arithmetic or diverged after independent midphase restore.");
+            Require(!live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "SCROLLSYNC resumed before the following VM callback.");
+        }
+        NativeActorBackgroundScroll complete = live.Scene.ActorBackgroundScroll!;
+        live.Step();
+        restored.Step();
+        Require(live.Scene.ActorBackgroundScroll == complete && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Completed saved-party cosine followed a later body or added a sync wait.");
+        EventEngine secondBody = Create(slot: 1);
+        secondBody.Step();
+        Require(secondBody.Scene.ActorBackgroundScroll is { PartySlot: 1, NativeActorId: 1, ObjectId: 1, ProjectedTargetX: 102 }, "CSCROLLP substituted the leader for a saved second body.");
+        EventEngine zero = Create(duration: 0);
+        zero.Step();
+        Require(zero.Scene.ActorBackgroundScroll is { Duration: 0, Counter: 0, Status: 2, X: 2, Y: -2 }, "Zero-duration CSCROLLP did not commit the actual callback endpoint.");
+
+        JsonElement valid = restored.Capture();
+        foreach ((string name, int value) in new[] { ("PartySlot", 3), ("NativeActorId", 1), ("Counter", 3), ("Duration", -1), ("ProjectedTargetX", 999) })
+        {
+            JsonNode corrupt = JsonNode.Parse(valid.GetRawText())!;
+            corrupt["Scene"]!["ActorBackgroundScroll"]![name] = value;
+            EventEngine declined = Create();
+            JsonElement before = declined.Capture();
+            try
+            {
+                declined.Restore(JsonSerializer.SerializeToElement(corrupt));
+                throw new InvalidOperationException("CSCROLLP accepted a corrupt checkpoint binding or phase.");
+            }
+            catch (InvalidDataException)
+            {
+            }
+            Require(JsonElement.DeepEquals(before, declined.Capture()), "Rejected saved-party camera checkpoint mutated its receiver.");
+        }
+        foreach (EventEngine declined in new[] { Create(slot: 2), Create(slot: 3), Create(duration: -1), Create(certificate: false), Create(knownStart: false) })
+        {
+            try
+            {
+                declined.Step();
+                throw new InvalidOperationException("CSCROLLP accepted absent saved body, unknown center or uncertified projection.");
+            }
+            catch (EventScriptException) when (declined.LastFault?.Opcode == nameof(Jsm.Opcode.CSCROLLP))
+            {
+            }
+            JsonElement fiber = declined.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0 && !item.GetProperty("Initialization").GetBoolean());
+            Require(fiber.GetProperty("Position").GetInt32() == 12 && fiber.GetProperty("Stack").GetArrayLength() == 2 && declined.Scene.ActorBackgroundScroll is null, "Refused CSCROLLP consumed operands, advanced PC or created a guessed camera.");
+        }
+        Console.WriteLine("CSCROLLP: copied saved B194 selector despite FOLLOWOFF, second body, lowWORD duration, dynamic cosine target, inclusive endpoint/zero/sync, independent restore and atomic refusal passed.");
     }
 }

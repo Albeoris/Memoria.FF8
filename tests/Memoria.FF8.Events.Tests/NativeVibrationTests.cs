@@ -76,6 +76,12 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "Vibration request native return domain diverged after independent restore.");
         }
         Require(issued.Select(request => (request.RawPattern, request.RawPriority, request.EffectivePriority)).SequenceEqual([(32, 256, 257), (33, -2, -1), (34, 0, 1)]) && live.Session.State.Variables[5001] == 7, "Successive original missing-pattern requests did not retain complete DWORD issue state and immediate continuation.");
+        NativeVibrationRequest earlierVisit = live.Engine.Scene.VibrationRequest!;
+        live.Engine.LoadField(601, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        live.Engine.LoadField(600, Content(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        var revisited = Create();
+        revisited.Engine.Restore(live.Engine.Capture());
+        Require(live.Engine.Frame == 0 && revisited.Engine.Scene.VibrationRequest == earlierVisit && earlierVisit.LoadEpoch < revisited.Engine.Scene.AudioLoadEpoch && JsonElement.DeepEquals(live.Engine.Capture(), revisited.Engine.Capture()), "SETVIBRATE mistook a previous visit's process request for a future current-field callback.");
         JsonNode invalid = JsonNode.Parse(saved.GetRawText())!;
         invalid["Scene"]![nameof(SceneEventState.VibrationRequest)]![nameof(NativeVibrationRequest.EffectivePriority)] = 1;
         try

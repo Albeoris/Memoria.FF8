@@ -16,7 +16,7 @@ public sealed partial class EventEngine
         {
             return "Native SET needs bounded shifted DWORD coordinates and preserved original Z";
         }
-        if (actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || actor.MovementActorId is not null)
+        if (actor.NativeScriptMovement is { Active: true, Suspended: false } || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Suspended: true } || actor.MovementActorId is not null)
         {
             return "Native SET placement during active movement needs its preserved native movement-body replacement contract";
         }

@@ -17,7 +17,7 @@ public static class BackgroundScrollCertificate
 
     internal static bool CanSetNormal(FieldAssets field, int layer, BackgroundScrollSettings settings, int cameraIndex)
     {
-        return field.Id is not (165 or 172) && NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings);
+        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings);
     }
 
     public static bool CanSetForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
@@ -62,9 +62,9 @@ public static class BackgroundScrollCertificate
         return layer == 0 && x == 0 && y is 0 or 224 && HasKnownBaseline(field, cameraIndex);
     }
 
-    public static bool CanSetPartyPosition(FieldAssets field, SceneEventState scene, int partySlot, byte nativeActorId, short duration)
+    public static bool CanSetPartyPosition(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int partySlot, byte nativeActorId, short duration)
     {
-        return partySlot == 0 && nativeActorId == 0 && duration == 15 && HasKnownBaseline(field, scene.CameraIndex) && scene.NativeActorLayoutVersion == 1 && scene.FieldPartyNativeActorIds.Count == 3 && scene.FieldPartyNativeActorIds[0] == nativeActorId && scene.NativeActorObjectIds.Count > nativeActorId && scene.NativeActorObjectIds[nativeActorId] == 0 && Supports(field, scene);
+        return partySlot is >= 0 and <= 2 && scene.PartyBindingMemory is { Version: 1 } binding && binding.At(partySlot) == nativeActorId && ActorBackgroundScrollCertificate.CanSetInterpolated(field, scene, actors, nativeActorId, duration);
     }
 
     public static bool CanSetCosinePosition(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
@@ -143,17 +143,7 @@ public static class BackgroundScrollCertificate
                 _ => false
             };
         }
-        if (position.Mode != 2 || position.Duration != 15 || position.NativeActorId != 0 || scene.NativeActorLayoutVersion != 1 || scene.FieldPartyNativeActorIds.Count != 3 || scene.FieldPartyNativeActorIds[0] != 0 || scene.NativeActorObjectIds.Count == 0 || scene.NativeActorObjectIds[0] != 0 || position.Counter < 0 || position.Counter > position.Duration)
-        {
-            return false;
-        }
-        return position.Status switch
-        {
-            0 => true,
-            1 => position.Counter > 0 && position.Y == NativeCosineInterpolation.Interpolate(position.PreviousY, 0, position.Duration, position.Counter - 1),
-            2 => position.Counter == position.Duration && position.Y == 0,
-            _ => false
-        };
+        return false;
     }
 
     private static bool HasKnownBaseline(FieldAssets field, int cameraIndex)

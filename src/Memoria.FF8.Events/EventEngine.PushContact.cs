@@ -26,10 +26,14 @@ public sealed partial class EventEngine
             return;
         }
         EventScript push = program.Objects[actor.ObjectId].Scripts[3];
-        bool emptyPush = push.End == push.Start + 2 && program.Operations[push.Start + 1].Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.RET && program.Operations[push.Start + 1].Parameter == 8;
-        if (actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true } || actor.NativeScriptMovement is { Active: true, Completion: < 2 } && !emptyPush)
+        if (actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true } || actor.NativeJump is { Active: true })
         {
             throw new NotSupportedException("Native push contact requires competing-priority movement/operand suspension evidence; original state preserved.");
+        }
+        string? suspension = UnsupportedNativeMovementRequest(actor, 6, push.Id);
+        if (suspension is not null)
+        {
+            throw new NotSupportedException($"{suspension}; field={FieldId}, actor={actor.ObjectId}, frame={Frame}, physical={actor.NativeScriptMovement?.ScriptId}/{actor.NativeScriptMovement?.Operation}, backup={actor.NativeMovementRequest?.SavedMovement.ScriptId}/{actor.NativeMovementRequest?.SavedMovement.Operation}, requestSlot={actor.NativeMovementRequest?.RequestSlot}");
         }
     }
 
@@ -46,12 +50,7 @@ public sealed partial class EventEngine
             {
                 Fiber requested = Queue(actor.ObjectId, program!.Objects[actor.ObjectId].Scripts[3].Id, 6, false);
                 requested.NativeActorSlot = 6;
-                if (actor.NativeScriptMovement is { Active: true, Completion: < 2 } movement)
-                {
-                    // 52B0D0 preserves436..444/538/510 and writes mode572=0.
-                    // An empty local3 returns in this same atomic VM callback.
-                    actor.NativeScriptMovement = movement with { Suspended = true };
-                }
+                SuspendNativeMovementForRequest(actor, requested);
             }
         }
         actor.NativePushContactPending = false;
@@ -72,22 +71,6 @@ public sealed partial class EventEngine
                 break;
             }
             remaining -= Run(fiber, remaining);
-            if (fiber.Complete && fiber.NativeActorSlot == 6 && actors[objectId].NativeScriptMovement is { Suspended: true } movement)
-            {
-                // 51C5C0 RET restores mode1, completion0 and the saved target/speed;
-                // automatic locomotion resets turn474 and selects walk/run if needed.
-                ActorState actor = actors[objectId];
-                bool automatic = movement.ResetAnimationOnCompletion ?? movement.AutomaticAnimation;
-                actor.NativeScriptMovement = movement with { Suspended = false, Completion = 0, TurnAccumulator = automatic ? (short)0 : movement.TurnAccumulator };
-                if (automatic)
-                {
-                    int animation = movement.Speed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
-                    if (actor.AnimationId != animation)
-                    {
-                        SelectFullNativeAnimation(actor, animation, true);
-                    }
-                }
-            }
             if (!fiber.Complete || transitionRequested)
             {
                 break;
@@ -111,17 +94,9 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved native actor contact lost its original local3/slot6 owner.");
             }
         }
-        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeScriptMovement is { Suspended: true }))
+        if (saved.Actors.Any(actor => actor.NativeScriptMovement is { Suspended: true } && actor.NativeMovementRequest is null))
         {
-            if (actor.NativeMovementRequest is not null)
-            {
-                continue;
-            }
-            EventScript push = program!.Objects[actor.ObjectId].Scripts[3];
-            if (actor.NativeScriptMovement is not { Active: true } || push.End != push.Start + 2 || program.Operations[push.Start + 1].Opcode != Albeoris.Games.FF8.Jsm.Jsm.Opcode.RET || program.Operations[push.Start + 1].Parameter != 8 || !saved.Fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeActorSlot == 6 && !fiber.Complete))
-            {
-                throw new InvalidDataException("Saved native contact suspension lacks its original empty local3 request.");
-            }
+            throw new InvalidDataException("Saved suspended native movement lacks its executed single physical backup.");
         }
     }
 }

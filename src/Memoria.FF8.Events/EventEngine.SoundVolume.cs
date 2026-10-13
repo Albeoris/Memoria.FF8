@@ -44,7 +44,7 @@ public sealed partial class EventEngine
             return;
         }
         uint mask = request.RawMask & 0xFFFFFF;
-        ValidateSoundVolumeLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
+        ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         int voice = mask == 0 ? 0 : System.Numerics.BitOperations.TrailingZeroCount(mask) + 1;
         if (request.Version != 1 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 0 || mask == 0 || request.Mask != mask || request.Voice != voice || request.Volume != (request.RawVolume & 127) || request.DurationMilliseconds != 0 || request.BackendStatus != GlobalSoundBackendStatus.Muted)
         {
@@ -60,13 +60,13 @@ public sealed partial class EventEngine
         }
     }
 
-    private static void ValidateSoundVolumeLoadOrigin(Checkpoint saved, long sourceEpoch, int sourceField, long sourceFrame)
+    private static void ValidateProcessMediaLoadOrigin(Checkpoint saved, long sourceEpoch, int sourceField, long sourceFrame)
     {
         // Process audio survives field allocation. Its local frame belongs to
         // the executed load that issued it, even when the same field is revisited.
         if (saved.Scene.AudioLoadEpoch <= 0 || sourceEpoch <= 0 || sourceEpoch > saved.Scene.AudioLoadEpoch || sourceEpoch == saved.Scene.AudioLoadEpoch && (sourceField != saved.FieldId || sourceFrame > saved.Frame))
         {
-            throw new InvalidDataException("Saved sound volume lost its executed load identity or belongs to a future field callback.");
+            throw new InvalidDataException("Saved process media lost its executed load identity or belongs to a future field callback.");
         }
     }
 }

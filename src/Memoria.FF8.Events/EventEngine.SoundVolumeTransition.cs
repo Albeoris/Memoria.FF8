@@ -46,7 +46,7 @@ public sealed partial class EventEngine
             return;
         }
         uint mask = request.RawMask & 0xFFFFFF;
-        ValidateSoundVolumeLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
+        ValidateProcessMediaLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         byte duration = unchecked((byte)(2 * request.RawDuration));
         int milliseconds = 10 * duration;
         milliseconds = milliseconds < 50 ? 0 : milliseconds;
