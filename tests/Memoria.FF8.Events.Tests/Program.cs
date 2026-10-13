@@ -44,7 +44,9 @@ internal static partial class Program
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
                     ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
+                    ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["key-on"] = NativeKeyOnContract,
+                    ["movie-timer"] = NativeMovieTimerClockContract,
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
@@ -92,7 +94,9 @@ internal static partial class Program
             NativeBackgroundClearContract(gameDirectory);
             NativeBackgroundShadeOffContract(gameDirectory);
             NativeDyingContract(gameDirectory);
+            NativeDressContract(gameDirectory);
             NativeKeyOnContract();
+            NativeMovieTimerClockContract();
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeSoundInitializationContract(gameDirectory);

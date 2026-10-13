@@ -7,7 +7,8 @@ public enum NativeTimerCallbackKind
     NormalField,
     World,
     Menu,
-    Battle
+    Battle,
+    MovieField
 }
 
 /// <summary>An inclusive phase interval correlated with one exact native remaining DWORD.</summary>
@@ -113,7 +114,7 @@ public sealed record NativeExamTimerState
         {
             NativeTimerCallbackKind.NormalField or NativeTimerCallbackKind.World => 2,
             NativeTimerCallbackKind.Menu => 1,
-            NativeTimerCallbackKind.Battle => 4,
+            NativeTimerCallbackKind.Battle or NativeTimerCallbackKind.MovieField => 4,
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
         int calls = checked(callbacks * perCallback);

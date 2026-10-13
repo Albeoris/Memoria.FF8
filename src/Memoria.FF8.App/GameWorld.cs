@@ -26,6 +26,10 @@ internal sealed partial class GameWorld : IDisposable
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             initializedNativeParty = true;
         }
+        if (session.State.CharacterAppearance is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
+        }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session, session.State.Variables);
         if (initializedNativeParty)
@@ -79,7 +83,7 @@ internal sealed partial class GameWorld : IDisposable
             worldScene.Dispose();
             worldScene = null;
         }
-        if (Field?.Id == session.State.FieldId)
+        if (Field?.Id == session.State.FieldId && Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
             return false;
         }
@@ -218,7 +222,7 @@ internal sealed partial class GameWorld : IDisposable
 
     private PlayerActionResult PublishFieldAction(PlayerActionResult result)
     {
-        if (Events.FieldId != session.State.FieldId || session.State.Scene == SceneKind.WorldMap)
+        if (Events.FieldId != session.State.FieldId || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || session.State.Scene == SceneKind.WorldMap)
         {
             session.SetDepartingFieldState(Events.Capture());
             return result;

@@ -312,6 +312,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;
                 break;
+            case Jsm.Opcode.SETDRESS:
+                args = ExecuteNativeDress(fiber);
+                break;
             case Jsm.Opcode.SETPC:
                 args = Pop(fiber, 1);
                 actor.CharacterId = (byte)args[0];

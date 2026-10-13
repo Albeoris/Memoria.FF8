@@ -266,6 +266,11 @@ internal sealed class RecreateGame : Game
                     }
                 }
             }
+            if (events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
+            {
+                fieldSeconds = 0;
+                return;
+            }
             fieldSeconds += options.ControlStep ? 0 : gameTime.ElapsedGameTime.TotalSeconds;
             while (fieldSeconds + 1e-9 >= 1d / EventEngine.SimulationFps)
             {
@@ -279,7 +284,7 @@ internal sealed class RecreateGame : Game
                     events.Step();
                     metrics.Simulate(1);
                 }
-                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id)
+                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
                 {
                     fieldSeconds = 0;
                     return;
@@ -355,7 +360,7 @@ internal sealed class RecreateGame : Game
 
     private void CaptureSession()
     {
-        if (events is not null && events.FieldId == session.State.FieldId)
+        if (events is not null && events.FieldId == session.State.FieldId && events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
             session.SetEventState(events.Capture());
             DialogueState? dialogue = events.CurrentDialogue;

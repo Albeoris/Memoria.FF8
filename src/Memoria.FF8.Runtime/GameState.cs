@@ -36,6 +36,8 @@ public sealed record GameState
     public NativeExamTimerState? ExamTimer { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCharacterVitals? CharacterVitals { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeCharacterAppearance? CharacterAppearance { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<int, NativeMemoryValue>? NativeVariableValues { get; init; }
@@ -76,6 +78,11 @@ public interface IEventServices
     }
     NativeExamTimerState? ExamTimer => null;
     NativeCharacterVitals? CharacterVitals => null;
+    NativeCharacterAppearance? CharacterAppearance => null;
+    void SetCharacterAppearance(NativeCharacterAppearance appearance)
+    {
+        throw new NotSupportedException("Native character appearance is not implemented by this event service.");
+    }
     void SetCharacterVitals(NativeCharacterVitals vitals)
     {
         throw new NotSupportedException("Native character vitals are not implemented by this event service.");
@@ -90,6 +97,7 @@ public interface IEventServices
         throw new NotSupportedException("Native world control flags are not implemented by this event service.");
     }
     bool IsMoviePlaying { get; }
+    bool? NativeMovieClockFlag => null;
     void RequestMovie(int index);
     void RequestField(int fieldId, int entryPoint);
     void RequestField(FieldTransition transition)

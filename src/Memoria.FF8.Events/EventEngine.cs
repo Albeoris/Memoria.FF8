@@ -125,6 +125,7 @@ public sealed partial class EventEngine
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { RandomBattlesEnabled = previousScene.RandomBattlesEnabled, SalaryEnabled = previousScene.SalaryEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
+        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
         CopyNativeMediaHistory(previousScene);
         InitializePreviousField(previousFieldId);
         // Native52BC00 clears B240/241 before normal init; B242 persists globally.
@@ -210,7 +211,7 @@ public sealed partial class EventEngine
         }
         ValidatePendingNativePushContacts();
         ValidatePendingNativeLineCrossings();
-        StepNativeTimerBeforeVm();
+        AdvanceNativeFieldCallbackClock();
         Frame++;
         SampleFieldButtons();
         CompleteNativeBattleReturnBeforeVm();

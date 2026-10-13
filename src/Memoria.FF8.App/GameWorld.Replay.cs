@@ -174,7 +174,7 @@ internal sealed partial class GameWorld
         }
         if (world.Field is not null)
         {
-            if (world.Events.FieldId != rebuilt.State.FieldId)
+            if (world.Events.FieldId != rebuilt.State.FieldId || world.Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
             {
                 rebuilt.SetDepartingFieldState(world.Events.Capture());
             }
@@ -214,7 +214,7 @@ internal sealed partial class GameWorld
 
     private void PublishReplayDeparture()
     {
-        if (Events.FieldId != session.State.FieldId || session.State.Scene == SceneKind.WorldMap)
+        if (Events.FieldId != session.State.FieldId || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || session.State.Scene == SceneKind.WorldMap)
         {
             session.SetDepartingFieldState(Events.Capture());
         }

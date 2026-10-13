@@ -52,6 +52,16 @@ public sealed class GameAssets : IDisposable
     }
     public NativeFieldRuntimeProfile? NativeRuntimeProfile => NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash ? NativeFieldRuntimeProfile.FF8En : null;
 
+    public NativeCharacterAppearance ReadNewGameCharacterAppearance()
+    {
+        if (NativeRuntimeProfile is null)
+        {
+            throw new NotSupportedException("Native appearance initialization requires the proved installed executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeAppearanceInitialization.Read(Read(main, "init.out"));
+    }
+
     public FieldAssets LoadField(int fieldId)
     {
         if (fields.TryGetValue(fieldId, out FieldAssets? cached))

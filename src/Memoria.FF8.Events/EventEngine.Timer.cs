@@ -39,9 +39,9 @@ public sealed partial class EventEngine
             }
             return null;
         }
-        if (operation.Opcode == Jsm.Opcode.MOVIE)
+        if (operation.Opcode == Jsm.Opcode.MOVIE && services.NativeMovieClockFlag is null)
         {
-            return "A tracked native timer requires explicit movie callback clock integration before movie departure";
+            return "A tracked native timer requires the accepted movie start/close lifecycle flag before movie departure";
         }
         int width = operation.Opcode switch
         {
@@ -86,21 +86,6 @@ public sealed partial class EventEngine
             throw new EventScriptException(message, exception);
         }
         return Pop(fiber, operands.Length);
-    }
-
-    private void StepNativeTimerBeforeVm()
-    {
-        if (services.ExamTimer is not NativeExamTimerState timer)
-        {
-            return;
-        }
-        if (services.IsMoviePlaying)
-        {
-            throw new NotSupportedException("Native timer movie callback count requires the original movie clock flag; normal field phase preserved.");
-        }
-        // 46FEE0 invokes 4701B0 twice before field 4767B0 dispatches 529FF0.
-        // Recreated field callbacks have no native pause/reset UI and 470440 enables the clock.
-        services.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1));
     }
 
     private void ValidateNativeTimerExpiryAfterVm()

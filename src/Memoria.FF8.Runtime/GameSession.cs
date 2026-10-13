@@ -35,10 +35,13 @@ public sealed class GameSession : IEventServices
     public NativeWorldControlState? WorldControls => State.WorldControls;
     public NativeExamTimerState? ExamTimer => State.ExamTimer;
     public NativeCharacterVitals? CharacterVitals => State.CharacterVitals;
+    public NativeCharacterAppearance? CharacterAppearance => State.CharacterAppearance;
     public IReadOnlyDictionary<int, NativeMemoryValue>? NativeVariableValues => State.NativeVariableValues;
     public bool CanStoreNativeVariableValues => true;
     public string? Dialog { get; private set; }
     public bool IsMoviePlaying => State.Scene == SceneKind.Movie;
+    // Accepted RequestMovie models51F390->55A530; CompleteMovie models55A5C0 cleanup.
+    public bool? NativeMovieClockFlag => IsMoviePlaying;
     public event Action<GameState>? StateChanged;
     public event Action<ReplayJournal>? ReplayJournalChanged;
 
@@ -313,6 +316,22 @@ public sealed class GameSession : IEventServices
         State = State with { CharacterVitals = vitals with { Records = vitals.Records.ToArray(), CombatParty = vitals.CombatParty.ToArray() } };
     }
 
+    public void InitializeNewGameCharacterAppearance(NativeCharacterAppearance appearance)
+    {
+        if (State.CharacterAppearance is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            throw new NotSupportedException("Appearance initialization requires the untouched authentic New Game before its first engine transaction.");
+        }
+        SetCharacterAppearance(appearance);
+    }
+
+    public void SetCharacterAppearance(NativeCharacterAppearance appearance)
+    {
+        ArgumentNullException.ThrowIfNull(appearance);
+        appearance.Validate();
+        State = State with { CharacterAppearance = appearance with { Records = appearance.Records.ToArray() } };
+    }
+
     public void SetNativeVariableValues(Dictionary<int, NativeMemoryValue>? values)
     {
         if (values is not null)
@@ -396,6 +415,11 @@ public sealed class GameSession : IEventServices
         GameState state = JsonSerializer.Deserialize<GameState>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException("Empty checkpoint.");
         Validate(state);
         JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
+        if (currentVm is null && state.Scene == SceneKind.Field && state.DepartingFieldState is JsonElement pendingField && pendingField.TryGetProperty("TransitionRequested", out JsonElement requested) && requested.ValueKind == JsonValueKind.True && pendingField.TryGetProperty("Scene", out JsonElement pendingScene) && pendingScene.TryGetProperty("WorldTransitionRequest", out JsonElement worldRequest) && worldRequest.ValueKind == JsonValueKind.Null)
+        {
+            // A pending ordinary field reload owns the current global state even when source and destination IDs agree.
+            currentVm = pendingField;
+        }
         if (state.WorldControls is not null && currentVm is JsonElement vm && vm.TryGetProperty("WorldControls", out JsonElement savedControls) && savedControls.ValueKind != JsonValueKind.Null)
         {
             NativeWorldControlState controls = savedControls.Deserialize<NativeWorldControlState>(JsonOptions) ?? throw new InvalidDataException("Empty event world-control state.");
@@ -417,6 +441,19 @@ public sealed class GameSession : IEventServices
         else if (currentVm is not null && state.CharacterVitals is not null)
         {
             throw new InvalidDataException("Root character vitals require matching history in the active event checkpoint.");
+        }
+        if (currentVm is JsonElement appearanceVm && appearanceVm.TryGetProperty("CharacterAppearance", out JsonElement appearanceJson) && appearanceJson.ValueKind != JsonValueKind.Null)
+        {
+            NativeCharacterAppearance appearance = appearanceJson.Deserialize<NativeCharacterAppearance>(JsonOptions) ?? throw new InvalidDataException("Empty event character appearance.");
+            appearance.Validate();
+            if (state.CharacterAppearance is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.CharacterAppearance), JsonSerializer.SerializeToElement(appearance)))
+            {
+                throw new InvalidDataException("Root and event character appearance checkpoints disagree.");
+            }
+        }
+        else if (currentVm is not null && state.CharacterAppearance is not null)
+        {
+            throw new InvalidDataException("Root character appearance requires matching history in the active event checkpoint.");
         }
         if (currentVm is JsonElement timerVm && timerVm.TryGetProperty("ExamTimer", out JsonElement timerJson) && timerJson.ValueKind != JsonValueKind.Null)
         {
@@ -501,6 +538,11 @@ public sealed class GameSession : IEventServices
         state.WorldControls?.Validate();
         state.ExamTimer?.Validate();
         state.CharacterVitals?.Validate();
+        state.CharacterAppearance?.Validate();
+        if (state.CharacterAppearance is not null && state.CharacterVitals is not null && state.CharacterAppearance.InitOutSha256 != state.CharacterVitals.InitOutSha256)
+        {
+            throw new InvalidDataException("Native appearance and character vitals have different New Game template identities.");
+        }
         if (state.NativeVariableValues is not null)
         {
             NativeMemoryValue.Validate(state.NativeVariableValues, state.Variables);

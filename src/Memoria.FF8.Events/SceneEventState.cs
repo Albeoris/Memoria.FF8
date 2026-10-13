@@ -29,6 +29,9 @@ public sealed class SceneEventState
 {
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFieldCallbackClock? FieldCallbackClock { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldButtonInput? ButtonInput { get; internal set; }
     [JsonInclude]
     public bool RandomBattlesEnabled { get; internal set; } = true;
