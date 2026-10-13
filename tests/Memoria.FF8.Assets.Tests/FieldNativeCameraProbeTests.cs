@@ -140,18 +140,18 @@ public sealed class FieldNativeCameraProbeTests
     }
 
     [Fact]
-    public void MatrixIntervalRefusesAnySaturationNegativeDepthOrZeroDenominator()
+    public void MatrixIntervalSupportsProjectedSaturationAndNegativeDepthButRefusesTransformSaturationOrZeroDenominator()
     {
         FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-10, 10, 10, -10)] };
         FieldNativeCameraResult saturation = FieldNativeCameraProbe.Resolve(Camera() with { AxisX = new Vector3(0.5f, 0, 0), Translation = new Vector3(32767, 0, 1000) }, information, 1 << 12, 0, 0);
         Assert.False(saturation.Supported);
         Assert.Contains("signed-WORD saturation", saturation.UnsupportedReason);
         FieldNativeCameraResult projected = FieldNativeCameraProbe.Resolve(Camera() with { AxisX = new Vector3(0.5f, 0, 0), Translation = new Vector3(16368, 0, 1600) }, information, 1 << 12, 0, 0);
-        Assert.False(projected.Supported);
-        Assert.Contains("eighth-pixel saturation", projected.UnsupportedReason);
+        Assert.True(projected.Supported, projected.UnsupportedReason);
+        Assert.Equal(new FieldNativeCameraCenter(0, 0), projected.Center);
         FieldNativeCameraResult negative = FieldNativeCameraProbe.Resolve(Camera() with { AxisZ = new Vector3(-0.5f, 0, 0), Translation = Vector3.Zero }, information, 1 << 12, 0, 0);
-        Assert.False(negative.Supported);
-        Assert.Contains("negative-depth", negative.UnsupportedReason);
+        Assert.True(negative.Supported, negative.UnsupportedReason);
+        Assert.Equal(50, negative.Diagnostics!.ProjectionDepth);
         FieldNativeCameraResult zero = FieldNativeCameraProbe.Resolve(Camera() with { AxisZ = new Vector3(0.5f, 0, 0), Translation = Vector3.Zero, FocalLength = 1 }, information, 1 << 12, 0, 0);
         Assert.False(zero.Supported);
         Assert.Contains("denominator", zero.UnsupportedReason);
@@ -243,25 +243,38 @@ public sealed class FieldNativeCameraProbeTests
     }
 
     [Fact]
-    public void SaturationAndNegativeDepthRemainUnsupportedEvenWithForcedZeroBounds()
+    public void ProjectedSaturationAndNegativeDepthUseNativeArithmeticEvenWithForcedZeroBounds()
     {
         FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-10, 10, 10, -10)] };
         FieldNativeCameraResult transformed = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(32768, 0, 1000) }, information, 0, 0, 0);
         Assert.False(transformed.Supported);
         Assert.Contains("signed-WORD saturation", transformed.UnsupportedReason);
         FieldNativeCameraResult projected = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 100) }, information, 2000 << 12, 0, 0);
-        Assert.False(projected.Supported);
-        Assert.Equal(new FieldNativeCameraCenter(16000, 0), projected.Diagnostics!.ProjectedEighth);
-        Assert.Contains("eighth-pixel saturation", projected.UnsupportedReason);
+        Assert.True(projected.Supported, projected.UnsupportedReason);
+        Assert.Equal(new FieldNativeCameraCenter(8184, 0), projected.Diagnostics!.ProjectedEighth);
+        Assert.Equal(new FieldNativeCameraCenter(0, 0), projected.Center);
         FieldNativeCameraResult ambiguousSaturation = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 1600) }, information, 16369 << 12, 0, 0);
-        Assert.False(ambiguousSaturation.Supported);
-        Assert.Null(ambiguousSaturation.Diagnostics!.ProjectedEighth);
+        Assert.True(ambiguousSaturation.Supported, ambiguousSaturation.UnsupportedReason);
+        Assert.Equal(new FieldNativeCameraCenter(8184, 0), ambiguousSaturation.Diagnostics!.ProjectedEighth);
         Assert.Equal(new FieldNativeCameraCenter(8184, 0), ambiguousSaturation.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(8185, 0), ambiguousSaturation.Diagnostics.ProjectedEighthHigh);
-        Assert.Contains("eighth-pixel saturation", ambiguousSaturation.UnsupportedReason);
+        Assert.Equal(new FieldNativeCameraCenter(8184, 0), ambiguousSaturation.Diagnostics.ProjectedEighthHigh);
+        Assert.Equal(new FieldNativeCameraCenter(0, 0), ambiguousSaturation.Center);
         FieldNativeCameraResult negative = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, -1) }, information, 0, 0, 0);
-        Assert.False(negative.Supported);
-        Assert.Contains("negative-depth", negative.UnsupportedReason);
+        Assert.True(negative.Supported, negative.UnsupportedReason);
+        Assert.Equal(50, negative.Diagnostics!.ProjectionDepth);
+    }
+
+    [Fact]
+    public void NegativeDepthUsesZeroThenNearClampAndSaturatesBothProjectedAxes()
+    {
+        FieldCamera camera = Camera() with { Translation = new Vector3(0, 0, -1), FocalLength = 101 };
+        FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-2000, 2000, 2000, -2000)] };
+        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(camera, information, 2000 << 12, -2000 << 12, 0);
+        Assert.True(result.Supported, result.UnsupportedReason);
+        Assert.Equal(-1, result.Diagnostics!.Transformed!.Value.Z);
+        Assert.Equal(50, result.Diagnostics.ProjectionDepth);
+        Assert.Equal(new FieldNativeCameraCenter(8184, -8192), result.Diagnostics.ProjectedEighth);
+        Assert.Equal(new FieldNativeCameraCenter(1023, -1024), result.Center);
     }
 
     [Fact]

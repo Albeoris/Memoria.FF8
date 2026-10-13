@@ -57,14 +57,12 @@ public static class FieldNativeCameraProbe
         {
             return Unsupported("Native transformed signed-WORD saturation is outside this bounded projection contract.");
         }
-        if (zLow < 0)
-        {
-            return Unsupported("Native negative-depth flags and unsigned conversion are outside this bounded projection contract.");
-        }
-
         int focal = (ushort)camera.FocalLength;
-        int depthLow = Math.Max(zLow, focal >> 1);
-        int depthHigh = Math.Max(zHigh, focal >> 1);
+        // 0x45FAA0 checks the raw signed depth as unsigned against65535.
+        // Negative depth becomes0 (not a wrapped ushort), then uses the H/2 near clamp.
+        // 0x475E60 retains the flags but still consumes the projected camera center.
+        int depthLow = Math.Max(Math.Max(zLow, 0), focal >> 1);
+        int depthHigh = Math.Max(Math.Max(zHigh, 0), focal >> 1);
         diagnostics = diagnostics with { ProjectionDepth = depthLow == depthHigh ? depthLow : null, ProjectionDepthLow = depthLow, ProjectionDepthHigh = depthHigh };
         if (depthLow == 0)
         {
@@ -83,7 +81,7 @@ public static class FieldNativeCameraProbe
             {
                 foreach (int z in Endpoints(zLow, zHigh))
                 {
-                    int depth = Math.Max(z, focal >> 1);
+                    int depth = Math.Max(Math.Max(z, 0), focal >> 1);
                     (int projectedXLow, int projectedXHigh) = ProjectInterval(x, focal, depth);
                     (int projectedYLow, int projectedYHigh) = ProjectInterval(y, focal, depth);
                     lowX = Math.Min(lowX, projectedXLow);
@@ -96,10 +94,6 @@ public static class FieldNativeCameraProbe
         FieldNativeCameraCenter projectedLow = new(lowX, lowY);
         FieldNativeCameraCenter projectedHigh = new(highX, highY);
         diagnostics = diagnostics with { ProjectedEighth = projectedLow == projectedHigh ? projectedLow : null, ProjectedEighthLow = projectedLow, ProjectedEighthHigh = projectedHigh };
-        if (lowX < -8192 || highX > 8184 || lowY < -8192 || highY > 8184)
-        {
-            return Unsupported("Native projected eighth-pixel saturation is outside this bounded projection contract.");
-        }
 
         // 0x475E60 uses signed IDIV by8, after signed-WORD projection storage.
         FieldNativeCameraCenter centerLow = new(lowX / 8, lowY / 8);
@@ -172,7 +166,8 @@ public static class FieldNativeCameraProbe
         double low = Math.BitDecrement(multiplier * (multiplier < 0 ? ratioHigh : ratioLow));
         double high = Math.BitIncrement(multiplier * (multiplier < 0 ? ratioLow : ratioHigh));
         const double magicAddError = 1.0 / 4096;
-        return ((int)Math.Round(low - magicAddError, MidpointRounding.ToEven), (int)Math.Round(high + magicAddError, MidpointRounding.ToEven));
+        // 0x45FAA0 saturates each projected eighth coordinate before WORD storage.
+        return (Math.Clamp((int)Math.Round(low - magicAddError, MidpointRounding.ToEven), -8192, 8184), Math.Clamp((int)Math.Round(high + magicAddError, MidpointRounding.ToEven), -8192, 8184));
     }
 
     private static (int Low, int High) RoundInterval(double low, double high)
