@@ -33,6 +33,10 @@ public sealed partial class EventEngine
             return "Native LSCROLL3 requires six original operands, one of eight layers and a supported signed-word duration";
         }
         NativeLinearScrollQuery query = new(top[5], (short)top[4], (short)top[3], (short)top[2], (short)top[1], (short)top[0]);
+        if (!CanReplaceActorBackgroundScroll(query.Layer))
+        {
+            return "Native LSCROLL3 cannot replace unknown actor-scroll center history";
+        }
         if (Scene.BackgroundScrollPositions.TryGetValue(query.Layer, out BackgroundScrollPosition? previous) && !ValidBackgroundScrollPosition(query.Layer, previous, Scene))
         {
             return "Native LSCROLL3 cannot replace an unknown saved scroll phase";
@@ -43,7 +47,7 @@ public sealed partial class EventEngine
     private int[] ExecuteLinearBackgroundScroll(Fiber fiber)
     {
         int[] args = Pop(fiber, 6);
-        BackgroundScrollPosition previous = Scene.BackgroundScrollPositions.GetValueOrDefault(args[0]) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
+        BackgroundScrollPosition previous = TakeBackgroundScrollPosition(args[0]);
         // 521530 writes current start8/10 and target16/18. Previous12/14
         // and counter6 remain until post-VM 475DF0 snapshots/resets them.
         Scene.BackgroundScrollPositions[args[0]] = previous with { X = (short)args[1], Y = (short)args[2], TargetX = (short)args[3], TargetY = (short)args[4], Duration = (short)args[5], Mode = 4, Status = 0, NativeLinearVersion = 1 };
@@ -52,7 +56,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedBackgroundScrollSync2(Fiber fiber)
     {
-        if (fiber.Stack.Count == 0 || (uint)fiber.Stack.Peek() >= 8 || !Scene.BackgroundScrollPositions.TryGetValue(fiber.Stack.Peek(), out BackgroundScrollPosition? state) || !ValidBackgroundScrollPosition(fiber.Stack.Peek(), state, Scene))
+        if (fiber.Stack.Count == 0 || (uint)fiber.Stack.Peek() >= 8 || !(fiber.Stack.Peek() == 0 && Scene.ActorBackgroundScroll is not null) && (!Scene.BackgroundScrollPositions.TryGetValue(fiber.Stack.Peek(), out BackgroundScrollPosition? state) || !ValidBackgroundScrollPosition(fiber.Stack.Peek(), state, Scene)))
         {
             return "Native SCROLLSYNC2 needs its original unconsumed layer operand and known scroll phase";
         }
@@ -62,7 +66,7 @@ public sealed partial class EventEngine
     private int[] ExecuteBackgroundScrollSync2(Fiber fiber)
     {
         int layer = fiber.Stack.Peek();
-        if (Scene.BackgroundScrollPositions[layer].Status != 2)
+        if (BackgroundScrollStatus(layer) != 2)
         {
             // 520F60 peeks the DWORD layer and returns1 without popping.
             fiber.Position--;
@@ -80,7 +84,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.SCROLLSYNC2 when fiber.Stack.Count > 0 => fiber.Stack.Peek(),
             _ => null
         };
-        return layer is int selected && Scene.BackgroundScrollPositions.TryGetValue(selected, out BackgroundScrollPosition? state) && state.Status == 2;
+        return layer is int selected && BackgroundScrollStatus(selected) == 2;
     }
 
     private string? UnsupportedCosineBackgroundScroll(Fiber fiber)
@@ -90,25 +94,29 @@ public sealed partial class EventEngine
         {
             return "Native CSCROLL2 needs its four original operands, one of eight layers and a supported signed-word duration";
         }
+        if (!CanReplaceActorBackgroundScroll(top[3]))
+        {
+            return "Native CSCROLL2 cannot replace unknown actor-scroll center history";
+        }
         return CanSetCosineBackgroundScroll?.Invoke(top[3], (short)top[2], (short)top[1], (short)top[0]) == true ? null : "Native CSCROLL2 needs certified original scroll state and renderer before mutation";
     }
 
     private int[] ExecuteCosineBackgroundScroll(Fiber fiber)
     {
         int[] args = Pop(fiber, 4);
-        BackgroundScrollPosition previous = Scene.BackgroundScrollPositions.GetValueOrDefault(args[0]) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
+        BackgroundScrollPosition previous = TakeBackgroundScrollPosition(args[0]);
         Scene.BackgroundScrollPositions[args[0]] = previous with { TargetX = (short)args[1], TargetY = (short)args[2], Duration = (short)args[3], Mode = 5, Status = 0, NativeLinearVersion = 0 };
         return args;
     }
 
     private string? UnsupportedBackgroundScrollSync()
     {
-        return Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? state) && ValidBackgroundScrollPosition(0, state, Scene) ? null : "Native SCROLLSYNC needs its known original layer0 state";
+        return Scene.ActorBackgroundScroll is not null || Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? state) && ValidBackgroundScrollPosition(0, state, Scene) ? null : "Native SCROLLSYNC needs its known original layer0 state";
     }
 
     private void ExecuteBackgroundScrollSync(Fiber fiber)
     {
-        if (Scene.BackgroundScrollPositions[0].Status != 2)
+        if (BackgroundScrollStatus(0) != 2)
         {
             // Native return1 yields without advancing the instruction pointer.
             fiber.Position--;
@@ -118,6 +126,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedPartyBackgroundScroll(Fiber fiber)
     {
+        if (!CanReplaceActorBackgroundScroll(0))
+        {
+            return "Native CSCROLLP cannot replace unknown actor-scroll center history";
+        }
         int[] top = fiber.Stack.ToArray();
         if (top.Length < 2 || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || (uint)top[1] >= 3 || ResolvePartyActor(top[1]) is null || (short)top[0] < 0)
         {
@@ -134,7 +146,7 @@ public sealed partial class EventEngine
     private int[] ExecutePartyBackgroundScroll(Fiber fiber)
     {
         int[] args = Pop(fiber, 2);
-        BackgroundScrollPosition previous = Scene.BackgroundScrollPositions.GetValueOrDefault(0) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
+        BackgroundScrollPosition previous = TakeBackgroundScrollPosition(0);
         Scene.BackgroundScrollPositions[0] = previous with { Duration = (short)args[1], NativeActorId = (byte)Scene.FieldPartyNativeActorIds[args[0]], Mode = 2, Status = 0, NativeLinearVersion = 0 };
         return args;
     }
@@ -148,6 +160,10 @@ public sealed partial class EventEngine
             return "Native direct scroll requires its original operands and one of eight scroll records";
         }
         int layer = layerZero ? 0 : top[2];
+        if (!CanReplaceActorBackgroundScroll(layer))
+        {
+            return "Native direct scroll cannot replace unknown actor-scroll center history";
+        }
         return CanSetBackgroundScrollPosition?.Invoke(layer, (short)top[1], (short)top[0]) == true ? null : "Native direct scroll needs proved current scroll state and renderer offsets before mutation";
     }
 
@@ -157,7 +173,7 @@ public sealed partial class EventEngine
         int layer = layerZero ? 0 : args[0];
         int x = args[layerZero ? 0 : 1];
         int y = args[layerZero ? 1 : 2];
-        BackgroundScrollPosition previous = Scene.BackgroundScrollPositions.GetValueOrDefault(layer) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
+        BackgroundScrollPosition previous = TakeBackgroundScrollPosition(layer);
         Scene.BackgroundScrollPositions[layer] = previous with { TargetX = (short)x, TargetY = (short)y, Mode = 3, Status = 0, NativeLinearVersion = 0 };
         // Native return3 advances PC and yields its instruction budget.
         WaitFrames(fiber, 1);

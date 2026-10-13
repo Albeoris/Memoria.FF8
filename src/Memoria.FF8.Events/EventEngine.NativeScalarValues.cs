@@ -5,11 +5,16 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    private bool IsKnownNativeByteAlias(int address, int value)
+    {
+        return address == 86 && Scene.PreviousWorldEntityByte86 is byte entity && value == entity;
+    }
+
     private static int NativeMemoryWidth(Jsm.Opcode opcode)
     {
         return opcode switch
         {
-            Jsm.Opcode.PSHM_B or Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.POPM_B => 1,
             Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W => 2,
             Jsm.Opcode.PSHM_L or Jsm.Opcode.POPM_L => 4,
             _ => 0
@@ -27,7 +32,7 @@ public sealed partial class EventEngine
         if (writing && fiber.Stack.Count > 0 && !fiber.Stack.PeekValue().IsExact)
         {
             long last = (long)operation.Parameter + width - 1;
-            if (!services.CanStoreNativeVariableValues || operation.Parameter < 0 || last > ushort.MaxValue - 3 || operation.Parameter <= 85 && last >= 84 || operation.Parameter <= 107 && last >= 101 || operation.Parameter <= 217 && last >= 179 || operation.Parameter <= 242 && last >= 240)
+            if (!services.CanStoreNativeVariableValues || operation.Parameter < 0 || last > ushort.MaxValue - 3 || operation.Parameter <= 86 && last >= 84 || operation.Parameter <= 107 && last >= 101 || operation.Parameter <= 217 && last >= 179 || operation.Parameter <= 242 && last >= 240)
             {
                 return "Uncertain native store needs a typed memory service and cannot replace separately owned loader/control bytes";
             }
@@ -36,7 +41,7 @@ public sealed partial class EventEngine
                 return "Uncertain native store overlaps a legacy untyped memory alias";
             }
         }
-        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP || writing)
+        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP || writing)
         {
             return null;
         }
@@ -47,7 +52,7 @@ public sealed partial class EventEngine
     {
         if (services.NativeVariableValues is { } memory && memory.TryGetValue(operation.Parameter, out NativeMemoryValue? entry))
         {
-            value = entry.Value.ToWidth(NativeMemoryWidth(operation.Opcode), operation.Opcode == Jsm.Opcode.PSHSM_W);
+            value = entry.Value.ToWidth(NativeMemoryWidth(operation.Opcode), operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W);
             return true;
         }
         value = NativeScalarValue.Exact(0);

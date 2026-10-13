@@ -78,6 +78,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved tutorial unlock ID is outside the native bitmap.");
         }
         ValidatePreviousFieldCheckpoint(saved);
+        ValidatePreviousWorldEntityCheckpoint(saved);
         saved.ExamTimer?.Validate();
         saved.Scene.FieldCallbackClock?.Validate(saved.Frame);
         saved.Scene.Shake?.Validate();
@@ -108,6 +109,7 @@ public sealed partial class EventEngine
         ValidateFieldSoundCheckpoint(saved);
         ValidateParticleCheckpoint(saved);
         ValidateDisplayOffsetCheckpoint(saved);
+        ValidateActorBackgroundScrollCheckpoint(saved);
         if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8))
         {
             throw new InvalidDataException("Saved background scroll layer is outside the eight original records.");
@@ -206,7 +208,7 @@ public sealed partial class EventEngine
                     "SCROLLSYNC2" when savedFiber.Stack.Length > 0 && savedFiber.Stack[0].IsExact && (uint)savedFiber.Stack[0] < 8 => (int)savedFiber.Stack[0],
                     _ => null
                 };
-                if (savedFiber.Complete || layer is not int selected || !saved.Scene.BackgroundScrollPositions.ContainsKey(selected))
+                if (savedFiber.Complete || layer is not int selected || !saved.Scene.BackgroundScrollPositions.ContainsKey(selected) && !(selected == 0 && saved.Scene.ActorBackgroundScroll is not null))
                 {
                     throw new InvalidDataException("Saved scroll synchronization wait does not preserve its original instruction, unconsumed layer operand and known scroll state.");
                 }

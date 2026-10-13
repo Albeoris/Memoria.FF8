@@ -21,12 +21,17 @@ internal static class DirectBackgroundScrollCertificate
             return null;
         }
         BackgroundScrollPosition position = scene.BackgroundScrollPositions[0];
-        Vector2 center = new(position.X, position.Y);
+        return PrepareCenter(field, scene, position.X, position.Y);
+    }
+
+    internal static BackgroundScrollFrame PrepareCenter(FieldAssets field, SceneEventState scene, short x, short y)
+    {
+        Vector2 center = new(x, y);
         Dictionary<int, Vector2> layers = [];
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
         {
             BackgroundScrollSettings settings = scene.BackgroundScrollLayers.GetValueOrDefault(layer) ?? new BackgroundScrollSettings(0, 0, 256, 256);
-            Vector2 offset = layer == 0 ? -center : new Vector2(-position.X * settings.ScaleX / 256, -position.Y * settings.ScaleY / 256);
+            Vector2 offset = layer == 0 ? -center : new Vector2(-x * settings.ScaleX / 256, -y * settings.ScaleY / 256);
             if (offset != Vector2.Zero)
             {
                 layers[layer] = offset;

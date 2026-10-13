@@ -45,7 +45,7 @@ public sealed partial class EventEngine
         }
         int width = operation.Opcode switch
         {
-            Jsm.Opcode.PSHM_B or Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.POPM_B => 1,
             Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W => 2,
             Jsm.Opcode.PSHM_L or Jsm.Opcode.POPM_L => 4,
             _ => 0
@@ -54,7 +54,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (width != 1 || operation.Opcode == Jsm.Opcode.PSHM_B && !TryReadSoundVolumeByte(operation.Parameter, out _))
+        if (width != 1 || operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B && !TryReadSoundVolumeByte(operation.Parameter, out _))
         {
             return "Native sound volume access requires a known exact B197/198; overlapping or unknown widths preserve PC and operands";
         }

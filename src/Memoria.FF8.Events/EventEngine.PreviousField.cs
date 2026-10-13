@@ -47,7 +47,7 @@ public sealed partial class EventEngine
     {
         int width = operation.Opcode switch
         {
-            Jsm.Opcode.PSHM_B or Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.POPM_B => 1,
             Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W => 2,
             Jsm.Opcode.PSHM_L or Jsm.Opcode.POPM_L => 4,
             _ => 0

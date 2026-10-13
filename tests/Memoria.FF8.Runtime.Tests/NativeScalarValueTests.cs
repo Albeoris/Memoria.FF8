@@ -29,6 +29,11 @@ public sealed class NativeScalarValueTests
         Assert.Equal(new[] { -32768, 32767 }, signed.Values);
         Assert.Equal(signed.Values, signed.ToWidth(4).Values);
         Assert.Equal(new[] { 0, 255 }, signed.ToWidth(1).Values);
+        NativeScalarValue signedByte = Value(127, 255).ToWidth(1, true);
+        Assert.Equal(new[] { -1, 127 }, signedByte.Values);
+        Assert.Equal(new[] { 127, 65535 }, signedByte.ToWidth(2).Values);
+        Assert.Equal(signedByte.Values, signedByte.ToWidth(4).Values);
+        Assert.Equal(signedByte.Values, JsonSerializer.Deserialize<NativeScalarValue>(JsonSerializer.Serialize(signedByte))!.Values);
     }
 
     [Fact]

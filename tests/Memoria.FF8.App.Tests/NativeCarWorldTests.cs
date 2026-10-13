@@ -8,6 +8,87 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeCarWorldTests
 {
     [Fact]
+    public void Native_alternate_ground_selection_retains_the_original_candidate_yaw_and_cache()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
+        using var assets = new WorldAssets(directory);
+        IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
+        // Installed edge geometry fixture; this cache is deliberately local and does
+        // not stand in for the authentic route47 callback history.
+        NativeWorldGroundIdentity initial = assets.LookupCarGround(12910, -27143, replacements, [])!.Identity;
+        NativeCarGroundCacheState cache = NativeCarGroundCacheState.CreateFresh(initial) with { Alternatives = [new(0, [], initial, initial) { FailedSelections = 0 }] };
+        WorldCarGroundResult selected = assets.ResolveCarGround(12910, -27143, -6, -8, 304, 0, cache, replacements);
+        Assert.False(selected.Blocked);
+        Assert.InRange(selected.GroundYaw, -1120, -160);
+        Assert.NotEqual((12904, -27135), (selected.X, selected.Z));
+        NativeCarGroundAlternative next = Assert.Single(selected.Cache.Alternatives);
+        Assert.Equal(0, next.FailedSelections);
+        Assert.Equal(selected.Center!.Identity, next.CurrentGround);
+        Assert.Equal(initial, next.PreviousGround);
+        Assert.NotEmpty(next.Entries);
+        Assert.Empty(cache.Alternatives[0].Entries);
+        NativeWorldGroundIdentity edge = assets.LookupCarGround(12904, -27135, replacements, [])!.Identity;
+        NativeCarGroundCacheState stoppedCache = NativeCarGroundCacheState.CreateFresh(edge) with { Alternatives = [new(0, [], edge, edge) { FailedSelections = 0 }] };
+        WorldCarGroundResult blocked = assets.ResolveCarGround(12904, -27135, 0, 0, 304, 0, stoppedCache, replacements);
+        Assert.True(blocked.Blocked);
+        Assert.Equal((12904, -27135, 0), (blocked.X, blocked.Z, blocked.GroundYaw));
+        Assert.Equal(1, Assert.Single(blocked.Cache.Alternatives).FailedSelections);
+        Assert.Equal(edge, blocked.Cache.Alternatives[0].CurrentGround);
+        var session = new GameSession(new GameState());
+        session.StartNewGame();
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
+        using var scene = new WorldMapScene(session, directory);
+        session.SetWorldState(scene.State with { X = 12904, Z = -27135, NativeHeight = -304, CameraTargetX = 12904, CameraTargetZ = -27135, CameraTargetNativeHeight = -560, GroundType = assets.ResolveCarGroundIdentity(edge, replacements).GroundType, NativeCarRuntime = scene.State.NativeCarRuntime! with { GroundCache = stoppedCache, Speed = 2 } });
+        session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
+        GameState before = session.State;
+        Assert.Equal(1, scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).FramesAdvanced);
+        Assert.Equal((12904, -27135), (scene.State.X, scene.State.Z));
+        Assert.Equal(2287, scene.State.BodyYaw);
+        Assert.Equal(0, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(2, session.ExamTimer!.ClockCalls);
+        Assert.Equal(1, scene.State.Frame);
+        var replaySession = new GameSession(before);
+        using var replay = new WorldMapScene(replaySession, directory);
+        Assert.Equal(1, replay.ReplayNavigation(session.ReplayJournal!.Endpoint!).FramesAdvanced);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
+    }
+
+    [Fact]
+    public void Original_overlap_lookup_obeys_retained_polygon_precedence_without_populating_or_reordering_the_cache()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
+        using var assets = new WorldAssets(directory);
+        IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(WorldTerrainSelection.ReplacementMask(0, 0));
+        // Geometry/query fixture in the actual route43 segment. These local pointer
+        // alternatives test the native lookup rule, not an authenticated player cache.
+        WorldGroundSelection[]? overlap = null;
+        int selectedX = 0;
+        int selectedZ = 0;
+        WorldSegment original = assets.GetSegment(WorldAssets.SegmentAt(17151, -28610), replacements);
+        foreach ((int x, int z) in original.Triangles.Where(triangle => (triangle.VertexFlags & 0x40) != 0).SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C }).Select(vertex => ((int)vertex.X, (int)vertex.Z)).Distinct())
+        {
+            WorldSegment segment = assets.GetSegment(WorldAssets.SegmentAt(x, z), replacements);
+            WorldGroundSelection[] containing = segment.Triangles.Select(triangle => new NativeWorldGroundIdentity(segment.MapId, segment.SourceId, triangle.NativeBlockIndex, triangle.NativePolygonIndex)).Select(identity => assets.LookupCarGround(x, z, replacements, [identity])).Where(selected => selected is not null).Select(selected => selected!).DistinctBy(selected => selected.Identity).Where(selected => (selected.Ground.Triangle.VertexFlags & 0x40) != 0).ToArray();
+            if (containing.Length > 1)
+            {
+                overlap = containing;
+                selectedX = x;
+                selectedZ = z;
+                break;
+            }
+        }
+        Assert.NotNull(overlap);
+        NativeWorldGroundIdentity[] cache = overlap.Select(selected => selected.Identity).ToArray();
+        Assert.Equal(cache[0], assets.LookupCarGround(selectedX, selectedZ, replacements, cache)!.Identity);
+        NativeWorldGroundIdentity[] reversed = cache.Reverse().ToArray();
+        Assert.Equal(reversed[0], assets.LookupCarGround(selectedX, selectedZ, replacements, reversed)!.Identity);
+        Assert.Equal(overlap.Select(selected => selected.Identity), cache);
+        Assert.Equal(overlap.Reverse().Select(selected => selected.Identity), reversed);
+    }
+
+    [Fact]
     public void Original_car_spawn_controls_mesh_and_independent_restore_preserve_native_vehicle_authority()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
@@ -22,6 +103,12 @@ public sealed class NativeCarWorldTests
         Assert.Null(scene.State.NativeFootRuntime);
         Assert.Equal(73, session.State.SavedWorld!.Slot4.ShapeId);
         Assert.Equal(0, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal(2, scene.State.NativeCarRuntime.GroundCache!.Alternatives.Length);
+        Assert.All(scene.State.NativeCarRuntime.GroundCache.Alternatives, alternative =>
+        {
+            Assert.Empty(alternative.Entries);
+            Assert.Equal(alternative.CurrentGround, alternative.PreviousGround);
+        });
         using var assets = new WorldAssets(directory);
         Assert.Equal(73, assets.ExamCar.ShapeId);
         Assert.Equal(9, assets.ExamCar.ModelIndex);
@@ -37,6 +124,10 @@ public sealed class NativeCarWorldTests
         Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1)).Accepted);
         Assert.Equal(2, scene.State.NativeCarRuntime!.Speed);
         Assert.Equal(2287, scene.State.BodyYaw);
+        NativeCarGroundAlternative cache = Assert.Single(scene.State.NativeCarRuntime.GroundCache!.Alternatives);
+        Assert.Equal(1, cache.PreferredGroup);
+        Assert.NotEmpty(cache.Entries);
+        Assert.InRange(cache.Entries.Length, 1, 12);
         ReplayJournalEntry action = session.ReplayJournal!.Endpoint!;
         var replaySession = new GameSession(before);
         using var replay = new WorldMapScene(replaySession, directory);
@@ -50,6 +141,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal(scene.Apply(next), restored.Apply(next));
         Assert.Equal(0, scene.State.NativeCarRuntime.Speed);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(scene.State), JsonSerializer.SerializeToElement(restored.State)));
+        Assert.Throws<InvalidDataException>(() => (scene.State.NativeCarRuntime with { GroundCache = null }).Validate());
     }
 
     [Fact]
@@ -64,7 +156,9 @@ public sealed class NativeCarWorldTests
         {
             // Isolated component contact fixture at an installed entrance-polygon centroid;
             // this neither records a causal route nor establishes ordinary player coverage.
-            session.SetWorldState(entry.State with { X = 12390, Z = -26709, NativeHeight = -301, CameraTargetX = 12390, CameraTargetZ = -26709, CameraTargetNativeHeight = -557 });
+            using var assets = new WorldAssets(directory);
+            NativeWorldGroundIdentity ground = assets.LookupCarGround(12390, -26709, WorldTerrainSelection.Replacements(entry.State.ReplacementMask), [])!.Identity;
+            session.SetWorldState(entry.State with { X = 12390, Z = -26709, NativeHeight = -301, CameraTargetX = 12390, CameraTargetZ = -26709, CameraTargetNativeHeight = -557, NativeCarRuntime = entry.State.NativeCarRuntime! with { GroundCache = NativeCarGroundCacheState.CreateFresh(ground) } });
         }
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         world.EnsureField();
@@ -82,6 +176,8 @@ public sealed class NativeCarWorldTests
         Assert.Equal(1, receipt.SourceWorldFrame);
         Assert.Equal(40, receipt.StoryWord);
         Assert.NotNull(session.State.DepartingWorldState!.NativeCarRuntime);
+        Assert.Equal(33, session.WorldConfiguration!.EntityByte);
+        Assert.Equal(NativeWorldConfiguration.ReturnRule, session.WorldConfiguration.Rule);
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-car-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {

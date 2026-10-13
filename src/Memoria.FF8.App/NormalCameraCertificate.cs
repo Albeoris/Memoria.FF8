@@ -52,18 +52,7 @@ public static class NormalCameraCertificate
             throw new NotSupportedException("Normal camera tracking cannot substitute an unproved actor for the compact party leader.");
         }
         ActorState leader = matchingActors[0];
-        FieldFixedPosition position;
-        if (scene.NativePlayerPosition is FieldFixedPosition raw && leader.X == raw.X / 4096f && leader.Y == raw.Y / 4096f && leader.Z == raw.Z / 4096f)
-        {
-            position = raw;
-        }
-        else
-        {
-            // Camera anchors consume only SAR12 integer parts. Managed script motion
-            // supplies its displayed integer parts; its native trajectory remains unverified.
-            position = new FieldFixedPosition(Anchor(leader.X), Anchor(leader.Y), Anchor(leader.Z));
-        }
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(camera, information!, position.X, position.Y, position.Z);
+        FieldNativeCameraResult result = ProjectActorCenter(field, scene, leader);
         if (!result.Supported || result.Center is not FieldNativeCameraCenter center)
         {
             throw new NotSupportedException(result.UnsupportedReason ?? "Normal camera projection has no certified center.");
@@ -99,5 +88,20 @@ public static class NormalCameraCertificate
             throw new NotSupportedException("Normal camera cannot recover a supported integer anchor from the displayed actor coordinate.");
         }
         return (int)MathF.Floor(coordinate) << 12;
+    }
+
+    internal static FieldNativeCameraResult ProjectActorCenter(FieldAssets field, SceneEventState scene, ActorState actor)
+    {
+        FieldFixedPosition position;
+        if (scene.NativePlayerPosition is FieldFixedPosition raw && actor.X == raw.X / 4096f && actor.Y == raw.Y / 4096f && actor.Z == raw.Z / 4096f)
+        {
+            position = raw;
+        }
+        else
+        {
+            // The projection consumes SAR12 integer anchors, not an inferred motion trajectory.
+            position = new FieldFixedPosition(Anchor(actor.X), Anchor(actor.Y), Anchor(actor.Z));
+        }
+        return FieldNativeCameraProbe.Resolve(field.GetCamera(scene.CameraIndex), field.Information!, position.X, position.Y, position.Z, scene.CameraIndex);
     }
 }

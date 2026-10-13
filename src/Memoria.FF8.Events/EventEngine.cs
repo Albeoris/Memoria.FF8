@@ -65,7 +65,7 @@ public sealed partial class EventEngine
     public NativeFieldRuntimeProfile? NativeRuntimeProfile { get; private set; }
     public event Action<ScriptCommand>? CommandExecuted;
 
-    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null)
+    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null)
     {
         if (nativeRuntimeProfile is not null && !nativeRuntimeProfile.IsVerified)
         {
@@ -76,6 +76,7 @@ public sealed partial class EventEngine
             throw new ArgumentException("Coordinate arrival must match the loaded field and contain a valid native spawn.", nameof(arrival));
         }
         ValidatePreviousFieldLoad(previousFieldId);
+        ValidatePreviousWorldEntityLoad(fieldId, jsm, worldEntityAllocationContext);
         JsmProgram next = JsmProgram.Read(jsm);
         if (program is null && fieldId == 74)
         {
@@ -132,6 +133,7 @@ public sealed partial class EventEngine
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         CopyNativeMediaHistory(previousScene);
         InitializePreviousField(previousFieldId);
+        InitializePreviousWorldEntity();
         // Native52BC00 clears B240/241 before normal init; B242 persists globally.
         Scene.DrawPointFieldStateVersion = fieldId >= 72 ? 1 : 0;
         Scene.DrawPointIndex = previousScene.DrawPointIndex;
@@ -285,6 +287,7 @@ public sealed partial class EventEngine
         StepNativeScriptMovement();
         StepSplitParty();
         StepNativeShake();
+        StepNativeActorBackgroundScroll();
         StepNativeBackgroundScroll();
         if (!defaultsStarted && fibers.Where(item => item.Initialization).All(item => item.Complete))
         {

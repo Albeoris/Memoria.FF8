@@ -29,10 +29,16 @@ public sealed class SceneEventState
 {
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? PreviousWorldEntityByte86 { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldCallbackClock? FieldCallbackClock { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldButtonInput? ButtonInput { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeActorBackgroundScroll? ActorBackgroundScroll { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldShake? Shake { get; internal set; }

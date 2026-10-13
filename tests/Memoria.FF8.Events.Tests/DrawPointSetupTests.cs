@@ -9,6 +9,20 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
+    private static void NativeDrawPointAllocatedByteContract()
+    {
+        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, -1494), (Jsm.Opcode.PSHN_L, 670), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.RET, 0));
+        GameSession session = new(new GameState { WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(new WorldTransition(63, 33, -1), 262) });
+        EventEngine engine = new(session, session.State.Variables);
+        engine.LoadField(134, content, []);
+        engine.Step();
+        Require(engine.Scene.PreviousWorldEntityByte86 == 33 && engine.Scene.DrawPointReset is not null, "Known allocated BYTE86 was misclassified as an overlapping DWORD at B88.");
+        GameSession unprovedSession = new(new GameState { Variables = new Dictionary<int, int> { [86] = 33 } });
+        EventEngine unproved = new(unprovedSession, unprovedSession.State.Variables);
+        unproved.LoadField(134, content, []);
+        ExpectDrawPointFault(unproved, "SETDRAWPOINT", 7, 1);
+    }
+
     private static void NativeDrawPointSetupContract(string gameDirectory)
     {
         EventEngine Create(byte[] content, int fieldId = 148, Dictionary<int, int>? variables = null)
@@ -54,6 +68,7 @@ internal static partial class Program
         cleared.Step();
         cleared.Step();
         Require(cleared.Scene.DrawPointEnabled == 1 && cleared.Scene.DrawPointDisplayParameter == 1 && cleared.Scene.DrawPointIndex == 3 && cleared.Scene.DrawPointReset is not null, "CLEAR changed the native below256 draw-point bytes.");
+        NativeDrawPointAllocatedByteContract();
         foreach (int mask in new[] { 0, 2, 255 })
         {
             EventEngine blocked = Create(Content(mask));

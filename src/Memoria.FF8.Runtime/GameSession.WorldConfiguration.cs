@@ -1,0 +1,23 @@
+using System.Text.Json;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class GameSession
+{
+    private static void ValidateAllocatedWorldEntityCheckpoint(GameState state, JsonElement? currentVm)
+    {
+        if (state.Scene == SceneKind.WorldMap || currentVm is not JsonElement vm || !vm.TryGetProperty("Scene", out JsonElement scene))
+        {
+            return;
+        }
+        byte? allocated = scene.TryGetProperty("PreviousWorldEntityByte86", out JsonElement entity) && entity.ValueKind != JsonValueKind.Null ? entity.GetByte() : null;
+        if (allocated != state.WorldConfiguration?.EntityByte)
+        {
+            throw new InvalidDataException("Root process world configuration and allocated field BYTE86 disagree.");
+        }
+        if (allocated is byte known && (!vm.GetProperty("Variables").TryGetProperty("86", out JsonElement alias) || alias.GetInt32() != known || !state.Variables.TryGetValue(86, out int rootAlias) || rootAlias != known))
+        {
+            throw new InvalidDataException("Allocated field BYTE86 disagrees with its saved memory alias.");
+        }
+    }
+}

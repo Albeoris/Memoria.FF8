@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Native ordinary car entity33 state from548080/557A90, independent of normal foot animation.</summary>
 public sealed record NativeCarWorldRuntimeState
 {
-    public const string LoadRule = "ff8-en-ordinary-car33-544860-548080-v1";
+    public const string LoadRule = "ff8-en-ordinary-car33-544860-548080-v3";
     [JsonRequired]
     public required int Version { get; init; }
     [JsonRequired]
@@ -24,19 +24,24 @@ public sealed record NativeCarWorldRuntimeState
     public required int ModelTilt { get; init; }
     [JsonRequired]
     public required byte MapDisplayMode { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeCarGroundCacheState? GroundCache { get; init; }
+    public int? GroundYaw { get; init; }
 
-    public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved)
+    public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved, NativeCarGroundCacheState cache)
     {
         saved.Validate();
-        return new NativeCarWorldRuntimeState { Version = 1, Rule = LoadRule, EntityType = 33, ShapeId = 73, Speed = 0, CameraFollowSpeed = 0, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader() };
+        cache.Validate();
+        return new NativeCarWorldRuntimeState { Version = 3, Rule = LoadRule, EntityType = 33, ShapeId = 73, Speed = 0, CameraFollowSpeed = 0, TerrainTiltBlend = 0, ModelTilt = 0, MapDisplayMode = saved.ReadMapDisplayModeForFreshFootLoader(), GroundCache = cache, GroundYaw = 0 };
     }
 
     public void Validate()
     {
-        if (Version != 1 || Rule != LoadRule || EntityType != 33 || ShapeId != 73 || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode != 0)
+        if (Version != 3 || Rule != LoadRule || EntityType != 33 || ShapeId != 73 || Speed is < -64 or > 64 || CameraFollowSpeed is < 0 or > 128 || TerrainTiltBlend is < 0 or > 64 || ModelTilt is < -128 or > 192 || MapDisplayMode != 0 || GroundCache is null || GroundYaw is null or < -1120 or > 1120)
         {
             throw new InvalidDataException("Unsupported native ordinary car runtime state.");
         }
+        GroundCache.Validate();
     }
 }
 

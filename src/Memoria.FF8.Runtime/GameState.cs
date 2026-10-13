@@ -33,6 +33,8 @@ public sealed record GameState
     public NativeSavedWorldState? SavedWorld { get; init; }
     public NativeWorldControlState? WorldControls { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldConfiguration? WorldConfiguration { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeExamTimerState? ExamTimer { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCharacterVitals? CharacterVitals { get; init; }
@@ -99,6 +101,7 @@ public interface IEventServices
         throw new NotSupportedException("Native exam timer state is not implemented by this event service.");
     }
     NativeWorldControlState? WorldControls => null;
+    NativeWorldConfiguration? WorldConfiguration => null;
     void SetWorldControls(NativeWorldControlState controls)
     {
         throw new NotSupportedException("Native world control flags are not implemented by this event service.");

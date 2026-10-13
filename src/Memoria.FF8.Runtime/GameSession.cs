@@ -33,6 +33,7 @@ public sealed partial class GameSession : IEventServices
     public bool IsReplayCaptureActive => replayCaptureDepth != 0;
     public MoviePlaybackState? ReplayMoviePlayback => State.MoviePlayback;
     public NativeWorldControlState? WorldControls => State.WorldControls;
+    public NativeWorldConfiguration? WorldConfiguration => State.WorldConfiguration;
     public NativeExamTimerState? ExamTimer => State.ExamTimer;
     public NativeCharacterVitals? CharacterVitals => State.CharacterVitals;
     public NativeCharacterAppearance? CharacterAppearance => State.CharacterAppearance;
@@ -207,6 +208,7 @@ public sealed partial class GameSession : IEventServices
             DebugView = null,
             SavedWorld = departure.SavedWorld.WithFootReturn(receipt),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
+            WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorldState)
         };
         Validate(candidate);
@@ -230,7 +232,7 @@ public sealed partial class GameSession : IEventServices
     {
         ArgumentNullException.ThrowIfNull(transition);
         Dialog = null;
-        Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null });
+        Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, State.FieldId) });
     }
 
     public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null)
@@ -251,7 +253,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("Prepared world saved-vehicle state differs from its native entry writes.");
         }
-        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved };
+        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, departure.FieldId) };
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))
@@ -435,6 +437,7 @@ public sealed partial class GameSession : IEventServices
                 throw new InvalidDataException("Root and event world-control checkpoints disagree.");
             }
         }
+        ValidateAllocatedWorldEntityCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -542,6 +545,7 @@ public sealed partial class GameSession : IEventServices
         }
         state.SavedWorld?.Validate();
         state.WorldControls?.Validate();
+        state.WorldConfiguration?.Validate();
         state.ExamTimer?.Validate();
         state.CharacterVitals?.Validate();
         state.CharacterAppearance?.Validate();

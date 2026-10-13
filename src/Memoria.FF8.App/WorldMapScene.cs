@@ -47,6 +47,7 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeSavedWorldFootReturn? reload = null;
         NativeFootWorldRuntimeState? initialFootRuntime = null;
         NativeCarWorldRuntimeState? initialCarRuntime = null;
+        NativeSavedWorldState? carSavedDeparture = null;
         if (car)
         {
             if (entry == 62 || unchecked((sbyte)arrival.Extra) != -1)
@@ -55,8 +56,7 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             if (session.State.World is null)
             {
-                initialCarRuntime = NativeCarWorldRuntimeState.Create(session.State.SavedWorld);
-                initialCarRuntime.Validate();
+                carSavedDeparture = session.State.SavedWorld;
                 session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry());
             }
             else if (session.State.World.NativeCarRuntime is null)
@@ -102,7 +102,17 @@ internal sealed partial class WorldMapScene : IDisposable
                 int height = reload?.Pose0.Height ?? spawn.NativeHeight;
                 ushort mask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte);
                 replacements = WorldTerrainSelection.Replacements(mask);
-                WorldGround? ground = assets.FindNativeGround(x, z, replacements, entityType: car ? 33 : 0);
+                WorldGround? ground;
+                if (car)
+                {
+                    WorldGroundSelection initialGround = assets.LookupCarGround(x, z, replacements, []) ?? throw new NotSupportedException("Original car spawn has no native ground lookup result.");
+                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, NativeCarGroundCacheState.CreateFresh(initialGround.Identity));
+                    ground = initialGround.Ground;
+                }
+                else
+                {
+                    ground = assets.FindNativeGround(x, z, replacements);
+                }
                 WorldState initial = new()
                 {
                     X = x,
@@ -124,6 +134,11 @@ internal sealed partial class WorldMapScene : IDisposable
             else
             {
                 replacements = WorldTerrainSelection.Replacements(State.ReplacementMask);
+                if (car)
+                {
+                    State.NativeCarRuntime!.Validate();
+                    assets.ValidateCarGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
+                }
                 EnsureContactCertificate(State);
             }
         }

@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeTimerReadOrigin(int Version, int FieldId, string ProgramHash, int ObjectId, int ScriptId, int Operation, long Frame, NativeExamTimerState Timer, uint Mask = uint.MaxValue, bool SignedWord = false);
+public sealed record NativeScalarProjection([property: JsonRequired] int Width, [property: JsonRequired] bool Signed);
+public sealed record NativeTimerReadOrigin(int Version, int FieldId, string ProgramHash, int ObjectId, int ScriptId, int Operation, long Frame, NativeExamTimerState Timer, uint Mask = uint.MaxValue, bool SignedWord = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarProjection[]? Projections = null);
 
 /// <summary>An exact integer or all possible results of one executed native timer read. No representative value is selected.</summary>
 [JsonConverter(typeof(NativeScalarValueJsonConverter))]
@@ -41,7 +42,7 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
             throw new InvalidDataException("Native scalar source has no timer snapshot.");
         }
         Origin.Timer.Validate();
-        if (Origin.Version != 1 || Origin.FieldId < 72 || Origin.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || Origin.ObjectId < 0 || Origin.ScriptId < 0 || Origin.Operation < 0 || Origin.Frame < 0 || Origin.Mask is not (byte.MaxValue or ushort.MaxValue or uint.MaxValue) || Origin.SignedWord && Origin.Mask == uint.MaxValue || !Values.SequenceEqual(Project(Origin)))
+        if (Origin.Version != 1 || Origin.FieldId < 72 || Origin.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || Origin.ObjectId < 0 || Origin.ScriptId < 0 || Origin.Operation < 0 || Origin.Frame < 0 || Origin.Mask is not (byte.MaxValue or ushort.MaxValue or uint.MaxValue) || Origin.SignedWord && Origin.Mask == uint.MaxValue || Origin.Projections is { Length: > 64 } || Origin.Projections?.Any(projection => projection is null || projection.Width is not (1 or 2 or 4) || projection.Signed && projection.Width == 4) == true || !Values.SequenceEqual(Project(Origin)))
         {
             throw new InvalidDataException("Native scalar values differ from their executed timer read and width projection.");
         }
@@ -62,23 +63,32 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
             4 => uint.MaxValue,
             _ => throw new ArgumentOutOfRangeException(nameof(width))
         };
-        if (signedWord && width != 2)
+        if (signedWord && width == 4)
         {
-            throw new ArgumentException("Signed native projection requires a WORD.", nameof(signedWord));
+            throw new ArgumentException("Signed native projection requires a BYTE or WORD.", nameof(signedWord));
         }
         Validate();
         if (IsExact)
         {
             int value = unchecked((int)((uint)Values[0] & mask));
-            return Exact(signedWord ? unchecked((short)value) : value);
+            return Exact(signedWord ? width == 1 ? unchecked((sbyte)value) : unchecked((short)value) : value);
         }
         NativeTimerReadOrigin origin = Origin!;
+        if (width == 1 && signedWord || origin.Projections is not null)
+        {
+            return FromTimer(origin with { Projections = [.. origin.Projections ?? [], new NativeScalarProjection(width, signedWord)] });
+        }
         return FromTimer(origin with { Mask = origin.Mask & mask, SignedWord = width == 4 ? origin.SignedWord : signedWord });
     }
 
     private static int[] Project(NativeTimerReadOrigin origin)
     {
-        return origin.Timer.Alternatives.Select(item => unchecked((int)((uint)item.Remaining & origin.Mask))).Select(value => origin.SignedWord ? unchecked((short)value) : value).Distinct().Order().ToArray();
+        IEnumerable<int> values = origin.Timer.Alternatives.Select(item => unchecked((int)((uint)item.Remaining & origin.Mask))).Select(value => origin.SignedWord ? unchecked((short)value) : value);
+        foreach (NativeScalarProjection projection in origin.Projections ?? [])
+        {
+            values = values.Select(value => projection.Width == 1 ? projection.Signed ? unchecked((sbyte)value) : unchecked((byte)value) : projection.Width == 2 ? projection.Signed ? unchecked((short)value) : unchecked((ushort)value) : value).ToArray();
+        }
+        return values.Distinct().Order().ToArray();
     }
 
     public static implicit operator NativeScalarValue(int value) => Exact(value);

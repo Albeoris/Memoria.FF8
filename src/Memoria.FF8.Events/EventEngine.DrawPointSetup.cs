@@ -35,14 +35,14 @@ public sealed partial class EventEngine
 
     private string? UnsupportedDrawPointAliases(bool includeDisplaySource)
     {
-        return variables.Keys.Any(address => address is >= 237 and <= 242 || includeDisplaySource && address is >= 85 and <= 88) ? "Native draw-point bytes overlap a legacy scalar with unknown width; original byte-addressed aliases are required" : null;
+        return variables.Any(pair => (pair.Key is >= 237 and <= 242 || includeDisplaySource && pair.Key is >= 85 and <= 88) && !IsKnownNativeByteAlias(pair.Key, pair.Value)) ? "Native draw-point bytes overlap a legacy scalar with unknown width; original byte-addressed aliases are required" : null;
     }
 
     private string? UnsupportedDrawPointAccess(JsmOperation operation)
     {
         int width = operation.Opcode switch
         {
-            Jsm.Opcode.PSHM_B or Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.POPM_B => 1,
             Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W => 2,
             Jsm.Opcode.PSHM_L or Jsm.Opcode.POPM_L => 4,
             _ => 0
@@ -53,7 +53,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (operation.Opcode == Jsm.Opcode.PSHM_B && !displaySource && TryReadDrawPointByte(operation.Parameter, out _))
+        if (operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B && !displaySource && TryReadDrawPointByte(operation.Parameter, out _))
         {
             return UnsupportedDrawPointAliases(false);
         }

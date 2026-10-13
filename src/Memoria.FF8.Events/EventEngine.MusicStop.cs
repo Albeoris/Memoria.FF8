@@ -17,7 +17,7 @@ public sealed partial class EventEngine
             value = channel.ChannelId;
             return true;
         }
-        if (operation.Opcode == Jsm.Opcode.PSHM_B && operation.Parameter is 199 or 200 && ReadMusicChannel(operation.Parameter - 199)?.MusicId is byte music)
+        if (operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B && operation.Parameter is 199 or 200 && ReadMusicChannel(operation.Parameter - 199)?.MusicId is byte music)
         {
             value = music;
             return true;
@@ -46,7 +46,7 @@ public sealed partial class EventEngine
         }
         int width = operation.Opcode switch
         {
-            Jsm.Opcode.PSHM_B or Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.POPM_B => 1,
             Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W => 2,
             Jsm.Opcode.PSHM_L or Jsm.Opcode.POPM_L => 4,
             _ => 0

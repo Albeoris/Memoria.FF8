@@ -32,6 +32,7 @@ public sealed partial class EventEngine
                 fiber.StackExpressions.Push(opcode == Jsm.Opcode.PSHAC ? $"actor[{parameter}]" : parameter.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 return;
             case Jsm.Opcode.PSHM_B:
+            case Jsm.Opcode.PSHSM_B:
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
@@ -41,12 +42,13 @@ public sealed partial class EventEngine
                     fiber.StackExpressions.Push($"native[{parameter}]");
                     return;
                 }
-                int value = opcode == Jsm.Opcode.PSHM_B && parameter == 209 && services.WorldControls is not null ? services.WorldControls.Menu209 : variables.TryGetValue(parameter, out int stored) ? stored : 0;
-                if (opcode == Jsm.Opcode.PSHM_B && TryReadDrawPointByte(parameter, out int drawPointByte))
+                bool byteRead = opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B;
+                int value = byteRead && parameter == 209 && services.WorldControls is not null ? services.WorldControls.Menu209 : variables.TryGetValue(parameter, out int stored) ? stored : 0;
+                if (byteRead && TryReadDrawPointByte(parameter, out int drawPointByte))
                 {
                     value = drawPointByte;
                 }
-                if (opcode == Jsm.Opcode.PSHM_B && TryReadSoundVolumeByte(parameter, out int soundVolumeByte))
+                if (byteRead && TryReadSoundVolumeByte(parameter, out int soundVolumeByte))
                 {
                     value = soundVolumeByte;
                 }
@@ -62,8 +64,8 @@ public sealed partial class EventEngine
                 {
                     value = fadeMode;
                 }
-                fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_W ? (short)value : value);
-                fiber.StackExpressions.Push($"{(opcode == Jsm.Opcode.PSHM_B ? "B" : opcode == Jsm.Opcode.PSHM_W ? "W" : opcode == Jsm.Opcode.PSHSM_W ? "SW" : "L")}[{parameter}]");
+                fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)value) : opcode == Jsm.Opcode.PSHSM_W ? (short)value : value);
+                fiber.StackExpressions.Push($"{(opcode == Jsm.Opcode.PSHM_B ? "B" : opcode == Jsm.Opcode.PSHSM_B ? "SB" : opcode == Jsm.Opcode.PSHM_W ? "W" : opcode == Jsm.Opcode.PSHSM_W ? "SW" : "L")}[{parameter}]");
                 return;
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
@@ -178,6 +180,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.DSCROLL:
                 args = ExecuteDirectBackgroundScroll(fiber, layerZero: true);
+                break;
+            case Jsm.Opcode.DSCROLLA:
+                args = ExecuteActorBackgroundScroll(fiber);
                 break;
             case Jsm.Opcode.SHAKE:
             case Jsm.Opcode.SHAKEOFF:

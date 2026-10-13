@@ -50,12 +50,15 @@ internal static partial class Program
                     ["key-on"] = NativeKeyOnContract,
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
+                    ["actor-scroll"] = NativeActorScrollContract,
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
+                    ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
                     ["sound-stop"] = NativeSoundStopContract,
                     ["native-talk"] = NativeTalkSelectionContract,
                     ["previous-field"] = NativePreviousFieldContract,
+                    ["previous-world-entity"] = NativePreviousWorldEntityContract,
                     ["native-sloped-line"] = () => NativeSlopedLineContract(selectedGameDirectory),
                     ["native-sloped-split"] = () =>
                     {
@@ -101,12 +104,14 @@ internal static partial class Program
             NativeKeyOnContract();
             NativeMovieTimerClockContract();
             NativeCarCommandsContract(gameDirectory);
+            NativeActorScrollContract();
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeSoundInitializationContract(gameDirectory);
             NativeSoundStopContract();
             NativeTalkSelectionContract();
             NativePreviousFieldContract();
+            NativePreviousWorldEntityContract();
             NativeSlopedLineContract(gameDirectory);
             NativeSoloSlopedSplitContract(gameDirectory);
             string uninterrupted = RunInstalledCorpus(gameDirectory, false);

@@ -138,6 +138,8 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
         Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSet(next, layer, settings, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene, Events.Actors);
         Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || BackgroundScrollCertificate.CanSetPosition(next, layer, x, y, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene);
+        Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
+        Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, partySlot, nativeActorId, duration);
         Events.CanSetCosineBackgroundScroll = (layer, x, y, duration) => BackgroundScrollCertificate.CanSetCosinePosition(next, Events.Scene, layer, x, y, duration);
         Events.ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(next.Walkmesh, x, y, z);
@@ -170,7 +172,7 @@ internal sealed partial class GameWorld : IDisposable
             return next.Walkmesh.TryPosition(arrival.X, arrival.Y, out Vector3 position, out int triangle, locked) ? new WalkmeshPosition(position, triangle) : null;
         };
         Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
-        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile);
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
@@ -216,7 +218,7 @@ internal sealed partial class GameWorld : IDisposable
             return worldScene!.Render(renderWidth, renderHeight);
         }
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
-        BackgroundScrollFrame scroll = DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NativeField135LinearScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? BackgroundScrollCertificate.Prepare(Field!, Events.Scene);
+        BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NativeField135LinearScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? BackgroundScrollCertificate.Prepare(Field!, Events.Scene);
         DebugSceneView? view = session.State.DebugView;
         if (Events.Scene.Shake is NativeFieldShake shake)
         {

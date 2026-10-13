@@ -11,6 +11,8 @@ public readonly record struct WorldGround(float Height, WorldTriangle Triangle, 
 public readonly record struct WorldSky(Vector3 Position, Rgba32 Top, Rgba32 Center, Rgba32 Bottom, int Radius = 0);
 public sealed record WorldTriangle(Vector3 A, Vector3 B, Vector3 C, Vector2 UvA, Vector2 UvB, Vector2 UvC, byte TexturePage, byte Palette, byte GroundType, byte TextureFlags, byte VertexFlags)
 {
+    public int NativeBlockIndex { get; init; }
+    public int NativePolygonIndex { get; init; }
     public bool Walkable => (VertexFlags & 0x80) != 0;
     public bool Road => (TextureFlags & 0x20) != 0;
     public bool Water => (TextureFlags & 0x40) != 0;

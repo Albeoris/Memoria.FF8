@@ -28,10 +28,10 @@ public sealed partial class EventEngine
     private static bool Supports(Jsm.Opcode opcode) => opcode switch
     {
             Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.RET or Jsm.Opcode.HALT or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or
-            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or
+            Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or
             Jsm.Opcode.POPM_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or
             Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.BATTLE or Jsm.Opcode.BATTLERESULT or
-            Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRA or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
+            Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL or Jsm.Opcode.DSCROLLA or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRA or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
             Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
             Jsm.Opcode.HIDE or Jsm.Opcode.SHOW or Jsm.Opcode.SET3 or Jsm.Opcode.DIR or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or
             Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
@@ -136,6 +136,11 @@ public sealed partial class EventEngine
         {
             return previousFieldAccess;
         }
+        string? previousWorldAccess = UnsupportedPreviousWorldEntityAccess(operation);
+        if (previousWorldAccess is not null)
+        {
+            return previousWorldAccess;
+        }
         if (operation.Opcode is Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.Unknown16)
         {
             return UnsupportedDrawPointSetup(fiber, operation);
@@ -229,6 +234,10 @@ public sealed partial class EventEngine
         if (operation.Opcode is Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL)
         {
             return UnsupportedDirectBackgroundScroll(fiber, layerZero: operation.Opcode == Jsm.Opcode.DSCROLL);
+        }
+        if (operation.Opcode == Jsm.Opcode.DSCROLLA)
+        {
+            return UnsupportedActorBackgroundScroll(fiber);
         }
         if (operation.Opcode == Jsm.Opcode.CSCROLLP)
         {
