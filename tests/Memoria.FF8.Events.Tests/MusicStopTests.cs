@@ -1,0 +1,82 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Events.Tests;
+
+internal static partial class Program
+{
+    private static void NativeMusicStopContract()
+    {
+        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHM_L, 108), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        EventEngine Create(byte[]? bytes = null)
+        {
+            GameSession session = new(new GameState());
+            EventEngine engine = new(session, session.State.Variables);
+            engine.LoadField(100, bytes ?? content, []);
+            JsonNode saved = JsonNode.Parse(engine.Capture().GetRawText())!;
+            saved["Scene"]!["LoadedMusic"] = 26;
+            saved["Scene"]!["MusicPlaying"] = true;
+            engine.Restore(JsonSerializer.SerializeToElement(saved));
+            return engine;
+        }
+        EventEngine first = Create();
+        first.Step();
+        NativeMusicStop stopped = first.Scene.MusicStop ?? throw new InvalidOperationException("MUSICSTOP lost original stop provenance.");
+        Require(stopped is { RawSlot: 2, Slot: 0, PriorChannelId: null, StopRequested: null, BackendStatus: GlobalSoundBackendStatus.Muted } && first.Scene.MusicChannel108 is { ChannelId: -1, MusicId: null } && !first.Scene.MusicPlaying && first.Scene.LoadedMusic == 26 && first.Scene.MusicChannel112 is null, "Unknown prior music channel fabricated a conditional stop/music byte or changed the other slot.");
+        JsonElement begun = first.Capture();
+        Require(begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == -1 && !begun.GetProperty("Variables").TryGetProperty("199", out _), "Known post-stop DWORD was unreadable or unknown B199 was manufactured.");
+        EventEngine resumed = Create();
+        resumed.Restore(begun);
+        for (int tick = 0; tick < 4; tick++)
+        {
+            first.Step();
+            resumed.Step();
+            Require(JsonElement.DeepEquals(first.Capture(), resumed.Capture()), "Music stop provenance/channel authority diverged after independent restore.");
+        }
+        byte[] repeat = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        first.LoadField(101, repeat, []);
+        first.Step();
+        Require(first.Scene.MusicStop is { PriorChannelId: -1, StopRequested: false } && first.Scene.MusicChannel108?.MusicId is null, "Already-inactive channel claimed a backend stop or conditional music-byte write.");
+        EventEngine across = Create(repeat);
+        across.LoadField(101, repeat, []);
+        across.Restore(first.Capture());
+        Require(JsonElement.DeepEquals(first.Capture(), across.Capture()), "Cross-field music stop evidence failed VM-only independent restore.");
+
+        byte[] unknownByte = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHM_B, 199), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.RET, 0));
+        EventEngine refused = Create(unknownByte);
+        try
+        {
+            refused.Step();
+            throw new InvalidOperationException("MUSICSTOP supplied an unknown B199 value.");
+        }
+        catch (EventScriptException) when (refused.LastFault?.Opcode == "PSHM_B")
+        {
+        }
+        Require(refused.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 3, "Unknown music-byte read advanced its issuing PC.");
+        EventEngine ambiguous = Create();
+        JsonNode alias = JsonNode.Parse(ambiguous.Capture().GetRawText())!;
+        alias["Variables"]!["107"] = 65536;
+        ambiguous.Restore(JsonSerializer.SerializeToElement(alias));
+        try
+        {
+            ambiguous.Step();
+            throw new InvalidOperationException("MUSICSTOP overwrote an ambiguous channel alias.");
+        }
+        catch (EventScriptException) when (ambiguous.LastFault?.Opcode == "MUSICSTOP")
+        {
+        }
+        Require(ambiguous.Scene.MusicStop is null && ambiguous.Scene.MusicPlaying && ambiguous.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 2, "Refused stop consumed its slot operand or changed music state.");
+
+        foreach (Jsm.Opcode takeover in new[] { Jsm.Opcode.MUSICLOAD, Jsm.Opcode.MUSICCHANGE })
+        {
+            byte[] load = takeover == Jsm.Opcode.MUSICLOAD ? SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 26), (takeover, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)) : SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (takeover, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+            EventEngine changed = Create(load);
+            changed.Step();
+            Require(changed.Scene.MusicStop is not null && changed.Scene.MusicChannel108 is null && !changed.Capture().GetProperty("Variables").TryGetProperty("108", out _), "Legacy music load/play left stale -1 channel authority or erased stop history.");
+        }
+        Console.WriteLine("Native MUSICSTOP: full slot operand masks &1, immediate known channel -1, conditional unknown stop/music byte retained, primary logical playing false; independent/cross-field restore, unknown aliases and legacy music takeover verified.");
+    }
+}

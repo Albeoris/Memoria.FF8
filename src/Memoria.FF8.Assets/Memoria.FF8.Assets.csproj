@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
+    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.FlArchives/Albeoris.Games.FF8.FlArchives.csproj" />
+    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.Imaging/Albeoris.Games.FF8.Imaging.csproj" />
+    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.Msd/Albeoris.Games.FF8.Msd.csproj" />
+    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.TextEncoding/Albeoris.Games.FF8.TextEncoding.csproj" />
+  </ItemGroup>
+</Project>

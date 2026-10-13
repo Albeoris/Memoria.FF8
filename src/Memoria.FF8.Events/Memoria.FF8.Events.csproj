@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Memoria.FF8.Events</RootNamespace>
+    <FrameworksRoot Condition="'$(FrameworksRoot)' == ''">C:\Git\Albeoris.Frameworks</FrameworksRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Memoria.FF8.Runtime\Memoria.FF8.Runtime.csproj" />
+    <ProjectReference Include="$(FrameworksRoot)\Albeoris.Games.FF8.Jsm\Albeoris.Games.FF8.Jsm.csproj" />
+  </ItemGroup>
+</Project>

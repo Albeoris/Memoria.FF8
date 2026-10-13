@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>Memoria.FF8</AssemblyName>
+    <RootNamespace>Memoria.FF8</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <PackageReference Include="System.Drawing.Common" />
+    <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
+  </ItemGroup>
+</Project>

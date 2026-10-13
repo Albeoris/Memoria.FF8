@@ -1,0 +1,91 @@
+namespace Memoria.FF8.Events;
+
+public sealed partial class EventEngine
+{
+    private string? UnsupportedPartyQuery(Fiber fiber)
+    {
+        if (fiber.Stack.Count == 0)
+        {
+            return "GETPARTY requires its original party-slot operand";
+        }
+        if ((uint)fiber.Stack.Peek() >= 3)
+        {
+            return "GETPARTY only supports the original three party bytes; an out-of-range DWORD would read unrelated native save data";
+        }
+        if (Scene.Party.Count is < 1 or > 3 || Scene.Party.Any(character => character is < 0 or >= 255) || Scene.Party.Distinct().Count() != Scene.Party.Count)
+        {
+            return "GETPARTY requires a known canonical party with byte character IDs and trailing absent slots";
+        }
+        return null;
+    }
+
+    private static string? UnsupportedCanonicalPartyWrite(Fiber fiber)
+    {
+        if (fiber.Stack.Count < 3)
+        {
+            return "SETPARTY requires its original three character operands";
+        }
+        int[] party = fiber.Stack.Take(3).Reverse().ToArray();
+        bool absent = false;
+        HashSet<int> present = [];
+        foreach (int character in party)
+        {
+            if (character is < 0 or > 255 || character != 255 && (absent || !present.Add(character)))
+            {
+                return "SETPARTY requires a canonical byte-character prefix followed only by absent FF slots";
+            }
+            absent |= character == 255;
+        }
+        return null;
+    }
+
+    private void CompactNativeActors()
+    {
+        // Native 52C4E3..52C52D preserves raw pointer-table slots, but rebuilds
+        // the separate actor/model array after original initialization.
+        Scene.NativeActorObjectIds.Clear();
+        foreach (int objectId in program!.NativeObjects.Take(program.NativeActorCount))
+        {
+            if (actors[objectId].Active)
+            {
+                Scene.NativeActorObjectIds.Add(objectId);
+            }
+        }
+        Scene.NativeActorLayoutVersion = 1;
+    }
+
+    private void RefreshParty()
+    {
+        Scene.FieldPartyNativeActorIds.Clear();
+        for (int slot = 0; slot < 3; slot++)
+        {
+            byte character = slot < Scene.Party.Count ? (byte)Scene.Party[slot] : (byte)0xFF;
+            int nativeActor = 0xFF;
+            for (int index = 0; index < Scene.NativeActorObjectIds.Count; index++)
+            {
+                ActorState actor = actors[Scene.NativeActorObjectIds[index]];
+                if ((byte)actor.CharacterId == character)
+                {
+                    nativeActor = index;
+                    break;
+                }
+            }
+            Scene.FieldPartyNativeActorIds.Add(nativeActor);
+            variables[194 + slot] = nativeActor;
+        }
+    }
+
+    private ActorState? ResolvePartyActor(int slot)
+    {
+        if ((uint)slot >= 3)
+        {
+            return null;
+        }
+        if (Scene.FieldPartyNativeActorIds.Count == 3)
+        {
+            int nativeActor = Scene.FieldPartyNativeActorIds[slot];
+            return nativeActor != 0xFF && (uint)nativeActor < Scene.NativeActorObjectIds.Count ? actors[Scene.NativeActorObjectIds[nativeActor]] : null;
+        }
+        return slot < Scene.Party.Count ? actors.FirstOrDefault(actor => actor.Active && actor.CharacterId == Scene.Party[slot]) : null;
+    }
+}

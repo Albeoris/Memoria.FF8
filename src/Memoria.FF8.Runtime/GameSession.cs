@@ -1,0 +1,504 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed class GameSession : IEventServices
+{
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
+    private SceneKind movieReturnScene;
+    private int replayCaptureDepth;
+
+    public GameSession(GameState state)
+    {
+        Validate(state);
+        State = state;
+        movieReturnScene = SceneKind.Field;
+    }
+
+    public GameState State { get; private set; }
+    public ReplayJournal? ReplayJournal => State.ReplayJournal;
+    public string? ReplayMovieSourceHash { get; private set; }
+
+    public void SetReplayMovieSourceHash(string hash)
+    {
+        if (hash.Length != 64 || hash.Any(character => !Uri.IsHexDigit(character)))
+        {
+            throw new InvalidDataException("Invalid movie source identity.");
+        }
+        ReplayMovieSourceHash = hash;
+    }
+    public SceneKind ReplayScene => State.Scene;
+    public int? ReplayFieldId => State.FieldId;
+    public bool IsReplayCaptureActive => replayCaptureDepth != 0;
+    public MoviePlaybackState? ReplayMoviePlayback => State.MoviePlayback;
+    public NativeWorldControlState? WorldControls => State.WorldControls;
+    public NativeExamTimerState? ExamTimer => State.ExamTimer;
+    public IReadOnlyDictionary<int, NativeMemoryValue>? NativeVariableValues => State.NativeVariableValues;
+    public bool CanStoreNativeVariableValues => true;
+    public string? Dialog { get; private set; }
+    public bool IsMoviePlaying => State.Scene == SceneKind.Movie;
+    public event Action<GameState>? StateChanged;
+    public event Action<ReplayJournal>? ReplayJournalChanged;
+
+    public void StartNewGame()
+    {
+        Change(new GameState { Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), ReplayJournal = ReplayJournal.StartNewGame() });
+        ReplayJournalChanged?.Invoke(State.ReplayJournal!);
+    }
+
+    public void AppendReplayEntry(ReplayJournalEntry entry)
+    {
+        if (State.ReplayJournal is ReplayJournal journal)
+        {
+            State = State with { ReplayJournal = journal.Append(entry) };
+            ReplayJournalChanged?.Invoke(State.ReplayJournal!);
+        }
+    }
+
+    public void RecordReplayEntry(ReplayJournalEntry entry)
+    {
+        AppendReplayEntry(entry);
+    }
+
+    public void MarkReplayUnavailable(string reason)
+    {
+        if (State.ReplayJournal is ReplayJournal journal)
+        {
+            State = State with { ReplayJournal = journal.MarkUnavailable(reason) };
+            ReplayJournalChanged?.Invoke(State.ReplayJournal!);
+        }
+    }
+
+    public IDisposable BeginReplayCapture()
+    {
+        replayCaptureDepth++;
+        return new ReplayCapture(this);
+    }
+
+    private sealed class ReplayCapture(GameSession session) : IDisposable
+    {
+        private bool disposed;
+
+        public void Dispose()
+        {
+            if (!disposed)
+            {
+                session.replayCaptureDepth--;
+                disposed = true;
+            }
+        }
+    }
+
+    public void Restore(GameState state)
+    {
+        Dialog = null;
+        movieReturnScene = SceneKind.Field;
+        Change(state);
+    }
+
+    public void RequestMovie(int index)
+    {
+        ReplayMovieSourceHash = null;
+        if (index < 0 || index > 999)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+        movieReturnScene = State.Scene == SceneKind.Movie ? movieReturnScene : State.Scene;
+        Change(State with { Scene = SceneKind.Movie, MovieIndex = index, MovieSeconds = 0, MoviePlayback = null });
+    }
+
+    public void CompleteMovie()
+    {
+        CompleteMovie(false);
+    }
+
+    public void CompleteMovie(bool skipped)
+    {
+        if (State.Scene == SceneKind.Movie)
+        {
+            GameState source = State;
+            MoviePlaybackState? playback = State.MoviePlayback;
+            if (playback is not null)
+            {
+                playback = playback with { FrameIndex = playback.TerminalFrame, IsPlaying = false, Completed = true, Skipped = skipped };
+            }
+            Change(State with { Scene = movieReturnScene, MovieSeconds = 0, MoviePlayback = playback });
+            RecordMovieChange(source, ReplayEntryKind.MovieComplete, skipped);
+        }
+    }
+
+    public void RequestField(int fieldId, int entryPoint)
+    {
+        if (fieldId is < 0 or > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fieldId));
+        }
+        if (entryPoint != 0)
+        {
+            throw new NotSupportedException("Nonzero original field entry points are not implemented. Resume a full recreation checkpoint for an exact state.");
+        }
+        bool hasFieldSource = State.Scene == SceneKind.Field || State.Scene == SceneKind.Movie && movieReturnScene == SceneKind.Field;
+        int? previousFieldId = hasFieldSource ? State.FieldId : null;
+        if (previousFieldId is < 0 or > ushort.MaxValue)
+        {
+            throw new InvalidDataException("The departing field cannot be represented by the native previous-field WORD.");
+        }
+        string name = fieldId switch { 74 => "start0", 179 => "bghoke_1", 180 => "bghoke_2", 181 => "bghoke_3", 229 => "bgroad_6", 232 => "bgroom_1", _ => $"field_{fieldId}" };
+        Dialog = null;
+        Change(State with { Scene = SceneKind.Field, FieldId = fieldId, PreviousFieldId = previousFieldId, FieldName = name, EntryPoint = entryPoint, X = 0, Y = 0, EventState = null, DepartingFieldState = null, DialogueDraft = null, FieldArrival = null, WorldArrival = null, World = null, DebugView = null, WorldControls = State.WorldControls?.WithNormalFieldLoad() });
+    }
+
+    public void RequestField(FieldTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        RequestField(transition.FieldId, 0);
+        Change(State with { X = transition.X, Y = transition.Y, FieldArrival = transition });
+    }
+
+    public void CommitPreparedWorldFieldEntry(GameState expectedDeparture, WorldState finalWorldState, FieldTransition transition, NativeSavedWorldFootReturn receipt, Action<GameState> validatePrepared)
+    {
+        ArgumentNullException.ThrowIfNull(expectedDeparture);
+        ArgumentNullException.ThrowIfNull(finalWorldState);
+        ArgumentNullException.ThrowIfNull(transition);
+        ArgumentNullException.ThrowIfNull(receipt);
+        ArgumentNullException.ThrowIfNull(validatePrepared);
+        receipt.Validate();
+        GameState departure = State;
+        if (!ReferenceEquals(departure, expectedDeparture))
+        {
+            throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
+        }
+        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || departure.WorldArrival is not WorldTransition arrival || unchecked((sbyte)arrival.Mode) != 0 || departure.SavedWorld is null || departure.WorldControls is null)
+        {
+            throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
+        }
+        Validate(departure with { World = finalWorldState });
+        ValidatePreparedWorldActions(liveWorld, finalWorldState);
+        if (transition.FieldId is < 0 or > ushort.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(transition), "Native world-to-field destination must fit its unsigned WORD.");
+        }
+        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256))
+        {
+            throw new InvalidOperationException("The prepared foot save no longer matches the current native world departure.");
+        }
+        string name = transition.FieldId switch { 106 => "bcgate_1", 136 => "bdview1", 159 => "bggate_1", _ => $"field_{transition.FieldId}" };
+        GameState candidate = departure with
+        {
+            Scene = SceneKind.Field,
+            FieldId = transition.FieldId,
+            PreviousFieldId = receipt.LastFieldId,
+            FieldName = name,
+            EntryPoint = 0,
+            X = transition.X,
+            Y = transition.Y,
+            EventState = null,
+            DepartingFieldState = departure.DepartingFieldState ?? departure.EventState,
+            DialogueDraft = null,
+            FieldArrival = transition,
+            WorldArrival = null,
+            World = null,
+            DepartingWorldState = finalWorldState,
+            DebugView = null,
+            SavedWorld = departure.SavedWorld.WithFootReturn(receipt),
+            WorldControls = departure.WorldControls.WithNormalFieldLoad()
+        };
+        Validate(candidate);
+        validatePrepared(candidate);
+        if (!ReferenceEquals(State, departure))
+        {
+            throw new InvalidOperationException("The world session changed during prepared field-entry validation.");
+        }
+        Dialog = null;
+        Change(candidate);
+    }
+
+    public void SetMoviePlayback(MoviePlaybackState playback)
+    {
+        GameState source = State;
+        State = State with { MoviePlayback = playback };
+        RecordMovieChange(source, ReplayEntryKind.MovieSample);
+    }
+
+    public void RequestWorld(WorldTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        Dialog = null;
+        Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null });
+    }
+
+    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        ArgumentNullException.ThrowIfNull(initialState);
+        ArgumentNullException.ThrowIfNull(expectedControls);
+        ArgumentNullException.ThrowIfNull(validatePrepared);
+        expectedControls.Validate();
+        GameState departure = State;
+        if (departure.Scene != SceneKind.Field || departure.WorldControls != expectedControls)
+        {
+            throw new InvalidOperationException("The prepared world entry no longer matches its normal field departure controls.");
+        }
+        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag() };
+        Validate(candidate);
+        validatePrepared(candidate);
+        if (!ReferenceEquals(State, departure))
+        {
+            throw new InvalidOperationException("The field session changed during prepared world-entry validation.");
+        }
+        Dialog = null;
+        Change(candidate);
+    }
+
+    public void SetWorldState(WorldState state)
+    {
+        State = State with { World = state };
+    }
+
+    public void SetDepartingWorldState(WorldState? state)
+    {
+        State = State with { DepartingWorldState = state };
+    }
+
+    public void SetWorldControls(NativeWorldControlState controls)
+    {
+        ArgumentNullException.ThrowIfNull(controls);
+        controls.Validate();
+        State = State with { WorldControls = controls };
+    }
+
+    public void SetExamTimer(NativeExamTimerState timer)
+    {
+        ArgumentNullException.ThrowIfNull(timer);
+        timer.Validate();
+        State = State with { ExamTimer = timer };
+    }
+
+    public void SetNativeVariableValues(Dictionary<int, NativeMemoryValue>? values)
+    {
+        if (values is not null)
+        {
+            NativeMemoryValue.Validate(values, State.Variables);
+        }
+        State = State with { NativeVariableValues = values is { Count: > 0 } ? new Dictionary<int, NativeMemoryValue>(values) : null };
+    }
+
+    public void ShowDialog(string text)
+    {
+        Dialog = text;
+    }
+
+    public void DismissDialog()
+    {
+        Dialog = null;
+    }
+
+    public void SetPosition(float x, float y)
+    {
+        State = State with { X = x, Y = y };
+    }
+
+    public void SetMoviePosition(double seconds)
+    {
+        GameState source = State;
+        State = State with { MovieSeconds = Math.Max(0, seconds) };
+        RecordMovieChange(source, ReplayEntryKind.MovieSample);
+    }
+
+    private void RecordMovieChange(GameState source, ReplayEntryKind kind, bool skipped = false)
+    {
+        if (replayCaptureDepth == 0 && (source.MoviePlayback != State.MoviePlayback || source.MovieSeconds != State.MovieSeconds || source.Scene != State.Scene))
+        {
+            AppendReplayEntry(new ReplayJournalEntry(kind, source.Scene, source.FieldId, source.ReplayJournal?.Endpoint?.ResultFrame ?? source.ReplayJournal?.Endpoint?.Frame ?? 0) { MoviePlayback = State.MoviePlayback, MovieSeconds = State.MovieSeconds, MovieSourceHash = ReplayMovieSourceHash, Skipped = skipped, ResultScene = State.Scene, ResultFieldId = State.FieldId });
+        }
+    }
+
+    public void Save(string path, bool registerJournalReference = true)
+    {
+        string fullPath = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        string temporary = fullPath + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(State, JsonOptions));
+        if (registerJournalReference && State.ReplayJournal is ReplayJournal journal)
+        {
+            // Pin before publishing the save: interrupted publication may retain extra history, never lose it.
+            new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory).Pin(fullPath, journal);
+        }
+        File.Move(temporary, fullPath, true);
+    }
+
+    public void SetEventState(JsonElement? state)
+    {
+        State = State with { EventState = state?.Clone() };
+    }
+
+    public void SetDepartingFieldState(JsonElement? state)
+    {
+        State = State with { DepartingFieldState = state?.Clone() };
+    }
+
+    public void SetDialogueDraft(DialogueDraft? draft)
+    {
+        State = State with { DialogueDraft = draft };
+    }
+
+    public void SetDebugView(DebugSceneView? view)
+    {
+        view?.Validate();
+        if (view is not null && view.FieldId != State.FieldId)
+        {
+            throw new InvalidDataException("Debug view belongs to another field.");
+        }
+        State = State with { DebugView = view };
+    }
+
+    public static GameState Load(string path)
+    {
+        GameState state = JsonSerializer.Deserialize<GameState>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException("Empty checkpoint.");
+        Validate(state);
+        if (state.WorldControls is not null && state.EventState is JsonElement vm && vm.TryGetProperty("WorldControls", out JsonElement savedControls) && savedControls.ValueKind != JsonValueKind.Null)
+        {
+            NativeWorldControlState controls = savedControls.Deserialize<NativeWorldControlState>(JsonOptions) ?? throw new InvalidDataException("Empty event world-control state.");
+            controls.Validate();
+            if (controls != state.WorldControls)
+            {
+                throw new InvalidDataException("Root and event world-control checkpoints disagree.");
+            }
+        }
+        if (state.EventState is JsonElement timerVm && timerVm.TryGetProperty("ExamTimer", out JsonElement timerJson) && timerJson.ValueKind != JsonValueKind.Null)
+        {
+            NativeExamTimerState timer = timerJson.Deserialize<NativeExamTimerState>(JsonOptions) ?? throw new InvalidDataException("Empty event exam timer state.");
+            timer.Validate();
+            if (state.ExamTimer is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.ExamTimer), JsonSerializer.SerializeToElement(timer)))
+            {
+                throw new InvalidDataException("Root and event exam timer checkpoints disagree.");
+            }
+        }
+        if (state.EventState is JsonElement memoryVm && memoryVm.TryGetProperty("NativeVariableValues", out JsonElement memoryJson) && memoryJson.ValueKind != JsonValueKind.Null)
+        {
+            Dictionary<int, NativeMemoryValue> memory = memoryJson.Deserialize<Dictionary<int, NativeMemoryValue>>(JsonOptions) ?? throw new InvalidDataException("Empty event uncertain memory state.");
+            NativeMemoryValue.Validate(memory, state.Variables);
+            if (state.NativeVariableValues is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.NativeVariableValues), JsonSerializer.SerializeToElement(memory)))
+            {
+                throw new InvalidDataException("Root and event uncertain native memory checkpoints disagree.");
+            }
+        }
+        else if (state.EventState is not null && state.NativeVariableValues is { Count: > 0 })
+        {
+            throw new InvalidDataException("Root uncertain native memory is missing from the saved complete VM.");
+        }
+        return state;
+    }
+
+    public static GameState LoadReplaySource(string path)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+            JsonElement root = document.RootElement;
+            int version = root.GetProperty("Version").GetInt32();
+            SceneKind scene = root.GetProperty("Scene").Deserialize<SceneKind>(JsonOptions);
+            int fieldId = root.GetProperty("FieldId").GetInt32();
+            if (version != 1 || !Enum.IsDefined(scene) || scene == SceneKind.Title || fieldId is < 0 or > ushort.MaxValue)
+            {
+                throw new InvalidDataException("Invalid replay checkpoint boundary.");
+            }
+            ReplayJournal? journal = root.TryGetProperty("ReplayJournal", out JsonElement capsule) && capsule.ValueKind != JsonValueKind.Null ? capsule.Deserialize<ReplayJournal>(JsonOptions) : null;
+            journal?.Validate();
+            string name = root.TryGetProperty("FieldName", out JsonElement fieldName) && fieldName.ValueKind == JsonValueKind.String ? fieldName.GetString()! : $"field_{fieldId}";
+            DialogueDraft? draft = root.TryGetProperty("DialogueDraft", out JsonElement draftJson) && draftJson.ValueKind != JsonValueKind.Null ? draftJson.Deserialize<DialogueDraft>(JsonOptions) : null;
+            return new GameState { Version = version, Scene = scene, FieldId = fieldId, FieldName = name, ReplayJournal = journal, DialogueDraft = draft };
+        }
+        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
+        {
+            throw new InvalidDataException("Malformed replay checkpoint boundary: " + exception.Message, exception);
+        }
+    }
+
+    private void Change(GameState state)
+    {
+        Validate(state);
+        State = state;
+        StateChanged?.Invoke(state);
+    }
+
+    private static void Validate(GameState state)
+    {
+        state.ReplayJournal?.Validate();
+        if (state.PreviousFieldId is < 0 or > ushort.MaxValue)
+        {
+            throw new InvalidDataException("Invalid native previous-field provenance.");
+        }
+        state.SavedWorld?.Validate();
+        state.WorldControls?.Validate();
+        state.ExamTimer?.Validate();
+        if (state.NativeVariableValues is not null)
+        {
+            NativeMemoryValue.Validate(state.NativeVariableValues, state.Variables);
+        }
+        state.DebugView?.Validate();
+        if (state.DebugView is not null && state.DebugView.FieldId != state.FieldId)
+        {
+            throw new InvalidDataException("Debug view belongs to another field.");
+        }
+        if (state.EntryPoint != 0)
+        {
+            throw new NotSupportedException("Nonzero original field entry points are not implemented; use a full recreation checkpoint.");
+        }
+        if (state.Version != 1 || !Enum.IsDefined(state.Scene) || state.FieldId < 0 || !float.IsFinite(state.X) || !float.IsFinite(state.Y) || !double.IsFinite(state.MovieSeconds) || state.MovieSeconds < 0)
+        {
+            throw new InvalidDataException("Unsupported or invalid recreation checkpoint.");
+        }
+        if (state.FieldArrival is FieldTransition arrival && (arrival.FieldId != state.FieldId || !float.IsFinite(arrival.X) || !float.IsFinite(arrival.Y) || arrival.Triangle < 0 || arrival.Direction is < 0 or > 255))
+        {
+            throw new InvalidDataException("Invalid coordinate field arrival.");
+        }
+        if (state.MoviePlayback is MoviePlaybackState playback && (playback.TerminalFrame < 0 || playback.FrameIndex < 0 || playback.FrameIndex > playback.TerminalFrame || playback.Completed && playback.IsPlaying))
+        {
+            throw new InvalidDataException("Invalid movie playback clock.");
+        }
+        if (state.Scene == SceneKind.WorldMap && state.WorldArrival is null)
+        {
+            throw new InvalidDataException("A world scene requires its original transition packet.");
+        }
+        if (state.World is WorldState world)
+        {
+            ValidateWorldState(world);
+        }
+        if (state.DepartingWorldState is WorldState departingWorld)
+        {
+            ValidateWorldState(departingWorld);
+        }
+    }
+
+    private static void ValidateWorldState(WorldState world)
+    {
+        world.NativeFootRuntime?.Validate();
+        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
+        {
+            throw new InvalidDataException("Invalid world checkpoint.");
+        }
+    }
+
+    private static void ValidatePreparedWorldActions(WorldState liveWorld, WorldState finalWorld)
+    {
+        if (ReferenceEquals(finalWorld, liveWorld))
+        {
+            return;
+        }
+        if (liveWorld.Actions is null || finalWorld.Actions is null || finalWorld.Actions.Count != liveWorld.Actions.Count + 1 || !finalWorld.Actions.Take(liveWorld.Actions.Count).SequenceEqual(liveWorld.Actions))
+        {
+            throw new InvalidOperationException("Prepared field entry must preserve the complete ordinary world action prefix.");
+        }
+        WorldActionRecord tail = finalWorld.Actions[^1];
+        if (tail is null || tail.Index != liveWorld.Actions.Count + 1 || tail.Frame != finalWorld.Frame || tail.Kind is not "Move" and not "Wait" || !float.IsFinite(tail.Horizontal) || !float.IsFinite(tail.Vertical) || Math.Abs(tail.Horizontal) > 1 || Math.Abs(tail.Vertical) > 1 || tail.RequestedFrames is < 1 or > 30000 || tail.AdvancedFrames < 0 || tail.AdvancedFrames > tail.RequestedFrames || liveWorld.Frame > long.MaxValue - tail.AdvancedFrames || finalWorld.Frame != liveWorld.Frame + tail.AdvancedFrames || tail.X != finalWorld.X || tail.Z != finalWorld.Z || tail.NativeHeight != finalWorld.NativeHeight)
+        {
+            throw new InvalidOperationException("Prepared field entry must retain its exact final ordinary world action record.");
+        }
+        if (tail.AdvancedFrames == 0 && (finalWorld with { Actions = liveWorld.Actions }) != liveWorld)
+        {
+            throw new InvalidOperationException("A zero-frame entrance cannot alter the current world pose or clocks.");
+        }
+    }
+}

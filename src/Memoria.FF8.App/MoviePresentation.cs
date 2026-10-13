@@ -1,0 +1,73 @@
+using System.Diagnostics;
+using Memoria.FF8.Media;
+using Memoria.FF8.Runtime;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
+using Microsoft.Xna.Framework.Graphics;
+
+namespace Memoria.FF8;
+
+internal sealed class MoviePresentation : IDisposable
+{
+    private readonly FfmpegMovieDecoder decoder;
+    private readonly DynamicSoundEffectInstance sound = new(44100, AudioChannels.Stereo);
+    private readonly Stopwatch clock = new();
+    private bool started;
+    private int absoluteFrame;
+
+    public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null)
+    {
+        decoder = new FfmpegMovieDecoder(toolsDirectory, path, startSeconds, information);
+        Texture = new Texture2D(device, decoder.Information.Width, decoder.Information.Height);
+        absoluteFrame = MovieClock.AbsoluteFrame(startSeconds, decoder.Information);
+    }
+
+    public Texture2D Texture { get; }
+    public double PositionSeconds => decoder.StartSeconds + clock.Elapsed.TotalSeconds;
+    public bool Finished => started && IsComplete(PositionSeconds, decoder.Information.DurationSeconds, decoder.VideoFinished, decoder.AudioFinished, sound.PendingBufferCount);
+    public bool HasFrame => started;
+    public string? Error => decoder.Error;
+    public MoviePlaybackState Playback => new(absoluteFrame, decoder.Information.FrameCount - 1, !Finished, Finished, false);
+
+    internal static bool IsComplete(double position, double duration, bool videoFinished, bool audioFinished, int pendingAudioBuffers)
+    {
+        return position >= duration && videoFinished && audioFinished && pendingAudioBuffers == 0;
+    }
+
+    public void Update()
+    {
+        while (sound.PendingBufferCount < 3 && decoder.TryGetAudio(out byte[]? buffer))
+        {
+            sound.SubmitBuffer(buffer!);
+        }
+        if (decoder.TryGetFrame(clock.Elapsed.TotalSeconds, out MovieFrame? frame))
+        {
+            Texture.SetData(frame!.Rgba);
+            absoluteFrame = Math.Min(decoder.Information.FrameCount - 1, MovieClock.AbsoluteFrame(decoder.StartSeconds, decoder.Information) + checked((int)frame.Index));
+            if (!started)
+            {
+                Console.WriteLine($"movie-frame={frame.Index} bytes={frame.Rgba.Length}");
+                sound.Play();
+                Console.WriteLine($"movie-audio={sound.State} buffered={sound.PendingBufferCount} pcm=44100Hz/stereo");
+                clock.Start();
+                started = true;
+            }
+        }
+    }
+
+    public void Draw(SpriteBatch batch, Rectangle bounds)
+    {
+        PixelBounds fit = ViewportLayout.Fit(Texture.Width, Texture.Height, bounds.Width, bounds.Height);
+        var target = new Rectangle(bounds.X + fit.X, bounds.Y + fit.Y, fit.Width, fit.Height);
+        batch.Draw(Texture, target, Color.White);
+    }
+
+    public void Dispose()
+    {
+        Console.WriteLine($"movie-dispose position={PositionSeconds:F3} video-eof={decoder.VideoFinished} audio-eof={decoder.AudioFinished} pending-audio={sound.PendingBufferCount} state={sound.State}");
+        sound.Stop();
+        sound.Dispose();
+        decoder.Dispose();
+        Texture.Dispose();
+    }
+}

@@ -1,0 +1,441 @@
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Albeoris.Games.FF8.Imaging;
+using Albeoris.Games.FF8.Imaging.Map;
+using Memoria.FF8.Assets;
+
+namespace Memoria.FF8.Rendering;
+
+/// <param name="Direction">FF8 direction units, one turn is 256.</param>
+/// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null);
+
+public enum ModelTextureSampling
+{
+    Nearest,
+    Bilinear
+}
+
+/// <summary>Rasterizes original tiles and animated model meshes into an RGBA field framebuffer.</summary>
+public sealed class FieldRenderer
+{
+    private static readonly IReadOnlyDictionary<int, Vector2> EmptyScrollOffsets = new Dictionary<int, Vector2>();
+    public const int Width = 320;
+    public const int Height = 240;
+    private readonly FieldAssets field;
+    private readonly string programHash;
+    private readonly byte[] pixels;
+    private readonly float[] depth;
+    private readonly bool[] actorWritten;
+    private readonly float scale;
+    private readonly float offsetX;
+    private readonly float offsetY;
+    private Vector3 backgroundColor = new(128);
+    private IReadOnlyDictionary<int, Vector3>? moduleColors;
+    private FieldCamera camera;
+    private readonly ModelTextureSampling modelTextureSampling;
+    private readonly TileRaster[] background;
+    private TileRaster[] renderBackground;
+    private Dictionary<int, Vector2> backgroundScrollOffsets = [];
+    private FieldNativeBackgroundWrapFrame? backgroundWrapFrame;
+    private Vector2 actorScrollOffset;
+    private ProjectedPoint[] projected = [];
+
+    public FieldRenderer(FieldAssets field, int outputWidth = Width, int outputHeight = Height, ModelTextureSampling modelTextureSampling = ModelTextureSampling.Bilinear)
+    {
+        if (outputWidth < 1 || outputHeight < 1 || outputWidth > 8192 || outputHeight > 8192)
+        {
+            throw new ArgumentOutOfRangeException(nameof(outputWidth), "Render dimensions must be within 1..8192.");
+        }
+        this.field = field;
+        programHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(field.Jsm));
+        if (!Enum.IsDefined(modelTextureSampling))
+        {
+            throw new ArgumentOutOfRangeException(nameof(modelTextureSampling));
+        }
+        this.modelTextureSampling = modelTextureSampling;
+        camera = field.Camera;
+        OutputWidth = outputWidth;
+        OutputHeight = outputHeight;
+        pixels = new byte[checked(outputWidth * outputHeight * 4)];
+        depth = new float[outputWidth * outputHeight];
+        actorWritten = new bool[outputWidth * outputHeight];
+        scale = Math.Min(outputWidth / (float)Width, outputHeight / (float)Height);
+        offsetX = (outputWidth - Width * scale) / 2;
+        offsetY = (outputHeight - Height * scale) / 2;
+        background = field.Background.OrderByDescending(tile => tile.Z).Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
+        renderBackground = background;
+    }
+
+    public int OutputWidth { get; }
+    public int OutputHeight { get; }
+
+    /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null)
+    {
+        IReadOnlyDictionary<int, Vector2> nextOffsets = backgroundScrollOffsets ?? EmptyScrollOffsets;
+        ValidateNativeWrapFrame(nativeWrapFrame, cameraIndex, actorScrollOffset, nextOffsets);
+        camera = field.GetCamera(cameraIndex);
+        backgroundColor = backgroundShade ?? new Vector3(128);
+        moduleColors = backgroundModuleShades;
+        this.actorScrollOffset = actorScrollOffset;
+        if (this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame))
+        {
+            TileRaster[] nextBackground = nextOffsets.Count == 0 && nativeWrapFrame is null ? background : PrepareBackgroundRasters(nextOffsets, nativeWrapFrame);
+            this.backgroundScrollOffsets = nextOffsets.ToDictionary(pair => pair.Key, pair => pair.Value);
+            backgroundWrapFrame = nativeWrapFrame;
+            renderBackground = nextBackground;
+        }
+        MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
+        Array.Fill(depth, float.PositiveInfinity);
+        Array.Clear(actorWritten);
+        List<TileRaster> blendedBackground = [];
+        foreach (TileRaster raster in renderBackground)
+        {
+            BackgroundTile tile = raster.Tile;
+            int state = backgroundStates.GetValueOrDefault(tile.AnimationId, -1);
+            if (!backgroundVisible || hiddenBackgroundModules?.Contains(tile.AnimationId) == true || !tile.Draw || (tile.AnimationId != 255 && tile.AnimationState != state))
+            {
+                continue;
+            }
+            DrawTile(raster);
+            if (tile.Blend && tile.BlendMode != MapBlendMode.None)
+            {
+                blendedBackground.Add(raster);
+            }
+        }
+        foreach (ActorVisual actor in actors)
+        {
+            if (actor.Visible && (uint)actor.ModelId < field.Models.Count)
+            {
+                DrawActor(actor);
+            }
+        }
+        // Native MAP and model primitives share the ordering table. Nearer
+        // semitransparent MAP texels blend over the actor fragments, rather
+        // than becoming opaque depth occluders in the background prepass.
+        foreach (TileRaster raster in blendedBackground)
+        {
+            DrawTile(raster, actorOverlay: true);
+        }
+        return pixels;
+    }
+
+    private void ValidateNativeWrapFrame(FieldNativeBackgroundWrapFrame? frame, int cameraIndex, Vector2 actorOffset, IReadOnlyDictionary<int, Vector2> offsets)
+    {
+        if (frame is null)
+        {
+            return;
+        }
+        if (frame.NativeNormalVersion != 0)
+        {
+            if (!FieldNativeNormalBackgroundWrap.Validate(field, cameraIndex, actorOffset, offsets, frame))
+            {
+                throw new NotSupportedException("Normal native tile wrapping requires its verified runtime, original normal periods, camera center and shared drawing offset.");
+            }
+            return;
+        }
+        // TODO(TD-003): replace this legacy scripted135 phase guard with the
+        // shared native linear-state contract
+        if (field.Id != 135 || frame.FieldId != field.Id || frame.ProgramHash != programHash || programHash != "4E838898400B0B44D1FFAD537A77FDD685111A7C25DF34366CD77CACE8A65344" || cameraIndex != 0 || actorOffset != Vector2.Zero || frame.Left != -192 || frame.Right != 176 || frame.Top != -144 || frame.Bottom != 128 || frame.Layers.IsDefault || frame.Layers.Length != 1)
+        {
+            throw new NotSupportedException("Native tile wrapping requires the proved original field135 zero-center source and origin window.");
+        }
+        FieldNativeBackgroundWrapLayer layer = frame.Layers[0];
+        if (layer.Layer != 1 || layer.OffsetX is < -351 or > 0 || layer.OffsetY != 0 || layer.PeriodX != 352 || layer.PeriodY != 96)
+        {
+            throw new NotSupportedException("Native field135 tile wrapping requires its original layer1 phase and signed periods.");
+        }
+    }
+
+    private static bool SameWrapFrame(FieldNativeBackgroundWrapFrame? first, FieldNativeBackgroundWrapFrame? second)
+    {
+        if (first is null || second is null)
+        {
+            return first is null && second is null;
+        }
+        return first.NativeNormalVersion == second.NativeNormalVersion && first.FieldId == second.FieldId && first.ProgramHash == second.ProgramHash && first.Left == second.Left && first.Right == second.Right && first.Top == second.Top && first.Bottom == second.Bottom && first.Layers.SequenceEqual(second.Layers) && (first.LayerCurrents.IsDefault == second.LayerCurrents.IsDefault && (first.LayerCurrents.IsDefault || first.LayerCurrents.SequenceEqual(second.LayerCurrents)));
+    }
+
+    private TileRaster[] PrepareBackgroundRasters(IReadOnlyDictionary<int, Vector2> offsets, FieldNativeBackgroundWrapFrame? frame)
+    {
+        List<TileRaster> rasters = [];
+        foreach (TileRaster raster in background)
+        {
+            BackgroundTile tile = raster.Tile;
+            FieldNativeBackgroundWrapLayer? wrapping = frame?.Layers.Where(layer => layer.Layer == tile.Layer).Select(layer => (FieldNativeBackgroundWrapLayer?)layer).FirstOrDefault();
+            if (frame is not null && wrapping is FieldNativeBackgroundWrapLayer layer)
+            {
+                if (tile.X is < short.MinValue or > short.MaxValue || tile.Y is < short.MinValue or > short.MaxValue)
+                {
+                    throw new NotSupportedException("Native wrapped tile origin exceeds its original signed-word coordinates.");
+                }
+                FieldNativeBackgroundTileOrigin? origin = FieldNativeBackgroundTileProbe.Relocate((short)tile.X, (short)tile.Y, layer, frame);
+                if (origin is FieldNativeBackgroundTileOrigin placed)
+                {
+                    Vector2 shared = frame.NativeNormalVersion is 1 or 2 ? offsets.GetValueOrDefault(tile.Layer) : Vector2.Zero;
+                    rasters.Add(CreateTileRaster(tile, new Vector2(placed.X - tile.X, placed.Y - tile.Y) + shared));
+                }
+            }
+            else
+            {
+                rasters.Add(CreateTileRaster(tile, offsets.GetValueOrDefault(tile.Layer)));
+            }
+        }
+        return rasters.ToArray();
+    }
+
+    private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset)
+    {
+        int startX = Math.Clamp((int)MathF.Floor(offsetX + (tile.X + 160 + scrollOffset.X) * scale), 0, OutputWidth);
+        int startY = Math.Clamp((int)MathF.Floor(offsetY + (tile.Y + 120 + scrollOffset.Y) * scale), 0, OutputHeight);
+        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + 176 + scrollOffset.X) * scale), 0, OutputWidth);
+        int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + 136 + scrollOffset.Y) * scale), 0, OutputHeight);
+        RasterRun[] columns = CreateRuns(startX, endX, destinationX =>
+        {
+            float logicalX = (destinationX + 0.5f - offsetX) / scale - tile.X - 160 - scrollOffset.X;
+            return Math.Clamp((int)(logicalX * tile.Image.Width / 16), 0, tile.Image.Width - 1);
+        });
+        RasterRun[] rows = CreateRuns(startY, endY, destinationY =>
+        {
+            float logicalY = (destinationY + 0.5f - offsetY) / scale - tile.Y - 120 - scrollOffset.Y;
+            return Math.Clamp((int)(logicalY * tile.Image.Height / 16), 0, tile.Image.Height - 1);
+        });
+        return new TileRaster(tile, columns, rows);
+    }
+
+    private static RasterRun[] CreateRuns(int start, int end, Func<int, int> sourceIndex)
+    {
+        List<RasterRun> runs = [];
+        while (start < end)
+        {
+            int source = sourceIndex(start);
+            int next = start + 1;
+            while (next < end && sourceIndex(next) == source)
+            {
+                next++;
+            }
+            runs.Add(new RasterRun(start, next, source));
+            start = next;
+        }
+        return runs.ToArray();
+    }
+
+    private void DrawTile(TileRaster raster, bool actorOverlay = false)
+    {
+        BackgroundTile tile = raster.Tile;
+        // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
+        Vector3 shade = moduleColors is not null && tile.AnimationId != 255 && moduleColors.TryGetValue(tile.AnimationId, out Vector3 moduleShade) ? moduleShade : backgroundColor;
+        float tileDepth = tile.Z * 4f;
+        Span<uint> packedPixels = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
+        foreach (RasterRun row in raster.Rows)
+        {
+            int sourceRow = row.Source * tile.Image.Width;
+            foreach (RasterRun column in raster.Columns)
+            {
+                Rgba32 color = Shade(tile.Image.Pixels[sourceRow + column.Source], shade);
+                if (color.A == 0)
+                {
+                    continue;
+                }
+                MapBlendMode blend = tile.Blend && color.A == 128 ? tile.BlendMode : MapBlendMode.None;
+                if (actorOverlay && blend == MapBlendMode.None)
+                {
+                    continue;
+                }
+                uint packed = BitConverter.IsLittleEndian ? (uint)(color.R | color.G << 8 | color.B << 16 | 255 << 24) : (uint)(color.R << 24 | color.G << 16 | color.B << 8 | 255);
+                for (int y = row.Start; y < row.End; y++)
+                {
+                    int index = y * OutputWidth + column.Start;
+                    int length = column.End - column.Start;
+                    if (blend == MapBlendMode.None)
+                    {
+                        packedPixels.Slice(index, length).Fill(packed);
+                    }
+                    else
+                    {
+                        for (int x = 0; x < length; x++)
+                        {
+                            if (!actorOverlay || actorWritten[index + x] && tileDepth < depth[index + x])
+                            {
+                                WritePixel(index + x, color, blend);
+                            }
+                        }
+                    }
+                    // MAP stores ordering-table depth; native model insertion uses camera Z >> 2.
+                    if (blend == MapBlendMode.None)
+                    {
+                        depth.AsSpan(index, length).Fill(tileDepth);
+                    }
+                }
+            }
+        }
+    }
+
+    private readonly record struct RasterRun(int Start, int End, int Source);
+    private sealed record TileRaster(BackgroundTile Tile, RasterRun[] Columns, RasterRun[] Rows);
+
+    private void DrawActor(ActorVisual actor)
+    {
+        FieldModel model = field.Models[actor.ModelId];
+        if (model.Bones.Count == 0)
+        {
+            return;
+        }
+        Vector3[] pose = model.Pose(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ);
+        // Native field-to-model bridge adds a quarter turn before converting DIR to the 4096-angle scale.
+        float direction = (actor.Direction + 64) * MathF.Tau / 256;
+        Matrix4x4 rotation = Matrix4x4.CreateRotationZ(direction);
+        if (projected.Length < pose.Length)
+        {
+            projected = new ProjectedPoint[pose.Length];
+        }
+        for (int i = 0; i < pose.Length; i++)
+        {
+            if (actor.AdditionalControlDisabled && model.Vertices[i].Bone == model.ControlBones.Additional)
+            {
+                // Native model flag0x20 clears the declared additional group's projection and depth.
+                projected[i] = default;
+                continue;
+            }
+            Vector3 native = pose[i];
+            Vector3 world = Vector3.Transform(native, rotation) + new Vector3(actor.X, actor.Y, actor.Z);
+            ProjectedPoint point = camera.Project(world);
+            projected[i] = new ProjectedPoint(offsetX + (point.X + actorScrollOffset.X) * scale, offsetY + (point.Y + actorScrollOffset.Y) * scale, point.Depth);
+        }
+        foreach (ModelFace face in model.Faces)
+        {
+            PixelImage texture = model.Textures[face.Texture];
+            Triangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor ?? new Vector3(actor.ModelShade));
+            if (face.Quad)
+            {
+                Triangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor ?? new Vector3(actor.ModelShade));
+            }
+        }
+    }
+
+    private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor)
+    {
+        if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
+        {
+            return;
+        }
+        float area = Edge(a, b, c.X, c.Y);
+        if (Math.Abs(area) < 0.001f)
+        {
+            return;
+        }
+        int minX = Math.Clamp((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), 0, OutputWidth - 1);
+        int maxX = Math.Clamp((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), 0, OutputWidth - 1);
+        int minY = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, OutputHeight - 1);
+        int maxY = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, OutputHeight - 1);
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                float wA = Edge(b, c, x + 0.5f, y + 0.5f) / area;
+                float wB = Edge(c, a, x + 0.5f, y + 0.5f) / area;
+                float wC = 1 - wA - wB;
+                if (wA < 0 || wB < 0 || wC < 0)
+                {
+                    continue;
+                }
+                float depthA = wA / a.Depth;
+                float depthB = wB / b.Depth;
+                float depthC = wC / c.Depth;
+                float inverseDepth = depthA + depthB + depthC;
+                float z = 1 / inverseDepth;
+                int index = y * OutputWidth + x;
+                if (z >= depth[index])
+                {
+                    continue;
+                }
+                Vector2 uv = (uvA * depthA + uvB * depthB + uvC * depthC) / inverseDepth;
+                Rgba32 color = Shade(SampleTexture(texture, uv), polygonColor);
+                if (color.A == 0)
+                {
+                    continue;
+                }
+                WritePixel(index, color, MapBlendMode.None);
+                depth[index] = z;
+                actorWritten[index] = true;
+            }
+        }
+    }
+
+    private Rgba32 SampleTexture(PixelImage texture, Vector2 uv)
+    {
+        int u = Math.Clamp((int)MathF.Floor(uv.X), 0, texture.Width - 1);
+        int v = Math.Clamp((int)MathF.Floor(uv.Y), 0, texture.Height - 1);
+        Rgba32[] texels = texture.Pixels;
+        Rgba32 coverage = texels[v * texture.Width + u];
+        if (modelTextureSampling == ModelTextureSampling.Nearest || coverage.A == 0)
+        {
+            return coverage;
+        }
+        float x = Math.Clamp(uv.X - 0.5f, 0, texture.Width - 1);
+        float y = Math.Clamp(uv.Y - 0.5f, 0, texture.Height - 1);
+        int left = (int)x;
+        int top = (int)y;
+        int right = Math.Min(left + 1, texture.Width - 1);
+        int bottom = Math.Min(top + 1, texture.Height - 1);
+        float horizontal = x - left;
+        float vertical = y - top;
+        int topRow = top * texture.Width;
+        int bottomRow = bottom * texture.Width;
+        Vector4 first = Premultiplied(texels[topRow + left]);
+        Vector4 second = Premultiplied(texels[topRow + right]);
+        Vector4 third = Premultiplied(texels[bottomRow + left]);
+        Vector4 fourth = Premultiplied(texels[bottomRow + right]);
+        Vector4 color = Vector4.Lerp(Vector4.Lerp(first, second, horizontal), Vector4.Lerp(third, fourth, horizontal), vertical);
+        // Keep the original cutout coverage and exclude transparent texel RGB from interpolation.
+        return new Rgba32((byte)Math.Clamp(MathF.Round(color.X / color.W), 0, 255), (byte)Math.Clamp(MathF.Round(color.Y / color.W), 0, 255), (byte)Math.Clamp(MathF.Round(color.Z / color.W), 0, 255), coverage.A);
+    }
+
+    private static Vector4 Premultiplied(Rgba32 color)
+    {
+        float alpha = color.A / 255f;
+        return new Vector4(color.R * alpha, color.G * alpha, color.B * alpha, alpha);
+    }
+
+    private static float Edge(ProjectedPoint a, ProjectedPoint b, float x, float y) => (x - a.X) * (b.Y - a.Y) - (y - a.Y) * (b.X - a.X);
+
+    private static Rgba32 Shade(Rgba32 color, Vector3 level)
+    {
+        if (level == new Vector3(128))
+        {
+            return color;
+        }
+        return new Rgba32((byte)Math.Clamp(color.R * level.X / 128, 0, 255), (byte)Math.Clamp(color.G * level.Y / 128, 0, 255), (byte)Math.Clamp(color.B * level.Z / 128, 0, 255), color.A);
+    }
+
+    private void WritePixel(int index, Rgba32 color, MapBlendMode blend)
+    {
+        int destination = index * 4;
+        if (blend == MapBlendMode.None)
+        {
+            pixels[destination] = color.R;
+            pixels[destination + 1] = color.G;
+            pixels[destination + 2] = color.B;
+            pixels[destination + 3] = 255;
+            return;
+        }
+        pixels[destination] = Blend(pixels[destination], color.R, blend);
+        pixels[destination + 1] = Blend(pixels[destination + 1], color.G, blend);
+        pixels[destination + 2] = Blend(pixels[destination + 2], color.B, blend);
+        pixels[destination + 3] = 255;
+    }
+
+    private static byte Blend(byte destination, byte source, MapBlendMode mode)
+    {
+        int value = mode switch
+        {
+            MapBlendMode.Average => (destination + source) / 2,
+            MapBlendMode.Add => destination + source,
+            MapBlendMode.Subtract => destination - source,
+            MapBlendMode.QuarterAdd => destination + source / 4,
+            _ => source
+        };
+        return (byte)Math.Clamp(value, 0, 255);
+    }
+}

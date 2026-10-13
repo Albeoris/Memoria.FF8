@@ -1,0 +1,15 @@
+# Selected FF8 field renderer
+
+`FieldRenderer(FieldAssets, outputWidth, outputHeight, modelTextureSampling)` returns a reusable RGBA framebuffer. The original logical canvas is 320×240; arbitrary output dimensions preserve that aspect with centered black margins. Geometry is rasterized directly at the requested resolution; model camera depth stays in world units regardless of output scale. Model filtering defaults to `ModelTextureSampling.Bilinear`; `Nearest` is available for original texel inspection. Bilinear RGB excludes transparent neighbors and preserves the nearest source cutout coverage. Original background tiles retain nearest sampling.
+
+`ActorVisual` receives actual Events XYZ plus world-space DOFFSET once, FF8 Direction units, animation/frame, visibility and independent `PolygonColor` RGB (128 neutral). The optional scalar `ModelShade` is for component previews. Native SHADELEVEL controls ground-shadow packets, so the host never passes it as avatar tint; native ground shadows remain unimplemented. Rendering converts facing through the native `(DIR + 64)` convention. Background states select the installed MAP animation states. Optional background RGB modulation uses 128 as neutral; Events owns fade scheduling.
+
+Optional `RootTranslationZ` corresponds to the separate SETROOTTRANS elevation word (native instance +98), default0. The SETGETA byte (instance +97) is not an elevation and must never be passed as this value. Original model textures come from selected installed PC archive members;128×128 source TIM textures are not HD replacements.
+
+
+
+Background tiles are sorted and their nearest source sampling runs are calculated once for the selected output dimensions. Each run shades one source texel and fills its output spans; blend modes still combine with the existing destination pixels and transparent texels preserve both color and depth. States, module visibility and shades are read on every render, as are the source pixels. Projected vertex storage and the framebuffer are reused. This changes CPU work without reducing resolution, filtering or precision.
+
+Verified: selected installed field data, layered/animated tiles, texture transparency, skeletal hierarchy and compound rotations, camera/entity/root transforms, foreground depth units, declared control bones, classroom root placement, filtered model cutouts and arbitrary-aspect output. Sixteen Assets test cases include captured native matrix, depth-unit and scalar background sampling/blending regressions at integral, fractional, clipped and portrait output sizes.
+
+Remaining fidelity limits: integer animation-frame sampling (native interpolation deferred), simplified per-pixel depth rasterization instead of native primitive ordering, no eye-blink VRAM updates, no face-specific PSX semi-transparency/bias, and no native validation of BGSHADE timing. Original DirectMusic SGT/DLS field music and sound effects are outside this renderer. Original images are read locally and are not distributed with source.

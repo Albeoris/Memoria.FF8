@@ -1,0 +1,92 @@
+using System.Buffers.Binary;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8;
+
+internal sealed partial class GameWorld
+{
+    private PreparedWorldEntry? preparedWorldEntry;
+
+    private Action PrepareNativeWorldEntry(NativeWorldTransitionRequest request)
+    {
+        ValidateWorldDeparture(request);
+        GameState departure = session.State;
+        preparedWorldEntry?.Dispose();
+        PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, assets.GameDirectory, request.Transition);
+        preparedWorldEntry = ticket;
+        bool committed = false;
+        return () =>
+        {
+            if (committed || !ReferenceEquals(preparedWorldEntry, ticket) || !ReferenceEquals(session.State, departure))
+            {
+                throw new InvalidOperationException("The original prepared world request has already been used or replaced.");
+            }
+            ValidateWorldDeparture(request);
+            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption);
+            worldScene = ticket.Adopt(session);
+            worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+            committed = true;
+            preparedWorldEntry = null;
+            ticket.Dispose();
+        };
+    }
+
+    private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId)
+    {
+        GameState departure = session.State;
+        if (departure.Scene != SceneKind.WorldMap || worldScene is null || departure.World is null || departure.WorldControls is null || departure.SavedWorld is null)
+        {
+            throw new NotSupportedException("World field entry requires its current original foot scene and native saved/control provenance.");
+        }
+        FieldAssets destination = assets.LoadField(selection.Entry.FieldId);
+        if (destination.Information is null || selection.Entry.Triangle >= destination.Walkmesh.Triangles.Count || selection.Entry.X == short.MaxValue)
+        {
+            throw new NotSupportedException("World field entry requires the original explicit-triangle packet and destination INF.");
+        }
+        int? height = FieldPartyTraceGeometry.ResolveTriangleHeight(destination.Walkmesh, selection.Entry.Triangle, selection.Entry.X, selection.Entry.Y);
+        if (height is null)
+        {
+            throw new InvalidDataException("Original world field entry references an invalid destination triangle plane.");
+        }
+        WorldEntryVariables inputs = WorldEntryVariables.Read(departure);
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
+        FieldTransition transition = new(selection.Entry.FieldId, selection.Entry.X, selection.Entry.Y, selection.Entry.Triangle, selection.Entry.Direction);
+        return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, candidate =>
+        {
+            if (candidate.FieldArrival != transition || candidate.PreviousFieldId != departure.FieldId || destination.Id != candidate.FieldId)
+            {
+                throw new InvalidOperationException("Prepared native world field packet changed before publication.");
+            }
+        });
+    }
+
+    private void ValidateWorldDeparture(NativeWorldTransitionRequest request)
+    {
+        if (request.Version != 1 || !Enum.IsDefined(request.Origin) || session.State.Scene != SceneKind.Field || Field?.Id != request.SourceFieldId || session.State.FieldId != request.SourceFieldId || Events.FieldId != request.SourceFieldId || Events.Frame != request.SourceFrame || Events.Scene.NativeFieldLoadVersion != 1 || Events.Scene.NativeActorLayoutVersion != 1 || session.WorldControls != request.ControlsAtDeparture || worldScene is not null)
+        {
+            throw new NotSupportedException("World entry does not match its original canonical field departure.");
+        }
+        NativeWorldControlState loader = request.ControlsAtDeparture.WithWorldEntryMenuFlag();
+        NativeWorldControlState issue = request.Origin == NativeWorldTransitionOrigin.Script ? loader : request.ControlsAtDeparture;
+        if (request.ControlsAtIssue != issue || request.ControlsAtLoader != loader || (request.Origin == NativeWorldTransitionOrigin.Gateway) != (request.Gateway is not null))
+        {
+            throw new NotSupportedException("World entry controls or source metadata disagree with the original request.");
+        }
+    }
+
+    private static InfGateway CreateInfGateway(FieldGateway gateway, int index)
+    {
+        byte[] record = new byte[32];
+        short[] words = [(short)gateway.Start.X, (short)gateway.Start.Y, (short)gateway.Start.Z, (short)gateway.End.X, (short)gateway.End.Y, (short)gateway.End.Z, gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, unchecked((short)gateway.DestinationField)];
+        for (int word = 0; word < words.Length; word++)
+        {
+            BinaryPrimitives.WriteInt16LittleEndian(record.AsSpan(word * 2), words[word]);
+        }
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(20), gateway.Extra20);
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(24), gateway.Extra24);
+        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(28), gateway.Extra28);
+        return new InfGateway(gateway.Start, gateway.End, new FieldTransition(gateway.DestinationField, gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, gateway.Direction), index, record);
+    }
+}

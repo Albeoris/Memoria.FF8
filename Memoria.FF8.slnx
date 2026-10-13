@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
+    <Project Path="src/Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
+    <Project Path="src/Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
+    <Project Path="src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
+    <Project Path="src/Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
+    <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj" />
+    <Project Path="tests/Memoria.FF8.Runtime.Tests/Memoria.FF8.Runtime.Tests.csproj" />
+    <Project Path="tests/Memoria.FF8.App.Tests/Memoria.FF8.App.Tests.csproj" />
+    <Project Path="tests/Memoria.FF8.Assets.Tests/Memoria.FF8.Assets.Tests.csproj" />
+    <Project Path="tests/Memoria.FF8.Events.Tests/Memoria.FF8.Events.Tests.csproj" />
+  </Folder>
+</Solution>

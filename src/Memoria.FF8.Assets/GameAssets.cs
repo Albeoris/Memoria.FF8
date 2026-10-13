@@ -1,0 +1,135 @@
+using Albeoris.Games.FF8.FlArchives;
+using Albeoris.Games.FF8.FlArchives.Abstractions;
+using Albeoris.Games.FF8.Imaging.Map;
+using Albeoris.Games.FF8.Imaging.Mim;
+using Albeoris.Games.FF8.Msd;
+using Albeoris.Games.FF8.TextEncoding;
+using Memoria.FF8.Runtime;
+using System.Collections.Concurrent;
+
+namespace Memoria.FF8.Assets;
+
+/// <summary>Reads selected original assets without modifying or extracting the installed game.</summary>
+public sealed class GameAssets : IDisposable
+{
+    private static readonly ConcurrentDictionary<(string Path, long Length, long ModifiedTicks), string> NativeExecutableHashes = new();
+    private readonly IFlArchive outer;
+    private readonly string[] fieldNames;
+    private readonly Dictionary<int, FieldAssets> fields = [];
+    private readonly Dictionary<int, FieldSoundEffectTable> fieldSoundEffects = [];
+    private readonly IAssetOverrideSource? overrides;
+    private IFlArchive? mainCharacters;
+
+    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null)
+    {
+        this.overrides = overrides;
+        GameDirectory = Path.GetFullPath(gameDirectory);
+        string executable = Path.Combine(GameDirectory, "FF8_EN.exe");
+        if (File.Exists(executable))
+        {
+            FileInfo info = new(executable);
+            NativeExecutableHash = NativeExecutableHashes.GetOrAdd((info.FullName, info.Length, info.LastWriteTimeUtc.Ticks), identity =>
+            {
+                using FileStream stream = File.OpenRead(identity.Path);
+                return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
+            });
+        }
+        outer = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "field.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive mapData = OpenNested("mapdata");
+        fieldNames = System.Text.Encoding.ASCII.GetString(Read(mapData, "maplist")).Replace("\r", "").Split('\n');
+    }
+
+    public string GameDirectory { get; }
+    public string? NativeExecutableHash { get; }
+    public NativeFieldRuntimeProfile? NativeRuntimeProfile => NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash ? NativeFieldRuntimeProfile.FF8En : null;
+
+    public FieldAssets LoadField(int fieldId)
+    {
+        if (fields.TryGetValue(fieldId, out FieldAssets? cached))
+        {
+            return cached;
+        }
+        if ((uint)fieldId >= fieldNames.Length || string.IsNullOrWhiteSpace(fieldNames[fieldId]))
+        {
+            throw new ArgumentOutOfRangeException(nameof(fieldId));
+        }
+        string name = fieldNames[fieldId];
+        using IFlArchive nested = OpenNested(name);
+        byte[] mapBytes = Read(nested, name + ".map");
+        byte[] mimBytes = Read(nested, name + ".mim");
+        MapFile map = MapFile.Read(mapBytes);
+        MimFile mim = MimFile.Read(mimBytes);
+        BackgroundTile[] tiles = map.Tiles.Select(tile => new BackgroundTile(tile.X, tile.Y, unchecked((ushort)tile.Z), tile.Parameter, tile.State, tile.PackedLayer >> 1, tile.BlendMode, ((tile.PackedTexture >> 5) & 3) != 0, (tile.PackedTexture & 0x10) != 0, FieldBackgroundTileDecoder.Decode(mim, tile))).ToArray();
+        byte[] one = Read(nested, "chara.one");
+        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, ReadMainCharacter);
+        IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));
+        byte[] information = Read(nested, name + ".inf");
+        byte[] walkmesh = Read(nested, name + ".id");
+        FieldAssets result = new(fieldId, name, Read(nested, name + ".jsm"), MsdFile.Read(Read(nested, name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray(), tiles, cameras[0], FieldWalkmesh.Read(walkmesh), models) { Cameras = cameras, Information = information.Length == 676 ? FieldInformation.Read(information) : null, WalkmeshHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(walkmesh)), NativeExecutableHash = NativeExecutableHash };
+        fields.Add(fieldId, result);
+        return result;
+    }
+
+    public string GetMoviePath(int index, int disk = 1)
+    {
+        string stem = $"disc{disk - 1:00}_{index:00}";
+        string directory = Path.Combine(GameDirectory, "Data", "movies");
+        foreach (string suffix in new[] { "h.avi", ".bik", ".avi", "h.bik" })
+        {
+            string path = Path.Combine(directory, stem + suffix);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+        throw new FileNotFoundException($"Movie {stem} is absent from {directory}.");
+    }
+
+    public FieldSoundEffectTable LoadFieldSoundEffects(int fieldId)
+    {
+        if (fieldSoundEffects.TryGetValue(fieldId, out FieldSoundEffectTable? cached))
+        {
+            return cached;
+        }
+        if ((uint)fieldId >= fieldNames.Length || string.IsNullOrWhiteSpace(fieldNames[fieldId]))
+        {
+            throw new ArgumentOutOfRangeException(nameof(fieldId));
+        }
+        string name = fieldNames[fieldId];
+        using IFlArchive nested = OpenNested(name);
+        FieldSoundEffectTable table = FieldSoundEffectTable.Read(name + ".sfx", Read(nested, name + ".sfx"));
+        fieldSoundEffects.Add(fieldId, table);
+        return table;
+    }
+
+    private byte[] ReadMainCharacter(string name)
+    {
+        mainCharacters ??= OpenNested("main_chr");
+        return Read(mainCharacters, name + ".mch");
+    }
+
+    private IFlArchive OpenNested(string name)
+    {
+        return FlArchive.Open(new MemoryStream(Read(outer, name + ".fl"), false), new MemoryStream(Read(outer, name + ".fi"), false), new MemoryStream(Read(outer, name + ".fs"), false), false, FlArchiveRepresentation.Files);
+    }
+
+    private byte[] Read(IFlArchive archive, string basename)
+    {
+        IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals(basename, StringComparison.OrdinalIgnoreCase));
+        string logicalPath = entry.RelativePath.Replace('\\', '/').TrimStart('/');
+        if (overrides?.TryRead(logicalPath, out byte[]? content) == true)
+        {
+            return content;
+        }
+        using Stream source = entry.OpenForRead();
+        using MemoryStream result = new(checked((int)entry.Size));
+        source.CopyTo(result);
+        return result.ToArray();
+    }
+
+    public void Dispose()
+    {
+        mainCharacters?.Dispose();
+        outer.Dispose();
+    }
+}

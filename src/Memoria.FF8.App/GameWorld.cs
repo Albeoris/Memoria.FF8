@@ -1,0 +1,252 @@
+using System.Numerics;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
+using Memoria.FF8.Rendering;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8;
+
+/// <summary>The live host and diagnostic commands share one persistent VM across field loads.</summary>
+internal sealed partial class GameWorld : IDisposable
+{
+    private readonly GameSession session;
+    private readonly GameAssets assets;
+    private FieldRenderer? renderer;
+    private WorldMapScene? worldScene;
+    private int renderWidth = FieldRenderer.Width;
+    private int renderHeight = FieldRenderer.Height;
+
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, bool persistReplayJournal = true)
+    {
+        this.session = session;
+        assets = new GameAssets(gameDirectory);
+        MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
+        Events = new EventEngine(session, session.State.Variables);
+        Events.MoviePlayback = () => clock.State;
+        Events.MovieSkipRequested += clock.Skip;
+        Events.LoadSoundResource = _ => SoundResourceStatus.Muted;
+        Events.ResolveGlobalSoundResource = ResolveGlobalSound;
+        Events.PrepareWorldTransition = PrepareNativeWorldEntry;
+        if (persistReplayJournal)
+        {
+            journalArchive = new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory);
+            session.ReplayJournalChanged += PersistReplayJournal;
+            if (session.ReplayJournal is ReplayJournal journal)
+            {
+                FlushReplayJournal(journal);
+            }
+        }
+    }
+
+    public EventEngine Events { get; }
+    public FieldAssets? Field { get; private set; }
+    public WorldMapScene? WorldScene => worldScene;
+    public PlayerTrigger NextTrigger => worldScene is not null && session.State.Scene == SceneKind.WorldMap ? new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
+
+    public bool EnsureField()
+    {
+        if (session.State.Scene == SceneKind.WorldMap)
+        {
+            if (worldScene is not null)
+            {
+                return false;
+            }
+            if (Field is null && (session.State.DepartingFieldState ?? session.State.EventState) is System.Text.Json.JsonElement savedField)
+            {
+                LoadField(savedField.GetProperty("FieldId").GetInt32(), null, savedField);
+            }
+            worldScene = new WorldMapScene(session, assets.GameDirectory);
+            worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+            session.SetDepartingFieldState(null);
+            session.DismissDialog();
+            return true;
+        }
+        if (worldScene is not null)
+        {
+            worldScene.Dispose();
+            worldScene = null;
+        }
+        if (Field?.Id == session.State.FieldId)
+        {
+            return false;
+        }
+        if (Field is null && session.State.DepartingFieldState is System.Text.Json.JsonElement departing)
+        {
+            LoadField(departing.GetProperty("FieldId").GetInt32(), null, departing);
+        }
+        if (NativeScriptBattleFlagMigration.UpgradeRetainedArrival(session.State, assets.NativeRuntimeProfile) is NativeWorldControlState migratedControls)
+        {
+            session.SetWorldControls(migratedControls);
+        }
+        LoadField(session.State.FieldId, session.State.FieldArrival, session.State.EventState);
+        session.SetDepartingFieldState(null);
+        return true;
+    }
+
+    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot)
+    {
+        using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
+        FieldAssets next = assets.LoadField(fieldId);
+        Events.ResolveFieldSoundEffectTable = () =>
+        {
+            FieldSoundEffectTable table = assets.LoadFieldSoundEffects(next.Id);
+            return new NativeFieldSoundTable(table.MemberName, table.Sha256, table.EffectIds);
+        };
+        Events.AnimationFrameCount = next.GetAnimationFrameCount;
+        Events.ReadFaceBaseline = actor =>
+        {
+            next.GetAnimationFrameCount(actor.ModelId, actor.AnimationId);
+            Vector3 rotation = next.Models[actor.ModelId].ReadFirstControlRotation(actor.AnimationId, 0);
+            return new FaceDirectionBaseline((int)MathF.Round(rotation.Y * 4096 / MathF.Tau) / 16, (int)MathF.Round(rotation.Z * 4096 / MathF.Tau) / 16, (int)MathF.Round(rotation.X * 4096 / MathF.Tau) / 16);
+        };
+        Events.ReadFaceAnchorHeight = actor => next.Models[actor.ModelId].GetFirstControlBoneHeight(actor.AnimationId, actor.AnimationFrame, actor.RootTranslationZ, actor.FirstControlRotation);
+        Events.CanDisableAdditionalControl = actor =>
+        {
+            FieldModel model = next.Models[actor.ModelId];
+            int additional = model.ControlBones.Additional;
+            return (uint)additional >= model.Bones.Count || !model.Bones.Any(bone => bone.Parent == additional);
+        };
+        Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
+        Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSet(next, layer, settings, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene, Events.Actors);
+        Events.CanSetBackgroundScrollPosition = (layer, x, y) => BackgroundScrollCertificate.CanSetPosition(next, layer, x, y, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene);
+        Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, partySlot, nativeActorId, duration);
+        Events.CanSetCosineBackgroundScroll = (layer, x, y, duration) => BackgroundScrollCertificate.CanSetCosinePosition(next, Events.Scene, layer, x, y, duration);
+        Events.ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(next.Walkmesh, x, y, z);
+        Events.ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(next.Walkmesh, triangle, x, y);
+        Events.CanUseNativeFieldEntryStack = arrival => NativeFieldEntryStackAdapter.Supports(next, arrival);
+        Events.CanSetLinearBackgroundScroll = query => NativeLinearBackgroundScrollCertificate.CanSet(next, query) || NativeField135LinearScrollCertificate.CanSet(next, query);
+        Events.CanRestoreLinearBackgroundScroll = scene => NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeField135LinearScrollCertificate.SupportsPhase(next, scene);
+        Events.CanBeginLinearBackgroundScroll = (query, scene) => NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeField135LinearScrollCertificate.CanSet(next, query) && scene.BackgroundScrollLayers.Count == 0 && (scene.BackgroundScrollPositions.Count == 0 || NativeField135LinearScrollCertificate.SupportsPhase(next, scene));
+        Events.ResolvePartyJoinStep = query =>
+        {
+            FieldNativeWalkmeshPosition? resolved = FieldNativeWalkmeshProbe.ResolveFlatStep(next.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, Events.Scene.LockedTriangles);
+            if (resolved is not FieldNativeWalkmeshPosition point || point.NativeHeight * 4096 != query.FixedZ)
+            {
+                return null;
+            }
+            return new WalkmeshPosition(new Vector3(point.FixedX / 4096f, point.FixedY / 4096f, point.NativeHeight), point.Triangle);
+        };
+        Events.CanUseNativeJoinMovement = actor => NativeJoinMovementAdapter.Supports(next, Events.Scene, actor);
+        Events.ResolveNativeJoinMovement = query => NativeJoinMovementAdapter.Resolve(next, Events.Scene, query);
+        Events.CanUseNativePlayerMovement = actor => NativePlayerMovementAdapter.Supports(next, Events.Scene, actor);
+        Events.ResolveNativePlayerMovement = query => NativePlayerMovementAdapter.Resolve(next, Events.Scene, query);
+        Events.CanUseNativeScriptMove = actor => NativeScriptMovementAdapter.Supports(next, Events.Scene, actor);
+        Events.ResolveNativeScriptDirection = query => NativeScriptMovementAdapter.ResolveDirection(next, Events.Scene, query, Events.Actors.FirstOrDefault(actor => actor.ObjectId == query.ObjectId));
+        Events.ResolveNativeScriptMovement = query => NativeScriptMovementAdapter.ResolveGeometry(next, Events.Scene, query, Events.Actors.FirstOrDefault(actor => actor.ObjectId == query.ObjectId));
+        Events.ResolveFieldArrival = arrival =>
+        {
+            HashSet<int> locked = Enumerable.Range(0, next.Walkmesh.Triangles.Count).Where(index => index != arrival.Triangle).ToHashSet();
+            return next.Walkmesh.TryPosition(arrival.X, arrival.Y, out Vector3 position, out int triangle, locked) ? new WalkmeshPosition(position, triangle) : null;
+        };
+        Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile);
+        if (next.Information is FieldInformation information)
+        {
+            Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
+            Events.InfAreaTriggers = information.AreaTriggers.Where(trigger => trigger.AreaId != 255).Select(trigger => new InfAreaTrigger(trigger.Start, trigger.End, trigger.AreaId, trigger.Side)).ToArray();
+        }
+        if (snapshot is System.Text.Json.JsonElement saved)
+        {
+            Events.Restore(saved);
+        }
+        Field = next;
+        renderer = new FieldRenderer(next, renderWidth, renderHeight);
+    }
+
+    public int RenderWidth => renderWidth;
+    public int RenderHeight => renderHeight;
+
+    public bool SetRenderSize(int width, int height)
+    {
+        if (renderWidth == width && renderHeight == height)
+        {
+            return false;
+        }
+        if (session.State.Scene != SceneKind.WorldMap)
+        {
+            renderer = new FieldRenderer(Field ?? throw new InvalidOperationException("A field must be loaded before selecting its render target."), width, height);
+        }
+        renderWidth = width;
+        renderHeight = height;
+        return true;
+    }
+
+    public byte[] Render(TimeSpan elapsed)
+    {
+        if (session.State.Scene == SceneKind.WorldMap)
+        {
+            EnsureField();
+            return worldScene!.Render(renderWidth, renderHeight);
+        }
+        IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
+        BackgroundScrollFrame scroll = NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NativeField135LinearScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? BackgroundScrollCertificate.Prepare(Field!, Events.Scene);
+        DebugSceneView? view = session.State.DebugView;
+        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap);
+        FieldColorComposite.Apply(pixels, Events.Scene.AdditiveColor, Events.Scene.SubtractiveColor);
+        return pixels;
+    }
+
+    public PlayerActionResult Apply(PlayerAction action)
+    {
+        EnsureField();
+        if (session.State.Scene == SceneKind.WorldMap)
+        {
+            return worldScene!.Apply(action);
+        }
+        PlayerActionResult result = Events.Apply(action);
+        return PublishFieldAction(result);
+    }
+
+    private PlayerActionResult PublishFieldAction(PlayerActionResult result)
+    {
+        if (Events.FieldId != session.State.FieldId || session.State.Scene == SceneKind.WorldMap)
+        {
+            session.SetDepartingFieldState(Events.Capture());
+            return result;
+        }
+        ActorState? player = Events.Actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
+        if (player is not null)
+        {
+            session.SetPosition(player.X, player.Y);
+        }
+        return result;
+    }
+
+    public void Dispose()
+    {
+        session.ReplayJournalChanged -= PersistReplayJournal;
+        if (journalArchive is not null && session.ReplayJournal is ReplayJournal journal)
+        {
+            FlushReplayJournal(journal);
+        }
+        assets.Dispose();
+        preparedWorldEntry?.Dispose();
+        worldScene?.Dispose();
+    }
+}
+
+internal static class FieldColorComposite
+{
+    public static void Apply(byte[] rgba, Vector3 additive, Vector3 subtractive)
+    {
+        if (additive == Vector3.Zero && subtractive == Vector3.Zero)
+        {
+            return;
+        }
+        Span<byte> red = stackalloc byte[256];
+        Span<byte> green = stackalloc byte[256];
+        Span<byte> blue = stackalloc byte[256];
+        for (int value = 0; value < 256; value++)
+        {
+            red[value] = (byte)Math.Clamp(MathF.Round(value + additive.X - subtractive.X), 0, 255);
+            green[value] = (byte)Math.Clamp(MathF.Round(value + additive.Y - subtractive.Y), 0, 255);
+            blue[value] = (byte)Math.Clamp(MathF.Round(value + additive.Z - subtractive.Z), 0, 255);
+        }
+        for (int offset = 0; offset < rgba.Length; offset += 4)
+        {
+            rgba[offset] = red[rgba[offset]];
+            rgba[offset + 1] = green[rgba[offset + 1]];
+            rgba[offset + 2] = blue[rgba[offset + 2]];
+        }
+    }
+}
