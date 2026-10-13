@@ -48,7 +48,7 @@ public static class BackgroundScrollCertificate
 
     public static bool CanSetCosinePosition(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
     {
-        return layer == 0 && x == 0 && y is 0 or 224 && duration == 40 && HasKnownBaseline(field, scene.CameraIndex) && Supports(field, scene);
+        return DirectBackgroundScrollCertificate.CanSetCosine(field, scene, layer, x, y, duration) || layer == 0 && x == 0 && y is 0 or 224 && duration == 40 && HasKnownBaseline(field, scene.CameraIndex) && Supports(field, scene);
     }
 
     public static bool Supports(FieldAssets field, SceneEventState scene)

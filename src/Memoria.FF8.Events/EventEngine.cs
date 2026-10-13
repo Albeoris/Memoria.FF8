@@ -279,7 +279,7 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if (!RunNativeDoorScheduler(actor.ObjectId))
+            if (!RunNativeDoorScheduler(actor.ObjectId) && !RunNativeActorContactScheduler(actor.ObjectId))
             {
                 Fiber? fiber = fibers.Where(item => item.ObjectId == actor.ObjectId && !item.Complete).OrderBy(item => item.Priority).ThenBy(item => item.Sequence).FirstOrDefault();
                 if (fiber is not null)
@@ -299,6 +299,8 @@ public sealed partial class EventEngine
         }
         StepNativeDisplayOffsets();
         StepNativeScriptMovement();
+        StepNativeJump();
+        SampleNativeDoorActionEdges();
         StepSplitParty();
         StepNativeShake();
         StepNativeActorBackgroundScroll();
@@ -330,6 +332,7 @@ public sealed partial class EventEngine
             }
         }
         fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item));
+        StepNativeNormalBackgroundScrollCenter();
         ValidateNativeTimerExpiryAfterVm();
     }
 
@@ -657,6 +660,7 @@ public sealed partial class EventEngine
         public int BackgroundId;
         public int SoundResourceId;
         public byte? NativeDoorSlot;
+        public byte? NativeActorSlot;
     }
 
     private bool WaitReady(Fiber fiber)
@@ -669,6 +673,7 @@ public sealed partial class EventEngine
             WaitReason.PartyJoin => true,
             WaitReason.PartySplit => true,
             WaitReason.NativeScriptMovement => true,
+            WaitReason.NativeJump => true,
             WaitReason.WorldJump => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,
             WaitReason.MinimalBattle => Frame >= fiber.WaitUntil,

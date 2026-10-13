@@ -67,6 +67,7 @@ public sealed partial class EventEngine
         foreach (ActorState door in actors.Where(item => program!.Objects[item.ObjectId].IsDoor))
         {
             door.LineContact = false;
+            door.NativeLineFacingContact = false;
         }
     }
 }

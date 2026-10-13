@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 /// <summary>Layer0 continuous actor follow; unknown old center words remain unknown until native post-VM projection.</summary>
-public sealed record NativeActorBackgroundScroll(int Version, int NativeObjectId, int ObjectId, byte NativeActorId, byte Status, short? X, short? Y, short? PreviousX, short? PreviousY);
+public sealed record NativeActorBackgroundScroll(int Version, int NativeObjectId, int ObjectId, byte NativeActorId, byte Status, short? X, short? Y, short? PreviousX, short? PreviousY, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? PartySlot = null);
 
 public sealed partial class EventEngine
 {
@@ -26,6 +26,10 @@ public sealed partial class EventEngine
             Scene.ActorBackgroundScroll = null;
             // 475DF0 overwrites the previous words/counter before the new mode consumes them.
             return new BackgroundScrollPosition(x, y, x, y, x, y, 0, 0, actor.Status);
+        }
+        if (layer == 0 && Scene.BackgroundScrollPositions.Count == 0 && Scene.NormalBackgroundScrollCenter is NativeNormalBackgroundScrollCenter normal && normal.Version == 1 && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame <= Frame)
+        {
+            return new BackgroundScrollPosition(normal.X, normal.Y, normal.X, normal.Y, normal.X, normal.Y, 0, 0, 1);
         }
         return Scene.BackgroundScrollPositions.GetValueOrDefault(layer) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
     }
@@ -55,6 +59,14 @@ public sealed partial class EventEngine
         int[] args = Pop(fiber, 1);
         int objectId = program!.NativeObjects[args[0]];
         byte nativeActor = checked((byte)Scene.NativeActorObjectIds.IndexOf(objectId));
+        BeginNativeActorBackgroundScroll(args[0], objectId, nativeActor);
+        // 520D50 writes mode0/status0 and selector+598, then returns3.
+        WaitFrames(fiber, 1);
+        return args;
+    }
+
+    private void BeginNativeActorBackgroundScroll(int rawObjectId, int objectId, byte nativeActor, int? partySlot = null)
+    {
         short? x = Scene.ActorBackgroundScroll?.X;
         short? y = Scene.ActorBackgroundScroll?.Y;
         if (Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? prior))
@@ -63,10 +75,13 @@ public sealed partial class EventEngine
             y = prior.Y;
             Scene.BackgroundScrollPositions.Remove(0);
         }
-        Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, args[0], objectId, nativeActor, 0, x, y, Scene.ActorBackgroundScroll?.PreviousX, Scene.ActorBackgroundScroll?.PreviousY);
-        // 520D50 writes mode0/status0 and selector+598, then returns3.
-        WaitFrames(fiber, 1);
-        return args;
+        else if (Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex)
+        {
+            x = normal.X;
+            y = normal.Y;
+        }
+        Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, Scene.ActorBackgroundScroll?.PreviousX, Scene.ActorBackgroundScroll?.PreviousY, partySlot);
+        Scene.NormalBackgroundScrollCenter = null;
     }
 
     private void StepNativeActorBackgroundScroll()
@@ -86,7 +101,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (state.Version != 1 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || state.Status is not (0 or 1) || state.X.HasValue != state.Y.HasValue || state.PreviousX.HasValue != state.PreviousY.HasValue || state.Status == 1 && !state.X.HasValue || saved.Scene.BackgroundScrollPositions.ContainsKey(0) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || ResolveNativeActorScrollCenter is null || CanRestoreNativeActorScroll?.Invoke(saved.Scene, saved.Actors) != true)
+        if (state.Version != 1 || state.PartySlot is < 0 or > 2 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || state.Status is not (0 or 1) || state.X.HasValue != state.Y.HasValue || state.PreviousX.HasValue != state.PreviousY.HasValue || state.Status == 1 && !state.X.HasValue || saved.Scene.BackgroundScrollPositions.ContainsKey(0) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || ResolveNativeActorScrollCenter is null || CanRestoreNativeActorScroll?.Invoke(saved.Scene, saved.Actors) != true)
         {
             throw new InvalidDataException("Saved continuous actor scroll lost its raw/retained actor binding, phase or projection authority.");
         }

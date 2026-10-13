@@ -91,6 +91,10 @@ public sealed partial class EventEngine
 
     private FieldFixedPosition? ReadNativePlayerContactPosition(ActorState actor)
     {
+        if (actor.NativeJump is { } jump && actor.X == jump.FixedX / 4096f && actor.Y == jump.FixedY / 4096f && actor.Z == jump.FixedZ / 4096f)
+        {
+            return new FieldFixedPosition(jump.FixedX, jump.FixedY, jump.FixedZ);
+        }
         if (ResolvePartyActor(0)?.ObjectId == actor.ObjectId && Scene.NativePlayerPosition is FieldFixedPosition leader && actor.X == leader.X / 4096f && actor.Y == leader.Y / 4096f && actor.Z == leader.Z / 4096f)
         {
             return leader;

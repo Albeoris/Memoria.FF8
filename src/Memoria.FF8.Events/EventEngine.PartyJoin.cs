@@ -615,6 +615,10 @@ public sealed partial class EventEngine
             return;
         }
         ActorState player = ResolvePartyActor(0)!;
+        if (player.NativeJump is { Active: true } || player.NativeScriptMovement is { Active: true })
+        {
+            return;
+        }
         FieldFixedPosition position = ReadNativePartyPlayerPosition(player);
         PreparePartyTraceFollowers(new WalkmeshPosition(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle), (int)player.Direction, false);
         ApplyPartyTraceMovement(player, position, (int)player.Direction, false);

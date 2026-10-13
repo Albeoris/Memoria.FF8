@@ -92,7 +92,10 @@ internal static partial class Program
         busyVariant["Sequence"] = template["Sequence"]!.GetValue<long>();
         using JsonDocument busyDocument = JsonDocument.Parse(busyVariant.ToJsonString());
         busy.Restore(busyDocument.RootElement);
-        ExpectRefusedMove(busy, north, busy.Capture(), "Competing-priority native push preemption changed position, flag, frame or log before refusal.");
+        busy.Apply(north);
+        Require(busy.Actors[5].NativePushContactPending, "Competing-priority native push failed to retain its delayed contact.");
+        busy.Apply(new PlayerAction(PlayerActionKind.Wait));
+        Require(!busy.Actors[5].NativePushContactPending && busy.LastFault is null, "Competing-priority empty push failed native preemption and lower-slot continuation.");
         template["Priority"] = 6;
         busyVariant["Actors"]![5]!["NativePushContactPending"] = true;
         using JsonDocument occupiedDocument = JsonDocument.Parse(busyVariant.ToJsonString());

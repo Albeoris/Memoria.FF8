@@ -55,6 +55,12 @@ public sealed class ActorState
     [JsonInclude]
     public bool NativePushContactPending { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? NativeLineFacingDirection { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? NativeLineFacingContact { get; internal set; }
+    [JsonInclude]
     public bool CollisionEnabled { get; internal set; } = true;
     [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
@@ -74,6 +80,9 @@ public sealed class ActorState
     public byte MovementDirectionLimit { get; internal set; }
     [JsonInclude]
     public NativeScriptMovementState? NativeScriptMovement { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeJumpState? NativeJump { get; internal set; }
     [JsonInclude]
     public NativeMotionAuthority? NativeMotionAuthority { get; internal set; }
     [JsonInclude]
@@ -190,6 +199,9 @@ public sealed class ActorState
     public float RotationStart { get; internal set; }
     [JsonInclude]
     public bool RotationUsesNativeCosine { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RotationUsesNativeLinear { get; internal set; }
 
     internal void Step()
     {
@@ -248,7 +260,7 @@ public sealed class ActorState
                 Z = updated.Z;
             }
         }
-        if (!RotationUsesNativeCosine && RotationTarget is float direction)
+        if (!RotationUsesNativeCosine && !RotationUsesNativeLinear && RotationTarget is float direction)
         {
             RotationFrames--;
             float delta = (direction - RotationStart + 384) % 256 - 128;
@@ -265,6 +277,7 @@ public sealed class ActorState
     {
         NativeMotionAuthority = null;
         NativeScriptMovement = null;
+        NativeJump = null;
     }
 
     internal void SetBaseAnimation()

@@ -22,14 +22,21 @@ public sealed partial class FieldRenderer
     private static readonly IReadOnlyDictionary<int, Vector2> EmptyScrollOffsets = new Dictionary<int, Vector2>();
     public const int Width = 320;
     public const int Height = 240;
+    private const int NativeDrawingHeight = 224;
     private readonly FieldAssets field;
     private readonly string programHash;
     private readonly byte[] pixels;
     private readonly float[] depth;
     private readonly bool[] actorWritten;
     private readonly float scale;
+    private readonly float verticalScale;
     private readonly float offsetX;
     private readonly float offsetY;
+    private readonly Vector2 drawingOrigin;
+    private readonly int clipLeft;
+    private readonly int clipTop;
+    private readonly int clipRight;
+    private readonly int clipBottom;
     private Vector3 backgroundColor = new(128);
     private IReadOnlyDictionary<int, Vector3>? moduleColors;
     private FieldCamera camera;
@@ -61,8 +68,17 @@ public sealed partial class FieldRenderer
         depth = new float[outputWidth * outputHeight];
         actorWritten = new bool[outputWidth * outputHeight];
         scale = Math.Min(outputWidth / (float)Width, outputHeight / (float)Height);
+        // Native 471F70 installs a 320x224 DRAWENV. 45B6F0 scales that
+        // rectangle independently into the PC driver's 4:3 viewport.
+        verticalScale = Height * scale / NativeDrawingHeight;
         offsetX = (outputWidth - Width * scale) / 2;
         offsetY = (outputHeight - Height * scale) / 2;
+        FieldBounds screen = field.Information is { ScreenBounds.Count: > 0 } information ? information.ScreenBounds[0] : new FieldBounds(0, NativeDrawingHeight, Width, 0);
+        drawingOrigin = new Vector2(screen.Left + (screen.Right - screen.Left) / 2, screen.Top + (screen.Bottom - screen.Top) / 2);
+        clipLeft = Math.Clamp((int)MathF.Ceiling(offsetX - 0.5f), 0, outputWidth);
+        clipTop = Math.Clamp((int)MathF.Ceiling(offsetY - 0.5f), 0, outputHeight);
+        clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, outputWidth);
+        clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + Height * scale - 0.5f), 0, outputHeight);
         background = field.Background.OrderByDescending(tile => tile.Z).Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
         renderBackground = background;
     }
@@ -188,18 +204,18 @@ public sealed partial class FieldRenderer
 
     private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset)
     {
-        int startX = Math.Clamp((int)MathF.Floor(offsetX + (tile.X + 160 + scrollOffset.X) * scale), 0, OutputWidth);
-        int startY = Math.Clamp((int)MathF.Floor(offsetY + (tile.Y + 120 + scrollOffset.Y) * scale), 0, OutputHeight);
-        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + 176 + scrollOffset.X) * scale), 0, OutputWidth);
-        int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + 136 + scrollOffset.Y) * scale), 0, OutputHeight);
+        int startX = Math.Clamp((int)MathF.Floor(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale), clipLeft, clipRight);
+        int startY = Math.Clamp((int)MathF.Floor(offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale), clipTop, clipBottom);
+        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale), clipLeft, clipRight);
+        int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + 16 + scrollOffset.Y) * verticalScale), clipTop, clipBottom);
         RasterRun[] columns = CreateRuns(startX, endX, destinationX =>
         {
-            float logicalX = (destinationX + 0.5f - offsetX) / scale - tile.X - 160 - scrollOffset.X;
+            float logicalX = (destinationX + 0.5f - offsetX) / scale - tile.X - drawingOrigin.X - scrollOffset.X;
             return Math.Clamp((int)(logicalX * tile.Image.Width / 16), 0, tile.Image.Width - 1);
         });
         RasterRun[] rows = CreateRuns(startY, endY, destinationY =>
         {
-            float logicalY = (destinationY + 0.5f - offsetY) / scale - tile.Y - 120 - scrollOffset.Y;
+            float logicalY = (destinationY + 0.5f - offsetY) / verticalScale - tile.Y - drawingOrigin.Y - scrollOffset.Y;
             return Math.Clamp((int)(logicalY * tile.Image.Height / 16), 0, tile.Image.Height - 1);
         });
         return new TileRaster(tile, columns, rows);
@@ -302,7 +318,7 @@ public sealed partial class FieldRenderer
             Vector3 native = pose[i];
             Vector3 world = Vector3.Transform(native, rotation) + new Vector3(actor.X, actor.Y, actor.Z);
             ProjectedPoint point = camera.Project(world);
-            projected[i] = new ProjectedPoint(offsetX + (point.X + actorScrollOffset.X) * scale, offsetY + (point.Y + actorScrollOffset.Y) * scale, point.Depth);
+            projected[i] = ToViewport(point);
         }
         foreach (ModelFace face in model.Faces)
         {
@@ -313,6 +329,13 @@ public sealed partial class FieldRenderer
                 Triangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor ?? new Vector3(actor.ModelShade));
             }
         }
+    }
+
+    private ProjectedPoint ToViewport(ProjectedPoint point)
+    {
+        // FieldCamera.Project retains its 320x240 diagnostic canvas origin.
+        // Remove that origin before applying the native shared DRAWENV origin.
+        return new ProjectedPoint(offsetX + (point.X - 160 + drawingOrigin.X + actorScrollOffset.X) * scale, offsetY + (point.Y - 120 + drawingOrigin.Y + actorScrollOffset.Y) * verticalScale, point.Depth);
     }
 
     private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor)
@@ -326,10 +349,10 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        int minX = Math.Clamp((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), 0, OutputWidth - 1);
-        int maxX = Math.Clamp((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), 0, OutputWidth - 1);
-        int minY = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, OutputHeight - 1);
-        int maxY = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, OutputHeight - 1);
+        int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);
+        int maxX = Math.Min((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), clipRight - 1);
+        int minY = Math.Max((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), clipTop);
+        int maxY = Math.Min((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), clipBottom - 1);
         for (int y = minY; y <= maxY; y++)
         {
             for (int x = minX; x <= maxX; x++)

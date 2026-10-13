@@ -23,7 +23,7 @@ public sealed record NativeScriptGroundProbe(int FixedX, int FixedY, int NativeH
 public sealed record NativeScriptMovementProposal(int FixedX, int FixedY, byte Direction, IReadOnlyList<NativeScriptGroundProbe> FanProbes);
 public sealed record NativeScriptMovementResult(NativeScriptMovementStatus Status, int FixedX, int FixedY, int FixedZ, int Triangle, byte Direction, IReadOnlyList<NativeScriptMovementProposal> Proposals);
 /// <summary>Active movement owns the current body direction; an inactive completed record retains its last movement body direction and raw XYZ while later turns independently change actor577.</summary>
-public sealed record NativeScriptMovementState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int TargetX, int TargetY, int TargetZ, short Speed, short StopDistance, byte Completion, byte MovementDirection, byte FacingDirection, short TurnAccumulator, byte DirectionLimit, bool Asynchronous = false, bool AutomaticAnimation = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TargetNativeObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ResetAnimationOnCompletion = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Cancelled = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HoldsFacing = false);
+public sealed record NativeScriptMovementState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int TargetX, int TargetY, int TargetZ, short Speed, short StopDistance, byte Completion, byte MovementDirection, byte FacingDirection, short TurnAccumulator, byte DirectionLimit, bool Asynchronous = false, bool AutomaticAnimation = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TargetNativeObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ResetAnimationOnCompletion = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Cancelled = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HoldsFacing = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Suspended = false);
 
 public sealed partial class EventEngine
 {
@@ -88,6 +88,10 @@ public sealed partial class EventEngine
 
     private FieldFixedPosition? ReadNativeScriptPosition(ActorState actor)
     {
+        if (actor.NativeJump is NativeJumpState jump && MatchesNativeJumpPlacement(actor, jump))
+        {
+            return new FieldFixedPosition(jump.FixedX, jump.FixedY, jump.FixedZ);
+        }
         if (Scene.NativePartyTraceVersion == 1 && IsNativePartyPlayerBody(actor) && Scene.NativePlayerPosition is FieldFixedPosition player && actor.X == player.X / 4096f && actor.Y == player.Y / 4096f && actor.Z == player.Z / 4096f)
         {
             return player;
@@ -139,6 +143,7 @@ public sealed partial class EventEngine
         if (actor.NativeScriptMovement is not { Active: true, Asynchronous: false })
         {
             actor.NativeScriptMovement = CreateNativeScriptMove(fiber, true);
+            actor.NativeJump = null;
             if (actor.NativeScriptMovement.HoldsFacing)
             {
                 // 524490 sets576=1 and clears610 before mode1's first post-VM step.
@@ -322,7 +327,7 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if (actor.NativeScriptMovement is not { Active: true, Completion: < 2 } current)
+            if (actor.NativeScriptMovement is not { Active: true, Completion: < 2, Suspended: false } current)
             {
                 continue;
             }

@@ -53,6 +53,9 @@ public sealed class SceneEventState
     public NativeActorBackgroundScroll? ActorBackgroundScroll { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeNormalBackgroundScrollCenter? NormalBackgroundScrollCenter { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFieldShake? Shake { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

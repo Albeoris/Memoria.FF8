@@ -188,6 +188,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.DSCROLLA:
                 args = ExecuteActorBackgroundScroll(fiber);
                 break;
+            case Jsm.Opcode.DSCROLLP:
+                args = ExecuteNativePartyBackgroundScroll(fiber);
+                break;
             case Jsm.Opcode.SHAKE:
             case Jsm.Opcode.SHAKEOFF:
                 args = ExecuteShake(fiber, opcode == Jsm.Opcode.SHAKE);
@@ -200,6 +203,15 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.CSCROLL2:
                 args = ExecuteCosineBackgroundScroll(fiber);
+                break;
+            case Jsm.Opcode.CSCROLL:
+                args = ExecuteLayerZeroCosineBackgroundScroll(fiber);
+                break;
+            case Jsm.Opcode.JUMP:
+                args = ExecuteNativeJump(fiber, parameter);
+                break;
+            case Jsm.Opcode.PLTURN:
+                args = ExecutePartyLinearTurn(fiber);
                 break;
             case Jsm.Opcode.LSCROLL3:
                 args = ExecuteLinearBackgroundScroll(fiber);
@@ -317,6 +329,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.FOLLOWOFF:
                 ExecuteFollowOff(fiber);
                 break;
+            case Jsm.Opcode.FOLLOWON:
+                ExecuteFollowOn(fiber);
+                break;
             case Jsm.Opcode.JOIN:
                 ExecuteJoin(fiber);
                 break;
@@ -372,6 +387,7 @@ public sealed partial class EventEngine
                 actor.WalkmeshTriangle = parameter;
                 actor.MovementTarget = null;
                 actor.NativeScriptMovement = null;
+                actor.NativeJump = null;
                 RecordNativeScriptPlacement(actor);
                 break;
             case Jsm.Opcode.SET:
@@ -599,7 +615,7 @@ public sealed partial class EventEngine
                 // LoadField receives a fully loaded field and its models. There is no pending loader task.
                 break;
             case Jsm.Opcode.UCOFF:
-                IsUserControlEnabled = false;
+                ExecuteNativeUserControlOff();
                 break;
             case Jsm.Opcode.UCON:
                 IsUserControlEnabled = true;
@@ -1016,6 +1032,7 @@ public sealed partial class EventEngine
                 ExecuteSoundInitialization(fiber);
                 break;
             case Jsm.Opcode.MUSICCHANGE:
+            case Jsm.Opcode.MUSICSKIP:
                 args = ExecuteNativeMusicPlay(fiber, opcode);
                 break;
             case Jsm.Opcode.CROSSMUSIC:

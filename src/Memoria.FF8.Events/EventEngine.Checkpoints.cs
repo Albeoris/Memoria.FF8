@@ -29,7 +29,8 @@ public enum WaitReason
     NativeScriptMovement,
     WorldJump,
     MinimalMenu,
-    MinimalBattle
+    MinimalBattle,
+    NativeJump
 }
 
 public sealed partial class EventEngine
@@ -48,7 +49,7 @@ public sealed partial class EventEngine
         Checkpoint snapshot = new(
             1, FieldId, programHash, Frame, accumulatedSeconds, randomState, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,
             colorStartFrame, colorEndFrame, colorStart, colorEnd, subtractColor, fadeStartFrame, fadeEndFrame, fadeStart, fadeEnd, backgroundFps, nameEntity,
-            actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot)).ToArray(),
+            actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot)).ToArray(),
             dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.LegacyProgress, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), new Dictionary<int, int>(variables), Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.NativeVariableValues is { Count: > 0 } nativeMemory ? new Dictionary<int, NativeMemoryValue>(nativeMemory) : null, services.CharacterVitals, services.CharacterAppearance);
         return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
     }
@@ -130,6 +131,8 @@ public sealed partial class EventEngine
         ValidateParticleCheckpoint(saved);
         ValidateDisplayOffsetCheckpoint(saved);
         ValidateActorBackgroundScrollCheckpoint(saved);
+        ValidateNativeLinearTurns(saved);
+        ValidateNativeNormalBackgroundScrollCheckpoint(saved);
         ValidateActorShadowCheckpoint(saved);
         ValidateFootstepPairCheckpoint(saved);
         if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8))
@@ -245,7 +248,8 @@ public sealed partial class EventEngine
                 DialogueChannel = savedFiber.DialogueChannel,
                 BackgroundId = savedFiber.BackgroundId,
                 SoundResourceId = savedFiber.SoundResourceId,
-                NativeDoorSlot = savedFiber.NativeDoorSlot
+                NativeDoorSlot = savedFiber.NativeDoorSlot,
+                NativeActorSlot = savedFiber.NativeActorSlot
             };
             foreach (NativeScalarValue operand in savedFiber.Stack.Reverse())
             {
@@ -264,6 +268,8 @@ public sealed partial class EventEngine
             restored.Add(fiber);
         }
         Dictionary<long, Fiber> bySequence = restored.ToDictionary(fiber => fiber.Sequence);
+        ValidateNativeJumps(saved, restored);
+        ValidateNativeActorContactCheckpoint(saved);
         ValidateWorldTransitionCheckpoint(saved, bySequence);
         ValidateMinimalMenuCheckpoint(saved, bySequence);
         ValidateNativeBattleCheckpoint(saved, bySequence);
@@ -504,7 +510,7 @@ public sealed partial class EventEngine
         RefreshCurrentDialogue();
     }
 
-    private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null);
+    private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null);
     private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, float Progress, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false);
     private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, uint RandomState, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, long ColorStartFrame, long ColorEndFrame, Vector3 ColorStart, Vector3 ColorEnd, bool SubtractColor, long FadeStartFrame, long FadeEndFrame, float FadeStart, float FadeEnd, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, Dictionary<int, int> Variables, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<int, NativeMemoryValue>? NativeVariableValues = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterAppearance? CharacterAppearance = null);
 }

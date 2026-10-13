@@ -9,6 +9,7 @@ public sealed partial class EventEngine
     private const byte NativeDoorFacing = 2;
     private const byte NativeDoorCrossing = 4;
     private const byte NativeDoorExit = 8;
+    private const byte NativeDoorAction = 16;
     private void InitializeNativeDoorDriverAfterInitialization()
     {
         if (program is null || !program.Objects.Any(obj => obj.IsDoor) || Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, FieldId, programHash))
@@ -22,6 +23,12 @@ public sealed partial class EventEngine
         Scene.NativeDoorDriverVersion = 2;
         Scene.NativeDoorInitializationFrame = Frame;
         Scene.NativeDoorPendingEvents = [];
+        foreach (ActorState line in actors.Where(actor => program.Objects[actor.ObjectId].IsDoor))
+        {
+            // Original52BC00 allocates zeroed door412/413 before SETLINE.
+            line.NativeLineFacingDirection = 0;
+            line.NativeLineFacingContact = false;
+        }
     }
 
     private bool ValidNativeDoorState(ActorState line, long frame, bool allowLiteralLegacy)
@@ -81,7 +88,8 @@ public sealed partial class EventEngine
                 events |= NativeDoorExit;
             }
             ValidateNativeDoorAdmission(line.ObjectId, (byte)(events | Scene.NativeDoorPendingEvents!.GetValueOrDefault(line.ObjectId)), contact);
-            changes.Add(new NativeLineContactChange(line.ObjectId, contact, crossing, new Vector3(proposal.X / 4096f, proposal.Y / 4096f, proposal.Z / 4096f), events));
+            byte? facingDirection = !contact || current.X == closest.X && current.Y == closest.Y ? line.NativeLineFacingDirection : (byte)NativePartyDirection((int)current.X, (int)current.Y, (int)closest.X, (int)closest.Y);
+            changes.Add(new NativeLineContactChange(line.ObjectId, contact, crossing, new Vector3(proposal.X / 4096f, proposal.Y / 4096f, proposal.Z / 4096f), events, facingDirection, facing));
         }
         return changes;
     }
@@ -93,6 +101,8 @@ public sealed partial class EventEngine
             ActorState line = actors[change.ObjectId];
             line.NativeLineContactVersion = 2;
             line.LineContact = change.Contact;
+            line.NativeLineFacingDirection = change.FacingDirection;
+            line.NativeLineFacingContact = change.FacingContact;
             byte pending = (byte)(Scene.NativeDoorPendingEvents!.GetValueOrDefault(line.ObjectId) | change.PendingEvents);
             if (pending != 0)
             {
@@ -123,7 +133,7 @@ public sealed partial class EventEngine
     private void ValidateNativeDoorAdmission(int objectId, byte events, bool contact)
     {
         ActorState line = actors[objectId];
-        if (!ValidNativeDoorState(line, Frame, Scene.NativeFieldInitialization is null) || (events & ~15) != 0)
+        if (!ValidNativeDoorState(line, Frame, Scene.NativeFieldInitialization is null) || (events & ~31) != 0)
         {
             throw new NotSupportedException("Native door V2 pending event lacks its original owner or byte flags; original state preserved.");
         }
@@ -132,7 +142,7 @@ public sealed partial class EventEngine
         {
             int local = NativeDoorLocalFromManagedPriority(fiber.Priority);
             bool knownDefault = local == 1 && fiber.NativeDoorSlot is null;
-            bool knownRequest = local is >= 3 and <= 7 && fiber.NativeDoorSlot == 7 - fiber.Priority;
+            bool knownRequest = local is >= 2 and <= 7 && fiber.NativeDoorSlot == 7 - fiber.Priority;
             if (fiber.Initialization || !knownDefault && !knownRequest || (uint)local >= program!.Objects[objectId].Scripts.Count || fiber.Script.Id != program.Objects[objectId].Scripts[local].Id)
             {
                 throw new NotSupportedException("Native door V2 cannot suspend an external raw-priority request or unknown operand stack; original state preserved.");
@@ -152,6 +162,10 @@ public sealed partial class EventEngine
 
     private static IEnumerable<int> NativeDoorRequestedLocals(byte events, bool contact)
     {
+        if ((events & NativeDoorAction) != 0)
+        {
+            yield return 2;
+        }
         if ((events & NativeDoorFacing) != 0)
         {
             yield return 3;
@@ -177,7 +191,26 @@ public sealed partial class EventEngine
     // Original direct slots run from6(facing) down to2(entry). This private adapter
     // reverses them for the existing managed ordering; raw JSM request priorities are unchanged.
     private static int NativeDoorManagedPriority(int local) => local - 2;
-    private static int NativeDoorLocalFromManagedPriority(int priority) => priority == 7 ? 1 : priority is >= 1 and <= 5 ? priority + 2 : -1;
+    private static int NativeDoorLocalFromManagedPriority(int priority) => priority == 7 ? 1 : priority is >= 0 and <= 5 ? priority + 2 : -1;
+
+    private void SampleNativeDoorActionEdges()
+    {
+        if (Scene.NativeDoorDriverVersion != 2 || Scene.ButtonInput is not { Pressed: var pressed } || (pressed & 0x40) == 0 || !IsUserControlEnabled || ResolvePartyActor(0) is not ActorState player || player.NativeScriptMovement is { Active: true } || player.NativeMotionAuthority is not { Version: 1 } motion)
+        {
+            return;
+        }
+        foreach (ActorState line in actors.Where(actor => program!.Objects[actor.ObjectId].IsDoor && actor.LineEnabled && actor.NativeLineFacingContact == true))
+        {
+            byte direction = line.NativeLineFacingDirection ?? throw new NotSupportedException("Native door action requires its retained original direction412.");
+            if (unchecked((byte)(direction - motion.MovementDirection + 32)) >= 64)
+            {
+                continue;
+            }
+            byte pending = (byte)(Scene.NativeDoorPendingEvents!.GetValueOrDefault(line.ObjectId) | NativeDoorAction);
+            ValidateNativeDoorAdmission(line.ObjectId, pending, line.LineContact);
+            Scene.NativeDoorPendingEvents![line.ObjectId] = pending;
+        }
+    }
 
     private void DispatchNativeDoorEvents(ActorState line)
     {
@@ -250,7 +283,7 @@ public sealed partial class EventEngine
         foreach (ActorState line in saved.Actors.Where(line => program!.Objects[line.ObjectId].IsDoor))
         {
             byte events = saved.Scene.NativeDoorPendingEvents.GetValueOrDefault(line.ObjectId);
-            if (!ValidNativeDoorState(line, saved.Frame, saved.Scene.NativeFieldInitialization is null) || line.NativeLineContactVersion == 1 || (events & ~15) != 0 || events != 0 && line.NativeLineContactVersion != 2 || line.NativeLineCrossingPending != ((events & NativeDoorCrossing) != 0))
+            if (!ValidNativeDoorState(line, saved.Frame, saved.Scene.NativeFieldInitialization is null) || line.NativeLineContactVersion == 1 || (events & ~31) != 0 || events != 0 && line.NativeLineContactVersion != 2 || line.NativeLineCrossingPending != ((events & NativeDoorCrossing) != 0) || line.NativeLineFacingContact == true && line.NativeLineFacingDirection is null)
             {
                 throw new InvalidDataException("Native door V2 saved owner, contact schema or crossing mirror does not match its pending flags.");
             }
@@ -263,13 +296,13 @@ public sealed partial class EventEngine
         {
             int local = NativeDoorLocalFromManagedPriority(fiber.Priority);
             bool knownDefault = local == 1 && fiber.NativeDoorSlot is null;
-            bool knownRequest = local is >= 3 and <= 7 && fiber.NativeDoorSlot == 7 - fiber.Priority;
+            bool knownRequest = local is >= 2 and <= 7 && fiber.NativeDoorSlot == 7 - fiber.Priority;
             if (fiber.Initialization || !knownDefault && !knownRequest || (uint)local >= program!.Objects[fiber.ObjectId].Scripts.Count || fiber.ScriptId != program.Objects[fiber.ObjectId].Scripts[local].Id)
             {
                 throw new InvalidDataException("Native door V2 saved fiber has an external raw priority or unproved script owner.");
             }
         }
-        if (saved.Fibers.Any(fiber => fiber.NativeDoorSlot is not null && (!program!.Objects[fiber.ObjectId].IsDoor || fiber.NativeDoorSlot is < 2 or > 6)))
+        if (saved.Fibers.Any(fiber => fiber.NativeDoorSlot is not null && (!program!.Objects[fiber.ObjectId].IsDoor || fiber.NativeDoorSlot is < 2 or > 7)))
         {
             throw new InvalidDataException("Native door V2 direct slot cannot belong to a regular actor or an unproved action/default slot.");
         }

@@ -360,8 +360,8 @@ public sealed class SelectedAssetTests
         Assert.Equal(640 * 360 * 4, pixels.Length);
         Assert.Equal(0, pixels[(0 * 640 + 79) * 4]);
         Assert.Equal(255, pixels[(0 * 640 + 80) * 4]);
-        Assert.Equal(255, pixels[(23 * 640 + 103) * 4]);
-        Assert.Equal(0, pixels[(24 * 640 + 104) * 4]);
+        Assert.Equal(255, pixels[(12 * 640 + 103) * 4]);
+        Assert.Equal(0, pixels[(13 * 640 + 103) * 4]);
     }
 
     [Theory]
@@ -405,6 +405,7 @@ public sealed class SelectedAssetTests
         float scale = Math.Min(width / 320f, height / 240f);
         float offsetX = (width - 320 * scale) / 2;
         float offsetY = (height - 240 * scale) / 2;
+        float verticalScale = 240 * scale / 224;
         foreach (BackgroundTile tile in field.Background.OrderByDescending(tile => tile.Z))
         {
             if (!tile.Draw || hiddenModules.Contains(tile.AnimationId) || (tile.AnimationId != 255 && tile.AnimationState != states.GetValueOrDefault(tile.AnimationId)))
@@ -413,14 +414,18 @@ public sealed class SelectedAssetTests
             }
             Vector3 shade = tile.AnimationId != 255 && shades.TryGetValue(tile.AnimationId, out Vector3 moduleShade) ? moduleShade : backgroundShade;
             int left = Math.Clamp((int)MathF.Floor(offsetX + (tile.X + 160) * scale), 0, width);
-            int top = Math.Clamp((int)MathF.Floor(offsetY + (tile.Y + 120) * scale), 0, height);
+            int top = Math.Clamp((int)MathF.Floor(offsetY + (tile.Y + 112) * verticalScale), 0, height);
             int right = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + 176) * scale), 0, width);
-            int bottom = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + 136) * scale), 0, height);
+            int bottom = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + 128) * verticalScale), 0, height);
             for (int y = top; y < bottom; y++)
             {
-                float logicalY = (y + 0.5f - offsetY) / scale - tile.Y - 120;
+                float logicalY = (y + 0.5f - offsetY) / verticalScale - tile.Y - 112;
                 for (int x = left; x < right; x++)
                 {
+                    if (x + 0.5f < offsetX || x + 0.5f >= offsetX + 320 * scale || y + 0.5f < offsetY || y + 0.5f >= offsetY + 240 * scale)
+                    {
+                        continue;
+                    }
                     float logicalX = (x + 0.5f - offsetX) / scale - tile.X - 160;
                     Rgba32 source = tile.Image[Math.Clamp((int)(logicalX * tile.Image.Width / 16), 0, tile.Image.Width - 1), Math.Clamp((int)(logicalY * tile.Image.Height / 16), 0, tile.Image.Height - 1)];
                     if (source.A == 0)

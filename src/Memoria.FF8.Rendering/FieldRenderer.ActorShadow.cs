@@ -48,8 +48,7 @@ public sealed partial class FieldRenderer
 
     private ProjectedPoint ProjectShadowPoint(Vector3 point)
     {
-        ProjectedPoint projectedPoint = camera.Project(point);
-        return new ProjectedPoint(offsetX + (projectedPoint.X + actorScrollOffset.X) * scale, offsetY + (projectedPoint.Y + actorScrollOffset.Y) * scale, projectedPoint.Depth);
+        return ToViewport(camera.Project(point));
     }
 
     private void DrawShadowTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, float orderingDepth, byte level)
@@ -63,10 +62,10 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        int minX = Math.Clamp((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), 0, OutputWidth - 1);
-        int maxX = Math.Clamp((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), 0, OutputWidth - 1);
-        int minY = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, OutputHeight - 1);
-        int maxY = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, OutputHeight - 1);
+        int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);
+        int maxX = Math.Min((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), clipRight - 1);
+        int minY = Math.Max((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), clipTop);
+        int maxY = Math.Min((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), clipBottom - 1);
         for (int y = minY; y <= maxY; y++)
         {
             for (int x = minX; x <= maxX; x++)

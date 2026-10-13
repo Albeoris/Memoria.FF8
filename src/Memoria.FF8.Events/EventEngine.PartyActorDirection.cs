@@ -6,13 +6,17 @@ public sealed partial class EventEngine
 {
     public Func<NativeActorFacingQuery, byte?>? ResolveNativeActorFacing { get; set; }
 
-    private NativeActorFacingQuery? PreparePartyActorFacing(Fiber fiber)
+    private NativeActorFacingQuery? PreparePartyActorFacing(Fiber fiber, int operandOffset = 0)
     {
-        if (fiber.Stack.Count == 0 || (uint)fiber.Stack.Peek() >= 3 || Scene.NativeActorLayoutVersion != 1 || Scene.PartyBindingMemory is not { Version: 1 } memory || NativeRuntimeProfile is not { IsVerified: true })
+        if (fiber.Stack.Count <= operandOffset || Scene.NativeActorLayoutVersion != 1 || Scene.PartyBindingMemory is not { Version: 1 } memory || NativeRuntimeProfile is not { IsVerified: true })
         {
             return null;
         }
-        int slot = fiber.Stack.Peek();
+        int slot = fiber.Stack.Skip(operandOffset).First();
+        if ((uint)slot >= 3)
+        {
+            return null;
+        }
         int address = 194 + slot;
         byte nativeActor = memory.At(slot);
         if (nativeActor == 0xFF || nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(address, out int alias) && alias != nativeActor || services.NativeVariableValues?.Any(pair => pair.Key <= address && pair.Key + pair.Value.Width > address) == true || !Scene.NativeActorObjectIds.Contains(fiber.ObjectId))

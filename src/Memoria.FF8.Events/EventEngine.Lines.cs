@@ -6,7 +6,7 @@ public sealed record LineCrossing(int FieldId, int ObjectId, int ScriptId, int O
 
 public sealed partial class EventEngine
 {
-    private sealed record NativeLineContactChange(int ObjectId, bool Contact, bool Crossing, Vector3 Position, byte PendingEvents = 0);
+    private sealed record NativeLineContactChange(int ObjectId, bool Contact, bool Crossing, Vector3 Position, byte PendingEvents = 0, byte? FacingDirection = null, bool FacingContact = false);
 
     private readonly List<LineCrossing> lineCrossings = [];
     public IReadOnlyList<LineCrossing> LineCrossings => lineCrossings;

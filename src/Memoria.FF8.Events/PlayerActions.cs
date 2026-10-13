@@ -159,7 +159,7 @@ public sealed partial class EventEngine
                         }
                         for (int index = 0; index < action.Frames; index++)
                         {
-                            if (player!.NativeScriptMovement is { Active: true })
+                            if (player!.NativeScriptMovement is { Active: true } || player.NativeJump is { Active: true })
                             {
                                 FieldFixedPosition position = ReadNativeScriptPosition(player) ?? throw new NotSupportedException("Scripted player input suppression requires the actual retained raw body position.");
                                 RecordReplayNavigation(player, new WalkmeshPosition(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle), position, (int)player.Direction, false, null, []);
