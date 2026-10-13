@@ -52,6 +52,15 @@ internal sealed partial class GameWorld
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(departure);
         FieldTransition transition = new(selection.Entry.FieldId, selection.Entry.X, selection.Entry.Y, selection.Entry.Triangle, selection.Entry.Direction);
+        if (finalWorld.NativeBoatRuntime is not null)
+        {
+            NativeSavedWorldBoatReturn boatReceipt = finalWorld.NativeBoatRuntime.Return ?? throw new NotSupportedException("Boat field entry has no actual endpoint saved globals.");
+            if (selection.Entry.Index != unchecked((byte)boatReceipt.Packet.Extra) || transition != boatReceipt.FieldEntry || mapLocationId != boatReceipt.MapLocationId)
+            {
+                throw new InvalidDataException("Prepared boat arrival differs from its original terminal row or endpoint map metadata.");
+            }
+            return () => session.CommitPreparedBoatFieldEntry(departure, finalWorld, transition, candidate => ValidatePreparedField(candidate));
+        }
         if (finalWorld.NativeCarRuntime is not null)
         {
             NativeSavedWorldCarReturn carReceipt = NativeSavedWorldCarReturn.Create(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);

@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null);
 
 public enum ModelTextureSampling
 {
@@ -17,7 +17,7 @@ public enum ModelTextureSampling
 }
 
 /// <summary>Rasterizes original tiles and animated model meshes into an RGBA field framebuffer.</summary>
-public sealed class FieldRenderer
+public sealed partial class FieldRenderer
 {
     private static readonly IReadOnlyDictionary<int, Vector2> EmptyScrollOffsets = new Dictionary<int, Vector2>();
     public const int Width = 320;
@@ -108,6 +108,7 @@ public sealed class FieldRenderer
         {
             if (actor.Visible && (uint)actor.ModelId < field.Models.Count)
             {
+                DrawActorShadow(actor);
                 DrawActor(actor);
             }
         }

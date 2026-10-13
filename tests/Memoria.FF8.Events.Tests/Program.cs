@@ -51,9 +51,15 @@ internal static partial class Program
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
                     ["actor-scroll"] = NativeActorScrollContract,
+                    ["set-placement"] = NativeSetPlacementContract,
+                    ["rcmove"] = NativeRcMoveContract,
+                    ["door-line-toggle"] = NativeDoorLineToggleContract,
+                    ["party-actor-direction"] = NativePartyActorDirectionContract,
+                    ["actor-shadow"] = NativeActorShadowContract,
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
                     ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
+                    ["music-load"] = NativeMusicLoadContract,
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
                     ["sound-stop"] = NativeSoundStopContract,
                     ["native-talk"] = NativeTalkSelectionContract,
@@ -105,8 +111,14 @@ internal static partial class Program
             NativeMovieTimerClockContract();
             NativeCarCommandsContract(gameDirectory);
             NativeActorScrollContract();
+            NativeSetPlacementContract();
+            NativeRcMoveContract();
+            NativeDoorLineToggleContract();
+            NativePartyActorDirectionContract();
+            NativeActorShadowContract();
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
+            NativeMusicLoadContract();
             NativeSoundInitializationContract(gameDirectory);
             NativeSoundStopContract();
             NativeTalkSelectionContract();

@@ -278,7 +278,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         ValidatePreparedWorldActions(liveWorld, state);
-        GameState candidate = departure with { World = state, ExamTimer = AdvanceWorldTimer(departure, state) };
+        GameState candidate = departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) };
         Validate(candidate);
         State = candidate;
     }
@@ -589,6 +589,10 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
             }
+            if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat && (state.Scene != SceneKind.WorldMap || state.WorldArrival != boat.Path.Packet || boat.Return is null && (state.SavedWorld?.CarReturn?.SourceWorldFrame != boat.Load.CarSourceFrame || state.SavedWorld.CarReturn.Pose.Yaw != boat.Load.RetainedBodyYaw) || boat.Return is not null && (state.SavedWorld?.BoatReturn != boat.Return || boat.Return.LastFieldId != state.FieldId || boat.Return.StoryWord != state.Variables.GetValueOrDefault(256))))
+            {
+                throw new InvalidDataException("Native boat world state disagrees with its original packet or retained car/object record.");
+            }
         }
         if (state.DepartingWorldState is WorldState departingWorld)
         {
@@ -600,11 +604,16 @@ public sealed partial class GameSession : IEventServices
     {
         world.NativeFootRuntime?.Validate();
         world.NativeCarRuntime?.Validate();
-        if (world.NativeCarRuntime is not null && world.NativeFootRuntime is not null)
+        world.NativeBoatRuntime?.Validate();
+        if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeBoatRuntime is not null ? 1 : 0) > 1)
         {
             throw new InvalidDataException("A world scene cannot simultaneously own foot and car runtime authority.");
         }
-        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
+        if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat && (world.Frame != boat.Path.Callback || world.X != boat.Path.EntityPosition.X || world.Z != unchecked(-boat.Path.EntityPosition.Z) || world.NativeHeight != boat.Path.EntityPosition.Y || world.BodyYaw != boat.Load.RetainedBodyYaw || world.CameraYaw != NativeSavedWorldBoatReturn.CameraYaw(boat.Path.Camera)))
+        {
+            throw new InvalidDataException("World boat projection globals disagree with their executed native callback.");
+        }
+        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.NativeBoatRuntime is null && world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
         {
             throw new InvalidDataException("Invalid world checkpoint.");
         }

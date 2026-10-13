@@ -650,6 +650,10 @@ internal sealed class RecreateGame : Game
 
     private void UploadField(TimeSpan elapsed)
     {
+        if (world!.WorldScene?.IsPresentationDeferred == true)
+        {
+            return;
+        }
         Rectangle viewport = GraphicsDevice.Viewport.Bounds;
         PixelBounds target = ViewportLayout.WorldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit, session.State.Scene == SceneKind.WorldMap);
         world!.SetRenderSize(target.Width, target.Height);
@@ -684,6 +688,11 @@ internal sealed class RecreateGame : Game
             catch (NativeShakeRenderException exception)
             {
                 // Uncertain camera pixels do not stop the original VM/callback history.
+                error = exception.Message;
+                shakeRenderDeferred = true;
+            }
+            catch (NativeWorldPresentationDeferredException exception)
+            {
                 error = exception.Message;
                 shakeRenderDeferred = true;
             }

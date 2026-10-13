@@ -45,23 +45,31 @@ public sealed class NativeWorldScriptedPathTests
         Assert.Equal(new NativeWorldPathPosition(12464, 0, 24673), state.EntityPosition);
         Assert.Equal(new NativeWorldPathCamera(new(20580, -1563, 26201), new(16816, -868, 25262)), state.Camera);
         Assert.Null(state.ModelAngles);
+        Assert.Null(state.OrientationReceipt);
+        Assert.Null(state.ModelProjection);
+        Assert.Equal(2, state.NativeMovementMultiplier);
         Assert.True(state.ControlsDisabled);
         Assert.Null(state.CompletedFieldRow);
         for (int callback = 1; callback <= 29; callback++)
         {
-            state = state.Step(definition, (_, _) => null);
+            state = state.Step(definition, (_, _, _) => null);
         }
         Assert.Equal(0, state.Speed);
         Assert.Equal((short)1, state.Pause);
         Assert.Equal(new NativeWorldPathPosition(12464, 0, 24673), state.Nodes[1].Position);
-        state = state.Step(definition, (_, _) => null);
+        var beforeFirstMovement = state.Nodes;
+        state = state.Step(definition, (_, _, _) => null);
         Assert.Equal(20, state.Speed);
         Assert.Equal((short)0, state.Pause);
         Assert.Equal(new NativeWorldPathPosition(12464, 0, 24673), state.EntityPosition);
         Assert.NotEqual(state.EntityPosition, state.Nodes[1].Position);
+        Assert.Equal(beforeFirstMovement, state.CameraReceipt.Nodes);
+        Assert.Equal((ushort)30, state.CameraReceipt.Counter);
+        Assert.Equal(NativeWorldScriptedPathState.EvaluateCamera(definition, beforeFirstMovement, 1, 30), state.Camera);
+        Assert.NotEqual(NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 30), state.Camera);
         while (state.Callback < 100)
         {
-            state = state.Step(definition, (_, _) => null);
+            state = state.Step(definition, (_, _, _) => null);
         }
         string saved = JsonSerializer.Serialize(state);
         NativeWorldScriptedPathState restored = JsonSerializer.Deserialize<NativeWorldScriptedPathState>(saved)!;
@@ -71,13 +79,14 @@ public sealed class NativeWorldScriptedPathTests
         Assert.Throws<InvalidDataException>(() => (restored with { Nodes = restored.Nodes.SetItem(2, restored.Nodes[2] with { Distance = restored.Nodes[2].Distance + 1 }) }).Validate(definition));
         while (!state.EndpointRequested)
         {
-            state = state.Step(definition, (_, _) => null);
-            restored = restored.Step(definition, (_, _) => null);
+            state = state.Step(definition, (_, _, _) => null);
+            restored = restored.Step(definition, (_, _, _) => null);
             Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
         }
         Assert.Equal(230, state.Callback);
         Assert.Equal(230, state.EndpointCallback);
         Assert.Equal((sbyte)-1, state.Direction);
+        Assert.Equal((sbyte)1, state.CameraReceipt.Direction);
         Assert.Null(state.Pause);
         Assert.Null(state.ModelAngles);
         Assert.Equal(new NativeWorldPathPosition(570, 0, 27006), state.EntityPosition);
@@ -86,15 +95,15 @@ public sealed class NativeWorldScriptedPathTests
         NativeWorldPathCamera endpointCamera = state.Camera;
         for (int fade = 1; fade <= 16; fade++)
         {
-            state = state.Step(definition, (_, _) => throw new InvalidOperationException("Fade must freeze the path/visibility driver."));
-            restored = restored.Step(definition, (_, _) => throw new InvalidOperationException("Fade must freeze the path/visibility driver."));
+            state = state.Step(definition, (_, _, _) => throw new InvalidOperationException("Fade must freeze the path/visibility driver."));
+            restored = restored.Step(definition, (_, _, _) => throw new InvalidOperationException("Fade must freeze the path/visibility driver."));
             Assert.Equal(endpointCamera, state.Camera);
             Assert.Equal(fade == 16, state.FieldTransitionReady);
             Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
         }
         Assert.Equal(246, state.Callback);
         Assert.Equal((byte)61, state.CompletedFieldRow);
-        Assert.Equal(state, state.Step(definition, (_, _) => null));
+        Assert.Equal(state, state.Step(definition, (_, _, _) => null));
         Assert.Throws<InvalidDataException>(() => (state with { CameraCounter = (ushort)(state.CameraCounter - 1) }).Validate(definition));
         Assert.Throws<InvalidDataException>(() => (state with { Camera = endpointCamera with { Eye = new(1, 2, 3) } }).Validate(definition));
         JsonObject missing = JsonNode.Parse(saved)!.AsObject();
@@ -110,12 +119,31 @@ public sealed class NativeWorldScriptedPathTests
         NativeWorldScriptedPathState state = NativeWorldScriptedPathState.Create(definition, new WorldTransition(11, 66, 61), false);
         Assert.Equal(new NativeWorldPathCamera(new(20204, -1476, 25551), new(16393, -782, 24879)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 15));
         Assert.Equal(new NativeWorldPathPosition(19827, -1389, 24900), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 30).Eye);
-        NativeWorldScriptedPathState unknown = state.Step(definition, (_, _) => null);
+        NativeWorldScriptedPathState unknown = state.Step(definition, (_, _, _) => null);
         Assert.Null(unknown.ModelAngles);
-        NativeWorldScriptedPathState visible = state.Step(definition, (_, _) => true);
-        Assert.Equal(NativeWorldScriptedPathMath.LinkedOrientation(visible.Nodes[1].Position, visible.Nodes[2].Position), visible.ModelAngles);
+        NativeWorldPathNodeProjection Project(NativeWorldPathPosition source, NativeWorldPathCamera camera, NativeWorldPathPosition origin, bool visible)
+        {
+            // Synthetic5470E0 output has different heights, exercising the curved
+            // transformed WORDs rather than the actual rail's flat raw Y values.
+            NativeWorldPathWords words = new((short)source.X, source.X < 12500 ? (short)4 : (short)80, (short)source.Z);
+            return new NativeWorldPathNodeProjection(1, NativeWorldPathNodeProjection.NativeRule, source, camera, origin, words, visible);
+        }
+        NativeWorldScriptedPathState visible = state.Step(definition, (source, camera, origin) => Project(source, camera, origin, true));
+        Assert.NotNull(visible.OrientationReceipt);
+        Assert.Equal(visible.OrientationReceipt.Middle, visible.ModelProjection);
+        Assert.Equal(NativeWorldScriptedPathMath.LinkedOrientation(visible.OrientationReceipt.Middle.Words, visible.OrientationReceipt.Linked.Words), visible.ModelAngles);
+        Assert.NotEqual((short)0, visible.ModelAngles!.Pitch);
         Assert.NotEqual(new NativeWorldPathAngles(0, 0, 0), visible.ModelAngles);
-        Assert.Equal(visible.ModelAngles, visible.Step(definition, (_, _) => false).ModelAngles);
+        Assert.Equal(visible.ModelAngles, visible.Step(definition, (source, camera, origin) => Project(source, camera, origin, false)).ModelAngles);
+        Assert.Null(visible.Step(definition, (_, _, _) => null).ModelAngles);
+        NativeWorldScriptedPathState restoredVisible = JsonSerializer.Deserialize<NativeWorldScriptedPathState>(JsonSerializer.Serialize(visible))!;
+        restoredVisible.Validate(definition);
+        Assert.Equal(JsonSerializer.Serialize(visible), JsonSerializer.Serialize(restoredVisible));
+        Assert.Throws<InvalidDataException>(() => (visible with { OrientationReceipt = null }).Validate(definition));
+        Assert.Throws<InvalidDataException>(() => (visible with { ModelAngles = new NativeWorldPathAngles(0, 0, 0) }).Validate(definition));
+        string before = JsonSerializer.Serialize(state);
+        Assert.Throws<InvalidDataException>(() => state.Step(definition, (source, camera, origin) => Project(source, camera, origin, true) with { Source = new(1, 2, 3) }));
+        Assert.Equal(before, JsonSerializer.Serialize(state));
         Assert.Throws<NotSupportedException>(() => NativeWorldScriptedPathState.Create(definition, new WorldTransition(12, 66, 61), false));
         Assert.Throws<NotSupportedException>(() => NativeWorldScriptedPathState.Create(definition, new WorldTransition(11, 0, 61), false));
     }

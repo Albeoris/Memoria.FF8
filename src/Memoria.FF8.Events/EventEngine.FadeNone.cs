@@ -16,7 +16,7 @@ public sealed partial class EventEngine
             }
             foreach ((int address, int value) in variables)
             {
-                if (address >= 213 && address <= 217 && !(address == 216 && Scene.FadeMode216 == value))
+                if (address >= 213 && address <= 217 && !(address == 216 && Scene.FadeMode216 == value) && !(address < 216 && IsKnownNativeByteAlias(address, value)))
                 {
                     return "Native FADENONE intersects an ambiguous bare W216 alias; original PC and state preserved";
                 }

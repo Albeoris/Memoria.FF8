@@ -10,7 +10,7 @@ public static class NativeScriptMovementAdapter
     // TODO(TD-003): replace remaining field/object admission gates with shared native movement authority
     public static bool Supports(FieldAssets field, SceneEventState scene, ActorState actor)
     {
-        if (actor.NativeMotionAuthority is { } authority && (authority.Version != 1 || authority.FacingHold != 0))
+        if (actor.NativeMotionAuthority is { } authority && (authority.Version != 1 || authority.FacingHold > 1))
         {
             return false;
         }
@@ -42,7 +42,7 @@ public static class NativeScriptMovementAdapter
             (168, 16 or 18) => query.Speed == 2500 && query.DirectionLimit == 5,
             _ => false
         };
-        bool generic = actor is not null && actor.ObjectId == query.ObjectId && (SupportsGenericBinding(field, scene, actor) || SupportsCavernPartyBinding(field, scene, actor)) && actor.MovementSpeed == query.Speed && actor.MovementDirectionLimit == query.DirectionLimit;
+        bool generic = actor is not null && actor.ObjectId == query.ObjectId && (SupportsGenericBinding(field, scene, actor) || SupportsCavernPartyBinding(field, scene, actor)) && actor.MovementSpeed == query.Speed && (actor.MovementDirectionLimit == query.DirectionLimit || query.HoldsFacing && query.DirectionLimit == 0);
         if (!(SupportsBinding(field, scene, query.ObjectId) && selected || generic) || (generic ? query.Radius != actor!.PushRadius : query.Radius != 48) || (query.TargetX >> 12) is < short.MinValue or > short.MaxValue || (query.TargetY >> 12) is < short.MinValue or > short.MaxValue)
         {
             return null;
@@ -110,7 +110,7 @@ public static class NativeScriptMovementAdapter
     private static bool SupportsGenericBinding(FieldAssets field, SceneEventState scene, ActorState actor)
     {
         bool initialized = scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.FieldId == field.Id && initialization.ProgramHash == Convert.ToHexString(SHA256.HashData(field.Jsm));
-        return field.Id >= 72 && (scene.NativeFieldLoadVersion == 1 || initialized) && scene.NativeActorLayoutVersion == 1 && scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1, FacingHold: 0 } && actor.ModelId >= 0 && actor.ModelId < field.Models.Count && actor.PushRadius is >= 0 and <= ushort.MaxValue && actor.MovementSpeed is > 0 and <= short.MaxValue;
+        return field.Id >= 72 && (scene.NativeFieldLoadVersion == 1 || initialized) && scene.NativeActorLayoutVersion == 1 && scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 } && actor.ModelId >= 0 && actor.ModelId < field.Models.Count && actor.PushRadius is >= 0 and <= ushort.MaxValue && actor.MovementSpeed is > 0 and <= short.MaxValue;
     }
 
     internal static bool SupportsCavernPartyBinding(FieldAssets field, SceneEventState scene, ActorState actor, bool joining = false)

@@ -579,7 +579,7 @@ public sealed partial class EventEngine
             follower.Actor.InvalidateNativeMotionAuthority();
             // Native478430 changes body577/collision588, not575/576. Keep
             // known motion scalars; legacy absent authority stays absent.
-            follower.Actor.NativeMotionAuthority = FieldId == 129 ? authority : null;
+            follower.Actor.NativeMotionAuthority = authority;
             follower.Actor.X = follower.Position.X;
             follower.Actor.Y = follower.Position.Y;
             follower.Actor.Z = follower.Position.Z;

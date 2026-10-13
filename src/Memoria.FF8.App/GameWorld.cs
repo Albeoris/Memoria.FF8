@@ -164,6 +164,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.CanUseNativePlayerMovement = actor => NativePlayerMovementAdapter.Supports(next, Events.Scene, actor);
         Events.ResolveNativePlayerMovement = query => NativePlayerMovementAdapter.Resolve(next, Events.Scene, query);
         Events.CanUseNativeScriptMove = actor => NativeScriptMovementAdapter.Supports(next, Events.Scene, actor);
+        Events.ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY);
         Events.ResolveNativeScriptDirection = query => NativeScriptMovementAdapter.ResolveDirection(next, Events.Scene, query, Events.Actors.FirstOrDefault(actor => actor.ObjectId == query.ObjectId));
         Events.ResolveNativeScriptMovement = query => NativeScriptMovementAdapter.ResolveGeometry(next, Events.Scene, query, Events.Actors.FirstOrDefault(actor => actor.ObjectId == query.ObjectId));
         Events.ResolveFieldArrival = arrival =>

@@ -11,9 +11,19 @@ public sealed partial class EventEngine
     public Func<NativePlayerMovementQuery, NativePlayerMovementResult?>? ResolveNativePlayerMovement { get; set; }
     public Func<ActorState, bool>? CanUseNativePlayerMovement { get; set; }
 
+    private bool IsNativePartyPlayerBody(ActorState actor)
+    {
+        if (Scene.NativeActorLayoutVersion == 1 && Scene.PartyBindingMemory is { Version: 1 } memory)
+        {
+            byte retained = memory.First;
+            return retained != 255 && retained < Scene.NativeActorObjectIds.Count && (!variables.TryGetValue(194, out int alias) || alias == retained) && Scene.NativeActorObjectIds[retained] == actor.ObjectId;
+        }
+        return ResolvePartyActor(0)?.ObjectId == actor.ObjectId;
+    }
+
     private void RecordNativeScriptPlacement(ActorState actor)
     {
-        if (Scene.NativePartyTraceVersion != 1 || ResolvePartyActor(0)?.ObjectId != actor.ObjectId)
+        if (Scene.NativePartyTraceVersion != 1 || !IsNativePartyPlayerBody(actor))
         {
             return;
         }

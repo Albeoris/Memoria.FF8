@@ -6,6 +6,21 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    public bool HasPendingPlayerPlacement
+    {
+        get
+        {
+            ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
+            if (player is null || program is null)
+            {
+                return false;
+            }
+            return player.NativeScriptMovement is { Active: true } || fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == player.ObjectId && program.Operations.Skip(fiber.Position).Take(fiber.Script.End - fiber.Position).Any(operation => operation.Opcode is Jsm.Opcode.SET or Jsm.Opcode.SET3));
+        }
+    }
+
+    public bool HasPendingPlayerControlRelease => program is not null && fibers.Any(fiber => !fiber.Complete && program.Operations.Skip(fiber.Position).Take(fiber.Script.End - fiber.Position).Any(operation => operation.Opcode == Jsm.Opcode.UCON));
+
     private ReplayCapture? replayCapture;
     private ulong? recordedMemoryDigest;
 
@@ -96,7 +111,7 @@ public sealed partial class EventEngine
             ActorState player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0) ?? throw new InvalidDataException("Recorded navigation requires the live current-code player actor.");
             if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested || FieldId != stimulus.Start.FieldId || player.X != stimulus.Start.X || player.Y != stimulus.Start.Y || player.Z != stimulus.Start.Z || player.WalkmeshTriangle != stimulus.Start.Triangle)
             {
-                throw new InvalidDataException("Recorded navigation does not match the current causal starting pose or control boundary.");
+                throw new InvalidDataException($"Recorded navigation does not match the current causal starting pose or control boundary at field{FieldId}/frame{Frame}: control={IsUserControlEnabled}, dialogue={IsDialogueBlocking}, movie={services.IsMoviePlaying}, transition={transitionRequested}; expected({stimulus.Start.X},{stimulus.Start.Y},{stimulus.Start.Z},tri{stimulus.Start.Triangle}), actual({player.X},{player.Y},{player.Z},tri{player.WalkmeshTriangle}).");
             }
             ReplayPlayerPose end = stimulus.End;
             FieldFixedPosition? fixedPosition = end.FixedX is int fixedX ? new FieldFixedPosition(fixedX, end.FixedY!.Value, end.FixedZ!.Value) : null;

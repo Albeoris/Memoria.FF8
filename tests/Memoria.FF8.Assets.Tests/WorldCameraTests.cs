@@ -1,10 +1,30 @@
 using System.Numerics;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class WorldCameraTests
 {
+    [Fact]
+    public void NativeBoatCameraUsesExecutedSignedWordDistanceAndOpticalBasis()
+    {
+        WorldCamera camera = WorldCamera.ScriptedBoat(new NativeWorldPathCamera(new NativeWorldPathPosition(0, 0, -1024), new NativeWorldPathPosition(0, 0, 0)), 2048);
+        WorldCameraFrame frame = camera.ScriptedFrame!.Value;
+        Assert.Equal(new Vector3(0, 0, 1024), frame.Eye);
+        Assert.Equal(new Vector3(0, 0, -1), frame.Forward);
+        Assert.Equal(Vector3.UnitY, frame.Up);
+        Assert.Equal(-1024, camera.NativeOffsetZ);
+        Assert.Equal(64, camera.Distance);
+        WorldCamera quarter = WorldCamera.ScriptedBoat(new NativeWorldPathCamera(new NativeWorldPathPosition(-1024, 0, 0), new NativeWorldPathPosition(0, 0, 0)), 2048);
+        Assert.InRange(Vector3.Distance(quarter.ScriptedFrame!.Value.Eye, new Vector3(-1024, 0, 0)), 0, 0.001f);
+        Assert.InRange(Vector3.Distance(quarter.ScriptedFrame.Value.Forward, Vector3.UnitX), 0, 0.001f);
+        Assert.Equal(872, WorldSkyProjection.ProjectHorizonEighthY(0, 20000, -1024));
+        WorldCamera narrowed = WorldCamera.ScriptedBoat(new NativeWorldPathCamera(new NativeWorldPathPosition(0, 0, 64512), new NativeWorldPathPosition(0, 0, 0)), 2048);
+        Assert.Equal(frame, narrowed.ScriptedFrame);
+        Assert.Throws<NotSupportedException>(() => WorldCamera.ScriptedBoat(new NativeWorldPathCamera(default, default), 2048));
+    }
+
     [Fact]
     public void NativeFootOpticalAxisRetainsPackedOffsetAndPitchRatherThanLookingAtOrbitTarget()
     {

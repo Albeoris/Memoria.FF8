@@ -18,6 +18,6 @@ public sealed class NativeWorldScriptedPathMathTests
         Assert.Equal(new NativeWorldPathAngles(0, 2048, 0), NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(100, 0, 0)));
         Assert.Equal(new NativeWorldPathAngles(0, 1024, 0), NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(0, 0, 100)));
         Assert.Equal(new NativeWorldPathAngles(-512, 2048, 0), NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(100, 100, 0)));
-        Assert.Equal(NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(3, 4, 5)), NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(65539, -65532, 65541)));
+        Assert.Equal(NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(3, 4, 5)), NativeWorldScriptedPathMath.LinkedOrientation(new(0, 0, 0), new(unchecked((short)65539), unchecked((short)-65532), unchecked((short)65541))));
     }
 }

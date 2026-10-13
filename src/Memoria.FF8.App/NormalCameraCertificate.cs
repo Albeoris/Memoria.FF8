@@ -93,7 +93,11 @@ public static class NormalCameraCertificate
     internal static FieldNativeCameraResult ProjectActorCenter(FieldAssets field, SceneEventState scene, ActorState actor)
     {
         FieldFixedPosition position;
-        if (scene.NativePlayerPosition is FieldFixedPosition raw && actor.X == raw.X / 4096f && actor.Y == raw.Y / 4096f && actor.Z == raw.Z / 4096f)
+        if (actor.NativeScriptMovement is NativeScriptMovementState motion && actor.X == motion.FixedX / 4096f && actor.Y == motion.FixedY / 4096f && actor.Z == motion.FixedZ / 4096f)
+        {
+            position = new FieldFixedPosition(motion.FixedX, motion.FixedY, motion.FixedZ);
+        }
+        else if (scene.NativePlayerPosition is FieldFixedPosition raw && actor.X == raw.X / 4096f && actor.Y == raw.Y / 4096f && actor.Z == raw.Z / 4096f)
         {
             position = raw;
         }

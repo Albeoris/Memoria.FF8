@@ -86,28 +86,6 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private void InvalidateMusicChannelAuthority()
-    {
-        for (int slot = 0; slot < 2; slot++)
-        {
-            NativeMusicChannelState? channel = ReadMusicChannel(slot);
-            if (channel is null)
-            {
-                continue;
-            }
-            if (variables.TryGetValue(108 + slot * 4, out int channelAlias) && channelAlias == channel.ChannelId)
-            {
-                variables.Remove(108 + slot * 4);
-            }
-            if (channel.MusicId is byte music && variables.TryGetValue(199 + slot, out int musicAlias) && musicAlias == music)
-            {
-                variables.Remove(199 + slot);
-            }
-        }
-        Scene.MusicChannel108 = null;
-        Scene.MusicChannel112 = null;
-    }
-
     private void ValidateMusicStopCheckpoint(Checkpoint saved)
     {
         foreach (int slot in new[] { 0, 1 })

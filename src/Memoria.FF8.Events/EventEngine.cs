@@ -77,7 +77,9 @@ public sealed partial class EventEngine
         }
         ValidatePreviousFieldLoad(previousFieldId);
         ValidatePreviousWorldEntityLoad(fieldId, jsm, worldEntityAllocationContext);
+        ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
         JsmProgram next = JsmProgram.Read(jsm);
+        InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
         if (program is null && fieldId == 74)
         {
             // Native New Game entry 0x470560 seeds field party bytes 00 FF FF before start0 init SETPC.
@@ -132,6 +134,7 @@ public sealed partial class EventEngine
         Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         CopyNativeMediaHistory(previousScene);
+        CopyNativeMusicLoad(previousScene, nativeRuntimeProfile);
         InitializePreviousField(previousFieldId);
         InitializePreviousWorldEntity();
         // Native52BC00 clears B240/241 before normal init; B242 persists globally.
@@ -176,6 +179,10 @@ public sealed partial class EventEngine
             // Original471010 selects clock20 before52BC00 initializes every
             // allocated actor. Executed field scripts may override this default.
             actors.Add(new ActorState(obj.Index, obj.Label) { MovementSpeed = nativeRuntimeProfile?.AllocatedActorSpeed ?? 1000, LineEnabled = nativeRuntimeProfile is null || !obj.IsDoor, NativeMotionAuthority = new NativeMotionAuthority(1, 0, 0), NativeDisplayOffset = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? NativeDisplayOffsetState.AllocatedZero : null });
+            if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
+            {
+                actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
+            }
             if (obj.BackgroundModuleIndex is int moduleIndex)
             {
                 // Native module setup at 0x52C1E6 selects frame 0xFFFF until BGDRAW/BGANIME.
@@ -423,8 +430,19 @@ public sealed partial class EventEngine
         IReadOnlyList<NativeLineContactChange> lineChanges = nativeLines ? PrepareNativeLineMovement(player, nativeTriggerPosition ?? nativePosition ?? throw new NotSupportedException("Native line queries require the raw player proposal."), direction) : [];
         Vector3 triggerProposal = nativeTriggerPosition is FieldFixedPosition trigger ? new Vector3(trigger.X / 4096f, trigger.Y / 4096f, previous.Z) : new Vector3(x, y, previous.Z);
         DispatchInfMovement(player, previous, triggerProposal, direction);
+        NativeMotionAuthority? motion = player.NativeMotionAuthority;
         player.InvalidateNativeMotionAuthority();
-        player.Direction = direction;
+        bool certifiedNativeMotion = nativeMovement || nativePosition is not null && Scene.NativePlayerMovementVersion == 1;
+        if (certifiedNativeMotion && motion is { Version: 1 })
+        {
+            // 4789A0 writes input direction575 before479C60, preserves576,
+            // and copies575 to577 only when the facing hold is clear.
+            player.NativeMotionAuthority = nativeMovement ? motion with { MovementDirection = unchecked((byte)direction) } : motion;
+        }
+        if (!certifiedNativeMotion || motion is not { Version: 1, FacingHold: 1 })
+        {
+            player.Direction = direction;
+        }
         player.X = x;
         player.Y = y;
         player.Z = z;

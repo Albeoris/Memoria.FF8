@@ -2,7 +2,7 @@
 
 `FieldRenderer(FieldAssets, outputWidth, outputHeight, modelTextureSampling)` returns a reusable RGBA framebuffer. The original logical canvas is 320×240; arbitrary output dimensions preserve that aspect with centered black margins. Geometry is rasterized directly at the requested resolution; model camera depth stays in world units regardless of output scale. Model filtering defaults to `ModelTextureSampling.Bilinear`; `Nearest` is available for original texel inspection. Bilinear RGB excludes transparent neighbors and preserves the nearest source cutout coverage. Original background tiles retain nearest sampling.
 
-`ActorVisual` receives actual Events XYZ plus world-space DOFFSET once, FF8 Direction units, animation/frame, visibility and independent `PolygonColor` RGB (128 neutral). The optional scalar `ModelShade` is for component previews. Native SHADELEVEL controls ground-shadow packets, so the host never passes it as avatar tint; native ground shadows remain unimplemented. Rendering converts facing through the native `(DIR + 64)` convention. Background states select the installed MAP animation states. Optional background RGB modulation uses 128 as neutral; Events owns fade scheduling.
+
 
 Optional `RootTranslationZ` corresponds to the separate SETROOTTRANS elevation word (native instance +98), default0. The SETGETA byte (instance +97) is not an elevation and must never be passed as this value. Original model textures come from selected installed PC archive members;128×128 source TIM textures are not HD replacements.
 

@@ -74,9 +74,16 @@ internal static partial class Program
         {
             byte[] load = takeover == Jsm.Opcode.MUSICLOAD ? SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 26), (takeover, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)) : SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (takeover, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             EventEngine changed = Create(load);
-            changed.Step();
-            Require(changed.Scene.MusicStop is not null && changed.Scene.MusicChannel108 is null && !changed.Capture().GetProperty("Variables").TryGetProperty("108", out _), "Legacy music load/play left stale -1 channel authority or erased stop history.");
+            try
+            {
+                changed.Step();
+                throw new InvalidOperationException("Unproved generic music load/play selected a pending branch.");
+            }
+            catch (EventScriptException) when (changed.LastFault?.Opcode == takeover.ToString())
+            {
+            }
+            Require(changed.Scene.MusicStop is not null && changed.Scene.MusicChannel108?.ChannelId == -1 && changed.Capture().GetProperty("Variables").GetProperty("108").GetInt32() == -1, "Unproved music load/play erased the preceding actual stop authority.");
         }
-        Console.WriteLine("Native MUSICSTOP: full slot operand masks &1, immediate known channel -1, conditional unknown stop/music byte retained, primary logical playing false; independent/cross-field restore, unknown aliases and legacy music takeover verified.");
+        Console.WriteLine("Native MUSICSTOP: full slot operand masks &1, immediate known channel -1, conditional unknown stop/music byte retained, primary logical playing false; independent/cross-field restore, unknown aliases and unproved music load/play refusal verified.");
     }
 }

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -95,6 +96,6 @@ internal sealed partial class GameWorld
     private ActorVisual CreateVisual(ActorState actor)
     {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
-        return new ActorVisual(actor.ObjectId, actor.ModelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, actor.Direction, view?.AnimationId ?? actor.AnimationId, view?.Frame ?? actor.AnimationFrame, view?.Visible ?? actor.Active && actor.Visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: actor.FirstControlRotation, AdditionalControlDisabled: actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor);
+        return new ActorVisual(actor.ObjectId, actor.ModelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, actor.Direction, view?.AnimationId ?? actor.AnimationId, view?.Frame ?? actor.AnimationFrame, view?.Visible ?? actor.Active && actor.Visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: actor.FirstControlRotation, AdditionalControlDisabled: actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z));
     }
 }

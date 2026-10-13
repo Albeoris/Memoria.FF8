@@ -53,9 +53,13 @@ internal static partial class Program
                 steps.Add((Jsm.Opcode.INITSOUND, 0));
             }
             steps.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.RET, 0)]);
-            EventEngine takenOver = Create(SyntheticProgram(steps.ToArray()));
+            GameSession takenOverSession = new(new GameState());
+            takenOverSession.StartNewGame();
+            EventEngine takenOver = new(takenOverSession, takenOverSession.State.Variables);
+            takenOver.LoadField(74, SyntheticProgram(steps.ToArray()), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             takenOver.Step();
-            Require(takenOver.LastFault is null && takenOver.Scene.MusicChannel108 is null && takenOver.Scene.MusicChannel112 is null && takenOver.Scene.MusicVolumeRequest is { RawSlot: 3, Slot: 1, ChannelId: null, BothChannels: null, StoredVolume: 255 } && takenOver.Scene.SoundMusicVolume198 == 255 && takenOver.Scene.MusicVolume == 127, "Legacy music takeover or initial unknown bytes blocked the selected secondary BYTE write, fabricated routing or changed the primary volume.");
+            takenOver.Step();
+            Require(takenOver.LastFault is null && takenOver.Scene.MusicChannel108?.ChannelId == 0 && takenOver.Scene.MusicChannel112?.ChannelId == -1 && takenOver.Scene.MusicVolumeRequest is { RawSlot: 3, Slot: 1, ChannelId: -1, BothChannels: true, StoredVolume: 255 } && takenOver.Scene.SoundMusicVolume198 == 255 && takenOver.Scene.MusicVolume == 127, "Native music load/play erased independent channel authority, blocked secondary BYTE write or changed primary volume.");
         }
         JsonNode malformed = JsonNode.Parse(first.Capture().GetRawText())!;
         malformed["Scene"]!["MusicVolumeRequest"]!["StoredVolume"] = 127;

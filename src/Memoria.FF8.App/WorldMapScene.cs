@@ -30,7 +30,8 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
         bool car = unchecked((sbyte)arrival.Mode) == 33;
-        if (unchecked((sbyte)arrival.Mode) != 0 && !car)
+        bool boat = IsSupportedBoatPacket(arrival);
+        if (unchecked((sbyte)arrival.Mode) != 0 && !car && !boat)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }
@@ -40,7 +41,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (car ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord >= 34)
+        if (!boat && (car ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord >= 34))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -48,7 +49,14 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeFootWorldRuntimeState? initialFootRuntime = null;
         NativeCarWorldRuntimeState? initialCarRuntime = null;
         NativeSavedWorldState? carSavedDeparture = null;
-        if (car)
+        if (boat)
+        {
+            if (session.State.World is not null && session.State.World.NativeBoatRuntime is null)
+            {
+                throw new NotSupportedException("Native boat restoration has no executed scripted runtime authority.");
+            }
+        }
+        else if (car)
         {
             if (entry == 62 || unchecked((sbyte)arrival.Extra) != -1)
             {
@@ -90,6 +98,16 @@ internal sealed partial class WorldMapScene : IDisposable
         try
         {
             storyByte = inputs.StoryByte;
+            if (boat)
+            {
+                if (session.State.World is null)
+                {
+                    session.SetWorldState(CreateBoatState(arrival, inputs));
+                }
+                replacements = WorldTerrainSelection.Replacements(State.ReplacementMask);
+                ValidateBoatState(State);
+                return;
+            }
             if (session.State.World is null)
             {
                 if (entry != 62 && (uint)entry >= assets.Spawns.Count)
@@ -150,6 +168,7 @@ internal sealed partial class WorldMapScene : IDisposable
     }
 
     public WorldState State => session.State.World ?? LastDeparture ?? throw new InvalidOperationException("This world scene no longer has a current state.");
+    public bool IsPresentationDeferred => State.NativeBoatRuntime?.Path.Callback == 0;
 
     internal static void RequireUnaliasedFootAuxiliary(GameState state)
     {
@@ -271,6 +290,10 @@ internal sealed partial class WorldMapScene : IDisposable
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
         WorldState state = State;
+        if (state.NativeBoatRuntime is not null)
+        {
+            return RenderBoat(state);
+        }
         EnsureContactCertificate(state);
         WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
@@ -279,6 +302,10 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, ReplayWorldNavigationStimulus? proposal = null)
     {
+        if (before.NativeBoatRuntime is not null)
+        {
+            return StepBoat(before, out fieldEntry, out inputProposal, proposal, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeBoatRuntime.Path.EntityType).ProjectNode(node));
+        }
         if (before.NativeCarRuntime is not null)
         {
             return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, proposal);
@@ -360,6 +387,11 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private void EnsureContactCertificate(WorldState state)
     {
+        if (state.NativeBoatRuntime is not null)
+        {
+            ValidateBoatState(state);
+            return;
+        }
         if (state.NativeCarRuntime is not null)
         {
             EnsureCarContactCertificate(state);

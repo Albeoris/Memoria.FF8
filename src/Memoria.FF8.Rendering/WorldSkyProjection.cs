@@ -20,18 +20,28 @@ public static class WorldSkyProjection
         {
             throw new ArgumentException("Sky projection requires the researched native foot camera.", nameof(camera));
         }
-        WorldCameraFrame frame = camera.FootFrame(playerPosition);
-        int distance = FootOffsetZ + 4 * FootCurvatureThreshold;
+        return Native(camera, playerPosition, sky);
+    }
+
+    public static WorldSkyGradient Native(WorldCamera camera, Vector3 playerPosition, WorldSky sky)
+    {
+        if (!camera.NativeProjection)
+        {
+            throw new ArgumentException("Sky projection requires an executed native camera configuration.", nameof(camera));
+        }
+        WorldCameraFrame frame = camera.ScriptedFrame ?? camera.FootFrame(playerPosition);
+        int offsetZ = camera.NativeOffsetZ ?? FootOffsetZ;
+        int distance = offsetZ + 4 * FootCurvatureThreshold;
         // Native 0x554FCC adds only player X/Z. Horizon point height is zero, not the filtered camera target height.
         Vector3 point = new(playerPosition.X + MathF.Sin(camera.Heading) * distance, 0, playerPosition.Z - MathF.Cos(camera.Heading) * distance);
         Vector3 relative = point - frame.Eye;
         double cameraY = -Vector3.Dot(relative, frame.Up);
         double cameraDepth = Vector3.Dot(relative, frame.Forward);
-        return new WorldSkyGradient(ProjectHorizonEighthY(cameraY, cameraDepth), sky.Top, sky.Center, sky.Bottom);
+        return new WorldSkyGradient(ProjectHorizonEighthY(cameraY, cameraDepth, offsetZ), sky.Top, sky.Center, sky.Bottom);
     }
 
     /// <summary>Native projection rounds transformed coordinates and eighth-pixel output; half-even matches the bounded PC FPU assumption.</summary>
-    public static int ProjectHorizonEighthY(double cameraY, double cameraDepth)
+    public static int ProjectHorizonEighthY(double cameraY, double cameraDepth, int offsetZ = FootOffsetZ)
     {
         if (!double.IsFinite(cameraY) || !double.IsFinite(cameraDepth))
         {
@@ -43,7 +53,7 @@ public static class WorldSkyProjection
         double screenY = Math.Round(8 * y * FootFocalPixels / denominator, MidpointRounding.ToEven) + 8 * (LogicalHeight / 2);
         int boundedY = (int)Math.Clamp(screenY, -8192, 8184);
         // C# integer division preserves native truncation toward zero: 7168 / -300 == -23.
-        return boundedY + 8 * (Math.Abs(FootOffsetZ) / -300);
+        return boundedY + 8 * (Math.Abs(offsetZ) / -300);
     }
 }
 

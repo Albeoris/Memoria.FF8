@@ -82,7 +82,10 @@ public static class WorldEntryPreflight
         var scene = new WorldMapScene(temporarySession, gameDirectory);
         try
         {
-            _ = scene.Render(320, 224);
+            if (!scene.IsPresentationDeferred)
+            {
+                _ = scene.Render(320, 224);
+            }
             return new PreparedWorldEntry(transition, scene, temporarySession.State.SavedWorld);
         }
         catch

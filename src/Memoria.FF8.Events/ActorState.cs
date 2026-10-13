@@ -82,6 +82,15 @@ public sealed class ActorState
     [JsonInclude]
     public int ShadeLevel { get; internal set; } = 96;
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeActorShadowSet? NativeShadowSet { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeActorShadowLevel? NativeShadowLevel { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeActorShadowAllocation? NativeShadowAllocation { get; internal set; }
+    [JsonInclude]
     public Vector3 PolygonColor { get; internal set; } = new(128, 128, 128);
     [JsonInclude]
     public int FaceFirstAngle { get; internal set; }

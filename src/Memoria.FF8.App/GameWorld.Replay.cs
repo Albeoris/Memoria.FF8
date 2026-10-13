@@ -73,21 +73,43 @@ internal sealed partial class GameWorld
             rebuilt.SetMoviePlayback(playback with { IsPlaying = true, Completed = false, Skipped = false });
             rebuilt.CompleteMovie(true);
         };
+        Queue<(int FieldId, string ScriptHash, string? ExecutableHash)> autonomousAllocations = new();
         int index = 0;
         foreach (ReplayJournalEntry entry in journal.Entries)
         {
             entry.Validate();
             for (int repeat = 0; repeat < entry.Repeat; repeat++)
             {
-                if (rebuilt.State.Scene != entry.Scene || rebuilt.State.FieldId != entry.FieldId)
+                bool passiveFieldCadence = entry.Scene is SceneKind.Field or SceneKind.Movie && (entry.Kind is ReplayEntryKind.Step or ReplayEntryKind.Update || entry.Kind == ReplayEntryKind.Action && entry.Code == (int)PlayerActionKind.Wait);
+                bool currentFieldVm = rebuilt.State.Scene is SceneKind.Field or SceneKind.Movie;
+                if (!passiveFieldCadence || !currentFieldVm)
                 {
-                    throw new InvalidDataException($"Replay causal boundary diverged at entry {index}: expected {entry.Scene}/field{entry.FieldId}, got {rebuilt.State.Scene}/field{rebuilt.State.FieldId}.");
+                    if (rebuilt.State.Scene != entry.Scene || rebuilt.State.FieldId != entry.FieldId)
+                    {
+                        throw new InvalidDataException($"Replay causal boundary diverged at entry {index}: expected {entry.Scene}/field{entry.FieldId}, got {rebuilt.State.Scene}/field{rebuilt.State.FieldId}.");
+                    }
+                }
+                else if (entry.Kind is ReplayEntryKind.Step or ReplayEntryKind.Update && world.Events.FieldId != entry.FieldId)
+                {
+                    throw new InvalidDataException("Recorded field VM cadence does not own the actually allocated interpreter.");
+                }
+                else if (entry.Kind == ReplayEntryKind.Action && world.EnsureField())
+                {
+                    autonomousAllocations.Enqueue((world.Field!.Id, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(world.Field.Jsm)), world.assets.NativeExecutableHash));
                 }
                 PlayerActionResult? result = null;
                 switch (entry.Kind)
                 {
                     case ReplayEntryKind.FieldLoad:
-                        if (!world.EnsureField())
+                        if (autonomousAllocations.Count > 0)
+                        {
+                            var allocation = autonomousAllocations.Dequeue();
+                            if (allocation.FieldId != entry.FieldId || allocation.ScriptHash != entry.NativeSourceHash || allocation.ExecutableHash != entry.Text)
+                            {
+                                throw new InvalidDataException("A current-code autonomous allocation does not match the next recorded native allocation barrier.");
+                            }
+                        }
+                        else if (!world.EnsureField())
                         {
                             throw new InvalidDataException("A recorded field allocation did not perform a fresh load.");
                         }
@@ -105,11 +127,26 @@ internal sealed partial class GameWorld
                         world.PublishReplayDeparture();
                         break;
                     case ReplayEntryKind.Action:
+                        AwaitRecordedNavigationOrigin(world.Events, entry, () =>
+                        {
+                            world.Events.Step();
+                            world.PublishReplayDeparture();
+                        });
+                        AwaitRecordedDialogueSite(world.Events, entry, () =>
+                        {
+                            world.Events.Step();
+                            world.PublishReplayDeparture();
+                        });
                         ValidateDialogueSite(world.Events, entry);
                         movieSkip = entry.Code == (int)PlayerActionKind.SkipMovie ? entry : null;
                         result = entry.Code == (int)PlayerActionKind.Move ? world.PublishFieldAction(world.Events.ReplayNavigation(entry)) : world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
                         break;
                     case ReplayEntryKind.Dialogue:
+                        AwaitRecordedDialogueSite(world.Events, entry, () =>
+                        {
+                            world.Events.Step();
+                            world.PublishReplayDeparture();
+                        });
                         ValidateDialogueSite(world.Events, entry);
                         world.Events.ConfirmDialogue(entry.Code == 1 ? entry.Value : null, entry.Code == 2 ? entry.Text : null);
                         break;
@@ -145,12 +182,29 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidDataException($"Replay action acceptance diverged at entry {index}.");
                 }
-                if (rebuilt.State.Scene != entry.ResultScene.GetValueOrDefault(entry.Scene) || rebuilt.State.FieldId != entry.ResultFieldId.GetValueOrDefault(entry.FieldId))
+                if (entry.ResultScene.GetValueOrDefault(entry.Scene) != entry.Scene || entry.ResultFieldId.GetValueOrDefault(entry.FieldId) != entry.FieldId)
                 {
-                    throw new InvalidDataException($"Replay progress diverged after entry {index}.");
+                    for (int callback = 0; rebuilt.State.Scene == entry.Scene && rebuilt.State.FieldId == entry.FieldId && callback < 30000; callback++)
+                    {
+                        if (world.Events.CurrentDialogue is not null || world.Events.LastFault is not null || world.NextTrigger.Kind is PlayerTriggerKind.Movie or PlayerTriggerKind.WorldMap or PlayerTriggerKind.FieldTransition)
+                        {
+                            break;
+                        }
+                        // The recorded consequence is a readiness barrier, never a requested destination.
+                        world.Events.Step();
+                        world.PublishReplayDeparture();
+                    }
+                }
+                if ((!passiveFieldCadence || rebuilt.State.Scene is not (SceneKind.Field or SceneKind.Movie)) && (rebuilt.State.Scene != entry.ResultScene.GetValueOrDefault(entry.Scene) || rebuilt.State.FieldId != entry.ResultFieldId.GetValueOrDefault(entry.FieldId)))
+                {
+                    throw new InvalidDataException($"Replay progress diverged after entry {index}/{entry.Kind}: expected {entry.ResultScene.GetValueOrDefault(entry.Scene)}/field{entry.ResultFieldId.GetValueOrDefault(entry.FieldId)}, actual {rebuilt.State.Scene}/field{rebuilt.State.FieldId}/frame{world.Events.Frame}/trigger{world.NextTrigger.Kind}.");
                 }
             }
             index++;
+        }
+        if (autonomousAllocations.Count != 0)
+        {
+            throw new InvalidDataException("Reconstruction ended before its autonomous native allocations were bound to recorded allocation barriers.");
         }
         if (rebuilt.State.Scene != source.Scene || rebuilt.State.FieldId != source.FieldId)
         {
@@ -203,6 +257,53 @@ internal sealed partial class GameWorld
             rebuilt.SetDialogueDraft(draft);
         }
         return rebuilt.State;
+    }
+
+    internal static void AwaitRecordedNavigationOrigin(EventEngine engine, ReplayJournalEntry entry, Action advance)
+    {
+        if (entry.Code != (int)PlayerActionKind.Move || !entry.Accepted || entry.Navigation.FirstOrDefault()?.Start is not ReplayPlayerPose origin)
+        {
+            return;
+        }
+        for (int callback = 0; callback < 30000; callback++)
+        {
+            ActorState? player = engine.Actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
+            bool matchesOrigin = player is not null && player.X == origin.X && player.Y == origin.Y && player.Z == origin.Z && player.WalkmeshTriangle == origin.Triangle;
+            if (player is null || matchesOrigin && engine.IsUserControlEnabled)
+            {
+                return;
+            }
+            if (engine.FieldId != entry.FieldId || !engine.HasPendingPlayerPlacement && !(matchesOrigin && !engine.IsUserControlEnabled && engine.HasPendingPlayerControlRelease) || engine.CurrentDialogue is not null || engine.LastFault is not null || engine.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Movie)
+            {
+                return;
+            }
+            // The script writes its own body; the recorded pose remains a check, never a placement.
+            advance();
+        }
+        throw new InvalidDataException("Recorded navigation could not reach its pending scripted starting placement.");
+    }
+
+    internal static void AwaitRecordedDialogueSite(EventEngine engine, ReplayJournalEntry entry, Action advance)
+    {
+        if (entry.MessageId is null || entry.Kind == ReplayEntryKind.Action && (PlayerActionKind)entry.Code is not (PlayerActionKind.Confirm or PlayerActionKind.Choose or PlayerActionKind.EnterName or PlayerActionKind.Cancel))
+        {
+            return;
+        }
+        // A recorded decision owns its visible script site, not the old interpreter's callback latency.
+        // Only real autonomous callbacks run here; no input, answer or snapshot value is injected.
+        for (int callback = 0; engine.CurrentDialogue is null; callback++)
+        {
+            if (callback == 30000 || engine.FieldId != entry.FieldId || engine.LastFault is not null || engine.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Movie)
+            {
+                throw new InvalidDataException("The recorded dialogue decision cannot mature across a fault, scene transition or unbounded autonomous wait.");
+            }
+            advance();
+        }
+        if (engine.FieldId != entry.FieldId)
+        {
+            throw new InvalidDataException("The recorded dialogue decision matured in a different field.");
+        }
+        ValidateDialogueSite(engine, entry);
     }
 
     private static void ValidateDialogueSite(EventEngine engine, ReplayJournalEntry entry)

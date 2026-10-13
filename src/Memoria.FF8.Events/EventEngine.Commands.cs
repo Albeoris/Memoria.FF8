@@ -56,6 +56,10 @@ public sealed partial class EventEngine
                 {
                     value = stoppedMusicValue;
                 }
+                if (byteRead && TryReadNativeMusicByte(parameter, out int nativeMusicByte))
+                {
+                    value = nativeMusicByte;
+                }
                 if (TryReadPreviousFieldWord(operation, out int previousFieldWord))
                 {
                     value = previousFieldWord;
@@ -215,6 +219,9 @@ public sealed partial class EventEngine
                 ActorState directionTarget = actors[program.NativeObjects[args[0]]];
                 actor.Direction = NativeDirection(actor.X, actor.Y, directionTarget.X, directionTarget.Y);
                 break;
+            case Jsm.Opcode.PDIRA:
+                args = ExecutePartyActorDirection(fiber);
+                break;
             case Jsm.Opcode.FACEDIRLIMIT:
                 args = Pop(fiber, 3);
                 actor.FaceLimits = new Vector3((byte)args[0], (byte)args[1], (byte)args[2]);
@@ -367,10 +374,13 @@ public sealed partial class EventEngine
                 actor.NativeScriptMovement = null;
                 RecordNativeScriptPlacement(actor);
                 break;
+            case Jsm.Opcode.SET:
+                args = ExecuteNativeSet(fiber, parameter);
+                break;
             case Jsm.Opcode.DIR:
                 args = Pop(fiber, 1);
                 actor.Direction = args[0] & 255;
-                if (actor.NativeScriptMovement is { Active: false } previousMovement)
+                if (actor.NativeScriptMovement is { } previousMovement && (!previousMovement.Active || previousMovement.HoldsFacing))
                 {
                     actor.NativeScriptMovement = previousMovement with { FacingDirection = (byte)actor.Direction };
                 }
@@ -456,6 +466,9 @@ public sealed partial class EventEngine
                     fiber.WaitReason = WaitReason.Movement;
                 }
                 break;
+            case Jsm.Opcode.RCMOVE:
+                ExecuteNativeScriptMove(fiber);
+                break;
             case Jsm.Opcode.MOVESYNC:
                 fiber.WaitReason = WaitReason.Movement;
                 break;
@@ -516,8 +529,10 @@ public sealed partial class EventEngine
                 actor.RootTranslationZ = unchecked((short)args[0]);
                 break;
             case Jsm.Opcode.SHADELEVEL:
-                args = Pop(fiber, 1);
-                actor.ShadeLevel = args[0];
+                args = ExecuteActorShadowLevel(fiber, actor);
+                break;
+            case Jsm.Opcode.SHADESET:
+                args = ExecuteActorShadowSet(fiber, actor);
                 break;
             case Jsm.Opcode.DOFFSET:
             case Jsm.Opcode.LOFFSET:
@@ -873,7 +888,9 @@ public sealed partial class EventEngine
                 actor.LineEnabled = opcode == Jsm.Opcode.LINEON;
                 break;
             case Jsm.Opcode.DOORLINEOFF:
-                actor.DoorLineEnabled = false;
+            case Jsm.Opcode.DOORLINEON:
+                // 51DD20/51DD40 write area+392 only and return2; contact/pending flags persist.
+                actor.DoorLineEnabled = opcode == Jsm.Opcode.DOORLINEON;
                 break;
             case Jsm.Opcode.PREMAPJUMP:
                 args = Pop(fiber, 4);
@@ -969,22 +986,17 @@ public sealed partial class EventEngine
                 args = ExecuteSoundStop(fiber);
                 break;
             case Jsm.Opcode.MUSICLOAD:
-                args = Pop(fiber, 1);
-                InvalidateMusicChannelAuthority();
-                Scene.LoadedMusic = args[0];
+                args = ExecuteNativeMusicLoad(fiber);
                 break;
             case Jsm.Opcode.INITSOUND:
                 ExecuteSoundInitialization(fiber);
                 break;
             case Jsm.Opcode.MUSICCHANGE:
-                InvalidateMusicChannelAuthority();
-                Scene.MusicPlaying = true;
+                args = ExecuteNativeMusicPlay(fiber, opcode);
                 break;
             case Jsm.Opcode.CROSSMUSIC:
-                args = Pop(fiber, 2);
-                InvalidateMusicChannelAuthority();
-                Scene.MusicPlaying = true;
-                Scene.MusicCrossfadeFrames = args[1];
+            case Jsm.Opcode.DUALMUSIC:
+                args = ExecuteNativeMusicPlay(fiber, opcode);
                 break;
             case Jsm.Opcode.MUSICSTOP:
                 args = ExecuteMusicStop(fiber);

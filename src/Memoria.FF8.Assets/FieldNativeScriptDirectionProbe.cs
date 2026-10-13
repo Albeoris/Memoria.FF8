@@ -17,6 +17,33 @@ public static class FieldNativeScriptDirectionProbe
     // Even-byte metadata from the original 0xB80C18 table; entries90..128 all equal32.
     private static readonly byte[] DirectionAngles = [0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 20, 20, 20, 21, 21, 21, 22, 22, 22, 23, 23, 24, 24, 24, 25, 25, 26, 26, 26, 27, 27, 28, 28, 28, 29, 29, 30, 30, 30, 31, 31, 32];
 
+    /// <summary>Native47A880→477380 direct BYTE facing, without MOVE stop/snap policy.</summary>
+    public static byte? ResolveFacing(int fixedX, int fixedY, int targetX, int targetY)
+    {
+        int dx = (targetX >> 12) - (fixedX >> 12);
+        int dy = (targetY >> 12) - (fixedY >> 12);
+        long squared = (long)dx * dx + (long)dy * dy;
+        if (squared > int.MaxValue)
+        {
+            return null;
+        }
+        int length = IntegerSquareRoot((int)squared);
+        if (length == 0)
+        {
+            return 0;
+        }
+        int x = unchecked(dx << 12) / length / 32;
+        int y = unchecked(dy << 12) / length / 32;
+        bool horizontal = x * x > y * y;
+        int minor = Math.Abs(horizontal ? y : x);
+        if (minor > 128)
+        {
+            return null;
+        }
+        int angle = DirectionAngles[Math.Min(minor, 90)];
+        return unchecked((byte)(horizontal ? x > 0 ? 64 + Math.Sign(y) * angle : 192 - Math.Sign(y) * angle : y > 0 ? 128 - Math.Sign(x) * angle : Math.Sign(x) * angle));
+    }
+
     public static FieldNativeScriptDirectionResult Resolve(FieldNativeScriptDirectionRequest request)
     {
         int dx = (request.TargetX >> 12) - (request.FixedX >> 12);
@@ -57,16 +84,12 @@ public static class FieldNativeScriptDirectionProbe
 
         int length = IntegerSquareRoot(distanceSquared.Value);
         distance = length;
-        int x = unchecked(dx << 12) / length / 32;
-        int y = unchecked(dy << 12) / length / 32;
-        bool horizontal = x * x > y * y;
-        int minor = Math.Abs(horizontal ? y : x);
-        if (minor > 128)
+        byte? facing = ResolveFacing(request.FixedX, request.FixedY, request.TargetX, request.TargetY);
+        if (facing is null)
         {
             return Result(FieldNativeScriptDirectionStatus.Unsupported, request.MovementDirection, request.TurnAccumulator, reason: "Native direction query leaves the proved original table range.");
         }
-        int angle = DirectionAngles[Math.Min(minor, 90)];
-        byte desired = unchecked((byte)(horizontal ? x > 0 ? 64 + Math.Sign(y) * angle : 192 - Math.Sign(y) * angle : y > 0 ? 128 - Math.Sign(x) * angle : Math.Sign(x) * angle));
+        byte desired = facing.Value;
         if (length < request.Radius || request.TurnAccumulator is < -256 or > 256 || request.DirectionLimit == 0)
         {
             return Result(FieldNativeScriptDirectionStatus.Moving, desired, request.TurnAccumulator, desired);

@@ -103,6 +103,7 @@ public sealed partial class EventEngine
         ValidateSoundVolumeTransitionCheckpoint(saved);
         ValidateFollowOffCheckpoint(saved);
         ValidateMusicStopCheckpoint(saved);
+        ValidateMusicLoadCheckpoint(saved);
         ValidateMusicVolumeCheckpoint(saved);
         ValidateFadeNoneCheckpoint(saved);
         ValidateNativeLineCheckpoint(saved);
@@ -110,6 +111,7 @@ public sealed partial class EventEngine
         ValidateParticleCheckpoint(saved);
         ValidateDisplayOffsetCheckpoint(saved);
         ValidateActorBackgroundScrollCheckpoint(saved);
+        ValidateActorShadowCheckpoint(saved);
         if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8))
         {
             throw new InvalidDataException("Saved background scroll layer is outside the eight original records.");
@@ -247,7 +249,7 @@ public sealed partial class EventEngine
         ValidateNativeBattleCheckpoint(saved, bySequence);
         foreach (ActorState actor in saved.Actors)
         {
-            if (actor.NativeMotionAuthority is NativeMotionAuthority authority && (authority.Version != 1 || actor.NativeScriptMovement is { Active: true } activeMotion && (authority.FacingHold != 0 || authority.MovementDirection != activeMotion.MovementDirection)))
+            if (actor.NativeMotionAuthority is NativeMotionAuthority authority && (authority.Version != 1 || actor.NativeScriptMovement is { Active: true } activeMotion && (authority.FacingHold != (activeMotion.HoldsFacing ? 1 : 0) || authority.MovementDirection != activeMotion.MovementDirection)))
             {
                 throw new InvalidDataException("Saved native motion authority has an unsupported schema or differs from its active scripted movement scalars.");
             }
@@ -258,7 +260,11 @@ public sealed partial class EventEngine
             bool ownerExists = bySequence.TryGetValue(motion.FiberSequence, out Fiber? owner);
             bool validOwner = ownerExists && owner!.ObjectId == actor.ObjectId && owner.Script.Id == motion.ScriptId;
             EventScript? issuingScript = program.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == motion.ScriptId);
-            string movementOpcode = motion.TargetNativeObjectId is not null ? "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            string movementOpcode = motion.HoldsFacing ? "RCMOVE" : motion.TargetNativeObjectId is not null ? "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            if (motion.HoldsFacing && (!motion.Asynchronous || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null || motion.DirectionLimit != 0))
+            {
+                throw new InvalidDataException("Saved RCMOVE lost its asynchronous facing hold, animation policy or cleared direction limit.");
+            }
             if (motion.ResetAnimationOnCompletion is not null && (motion.ResetAnimationOnCompletion != true || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null))
             {
                 throw new InvalidDataException("Saved forced-animation movement has invalid inherited native animation flags.");
@@ -271,7 +277,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native MOVEA has invalid original target identity or remaining operand.");
             }
-            if (motion.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || (uint)motion.Operation >= program.Operations.Count || program.Operations[motion.Operation].Opcode.ToString() != movementOpcode || motion.Asynchronous && (issuingScript is null || motion.Operation < issuingScript.Start || motion.Operation >= issuingScript.End || ownerExists && !validOwner || validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || actor.NativeMotionAuthority is not { Version: 1, FacingHold: 0 }) || motion.Completion > 2 || !motion.Active && !motion.Cancelled && motion.Completion != 2 || motion.Speed <= 0 || motion.Active && (motion.DirectionLimit != actor.MovementDirectionLimit || motion.Speed != actor.MovementSpeed) || motion.Triangle != actor.WalkmeshTriangle || motion.Triangle is < 0 or > short.MaxValue || actor.X != motion.FixedX / 4096f || actor.Y != motion.FixedY / 4096f || actor.Z != motion.FixedZ / 4096f || motion.Active && actor.Direction != motion.FacingDirection || (motion.FixedZ & 4095) != 0 || new[] { motion.FixedX, motion.FixedY, motion.FixedZ, motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || motion.TargetNativeObjectId is null && new[] { motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value & 4095) != 0) || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Complete || owner.Position != motion.Operation || owner.WaitReason != WaitReason.NativeScriptMovement) || !motion.Active && validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || motion.Active && motion.Completion != 2 && actor.MovementTarget != new Vector3(motion.TargetX / 4096f, motion.TargetY / 4096f, motion.TargetZ / 4096f) || motion.Completion == 2 && actor.MovementTarget is not null)
+            if (motion.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || (uint)motion.Operation >= program.Operations.Count || program.Operations[motion.Operation].Opcode.ToString() != movementOpcode || motion.Asynchronous && (issuingScript is null || motion.Operation < issuingScript.Start || motion.Operation >= issuingScript.End || ownerExists && !validOwner || validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || (actor.NativeMotionAuthority is not { Version: 1 } || actor.NativeMotionAuthority.FacingHold != (motion.HoldsFacing && (motion.Active || motion.Cancelled) ? 1 : 0))) || motion.Completion > 2 || !motion.Active && !motion.Cancelled && motion.Completion != 2 || motion.Speed <= 0 || motion.Active && (motion.DirectionLimit != actor.MovementDirectionLimit || motion.Speed != actor.MovementSpeed) || motion.Triangle != actor.WalkmeshTriangle || motion.Triangle is < 0 or > short.MaxValue || actor.X != motion.FixedX / 4096f || actor.Y != motion.FixedY / 4096f || actor.Z != motion.FixedZ / 4096f || motion.Active && actor.Direction != motion.FacingDirection || (motion.FixedZ & 4095) != 0 || new[] { motion.FixedX, motion.FixedY, motion.FixedZ, motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || motion.TargetNativeObjectId is null && new[] { motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value & 4095) != 0) || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Complete || owner.Position != motion.Operation || owner.WaitReason != WaitReason.NativeScriptMovement) || !motion.Active && validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || motion.Active && motion.Completion != 2 && actor.MovementTarget != new Vector3(motion.TargetX / 4096f, motion.TargetY / 4096f, motion.TargetZ / 4096f) || motion.Completion == 2 && actor.MovementTarget is not null)
             {
                 throw new InvalidDataException("Saved native scripted MOVE has invalid raw placement, owner, instruction wait or completion state.");
             }

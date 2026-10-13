@@ -16,7 +16,12 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
     public static NativeWorldConfiguration FromWorldReturn(WorldState world, int fieldId)
     {
         byte entity;
-        if (world.NativeCarRuntime is NativeCarWorldRuntimeState car)
+        if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat)
+        {
+            boat.Validate();
+            entity = boat.Path.EntityType;
+        }
+        else if (world.NativeCarRuntime is NativeCarWorldRuntimeState car)
         {
             car.Validate();
             entity = car.EntityType;
@@ -35,7 +40,7 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
 
     public void Validate()
     {
-        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 33)) || Rule != PacketRule && Rule != ReturnRule)
+        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 33 or 66)) || Rule != PacketRule && Rule != ReturnRule)
         {
             throw new InvalidDataException("Native world configuration lacks its original executed packet/entity authority.");
         }
