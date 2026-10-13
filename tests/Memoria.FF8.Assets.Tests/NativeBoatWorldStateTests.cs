@@ -25,7 +25,7 @@ public sealed class NativeBoatWorldStateTests
         NativeWorldScriptedPathState path = NativeWorldScriptedPathState.Create(definition, packet, null);
         var boat = new NativeBoatWorldRuntimeState(1, NativeBoatWorldRuntimeState.RuntimeRule, path, load, null);
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600);
-        var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, FieldId = 123, WorldArrival = packet, World = boat.ToWorldState(), SavedWorld = saved, WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new() { [256] = 40 }, ExamTimer = timer });
+        var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, FieldId = 123, WorldArrival = packet, World = boat.ToWorldState(), DepartingWorldState = previous, SavedWorld = saved, WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new() { [256] = 40 }, ExamTimer = timer });
         for (int callback = 0; callback < 230; callback++)
         {
             path = path.Step(definition, (_, _, _) => null);

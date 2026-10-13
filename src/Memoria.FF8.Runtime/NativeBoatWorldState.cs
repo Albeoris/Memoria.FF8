@@ -24,13 +24,26 @@ public sealed record NativeBoatWorldLoadReceipt([property: JsonRequired] int Ver
     public static NativeBoatWorldLoadReceipt Create(NativeSavedWorldState saved, WorldState previousWorld, NativeBoatWorldFootRecord footRecord)
     {
         saved.Validate();
+        footRecord.Validate();
+        if (saved.BoatReturn is NativeSavedWorldBoatReturn priorReturn)
+        {
+            NativeBoatWorldRuntimeState prior = previousWorld.NativeBoatRuntime ?? throw new NotSupportedException("Boat reload has no executed preceding boat runtime.");
+            prior.Validate();
+            if (!prior.Path.FieldTransitionReady || prior.Return != priorReturn || previousWorld.Frame != prior.Path.Callback || previousWorld != prior.ToWorldState(previousWorld) || prior.Load.FootRecord0 != footRecord || saved.Slot4 != prior.Load.Slot4 || saved.Slot5 != prior.Load.Slot5)
+            {
+                throw new NotSupportedException("Boat reload lost its completed preceding native callback or saved object-record authority.");
+            }
+            // 548080 mode1 replaces position from the selected rail, retains body yaw, and reads current saved BYTE110; 542B90 resets variant0.
+            var reloaded = prior.Load with { AnimationVariant = 0, MapDisplayMode = priorReturn.MapDisplayMode110 };
+            reloaded.Validate();
+            return reloaded;
+        }
         previousWorld.NativeCarRuntime?.Validate();
         NativeSavedWorldCarReturn car = saved.CarReturn ?? throw new NotSupportedException("Scripted boat allocation requires the executed preceding native car return.");
         if (previousWorld.NativeCarRuntime is null || previousWorld.Frame != car.SourceWorldFrame || new NativeSavedWorldPose(previousWorld.X, previousWorld.Z, checked((short)previousWorld.NativeHeight), checked((ushort)previousWorld.BodyYaw)) != car.Pose)
         {
             throw new NotSupportedException("Retained native object record0 has no matching preceding car callback authority.");
         }
-        footRecord.Validate();
         var receipt = new NativeBoatWorldLoadReceipt(1, LoadRule, car.SourceWorldFrame, car.Pose.Yaw, footRecord, saved.Slot4, saved.Slot5, 0, car.MapDisplayMode110);
         receipt.Validate();
         return receipt;

@@ -48,9 +48,9 @@ public sealed record NativeWorldScriptedPathDefinition(int Version, string Execu
         {
             NativeWorldPathCameraRecord record = CameraRecords[index];
             bool final = index == CameraRecords.Length - 1;
-            if (record.EyeMode != 7 || record.TargetMode != 7 || record.Interpolation != (final ? 2 : 1) || final && record.Deadline != -1 || !final && record.Deadline <= previous || !NativeWorldScriptedPathMath.IsWordPosition(record.EyeOffset) || !NativeWorldScriptedPathMath.IsWordPosition(record.TargetOffset))
+            if (record.EyeMode is < 7 or > 9 || record.TargetMode is < 7 or > 9 || record.Interpolation != (final ? 2 : 1) || final && record.Deadline != -1 || !final && record.Deadline <= previous || !NativeWorldScriptedPathMath.IsWordPosition(record.EyeOffset) || !NativeWorldScriptedPathMath.IsWordPosition(record.TargetOffset))
             {
-                throw new NotSupportedException("Native scripted camera requires ordered mode7 relative linear records and a fixed terminal record.");
+                throw new NotSupportedException("Native scripted camera requires ordered mode7..9 node-relative linear records and a fixed terminal record.");
             }
             previous = record.Deadline;
         }
@@ -197,6 +197,46 @@ public sealed record NativeWorldScriptedPathState
                 throw new InvalidDataException("Native scripted camera receipt lost its original pre-movement node phase.");
             }
         }
+        int frontDistance = definition.FrontLength - 128 + 16;
+        int rearDistance = definition.RearLength - 128;
+        int[] initialDistances = [frontDistance + rearDistance, frontDistance, 0];
+        long? cameraAdvance = null;
+        for (int index = 0; index < CameraReceipt.Nodes.Length; index++)
+        {
+            long distance = CameraReceipt.Nodes[index].Distance;
+            for (int segment = 0; segment < CameraReceipt.Nodes[index].Segment; segment++)
+            {
+                distance += NativeWorldScriptedPathMath.SegmentLength(definition.Points[segment], definition.Points[segment + 1]);
+            }
+            long advance = distance - initialDistances[index];
+            if (advance < 0 || cameraAdvance is not null && advance != cameraAdvance)
+            {
+                throw new InvalidDataException("Native scripted camera source nodes lost their original three-node spacing.");
+            }
+            cameraAdvance = advance;
+            if (!EndpointRequested)
+            {
+                int movement = Callback < 30 ? 0 : NativeMovementMultiplier * Math.Min(Speed, 80) >> 1;
+                var expected = ResolveNode(definition, new NativeWorldScriptedPathNode(0, checked((int)distance + movement), default), 1, out bool complete);
+                if (complete || expected != Nodes[index])
+                {
+                    throw new InvalidDataException("Native scripted camera source differs from this callback's actual pre-movement nodes.");
+                }
+            }
+            else
+            {
+                int reverseDistance = index == 0 ? 0 : index == 1 ? frontDistance : frontDistance + rearDistance;
+                var reset = ResolveNode(definition, new NativeWorldScriptedPathNode(0, reverseDistance, default), -1, out bool complete);
+                if (complete || reset != Nodes[index])
+                {
+                    throw new InvalidDataException("Native scripted camera departure lost the original endpoint node reset.");
+                }
+            }
+        }
+        if (EntityPosition != CameraReceipt.Nodes[1].Position)
+        {
+            throw new InvalidDataException("Native scripted camera source differs from the callback's published old middle node.");
+        }
         if (ModelAngles is null != (OrientationReceipt is null))
         {
             throw new InvalidDataException("Native linked orientation requires its transformed-word authority, without inferred angles.");
@@ -303,6 +343,18 @@ public sealed record NativeWorldScriptedPathState
 
     public static NativeWorldPathCamera EvaluateCamera(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> nodes, sbyte direction, int counter)
     {
+        definition.Validate();
+        if (direction is not (1 or -1) || counter is < 0 or > short.MaxValue || nodes.IsDefault || nodes.Length != 3 || nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0))
+        {
+            throw new InvalidDataException("Native scripted camera requires its three resolved source nodes, signed direction and finite WORD counter.");
+        }
+        foreach (NativeWorldScriptedPathNode node in nodes)
+        {
+            if (ResolveNode(definition, node, direction, out bool complete) != node || complete)
+            {
+                throw new InvalidDataException("Native scripted camera source differs from its actual signed rail interpolation.");
+            }
+        }
         int index = 0;
         int previous = 0;
         while (definition.CameraRecords[index].Deadline != -1 && counter > definition.CameraRecords[index].Deadline)
@@ -311,15 +363,19 @@ public sealed record NativeWorldScriptedPathState
             index++;
         }
         NativeWorldPathCameraRecord record = definition.CameraRecords[index];
-        NativeWorldPathPosition anchor = nodes[direction == 1 ? 0 : 2].Position;
+        NativeWorldPathPosition eye = CameraPosition(nodes, direction, record.EyeMode, record.EyeOffset);
+        NativeWorldPathPosition targetPosition = CameraPosition(nodes, direction, record.TargetMode, record.TargetOffset);
         if (record.Interpolation == 2)
         {
-            return new NativeWorldPathCamera(Add(anchor, record.EyeOffset), Add(anchor, record.TargetOffset));
+            return new NativeWorldPathCamera(eye, targetPosition);
         }
         int weight = Math.Clamp(checked((counter - previous) << 12) / (record.Deadline - previous), 0, 4096);
         NativeWorldPathCameraRecord target = definition.CameraRecords[index + 1];
-        return new NativeWorldPathCamera(Add(anchor, Blend(record.EyeOffset, target.EyeOffset, weight)), Add(anchor, Blend(record.TargetOffset, target.TargetOffset, weight)));
+        return new NativeWorldPathCamera(Blend(eye, CameraPosition(nodes, direction, target.EyeMode, target.EyeOffset), weight), Blend(targetPosition, CameraPosition(nodes, direction, target.TargetMode, target.TargetOffset), weight));
     }
+
+    // 54C160/54C3E0 select mode-minus7 in forward order and count-minus-mode-plus6 in reverse order before54BCB0 blends the independently evaluated positions.
+    private static NativeWorldPathPosition CameraPosition(ImmutableArray<NativeWorldScriptedPathNode> nodes, sbyte direction, byte mode, NativeWorldPathPosition offset) => Add(nodes[direction == 1 ? mode - 7 : nodes.Length - (mode - 7) - 1].Position, offset);
 
     private static NativeWorldPathPosition Add(NativeWorldPathPosition first, NativeWorldPathPosition second) => new(unchecked(first.X + second.X), unchecked(first.Y + second.Y), unchecked(first.Z + second.Z));
     private static NativeWorldPathPosition Blend(NativeWorldPathPosition first, NativeWorldPathPosition second, int weight) => new(unchecked(first.X + weight * (second.X - first.X) / 4096), unchecked(first.Y + weight * (second.Y - first.Y) / 4096), unchecked(first.Z + weight * (second.Z - first.Z) / 4096));

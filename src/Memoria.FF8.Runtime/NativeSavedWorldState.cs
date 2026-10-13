@@ -185,7 +185,9 @@ public sealed record NativeSavedWorldState
     {
         Validate();
         receipt.Validate();
-        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || CarReturn?.SourceWorldFrame != receipt.Load.CarSourceFrame || CarReturn.Pose.Yaw != receipt.Load.RetainedBodyYaw)
+        bool retainedCar = CarReturn is NativeSavedWorldCarReturn car && car.SourceWorldFrame == receipt.Load.CarSourceFrame && car.Pose.Yaw == receipt.Load.RetainedBodyYaw;
+        bool retainedBoat = BoatReturn is NativeSavedWorldBoatReturn boat && boat.Load == receipt.Load;
+        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedBoat)
         {
             throw new InvalidDataException("Native boat save differs from its retained original object/vehicle records.");
         }

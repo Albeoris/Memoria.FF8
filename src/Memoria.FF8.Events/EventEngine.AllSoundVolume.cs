@@ -2,7 +2,7 @@ using Albeoris.Games.FF8.Jsm;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeAllSoundVolume(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawVolume, byte Volume, int DurationMilliseconds, int FirstVoice, int VoiceCount, GlobalSoundBackendStatus BackendStatus);
+public sealed record NativeAllSoundVolume(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawVolume, byte Volume, int DurationMilliseconds, int FirstVoice, int VoiceCount, GlobalSoundBackendStatus BackendStatus, [property: System.Text.Json.Serialization.JsonRequired] long LoadEpoch);
 
 public sealed partial class EventEngine
 {
@@ -18,7 +18,7 @@ public sealed partial class EventEngine
         // to46A8E0(volume,0), covering voices0..31 rather than transition1..29.
         // Volume is that request input; unknown backend master gain/buffers are
         // not inferred. TODO(TD-003):, muted audio.
-        Scene.AllSoundVolume = new NativeAllSoundVolume(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], (byte)(args[0] & 127), 0, 0, 32, GlobalSoundBackendStatus.Muted);
+        Scene.AllSoundVolume = new NativeAllSoundVolume(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], (byte)(args[0] & 127), 0, 0, 32, GlobalSoundBackendStatus.Muted, Scene.AudioLoadEpoch);
         return args;
     }
 
@@ -28,6 +28,7 @@ public sealed partial class EventEngine
         {
             return;
         }
+        ValidateSoundVolumeLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         if (request.Version != 1 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 0 || request.Volume != (request.RawVolume & 127) || request.DurationMilliseconds != 0 || request.FirstVoice != 0 || request.VoiceCount != 32 || request.BackendStatus != GlobalSoundBackendStatus.Muted)
         {
             throw new InvalidDataException("Saved ALLSEVOL lost its original DWORD, seven-bit volume, immediate duration, voice range or muted backend.");
@@ -35,7 +36,7 @@ public sealed partial class EventEngine
         if (request.FieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(item => item.Index == request.ObjectId)?.Scripts.FirstOrDefault(item => item.Id == request.ScriptId);
-            if (request.Frame > saved.Frame || script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.ALLSEVOL)
+            if (script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.ALLSEVOL)
             {
                 throw new InvalidDataException("Saved ALLSEVOL source does not match its original instruction.");
             }

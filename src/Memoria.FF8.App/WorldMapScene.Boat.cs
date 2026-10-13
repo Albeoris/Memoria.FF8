@@ -7,7 +7,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private static bool IsSupportedBoatPacket(WorldTransition packet) => unchecked((byte)packet.Mode) == 66 && unchecked((byte)packet.EntryIndex) == 11 && unchecked((byte)packet.Extra) == 61;
+    private static bool IsSupportedBoatPacket(WorldTransition packet) => unchecked((byte)packet.Mode) == 66 && unchecked((byte)packet.EntryIndex) < 14 && unchecked((sbyte)packet.Extra) >= 0;
 
     private WorldState CreateBoatState(WorldTransition arrival, WorldEntryVariables inputs)
     {
@@ -17,6 +17,10 @@ internal sealed partial class WorldMapScene
         NativeBoatWorldFootRecord foot = assets.ReadScriptedBoatFootRecord(inputs.StoryWord);
         NativeBoatWorldLoadReceipt load = NativeBoatWorldLoadReceipt.Create(saved, previous, foot);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedBoatPath(unchecked((byte)arrival.EntryIndex));
+        if (unchecked((byte)arrival.Extra) >= assets.FieldEntries.Entries.Count)
+        {
+            throw new InvalidDataException("Original boat entry references an absent wm2field endpoint row.");
+        }
         NativeWorldScriptedPathState path = NativeWorldScriptedPathState.Create(definition, arrival, null);
         _ = assets.ReadScriptedStaticModel(path.ShapeId);
         var boat = new NativeBoatWorldRuntimeState(1, NativeBoatWorldRuntimeState.RuntimeRule, path, load, null);

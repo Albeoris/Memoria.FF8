@@ -50,15 +50,15 @@ internal static partial class Program
                 Require(actor.RotationTarget is null && !actor.RotationUsesNativeLinear && live.Session.State.Variables[5000] == 77, "Equal-direction PLTURN did not return2 immediately within the same VM budget.");
                 continue;
             }
-            Require(actor.RotationStart == start && actor.RotationTarget == target && actor.RotationUsesNativeLinear && !actor.RotationUsesNativeCosine && actor.RotationTotalFrames == duration && actor.RotationFrames == duration + 1 && !live.Session.State.Variables.ContainsKey(5000), "PLTURN lost its signed nearest-angle target, BYTE duration, mode1 or initial return1 budget yield.");
+            Require(actor.RotationStart == start && actor.RotationTarget == (duration == 0 ? null : target) && actor.RotationUsesNativeLinear == (duration > 0) && !actor.RotationUsesNativeCosine && actor.RotationTotalFrames == duration && actor.RotationFrames == duration && !live.Session.State.Variables.ContainsKey(5000), "PLTURN lost its signed nearest-angle target, BYTE duration or same-callback post-VM elapsed0 sample.");
             var restored = Create(start, rawDuration, x: x, y: y);
             restored.Engine.Restore(live.Engine.Capture());
-            for (int elapsed = 0; elapsed <= duration; elapsed++)
+            for (int elapsed = 1; elapsed <= duration; elapsed++)
             {
                 live.Engine.Step();
                 restored.Engine.Step();
                 byte expected = unchecked((byte)NativeJumpMath.Interpolate(start, target, (short)duration, (short)elapsed));
-                Require(actor.Direction == expected && JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()) && live.Session.State.Variables.ContainsKey(5000) == (elapsed == duration), "PLTURN lost elapsed0/inclusive endpoint, exact integer linear interpolation, restore identity or same-budget completion continuation.");
+                Require(actor.Direction == expected && JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()) && !live.Session.State.Variables.ContainsKey(5000), "PLTURN lost its post-VM inclusive endpoint, integer linear interpolation or independent restore.");
                 if (elapsed == duration / 2 && actor.RotationUsesNativeLinear)
                 {
                     JsonElement valid = live.Engine.Capture();
@@ -77,6 +77,9 @@ internal static partial class Program
                     restored.Engine.Restore(valid);
                 }
             }
+            live.Engine.Step();
+            restored.Engine.Step();
+            Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "PLTURN completion continuation diverged after restore.");
             Require(actor.RotationTarget is null && !actor.RotationUsesNativeLinear && live.Session.State.Variables[5000] == 77 && operands.Count == 1, "PLTURN did not clear its mode1 rotation or consume its operands exactly once.");
         }
         foreach (int slot in new[] { -1, 1, 256 })

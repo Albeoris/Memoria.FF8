@@ -2,7 +2,7 @@ using Albeoris.Games.FF8.Jsm;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeSoundVolumeTransition(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, uint RawMask, int RawDuration, int RawVolume, uint Mask, int Voice, byte DurationByte, int DurationMilliseconds, byte Volume, GlobalSoundBackendStatus BackendStatus);
+public sealed record NativeSoundVolumeTransition(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, uint RawMask, int RawDuration, int RawVolume, uint Mask, int Voice, byte DurationByte, int DurationMilliseconds, byte Volume, GlobalSoundBackendStatus BackendStatus, [property: System.Text.Json.Serialization.JsonRequired] long LoadEpoch);
 
 public sealed partial class EventEngine
 {
@@ -35,7 +35,7 @@ public sealed partial class EventEngine
         {
             milliseconds = 0;
         }
-        Scene.SoundVolumeTransition = new NativeSoundVolumeTransition(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, raw, args[1], args[2], mask, voice, duration, milliseconds, (byte)(args[2] & 127), GlobalSoundBackendStatus.Muted);
+        Scene.SoundVolumeTransition = new NativeSoundVolumeTransition(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, raw, args[1], args[2], mask, voice, duration, milliseconds, (byte)(args[2] & 127), GlobalSoundBackendStatus.Muted, Scene.AudioLoadEpoch);
         return args;
     }
 
@@ -46,6 +46,7 @@ public sealed partial class EventEngine
             return;
         }
         uint mask = request.RawMask & 0xFFFFFF;
+        ValidateSoundVolumeLoadOrigin(saved, request.LoadEpoch, request.FieldId, request.Frame);
         byte duration = unchecked((byte)(2 * request.RawDuration));
         int milliseconds = 10 * duration;
         milliseconds = milliseconds < 50 ? 0 : milliseconds;
@@ -57,7 +58,7 @@ public sealed partial class EventEngine
         if (request.FieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(item => item.Index == request.ObjectId)?.Scripts.FirstOrDefault(item => item.Id == request.ScriptId);
-            if (request.Frame > saved.Frame || script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.SEVOLTRANS)
+            if (script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.SEVOLTRANS)
             {
                 throw new InvalidDataException("Saved SEVOLTRANS request does not identify its executed original instruction.");
             }

@@ -41,7 +41,7 @@ internal static partial class Program
                 first.Step();
                 restored.Step();
                 Require(JsonElement.DeepEquals(first.Capture(), restored.Capture()), "ALLSEVOL failed exact independent restore and continuation.");
-                foreach ((string property, int wrong) in new[] { ("Version", 2), ("Volume", (rawVolume & 127) ^ 1), ("DurationMilliseconds", 1), ("FirstVoice", 1), ("VoiceCount", 29), ("Operation", 0), ("Frame", (int)first.Frame + 1) })
+                foreach ((string property, int wrong) in new[] { ("Version", 2), ("Volume", (rawVolume & 127) ^ 1), ("DurationMilliseconds", 1), ("FirstVoice", 1), ("VoiceCount", 29), ("Operation", 0), ("Frame", (int)first.Frame + 1), ("LoadEpoch", 0), ("LoadEpoch", (int)first.Scene.AudioLoadEpoch + 1) })
                 {
                     JsonNode invalid = JsonNode.Parse(first.Capture().GetRawText())!;
                     invalid["Scene"]!["AllSoundVolume"]![property] = wrong;
@@ -64,6 +64,10 @@ internal static partial class Program
                 historical.LoadField(101, next, []);
                 historical.Restore(first.Capture());
                 Require(JsonElement.DeepEquals(first.Capture(), historical.Capture()), "Historical ALLSEVOL did not restore at the reset field frame.");
+                first.LoadField(100, content, []);
+                historical.LoadField(100, content, []);
+                historical.Restore(first.Capture());
+                Require(first.Frame == 0 && first.Scene.AllSoundVolume == request && first.Scene.AudioLoadEpoch > request.LoadEpoch && JsonElement.DeepEquals(first.Capture(), historical.Capture()), "ALLSEVOL lost its original load identity when revisiting the same field before its previous local frame.");
             }
         }
         Console.WriteLine("Native ALLSEVOL: exact one-DWORD consumption, direct seven-bit volume, voices0..31 and immediate muted request; independent restore, preserved history and atomic rejection verified.");

@@ -84,6 +84,44 @@ public sealed class NativeBoatWorldTests
         Assert.Equal(246, session.State.DepartingWorldState!.Frame);
         Assert.Equal(246, scene.LastDeparture!.Frame);
         Assert.Equal(pixels.Length, scene.Render(320, 224).Length);
-        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, directory, new WorldTransition(12, 66, 60)));
+        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, directory, new WorldTransition(12, 66, -1)));
+
+        // This second isolated allocation uses the genuinely executed preceding boat callbacks,
+        // not a car seed or a patched retained world. Story135 selects the same original static-foot clause.
+        GameState returnDeparture = session.State with { Variables = new() { [256] = 135 } };
+        NativeSavedWorldBoatReturn outboundReturn = returnDeparture.SavedWorld!.BoatReturn!;
+        var returnPacket = new WorldTransition(12, 66, 60);
+        Assert.Throws<InvalidDataException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = returnDeparture.DepartingWorldState! with { Frame = 245 } }, directory, returnPacket));
+        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = previous }, directory, returnPacket));
+        using PreparedWorldEntry returnTicket = WorldEntryPreflight.Prepare(returnDeparture, directory, returnPacket);
+        Assert.Equal(outboundReturn.Load, returnTicket.InitialState.NativeBoatRuntime!.Load);
+        Assert.Equal(outboundReturn, returnTicket.InitialSavedWorld!.BoatReturn);
+        session.Restore(returnDeparture);
+        session.CommitPreparedWorldEntry(returnPacket, returnTicket.InitialState, session.WorldControls!, returnTicket.ValidateAdoption, returnTicket.InitialSavedWorld);
+        using WorldMapScene returning = returnTicket.Adopt(session);
+        Assert.True(returning.IsPresentationDeferred);
+        returning.PrepareFieldEntry = (selection, final, location) =>
+        {
+            Assert.Equal(60, selection.Entry.Index);
+            Assert.Equal(new FieldTransition(123, 881, 937, 25, 180), final.NativeBoatRuntime!.Return!.FieldEntry);
+            GameState current = session.State;
+            return () => session.CommitPreparedBoatFieldEntry(current, final, final.NativeBoatRuntime.Return.FieldEntry, _ => { });
+        };
+        Assert.Equal(1, returning.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced);
+        Assert.Equal(outboundReturn, session.State.SavedWorld!.BoatReturn);
+        byte[] returnPixels = returning.Render(320, 224);
+        GameState returningRestored = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        using (WorldMapScene restoredReturn = new(new GameSession(returningRestored), directory))
+        {
+            Assert.Equal(returnPixels, restoredReturn.Render(320, 224));
+        }
+        PlayerActionResult returned = returning.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1000));
+        Assert.Equal(PlayerTriggerKind.FieldTransition, returned.Trigger.Kind);
+        Assert.Equal(123, session.State.FieldId);
+        Assert.Equal(260, session.State.PreviousFieldId);
+        Assert.Equal((ushort)135, session.State.SavedWorld!.BoatReturn!.StoryWord);
+        Assert.Equal(returnPacket, session.State.SavedWorld.BoatReturn.Packet);
+        Assert.Equal(outboundReturn.Load, session.State.SavedWorld.BoatReturn.Load);
+        Assert.Equal(session.State.SavedWorld.BoatReturn.SourceWorldFrame + 16, session.State.DepartingWorldState!.Frame);
     }
 }

@@ -35,7 +35,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
             Jsm.Opcode.HIDE or Jsm.Opcode.SHOW or Jsm.Opcode.SET or Jsm.Opcode.SET3 or Jsm.Opcode.DIR or Jsm.Opcode.Unknown9 or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or
             Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
-            Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE or Jsm.Opcode.MOVESYNC or Jsm.Opcode.MOVECANCEL or Jsm.Opcode.MOVEA or Jsm.Opcode.SETGETA or Jsm.Opcode.SETROOTTRANS or
+            Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE or Jsm.Opcode.MOVESYNC or Jsm.Opcode.MOVECANCEL or Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.SETGETA or Jsm.Opcode.SETROOTTRANS or
             Jsm.Opcode.SHADELEVEL or Jsm.Opcode.SHADEFORM or Jsm.Opcode.SHADESET or Jsm.Opcode.DOFFSET or Jsm.Opcode.BASEANIME or Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIME or
             Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or
             Jsm.Opcode.RCANIMELOOP or Jsm.Opcode.ANIMESPEED or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.ANIMESTOP or Jsm.Opcode.WAIT or Jsm.Opcode.LOADSYNC or
@@ -284,7 +284,7 @@ public sealed partial class EventEngine
         {
             return UnsupportedWorldJump(fiber);
         }
-        if (operation.Opcode == Jsm.Opcode.RCMOVE || operation.Opcode is Jsm.Opcode.MOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.MOVEA && (caller.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(caller) == true))
+        if (operation.Opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA || operation.Opcode is Jsm.Opcode.MOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.MOVEA && (caller.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(caller) == true))
         {
             return UnsupportedNativeScriptMove(fiber);
         }
@@ -411,10 +411,18 @@ public sealed partial class EventEngine
             {
                 return $"Unsupported {operation.Opcode} priority or inactive target requires further native evidence";
             }
-            bool occupied = fibers.Any(request => request.ObjectId == targetId && !request.Complete && request.Priority == requestPriority);
+            bool occupied = RequestPriorityOccupied(targetId, requestPriority);
             if (!(occupied && operation.Opcode == Jsm.Opcode.REQ) && !program.Objects[targetId].Scripts.Any(script => script.Id == scriptId))
             {
                 return $"Unsupported {operation.Opcode} native target {operation.Parameter} (object {targetId}) has no script label {scriptId}";
+            }
+            if (!occupied)
+            {
+                string? movementRequest = UnsupportedNativeMovementRequest(actors[targetId], requestPriority, scriptId);
+                if (movementRequest is not null)
+                {
+                    return movementRequest;
+                }
             }
         }
         if (operation.Opcode == Jsm.Opcode.ACTORMODE && fiber.Stack.Count > 0)
@@ -448,7 +456,7 @@ public sealed partial class EventEngine
         {
             return $"Unsupported {operation.Opcode} refreshed inactive party actor requires further native execution evidence";
         }
-        if (target is null || fibers.Any(request => request.ObjectId == target.ObjectId && !request.Complete && request.Priority == priority))
+        if (target is null || RequestPriorityOccupied(target.ObjectId, priority))
         {
             return null;
         }
@@ -460,7 +468,7 @@ public sealed partial class EventEngine
         {
             return "Unsupported PREQSW requires an idle native target and a request above its default priority0";
         }
-        return fibers.Any(request => request.ObjectId == target.ObjectId && !request.Complete) ? $"Unsupported {operation.Opcode} competing-priority preemption requires native movement/operand suspension support" : null;
+        return fibers.Any(request => request.ObjectId == target.ObjectId && !request.Complete) && !CanPreemptNativeHalt(target) ? $"Unsupported {operation.Opcode} competing-priority preemption requires native movement/operand suspension support" : null;
     }
 
     private void SampleMoviePlayback()

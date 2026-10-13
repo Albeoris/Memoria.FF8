@@ -19,12 +19,23 @@ public sealed partial class EventEngine
             case Jsm.Opcode.NOP:
                 break;
             case Jsm.Opcode.RET:
-            case Jsm.Opcode.HALT:
                 if (fiber.Stack.Count != 0)
                 {
                     throw Fault(fiber, "Script returned with an unbalanced operand stack.");
                 }
+                CompleteNativeMovementRequest(fiber, parameter);
                 fiber.Complete = true;
+                break;
+            case Jsm.Opcode.HALT:
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    fiber.Position--;
+                    fiber.WaitReason = WaitReason.NativeHalt;
+                }
+                else
+                {
+                    fiber.Complete = true;
+                }
                 break;
             case Jsm.Opcode.PSHN_L:
             case Jsm.Opcode.PSHAC:
@@ -531,9 +542,10 @@ public sealed partial class EventEngine
                 }
                 break;
             case Jsm.Opcode.MOVEA:
-                if (actor.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(actor) == true)
+            case Jsm.Opcode.RMOVEA:
+                if (opcode == Jsm.Opcode.RMOVEA || actor.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(actor) == true)
                 {
-                    ExecuteNativeScriptMove(fiber);
+                    args = ExecuteNativeScriptMove(fiber);
                     break;
                 }
                 args = Pop(fiber, 2);
@@ -1135,12 +1147,17 @@ public sealed partial class EventEngine
         {
             throw Fault(caller, $"Request targets inactive object {objectId}; behavior requires further evidence.");
         }
-        bool busy = fibers.Any(item => item.ObjectId == objectId && item.Priority == priority && !item.Complete);
+        bool busy = RequestPriorityOccupied(objectId, priority);
         if (busy && opcode == Jsm.Opcode.REQ)
         {
             return;
         }
         Fiber requested = Queue(objectId, scriptId, priority, false);
+        if (IsNativeActorRequest(objectId))
+        {
+            requested.NativeActorSlot = (byte)priority;
+        }
+        SuspendNativeMovementForRequest(actors[objectId], requested);
         if (opcode == Jsm.Opcode.REQEW)
         {
             caller.Request = requested;
@@ -1169,12 +1186,12 @@ public sealed partial class EventEngine
             return;
         }
         Fiber[] active = fibers.Where(fiber => fiber.ObjectId == target.ObjectId && !fiber.Complete).ToArray();
-        if (active.Any(fiber => fiber.Priority == priority))
+        if (RequestPriorityOccupied(target.ObjectId, priority))
         {
             // Native PREQ/PREQSW/PREQEW consume and drop a request whose priority slot is occupied.
             return;
         }
-        if (active.Length != 0)
+        if (active.Length != 0 && !CanPreemptNativeHalt(target))
         {
             throw Fault(caller, $"{opcode} competing-priority preemption requires native movement/operand suspension support.");
         }
@@ -1183,6 +1200,10 @@ public sealed partial class EventEngine
             throw Fault(caller, $"{opcode} targets an unknown party actor script index.");
         }
         Fiber requested = Queue(target.ObjectId, program.Objects[target.ObjectId].Scripts[scriptIndex].Id, priority, false);
+        if (NativeRuntimeProfile is { IsVerified: true } && CanPreemptNativeHalt(target, requested))
+        {
+            requested.NativeActorSlot = (byte)priority;
+        }
         if (opcode == Jsm.Opcode.PREQEW)
         {
             caller.Request = requested;

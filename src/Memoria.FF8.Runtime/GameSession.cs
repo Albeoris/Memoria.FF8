@@ -590,9 +590,9 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
             }
-            if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat && (state.Scene != SceneKind.WorldMap || state.WorldArrival != boat.Path.Packet || boat.Return is null && (state.SavedWorld?.CarReturn?.SourceWorldFrame != boat.Load.CarSourceFrame || state.SavedWorld.CarReturn.Pose.Yaw != boat.Load.RetainedBodyYaw) || boat.Return is not null && (state.SavedWorld?.BoatReturn != boat.Return || boat.Return.LastFieldId != state.FieldId || boat.Return.StoryWord != state.Variables.GetValueOrDefault(256))))
+            if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat && (state.Scene != SceneKind.WorldMap || state.WorldArrival != boat.Path.Packet || boat.Return is null && (state.SavedWorld is null || state.DepartingWorldState is null || boat.Load != NativeBoatWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, boat.Load.FootRecord0)) || boat.Return is not null && (state.SavedWorld?.BoatReturn != boat.Return || boat.Return.LastFieldId != state.FieldId || boat.Return.StoryWord != state.Variables.GetValueOrDefault(256))))
             {
-                throw new InvalidDataException("Native boat world state disagrees with its original packet or retained car/object record.");
+                throw new InvalidDataException("Native boat world state disagrees with its original packet or retained world/object record.");
             }
         }
         if (state.DepartingWorldState is WorldState departingWorld)

@@ -82,6 +82,9 @@ public sealed class ActorState
     public NativeScriptMovementState? NativeScriptMovement { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMovementRequestState? NativeMovementRequest { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeJumpState? NativeJump { get; internal set; }
     [JsonInclude]
     public NativeMotionAuthority? NativeMotionAuthority { get; internal set; }

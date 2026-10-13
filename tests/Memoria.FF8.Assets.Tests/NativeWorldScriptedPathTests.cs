@@ -10,6 +10,76 @@ public sealed class NativeWorldScriptedPathTests
     private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
 
     [Fact]
+    public void OriginalReturnCameraEvaluatesEachModeSevenEightNineAnchorBeforeBlending()
+    {
+        using WorldAssets assets = new(GameDirectory);
+        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedBoatPath(12);
+        Assert.Equal("189C03D03F48DA9467F629A0CC4B895FBA3CE6E6D5C2B80E76CC75812EB5A501", definition.ChunkHash);
+        Assert.Equal("50820772483EBAC6FF5B7675E529085BE10DEEEAFE2161B5858AC9BFACC997C0", definition.CameraHash);
+        Assert.Equal(new short[] { 30, 120, 210, 300, 330, 360, 390, 420, 435, -1 }, definition.CameraRecords.Select(record => record.Deadline));
+        Assert.Equal(new byte[] { 7, 7, 8, 8, 8, 8, 8, 8, 8, 9 }, definition.CameraRecords.Select(record => record.EyeMode));
+        Assert.Equal(definition.CameraRecords.Select(record => record.EyeMode), definition.CameraRecords.Select(record => record.TargetMode));
+        NativeWorldScriptedPathState state = NativeWorldScriptedPathState.Create(definition, new WorldTransition(12, 66, 60), null);
+        Assert.Equal(new NativeWorldPathCamera(new(-4798, -760, 33521), new(-8349, -760, 35330)), state.Camera);
+        Assert.Equal(new NativeWorldPathCamera(new(-5691, -760, 32856), new(-8978, -678, 35073)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 60));
+        Assert.Equal(new NativeWorldPathCamera(new(-7030, -760, 32350), new(-9990, -619, 35016)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 120));
+        Assert.Equal(new NativeWorldPathCamera(new(-18872, -760, 30455), new(-16771, -480, 33844)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 434));
+        var terminal = new NativeWorldPathCamera(new(-18959, -760, 30476), new(-16846, -482, 33858));
+        Assert.Equal(terminal, NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 435));
+        Assert.Equal(terminal, NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 436));
+        Assert.Throws<InvalidDataException>(() => NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 0, 120));
+        Assert.Throws<InvalidDataException>(() => NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, -1));
+        Assert.Throws<InvalidDataException>(() => NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, 1, 32768));
+        Assert.Throws<InvalidDataException>(() => NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes.SetItem(1, state.Nodes[1] with { Position = new(1, 2, 3) }), 1, 120));
+        Assert.Throws<NotSupportedException>(() => (definition with { CameraRecords = definition.CameraRecords.SetItem(2, definition.CameraRecords[2] with { EyeMode = 10 }) }).Validate());
+        Assert.Throws<NotSupportedException>(() => (definition with { CameraRecords = definition.CameraRecords.SetItem(2, definition.CameraRecords[2] with { Deadline = 120 }) }).Validate());
+    }
+
+    [Fact]
+    public void OriginalReturnCameraRetainsActualOldNodesAndFreezesItsModeEightNineBlendDuringFade()
+    {
+        using WorldAssets assets = new(GameDirectory);
+        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedBoatPath(12);
+        NativeWorldScriptedPathState state = NativeWorldScriptedPathState.Create(definition, new WorldTransition(12, 66, 60), null);
+        while (state.Callback < 100)
+        {
+            state = state.Step(definition, (_, _, _) => null);
+        }
+        var forgedReceipt = state.CameraReceipt with { Nodes = state.Nodes };
+        var forgedCamera = NativeWorldScriptedPathState.EvaluateCamera(definition, forgedReceipt.Nodes, 1, forgedReceipt.Counter);
+        Assert.Throws<InvalidDataException>(() => (state with { CameraReceipt = forgedReceipt, Camera = forgedCamera }).Validate(definition));
+        NativeWorldScriptedPathState restored = JsonSerializer.Deserialize<NativeWorldScriptedPathState>(JsonSerializer.Serialize(state))!;
+        restored.Validate(definition);
+        while (!state.EndpointRequested)
+        {
+            state = state.Step(definition, (_, _, _) => null);
+            restored = restored.Step(definition, (_, _, _) => null);
+            Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        }
+        Assert.Equal(434, state.Callback);
+        Assert.Equal(new NativeWorldPathPosition(12500, 0, 24734), state.EntityPosition);
+        Assert.Equal(state.EntityPosition, state.CameraReceipt.Nodes[1].Position);
+        var endpointCamera = new NativeWorldPathCamera(new(7135, -760, 16088), new(9236, -480, 19477));
+        Assert.Equal(endpointCamera, state.Camera);
+        Assert.Equal(new NativeWorldPathCamera(new(7713, -760, 17380), new(9826, -482, 20762)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, -1, 435));
+        // Reverse mode7 selects the last reset node; mode8 selects the middle and mode9 the first.
+        Assert.Equal(new NativeWorldPathCamera(new(20101, -760, 20018), new(16550, -760, 21827)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, -1, 0));
+        Assert.Equal(new NativeWorldPathCamera(new(18755, -760, 19008), new(15795, -619, 21674)), NativeWorldScriptedPathState.EvaluateCamera(definition, state.Nodes, -1, 120));
+        Assert.NotEqual(endpointCamera, NativeWorldScriptedPathState.EvaluateCamera(definition, state.CameraReceipt.Nodes, 1, 435));
+        for (int fade = 0; fade < 16; fade++)
+        {
+            state = state.Step(definition, (_, _, _) => throw new InvalidOperationException("Departure fade must freeze camera/node evaluation."));
+            restored = restored.Step(definition, (_, _, _) => throw new InvalidOperationException("Departure fade must freeze camera/node evaluation."));
+            Assert.Equal(endpointCamera, state.Camera);
+            Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(restored));
+        }
+        Assert.Equal(450, state.Callback);
+        Assert.True(state.FieldTransitionReady);
+        Assert.Equal((byte)60, state.CompletedFieldRow);
+        Assert.Throws<InvalidDataException>(() => (state with { EntityPosition = state.Nodes[1].Position }).Validate(definition));
+    }
+
+    [Fact]
     public void OriginalTrackElevenRetainsFiniteRailCameraAndStaticBoatResources()
     {
         using WorldAssets assets = new(GameDirectory);

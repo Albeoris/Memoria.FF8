@@ -32,7 +32,7 @@ public sealed partial class EventEngine
         foreach (ActorState actor in saved.Actors.Where(actor => actor.RotationUsesNativeLinear))
         {
             int elapsed = Math.Max(0, actor.RotationTotalFrames - actor.RotationFrames);
-            if (actor.RotationUsesNativeCosine || actor.RotationStart is < 0 or > 255 || actor.RotationStart != (byte)actor.RotationStart || actor.RotationTarget is not float target || target is < -128 or > 383 || target != MathF.Truncate(target) || actor.RotationTotalFrames is < 0 or > 255 || actor.RotationFrames < 1 || actor.RotationFrames > actor.RotationTotalFrames + 1 || actor.Direction != unchecked((byte)NativeJumpMath.Interpolate((int)actor.RotationStart, (int)target, (short)actor.RotationTotalFrames, (short)elapsed)))
+            if (actor.RotationUsesNativeCosine || actor.RotationStart is < 0 or > 255 || actor.RotationStart != (byte)actor.RotationStart || actor.RotationTarget is not float target || target is < -128 or > 383 || target != MathF.Truncate(target) || actor.RotationTotalFrames is < 0 or > 255 || actor.RotationFrames < 1 || actor.RotationFrames > actor.RotationTotalFrames + 1 || actor.Direction != unchecked((byte)NativeJumpMath.Interpolate((int)actor.RotationStart, (int)target, (short)actor.RotationTotalFrames, (short)elapsed)) && !NativeMovementOwnsFacing(actor))
             {
                 throw new InvalidDataException("Saved native linear turn has inconsistent signed target, BYTE duration, elapsed phase or visible direction.");
             }

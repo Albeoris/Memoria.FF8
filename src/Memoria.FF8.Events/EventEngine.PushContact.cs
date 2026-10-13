@@ -100,13 +100,23 @@ public sealed partial class EventEngine
     {
         foreach (FiberCheckpoint fiber in saved.Fibers.Where(fiber => fiber.NativeActorSlot is not null))
         {
-            if (fiber.NativeActorSlot != 6 || fiber.Priority != 6 || fiber.Initialization || !saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || program!.Objects[fiber.ObjectId].Scripts.Count < 4 || program.Objects[fiber.ObjectId].Scripts[3].Id != fiber.ScriptId)
+            bool movementRequest = saved.Actors[fiber.ObjectId].NativeMovementRequest is { } request && request.RequestSequence == fiber.Sequence && request.RequestSlot == fiber.NativeActorSlot && request.RequestScriptId == fiber.ScriptId;
+            bool haltedRequest = fiber.NativeActorSlot == fiber.Priority && !fiber.Initialization && program!.NativeObjects.Contains(fiber.ObjectId) && !program.Objects[fiber.ObjectId].IsDoor && (saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || program.Objects[fiber.ObjectId].BackgroundModuleIndex is not null || program.Objects[fiber.ObjectId].IsArea) && program.Objects[fiber.ObjectId].Scripts.Any(script => script.Id == fiber.ScriptId);
+            if ((movementRequest || haltedRequest) && (fiber.NativeActorSlot > 7 || fiber.Priority != fiber.NativeActorSlot || fiber.Initialization))
+            {
+                throw new InvalidDataException("Saved native actor request lost its original slot or retained body.");
+            }
+            if (!movementRequest && !haltedRequest && (fiber.NativeActorSlot != 6 || fiber.Priority != 6 || fiber.Initialization || !saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || program!.Objects[fiber.ObjectId].Scripts.Count < 4 || program.Objects[fiber.ObjectId].Scripts[3].Id != fiber.ScriptId))
             {
                 throw new InvalidDataException("Saved native actor contact lost its original local3/slot6 owner.");
             }
         }
         foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeScriptMovement is { Suspended: true }))
         {
+            if (actor.NativeMovementRequest is not null)
+            {
+                continue;
+            }
             EventScript push = program!.Objects[actor.ObjectId].Scripts[3];
             if (actor.NativeScriptMovement is not { Active: true } || push.End != push.Start + 2 || program.Operations[push.Start + 1].Opcode != Albeoris.Games.FF8.Jsm.Jsm.Opcode.RET || program.Operations[push.Start + 1].Parameter != 8 || !saved.Fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.NativeActorSlot == 6 && !fiber.Complete))
             {

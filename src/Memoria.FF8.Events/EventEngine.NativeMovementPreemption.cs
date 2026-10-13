@@ -1,0 +1,132 @@
+using System.Numerics;
+using Albeoris.Games.FF8.Jsm;
+
+namespace Memoria.FF8.Events;
+
+public sealed record NativeMovementRequestState(int Version, long RequestSequence, int RequestScriptId, byte RequestSlot, NativeScriptMovementState SavedMovement);
+
+public sealed partial class EventEngine
+{
+    private int NativeActorRequestSlot(Fiber fiber) => fiber.NativeActorSlot ?? (fiber.Priority == 7 && program!.Objects[fiber.ObjectId].Scripts.Count > 1 && fiber.Script.Id == program.Objects[fiber.ObjectId].Scripts[1].Id ? 0 : fiber.Priority);
+
+    private bool IsNativeActorRequest(int objectId) => NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && program!.NativeObjects.Contains(objectId) && !program.Objects[objectId].IsDoor && (Scene.NativeActorObjectIds.Contains(objectId) || program.Objects[objectId].BackgroundModuleIndex is not null || program.Objects[objectId].IsArea);
+
+    private bool RequestPriorityOccupied(int objectId, int priority) => fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete && (IsNativeActorRequest(objectId) ? NativeActorRequestSlot(fiber) : fiber.Priority) == priority);
+
+    private bool CanPreemptNativeHalt(ActorState actor, Fiber? excluded = null) => NativeRuntimeProfile is { IsVerified: true } && actor.NativeMovementRequest is null && actor.NativeScriptMovement is not { Active: true } && fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && fiber != excluded).All(fiber => fiber.WaitReason == WaitReason.NativeHalt);
+
+    private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId)
+    {
+        if (actor.NativeMovementRequest is { } existing && priority > existing.RequestSlot && !CanTransferNativeMovementBackup(actor, existing))
+        {
+            return "Native request requires its single original movement backup without unproved nested overwrite";
+        }
+        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeScriptMovement is not { Active: true } movement)
+        {
+            return null;
+        }
+        Fiber? owner = fibers.FirstOrDefault(fiber => fiber.Sequence == movement.FiberSequence && !fiber.Complete);
+        if (owner is null || priority <= NativeActorRequestSlot(owner))
+        {
+            return null;
+        }
+        if (actor.NativeMovementRequest is not null || movement.Suspended || actor.NativeJump is { Active: true })
+        {
+            return "Native request requires its single original movement backup without unproved nested overwrite";
+        }
+        EventScript requested = program!.Objects[actor.ObjectId].Scripts.Single(script => script.Id == scriptId);
+        if (program.Operations.Skip(requested.Start).Take(requested.End - requested.Start).Any(operation => operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 8) || fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete).Sum(fiber => fiber.Stack.Count + 8) + 8 > 80)
+        {
+            return "Native movement request requires RET8 resumption and the original eighty-word operand/result stack";
+        }
+        return null;
+    }
+
+    private void SuspendNativeMovementForRequest(ActorState actor, Fiber requested)
+    {
+        if (actor.NativeMovementRequest is { } existing && requested.Priority > existing.RequestSlot && CanTransferNativeMovementBackup(actor, existing))
+        {
+            // Mode572=0 leaves448..456/540/514 untouched. A higher request
+            // above HALT retains that physical backup until its own RET8.
+            actor.NativeMovementRequest = existing with { RequestSequence = requested.Sequence, RequestScriptId = requested.Script.Id, RequestSlot = (byte)requested.Priority };
+            requested.NativeActorSlot = (byte)requested.Priority;
+            return;
+        }
+        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeScriptMovement is not { Active: true } movement)
+        {
+            return;
+        }
+        Fiber? owner = fibers.FirstOrDefault(fiber => fiber.Sequence == movement.FiberSequence && !fiber.Complete);
+        if (owner is null || requested.Priority <= NativeActorRequestSlot(owner))
+        {
+            return;
+        }
+        // REQ51CD60/REQSW51CED0/REQEW51D060 save436..444/538/510
+        // into the one physical448..456/540/514 backup, then set572=0.
+        actor.NativeMovementRequest = new(1, requested.Sequence, requested.Script.Id, (byte)requested.Priority, movement);
+        actor.NativeScriptMovement = movement with { Suspended = true };
+        requested.NativeActorSlot = (byte)requested.Priority;
+    }
+
+    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request) => actor.NativeScriptMovement is { Active: false } or { Suspended: true } && fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.WaitReason == WaitReason.NativeHalt && !fiber.Complete);
+
+    private static bool IsNativeMovementRequestIssue(ActorState actor, Fiber fiber) => actor.NativeMovementRequest is { } request && request.RequestSequence == fiber.Sequence && actor.NativeScriptMovement is { Suspended: true } movement && movement.FiberSequence == request.SavedMovement.FiberSequence;
+
+    private void CompleteNativeMovementRequest(Fiber fiber, int returnSlot)
+    {
+        ActorState actor = actors[fiber.ObjectId];
+        if (actor.NativeMovementRequest is not { } request || request.RequestSequence != fiber.Sequence)
+        {
+            return;
+        }
+        if (returnSlot != 8)
+        {
+            throw new NotSupportedException("Native movement backup requires proved RET8 lower-slot resumption.");
+        }
+        FieldFixedPosition raw = ReadNativeScriptPosition(actor) ?? throw new NotSupportedException("Native RET8 movement restoration lost its actual raw body placement.");
+        NativeScriptMovementState current = actor.NativeScriptMovement!;
+        bool animationFlag = current.AnimationFlag40000 ?? (current.Suspended ? current.ResetAnimationOnCompletion ?? current.AutomaticAnimation : current.Active && (current.ResetAnimationOnCompletion ?? current.AutomaticAnimation));
+        NativeScriptMovementState restored = request.SavedMovement with { FixedX = raw.X, FixedY = raw.Y, FixedZ = raw.Z, Triangle = actor.WalkmeshTriangle, FacingDirection = (byte)actor.Direction, MovementDirection = actor.NativeMotionAuthority!.MovementDirection, DirectionLimit = actor.MovementDirectionLimit, TurnAccumulator = animationFlag ? (short)0 : current.TurnAccumulator, Completion = 0, Suspended = false, AnimationFlag40000 = animationFlag };
+        actor.NativeScriptMovement = restored;
+        actor.NativeMovementRequest = null;
+        actor.MovementSpeed = restored.Speed;
+        actor.NativeMotionAuthority = new(1, restored.MovementDirection, restored.HoldsFacing ? (byte)1 : (byte)0);
+        actor.MovementTarget = new Vector3(restored.TargetX / 4096f, restored.TargetY / 4096f, restored.TargetZ / 4096f);
+        actor.MovementStopDistance = restored.StopDistance;
+        if (animationFlag)
+        {
+            int animation = restored.Speed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
+            if (actor.AnimationId != animation)
+            {
+                SelectFullNativeAnimation(actor, animation, true);
+            }
+        }
+    }
+
+    private void ValidateNativeMovementRequests(Checkpoint saved, IReadOnlyList<Fiber> restored)
+    {
+        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeMovementRequest is not null))
+        {
+            NativeMovementRequestState request = actor.NativeMovementRequest!;
+            NativeScriptMovementState movement = request.SavedMovement;
+            Fiber? lower = restored.SingleOrDefault(fiber => fiber.Sequence == movement.FiberSequence);
+            Fiber? upper = restored.SingleOrDefault(fiber => fiber.Sequence == request.RequestSequence);
+            if (request.Version != 1 || request.RequestSlot > 7 || lower is null || upper is null || lower.Complete || upper.Complete || lower.ObjectId != actor.ObjectId || upper.ObjectId != actor.ObjectId || upper.Script.Id != request.RequestScriptId || upper.NativeActorSlot != request.RequestSlot || NativeActorRequestSlot(lower) >= request.RequestSlot || movement.Version != 1 || !movement.Active || movement.Suspended || movement.ScriptId != lower.Script.Id || !movement.Asynchronous && (movement.Operation != lower.Position || lower.WaitReason != WaitReason.NativeScriptMovement) || (uint)movement.Operation >= program!.Operations.Count || program.Operations[movement.Operation].Opcode is not (Jsm.Opcode.MOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.MOVEA or Jsm.Opcode.CMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA) || movement.TargetNativeObjectId is int target && !movement.Asynchronous && (lower.Stack.Count == 0 || lower.Stack.Peek() != target) || actor.NativeScriptMovement is null)
+            {
+                throw new InvalidDataException("Saved native movement request lost its single backup, original lower operands or higher-slot owner.");
+            }
+            string opcode = movement.HoldsFacing ? movement.Asynchronous ? "RCMOVE" : "CMOVE" : movement.TargetNativeObjectId is not null ? movement.Asynchronous ? "RMOVEA" : "MOVEA" : movement.Asynchronous ? movement.AutomaticAnimation ? "RMOVE" : "RFMOVE" : movement.AutomaticAnimation ? "MOVE" : "FMOVE";
+            if (movement.Cancelled || movement.Speed <= 0 || movement.Completion > 2 || movement.Triangle is < 0 or > short.MaxValue || (movement.FixedZ & 4095) != 0 || new[] { movement.FixedX, movement.FixedY, movement.FixedZ, movement.TargetX, movement.TargetY, movement.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || movement.TargetNativeObjectId is null && new[] { movement.TargetX, movement.TargetY, movement.TargetZ }.Any(value => (value & 4095) != 0) || movement.TargetNativeObjectId is int targetId && ((uint)targetId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[targetId]) || !movement.AutomaticAnimation) || movement.HoldsFacing && (movement.AutomaticAnimation || movement.TargetNativeObjectId is not null || movement.DirectionLimit != 0) || movement.ResetAnimationOnCompletion is not null && (movement.ResetAnimationOnCompletion != true || movement.AutomaticAnimation || movement.TargetNativeObjectId is not null) || program.Operations[movement.Operation].Opcode.ToString() != opcode || movement.Operation < lower.Script.Start || movement.Operation >= lower.Script.End || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || upper.Priority != request.RequestSlot || lower.Results.Keys.Concat(upper.Results.Keys).Any(register => register is < 0 or > 7) || restored.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete).Sum(fiber => fiber.Stack.Count + 8) > 80)
+            {
+                throw new InvalidDataException("Saved native movement backup has invalid raw domains, mode, animation policy or original instruction.");
+            }
+        }
+        foreach (Fiber fiber in restored.Where(fiber => fiber.WaitReason == WaitReason.NativeHalt))
+        {
+            if (fiber.Complete || (uint)fiber.Position >= program!.Operations.Count || program.Operations[fiber.Position].Opcode != Jsm.Opcode.HALT)
+            {
+                throw new InvalidDataException("Saved native HALT lost its held original instruction and occupied slot.");
+            }
+        }
+    }
+}

@@ -61,6 +61,8 @@ internal static partial class Program
                     ["door-line-toggle"] = NativeDoorLineToggleContract,
                     ["door-operand-suspension"] = NativeDoorOperandSuspensionContract,
                     ["native-actor-info"] = NativeActorInfoContract,
+                    ["native-movement-request"] = NativeMovementRequestContract,
+                    ["native-rmovea"] = NativeRmMoveActorContract,
                     ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
                     ["party-actor-direction"] = NativePartyActorDirectionContract,
                     ["player-script-handoff"] = NativePlayerScriptHandoffContract,

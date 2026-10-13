@@ -29,23 +29,26 @@ internal static partial class Program
             };
             live.Engine.Step();
             ActorState actor = live.Engine.Actors[0];
-            Require(actor.Direction == start && actor.RotationStart == start && actor.RotationTarget == target && actor.RotationFrames == duration + 1 && actor.RotationTotalFrames == duration && actor.RotationUsesNativeCosine && !live.Session.State.Variables.ContainsKey(5000), "Unknown9 failed signedWORD/+256 target, BYTE duration or its initial return1 yield.");
+            Require(actor.Direction == unchecked((byte)NativeCosineInterpolation.Interpolate(start, target, duration, 0)) && actor.RotationStart == start && actor.RotationTarget == (duration == 0 ? null : target) && actor.RotationFrames == duration && actor.RotationTotalFrames == duration && actor.RotationUsesNativeCosine == (duration > 0) && !live.Session.State.Variables.ContainsKey(5000), "Unknown9 failed signedWORD/+256 target, BYTE duration or its same-callback post-VM elapsed0 sample.");
             Require(operands.Count == 1 && operands[0].SequenceEqual(new[] { rawTarget, rawDuration }), "Unknown9 changed full DWORD command evidence or consumed operands twice.");
             var restored = Create(start, rawTarget, rawDuration);
             restored.Engine.Restore(live.Engine.Capture());
-            for (int elapsed = 0; elapsed <= duration; elapsed++)
+            for (int elapsed = 1; elapsed <= duration; elapsed++)
             {
                 live.Engine.Step();
                 restored.Engine.Step();
                 byte expected = unchecked((byte)NativeCosineInterpolation.Interpolate(start, target, duration, elapsed));
                 Require(actor.Direction == expected && JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "Unknown9 lost its native elapsed0/endpoint cosine or independent restored continuation.");
-                Require(live.Session.State.Variables.ContainsKey(5000) == (elapsed == duration), "Unknown9 resumed before BYTE580 completion or inserted an extra return2 budget yield.");
+                Require(!live.Session.State.Variables.ContainsKey(5000), "Unknown9 resumed before the next VM visit after post-VM BYTE580 completion.");
                 if (elapsed == duration / 2)
                 {
                     restored = Create(start, rawTarget, rawDuration);
                     restored.Engine.Restore(live.Engine.Capture());
                 }
             }
+            live.Engine.Step();
+            restored.Engine.Step();
+            Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "Unknown9 completion continuation diverged after restore.");
             Require(actor.RotationTarget is null && !actor.RotationUsesNativeCosine && live.Session.State.Variables[5000] == 77 && operands.Count == 1, "Unknown9 failed completion cleanup or same-budget next command.");
         }
         var invalid = Create(234, 35, 124, false);

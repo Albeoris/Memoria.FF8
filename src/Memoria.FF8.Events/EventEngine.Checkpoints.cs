@@ -30,7 +30,8 @@ public enum WaitReason
     WorldJump,
     MinimalMenu,
     MinimalBattle,
-    NativeJump
+    NativeJump,
+    NativeHalt
 }
 
 public sealed partial class EventEngine
@@ -98,6 +99,10 @@ public sealed partial class EventEngine
         ValidatePreviousFieldCheckpoint(saved);
         ValidatePreviousWorldEntityCheckpoint(saved);
         saved.ExamTimer?.Validate();
+        if (saved.Scene.AudioLoadEpoch <= 0)
+        {
+            throw new InvalidDataException("Saved process audio history requires its executed field-load identity; recreate the authentic journal.");
+        }
         saved.Scene.FieldCallbackClock?.Validate(saved.Frame);
         saved.Scene.Shake?.Validate();
         if (saved.Scene.Shake is NativeFieldShake restoredShake && (restoredShake.X.Enabled || restoredShake.X.Oscillating || restoredShake.Y.Enabled || restoredShake.Y.Oscillating) && ShakeTables is null)
@@ -274,6 +279,7 @@ public sealed partial class EventEngine
         ValidateNativeDoorSuspensionCheckpoint(saved, restored);
         ValidateNativeJumps(saved, restored);
         ValidateNativeActorContactCheckpoint(saved);
+        ValidateNativeMovementRequests(saved, restored);
         ValidateWorldTransitionCheckpoint(saved, bySequence);
         ValidateMinimalMenuCheckpoint(saved, bySequence);
         ValidateNativeBattleCheckpoint(saved, bySequence);
@@ -290,7 +296,7 @@ public sealed partial class EventEngine
             bool ownerExists = bySequence.TryGetValue(motion.FiberSequence, out Fiber? owner);
             bool validOwner = ownerExists && owner!.ObjectId == actor.ObjectId && owner.Script.Id == motion.ScriptId;
             EventScript? issuingScript = program.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == motion.ScriptId);
-            string movementOpcode = motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            string movementOpcode = motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
             if (motion.HoldsFacing && (motion.AutomaticAnimation || motion.TargetNativeObjectId is not null || motion.DirectionLimit != 0))
             {
                 throw new InvalidDataException("Saved held-facing CMOVE/RCMOVE lost its animation policy or cleared direction limit.");
@@ -303,7 +309,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved cancelled native movement has invalid mode0 or original asynchronous ownership.");
             }
-            if (motion.TargetNativeObjectId is int targetId && ((uint)targetId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[targetId]) || motion.Asynchronous || !motion.AutomaticAnimation || motion.Active && (!validOwner || owner!.Stack.Count == 0 || owner.Stack.Peek() != targetId)))
+            if (motion.TargetNativeObjectId is int targetId && ((uint)targetId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[targetId]) || !motion.AutomaticAnimation || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Stack.Count == 0 || owner.Stack.Peek() != targetId)))
             {
                 throw new InvalidDataException("Saved native MOVEA has invalid original target identity or remaining operand.");
             }
@@ -312,7 +318,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved native scripted MOVE has invalid raw placement, owner, instruction wait or completion state.");
             }
         }
-        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeScriptMovement && saved.Actors[fiber.ObjectId].NativeScriptMovement is not { Active: true }))
+        if (restored.Any(fiber => fiber.WaitReason == WaitReason.NativeScriptMovement && saved.Actors[fiber.ObjectId].NativeScriptMovement is not { Active: true } && saved.Actors[fiber.ObjectId].NativeMovementRequest?.SavedMovement.FiberSequence != fiber.Sequence))
         {
             throw new InvalidDataException("Saved native scripted MOVE wait has no original raw movement state.");
         }

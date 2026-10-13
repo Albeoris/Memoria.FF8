@@ -38,7 +38,7 @@ internal static partial class Program
                 first.Step();
                 restored.Step();
                 Require(JsonElement.DeepEquals(first.Capture(), restored.Capture()), "SEVOL failed independent exact restore and continuation.");
-                foreach ((string property, int wrong) in new[] { ("Version", 2), ("Mask", (int)mask ^ 1), ("Voice", voice + 1), ("Volume", (rawVolume & 127) ^ 1), ("DurationMilliseconds", 1), ("Operation", 0), ("Frame", (int)first.Frame + 1) })
+                foreach ((string property, int wrong) in new[] { ("Version", 2), ("Mask", (int)mask ^ 1), ("Voice", voice + 1), ("Volume", (rawVolume & 127) ^ 1), ("DurationMilliseconds", 1), ("Operation", 0), ("Frame", (int)first.Frame + 1), ("LoadEpoch", 0), ("LoadEpoch", (int)first.Scene.AudioLoadEpoch + 1) })
                 {
                     JsonNode invalid = JsonNode.Parse(first.Capture().GetRawText())!;
                     invalid["Scene"]!["SoundVolume"]![property] = wrong;
@@ -61,6 +61,10 @@ internal static partial class Program
                 historical.LoadField(101, next, []);
                 historical.Restore(first.Capture());
                 Require(JsonElement.DeepEquals(first.Capture(), historical.Capture()), "Historical SEVOL failed to restore at the reset field clock.");
+                first.LoadField(100, content, []);
+                historical.LoadField(100, content, []);
+                historical.Restore(first.Capture());
+                Require(first.Frame == 0 && first.Scene.SoundVolume == request && first.Scene.AudioLoadEpoch > request.LoadEpoch && JsonElement.DeepEquals(first.Capture(), historical.Capture()), "SEVOL lost its original load identity when revisiting the same field before its previous local frame.");
             }
         }
         foreach (uint rawMask in new[] { 0u, 0xFF000000u })

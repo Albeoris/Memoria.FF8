@@ -61,7 +61,7 @@ public sealed partial class EventEngine
             {
                 return "Native SPLIT atomic preflight requires the reached THROUGHON moving party peers; enabled moving-peer contact needs native staged ordering";
             }
-            if (actor.ObjectId != fiber.ObjectId && fibers.Any(other => other.ObjectId == actor.ObjectId && !other.Complete))
+            if (actor.ObjectId != fiber.ObjectId && fibers.Any(other => other.ObjectId == actor.ObjectId && !other.Complete && other.WaitReason != WaitReason.NativeHalt))
             {
                 return "Native SPLIT competing companion scripts need original suspension support";
             }

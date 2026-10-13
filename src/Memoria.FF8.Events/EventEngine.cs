@@ -132,7 +132,7 @@ public sealed partial class EventEngine
         colorEndFrame = 0;
         fadeEndFrame = 0;
         SceneEventState previousScene = Scene;
-        Scene = new SceneEventState { RandomBattlesEnabled = previousScene.RandomBattlesEnabled, SalaryEnabled = previousScene.SalaryEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
+        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, SalaryEnabled = previousScene.SalaryEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
         Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
@@ -266,7 +266,6 @@ public sealed partial class EventEngine
                 }
             }
             actor.Step();
-            StepCosineRotation(actor);
             StepFaceDirection(actor);
         }
         StepLegacyBackgroundAnimations();
@@ -301,6 +300,10 @@ public sealed partial class EventEngine
             }
         }
         StepNativeDisplayOffsets();
+        foreach (ActorState actor in actors)
+        {
+            StepCosineRotation(actor);
+        }
         StepNativeScriptMovement();
         StepNativeJump();
         SampleNativeDoorActionEdges();
@@ -677,6 +680,7 @@ public sealed partial class EventEngine
             WaitReason.PartySplit => true,
             WaitReason.NativeScriptMovement => true,
             WaitReason.NativeJump => true,
+            WaitReason.NativeHalt => false,
             WaitReason.WorldJump => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,
             WaitReason.MinimalBattle => Frame >= fiber.WaitUntil,

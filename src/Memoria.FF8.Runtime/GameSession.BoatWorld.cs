@@ -46,11 +46,14 @@ public sealed partial class GameSession
         }
         if (saved.BoatReturn is not null)
         {
-            if (saved.BoatReturn != receipt)
+            if (saved.BoatReturn == receipt)
             {
-                throw new InvalidDataException("Boat departure changed the already executed endpoint save receipt during fade.");
+                return saved;
             }
-            return saved;
+            if (departure.World?.NativeBoatRuntime?.Return is not null || departure.DepartingWorldState?.NativeBoatRuntime?.Return != saved.BoatReturn || !departure.DepartingWorldState.NativeBoatRuntime.Path.FieldTransitionReady)
+            {
+                throw new InvalidDataException("Boat departure changed its executed endpoint receipt without a completed preceding journey.");
+            }
         }
         return saved.WithBoatReturn(receipt);
     }

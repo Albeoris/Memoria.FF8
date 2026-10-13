@@ -91,11 +91,19 @@ public sealed partial class EventEngine
         if (FieldId == 129 && programHash == Native129TalkProgramHash && objectId is 10 or 11)
         {
             EventObject target = program!.Objects[objectId];
-            if (target.Scripts.Count < 3 || fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete))
+            if (target.Scripts.Count < 3 || fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete) && !CanPreemptNativeHalt(actors[objectId]))
             {
                 throw new NotSupportedException("Native guard action requires its original local2 and an idle target; competing requests preserve original state.");
             }
-            Queue(objectId, target.Scripts[2].Id, 0, false);
+            if (NativeRuntimeProfile is { IsVerified: true })
+            {
+                Fiber action = Queue(objectId, target.Scripts[2].Id, 7, false);
+                action.NativeActorSlot = 7;
+            }
+            else
+            {
+                Queue(objectId, target.Scripts[2].Id, 0, false);
+            }
             return true;
         }
         return TalkTo(objectId);

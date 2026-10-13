@@ -295,7 +295,7 @@ internal sealed partial class GameWorld
         {
             if (callback == 30000 || engine.FieldId != entry.FieldId || engine.LastFault is not null || engine.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Movie)
             {
-                throw new InvalidDataException("The recorded dialogue decision cannot mature across a fault, scene transition or unbounded autonomous wait.");
+                throw new InvalidDataException($"The recorded dialogue decision cannot mature across a fault, scene transition or unbounded autonomous wait: expected field{entry.FieldId}/message{entry.MessageId}/object{entry.ObjectId}/script{entry.ScriptId}/operation{entry.Operation}, actual field{engine.FieldId}/frame{engine.Frame}/trigger{engine.NextTrigger}/fault{engine.LastFault}, callbacks{callback}.");
             }
             advance();
         }
