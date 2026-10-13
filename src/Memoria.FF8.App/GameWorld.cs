@@ -49,11 +49,12 @@ internal sealed partial class GameWorld : IDisposable
         {
             if (worldScene is not null)
             {
+                session.SetDepartingFieldState(null);
                 return false;
             }
             if (Field is null && (session.State.DepartingFieldState ?? session.State.EventState) is System.Text.Json.JsonElement savedField)
             {
-                LoadField(savedField.GetProperty("FieldId").GetInt32(), null, savedField);
+                LoadField(savedField.GetProperty("FieldId").GetInt32(), null, savedField, restoreDeparting: true);
             }
             worldScene = new WorldMapScene(session, assets.GameDirectory);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
@@ -72,7 +73,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (Field is null && session.State.DepartingFieldState is System.Text.Json.JsonElement departing)
         {
-            LoadField(departing.GetProperty("FieldId").GetInt32(), null, departing);
+            LoadField(departing.GetProperty("FieldId").GetInt32(), null, departing, restoreDeparting: true);
         }
         if (NativeScriptBattleFlagMigration.UpgradeRetainedArrival(session.State, assets.NativeRuntimeProfile) is NativeWorldControlState migratedControls)
         {
@@ -83,7 +84,7 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot)
+    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
     {
         using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
         FieldAssets next = assets.LoadField(fieldId);
@@ -147,7 +148,13 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (snapshot is System.Text.Json.JsonElement saved)
         {
+            NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
             Events.Restore(saved);
+            if (sceneTimer is not null)
+            {
+                // The frozen departing VM precedes world callbacks; the session owns the shared native clock.
+                session.SetExamTimer(sceneTimer);
+            }
         }
         Field = next;
         renderer = new FieldRenderer(next, renderWidth, renderHeight);

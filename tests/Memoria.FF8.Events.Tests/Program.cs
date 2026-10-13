@@ -42,6 +42,7 @@ internal static partial class Program
                     ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
                     ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
+                    ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
@@ -87,6 +88,7 @@ internal static partial class Program
             NativeRootTranslationAndBoundary(gameDirectory);
             NativePlayerAcceptedRetryContract(gameDirectory);
             NativeBackgroundClearContract(gameDirectory);
+            NativeBackgroundShadeOffContract(gameDirectory);
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeSoundInitializationContract(gameDirectory);

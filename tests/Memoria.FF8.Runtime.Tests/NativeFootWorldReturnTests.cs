@@ -6,6 +6,61 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeFootWorldReturnTests
 {
     [Fact]
+    public void World_load_uses_departing_VM_and_validates_its_frozen_timer_against_elapsed_world_callbacks()
+    {
+        NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay();
+        var session = Session();
+        session.SetEventState(JsonSerializer.SerializeToElement(new { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1) }));
+        session.SetDepartingFieldState(JsonSerializer.SerializeToElement(new { ExamTimer = timer }));
+        session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3));
+        string path = Path.Combine(Path.GetTempPath(), "ff8-frozen-world-timer-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            session.Save(path);
+            GameState restored = GameSession.Load(path);
+            Assert.Equal(JsonSerializer.Serialize(session.ExamTimer), JsonSerializer.Serialize(restored.ExamTimer));
+            Assert.True(JsonElement.DeepEquals(session.State.DepartingFieldState!.Value, restored.DepartingFieldState!.Value));
+            session.SetExamTimer(session.ExamTimer! with { DisplayEnabled = true, Event104Mask40 = true, Event182Mask4 = true, SaveGlobalMask4 = true });
+            session.Save(path);
+            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+            session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.Menu, 7));
+            session.Save(path);
+            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+            session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 101));
+            session.Save(path);
+            Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void World_return_commits_timer_callbacks_including_the_final_departure_callback_atomically()
+    {
+        var session = Session();
+        NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay();
+        session.SetExamTimer(timer);
+        GameState before = session.State;
+        WorldState final = Final(before.World!, 30);
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(final, 159, 17, 1);
+        NativeExamTimerState expected = timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 30);
+        FieldTransition transition = new(136, 175, -2269, 12, 128);
+        Assert.Throws<NotSupportedException>(() => session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, candidate =>
+        {
+            Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(candidate.ExamTimer));
+            Assert.Same(before, session.State);
+            throw new NotSupportedException("Bounded destination refusal.");
+        }));
+        Assert.Same(before, session.State);
+        session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, Accept);
+        Assert.Equal(60, session.ExamTimer!.ClockCalls);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
+        Assert.False(session.ExamTimer.DisplayEnabled);
+    }
+
+    [Fact]
     public void Actual_foot_save_preserves_raw_pose_yaws_frame_and_unknown_auxiliary_bytes()
     {
         WorldState world = World();

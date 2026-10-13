@@ -39,9 +39,9 @@ public sealed partial class EventEngine
             }
             return null;
         }
-        if (operation.Opcode is Jsm.Opcode.MOVIE or Jsm.Opcode.WORLDMAPJUMP)
+        if (operation.Opcode == Jsm.Opcode.MOVIE)
         {
-            return "An active native timer requires explicit scene callback clock integration before movie/world departure";
+            return "A tracked native timer requires explicit movie callback clock integration before movie departure";
         }
         int width = operation.Opcode switch
         {

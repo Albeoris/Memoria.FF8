@@ -31,6 +31,17 @@ internal static partial class Program
             return (engine, session);
         }
         byte[] jump = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.PSHN_L, 0x12345), (Jsm.Opcode.WORLDMAPJUMP, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
+        foreach (bool displayed in new[] { false, true })
+        {
+            (EventEngine engine, GameSession session) = Create(jump, known);
+            NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10);
+            session.SetExamTimer(displayed ? timer : timer.KillDisplay());
+            engine.Step();
+            Require(engine.LastFault is null && session.State.Scene == SceneKind.WorldMap && session.ExamTimer!.ClockCalls == 2 && session.ExamTimer.DisplayEnabled == displayed, "Tracked displayed or killed timer blocked a prepared world departure or lost its final field callback.");
+            JsonElement frozen = engine.Capture();
+            engine.Step();
+            Require(JsonElement.DeepEquals(frozen, engine.Capture()), "Frozen departing field VM incorrectly supplied further normal field timer clocks.");
+        }
         foreach (bool disabledSource in new[] { false, true })
         {
             NativeWorldControlState controls = known with { SourceDisabled = disabledSource, Menu209 = disabledSource ? (byte)0xA7 : known.Menu209 };

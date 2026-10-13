@@ -752,6 +752,13 @@ public sealed partial class EventEngine
                 Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
                 Scene.BackgroundShades[fiber.BackgroundId] = Scene.BackgroundShade;
                 break;
+            case Jsm.Opcode.BGSHADEOFF:
+                // Native 0x520B00 clears shade flags, timing, holds and all RGB endpoints.
+                // Renderer 0x475480 reads the zero endpoint when duration and elapsed are zero.
+                Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
+                Scene.BackgroundShade = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
+                Scene.BackgroundShades[fiber.BackgroundId] = Scene.BackgroundShade;
+                break;
             case Jsm.Opcode.DCOLADD:
             case Jsm.Opcode.DCOLSUB:
                 args = Pop(fiber, 3);
@@ -880,6 +887,9 @@ public sealed partial class EventEngine
                 {
                     Scene.Party.Add(args[0]);
                 }
+                break;
+            case Jsm.Opcode.SUBPARTY:
+                args = ExecutePartyRemoval(fiber);
                 break;
             case Jsm.Opcode.SETPARTY:
                 args = Pop(fiber, 3);

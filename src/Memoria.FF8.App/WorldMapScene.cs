@@ -205,7 +205,14 @@ internal sealed class WorldMapScene : IDisposable
             RecordReplay(departed);
             return departed;
         }
-        session.SetWorldState(candidate);
+        if (accepted)
+        {
+            session.CommitWorldAction(candidate);
+        }
+        else
+        {
+            session.SetWorldState(candidate);
+        }
         PlayerTrigger trigger = new(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null);
         PlayerActionResult result = new(accepted, trigger, advanced, accepted ? null : "This original world action is not implemented.");
         RecordReplay(result);

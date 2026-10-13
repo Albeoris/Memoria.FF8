@@ -44,12 +44,12 @@ public sealed partial class EventEngine
             Jsm.Opcode.IDLOCK or Jsm.Opcode.IDUNLOCK or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.AXIS or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or
             Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.WINSIZE or Jsm.Opcode.MESSYNC or Jsm.Opcode.MENUNAME or Jsm.Opcode.MESMODE or
             Jsm.Opcode.SETMESSPEED or Jsm.Opcode.BGDRAW or Jsm.Opcode.BGOFF or Jsm.Opcode.BGCLEAR or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.Unknown16 or Jsm.Opcode.BGANIMESPEED or Jsm.Opcode.BGANIME or Jsm.Opcode.RBGANIME or
-            Jsm.Opcode.BGANIMESYNC or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.RBGSHADELOOP or Jsm.Opcode.BGSHADE or Jsm.Opcode.DCOLADD or Jsm.Opcode.DCOLSUB or Jsm.Opcode.FCOLADD or Jsm.Opcode.FCOLSUB or
+            Jsm.Opcode.BGANIMESYNC or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.RBGSHADELOOP or Jsm.Opcode.BGSHADE or Jsm.Opcode.BGSHADEOFF or Jsm.Opcode.DCOLADD or Jsm.Opcode.DCOLSUB or Jsm.Opcode.FCOLADD or Jsm.Opcode.FCOLSUB or
             Jsm.Opcode.COLSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADENONE or Jsm.Opcode.FADESYNC or Jsm.Opcode.MAPFADEOFF or
             Jsm.Opcode.MAPFADEON or Jsm.Opcode.MAPJUMPON or Jsm.Opcode.MAPJUMPOFF or Jsm.Opcode.WORLDMAPJUMP or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.TALKRADIUS or
             Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.SETLINE or
             Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.BATTLEOFF or Jsm.Opcode.BATTLEON or Jsm.Opcode.SARALYOFF or
-            Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SETPARTY or
+            Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or
             Jsm.Opcode.HOLD or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
             Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.OFFSETSYNC => true,
         _ => false
@@ -135,6 +135,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedCanonicalPartyWrite(fiber);
         }
+        if (operation.Opcode == Jsm.Opcode.SUBPARTY)
+        {
+            return UnsupportedPartyRemoval(fiber);
+        }
         if (UnsupportedMinimalMenu(fiber, operation) is string unsupportedMenu)
         {
             return unsupportedMenu;
@@ -142,6 +146,10 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.RBGANIMELOOP && program?.Objects[fiber.ObjectId].BackgroundModuleIndex is null)
         {
             return "Unsupported RBGANIMELOOP requires an original background module entity";
+        }
+        if (operation.Opcode == Jsm.Opcode.BGSHADEOFF && program?.Objects[fiber.ObjectId].BackgroundModuleIndex is null)
+        {
+            return "Unsupported BGSHADEOFF requires an original background module entity; PC and operands preserved";
         }
         ActorState caller = actors[fiber.ObjectId];
         if (operation.Opcode == Jsm.Opcode.SETROOTTRANS && (fiber.Stack.Count == 0 || FieldId < 72 || caller.ModelId < 0 || program is null || !program.NativeObjects.Take(program.NativeActorCount).Contains(fiber.ObjectId) || Scene.NativeActorLayoutVersion == 1 && !Scene.NativeActorObjectIds.Contains(fiber.ObjectId)))

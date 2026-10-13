@@ -202,7 +202,8 @@ public sealed class GameSession : IEventServices
             DepartingWorldState = finalWorldState,
             DebugView = null,
             SavedWorld = departure.SavedWorld.WithFootReturn(receipt),
-            WorldControls = departure.WorldControls.WithNormalFieldLoad()
+            WorldControls = departure.WorldControls.WithNormalFieldLoad(),
+            ExamTimer = AdvanceWorldTimer(departure, finalWorldState)
         };
         Validate(candidate);
         validatePrepared(candidate);
@@ -254,6 +255,27 @@ public sealed class GameSession : IEventServices
     public void SetWorldState(WorldState state)
     {
         State = State with { World = state };
+    }
+
+    public void CommitWorldAction(WorldState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        GameState departure = State;
+        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld)
+        {
+            throw new InvalidOperationException("A world action requires its current native world session.");
+        }
+        ValidatePreparedWorldActions(liveWorld, state);
+        GameState candidate = departure with { World = state, ExamTimer = AdvanceWorldTimer(departure, state) };
+        Validate(candidate);
+        State = candidate;
+    }
+
+    private static NativeExamTimerState? AdvanceWorldTimer(GameState departure, WorldState finalWorld)
+    {
+        int callbacks = checked((int)(finalWorld.Frame - departure.World!.Frame));
+        // 53F0F0 calls 4701B0 twice per admitted world callback, even after KILLTIMER hides the display.
+        return departure.ExamTimer?.AdvanceCallbacks(NativeTimerCallbackKind.World, callbacks);
     }
 
     public void SetDepartingWorldState(WorldState? state)
@@ -357,7 +379,8 @@ public sealed class GameSession : IEventServices
     {
         GameState state = JsonSerializer.Deserialize<GameState>(File.ReadAllText(path), JsonOptions) ?? throw new InvalidDataException("Empty checkpoint.");
         Validate(state);
-        if (state.WorldControls is not null && state.EventState is JsonElement vm && vm.TryGetProperty("WorldControls", out JsonElement savedControls) && savedControls.ValueKind != JsonValueKind.Null)
+        JsonElement? currentVm = state.Scene == SceneKind.WorldMap ? state.DepartingFieldState ?? state.EventState : state.EventState;
+        if (state.WorldControls is not null && currentVm is JsonElement vm && vm.TryGetProperty("WorldControls", out JsonElement savedControls) && savedControls.ValueKind != JsonValueKind.Null)
         {
             NativeWorldControlState controls = savedControls.Deserialize<NativeWorldControlState>(JsonOptions) ?? throw new InvalidDataException("Empty event world-control state.");
             controls.Validate();
@@ -366,16 +389,31 @@ public sealed class GameSession : IEventServices
                 throw new InvalidDataException("Root and event world-control checkpoints disagree.");
             }
         }
-        if (state.EventState is JsonElement timerVm && timerVm.TryGetProperty("ExamTimer", out JsonElement timerJson) && timerJson.ValueKind != JsonValueKind.Null)
+        if (currentVm is JsonElement timerVm && timerVm.TryGetProperty("ExamTimer", out JsonElement timerJson) && timerJson.ValueKind != JsonValueKind.Null)
         {
             NativeExamTimerState timer = timerJson.Deserialize<NativeExamTimerState>(JsonOptions) ?? throw new InvalidDataException("Empty event exam timer state.");
             timer.Validate();
+            if (state.Scene == SceneKind.WorldMap && state.ExamTimer is NativeExamTimerState sceneTimer && sceneTimer.ClockCalls >= timer.ClockCalls)
+            {
+                long calls = sceneTimer.ClockCalls - timer.ClockCalls;
+                long callbacks = calls / 2;
+                if (calls % 2 != 0 || callbacks > (state.World?.Frame ?? 0))
+                {
+                    throw new InvalidDataException("Frozen field timer has no matching elapsed world callback count.");
+                }
+                while (callbacks != 0)
+                {
+                    int batch = (int)Math.Min(callbacks, 30000);
+                    timer = timer.AdvanceCallbacks(NativeTimerCallbackKind.World, batch);
+                    callbacks -= batch;
+                }
+            }
             if (state.ExamTimer is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.ExamTimer), JsonSerializer.SerializeToElement(timer)))
             {
                 throw new InvalidDataException("Root and event exam timer checkpoints disagree.");
             }
         }
-        if (state.EventState is JsonElement memoryVm && memoryVm.TryGetProperty("NativeVariableValues", out JsonElement memoryJson) && memoryJson.ValueKind != JsonValueKind.Null)
+        if (currentVm is JsonElement memoryVm && memoryVm.TryGetProperty("NativeVariableValues", out JsonElement memoryJson) && memoryJson.ValueKind != JsonValueKind.Null)
         {
             Dictionary<int, NativeMemoryValue> memory = memoryJson.Deserialize<Dictionary<int, NativeMemoryValue>>(JsonOptions) ?? throw new InvalidDataException("Empty event uncertain memory state.");
             NativeMemoryValue.Validate(memory, state.Variables);
@@ -384,7 +422,7 @@ public sealed class GameSession : IEventServices
                 throw new InvalidDataException("Root and event uncertain native memory checkpoints disagree.");
             }
         }
-        else if (state.EventState is not null && state.NativeVariableValues is { Count: > 0 })
+        else if (currentVm is not null && state.NativeVariableValues is { Count: > 0 })
         {
             throw new InvalidDataException("Root uncertain native memory is missing from the saved complete VM.");
         }

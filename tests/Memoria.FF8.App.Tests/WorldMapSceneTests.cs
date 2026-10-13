@@ -7,6 +7,48 @@ namespace Memoria.FF8.App.Tests;
 /// <summary>Selected original-world component fixtures; these do not advance or establish a natural player exit.</summary>
 public sealed class WorldMapSceneTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void World_callbacks_preserve_hidden_or_displayed_timer_and_replay_the_same_proposals(bool displayed)
+    {
+        var session = ComponentSession();
+        session.StartNewGame();
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
+        NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10);
+        if (!displayed)
+        {
+            timer = timer.KillDisplay();
+        }
+        session.SetExamTimer(timer);
+        using var scene = new WorldMapScene(session, GameDirectory());
+        GameState initial = session.State;
+        Assert.Equal(0, session.ExamTimer!.ClockCalls);
+        Assert.Equal(3, scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3)).FramesAdvanced);
+        NativeExamTimerState expected = timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
+        ReplayJournalEntry entry = session.ReplayJournal!.Endpoint!;
+        var replaySession = new GameSession(initial);
+        using var replay = new WorldMapScene(replaySession, GameDirectory());
+        Assert.Equal(3, replay.ReplayNavigation(entry).FramesAdvanced);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
+        Assert.False(scene.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
+    }
+
+    [Fact]
+    public void Refused_world_batch_preserves_timer_before_any_candidate_callback_is_committed()
+    {
+        var session = ComponentSession();
+        session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay());
+        using var scene = new WorldMapScene(session, GameDirectory());
+        session.SetWorldState(scene.State with { X = -5000, CameraTargetX = -1476, CameraYaw = 0, CameraVelocity = 0 });
+        GameState before = session.State;
+        Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 2)));
+        Assert.Same(before, session.State);
+        Assert.Equal(0, session.ExamTimer!.ClockCalls);
+    }
+
     [Fact]
     public void OriginalSpawnAndFirstGroundUpdatePreserveNativeHeightRounding()
     {

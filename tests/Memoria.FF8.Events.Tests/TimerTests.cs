@@ -81,6 +81,18 @@ internal static partial class Program
         {
         }
         Require(alias.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1, "Unproved timer memory alias advanced its issuing PC.");
+        GameSession movieSession = new(new GameState { Scene = SceneKind.Field, ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay() });
+        EventEngine movie = new(movieSession, movieSession.State.Variables);
+        movie.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.RET, 0)), []);
+        try
+        {
+            movie.Step();
+            throw new InvalidOperationException("Killed timer silently bypassed its still-unproved movie callback clock.");
+        }
+        catch (EventScriptException) when (movie.LastFault?.Opcode == "MOVIE")
+        {
+        }
+        Require(movie.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1 && movieSession.State.Scene == SceneKind.Field && movieSession.ExamTimer!.ClockCalls == 2, "Unsupported movie departure consumed its PC or changed the scene before clock admission.");
         Console.WriteLine("Native exam timer: SET/DISP/GET/KILL, unknown correlated fractional phase, two pre-VM field clocks, post-VM expiry refusal, exact or range HUD, independent/cross-field restore verified.");
     }
 }
