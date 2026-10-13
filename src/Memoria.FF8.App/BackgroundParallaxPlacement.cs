@@ -7,6 +7,21 @@ namespace Memoria.FF8;
 /// <summary>Native475480 nonselected normal-layer WORD displacement plus common DRAWENV displacement.</summary>
 internal static class BackgroundParallaxPlacement
 {
+    public static bool SupportsPan(FieldAssets field)
+    {
+        Vector2 pan = field.Camera.Pan;
+        return float.IsFinite(pan.X) && float.IsFinite(pan.Y) && pan.X == MathF.Truncate(pan.X) && pan.Y == MathF.Truncate(pan.Y) && pan.X is >= -4095 and <= 4096 && pan.Y is >= -4095 and <= 4096 && (pan == Vector2.Zero || field.Information?.BackgroundWrapMask == 0);
+    }
+
+    public static bool SupportsDrawingOrigin(int x, int y, Vector2 pan)
+    {
+        // 476450 writes origin+PAN-C as WORDs;45C0F0 packs signed11-bit
+        // E5 drawing offsets. Refuse an unproved wrapped drawing origin.
+        float drawX = 160 + pan.X - x;
+        float drawY = 112 + pan.Y - y;
+        return drawX is >= -1024 and <= 1023 && drawY is >= -1024 and <= 1023;
+    }
+
     public static bool SupportsCameraRange(FieldAssets field, BackgroundScrollSettings settings)
     {
         if (settings.ScaleX is < 0 or > 256 || settings.ScaleY is < 0 or > 256 || field.Information is not { CameraBounds.Count: > 0 } information)

@@ -48,7 +48,8 @@ public static class NativeCharacterInitialization
                 throw new NotSupportedException("Native initial HP maximum is not proved strictly positive.");
             }
             ushort hp = BinaryPrimitives.ReadUInt16LittleEndian(record);
-            records[index] = new NativeCharacterVital(character, new NativeHpWord(hp, hp), BinaryPrimitives.ReadUInt16LittleEndian(record[150..]));
+            NativeCharacterJunction junction = new(BinaryPrimitives.ReadUInt16LittleEndian(record[88..]), BinaryPrimitives.ReadUInt32LittleEndian(record[80..]), BinaryPrimitives.ReadUInt32LittleEndian(record[84..]), record.Slice(92, 20).ToArray(), (ushort)Math.Min(maximum, 9999));
+            records[index] = new NativeCharacterVital(character, new NativeHpWord(hp, hp), BinaryPrimitives.ReadUInt16LittleEndian(record[150..]), junction);
         }
         NativeCharacterVitals state = new()
         {

@@ -1060,6 +1060,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SEVOL:
                 args = ExecuteSoundVolume(fiber);
                 break;
+            case Jsm.Opcode.RESETGF:
+                args = ExecuteGuardianForceReset(fiber);
+                break;
+            case Jsm.Opcode.FOOTSTEPOFFALL:
+                args = ExecuteFootstepOffAll(fiber);
+                break;
             case Jsm.Opcode.BATTLEMODE:
                 args = ExecuteNativeBattleMode(fiber);
                 break;

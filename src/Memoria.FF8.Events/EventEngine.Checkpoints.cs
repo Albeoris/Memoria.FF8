@@ -137,6 +137,7 @@ public sealed partial class EventEngine
         ValidateNativeNormalBackgroundScrollCheckpoint(saved);
         ValidateActorShadowCheckpoint(saved);
         ValidateFootstepPairCheckpoint(saved);
+        ValidateFootstepOffAllCheckpoint(saved);
         if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8))
         {
             throw new InvalidDataException("Saved background scroll layer is outside the eight original records.");

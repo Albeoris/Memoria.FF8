@@ -16,7 +16,7 @@ public sealed record NativeHpWord([property: JsonRequired] ushort Minimum, [prop
     }
 }
 
-public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status);
+public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status, [property: JsonRequired] NativeCharacterJunction Junction);
 
 /// <summary>Eight original save records and three raw combat slots, initialized only by authentic New Game resources.</summary>
 public sealed record NativeCharacterVitals
@@ -47,7 +47,44 @@ public sealed record NativeCharacterVitals
         foreach (NativeCharacterVital record in Records)
         {
             record.HitPoints.Validate();
+            if (record.Junction is null)
+            {
+                throw new InvalidDataException("Native character junction state requires its authentic New Game template.");
+            }
+            record.Junction.Validate();
         }
+    }
+
+    public NativeCharacterVitals DeepCopy()
+    {
+        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() } }).ToArray(), CombatParty = CombatParty.ToArray() };
+    }
+
+    public NativeCharacterVitals ResetGuardianForces(int rawCharacter)
+    {
+        Validate();
+        // Native52CC20 compares the low BYTE with all eight saved identities;
+        // its missing FF result is zero-extended and clamped to record7 by4ACE50.
+        int index = Array.FindIndex(Records, record => record.CharacterId == unchecked((byte)rawCharacter));
+        if (index < 0)
+        {
+            index = 7;
+        }
+        NativeCharacterVital selected = Records[index];
+        NativeCharacterVital[] records = Records.ToArray();
+        records[index] = selected with { Junction = selected.Junction.Reset() };
+        byte[] temporaryParty = CombatParty.ToArray();
+        temporaryParty[0] = (byte)index;
+        NativeCharacterVitals temporary = (this with { Records = records, CombatParty = temporaryParty }).RebuildParty();
+        ushort maximum = selected.Junction.UnjunctionedMaximumHitPoints;
+        records = temporary.Records.ToArray();
+        records[index] = records[index] with { HitPoints = new NativeHpWord(maximum, maximum), Status = (ushort)(selected.Status & 0x0080) };
+        NativeCharacterVitals restored = (temporary with { Records = records, CombatParty = CombatParty.ToArray() }).RebuildParty();
+        // The reset establishes an exact maximum. The deferred rebuild's positive
+        // HP abstraction must retain that proved value when this record is active.
+        records = restored.Records.ToArray();
+        records[index] = records[index] with { HitPoints = new NativeHpWord(maximum, maximum) };
+        return (restored with { Records = records }).DeepCopy();
     }
 
     public NativeCharacterVitals RebuildParty()

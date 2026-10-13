@@ -11,12 +11,12 @@ internal static class DirectBackgroundScrollCertificate
 {
     public static bool CanSet(FieldAssets field, SceneEventState scene, int layer, short x, short y)
     {
-        return layer == 0 && x is >= -4095 and <= 4096 && y is >= -4095 and <= 4096 && HasBaseline(field, scene) && ValidPositions(scene);
+        return layer == 0 && x is >= -4095 and <= 4096 && y is >= -4095 and <= 4096 && HasBaseline(field, scene) && ValidPositions(scene) && BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.Camera.Pan);
     }
 
     public static bool CanSetCosine(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
     {
-        if (layer != 0 || duration < 0 || !InRange(x) || !InRange(y) || !HasBaseline(field, scene) || !ValidPositions(scene))
+        if (layer != 0 || duration < 0 || !InRange(x) || !InRange(y) || !HasBaseline(field, scene) || !ValidPositions(scene) || !BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.Camera.Pan))
         {
             return false;
         }
@@ -25,7 +25,7 @@ internal static class DirectBackgroundScrollCertificate
 
     public static bool CanSetLinear(FieldAssets field, NativeLinearScrollQuery query)
     {
-        return query.Layer == 0 && query.Duration >= 0 && InRange(query.StartX) && InRange(query.StartY) && InRange(query.TargetX) && InRange(query.TargetY) && NormalCameraCertificate.HasBaseline(field, 0) && field.Information!.BackgroundWrapMask == 0;
+        return query.Layer == 0 && query.Duration >= 0 && InRange(query.StartX) && InRange(query.StartY) && InRange(query.TargetX) && InRange(query.TargetY) && NormalCameraCertificate.HasBaseline(field, 0) && field.Information!.BackgroundWrapMask == 0 && BackgroundParallaxPlacement.SupportsDrawingOrigin(query.StartX, query.StartY, field.Camera.Pan) && BackgroundParallaxPlacement.SupportsDrawingOrigin(query.TargetX, query.TargetY, field.Camera.Pan);
     }
 
     public static bool CanBeginLinear(FieldAssets field, NativeLinearScrollQuery query, SceneEventState scene)
@@ -71,6 +71,11 @@ internal static class DirectBackgroundScrollCertificate
 
     internal static BackgroundScrollFrame PrepareCenter(FieldAssets field, SceneEventState scene, short x, short y)
     {
+        Vector2 pan = field.GetCamera(scene.CameraIndex).Pan;
+        if (!BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, pan))
+        {
+            throw new NotSupportedException("Scripted camera drawing origin exceeds the proved native signed-WORD/E5 domain.");
+        }
         Vector2 center = new(x, y);
         Dictionary<int, Vector2> layers = [];
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
@@ -80,6 +85,10 @@ internal static class DirectBackgroundScrollCertificate
             if (layer != 0 && !BackgroundParallaxPlacement.TryOffset(x, y, settings, out offset))
             {
                 throw new NotSupportedException("Scripted camera parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
+            }
+            if (layer != 0)
+            {
+                offset += pan;
             }
             if (offset != Vector2.Zero)
             {

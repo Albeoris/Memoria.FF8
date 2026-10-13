@@ -50,7 +50,7 @@ internal static class ActorBackgroundScrollCertificate
             return null;
         }
         FieldNativeCameraResult projected = NormalCameraCertificate.ProjectActorCenter(field, scene, actor);
-        if (!projected.Supported || projected.Center is not FieldNativeCameraCenter center || center.X is < -4095 or > 4096 || center.Y is < -4095 or > 4096)
+        if (!projected.Supported || projected.Center is not FieldNativeCameraCenter center || center.X is < -4095 or > 4096 || center.Y is < -4095 or > 4096 || !BackgroundParallaxPlacement.SupportsDrawingOrigin(center.X, center.Y, field.Camera.Pan))
         {
             return null;
         }

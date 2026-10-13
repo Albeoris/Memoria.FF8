@@ -204,6 +204,10 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved native door request slot has multiple unfinished owners.");
             }
             int[] requested = NativeDoorRequestedLocals(saved.Scene.NativeDoorPendingEvents!.GetValueOrDefault(line.ObjectId), line.LineContact).ToArray();
+            if (requested.Any(local => local >= program!.Objects[line.ObjectId].Scripts.Count))
+            {
+                throw new InvalidDataException("Saved native door request has no original local script.");
+            }
             int[] meaningful = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Concat(requested).Distinct().Where(local => !EmptyNativeLineScript(line, local)).ToArray();
             if (meaningful.Length > 1)
             {

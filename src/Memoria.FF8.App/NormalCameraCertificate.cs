@@ -9,7 +9,7 @@ public static class NormalCameraCertificate
 {
     internal static bool HasBaseline(FieldAssets field, int cameraIndex)
     {
-        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count == 1 && field.Camera.Pan == Vector2.Zero && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || NativeField135ZeroCenterCertificate.Supports(field, cameraIndex) || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
+        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count == 1 && BackgroundParallaxPlacement.SupportsPan(field) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || NativeField135ZeroCenterCertificate.Supports(field, cameraIndex) || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
     }
 
     public static BackgroundScrollFrame? Prepare(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
@@ -57,6 +57,10 @@ public static class NormalCameraCertificate
         {
             throw new NotSupportedException(result.UnsupportedReason ?? "Normal camera projection has no certified center.");
         }
+        if (!BackgroundParallaxPlacement.SupportsDrawingOrigin(center.X, center.Y, camera.Pan))
+        {
+            throw new NotSupportedException("Normal camera drawing origin exceeds the proved native signed-WORD/E5 domain.");
+        }
         Vector2 offset = new(-center.X, -center.Y);
         Dictionary<int, Vector2> layers = [];
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
@@ -73,6 +77,9 @@ public static class NormalCameraCertificate
                 {
                     throw new NotSupportedException("Normal parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
                 }
+                // Native layer0 cancels PAN in its raw pair. Nonselected
+                // normal layers retain the common DRAWENV PAN contribution.
+                layerOffset += camera.Pan;
             }
             if (layerOffset != Vector2.Zero)
             {

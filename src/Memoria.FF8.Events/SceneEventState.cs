@@ -65,6 +65,9 @@ public sealed class SceneEventState
     public NativeSoundVolume? SoundVolume { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFootstepOffAll? FootstepOffAll { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeVibrationRequest? VibrationRequest { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

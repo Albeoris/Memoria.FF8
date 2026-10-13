@@ -19,7 +19,7 @@ public sealed class LayerZeroLinearScrollProjectionTests
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower-road journal and installed original resources are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.Load(source), directory);
+        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
         using GameWorld world = new(new GameSession(current), directory, persistReplayJournal: false);
         world.EnsureField();
         Assert.Equal(332, world.Field!.Id);

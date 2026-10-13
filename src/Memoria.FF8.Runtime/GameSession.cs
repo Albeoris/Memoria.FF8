@@ -322,7 +322,7 @@ public sealed partial class GameSession : IEventServices
     public void SetCharacterVitals(NativeCharacterVitals vitals)
     {
         vitals.Validate();
-        State = State with { CharacterVitals = vitals with { Records = vitals.Records.ToArray(), CombatParty = vitals.CombatParty.ToArray() } };
+        State = State with { CharacterVitals = vitals.DeepCopy() };
     }
 
     public void InitializeNewGameCharacterAppearance(NativeCharacterAppearance appearance)

@@ -47,10 +47,10 @@ public sealed partial class EventEngine
             Jsm.Opcode.BGANIMESYNC or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.RBGSHADELOOP or Jsm.Opcode.BGSHADE or Jsm.Opcode.BGSHADEOFF or Jsm.Opcode.DCOLADD or Jsm.Opcode.DCOLSUB or Jsm.Opcode.FCOLADD or Jsm.Opcode.FCOLSUB or
             Jsm.Opcode.COLSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADENONE or Jsm.Opcode.SETVIBRATE or Jsm.Opcode.FADESYNC or Jsm.Opcode.MAPFADEOFF or
             Jsm.Opcode.MAPFADEON or Jsm.Opcode.MAPJUMPON or Jsm.Opcode.MAPJUMPOFF or Jsm.Opcode.WORLDMAPJUMP or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.TALKRADIUS or
-            Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.FOOTSTEP or Jsm.Opcode.FOOTSTEPCOPY or Jsm.Opcode.FOOTSTEPCUT or Jsm.Opcode.SETLINE or
+            Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.FOOTSTEP or Jsm.Opcode.FOOTSTEPCOPY or Jsm.Opcode.FOOTSTEPCUT or Jsm.Opcode.FOOTSTEPOFFALL or Jsm.Opcode.SETLINE or
             Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.DOORLINEON or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.BATTLEOFF or Jsm.Opcode.BATTLEON or Jsm.Opcode.SARALYOFF or
             Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or
-            Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.FOLLOWON or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.SEVOL or Jsm.Opcode.KEYON or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
+            Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.FOLLOWON or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.SEVOL or Jsm.Opcode.KEYON or Jsm.Opcode.RESETGF or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
             Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE or Jsm.Opcode.ALLSEVOLTRANS or Jsm.Opcode.ALLSEVOL or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.LSCROLL or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
         _ => false
     };
@@ -61,6 +61,16 @@ public sealed partial class EventEngine
         if (actorInfo is not null)
         {
             return actorInfo;
+        }
+        string? guardianForceReset = UnsupportedGuardianForceReset(fiber, operation);
+        if (guardianForceReset is not null)
+        {
+            return guardianForceReset;
+        }
+        string? footstepOffAll = UnsupportedFootstepOffAll(fiber, operation);
+        if (footstepOffAll is not null)
+        {
+            return footstepOffAll;
         }
         if (operation.Opcode == Jsm.Opcode.JUMP)
         {
@@ -374,10 +384,6 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.REFRESHPARTY && (variables.TryGetValue(104, out int partyFlags) && (partyFlags & 0x800) != 0 || variables.TryGetValue(105, out int partyFlagByte) && (partyFlagByte & 8) != 0))
         {
             return "Unsupported REFRESHPARTY auxiliary party-list branch requires its own native continuation evidence";
-        }
-        if (operation.Opcode == Jsm.Opcode.PGETINFO && Scene.FieldPartyNativeActorIds.Count == 3 && fiber.Stack.Count > 0 && ResolvePartyActor(fiber.Stack.Peek()) is null)
-        {
-            return "Unsupported PGETINFO refreshed party binding has no native actor object";
         }
         if (operation.Opcode == Jsm.Opcode.PCTURN && Scene.FieldPartyNativeActorIds.Count == 3 && fiber.Stack.Count > 1 && ResolvePartyActor(fiber.Stack.Skip(1).First()) is null)
         {
