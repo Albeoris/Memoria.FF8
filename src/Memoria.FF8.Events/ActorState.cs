@@ -101,6 +101,9 @@ public sealed class ActorState
     public NativeActorShadowSet? NativeShadowSet { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeActorShadowForm? NativeShadowForm { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeActorShadowLevel? NativeShadowLevel { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

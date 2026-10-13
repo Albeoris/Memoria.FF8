@@ -163,9 +163,7 @@ public sealed partial class EventEngine
                 fiber.Results[1] = 0;
                 break;
             case Jsm.Opcode.GETINFO:
-                fiber.Results[0] = (int)actor.X;
-                fiber.Results[1] = (int)actor.Y;
-                fiber.Results[2] = (int)actor.Z;
+                args = ExecuteNativeActorInfo(fiber, false);
                 break;
             case Jsm.Opcode.INITTRACE:
                 ActorState tracePlayer = actors.FirstOrDefault(item => item.Active && item.CharacterId == 0) ?? throw Fault(fiber, "INITTRACE has no registered player actor.");
@@ -307,16 +305,7 @@ public sealed partial class EventEngine
                 fiber.Results[0] = args[0] < Scene.Party.Count ? Scene.Party[args[0]] : 255;
                 break;
             case Jsm.Opcode.PGETINFO:
-                args = Pop(fiber, 1);
-                if ((uint)args[0] >= (Scene.FieldPartyNativeActorIds.Count == 3 ? 3 : Scene.Party.Count))
-                {
-                    throw Fault(fiber, $"PGETINFO refers to missing party slot {args[0]}.");
-                }
-                ActorState partyActor = ResolvePartyActor(args[0]) ?? throw Fault(fiber, $"PGETINFO party slot {args[0]} has no field actor.");
-                fiber.Results[0] = (int)partyActor.X;
-                fiber.Results[1] = (int)partyActor.Y;
-                fiber.Results[2] = (int)partyActor.Z;
-                fiber.Results[4] = (int)partyActor.Direction & 255;
+                args = ExecuteNativeActorInfo(fiber, true);
                 break;
             case Jsm.Opcode.ISTOUCH:
                 args = Pop(fiber, 1);
@@ -567,6 +556,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SHADELEVEL:
                 args = ExecuteActorShadowLevel(fiber, actor);
+                break;
+            case Jsm.Opcode.SHADEFORM:
+                args = ExecuteActorShadowForm(fiber, actor);
                 break;
             case Jsm.Opcode.SHADESET:
                 args = ExecuteActorShadowSet(fiber, actor);
@@ -1061,6 +1053,21 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.ALLSEVOLTRANS:
                 args = ExecuteAllSoundVolumeTransition(fiber);
+                break;
+            case Jsm.Opcode.ALLSEVOL:
+                args = ExecuteAllSoundVolume(fiber);
+                break;
+            case Jsm.Opcode.SEVOL:
+                args = ExecuteSoundVolume(fiber);
+                break;
+            case Jsm.Opcode.BATTLEMODE:
+                args = ExecuteNativeBattleMode(fiber);
+                break;
+            case Jsm.Opcode.LSCROLLA:
+                args = ExecuteNativeActorLinearBackgroundScroll(fiber);
+                break;
+            case Jsm.Opcode.LSCROLLP:
+                args = ExecuteNativePartyLinearBackgroundScroll(fiber);
                 break;
             default:
                 throw Fault(fiber, $"Unsupported required opcode {opcode} (parameter {parameter}); no state was fabricated.");

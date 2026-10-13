@@ -136,11 +136,12 @@ internal sealed partial class GameWorld : IDisposable
             return (uint)additional >= model.Bones.Count || !model.Bones.Any(bone => bone.Parent == additional);
         };
         Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
-        Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSet(next, layer, settings, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene, Events.Actors);
+        Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSetForState(next, Events.Scene, Events.Actors, layer, settings);
         Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || BackgroundScrollCertificate.CanSetPosition(next, layer, x, y, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene);
         Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
-        Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetCosine(next, Events.Scene, Events.Actors, actor, duration);
+        Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
+        Events.CanSetNativeActorLinearBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
         Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, partySlot, nativeActorId, duration);
         Events.CanSetCosineBackgroundScroll = (layer, x, y, duration) => BackgroundScrollCertificate.CanSetCosinePosition(next, Events.Scene, layer, x, y, duration);
         Events.ResolveNativeNormalBackgroundScrollCenter = () => DirectBackgroundScrollCertificate.ResolveNormalCenter(next, Events.Scene, Events.Actors);

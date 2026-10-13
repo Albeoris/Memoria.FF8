@@ -137,8 +137,10 @@ public sealed partial class EventEngine
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
         Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
+        Scene.SoundVolume = previousScene.SoundVolume;
         Scene.VibrationRequest = previousScene.VibrationRequest;
         Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
+        Scene.AllSoundVolume = previousScene.AllSoundVolume;
         CopyNativeMediaHistory(previousScene);
         CopyNativeMusicLoad(previousScene, nativeRuntimeProfile);
         InitializePreviousField(previousFieldId);
@@ -165,6 +167,7 @@ public sealed partial class EventEngine
         Scene.NativeBattleCompletions = previousScene.NativeBattleCompletions is null ? null : [.. previousScene.NativeBattleCompletions];
         Scene.NativeBattleWaits = Scene.NativeBattleCompletions is null ? null : [];
         Scene.NativeBattleResult = previousScene.NativeBattleResult;
+        CopyNativeBattleMode(previousScene);
         Scene.GlobalSoundRequests.AddRange(previousScene.GlobalSoundRequests);
         foreach ((int voice, GlobalSoundRequest request) in previousScene.GlobalSoundVoices)
         {

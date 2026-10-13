@@ -76,7 +76,11 @@ internal static class DirectBackgroundScrollCertificate
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
         {
             BackgroundScrollSettings settings = scene.BackgroundScrollLayers.GetValueOrDefault(layer) ?? new BackgroundScrollSettings(0, 0, 256, 256);
-            Vector2 offset = layer == 0 ? -center : new Vector2(-x * settings.ScaleX / 256, -y * settings.ScaleY / 256);
+            Vector2 offset = -center;
+            if (layer != 0 && !BackgroundParallaxPlacement.TryOffset(x, y, settings, out offset))
+            {
+                throw new NotSupportedException("Scripted camera parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
+            }
             if (offset != Vector2.Zero)
             {
                 layers[layer] = offset;

@@ -14,7 +14,12 @@ public sealed partial class FieldRenderer
 
     private void DrawActorShadow(ActorVisual actor)
     {
-        if (actor.GroundShadowRadius601To608 is not byte radius || radius == 0)
+        IReadOnlyList<byte>? radii = actor.GroundShadowRadii601To608;
+        if (radii is not null && (radii.Count != 8 || actor.GroundShadowRadius601To608 is not null))
+        {
+            throw new NotSupportedException("Native ground-shadow shape requires exactly bytes601..608 and one current shape authority.");
+        }
+        if (radii is null ? actor.GroundShadowRadius601To608 is not byte uniformRadius || uniformRadius == 0 : radii.All(radius => radius == 0))
         {
             // All eight native fan edges coincide with the center for radius0.
             return;
@@ -28,6 +33,7 @@ public sealed partial class FieldRenderer
         Span<ProjectedPoint> edge = stackalloc ProjectedPoint[8];
         for (int index = 0; index < edge.Length; index++)
         {
+            byte radius = radii is null ? actor.GroundShadowRadius601To608!.Value : radii[index];
             // This software backend supports native draw mode2 subtraction.
             // 472F20 uses full radii for that capability; its half-radius
             // fallback for other backends is a separate unsupported contract.

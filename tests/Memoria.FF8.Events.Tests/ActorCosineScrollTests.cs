@@ -60,7 +60,7 @@ internal static partial class Program
         Require(zero.Scene.ActorBackgroundScroll is { Mode: 2, Duration: 0, Counter: 0, Status: 2, X: 202, Y: -4 }, "Zero-duration actor cosine did not use the actual first callback target.");
 
         JsonElement valid = restored.Capture();
-        foreach ((string name, int value) in new[] { ("NativeActorId", 0), ("Mode", 1), ("Counter", 3), ("Duration", -1), ("ProjectedTargetX", 207), ("Status", 1) })
+        foreach ((string name, int value) in new[] { ("NativeActorId", 0), ("Mode", 3), ("Counter", 3), ("Duration", -1), ("ProjectedTargetX", 207), ("Status", 1) })
         {
             JsonNode corrupt = JsonNode.Parse(valid.GetRawText())!;
             corrupt["Scene"]!["ActorBackgroundScroll"]![name] = value;

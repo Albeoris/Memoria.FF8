@@ -17,7 +17,28 @@ public static class BackgroundScrollCertificate
 
     internal static bool CanSetNormal(FieldAssets field, int layer, BackgroundScrollSettings settings, int cameraIndex)
     {
-        return field.Id is not (165 or 172) && NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && settings.OffsetX == 0 && settings.OffsetY == 0 && settings.ScaleX is >= 0 and <= 256 && settings.ScaleY is >= 0 and <= 256;
+        return field.Id is not (165 or 172) && NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings);
+    }
+
+    public static bool CanSetForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
+    {
+        if (!CanSet(field, layer, settings, scene.CameraIndex))
+        {
+            return false;
+        }
+        if (field.Id == 172)
+        {
+            return Supports(field, scene);
+        }
+        try
+        {
+            BackgroundScrollFrame? current = NormalCameraCertificate.Prepare(field, scene, actors);
+            return current is not null && BackgroundParallaxPlacement.TryOffset((int)-current.ActorOffset.X, (int)-current.ActorOffset.Y, settings, out _);
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
     }
 
     public static bool Supports(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)

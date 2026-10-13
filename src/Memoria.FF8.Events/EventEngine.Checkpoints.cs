@@ -119,8 +119,10 @@ public sealed partial class EventEngine
         ValidateSoundInitializationCheckpoint(saved);
         ValidateSoundStopCheckpoint(saved);
         ValidateSoundVolumeTransitionCheckpoint(saved);
+        ValidateSoundVolumeCheckpoint(saved);
         ValidateVibrationCheckpoint(saved);
         ValidateAllSoundVolumeTransitionCheckpoint(saved);
+        ValidateAllSoundVolumeCheckpoint(saved);
         ValidateFollowOffCheckpoint(saved);
         ValidateMusicStopCheckpoint(saved);
         ValidateMusicLoadCheckpoint(saved);
@@ -268,6 +270,7 @@ public sealed partial class EventEngine
             restored.Add(fiber);
         }
         Dictionary<long, Fiber> bySequence = restored.ToDictionary(fiber => fiber.Sequence);
+        ValidateNativeDoorSuspensionCheckpoint(saved, restored);
         ValidateNativeJumps(saved, restored);
         ValidateNativeActorContactCheckpoint(saved);
         ValidateWorldTransitionCheckpoint(saved, bySequence);

@@ -138,6 +138,10 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native door V2 pending event lacks its original owner or byte flags; original state preserved.");
         }
         Fiber[] active = fibers.Where(fiber => fiber.ObjectId == objectId && !fiber.Complete).ToArray();
+        if (active.GroupBy(fiber => fiber.Priority).Any(slot => slot.Count() > 1))
+        {
+            throw new NotSupportedException("Native door request slots cannot contain multiple unfinished owners; original state preserved.");
+        }
         foreach (Fiber fiber in active)
         {
             int local = NativeDoorLocalFromManagedPriority(fiber.Priority);
@@ -156,7 +160,55 @@ public sealed partial class EventEngine
         int[] meaningful = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Where(local => !EmptyNativeLineScript(line, local)).Concat(requested.Where(local => !EmptyNativeLineScript(line, local))).Distinct().ToArray();
         if (meaningful.Length > 1)
         {
-            throw new NotSupportedException("Native door V2 competing meaningful requests need full native operand suspension; original state preserved.");
+            ValidateNativeDoorSuspension(line, active, requested);
+        }
+    }
+
+    private void ValidateNativeDoorSuspension(ActorState line, IReadOnlyList<Fiber> active, IReadOnlyList<int> requested)
+    {
+        int[] locals = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Concat(requested).Distinct().ToArray();
+        foreach (int local in locals)
+        {
+            EventScript script = program!.Objects[line.ObjectId].Scripts[local];
+            if (program.Operations.Skip(script.Start).Take(script.End - script.Start).Any(operation => operation.Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.RET && operation.Parameter != 8))
+            {
+                throw new NotSupportedException("Native door competition requires proved RET8 slot resumption; explicit RET slot cancellation preserves the original requests.");
+            }
+        }
+        int newlyRequested = requested.Distinct().Count(local => !active.Any(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority) == local));
+        // The native entity has eighty DWORD stack entries before its result bank.
+        // Each started LBL saves eight results separately from ordinary operands.
+        int stackWords = active.Sum(fiber => fiber.Stack.Count + 8) + newlyRequested * 8;
+        if (stackWords > 80 || active.Any(fiber => fiber.Results.Keys.Any(register => register is < 0 or > 7)))
+        {
+            throw new NotSupportedException("Native door suspension exceeds the original operand/result stack or its eight result registers; original state preserved.");
+        }
+        // Native529FF0 saves PC374/depth388 for the current slot before selecting
+        // the higher direct slot. Native51C570 LBL saves and clears its eight
+        // result registers;51C5C0 RET8 restores the next occupied lower slot.
+        // Distinct managed fibers already retain those PC, operand and result
+        // banks, including unfinished expressions across the sixteen-op budget.
+    }
+
+    private void ValidateNativeDoorSuspensionCheckpoint(Checkpoint saved, IReadOnlyList<Fiber> restored)
+    {
+        if (saved.Scene.NativeDoorDriverVersion != 2)
+        {
+            return;
+        }
+        foreach (ActorState line in saved.Actors.Where(line => program!.Objects[line.ObjectId].IsDoor))
+        {
+            Fiber[] active = restored.Where(fiber => fiber.ObjectId == line.ObjectId && !fiber.Complete).ToArray();
+            if (active.GroupBy(fiber => fiber.Priority).Any(slot => slot.Count() > 1))
+            {
+                throw new InvalidDataException("Saved native door request slot has multiple unfinished owners.");
+            }
+            int[] requested = NativeDoorRequestedLocals(saved.Scene.NativeDoorPendingEvents!.GetValueOrDefault(line.ObjectId), line.LineContact).ToArray();
+            int[] meaningful = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Concat(requested).Distinct().Where(local => !EmptyNativeLineScript(line, local)).ToArray();
+            if (meaningful.Length > 1)
+            {
+                ValidateNativeDoorSuspension(line, active, requested);
+            }
         }
     }
 

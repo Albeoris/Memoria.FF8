@@ -9,11 +9,11 @@ internal static class ActorBackgroundScrollCertificate
 {
     public static bool CanRestore(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
     {
-        if (scene.ActorBackgroundScroll is not NativeActorBackgroundScroll state || !NativeActorCosineScrollPhase.IsValid(state) || state.Mode == 2 && (!InRange(state.X) || !InRange(state.Y) || !InRange(state.PreviousX) || !InRange(state.PreviousY) || !InRange(state.ProjectedTargetX) || !InRange(state.ProjectedTargetY)))
+        if (scene.ActorBackgroundScroll is not NativeActorBackgroundScroll state || !NativeActorScrollPhase.IsValid(state) || state.Mode is 1 or 2 && (!InRange(state.X) || !InRange(state.Y) || !InRange(state.PreviousX) || !InRange(state.PreviousY) || !InRange(state.ProjectedTargetX) || !InRange(state.ProjectedTargetY)))
         {
             return false;
         }
-        if (state.Mode == 2 && state.Status == 2)
+        if (state.Mode is 1 or 2 && state.Status == 2)
         {
             return HasBaseline(field, scene);
         }
@@ -21,7 +21,7 @@ internal static class ActorBackgroundScrollCertificate
         return endpoint is { } target && (state.Mode == 0 || state.Status == 0 || state.ProjectedTargetX == target.X && state.ProjectedTargetY == target.Y);
     }
 
-    public static bool CanSetCosine(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, byte nativeActor, short duration)
+    public static bool CanSetInterpolated(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, byte nativeActor, short duration)
     {
         if (duration < 0 || Resolve(field, scene, actors, nativeActor) is null)
         {
@@ -29,7 +29,7 @@ internal static class ActorBackgroundScrollCertificate
         }
         if (scene.ActorBackgroundScroll is NativeActorBackgroundScroll actor)
         {
-            return NativeActorCosineScrollPhase.IsValid(actor) && actor.X.HasValue && actor.Y.HasValue && InRange(actor.X) && InRange(actor.Y);
+            return NativeActorScrollPhase.IsValid(actor) && actor.X.HasValue && actor.Y.HasValue && InRange(actor.X) && InRange(actor.Y);
         }
         if (scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position))
         {
@@ -63,7 +63,7 @@ internal static class ActorBackgroundScrollCertificate
         {
             return null;
         }
-        if (!HasBaseline(field, scene) || !NativeActorCosineScrollPhase.IsValid(state) || state.X is not short x || state.Y is not short y)
+        if (!HasBaseline(field, scene) || !NativeActorScrollPhase.IsValid(state) || state.X is not short x || state.Y is not short y)
         {
             throw new NotSupportedException("Native actor-follow camera has no certified current endpoint; no leader or zero center is substituted.");
         }

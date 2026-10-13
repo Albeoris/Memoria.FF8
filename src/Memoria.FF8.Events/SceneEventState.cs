@@ -62,10 +62,16 @@ public sealed class SceneEventState
     public NativeSoundVolumeTransition? SoundVolumeTransition { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSoundVolume? SoundVolume { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeVibrationRequest? VibrationRequest { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeAllSoundVolumeTransition? AllSoundVolumeTransition { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeAllSoundVolume? AllSoundVolume { get; internal set; }
     [JsonInclude]
     public bool RandomBattlesEnabled { get; internal set; } = true;
     [JsonInclude]
@@ -182,6 +188,9 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeBattleResult { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<NativeBattleFlagWrite>? NativeBattleFlagWrites { get; internal set; }
     public Dictionary<int, string> Names { get; } = [];
     public Dictionary<int, int[]> Holds { get; } = [];
     [JsonInclude]

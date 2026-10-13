@@ -2,7 +2,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public static class NativeActorCosineScrollPhase
+public static class NativeActorScrollPhase
 {
     public static bool IsValid(NativeActorBackgroundScroll state)
     {
@@ -14,7 +14,7 @@ public static class NativeActorCosineScrollPhase
         {
             return state.Status is 0 or 1 && (state.Status == 0 || state.X.HasValue) && state.Duration == 0 && state.Counter == 0 && state.ProjectedTargetX is null;
         }
-        if (state.Mode != 2 || state.PartySlot is not null || state.Duration < 0 || state.Status is not (0 or 1 or 2) || state.X is not short x || state.Y is not short y)
+        if (state.Mode is not (1 or 2) || state.Mode == 2 && state.PartySlot is not null || state.Duration < 0 || state.Status is not (0 or 1 or 2) || state.X is not short x || state.Y is not short y)
         {
             return false;
         }
@@ -27,7 +27,12 @@ public static class NativeActorCosineScrollPhase
             return false;
         }
         int elapsed = state.Status == 2 ? state.Counter : state.Counter - 1;
-        return x == NativeCosineInterpolation.Interpolate(previousX, targetX, state.Duration, elapsed) && y == NativeCosineInterpolation.Interpolate(previousY, targetY, state.Duration, elapsed);
+        return x == Interpolate(state.Mode, previousX, targetX, state.Duration, (short)elapsed) && y == Interpolate(state.Mode, previousY, targetY, state.Duration, (short)elapsed);
+    }
+
+    public static short Interpolate(byte mode, short previous, short target, short duration, short elapsed)
+    {
+        return mode == 1 ? NativeLinearScrollPhase.Interpolate(previous, target, duration, elapsed) : (short)NativeCosineInterpolation.Interpolate(previous, target, duration, elapsed);
     }
 }
 
@@ -62,11 +67,11 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private void StepNativeActorCosineBackgroundScroll(NativeActorBackgroundScroll state)
+    private void StepNativeActorInterpolatedBackgroundScroll(NativeActorBackgroundScroll state)
     {
-        if (!NativeActorCosineScrollPhase.IsValid(state))
+        if (!NativeActorScrollPhase.IsValid(state))
         {
-            throw new NotSupportedException("Native actor cosine camera has an unknown current center or interpolation phase.");
+            throw new NotSupportedException("Native interpolated actor camera has an unknown current center or interpolation phase.");
         }
         if (state.Status == 2)
         {
@@ -76,10 +81,10 @@ public sealed partial class EventEngine
         {
             state = state with { PreviousX = state.X, PreviousY = state.Y, Counter = 0, Status = 1 };
         }
-        (short X, short Y) target = ResolveNativeActorScrollCenter?.Invoke(state.NativeActorId) ?? throw new NotSupportedException("Native actor cosine camera lost its selected actor projection; no leader or static target is substituted.");
-        short x = (short)NativeCosineInterpolation.Interpolate(state.PreviousX!.Value, target.X, state.Duration, state.Counter);
-        short y = (short)NativeCosineInterpolation.Interpolate(state.PreviousY!.Value, target.Y, state.Duration, state.Counter);
-        // 475E60 mode2 reprojects the selected body on every active callback.
+        (short X, short Y) target = ResolveNativeActorScrollCenter?.Invoke(state.NativeActorId) ?? throw new NotSupportedException("Native interpolated actor camera lost its selected actor projection; no leader or static target is substituted.");
+        short x = NativeActorScrollPhase.Interpolate(state.Mode, state.PreviousX!.Value, target.X, state.Duration, state.Counter);
+        short y = NativeActorScrollPhase.Interpolate(state.Mode, state.PreviousY!.Value, target.Y, state.Duration, state.Counter);
+        // 475E60 modes1/2 reproject the selected body on every active callback.
         Scene.ActorBackgroundScroll = state with { X = x, Y = y, ProjectedTargetX = target.X, ProjectedTargetY = target.Y, Counter = state.Counter == state.Duration ? state.Counter : (short)(state.Counter + 1), Status = state.Counter == state.Duration ? (byte)2 : (byte)1 };
     }
 }

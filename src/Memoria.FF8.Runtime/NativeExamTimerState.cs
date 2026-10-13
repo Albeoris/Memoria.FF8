@@ -59,7 +59,9 @@ public sealed record NativeExamTimerState
 
     public void Validate()
     {
-        if (Version != 1 || ClockCalls < 0 || Alternatives is null || Alternatives.Length == 0 || Alternatives.Any(item => item is null || item.FirstPhase > item.LastPhase) || DisplayEnabled && (Event104Mask40 != true || Event182Mask4 != true || SaveGlobalMask4 != true))
+        // Native523230 can replace WORD182/1CFF6E2 without calling the timer UI.
+        // DisplayEnabled records that UI call independently of these mutable mask4 bits.
+        if (Version != 1 || ClockCalls < 0 || Alternatives is null || Alternatives.Length == 0 || Alternatives.Any(item => item is null || item.FirstPhase > item.LastPhase) || DisplayEnabled && Event104Mask40 != true)
         {
             throw new InvalidDataException("Invalid native exam timer interval state.");
         }

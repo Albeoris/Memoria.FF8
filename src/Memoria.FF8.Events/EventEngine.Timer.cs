@@ -74,6 +74,10 @@ public sealed partial class EventEngine
             Jsm.Opcode.KILLTIMER => current!.KillDisplay(),
             _ => throw new ArgumentOutOfRangeException(nameof(opcode))
         };
+        if (opcode == Jsm.Opcode.SETTIMER)
+        {
+            next = ProjectBattleModeTimer(next);
+        }
         try
         {
             services.SetExamTimer(next);
@@ -85,6 +89,7 @@ public sealed partial class EventEngine
             LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, opcode.ToString(), message);
             throw new EventScriptException(message, exception);
         }
+        RecordBattleModeTimerWrite(fiber, opcode);
         return Pop(fiber, operands.Length);
     }
 

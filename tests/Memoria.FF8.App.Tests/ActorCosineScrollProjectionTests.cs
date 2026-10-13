@@ -55,7 +55,7 @@ public sealed class ActorCosineScrollProjectionTests
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
             NativeActorBackgroundScroll phase = world.Events.Scene.ActorBackgroundScroll!;
-            Assert.True(NativeActorCosineScrollPhase.IsValid(phase));
+            Assert.True(NativeActorScrollPhase.IsValid(phase));
             Assert.Equal((phase.ProjectedTargetX!.Value, phase.ProjectedTargetY!.Value), ActorBackgroundScrollCertificate.Resolve(world.Field, world.Events.Scene, world.Events.Actors, phase.NativeActorId)!.Value);
         }
     }

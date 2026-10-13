@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null);
 
 public enum ModelTextureSampling
 {

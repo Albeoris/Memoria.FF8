@@ -69,8 +69,10 @@ public static class NormalCameraCertificate
                     throw new NotSupportedException("Normal parallax translation would exceed the certified native signed-word eighth-pixel range.");
                 }
                 BackgroundScrollSettings settings = scene.BackgroundScrollLayers.GetValueOrDefault(layer) ?? new BackgroundScrollSettings(0, 0, 256, 256);
-                // Native layer raw C - trunc(C*scale/256), then shared DRAWENV -C.
-                layerOffset = new Vector2(-center.X * settings.ScaleX / 256, -center.Y * settings.ScaleY / 256);
+                if (!BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, out layerOffset))
+                {
+                    throw new NotSupportedException("Normal parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
+                }
             }
             if (layerOffset != Vector2.Zero)
             {

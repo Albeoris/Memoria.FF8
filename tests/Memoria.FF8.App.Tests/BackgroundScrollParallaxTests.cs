@@ -66,13 +66,13 @@ public sealed class BackgroundScrollParallaxTests
         Assert.False(BackgroundScrollCertificate.CanSet(field, 0, settings, 0));
         Assert.False(BackgroundScrollCertificate.CanSet(field, 4, settings, 0));
         Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings, 1));
-        Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { OffsetX = 1 }, 0));
+        Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { OffsetX = short.MaxValue }, 0));
         Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { ScaleX = -1 }, 0));
         Assert.False(BackgroundScrollCertificate.CanSet(field, 1, settings with { ScaleX = 257 }, 0));
         FieldAssets wrapping = field with { Information = field.Information! with { BackgroundWrapMask = 2 } };
         Assert.False(BackgroundScrollCertificate.CanSet(wrapping, 1, settings, 0));
         Assert.False(BackgroundScrollCertificate.Supports(wrapping, scene, actors));
-        scene.BackgroundScrollLayers[1] = settings with { OffsetX = 1 };
+        scene.BackgroundScrollLayers[1] = settings with { OffsetX = short.MaxValue };
         Assert.False(BackgroundScrollCertificate.Supports(field, scene, actors));
         scene.BackgroundScrollLayers.Clear();
         scene.FieldPartyNativeActorIds[0] = 1;

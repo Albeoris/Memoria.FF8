@@ -7,12 +7,17 @@ public enum NativeBattleBackend
     AutomaticVictory
 }
 
-public sealed record NativeBattleCompletion(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int RawEncounter, int RawFlags, ushort Encounter, ushort Flags, bool Suppressed, NativeBattleBackend? Backend, long? ReturnFrame, byte? Result, int EmulatedCombatCallbacks);
+public sealed record NativeBattleCompletion(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int RawEncounter, int RawFlags, ushort Encounter, ushort Flags, bool Suppressed, NativeBattleBackend? Backend, long? ReturnFrame, byte? Result, int EmulatedCombatCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] NativeBattleFlagConsumerReceipt? FlagConsumer = null);
 
 public sealed partial class EventEngine
 {
     private string? UnsupportedBattle(Fiber fiber, JsmOperation operation)
     {
+        string? modeAccess = UnsupportedBattleMode(fiber, operation);
+        if (modeAccess is not null)
+        {
+            return modeAccess;
+        }
         if (operation.Opcode == Jsm.Opcode.ADDPARTY && services.WorldControls?.ScriptBattleDisabled20 is not null && fiber.Stack.Count > 0 && fiber.Stack.Peek() >= 8)
         {
             return "Native ADDPARTY argument>=8 requires its original event104 shift branch and party-table behavior; known script-battle flag, PC and operand preserved";
@@ -42,10 +47,34 @@ public sealed partial class EventEngine
 
     private int[] ExecuteMinimalBattle(Fiber fiber)
     {
-        int[] operands = Pop(fiber, 2);
+        int[] operands = fiber.Stack.Take(2).Reverse().ToArray();
         bool suppressed = services.WorldControls!.ScriptBattleDisabled20!.Value;
+        if (!suppressed && services.ExamTimer is Memoria.FF8.Runtime.NativeExamTimerState timer)
+        {
+            try
+            {
+                services.SetExamTimer(timer with { SaveGlobalMask4 = (unchecked((ushort)operands[1]) & 4) != 0 });
+            }
+            catch (NotSupportedException exception)
+            {
+                fiber.Position--;
+                string message = "Native BATTLE timer service rejected its active flags WORD write; PC and operands preserved.";
+                LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, Jsm.Opcode.BATTLE.ToString(), message);
+                throw new EventScriptException(message, exception);
+            }
+        }
+        operands = Pop(fiber, 2);
         // TODO(TD-009): replace the authorized zero-duration automatic victory backend with native combat
         NativeBattleCompletion completion = new(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, operands[0], operands[1], unchecked((ushort)operands[0]), unchecked((ushort)operands[1]), suppressed, suppressed ? null : NativeBattleBackend.AutomaticVictory, null, null, 0);
+        if (!suppressed)
+        {
+            ushort? persistentMode = Scene.NativeBattleFlagWrites is { Count: > 0 } history ? history[^1].PersistentFlags : null;
+            completion = completion with { FlagConsumer = new NativeBattleFlagConsumerReceipt(completion.Flags, persistentMode, true, false) };
+            if (persistentMode is ushort knownMode)
+            {
+                AppendBattleFlagWrite(NativeBattleFlagWriter.Battle, fiber, operands[1], knownMode, completion.Flags);
+            }
+        }
         Scene.NativeBattleWaits ??= [];
         Scene.NativeBattleCompletions ??= [];
         Scene.NativeBattleWaits.Add(fiber.Sequence, Scene.NativeBattleCompletions.Count);
@@ -81,6 +110,7 @@ public sealed partial class EventEngine
 
     private void ValidateNativeBattleCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
+        ValidateNativeBattleModeCheckpoint(saved);
         if (saved.Scene.NativeBattleCompletions is null)
         {
             if (saved.Scene.NativeBattleWaits is not null || saved.Scene.NativeBattleResult is not null || bySequence.Values.Any(fiber => fiber.WaitReason == WaitReason.MinimalBattle))
@@ -98,6 +128,14 @@ public sealed partial class EventEngine
             if (completion is null || completion.Version != 1 || completion.FieldId is < 0 or > ushort.MaxValue || completion.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || completion.Frame <= 0 || completion.ObjectId < 0 || completion.ScriptId < 0 || completion.Operation < 0 || completion.Encounter != unchecked((ushort)completion.RawEncounter) || completion.Flags != unchecked((ushort)completion.RawFlags) || completion.EmulatedCombatCallbacks != 0 || completion.ReturnFrame is long returned && returned <= completion.Frame)
             {
                 throw new InvalidDataException("Saved minimal battle request changed its original source, WORD operands or declared zero combat callback policy.");
+            }
+            if (completion.Suppressed ? completion.FlagConsumer is not null : completion.FlagConsumer is not { ReplacedActiveFlags: true, NativeEncounterFlagMergeEmulated: false } consumer || consumer.RequestedFlags != completion.Flags)
+            {
+                throw new InvalidDataException("Saved native battle flag consumer changed its requested WORD or deferred encounter merge contract.");
+            }
+            if (completion.FlagConsumer?.PersistentModeFlags is ushort persistentMode && (saved.Scene.NativeBattleFlagWrites?.Count(write => write.Writer == NativeBattleFlagWriter.Battle && write.FieldId == completion.FieldId && write.ProgramHash == completion.ProgramHash && write.Frame == completion.Frame && write.ObjectId == completion.ObjectId && write.ScriptId == completion.ScriptId && write.Operation == completion.Operation && write.RawOperand == completion.RawFlags && write.ActiveFlags == completion.Flags && write.PersistentFlags == persistentMode) ?? 0) != 1)
+            {
+                throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
             }
             if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend != NativeBattleBackend.AutomaticVictory || (completion.ReturnFrame is null ? completion.Result is not null : completion.Result != 0))
             {
