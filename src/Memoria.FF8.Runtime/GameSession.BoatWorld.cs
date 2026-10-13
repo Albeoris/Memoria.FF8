@@ -54,4 +54,9 @@ public sealed partial class GameSession
         }
         return saved.WithBoatReturn(receipt);
     }
+
+    private static NativeWorldConfiguration? PrepareBoatWorldConfiguration(GameState departure, WorldState finalWorld)
+    {
+        return finalWorld.NativeBoatRuntime?.Return is null ? departure.WorldConfiguration : NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId);
+    }
 }

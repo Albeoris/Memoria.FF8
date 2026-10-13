@@ -133,6 +133,8 @@ public sealed partial class EventEngine
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
         Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
+        Scene.VibrationRequest = previousScene.VibrationRequest;
+        Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
         CopyNativeMediaHistory(previousScene);
         CopyNativeMusicLoad(previousScene, nativeRuntimeProfile);
         InitializePreviousField(previousFieldId);
@@ -182,6 +184,7 @@ public sealed partial class EventEngine
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
+                actors[^1].NativeFootstepPair = new NativeFootstepPairState(1, 255, 255, new NativeFootstepPairSource(1, "Allocation", fieldId, programHash, nativeRuntimeProfile.ExecutableHash, obj.Index, -1, -1, 0));
             }
             if (obj.BackgroundModuleIndex is int moduleIndex)
             {
@@ -408,6 +411,12 @@ public sealed partial class EventEngine
         ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.CharacterId == 0 && actor.Visible);
         if (player is null)
         {
+            return [];
+        }
+        if (player.NativeScriptMovement is { Active: true })
+        {
+            // 4789A0 skips ordinary input when this body's movement mode572
+            // is nonzero; the post-VM scripted driver retains ownership.
             return [];
         }
         if (!nativeMovement && program.Objects.Any(obj => obj.IsDoor))

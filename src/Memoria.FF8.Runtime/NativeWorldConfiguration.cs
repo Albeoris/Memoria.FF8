@@ -16,10 +16,12 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
     public static NativeWorldConfiguration FromWorldReturn(WorldState world, int fieldId)
     {
         byte entity;
+        long sourceFrame = world.Frame;
         if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat)
         {
             boat.Validate();
             entity = boat.Path.EntityType;
+            sourceFrame = boat.Return?.SourceWorldFrame ?? throw new NotSupportedException("Boat world configuration requires its executed endpoint packet write.");
         }
         else if (world.NativeCarRuntime is NativeCarWorldRuntimeState car)
         {
@@ -35,7 +37,7 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
         {
             throw new NotSupportedException("Native world configuration requires its executed current entity runtime.");
         }
-        return new NativeWorldConfiguration(1, ReturnRule, entity, checked((ushort)fieldId), world.Frame);
+        return new NativeWorldConfiguration(1, ReturnRule, entity, checked((ushort)fieldId), sourceFrame);
     }
 
     public void Validate()

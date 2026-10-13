@@ -107,7 +107,7 @@ public sealed class NativePlayerBindingTests
         twoMembers.FieldPartyNativeActorIds[1] = 1;
         Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, twoMembers, player));
         twoMembers.FieldPartyNativeActorIds[1] = 255;
-        Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, twoMembers, player));
+        Assert.True(NativePlayerMovementAdapter.Supports(world.Field!, twoMembers, player));
         SceneEventState internalHole = CloneScene(world.Events.Scene);
         internalHole.FieldPartyNativeActorIds[2] = 2;
         Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, internalHole, player));

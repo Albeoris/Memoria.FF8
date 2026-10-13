@@ -45,6 +45,7 @@ public sealed class NativeBoatWorldStateTests
         session.CommitWorldAction(endpoint);
         Assert.Equal(receipt, session.State.SavedWorld!.BoatReturn);
         Assert.Equal(230, receipt.SourceWorldFrame);
+        Assert.Equal(230, session.State.WorldConfiguration!.SourceWorldFrame);
         Assert.Equal(saved.Slot4, session.State.SavedWorld.Slot4);
         Assert.Equal(saved.Slot5, session.State.SavedWorld.Slot5);
         Assert.Equal((ushort)NativeWorldScriptedPathMath.NativeAngle(unchecked((short)(path.Camera.Target.X - path.Camera.Eye.X)), unchecked((short)(path.Camera.Target.Z - path.Camera.Eye.Z))), receipt.CameraYaw96);
@@ -70,6 +71,7 @@ public sealed class NativeBoatWorldStateTests
         Assert.Equal(230, session.State.SavedWorld!.BoatReturn!.SourceWorldFrame);
         Assert.Equal(JsonSerializer.Serialize(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 246)), JsonSerializer.Serialize(session.State.ExamTimer));
         Assert.Equal((byte)66, session.State.WorldConfiguration!.EntityByte);
+        Assert.Equal(230, session.State.WorldConfiguration.SourceWorldFrame);
         session.State.WorldConfiguration.Validate();
     }
 }

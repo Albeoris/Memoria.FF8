@@ -278,7 +278,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         ValidatePreparedWorldActions(liveWorld, state);
-        GameState candidate = departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) };
+        GameState candidate = departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), WorldConfiguration = PrepareBoatWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) };
         Validate(candidate);
         State = candidate;
     }

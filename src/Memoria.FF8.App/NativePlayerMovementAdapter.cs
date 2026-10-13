@@ -82,7 +82,7 @@ public static class NativePlayerMovementAdapter
 
     private static bool SupportsBinding(SceneEventState scene, int objectId)
     {
-        if (scene.NativeFieldLoadVersion != 1 || scene.NativeActorLayoutVersion != 1 || scene.NativePartyTraceVersion != 1 || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count || scene.FieldPartyNativeActorIds.Count != 3 || scene.Party.Count is < 1 or > 2 || scene.Party[0] != 0 || scene.Party.Any(character => character is < 0 or >= 255) || scene.Party.Distinct().Count() != scene.Party.Count)
+        if (scene.NativeFieldLoadVersion != 1 || scene.NativeActorLayoutVersion != 1 || scene.NativePartyTraceVersion != 1 || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count || scene.FieldPartyNativeActorIds.Count != 3 || scene.Party.Count is < 1 or > 3 || scene.Party[0] != 0 || scene.Party.Any(character => character is < 0 or >= 255) || scene.Party.Distinct().Count() != scene.Party.Count)
         {
             return false;
         }
@@ -97,7 +97,16 @@ public static class NativePlayerMovementAdapter
                     return false;
                 }
             }
-            else if (nativeActor == 255 || (uint)nativeActor >= scene.NativeActorObjectIds.Count || !present.Add(nativeActor))
+            else if (nativeActor == 255)
+            {
+                // 478430 skips each absent runtime follower independently;
+                // canonical party membership and saved B194..196 can remain.
+                if (slot == 0)
+                {
+                    return false;
+                }
+            }
+            else if ((uint)nativeActor >= scene.NativeActorObjectIds.Count || !present.Add(nativeActor))
             {
                 return false;
             }

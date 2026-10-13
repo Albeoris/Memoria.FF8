@@ -109,14 +109,15 @@ public sealed partial class EventEngine
         foreach (ReplayNavigationStimulus stimulus in entry.Navigation)
         {
             ActorState player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0) ?? throw new InvalidDataException("Recorded navigation requires the live current-code player actor.");
-            if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested || FieldId != stimulus.Start.FieldId || player.X != stimulus.Start.X || player.Y != stimulus.Start.Y || player.Z != stimulus.Start.Z || player.WalkmeshTriangle != stimulus.Start.Triangle)
+            bool completedNativePlacement = HasCompletedNativeNavigationOrigin(player);
+            if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested || FieldId != stimulus.Start.FieldId || player.X != stimulus.Start.X || player.Y != stimulus.Start.Y || player.Z != stimulus.Start.Z || player.WalkmeshTriangle != stimulus.Start.Triangle && !completedNativePlacement)
             {
                 throw new InvalidDataException($"Recorded navigation does not match the current causal starting pose or control boundary at field{FieldId}/frame{Frame}: control={IsUserControlEnabled}, dialogue={IsDialogueBlocking}, movie={services.IsMoviePlaying}, transition={transitionRequested}; expected({stimulus.Start.X},{stimulus.Start.Y},{stimulus.Start.Z},tri{stimulus.Start.Triangle}), actual({player.X},{player.Y},{player.Z},tri{player.WalkmeshTriangle}).");
             }
             ReplayPlayerPose end = stimulus.End;
             FieldFixedPosition? fixedPosition = end.FixedX is int fixedX ? new FieldFixedPosition(fixedX, end.FixedY!.Value, end.FixedZ!.Value) : null;
             FieldFixedPosition? triggerPosition = stimulus.TriggerFixedX is int triggerX ? new FieldFixedPosition(triggerX, stimulus.TriggerFixedY!.Value, stimulus.TriggerFixedZ!.Value) : null;
-            replayCapture?.Navigation.Add(stimulus);
+            replayCapture?.Navigation.Add(stimulus with { Start = ReplayPose()! });
             IReadOnlyList<NativeLineContactChange> lineChanges = MovePlayerCore(end.X, end.Y, end.Z, end.Triangle, fixedPosition, end.Direction, stimulus.NativeMovement, triggerPosition);
             if (stimulus.NativeMovement)
             {
@@ -141,6 +142,14 @@ public sealed partial class EventEngine
             }
         }
         return new PlayerActionResult(true, NextTrigger, advanced);
+    }
+
+    private bool HasCompletedNativeNavigationOrigin(ActorState player)
+    {
+        //479970's terminal snap writes400/404 but preserves506. A corrected native
+        //MOVE can retain a different last grounded triangle than the former managed
+        //driver at the identical target. The completed current-code receipt owns it.
+        return player.NativeScriptMovement is { Version: 1, Active: false, Completion: 2, Cancelled: false } movement && player.NativeMotionAuthority is { Version: 1 } && Scene.NativePlayerPosition is FieldFixedPosition raw && IsNativePartyPlayerBody(player) && raw.X == movement.FixedX && raw.Y == movement.FixedY && raw.Z == movement.FixedZ && player.X == raw.X / 4096f && player.Y == raw.Y / 4096f && player.Z == raw.Z / 4096f && player.WalkmeshTriangle == movement.Triangle && CanUseNativeScriptMove?.Invoke(player) == true;
     }
 
     private ReplayJournalEntry ReplayBoundary(ReplayEntryKind kind)

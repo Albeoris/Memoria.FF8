@@ -39,7 +39,7 @@ public sealed partial class EventEngine
         {
             return FieldId >= 72 ? UnsupportedSoundInitializationAliases() : "Native INITSOUND requires an ordinary field";
         }
-        if (operation.Opcode is Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS)
+        if (operation.Opcode is Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE)
         {
             return UnsupportedMusicVolume(fiber, operation.Opcode);
         }

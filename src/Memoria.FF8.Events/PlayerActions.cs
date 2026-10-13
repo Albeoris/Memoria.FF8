@@ -159,6 +159,18 @@ public sealed partial class EventEngine
                         }
                         for (int index = 0; index < action.Frames; index++)
                         {
+                            if (player!.NativeScriptMovement is { Active: true })
+                            {
+                                FieldFixedPosition position = ReadNativeScriptPosition(player) ?? throw new NotSupportedException("Scripted player input suppression requires the actual retained raw body position.");
+                                RecordReplayNavigation(player, new WalkmeshPosition(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle), position, (int)player.Direction, false, null, []);
+                                Step();
+                                advanced++;
+                                if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested)
+                                {
+                                    break;
+                                }
+                                continue;
+                            }
                             int[] pushContacts = [];
                             IReadOnlyList<NativeLineContactChange> lineChanges = [];
                             if (Scene.NativePartyTraceVersion == 1)

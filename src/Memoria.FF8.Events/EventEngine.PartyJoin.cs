@@ -210,6 +210,12 @@ public sealed partial class EventEngine
 
     private void SelectFullNativeAnimation(ActorState actor, int animation, bool reset)
     {
+        if (HasNativeEmptyAnimationModel(actor))
+        {
+            // 532A40 routes native536=-1 through531D40, which retains an
+            // empty model record.532890(mode13) does not select a resource.
+            return;
+        }
         int frames = AnimationFrameCount?.Invoke(actor.ModelId, animation) ?? throw new NotSupportedException("Native animation selection requires model frame metadata.");
         if (frames <= 0)
         {
@@ -230,6 +236,11 @@ public sealed partial class EventEngine
             actor.BaseFirstFrame = 0;
             actor.BaseLastFrame = frames - 1;
         }
+    }
+
+    private bool HasNativeEmptyAnimationModel(ActorState actor)
+    {
+        return NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.ModelId is -1 or ushort.MaxValue;
     }
 
     private bool IsCavernNativeMoveJoin => FieldId == 129 && partyJoin is { UsesNativeMovement: true, Targets.Length: 1 } && partyJoin.Targets[0].ObjectId == 5 && actors[5].NativeMotionAuthority is { Version: 1, FacingHold: 0 };
@@ -520,7 +531,7 @@ public sealed partial class EventEngine
         PartyTraceState trace = Scene.PartyTrace ?? throw new NotSupportedException("Native party trace is unavailable.");
         ActorState player = ResolvePartyActor(0) ?? throw new NotSupportedException("Native party trace has no leader binding.");
         int playerAnimation = moved ? Scene.RunEnabled ? player.RunAnimationId : player.WalkAnimationId : player.BaseAnimationId;
-        if (AnimationFrameCount?.Invoke(player.ModelId, playerAnimation) is not > 0)
+        if (!HasNativeEmptyAnimationModel(player) && AnimationFrameCount?.Invoke(player.ModelId, playerAnimation) is not > 0)
         {
             throw new NotSupportedException("Native player trace requires complete animation metadata before movement.");
         }
@@ -536,7 +547,7 @@ public sealed partial class EventEngine
             int offset = slot == 1 ? trace.FirstOffset : trace.SecondOffset;
             PartyTraceSample animation = trail[(trace.Cursor - offset) & 63] ?? throw new NotSupportedException("Native party animation would observe an opaque trace record; original positions preserved.");
             PartyTraceSample sample = trail[(nextCursor - offset) & 63] ?? throw new NotSupportedException("Native party movement would observe an opaque trace record; original positions preserved.");
-            if (!TryReadNativeBaseAnimations(follower, out int idle, out int walk, out int run) || AnimationFrameCount?.Invoke(follower.ModelId, moved ? animation.Animation switch { 0 => walk, 1 => run, 2 => idle, _ => -1 } : idle) is not > 0)
+            if (!HasNativeEmptyAnimationModel(follower) && (!TryReadNativeBaseAnimations(follower, out int idle, out int walk, out int run) || AnimationFrameCount?.Invoke(follower.ModelId, moved ? animation.Animation switch { 0 => walk, 1 => run, 2 => idle, _ => -1 } : idle) is not > 0))
             {
                 throw new NotSupportedException("Native follower trace requires proved animation mode and model metadata.");
             }

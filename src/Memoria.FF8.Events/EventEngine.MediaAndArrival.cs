@@ -45,18 +45,33 @@ public sealed partial class EventEngine
             Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.WINSIZE or Jsm.Opcode.MESSYNC or Jsm.Opcode.MENUNAME or Jsm.Opcode.MESMODE or
             Jsm.Opcode.SETMESSPEED or Jsm.Opcode.BGDRAW or Jsm.Opcode.BGOFF or Jsm.Opcode.BGCLEAR or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.Unknown16 or Jsm.Opcode.BGANIMESPEED or Jsm.Opcode.BGANIME or Jsm.Opcode.RBGANIME or
             Jsm.Opcode.BGANIMESYNC or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.RBGSHADELOOP or Jsm.Opcode.BGSHADE or Jsm.Opcode.BGSHADEOFF or Jsm.Opcode.DCOLADD or Jsm.Opcode.DCOLSUB or Jsm.Opcode.FCOLADD or Jsm.Opcode.FCOLSUB or
-            Jsm.Opcode.COLSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADENONE or Jsm.Opcode.FADESYNC or Jsm.Opcode.MAPFADEOFF or
+            Jsm.Opcode.COLSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADENONE or Jsm.Opcode.SETVIBRATE or Jsm.Opcode.FADESYNC or Jsm.Opcode.MAPFADEOFF or
             Jsm.Opcode.MAPFADEON or Jsm.Opcode.MAPJUMPON or Jsm.Opcode.MAPJUMPOFF or Jsm.Opcode.WORLDMAPJUMP or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.TALKRADIUS or
-            Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.SETLINE or
+            Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.FOOTSTEP or Jsm.Opcode.FOOTSTEPCOPY or Jsm.Opcode.FOOTSTEPCUT or Jsm.Opcode.SETLINE or
             Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.DOORLINEON or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.BATTLEOFF or Jsm.Opcode.BATTLEON or Jsm.Opcode.SARALYOFF or
             Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or
             Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.KEYON or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
-            Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
+            Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE or Jsm.Opcode.ALLSEVOLTRANS or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
         _ => false
     };
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        string? vibration = UnsupportedVibrationRequest(fiber, operation);
+        if (vibration is not null)
+        {
+            return vibration;
+        }
+        string? allSoundVolume = UnsupportedAllSoundVolumeTransition(fiber, operation);
+        if (allSoundVolume is not null)
+        {
+            return allSoundVolume;
+        }
+        string? footstepPair = UnsupportedFootstepPair(fiber, operation);
+        if (footstepPair is not null)
+        {
+            return footstepPair;
+        }
         string? actorShadow = UnsupportedActorShadow(fiber, operation);
         if (actorShadow is not null)
         {

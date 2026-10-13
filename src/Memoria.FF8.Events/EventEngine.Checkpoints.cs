@@ -101,6 +101,8 @@ public sealed partial class EventEngine
         ValidateSoundInitializationCheckpoint(saved);
         ValidateSoundStopCheckpoint(saved);
         ValidateSoundVolumeTransitionCheckpoint(saved);
+        ValidateVibrationCheckpoint(saved);
+        ValidateAllSoundVolumeTransitionCheckpoint(saved);
         ValidateFollowOffCheckpoint(saved);
         ValidateMusicStopCheckpoint(saved);
         ValidateMusicLoadCheckpoint(saved);
@@ -112,6 +114,7 @@ public sealed partial class EventEngine
         ValidateDisplayOffsetCheckpoint(saved);
         ValidateActorBackgroundScrollCheckpoint(saved);
         ValidateActorShadowCheckpoint(saved);
+        ValidateFootstepPairCheckpoint(saved);
         if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8))
         {
             throw new InvalidDataException("Saved background scroll layer is outside the eight original records.");

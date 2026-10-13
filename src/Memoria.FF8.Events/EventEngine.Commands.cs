@@ -802,6 +802,9 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 fiber.Results[0] = (unchecked((uint)args[0]) & Scene.ButtonInput!.Pressed) != 0 ? 1 : 0;
                 break;
+            case Jsm.Opcode.SETVIBRATE:
+                args = ExecuteVibrationRequest(fiber);
+                break;
             case Jsm.Opcode.DCOLADD:
             case Jsm.Opcode.DCOLSUB:
                 args = Pop(fiber, 3);
@@ -879,6 +882,15 @@ public sealed partial class EventEngine
             case Jsm.Opcode.FOOTSTEPON:
             case Jsm.Opcode.FOOTSTEPOFF:
                 actor.FootstepsEnabled = opcode == Jsm.Opcode.FOOTSTEPON;
+                break;
+            case Jsm.Opcode.FOOTSTEP:
+                args = ExecuteFootstepPair(fiber, operation);
+                break;
+            case Jsm.Opcode.FOOTSTEPCOPY:
+                ExecuteFootstepCopy(fiber);
+                break;
+            case Jsm.Opcode.FOOTSTEPCUT:
+                ExecuteFootstepCut(fiber);
                 break;
             case Jsm.Opcode.SETLINE:
                 args = ExecuteNativeSetLine(fiber, operation);
@@ -1003,7 +1015,11 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MUSICVOL:
             case Jsm.Opcode.MUSICVOLTRANS:
+            case Jsm.Opcode.MUSICVOLFADE:
                 args = ExecuteMusicVolume(fiber, opcode);
+                break;
+            case Jsm.Opcode.ALLSEVOLTRANS:
+                args = ExecuteAllSoundVolumeTransition(fiber);
                 break;
             default:
                 throw Fault(fiber, $"Unsupported required opcode {opcode} (parameter {parameter}); no state was fabricated.");

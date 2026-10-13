@@ -55,6 +55,12 @@ public sealed class SceneEventState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSoundVolumeTransition? SoundVolumeTransition { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeVibrationRequest? VibrationRequest { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeAllSoundVolumeTransition? AllSoundVolumeTransition { get; internal set; }
+    [JsonInclude]
     public bool RandomBattlesEnabled { get; internal set; } = true;
     [JsonInclude]
     public bool SalaryEnabled { get; internal set; } = true;

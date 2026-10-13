@@ -59,6 +59,9 @@ public sealed class ActorState
     [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFootstepPairState? NativeFootstepPair { get; internal set; }
+    [JsonInclude]
     public int TalkRadius { get; internal set; } = 128;
     [JsonInclude]
     public int PushRadius { get; internal set; } = 48;

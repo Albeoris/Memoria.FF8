@@ -55,11 +55,16 @@ internal static partial class Program
                     ["rcmove"] = NativeRcMoveContract,
                     ["door-line-toggle"] = NativeDoorLineToggleContract,
                     ["party-actor-direction"] = NativePartyActorDirectionContract,
+                    ["player-script-handoff"] = NativePlayerScriptHandoffContract,
+                    ["empty-party-model"] = NativeEmptyPartyModelContract,
+                    ["vibration"] = NativeVibrationContract,
                     ["actor-shadow"] = NativeActorShadowContract,
+                    ["footstep-pair"] = NativeFootstepPairContract,
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
                     ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,
+                    ["music-fade"] = NativeMusicFadeContract,
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
                     ["sound-stop"] = NativeSoundStopContract,
                     ["native-talk"] = NativeTalkSelectionContract,
@@ -115,10 +120,15 @@ internal static partial class Program
             NativeRcMoveContract();
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
+            NativePlayerScriptHandoffContract();
+            NativeEmptyPartyModelContract();
+            NativeVibrationContract();
             NativeActorShadowContract();
+            NativeFootstepPairContract();
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeMusicLoadContract();
+            NativeMusicFadeContract();
             NativeSoundInitializationContract(gameDirectory);
             NativeSoundStopContract();
             NativeTalkSelectionContract();
