@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 /// <summary>Layer0 continuous actor follow; unknown old center words remain unknown until native post-VM projection.</summary>
-public sealed record NativeActorBackgroundScroll(int Version, int NativeObjectId, int ObjectId, byte NativeActorId, byte Status, short? X, short? Y, short? PreviousX, short? PreviousY, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? PartySlot = null);
+public sealed record NativeActorBackgroundScroll(int Version, int NativeObjectId, int ObjectId, byte NativeActorId, byte Status, short? X, short? Y, short? PreviousX, short? PreviousY, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? PartySlot = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] byte Mode = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] short Duration = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] short Counter = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] short? ProjectedTargetX = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] short? ProjectedTargetY = null);
 
 public sealed partial class EventEngine
 {
@@ -65,14 +65,16 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private void BeginNativeActorBackgroundScroll(int rawObjectId, int objectId, byte nativeActor, int? partySlot = null)
+    private void BeginNativeActorBackgroundScroll(int rawObjectId, int objectId, byte nativeActor, int? partySlot = null, byte mode = 0, short duration = 0)
     {
         short? x = Scene.ActorBackgroundScroll?.X;
         short? y = Scene.ActorBackgroundScroll?.Y;
+        short counter = Scene.ActorBackgroundScroll?.Counter ?? 0;
         if (Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? prior))
         {
             x = prior.X;
             y = prior.Y;
+            counter = prior.Counter;
             Scene.BackgroundScrollPositions.Remove(0);
         }
         else if (Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex)
@@ -80,7 +82,7 @@ public sealed partial class EventEngine
             x = normal.X;
             y = normal.Y;
         }
-        Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, Scene.ActorBackgroundScroll?.PreviousX, Scene.ActorBackgroundScroll?.PreviousY, partySlot);
+        Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, Scene.ActorBackgroundScroll?.PreviousX, Scene.ActorBackgroundScroll?.PreviousY, partySlot, mode, duration, mode == 2 ? counter : (short)0);
         Scene.NormalBackgroundScrollCenter = null;
     }
 
@@ -88,6 +90,11 @@ public sealed partial class EventEngine
     {
         if (Scene.ActorBackgroundScroll is not NativeActorBackgroundScroll state)
         {
+            return;
+        }
+        if (state.Mode == 2)
+        {
+            StepNativeActorCosineBackgroundScroll(state);
             return;
         }
         (short X, short Y) center = ResolveNativeActorScrollCenter?.Invoke(state.NativeActorId) ?? throw new NotSupportedException("Continuous native actor camera projection lost its certified endpoint; no guessed center is committed.");
@@ -101,7 +108,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (state.Version != 1 || state.PartySlot is < 0 or > 2 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || state.Status is not (0 or 1) || state.X.HasValue != state.Y.HasValue || state.PreviousX.HasValue != state.PreviousY.HasValue || state.Status == 1 && !state.X.HasValue || saved.Scene.BackgroundScrollPositions.ContainsKey(0) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || ResolveNativeActorScrollCenter is null || CanRestoreNativeActorScroll?.Invoke(saved.Scene, saved.Actors) != true)
+        if (state.Version != 1 || state.PartySlot is < 0 or > 2 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || !NativeActorCosineScrollPhase.IsValid(state) || saved.Scene.BackgroundScrollPositions.ContainsKey(0) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || ResolveNativeActorScrollCenter is null || CanRestoreNativeActorScroll?.Invoke(saved.Scene, saved.Actors) != true)
         {
             throw new InvalidDataException("Saved continuous actor scroll lost its raw/retained actor binding, phase or projection authority.");
         }

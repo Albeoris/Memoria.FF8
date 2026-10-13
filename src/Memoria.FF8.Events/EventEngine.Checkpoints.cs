@@ -286,10 +286,10 @@ public sealed partial class EventEngine
             bool ownerExists = bySequence.TryGetValue(motion.FiberSequence, out Fiber? owner);
             bool validOwner = ownerExists && owner!.ObjectId == actor.ObjectId && owner.Script.Id == motion.ScriptId;
             EventScript? issuingScript = program.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == motion.ScriptId);
-            string movementOpcode = motion.HoldsFacing ? "RCMOVE" : motion.TargetNativeObjectId is not null ? "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
-            if (motion.HoldsFacing && (!motion.Asynchronous || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null || motion.DirectionLimit != 0))
+            string movementOpcode = motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            if (motion.HoldsFacing && (motion.AutomaticAnimation || motion.TargetNativeObjectId is not null || motion.DirectionLimit != 0))
             {
-                throw new InvalidDataException("Saved RCMOVE lost its asynchronous facing hold, animation policy or cleared direction limit.");
+                throw new InvalidDataException("Saved held-facing CMOVE/RCMOVE lost its animation policy or cleared direction limit.");
             }
             if (motion.ResetAnimationOnCompletion is not null && (motion.ResetAnimationOnCompletion != true || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null))
             {

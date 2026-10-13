@@ -6,7 +6,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-/// <summary>Shared native layer0 direct/cosine camera center for ordinary nonwrapping field resources.</summary>
+/// <summary>Shared native layer0 direct/interpolated camera center for ordinary nonwrapping field resources.</summary>
 internal static class DirectBackgroundScrollCertificate
 {
     public static bool CanSet(FieldAssets field, SceneEventState scene, int layer, short x, short y)
@@ -21,6 +21,21 @@ internal static class DirectBackgroundScrollCertificate
             return false;
         }
         return scene.BackgroundScrollPositions.ContainsKey(0) || scene.ActorBackgroundScroll is { X: short actorX, Y: short actorY } && InRange(actorX) && InRange(actorY) || scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks && InRange(normal.X) && InRange(normal.Y);
+    }
+
+    public static bool CanSetLinear(FieldAssets field, NativeLinearScrollQuery query)
+    {
+        return query.Layer == 0 && query.Duration >= 0 && InRange(query.StartX) && InRange(query.StartY) && InRange(query.TargetX) && InRange(query.TargetY) && NormalCameraCertificate.HasBaseline(field, 0) && field.Information!.BackgroundWrapMask == 0;
+    }
+
+    public static bool CanBeginLinear(FieldAssets field, NativeLinearScrollQuery query, SceneEventState scene)
+    {
+        return CanSetLinear(field, query) && HasBaseline(field, scene) && ValidPositions(scene);
+    }
+
+    public static bool SupportsLinearPhase(FieldAssets field, SceneEventState scene)
+    {
+        return scene.BackgroundScrollPositions.Count == 1 && scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && position.Mode == 4 && HasBaseline(field, scene) && ValidPositions(scene);
     }
 
     internal static (short X, short Y)? ResolveNormalCenter(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
@@ -82,7 +97,15 @@ internal static class DirectBackgroundScrollCertificate
 
     private static bool ValidPosition(BackgroundScrollPosition state)
     {
-        if (state.NativeLinearVersion != 0 || !InRange(state.X) || !InRange(state.Y) || !InRange(state.TargetX) || !InRange(state.TargetY))
+        if (!InRange(state.X) || !InRange(state.Y) || !InRange(state.TargetX) || !InRange(state.TargetY))
+        {
+            return false;
+        }
+        if (state.Mode == 4)
+        {
+            return NativeLinearScrollPhase.IsValid(state) && (state.Status == 0 || InRange(state.PreviousX) && InRange(state.PreviousY));
+        }
+        if (state.NativeLinearVersion != 0)
         {
             return false;
         }

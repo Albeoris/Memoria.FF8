@@ -83,11 +83,13 @@ internal static partial class Program
         Require(alias.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1, "Unproved timer memory alias advanced its issuing PC.");
         GameSession movieSession = new(new GameState { Scene = SceneKind.Field, ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay() });
         EventEngine movie = new(movieSession, movieSession.State.Variables);
-        movie.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.RET, 0)), []);
+        movie.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         movie.Step();
-        Require(movieSession.IsMoviePlaying && movieSession.ExamTimer!.ClockCalls == 2, "Accepted movie start changed the pre-VM ordinary callback count.");
+        Require(!movieSession.IsMoviePlaying && movieSession.ExamTimer!.ClockCalls == 2, "MOVIEREADY did not yield its original return3 ordinary callback before starting playback.");
         movie.Step();
-        Require(movieSession.ExamTimer!.ClockCalls == 6 && !movieSession.ExamTimer.DisplayEnabled, "Killed timer lost its still-running four-call movie callback clock.");
+        Require(movieSession.IsMoviePlaying && movieSession.ExamTimer!.ClockCalls == 4, "Accepted movie start changed the pre-VM ordinary callback count.");
+        movie.Step();
+        Require(movieSession.ExamTimer!.ClockCalls == 8 && !movieSession.ExamTimer.DisplayEnabled, "Killed timer lost its still-running four-call movie callback clock.");
         Console.WriteLine("Native exam timer: SET/DISP/GET/KILL, unknown correlated fractional phase, two pre-VM field clocks, post-VM expiry refusal, exact or range HUD, independent/cross-field restore verified.");
     }
 }

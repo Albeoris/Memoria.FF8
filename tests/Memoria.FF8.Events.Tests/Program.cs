@@ -24,6 +24,7 @@ internal static partial class Program
                     ["exam-timer"] = NativeExamTimerContract,
                     ["native-scalar-memory"] = NativeScalarMemoryContract,
                     ["linear-scroll"] = () => NativeLinearScrollAndSyncContract(selectedGameDirectory),
+                    ["linear-scroll-zero"] = NativeLayerZeroLinearScrollContract,
                     ["scroll-related"] = () =>
                     {
                         NativeDirectScrollAndBoundary(selectedGameDirectory);
@@ -51,6 +52,7 @@ internal static partial class Program
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
                     ["actor-scroll"] = NativeActorScrollContract,
+                    ["actor-cosine-scroll"] = NativeActorCosineScrollContract,
                     ["set-placement"] = NativeSetPlacementContract,
                     ["rcmove"] = NativeRcMoveContract,
                     ["door-line-toggle"] = NativeDoorLineToggleContract,
@@ -67,6 +69,8 @@ internal static partial class Program
                     ["music-load"] = NativeMusicLoadContract,
                     ["cosine-scroll-zero"] = NativeLayerZeroCosineScrollContract,
                     ["native-jump"] = NativeJumpContract,
+                    ["native-jump3"] = NativeJump3Contract,
+                    ["native-cmove"] = NativeHeldFacingCmoveContract,
                     ["party-follow"] = NativePartyBackgroundScrollContract,
                     ["native-party-linear-turn"] = NativePartyLinearTurnContract,
                     ["native-push-preemption"] = NativeEmptyPushPreemptionContract,

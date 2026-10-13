@@ -8,6 +8,66 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
+    private static void NativeJump3Contract()
+    {
+        (Jsm.Opcode Opcode, int Parameter)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode Opcode, int Parameter)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 400), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 900), (Jsm.Opcode.PSHN_L, 65539), (Jsm.Opcode.JUMP3, 333), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)];
+        byte[] content = SyntheticObjects([1], [init, main]);
+        EventEngine Create()
+        {
+            GameSession session = new(new GameState());
+            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4, ResolveNativeTriangleHeight = (triangle, x, y) => triangle == 333 && x == 400 && y == 5 ? 4 : null };
+            engine.LoadField(100, content, []);
+            return engine;
+        }
+        EventEngine actual = Create();
+        List<int[]> evidence = [];
+        int? issuedTargetZ = null;
+        actual.CommandExecuted += command =>
+        {
+            if (command.Name == nameof(Jsm.Opcode.JUMP3))
+            {
+                evidence.Add(command.Arguments.ToArray());
+                issuedTargetZ = actual.Actors[0].NativeJump!.TargetZ;
+            }
+        };
+        actual.Step();
+        int sourceTriangle = actual.Actors[0].WalkmeshTriangle;
+        actual.Step();
+        NativeJumpState setup = actual.Actors[0].NativeJump ?? throw new InvalidOperationException("JUMP3 did not establish raw mode2 state.");
+        Require(evidence.Count == 1 && evidence[0].SequenceEqual(new[] { 400, 5, 900, 65539 }) && issuedTargetZ == 900 * 4096 && setup is { Duration: 3, Elapsed: 0, Completion: 1, TargetTriangle: 333, TargetZ: 16384 } && setup.FixedX == 4096 && setup.FixedY == 8192 && setup.FixedZ == 12288 && setup.Triangle == sourceTriangle, "JUMP3 did not consume all four original operands or failed the native suppliedZ444 overwrite by the inline333 original plane.");
+        EventEngine restored = Create();
+        restored.Restore(actual.Capture());
+        for (int update = 1; update <= 5; update++)
+        {
+            actual.Step();
+            restored.Step();
+            NativeJumpState state = actual.Actors[0].NativeJump!;
+            Require(JsonElement.DeepEquals(actual.Capture(), restored.Capture()), "Independent JUMP3 restoration diverged in raw ballistic placement, target plane or held PC.");
+            if (update <= 3)
+            {
+                Require(state.Completion == 1 && state.Triangle == sourceTriangle && state.Elapsed == update && state.FixedZ == NativeJumpMath.Height(12288, NativeJumpMath.Velocity(12288, 16384, 3), (short)update), "JUMP3 used its discarded suppliedZ as the ballistic endpoint or changed triangle early.");
+            }
+            else
+            {
+                Require(state.Completion == 2 && state.FixedZ == 16383 && state.Triangle == 333 && state.Active == (update == 4), "JUMP3 failed native endpoint residue, separate triangle completion or following VM return3 advance/yield.");
+            }
+        }
+        EventEngine missing = Create();
+        missing.ResolveNativeTriangleHeight = null;
+        missing.Step();
+        try
+        {
+            missing.Step();
+            throw new InvalidOperationException("JUMP3 used its suppliedZ to bypass missing original triangle geometry.");
+        }
+        catch (EventScriptException)
+        {
+        }
+        JsonElement refusal = missing.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+        Require(missing.LastFault is { Opcode: "JUMP3" } && refusal.GetProperty("Position").GetInt32() == setup.Operation && refusal.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 65539, 900, 5, 400 }) && missing.Actors[0].NativeJump is null, "JUMP3 geometry refusal consumed an operand, advanced PC or manufactured a landing plane from suppliedZ.");
+    }
+
     private static void NativeJumpContract()
     {
         Require(NativeJumpMath.Interpolate(0, 524287, 3, 3) == 524287 && NativeJumpMath.Interpolate(0, 524288, 3, 3) == 524286 && NativeJumpMath.Interpolate(0, -524288, 3, 3) == -524286, "Native JUMP lost the original475C60 large-delta division order or its truncated endpoint.");

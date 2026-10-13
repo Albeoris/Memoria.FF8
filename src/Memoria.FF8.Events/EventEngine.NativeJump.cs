@@ -27,19 +27,20 @@ public static class NativeJumpMath
 
 public sealed partial class EventEngine
 {
-    private string? UnsupportedNativeJump(Fiber fiber, int triangle)
+    private string? UnsupportedNativeJump(Fiber fiber, int triangle, bool includesZ = false)
     {
         ActorState actor = actors[fiber.ObjectId];
         if (actor.NativeJump is { Active: true } current)
         {
             return current.FiberSequence == fiber.Sequence && current.ScriptId == fiber.Script.Id && current.Operation == fiber.Position && current.TargetTriangle == unchecked((ushort)triangle) && MatchesNativeJumpPlacement(actor, current) ? null : "Native JUMP requires its original held owner and raw mode2 placement";
         }
-        if (Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || fiber.Stack.Count < 3 || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null || ReadNativeScriptPosition(actor) is null || ResolveNativeTriangleHeight is null)
+        int operandCount = includesZ ? 4 : 3;
+        if (Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || fiber.Stack.Count < operandCount || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null || ReadNativeScriptPosition(actor) is null || ResolveNativeTriangleHeight is null)
         {
-            return "Native JUMP requires three original operands, a retained idle body, preserved fixed placement and the original explicit-triangle plane";
+            return $"Native JUMP requires {operandCount} original operands, a retained idle body, preserved fixed placement and the original explicit-triangle plane";
         }
-        int[] operands = fiber.Stack.Take(3).Reverse().ToArray();
-        short duration = unchecked((short)operands[2]);
+        int[] operands = fiber.Stack.Take(operandCount).Reverse().ToArray();
+        short duration = unchecked((short)operands[^1]);
         int x = unchecked(operands[0] << 12);
         int y = unchecked(operands[1] << 12);
         if (duration <= 0 || (x >> 12) is < short.MinValue or > short.MaxValue || (y >> 12) is < short.MinValue or > short.MaxValue || ResolveNativeTriangleHeight(unchecked((ushort)triangle), x / 4096, y / 4096) is not int height || height is < short.MinValue or > short.MaxValue)
@@ -49,16 +50,17 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private int[] ExecuteNativeJump(Fiber fiber, int triangle)
+    private int[] ExecuteNativeJump(Fiber fiber, int triangle, bool includesZ = false)
     {
         ActorState actor = actors[fiber.ObjectId];
         int[] operands = [];
         if (actor.NativeJump is not { Active: true })
         {
             FieldFixedPosition raw = ReadNativeScriptPosition(actor)!;
-            operands = Pop(fiber, 3);
+            operands = Pop(fiber, includesZ ? 4 : 3);
             actor.NativeScriptMovement = null;
-            actor.NativeJump = new NativeJumpState(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw.X, raw.Y, raw.Z, unchecked(operands[0] << 12), unchecked(operands[1] << 12), 0, unchecked((ushort)triangle), unchecked((short)operands[2]), 0, 0, 0);
+            // JUMP3's supplied target444 is overwritten by the same mode2 plane evaluation before velocity is calculated.
+            actor.NativeJump = new NativeJumpState(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw.X, raw.Y, raw.Z, unchecked(operands[0] << 12), unchecked(operands[1] << 12), includesZ ? unchecked(operands[2] << 12) : 0, unchecked((ushort)triangle), unchecked((short)operands[^1]), 0, 0, 0);
         }
         else if (actor.NativeJump.Completion == 2)
         {
@@ -87,8 +89,9 @@ public sealed partial class EventEngine
                 int? height = ResolveNativeTriangleHeight?.Invoke(current.TargetTriangle, current.TargetX / 4096, current.TargetY / 4096);
                 if (height is null || height is < short.MinValue or > short.MaxValue)
                 {
-                    string message = "Native mode2 JUMP cannot resolve its original explicit landing plane; raw body preserved.";
-                    LastFault = new EventFault(FieldId, objectId, current.ScriptId, current.Operation, "JUMP", message);
+                    string opcode = program!.Operations[current.Operation].Opcode.ToString();
+                    string message = $"Native mode2 {opcode} cannot resolve its original explicit landing plane; raw body preserved.";
+                    LastFault = new EventFault(FieldId, objectId, current.ScriptId, current.Operation, opcode, message);
                     throw new EventScriptException(message);
                 }
                 int targetZ = unchecked(height.Value << 12);
@@ -134,7 +137,7 @@ public sealed partial class EventEngine
             EventScript? issuingScript = (uint)actor.ObjectId < program!.Objects.Count ? program.Objects[actor.ObjectId].Scripts.SingleOrDefault(script => script.Id == jump.ScriptId) : null;
             bool boundedTarget = jump.TargetTriangle is >= 0 and <= ushort.MaxValue && (jump.TargetX >> 12) is >= short.MinValue and <= short.MaxValue && (jump.TargetY >> 12) is >= short.MinValue and <= short.MaxValue && (jump.TargetX & 4095) == 0 && (jump.TargetY & 4095) == 0;
             int? landingHeight = boundedTarget ? ResolveNativeTriangleHeight?.Invoke(jump.TargetTriangle, jump.TargetX / 4096, jump.TargetY / 4096) : null;
-            bool invalid = jump.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || jump.Duration <= 0 || jump.Elapsed < 0 || jump.Elapsed > jump.Duration || jump.Completion is < 1 or > 2 || !jump.Active && jump.Completion != 2 || jump.Completion == 2 && jump.Elapsed != jump.Duration || issuingScript is null || jump.Operation < issuingScript.Start || jump.Operation >= issuingScript.End || (uint)jump.Operation >= program.Operations.Count || program.Operations[jump.Operation].Opcode != Jsm.Opcode.JUMP || unchecked((ushort)program.Operations[jump.Operation].Parameter) != jump.TargetTriangle || !boundedTarget || landingHeight is null || landingHeight is < short.MinValue or > short.MaxValue || jump.TargetZ != unchecked(landingHeight.Value << 12) || owner is not null && (owner.ObjectId != actor.ObjectId || owner.Script.Id != jump.ScriptId) || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || !MatchesNativeJumpPlacement(actor, jump) || jump.Velocity != NativeJumpMath.Velocity(jump.StartZ, jump.TargetZ, jump.Duration) || jump.FixedX != NativeJumpMath.Interpolate(jump.StartX, jump.TargetX, jump.Duration, jump.Elapsed) || jump.FixedY != NativeJumpMath.Interpolate(jump.StartY, jump.TargetY, jump.Duration, jump.Elapsed) || jump.FixedZ != NativeJumpMath.Height(jump.StartZ, jump.Velocity, jump.Elapsed) || (jump.TargetZ & 4095) != 0 || jump.Active && (owner is null || owner.Complete || owner.Position != jump.Operation || owner.WaitReason != WaitReason.NativeJump);
+            bool invalid = jump.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || jump.Duration <= 0 || jump.Elapsed < 0 || jump.Elapsed > jump.Duration || jump.Completion is < 1 or > 2 || !jump.Active && jump.Completion != 2 || jump.Completion == 2 && jump.Elapsed != jump.Duration || issuingScript is null || jump.Operation < issuingScript.Start || jump.Operation >= issuingScript.End || (uint)jump.Operation >= program.Operations.Count || program.Operations[jump.Operation].Opcode is not (Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3) || unchecked((ushort)program.Operations[jump.Operation].Parameter) != jump.TargetTriangle || !boundedTarget || landingHeight is null || landingHeight is < short.MinValue or > short.MaxValue || jump.TargetZ != unchecked(landingHeight.Value << 12) || owner is not null && (owner.ObjectId != actor.ObjectId || owner.Script.Id != jump.ScriptId) || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || !MatchesNativeJumpPlacement(actor, jump) || jump.Velocity != NativeJumpMath.Velocity(jump.StartZ, jump.TargetZ, jump.Duration) || jump.FixedX != NativeJumpMath.Interpolate(jump.StartX, jump.TargetX, jump.Duration, jump.Elapsed) || jump.FixedY != NativeJumpMath.Interpolate(jump.StartY, jump.TargetY, jump.Duration, jump.Elapsed) || jump.FixedZ != NativeJumpMath.Height(jump.StartZ, jump.Velocity, jump.Elapsed) || (jump.TargetZ & 4095) != 0 || jump.Active && (owner is null || owner.Complete || owner.Position != jump.Operation || owner.WaitReason != WaitReason.NativeJump);
             if (invalid)
             {
                 throw new InvalidDataException("Saved native JUMP has inconsistent raw body, ballistic phase, landing plane or held original instruction.");

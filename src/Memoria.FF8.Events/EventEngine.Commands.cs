@@ -188,6 +188,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.DSCROLLA:
                 args = ExecuteActorBackgroundScroll(fiber);
                 break;
+            case Jsm.Opcode.CSCROLLA:
+                args = ExecuteNativeActorCosineBackgroundScroll(fiber);
+                break;
             case Jsm.Opcode.DSCROLLP:
                 args = ExecuteNativePartyBackgroundScroll(fiber);
                 break;
@@ -210,11 +213,20 @@ public sealed partial class EventEngine
             case Jsm.Opcode.JUMP:
                 args = ExecuteNativeJump(fiber, parameter);
                 break;
+            case Jsm.Opcode.JUMP3:
+                args = ExecuteNativeJump(fiber, parameter, true);
+                break;
             case Jsm.Opcode.PLTURN:
                 args = ExecutePartyLinearTurn(fiber);
                 break;
+            case Jsm.Opcode.CMOVE:
+                args = ExecuteNativeScriptMove(fiber);
+                break;
             case Jsm.Opcode.LSCROLL3:
                 args = ExecuteLinearBackgroundScroll(fiber);
+                break;
+            case Jsm.Opcode.LSCROLL:
+                args = ExecuteNativeLayerZeroLinearBackgroundScroll(fiber);
                 break;
             case Jsm.Opcode.SCROLLSYNC2:
                 args = ExecuteBackgroundScrollSync2(fiber);
