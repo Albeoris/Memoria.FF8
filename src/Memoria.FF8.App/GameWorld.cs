@@ -32,6 +32,10 @@ internal sealed partial class GameWorld : IDisposable
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session, session.State.Variables);
+        if (assets.NativeRuntimeProfile is { IsVerified: true })
+        {
+            Events.ShakeTables = assets.ReadNativeShakeTables();
+        }
         if (initializedNativeParty)
         {
             // Native470560 writes field-party DWORD1CFE990=FFFFFF00 after actual New Game.
@@ -65,6 +69,10 @@ internal sealed partial class GameWorld : IDisposable
         {
             if (worldScene is not null)
             {
+                if (session.State.DepartingFieldState is System.Text.Json.JsonElement departure)
+                {
+                    session.SetEventState(departure);
+                }
                 session.SetDepartingFieldState(null);
                 return false;
             }
@@ -74,6 +82,10 @@ internal sealed partial class GameWorld : IDisposable
             }
             worldScene = new WorldMapScene(session, assets.GameDirectory);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+            if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)
+            {
+                session.SetEventState(frozenDeparture);
+            }
             session.SetDepartingFieldState(null);
             session.DismissDialog();
             return true;
@@ -125,12 +137,14 @@ internal sealed partial class GameWorld : IDisposable
         };
         Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
         Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSet(next, layer, settings, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene, Events.Actors);
-        Events.CanSetBackgroundScrollPosition = (layer, x, y) => BackgroundScrollCertificate.CanSetPosition(next, layer, x, y, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene);
+        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || BackgroundScrollCertificate.CanSetPosition(next, layer, x, y, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene);
         Events.CanSetPartyBackgroundScroll = (partySlot, nativeActorId, duration) => BackgroundScrollCertificate.CanSetPartyPosition(next, Events.Scene, partySlot, nativeActorId, duration);
         Events.CanSetCosineBackgroundScroll = (layer, x, y, duration) => BackgroundScrollCertificate.CanSetCosinePosition(next, Events.Scene, layer, x, y, duration);
         Events.ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(next.Walkmesh, x, y, z);
         Events.ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(next.Walkmesh, triangle, x, y);
+        Events.ResolveNativeTriangleCentroid = triangle => FieldPartyTraceGeometry.ResolveTriangleCentroid(next.Walkmesh, triangle);
         Events.CanUseNativeFieldEntryStack = arrival => NativeFieldEntryStackAdapter.Supports(next, arrival);
+        Events.NativeFieldWalkmeshHash = next.WalkmeshHash;
         Events.CanSetLinearBackgroundScroll = query => NativeLinearBackgroundScrollCertificate.CanSet(next, query) || NativeField135LinearScrollCertificate.CanSet(next, query);
         Events.CanRestoreLinearBackgroundScroll = scene => NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeField135LinearScrollCertificate.SupportsPhase(next, scene);
         Events.CanBeginLinearBackgroundScroll = (query, scene) => NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeField135LinearScrollCertificate.CanSet(next, query) && scene.BackgroundScrollLayers.Count == 0 && (scene.BackgroundScrollPositions.Count == 0 || NativeField135LinearScrollCertificate.SupportsPhase(next, scene));
@@ -202,8 +216,20 @@ internal sealed partial class GameWorld : IDisposable
             return worldScene!.Render(renderWidth, renderHeight);
         }
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
-        BackgroundScrollFrame scroll = NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NativeField135LinearScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? BackgroundScrollCertificate.Prepare(Field!, Events.Scene);
+        BackgroundScrollFrame scroll = DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NativeField135LinearScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? BackgroundScrollCertificate.Prepare(Field!, Events.Scene);
         DebugSceneView? view = session.State.DebugView;
+        if (Events.Scene.Shake is NativeFieldShake shake)
+        {
+            Vector2 jitter = new(shake.X.RequireUniqueOutput(), shake.Y.RequireUniqueOutput());
+            if (jitter != Vector2.Zero)
+            {
+                if (scroll.NativeWrap is not null)
+                {
+                    throw new NotSupportedException("Native wrapped background shake placement requires a separate shared renderer contract.");
+                }
+                scroll = new BackgroundScrollFrame(Field!.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => scroll.LayerOffsets.GetValueOrDefault(layer) + jitter), scroll.ActorOffset + jitter);
+            }
+        }
         byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap);
         FieldColorComposite.Apply(pixels, Events.Scene.AdditiveColor, Events.Scene.SubtractiveColor);
         return pixels;

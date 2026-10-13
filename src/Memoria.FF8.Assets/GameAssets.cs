@@ -41,6 +41,21 @@ public sealed class GameAssets : IDisposable
 
     public string GameDirectory { get; }
     public string? NativeExecutableHash { get; }
+    public NativeShakeTables ReadNativeShakeTables()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native shake tables require the preserved English executable profile.");
+        }
+        using FileStream stream = File.OpenRead(Path.Combine(GameDirectory, "FF8_EN.exe"));
+        byte[] random = new byte[256];
+        byte[] cosine = new byte[512];
+        stream.Position = 0x780A18;
+        stream.ReadExactly(random);
+        stream.Position = 0x780D9C;
+        stream.ReadExactly(cosine);
+        return new NativeShakeTables(random, cosine);
+    }
     public NativeCharacterVitals ReadNewGameCharacterVitals()
     {
         if (NativeRuntimeProfile is null)

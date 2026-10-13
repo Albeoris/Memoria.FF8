@@ -139,21 +139,26 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private string? UnsupportedDirectBackgroundScroll(Fiber fiber)
+    private string? UnsupportedDirectBackgroundScroll(Fiber fiber, bool layerZero = false)
     {
         int[] top = fiber.Stack.ToArray();
-        if (top.Length < 3 || (uint)top[2] >= 8)
+        int operands = layerZero ? 2 : 3;
+        if (top.Length < operands || !layerZero && (uint)top[2] >= 8)
         {
-            return "Native DSCROLL2 requires its original three operands and one of eight scroll records";
+            return "Native direct scroll requires its original operands and one of eight scroll records";
         }
-        return CanSetBackgroundScrollPosition?.Invoke(top[2], (short)top[1], (short)top[0]) == true ? null : "Native DSCROLL2 needs proved current scroll state and renderer offsets before mutation";
+        int layer = layerZero ? 0 : top[2];
+        return CanSetBackgroundScrollPosition?.Invoke(layer, (short)top[1], (short)top[0]) == true ? null : "Native direct scroll needs proved current scroll state and renderer offsets before mutation";
     }
 
-    private int[] ExecuteDirectBackgroundScroll(Fiber fiber)
+    private int[] ExecuteDirectBackgroundScroll(Fiber fiber, bool layerZero = false)
     {
-        int[] args = Pop(fiber, 3);
-        BackgroundScrollPosition previous = Scene.BackgroundScrollPositions.GetValueOrDefault(args[0]) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
-        Scene.BackgroundScrollPositions[args[0]] = previous with { TargetX = (short)args[1], TargetY = (short)args[2], Mode = 3, Status = 0, NativeLinearVersion = 0 };
+        int[] args = Pop(fiber, layerZero ? 2 : 3);
+        int layer = layerZero ? 0 : args[0];
+        int x = args[layerZero ? 0 : 1];
+        int y = args[layerZero ? 1 : 2];
+        BackgroundScrollPosition previous = Scene.BackgroundScrollPositions.GetValueOrDefault(layer) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
+        Scene.BackgroundScrollPositions[layer] = previous with { TargetX = (short)x, TargetY = (short)y, Mode = 3, Status = 0, NativeLinearVersion = 0 };
         // Native return3 advances PC and yields its instruction budget.
         WaitFrames(fiber, 1);
         return args;

@@ -61,7 +61,7 @@ public sealed class WorldTerrainRenderer
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
 
-    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true)
+    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, WorldStaticModel? staticModel = null, int staticModelTilt = 0)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
@@ -118,7 +118,14 @@ public sealed class WorldTerrainRenderer
         }
         if (avatarVisible)
         {
-            DrawAvatar(position, heading, animationId, animationFrame);
+            if (staticModel is not null)
+            {
+                DrawStaticModel(staticModel, position, heading, staticModelTilt);
+            }
+            else
+            {
+                DrawAvatar(position, heading, animationId, animationFrame);
+            }
         }
         foreach ((WorldTriangle triangle, Vector3 offset) in transparent.OrderByDescending(item => Vector3.DistanceSquared((item.Triangle.A + item.Triangle.B + item.Triangle.C) / 48 + item.Offset, eye)))
         {
@@ -199,6 +206,27 @@ public sealed class WorldTerrainRenderer
             {
                 Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size);
                 Draw(c, b, d, texture, false);
+            }
+        }
+    }
+
+    private void DrawStaticModel(WorldStaticModel model, Vector3 position, float heading, int tilt)
+    {
+        // Native5472C0 applies car yaw-1024 and the computed model Z tilt before canonical conversion.
+        Matrix4x4 rotation = Matrix4x4.CreateRotationZ(tilt * MathF.Tau / 4096) * Matrix4x4.CreateRotationY(heading - MathF.PI / 2);
+        Vector3[] vertices = model.NativeVertices.Select(vertex => Vector3.Transform(vertex, rotation)).Select(vertex => new Vector3(vertex.X, -vertex.Y, -vertex.Z) / 16 + position / 16).ToArray();
+        foreach (WorldStaticFace face in model.Faces)
+        {
+            PixelImage texture = model.Textures[face.Palette];
+            Vector2 size = new(texture.Width, texture.Height);
+            Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size);
+            Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size);
+            Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size);
+            Draw(a, b, c, texture, face.Transparent);
+            if (face.Vertices.Length == 4)
+            {
+                Vertex d = new(vertices[face.Vertices[3]], face.TextureCoordinates[3] / size);
+                Draw(c, b, d, texture, face.Transparent);
             }
         }
     }

@@ -21,7 +21,7 @@ public sealed record WorldTriangle(Vector3 A, Vector3 B, Vector3 C, Vector2 UvA,
 public sealed record WorldSegment(int MapId, int SourceId, uint GroupId, IReadOnlyList<WorldTriangle> Triangles);
 
 /// <summary>Reads selected original world segments. Coordinates use centered native X/Z and upward elevation.</summary>
-public sealed class WorldAssets : IDisposable
+public sealed partial class WorldAssets : IDisposable
 {
     public const int SegmentBytes = 0x9000;
     public const int SegmentUnits = 8192;
@@ -134,20 +134,31 @@ public sealed class WorldAssets : IDisposable
         return result;
     }
 
-    public WorldGround? FindNativeGround(int x, int z, IReadOnlyDictionary<int, int>? replacements = null, int? previousHeight = null)
+    public WorldGround? FindNativeGround(int x, int z, IReadOnlyDictionary<int, int>? replacements = null, int? previousHeight = null, int entityType = 0)
     {
         x = (int)Wrap(x, Columns * SegmentUnits);
         z = (int)Wrap(z, Rows * SegmentUnits);
         int mapId = SegmentAt(x, z);
+        WorldGround? selected = null;
         foreach (WorldTriangle triangle in GetSegment(mapId, replacements).Triangles)
         {
-            if (!triangle.Walkable || !WorldAssetReader.TryNativeHeight(triangle, x, z, out int height) || previousHeight.HasValue && Math.Abs(height - previousHeight.Value) >= 200)
+            byte permission = entityType == 33 ? (byte)0x40 : entityType == 0 ? (byte)0x80 : throw new NotSupportedException("Original world terrain permission for this entity is unrepresented.");
+            if ((triangle.VertexFlags & permission) == 0 || !WorldAssetReader.TryNativeHeight(triangle, x, z, out int height) || previousHeight.HasValue && Math.Abs(height - previousHeight.Value) >= 200)
             {
                 continue;
             }
-            return new WorldGround(height, triangle, mapId);
+            WorldGround next = new(height, triangle, mapId);
+            if (entityType != 33)
+            {
+                return next;
+            }
+            if (selected is WorldGround prior && (prior.Height != height || prior.Triangle.GroundType != triangle.GroundType || prior.Triangle.FieldEntrance != triangle.FieldEntrance))
+            {
+                throw new NotSupportedException("Native car ground selection requires unrepresented polygon-cache precedence at overlapping accepted surfaces.");
+            }
+            selected ??= next;
         }
-        return null;
+        return selected;
     }
 
     public PixelImage GetTexture(WorldTriangle triangle)

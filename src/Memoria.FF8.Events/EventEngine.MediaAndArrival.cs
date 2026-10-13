@@ -31,7 +31,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or
             Jsm.Opcode.POPM_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or
             Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.BATTLE or Jsm.Opcode.BATTLERESULT or
-            Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRA or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
+            Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRA or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
             Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
             Jsm.Opcode.HIDE or Jsm.Opcode.SHOW or Jsm.Opcode.SET3 or Jsm.Opcode.DIR or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or
             Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
@@ -50,13 +50,32 @@ public sealed partial class EventEngine
             Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.SETLINE or
             Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.BATTLEOFF or Jsm.Opcode.BATTLEON or Jsm.Opcode.SARALYOFF or
             Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or
-            Jsm.Opcode.HOLD or Jsm.Opcode.KEYON or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
-            Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.OFFSETSYNC => true,
+            Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.KEYON or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
+            Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
         _ => false
     };
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        string? shake = UnsupportedShake(fiber, operation);
+        if (shake is not null)
+        {
+            return shake;
+        }
+        string? volumeTransition = UnsupportedSoundVolumeTransition(fiber, operation);
+        if (volumeTransition is not null)
+        {
+            return volumeTransition;
+        }
+        string? followOff = UnsupportedFollowOff(fiber, operation);
+        if (followOff is not null)
+        {
+            return followOff;
+        }
+        if (operation.Opcode == Jsm.Opcode.MAPJUMPO && fiber.Stack.Count < 2)
+        {
+            return "MAPJUMPO requires its original field and triangle WORD operands; PC and operands preserved";
+        }
         string? keyOn = UnsupportedKeyOn(fiber, operation);
         if (keyOn is not null)
         {
@@ -93,7 +112,7 @@ public sealed partial class EventEngine
         {
             return UnsupportedParticle(fiber);
         }
-        if (operation.Opcode is Jsm.Opcode.DOFFSET or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.OFFSETSYNC)
+        if (operation.Opcode is Jsm.Opcode.DOFFSET or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC)
         {
             return UnsupportedDisplayOffset(fiber, operation.Opcode);
         }
@@ -207,9 +226,9 @@ public sealed partial class EventEngine
         {
             return UnsupportedBackgroundScroll(fiber);
         }
-        if (operation.Opcode == Jsm.Opcode.DSCROLL2)
+        if (operation.Opcode is Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL)
         {
-            return UnsupportedDirectBackgroundScroll(fiber);
+            return UnsupportedDirectBackgroundScroll(fiber, layerZero: operation.Opcode == Jsm.Opcode.DSCROLL);
         }
         if (operation.Opcode == Jsm.Opcode.CSCROLLP)
         {

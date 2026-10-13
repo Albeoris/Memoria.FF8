@@ -22,10 +22,6 @@ internal readonly record struct WorldEntryVariables(ushort StoryWord, byte Repla
         {
             throw new NotSupportedException("The original story WORD is outside its supported native width.");
         }
-        if (story >= 34)
-        {
-            throw new NotSupportedException("World entry is outside the certified early Garden story range.");
-        }
         // Native New Game and CLEAR establish zero bytes264/266. The selected
         // history stores B261=2. A small neighboring value cannot write a nonzero
         // upper byte at264/266 under any supported byte/WORD/DWORD interpretation.

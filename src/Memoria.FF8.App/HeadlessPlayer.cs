@@ -231,7 +231,11 @@ internal static class HeadlessPlayer
 
     private static void Save(GameWorld world, GameSession session, string path)
     {
-        if (world.Events.FieldId == session.State.FieldId && world.Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
+        if (session.State.Scene == SceneKind.WorldMap)
+        {
+            world.EnsureField();
+        }
+        else if (world.Events.FieldId == session.State.FieldId && world.Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
             session.SetEventState(world.Events.Capture());
         }

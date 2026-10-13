@@ -35,6 +35,7 @@ internal sealed class RecreateGame : Game
     private bool frameCaptured;
     private bool fieldFaulted;
     private bool fieldRenderFaulted;
+    private bool shakeRenderDeferred;
     private double fieldSeconds;
     private ControlQueue? controls;
     private string? pendingCapture;
@@ -360,7 +361,11 @@ internal sealed class RecreateGame : Game
 
     private void CaptureSession()
     {
-        if (events is not null && events.FieldId == session.State.FieldId && events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
+        if (session.State.Scene == SceneKind.WorldMap)
+        {
+            world?.EnsureField();
+        }
+        else if (events is not null && events.FieldId == session.State.FieldId && events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
             session.SetEventState(events.Capture());
             DialogueState? dialogue = events.CurrentDialogue;
@@ -670,6 +675,17 @@ internal sealed class RecreateGame : Game
             try
             {
                 UploadField(gameTime.TotalGameTime);
+                if (shakeRenderDeferred)
+                {
+                    shakeRenderDeferred = false;
+                    error = null;
+                }
+            }
+            catch (NativeShakeRenderException exception)
+            {
+                // Uncertain camera pixels do not stop the original VM/callback history.
+                error = exception.Message;
+                shakeRenderDeferred = true;
             }
             catch (Exception exception)
             {

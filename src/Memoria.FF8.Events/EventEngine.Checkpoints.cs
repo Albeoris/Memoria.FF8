@@ -80,6 +80,11 @@ public sealed partial class EventEngine
         ValidatePreviousFieldCheckpoint(saved);
         saved.ExamTimer?.Validate();
         saved.Scene.FieldCallbackClock?.Validate(saved.Frame);
+        saved.Scene.Shake?.Validate();
+        if (saved.Scene.Shake is NativeFieldShake restoredShake && (restoredShake.X.Enabled || restoredShake.X.Oscillating || restoredShake.Y.Enabled || restoredShake.Y.Oscillating) && ShakeTables is null)
+        {
+            throw new InvalidDataException("Saved native shake process history requires authenticated original lookup tables.");
+        }
         saved.CharacterVitals?.Validate();
         saved.CharacterAppearance?.Validate();
         if (saved.CharacterAppearance is not null && saved.CharacterVitals is not null && saved.CharacterAppearance.InitOutSha256 != saved.CharacterVitals.InitOutSha256)
@@ -94,6 +99,8 @@ public sealed partial class EventEngine
         ValidateDrawPointCheckpoint(saved);
         ValidateSoundInitializationCheckpoint(saved);
         ValidateSoundStopCheckpoint(saved);
+        ValidateSoundVolumeTransitionCheckpoint(saved);
+        ValidateFollowOffCheckpoint(saved);
         ValidateMusicStopCheckpoint(saved);
         ValidateMusicVolumeCheckpoint(saved);
         ValidateFadeNoneCheckpoint(saved);
@@ -157,9 +164,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native field-load policy has invalid completion or trace state.");
         }
-        if (saved.Scene.NativeFieldEntryStack is NativeFieldEntryStackReceipt entryStack && (entryStack.Version != 1 || entryStack.WalkmeshHash != NativeFieldEntryStackContract.WalkmeshHash || entryStack.Arrival is null || !NativeFieldEntryStackContract.Supports(saved.FieldId, saved.ProgramHash, entryStack.Arrival) || CanUseNativeFieldEntryStack?.Invoke(entryStack.Arrival) != true || entryStack.FirstWinnerRecord != 63 || entryStack.FirstCarriedRecord != 53 || entryStack.CarriedTriangle != 58 || saved.Scene.NativeFieldLoadVersion != 1 || !saved.DefaultsStarted || saved.PendingArrival is not null))
+        if (saved.Scene.NativeFieldEntryStack is NativeFieldEntryStackReceipt entryStack && (!ValidNativeFieldEntryStackReceipt(entryStack) || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } stackInitialization || !stackInitialization.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || saved.Scene.NativeFieldLoadVersion != 1 || !saved.DefaultsStarted || saved.PendingArrival is not null))
         {
-            throw new InvalidDataException("Saved native field-entry stack receipt lacks its proved fresh132 loader, original bytes or winner history.");
+            throw new InvalidDataException("Saved native field-entry stack receipt lacks its current proved loader, original bytes or successful winner history.");
         }
         if (saved.Scene.GlobalSoundRequests.Any(request => request.ChannelMask == 0 || request.ChannelMask != (request.RawChannelMask & 0xFFFFFF) || request.Voice != System.Numerics.BitOperations.TrailingZeroCount(request.ChannelMask) + 1 || request.PitchPercent != 100 || request.EffectivePan != request.RawPan >> 1 || !ValidGlobalSoundResource(request.Resource, MapGlobalSoundSample(request.OriginalEffectId))) || saved.Scene.GlobalSoundVoices.Any(pair => pair.Key != pair.Value.Voice || !saved.Scene.GlobalSoundRequests.Contains(pair.Value)))
         {

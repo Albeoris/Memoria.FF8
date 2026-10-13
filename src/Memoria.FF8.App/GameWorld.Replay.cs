@@ -172,7 +172,13 @@ internal sealed partial class GameWorld
                 }
             }
         }
-        if (world.Field is not null)
+        if (rebuilt.State.Scene == SceneKind.WorldMap)
+        {
+            // Promote the exact issuing VM before discarding its pending departure marker.
+            // Capturing after world callbacks would mix the current global timer into a frozen field VM.
+            world.EnsureField();
+        }
+        else if (world.Field is not null)
         {
             if (world.Events.FieldId != rebuilt.State.FieldId || world.Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
             {
@@ -201,14 +207,14 @@ internal sealed partial class GameWorld
 
     private static void ValidateDialogueSite(EventEngine engine, ReplayJournalEntry entry)
     {
-        if (entry.MessageId is null)
+        if (entry.MessageId is null || entry.Kind == ReplayEntryKind.Action && (PlayerActionKind)entry.Code is not (PlayerActionKind.Confirm or PlayerActionKind.Choose or PlayerActionKind.EnterName or PlayerActionKind.Cancel))
         {
             return;
         }
         DialogueState? dialogue = engine.CurrentDialogue;
         if (dialogue is null || dialogue.MessageId != entry.MessageId || dialogue.ObjectId != entry.ObjectId || dialogue.ScriptId != entry.ScriptId || dialogue.Operation != entry.Operation)
         {
-            throw new InvalidDataException("Replay decision no longer matches its original dialogue/script site.");
+            throw new InvalidDataException($"Replay decision no longer matches its original dialogue/script site: expected {entry.MessageId}/{entry.ObjectId}/{entry.ScriptId}/{entry.Operation}, actual {dialogue?.MessageId}/{dialogue?.ObjectId}/{dialogue?.ScriptId}/{dialogue?.Operation} at field{engine.FieldId}/frame{engine.Frame}.");
         }
     }
 

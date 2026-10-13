@@ -7,7 +7,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Original normal-foot world component with bounded native field reentry and complete saved-foot entry62 reload. Object collision, encounters and idle gestures remain unsupported.</summary>
-internal sealed class WorldMapScene : IDisposable
+internal sealed partial class WorldMapScene : IDisposable
 {
     public const double SimulationFps = 30.5;
     private const double NativeAngleUnit = 0.0015339808305725455;
@@ -29,7 +29,8 @@ internal sealed class WorldMapScene : IDisposable
         {
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
-        if (unchecked((sbyte)arrival.Mode) != 0)
+        bool car = unchecked((sbyte)arrival.Mode) == 33;
+        if (unchecked((sbyte)arrival.Mode) != 0 && !car)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }
@@ -38,9 +39,32 @@ internal sealed class WorldMapScene : IDisposable
         {
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
+        WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
+        if (car ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord >= 34)
+        {
+            throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
+        }
         NativeSavedWorldFootReturn? reload = null;
         NativeFootWorldRuntimeState? initialFootRuntime = null;
-        if (session.State.World is null)
+        NativeCarWorldRuntimeState? initialCarRuntime = null;
+        if (car)
+        {
+            if (entry == 62 || unchecked((sbyte)arrival.Extra) != -1)
+            {
+                throw new NotSupportedException("Native car saved-position or scripted-route entry is outside the ordinary car contract.");
+            }
+            if (session.State.World is null)
+            {
+                initialCarRuntime = NativeCarWorldRuntimeState.Create(session.State.SavedWorld);
+                initialCarRuntime.Validate();
+                session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry());
+            }
+            else if (session.State.World.NativeCarRuntime is null)
+            {
+                throw new NotSupportedException("Native car restoration has no executed vehicle runtime authority.");
+            }
+        }
+        else if (session.State.World is null)
         {
             RequireUnaliasedFootAuxiliary(session.State);
             if (entry == 62)
@@ -65,7 +89,6 @@ internal sealed class WorldMapScene : IDisposable
         assets = new WorldAssets(gameDirectory);
         try
         {
-            WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
             storyByte = inputs.StoryByte;
             if (session.State.World is null)
             {
@@ -79,7 +102,7 @@ internal sealed class WorldMapScene : IDisposable
                 int height = reload?.Pose0.Height ?? spawn.NativeHeight;
                 ushort mask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte);
                 replacements = WorldTerrainSelection.Replacements(mask);
-                WorldGround? ground = assets.FindNativeGround(x, z, replacements);
+                WorldGround? ground = assets.FindNativeGround(x, z, replacements, entityType: car ? 33 : 0);
                 WorldState initial = new()
                 {
                     X = x,
@@ -92,7 +115,8 @@ internal sealed class WorldMapScene : IDisposable
                     CameraTargetNativeHeight = height - 256,
                     GroundType = ground?.Triangle.GroundType,
                     ReplacementMask = mask,
-                    NativeFootRuntime = initialFootRuntime
+                    NativeFootRuntime = initialFootRuntime,
+                    NativeCarRuntime = initialCarRuntime
                 };
                 EnsureContactCertificate(initial);
                 session.SetWorldState(initial);
@@ -235,11 +259,15 @@ internal sealed class WorldMapScene : IDisposable
         EnsureContactCertificate(state);
         WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return renderer.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.GroundType is null or > 5);
+        return renderer.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is not null || state.GroundType is null or > 5, state.NativeCarRuntime is null ? null : assets.ExamCar, state.NativeCarRuntime?.ModelTilt ?? 0);
     }
 
     private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, ReplayWorldNavigationStimulus? proposal = null)
     {
+        if (before.NativeCarRuntime is not null)
+        {
+            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, proposal);
+        }
         fieldEntry = null;
         int inputX = Math.Sign(horizontal);
         int inputZ = -Math.Sign(vertical);
@@ -317,6 +345,11 @@ internal sealed class WorldMapScene : IDisposable
 
     private void EnsureContactCertificate(WorldState state)
     {
+        if (state.NativeCarRuntime is not null)
+        {
+            EnsureCarContactCertificate(state);
+            return;
+        }
         WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
         double eyeX = camera.FootFrame(new Vector3(state.X, -state.NativeHeight, state.Z)).Eye.X;
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);

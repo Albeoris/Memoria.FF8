@@ -28,11 +28,13 @@ public sealed class WorldTimerContinuationTests
         world.EnsureField();
         JsonElement initialVm = world.Events.Capture();
         NativeExamTimerState initialTimer = session.ExamTimer!;
+        Assert.Equal(world.Events.Frame, session.State.EventState!.Value.GetProperty("Frame").GetInt64());
+        Assert.Equal(initialTimer.ClockCalls, session.State.EventState.Value.GetProperty("ExamTimer").GetProperty("ClockCalls").GetInt64());
         Assert.Equal(3, world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 3)).FramesAdvanced);
         Assert.Equal(initialTimer.ClockCalls + 6, session.ExamTimer!.ClockCalls);
         Assert.Equal(JsonSerializer.Serialize(initialTimer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3)), JsonSerializer.Serialize(session.ExamTimer));
         Assert.True(JsonElement.DeepEquals(FrozenVm(initialVm), FrozenVm(world.Events.Capture())));
-        session.SetEventState(world.Events.Capture());
+        Assert.Equal(initialTimer.ClockCalls, session.State.EventState!.Value.GetProperty("ExamTimer").GetProperty("ClockCalls").GetInt64());
         GameState continued = GameWorld.RecreateSave(session.State, directory);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { ReplayJournal = null }), JsonSerializer.SerializeToElement(continued with { ReplayJournal = null })));
 

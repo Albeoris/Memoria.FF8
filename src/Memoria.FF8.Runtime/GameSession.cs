@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed class GameSession : IEventServices
+public sealed partial class GameSession : IEventServices
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
     private SceneKind movieReturnScene;
@@ -233,7 +233,7 @@ public sealed class GameSession : IEventServices
         Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null });
     }
 
-    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared)
+    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null)
     {
         ArgumentNullException.ThrowIfNull(transition);
         ArgumentNullException.ThrowIfNull(initialState);
@@ -245,7 +245,13 @@ public sealed class GameSession : IEventServices
         {
             throw new InvalidOperationException("The prepared world entry no longer matches its normal field departure controls.");
         }
-        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag() };
+        NativeSavedWorldState? saved = preparedSavedWorld ?? departure.SavedWorld;
+        NativeSavedWorldState? expectedSaved = initialState.NativeCarRuntime is null ? departure.SavedWorld : departure.SavedWorld?.WithOrdinaryCarEntry();
+        if (saved != expectedSaved)
+        {
+            throw new InvalidOperationException("Prepared world saved-vehicle state differs from its native entry writes.");
+        }
+        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved };
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))
@@ -575,6 +581,10 @@ public sealed class GameSession : IEventServices
         if (state.World is WorldState world)
         {
             ValidateWorldState(world);
+            if (world.NativeCarRuntime is not null && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((sbyte)state.WorldArrival.Mode) != 33 || state.SavedWorld?.Slot4.ShapeId != 73))
+            {
+                throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
+            }
         }
         if (state.DepartingWorldState is WorldState departingWorld)
         {
@@ -585,6 +595,11 @@ public sealed class GameSession : IEventServices
     private static void ValidateWorldState(WorldState world)
     {
         world.NativeFootRuntime?.Validate();
+        world.NativeCarRuntime?.Validate();
+        if (world.NativeCarRuntime is not null && world.NativeFootRuntime is not null)
+        {
+            throw new InvalidDataException("A world scene cannot simultaneously own foot and car runtime authority.");
+        }
         if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
         {
             throw new InvalidDataException("Invalid world checkpoint.");

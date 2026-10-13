@@ -24,7 +24,7 @@ internal sealed partial class GameWorld
                 throw new InvalidOperationException("The original prepared world request has already been used or replaced.");
             }
             ValidateWorldDeparture(request);
-            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption);
+            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld);
             worldScene = ticket.Adopt(session);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             committed = true;
@@ -51,15 +51,25 @@ internal sealed partial class GameWorld
             throw new InvalidDataException("Original world field entry references an invalid destination triangle plane.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(departure);
-        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
         FieldTransition transition = new(selection.Entry.FieldId, selection.Entry.X, selection.Entry.Y, selection.Entry.Triangle, selection.Entry.Direction);
+        if (finalWorld.NativeCarRuntime is not null)
+        {
+            NativeSavedWorldCarReturn carReceipt = NativeSavedWorldCarReturn.Create(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
+            return () => session.CommitPreparedCarFieldEntry(departure, finalWorld, transition, carReceipt, candidate => ValidatePreparedField(candidate));
+        }
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
         return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, candidate =>
+        {
+            ValidatePreparedField(candidate);
+        });
+
+        void ValidatePreparedField(GameState candidate)
         {
             if (candidate.FieldArrival != transition || candidate.PreviousFieldId != departure.FieldId || destination.Id != candidate.FieldId)
             {
                 throw new InvalidOperationException("Prepared native world field packet changed before publication.");
             }
-        });
+        }
     }
 
     private void ValidateWorldDeparture(NativeWorldTransitionRequest request)

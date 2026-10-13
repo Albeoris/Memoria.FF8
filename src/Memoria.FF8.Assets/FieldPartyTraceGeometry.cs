@@ -7,6 +7,21 @@ public static class FieldPartyTraceGeometry
 {
     private readonly record struct Point(int X, int Y, int Z);
 
+    public static Vector3? ResolveTriangleCentroid(FieldWalkmesh mesh, int triangleIndex)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        if ((uint)triangleIndex >= mesh.Triangles.Count || triangleIndex > short.MaxValue)
+        {
+            return null;
+        }
+        WalkmeshTriangle triangle = mesh.Triangles[triangleIndex];
+        Point a = OriginalPoint(triangle.A);
+        Point b = OriginalPoint(triangle.B);
+        Point c = OriginalPoint(triangle.C);
+        // Native477C90 divides each signed vertex sum by3 toward zero before shifting12.
+        return new Vector3((a.X + b.X + c.X) / 3, (a.Y + b.Y + c.Y) / 3, (a.Z + b.Z + c.Z) / 3);
+    }
+
     /// <summary>Native 0x47A680 plane evaluation at an explicitly selected triangle, without containment or coordinate narrowing.</summary>
     public static int? ResolveTriangleHeight(FieldWalkmesh mesh, int triangleIndex, int x, int y)
     {

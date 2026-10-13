@@ -24,6 +24,8 @@ public sealed record WorldState
     public ushort ReplacementMask { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFootWorldRuntimeState? NativeFootRuntime { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeCarWorldRuntimeState? NativeCarRuntime { get; init; }
     public List<WorldActionRecord> Actions { get; init; } = [];
 }
 

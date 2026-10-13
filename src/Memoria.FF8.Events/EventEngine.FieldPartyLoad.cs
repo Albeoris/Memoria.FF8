@@ -7,20 +7,18 @@ public static class NativeFieldEntryStackContract
     public const string ProgramHash = "72999554E8FE70C0F524A06CB0671D7460625FF8E6A2CB7A4D13F607839CF660";
     public const string WalkmeshHash = "78FD701FA5DFDE72CD0AC9CB9A46291EDFA6BEECFA24E90A88FBBB7D0DA34EC2";
 
-    public static bool Supports(int fieldId, string hash, FieldTransition arrival)
-    {
-        return fieldId == 132 && hash == ProgramHash && arrival == new FieldTransition(132, 2927, -556, 56, 100);
-    }
 }
 
 public sealed partial class EventEngine
 {
     public Func<int, int, int, int?>? ResolveNativeTriangleHeight { get; set; }
+    public Func<int, System.Numerics.Vector3?>? ResolveNativeTriangleCentroid { get; set; }
     public Func<FieldTransition, bool>? CanUseNativeFieldEntryStack { get; set; }
+    public string? NativeFieldWalkmeshHash { get; set; }
 
     private sealed record NativeFieldActorPlacement(int ObjectId, int X, int Y, int Z, int Triangle, int Direction);
     private sealed record NativeFieldActorAnimation(int ObjectId, int Idle, int Frames);
-    private sealed record NativeFieldPartyLoad(int[] Bindings, NativeFieldActorPlacement[] Placements, PartyTraceState Trace, FieldFixedPosition PlayerPosition, NativeFieldActorAnimation[] Animations, NativeFieldEntryStackReceipt? EntryStack = null);
+    private sealed record NativeFieldPartyLoad(int[] Bindings, NativeFieldActorPlacement[] Placements, PartyTraceState Trace, FieldFixedPosition PlayerPosition, NativeFieldActorAnimation[] Animations, NativeFieldEntryStackReceipt? EntryStack = null, int? ResetLeaderDefaults = null);
 
     private NativeFieldPartyLoad? PrepareNativeFieldPartyLoad()
     {
@@ -32,7 +30,7 @@ public sealed partial class EventEngine
         {
             return PrepareNativeOpeningCorridorPartyLoad();
         }
-        if (ResolvePartyTraceTriangle is null || arrival.Triangle == 0x7FFF || arrival.X == 0x7FFF || arrival.X is < short.MinValue or > short.MaxValue || arrival.Y is < short.MinValue or > short.MaxValue || arrival.X != MathF.Truncate(arrival.X) || arrival.Y != MathF.Truncate(arrival.Y))
+        if (ResolvePartyTraceTriangle is null || arrival.X is < short.MinValue or > short.MaxValue || arrival.Y is < short.MinValue or > short.MaxValue || arrival.X != MathF.Truncate(arrival.X) || arrival.Y != MathF.Truncate(arrival.Y))
         {
             throw new NotSupportedException("Native field entry requires the proved coordinate packet and original triangle/plane services.");
         }
@@ -51,15 +49,26 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native field entry has no retained leader binding.");
         }
+        bool resetLeader = arrival.Triangle == short.MaxValue;
+        int entryTriangle = resetLeader ? 0 : arrival.Triangle;
+        System.Numerics.Vector3? centroid = null;
+        if (resetLeader || arrival.X == short.MaxValue)
+        {
+            centroid = ResolveNativeTriangleCentroid?.Invoke(entryTriangle) ?? throw new NotSupportedException($"Native field entry requires the original triangle{entryTriangle} signed centroid.");
+            if (new[] { centroid.Value.X, centroid.Value.Y, centroid.Value.Z }.Any(value => !float.IsFinite(value) || value is < short.MinValue or > short.MaxValue || value != MathF.Truncate(value)))
+            {
+                throw new NotSupportedException("Native field entry centroid exceeds its original signed WORD XYZ contract.");
+            }
+        }
         NativeFieldActorPlacement[] placements = new NativeFieldActorPlacement[retained.Length];
         for (int index = 0; index < retained.Length; index++)
         {
             ActorState actor = actors[retained[index]];
             bool partyActor = bindings.Contains(index);
-            int x = partyActor ? (int)arrival.X : (int)actor.X;
-            int y = partyActor ? (int)arrival.Y : (int)actor.Y;
-            int triangle = partyActor ? arrival.Triangle : actor.WalkmeshTriangle;
-            int height = ResolveNativeTriangleHeight(triangle, x, y) ?? throw new NotSupportedException($"Native field entry actor{actor.ObjectId} has no original triangle{triangle} plane.");
+            int x = partyActor ? (int)(centroid?.X ?? arrival.X) : (int)actor.X;
+            int y = partyActor ? (int)(centroid?.Y ?? arrival.Y) : (int)actor.Y;
+            int triangle = partyActor ? entryTriangle : actor.WalkmeshTriangle;
+            int height = partyActor && centroid is System.Numerics.Vector3 center ? (int)center.Z : ResolveNativeTriangleHeight(triangle, x, y) ?? throw new NotSupportedException($"Native field entry actor{actor.ObjectId} has no original triangle{triangle} plane.");
             placements[index] = new NativeFieldActorPlacement(actor.ObjectId, x, y, height, triangle, partyActor ? arrival.Direction : (byte)actor.Direction);
         }
         NativeFieldActorPlacement leader = placements[bindings[0]];
@@ -77,7 +86,7 @@ public sealed partial class EventEngine
         int fixedY = checked(leader.Y * 4096);
         int speed = 69020 * 20 >> 9;
         int firstObservableRecord = bindings[2] != 0xFF ? 34 : bindings[1] != 0xFF ? 49 : 64;
-        bool stackCarry = NativeFieldEntryStackContract.Supports(FieldId, programHash, arrival) && CanUseNativeFieldEntryStack?.Invoke(arrival) == true;
+        bool stackCarry = NativeRuntimeProfile is { IsVerified: true } && NativeFieldWalkmeshHash is { Length: 64 } hash && hash.All(Uri.IsHexDigit) && CanUseNativeFieldEntryStack?.Invoke(arrival) == true;
         int? winnerLocal = null;
         int firstWinnerRecord = -1;
         int firstCarriedRecord = -1;
@@ -128,13 +137,9 @@ public sealed partial class EventEngine
             fixedY = unchecked(fixedY + speed * NativeCosine(leader.Direction) / 256);
         }
         NativeFieldEntryStackReceipt? entryStack = null;
-        if (stackCarry)
+        if (stackCarry && firstCarriedRecord >= 0)
         {
-            if (firstWinnerRecord != 63 || firstCarriedRecord != 53 || carriedTriangle != 58)
-            {
-                throw new NotSupportedException("Native field132 entry lookup stack does not match the proved successful-winner history.");
-            }
-            entryStack = new NativeFieldEntryStackReceipt(1, NativeFieldEntryStackContract.WalkmeshHash, arrival, firstWinnerRecord, firstCarriedRecord, carriedTriangle);
+            entryStack = new NativeFieldEntryStackReceipt(2, NativeFieldWalkmeshHash!, arrival, firstWinnerRecord, firstCarriedRecord, carriedTriangle);
         }
         for (int slot = 1; slot < 3; slot++)
         {
@@ -146,7 +151,7 @@ public sealed partial class EventEngine
             NativeFieldActorPlacement original = placements[bindings[slot]];
             placements[bindings[slot]] = original with { X = sample.X, Y = sample.Y, Z = sample.Z, Triangle = sample.Triangle };
         }
-        return new NativeFieldPartyLoad(bindings, placements, new PartyTraceState(0, 15, 30, first, second), new FieldFixedPosition(leader.X * 4096, leader.Y * 4096, leader.Z * 4096), PrepareNativeFieldAnimations(retained), entryStack);
+        return new NativeFieldPartyLoad(bindings, placements, new PartyTraceState(0, 15, 30, first, second), new FieldFixedPosition(leader.X * 4096, leader.Y * 4096, leader.Z * 4096), PrepareNativeFieldAnimations(retained, resetLeader ? leader.ObjectId : null), entryStack, resetLeader ? leader.ObjectId : null);
     }
 
     private NativeFieldPartyLoad? PrepareNativeOpeningCorridorPartyLoad()
@@ -186,7 +191,52 @@ public sealed partial class EventEngine
         return new NativeFieldPartyLoad([leaderIndex, 255, 255], placements, new PartyTraceState(0, 15, 30, first, second), new FieldFixedPosition(leader.X * 4096, leader.Y * 4096, leader.Z * 4096), PrepareNativeFieldAnimations(retained));
     }
 
-    private NativeFieldActorAnimation[] PrepareNativeFieldAnimations(int[] retained)
+    private bool ValidNativeFieldEntryStackReceipt(NativeFieldEntryStackReceipt receipt)
+    {
+        if (receipt.Version != 2 || receipt.Arrival is not FieldTransition arrival || arrival.FieldId != FieldId || !float.IsFinite(arrival.X) || !float.IsFinite(arrival.Y) || arrival.X is < short.MinValue or > short.MaxValue || arrival.Y is < short.MinValue or > short.MaxValue || arrival.X != MathF.Truncate(arrival.X) || arrival.Y != MathF.Truncate(arrival.Y) || arrival.Triangle is < 0 or > ushort.MaxValue || arrival.Direction is < 0 or > byte.MaxValue || receipt.WalkmeshHash != NativeFieldWalkmeshHash || NativeRuntimeProfile is not { IsVerified: true } || CanUseNativeFieldEntryStack?.Invoke(arrival) != true || ResolvePartyTraceTriangle is null || ResolveNativeTriangleHeight is null || receipt.FirstWinnerRecord is < 1 or > 63 || receipt.FirstCarriedRecord < 1 || receipt.FirstCarriedRecord >= receipt.FirstWinnerRecord || receipt.CarriedTriangle < 0)
+        {
+            return false;
+        }
+        int triangle = arrival.Triangle == short.MaxValue ? 0 : arrival.Triangle;
+        System.Numerics.Vector3? centroid = arrival.X == short.MaxValue || arrival.Triangle == short.MaxValue ? ResolveNativeTriangleCentroid?.Invoke(triangle) : null;
+        if ((arrival.X == short.MaxValue || arrival.Triangle == short.MaxValue) && centroid is null)
+        {
+            return false;
+        }
+        int x = (int)(centroid?.X ?? arrival.X);
+        int y = (int)(centroid?.Y ?? arrival.Y);
+        int? height = centroid is System.Numerics.Vector3 center ? (int)center.Z : ResolveNativeTriangleHeight(triangle, x, y);
+        if (height is not int z || x is < short.MinValue or > short.MaxValue || y is < short.MinValue or > short.MaxValue)
+        {
+            return false;
+        }
+        int fixedX = x * 4096;
+        int fixedY = y * 4096;
+        int? winner = null;
+        int firstWinner = -1;
+        for (int index = 63; index >= 1; index--)
+        {
+            int? selected = ResolvePartyTraceTriangle(fixedX / 4096, fixedY / 4096, z);
+            if (selected is int known)
+            {
+                winner = known;
+                if (firstWinner < 0)
+                {
+                    firstWinner = index;
+                }
+            }
+            else if (winner is int carried)
+            {
+                return firstWinner == receipt.FirstWinnerRecord && index == receipt.FirstCarriedRecord && carried == receipt.CarriedTriangle;
+            }
+            int speed = 69020 * 20 >> 9;
+            fixedX = unchecked(fixedX + speed * NativeSine(arrival.Direction) / -256);
+            fixedY = unchecked(fixedY + speed * NativeCosine(arrival.Direction) / 256);
+        }
+        return false;
+    }
+
+    private NativeFieldActorAnimation[] PrepareNativeFieldAnimations(int[] retained, int? resetLeader = null)
     {
         List<NativeFieldActorAnimation> animations = [];
         foreach (int objectId in retained)
@@ -196,7 +246,8 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if (!TryReadNativeBaseAnimations(actor, out int idle, out _, out _) || AnimationFrameCount?.Invoke(actor.ModelId, idle) is not int frames || frames <= 0)
+            int idle = 0;
+            if ((objectId != resetLeader && !TryReadNativeBaseAnimations(actor, out idle, out _, out _)) || AnimationFrameCount?.Invoke(actor.ModelId, idle) is not int frames || frames <= 0)
             {
                 throw new NotSupportedException($"Native normal field loader actor{objectId} requires decoded full idle animation metadata before initialization.");
             }
@@ -207,6 +258,18 @@ public sealed partial class EventEngine
 
     private void ApplyNativeFieldPartyLoad(NativeFieldPartyLoad load)
     {
+        if (load.ResetLeaderDefaults is int leaderObjectId)
+        {
+            // Native477C90's triangle7FFF branch selects triangle0 and original locomotion defaults.
+            ActorState leader = actors[leaderObjectId];
+            leader.AnimationSpeed = 16;
+            leader.BaseAnimationId = 0;
+            leader.WalkAnimationId = 1;
+            leader.RunAnimationId = 2;
+            leader.NativeBaseAnimationVersion = 1;
+            leader.MovementSpeed = 69020 * 20 >> 9;
+            leader.PushRadius = 48;
+        }
         foreach (NativeFieldActorPlacement placement in load.Placements)
         {
             ActorState actor = actors[placement.ObjectId];

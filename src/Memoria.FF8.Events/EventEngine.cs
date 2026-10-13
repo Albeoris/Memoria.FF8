@@ -12,7 +12,9 @@ public sealed partial class EventEngine
     private uint randomState;
     private readonly List<ActorState> actors = [];
     private readonly List<Fiber> fibers = [];
-    private readonly Dictionary<int, DialogueState> dialogues = [];
+    // Native529FF0 visits its eight fixed channels in ascending order. Keep
+    // host presentation, receipts and checkpoints independent of removed slots.
+    private readonly SortedDictionary<int, DialogueState> dialogues = [];
     private readonly Dictionary<int, int> backgroundStates = [];
     private readonly Dictionary<int, BackgroundAnimation> backgroundAnimations = [];
     private IReadOnlyList<string> messages = [];
@@ -126,6 +128,8 @@ public sealed partial class EventEngine
         Scene = new SceneEventState { RandomBattlesEnabled = previousScene.RandomBattlesEnabled, SalaryEnabled = previousScene.SalaryEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
+        Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
+        Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         CopyNativeMediaHistory(previousScene);
         InitializePreviousField(previousFieldId);
         // Native52BC00 clears B240/241 before normal init; B242 persists globally.
@@ -280,6 +284,7 @@ public sealed partial class EventEngine
         StepNativeDisplayOffsets();
         StepNativeScriptMovement();
         StepSplitParty();
+        StepNativeShake();
         StepNativeBackgroundScroll();
         if (!defaultsStarted && fibers.Where(item => item.Initialization).All(item => item.Complete))
         {
@@ -562,6 +567,8 @@ public sealed partial class EventEngine
 
     private void RefreshCurrentDialogue()
     {
+        // TODO(TD-012): persist the native UI focus marker; this is the host representative.
+        
         CurrentDialogue = dialogues.Values.LastOrDefault(dialogue => dialogue.CanConfirm) ?? dialogues.Values.LastOrDefault();
         if (CurrentDialogue is not null)
         {

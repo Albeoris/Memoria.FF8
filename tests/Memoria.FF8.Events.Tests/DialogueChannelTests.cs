@@ -9,6 +9,7 @@ internal static partial class Program
 {
     private static void DialogueChannelContract()
     {
+        DialogueChannelReuseContract();
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.AMES, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 160), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.PSHN_L, 180), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.WINCLOSE, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState());
         EventEngine engine = new(session, session.State.Variables);
@@ -46,5 +47,60 @@ internal static partial class Program
         }
         engine.Restore(System.Text.Json.JsonSerializer.SerializeToElement(legacy));
         Require(!engine.Dialogues.Single(dialogue => dialogue.Channel == 0).CanConfirm && engine.Dialogues.Single(dialogue => dialogue.Channel == 1).CanConfirm, "Legacy checkpoint inference changed original AMES/RAMESW confirmation modes.");
+    }
+
+    private static void DialogueChannelReuseContract()
+    {
+        List<(Jsm.Opcode, int)> operations = [(Jsm.Opcode.LBL, 0)];
+        void Message(int channel, int message, Jsm.Opcode opcode)
+        {
+            operations.Add((Jsm.Opcode.PSHN_L, channel));
+            operations.Add((Jsm.Opcode.PSHN_L, message));
+            operations.Add((Jsm.Opcode.PSHN_L, 32));
+            operations.Add((Jsm.Opcode.PSHN_L, 64));
+            operations.Add((opcode, 0));
+        }
+        Message(1, 0, Jsm.Opcode.AMES);
+        Message(2, 1, Jsm.Opcode.AMES);
+        operations.Add((Jsm.Opcode.PSHN_L, 1));
+        operations.Add((Jsm.Opcode.WINCLOSE, 0));
+        operations.Add((Jsm.Opcode.PSHN_L, 2));
+        operations.Add((Jsm.Opcode.WINCLOSE, 0));
+        operations.Add((Jsm.Opcode.PSHN_L, 1));
+        operations.Add((Jsm.Opcode.WAIT, 0));
+        Message(1, 2, Jsm.Opcode.AMES);
+        Message(2, 3, Jsm.Opcode.AMES);
+        operations.Add((Jsm.Opcode.PSHN_L, 1));
+        operations.Add((Jsm.Opcode.WAIT, 0));
+        Message(2, 4, Jsm.Opcode.RAMESW);
+        Message(1, 5, Jsm.Opcode.RAMESW);
+        operations.Add((Jsm.Opcode.PSHN_L, 1));
+        operations.Add((Jsm.Opcode.WAIT, 0));
+        operations.Add((Jsm.Opcode.RET, 0));
+        byte[] content = SyntheticProgram(operations.ToArray());
+        string[] messages = ["Old one", "Old two", "Persistent one", "Persistent two", "Automatic two", "Automatic one"];
+        GameSession session = new(new GameState());
+        EventEngine engine = new(session, session.State.Variables);
+        engine.LoadField(102, content, messages);
+        engine.Step();
+        engine.Step();
+        Require(engine.Dialogues.Count == 0, "Original WINCLOSE did not leave the empty reused-channel boundary.");
+        var emptySnapshot = engine.Capture();
+        GameSession restoredSession = new(new GameState());
+        EventEngine restored = new(restoredSession, restoredSession.State.Variables);
+        restored.LoadField(102, content, messages);
+        restored.Restore(emptySnapshot);
+        engine.Step();
+        restored.Step();
+        Require(engine.Dialogues.Select(dialogue => dialogue.Channel).SequenceEqual([1, 2]) && engine.CurrentDialogue is { Channel: 2, MessageId: 3, CanConfirm: false }, "Reused persistent channels depend on removed dictionary slots instead of fixed channel order.");
+        Require(engine.Capture().GetRawText() == restored.Capture().GetRawText() && session.Dialog == restoredSession.Dialog, "Empty-boundary restoration changed the reopened persistent channel focus or complete VM.");
+        var persistentSnapshot = engine.Capture();
+        restored.Restore(persistentSnapshot);
+        engine.Step();
+        restored.Step();
+        Require(engine.CurrentDialogue is { Channel: 2, MessageId: 4, CanConfirm: true } && restored.CurrentDialogue == engine.CurrentDialogue, "Reverse opening order changed the canonical automatic representative.");
+        Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Reused automatic channels refused their shared confirm edge.");
+        Require(engine.DialogueOutcomes.Select(outcome => outcome.MessageId).SequenceEqual([5, 4]), "Automatic closure outcomes lost original ascending channel order.");
+        Require(engine.Capture().GetRawText() == restored.Capture().GetRawText() && engine.DialogueOutcomes.SequenceEqual(restored.DialogueOutcomes), "Restored reused-channel confirmation changed receipts or complete VM state.");
     }
 }

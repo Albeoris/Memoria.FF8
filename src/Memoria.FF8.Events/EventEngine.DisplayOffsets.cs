@@ -14,7 +14,7 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedDisplayOffset(Fiber fiber, Jsm.Opcode opcode)
     {
-        int count = opcode is Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET ? 4 : opcode == Jsm.Opcode.DOFFSET ? 3 : 0;
+        int count = opcode == Jsm.Opcode.LOFFSETS ? 7 : opcode is Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET ? 4 : opcode == Jsm.Opcode.DOFFSET ? 3 : 0;
         if (fiber.Stack.Count < count)
         {
             return "Native display offset requires its complete original operands";
@@ -33,7 +33,8 @@ public sealed partial class EventEngine
 
     private int[] ExecuteDisplayOffset(Fiber fiber, ActorState actor, JsmOperation operation)
     {
-        int[] operands = Pop(fiber, operation.Opcode == Jsm.Opcode.DOFFSET ? 3 : 4);
+        bool explicitStart = operation.Opcode == Jsm.Opcode.LOFFSETS;
+        int[] operands = Pop(fiber, operation.Opcode == Jsm.Opcode.DOFFSET ? 3 : explicitStart ? 7 : 4);
         short x = unchecked((short)operands[0]);
         short y = unchecked((short)operands[1]);
         short z = unchecked((short)operands[2]);
@@ -53,7 +54,7 @@ public sealed partial class EventEngine
         }
         else
         {
-            state = state with { StartX = state.TargetX, StartY = state.TargetY, StartZ = state.TargetZ, TargetX = x, TargetY = y, TargetZ = z, Duration = unchecked((ushort)operands[3]), Counter = 0, Mode = operation.Opcode == Jsm.Opcode.LOFFSET ? (byte)1 : (byte)2, Command = command };
+            state = state with { StartX = explicitStart ? x : state.TargetX, StartY = explicitStart ? y : state.TargetY, StartZ = explicitStart ? z : state.TargetZ, TargetX = explicitStart ? unchecked((short)operands[3]) : x, TargetY = explicitStart ? unchecked((short)operands[4]) : y, TargetZ = explicitStart ? unchecked((short)operands[5]) : z, Duration = unchecked((ushort)operands[explicitStart ? 6 : 3]), Counter = 0, Mode = operation.Opcode is Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS ? (byte)1 : (byte)2, Command = command };
         }
         actor.NativeDisplayOffset = state;
         return operands;
@@ -116,7 +117,8 @@ public sealed partial class EventEngine
             }
             bool direct = command.Opcode == nameof(Jsm.Opcode.DOFFSET);
             bool cosine = command.Opcode == nameof(Jsm.Opcode.COFFSET);
-            if (command.Version != 1 || command.ObjectId != actor.ObjectId || command.ScriptId < 0 || command.Operation < 0 || command.Frame < 0 || command.Frame > saved.Frame || command.Operands.IsDefault || command.Operands.Length != (direct ? 3 : 4) || !direct && !cosine && command.Opcode != nameof(Jsm.Opcode.LOFFSET) || !MatchesNativeMediaInstruction(command.ObjectId, command.ScriptId, command.Operation) || program!.Operations[command.Operation].Opcode.ToString() != command.Opcode || program.Operations[command.Operation].Parameter != command.InlineParameter)
+            bool explicitStart = command.Opcode == nameof(Jsm.Opcode.LOFFSETS);
+            if (command.Version != 1 || command.ObjectId != actor.ObjectId || command.ScriptId < 0 || command.Operation < 0 || command.Frame < 0 || command.Frame > saved.Frame || command.Operands.IsDefault || command.Operands.Length != (direct ? 3 : explicitStart ? 7 : 4) || !direct && !cosine && !explicitStart && command.Opcode != nameof(Jsm.Opcode.LOFFSET) || !MatchesNativeMediaInstruction(command.ObjectId, command.ScriptId, command.Operation) || program!.Operations[command.Operation].Opcode.ToString() != command.Opcode || program.Operations[command.Operation].Parameter != command.InlineParameter)
             {
                 throw new InvalidDataException("Saved display offset has invalid issuing command provenance.");
             }
@@ -132,9 +134,12 @@ public sealed partial class EventEngine
             }
             else
             {
-                if (state.Mode != (cosine ? 2 : 1) && state.Mode != 3 || state.StartX != command.PreviousTargetX || state.StartY != command.PreviousTargetY || state.StartZ != command.PreviousTargetZ || state.TargetX != x || state.TargetY != y || state.TargetZ != z || state.Duration != unchecked((ushort)command.Operands[3]))
+                short targetX = explicitStart ? unchecked((short)command.Operands[3]) : x;
+                short targetY = explicitStart ? unchecked((short)command.Operands[4]) : y;
+                short targetZ = explicitStart ? unchecked((short)command.Operands[5]) : z;
+                if (state.Mode != (cosine ? 2 : 1) && state.Mode != 3 || state.StartX != (explicitStart ? x : command.PreviousTargetX) || state.StartY != (explicitStart ? y : command.PreviousTargetY) || state.StartZ != (explicitStart ? z : command.PreviousTargetZ) || state.TargetX != targetX || state.TargetY != targetY || state.TargetZ != targetZ || state.Duration != unchecked((ushort)command.Operands[explicitStart ? 6 : 3]))
                 {
-                    throw new InvalidDataException("Saved cosine offset differs from its native target-to-start transfer.");
+                    throw new InvalidDataException("Saved display offset differs from its native start/target and duration writes.");
                 }
                 if (state.Mode == 3 || state.Counter != 0)
                 {

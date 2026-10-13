@@ -176,6 +176,16 @@ public sealed partial class EventEngine
             case Jsm.Opcode.DSCROLL2:
                 args = ExecuteDirectBackgroundScroll(fiber);
                 break;
+            case Jsm.Opcode.DSCROLL:
+                args = ExecuteDirectBackgroundScroll(fiber, layerZero: true);
+                break;
+            case Jsm.Opcode.SHAKE:
+            case Jsm.Opcode.SHAKEOFF:
+                args = ExecuteShake(fiber, opcode == Jsm.Opcode.SHAKE);
+                break;
+            case Jsm.Opcode.SEVOLTRANS:
+                args = ExecuteSoundVolumeTransition(fiber);
+                break;
             case Jsm.Opcode.CSCROLLP:
                 args = ExecutePartyBackgroundScroll(fiber);
                 break;
@@ -291,6 +301,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.REFRESHPARTY:
                 RefreshParty();
+                break;
+            case Jsm.Opcode.FOLLOWOFF:
+                ExecuteFollowOff(fiber);
                 break;
             case Jsm.Opcode.JOIN:
                 ExecuteJoin(fiber);
@@ -503,6 +516,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.DOFFSET:
             case Jsm.Opcode.LOFFSET:
+            case Jsm.Opcode.LOFFSETS:
             case Jsm.Opcode.COFFSET:
                 args = ExecuteDisplayOffset(fiber, actor, operation);
                 break;
@@ -620,7 +634,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MAPJUMPO:
                 args = Pop(fiber, 2);
                 transitionRequested = true;
-                services.RequestField(args[0], args[1]);
+                services.RequestField(FieldTransition.FromMapJumpOrigin(args[0], args[1]));
                 break;
             case Jsm.Opcode.MAPJUMPON:
                 Scene.MapJumpDisabled = false;

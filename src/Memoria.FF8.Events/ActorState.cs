@@ -143,6 +143,9 @@ public sealed class ActorState
     [JsonInclude]
     public int NativeBaseAnimationVersion { get; internal set; } = 1;
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeFollowOffReceipt? NativeFollowOff { get; internal set; }
+    [JsonInclude]
     public int BaseFirstFrame { get; internal set; }
     [JsonInclude]
     public int BaseLastFrame { get; internal set; }

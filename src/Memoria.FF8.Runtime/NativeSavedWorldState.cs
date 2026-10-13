@@ -132,6 +132,8 @@ public sealed record NativeSavedWorldState
     /// <summary>Absent older checkpoints have no inferred slot0 pose, camera or last return frame.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldFootReturn? FootReturn { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldCarReturn? CarReturn { get; init; }
     /// <summary>Native New Game whole-save zeroing proves saved-world +110 initially0; missing historical serialization stays absent until an actual fresh loader consumes its original initialization proof.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? InitialMapDisplayMode110 { get; init; }
@@ -139,6 +141,10 @@ public sealed record NativeSavedWorldState
     public byte ReadMapDisplayModeForFreshFootLoader()
     {
         Validate();
+        if (CarReturn is NativeSavedWorldCarReturn car)
+        {
+            return car.MapDisplayMode110;
+        }
         if (FootReturn is NativeSavedWorldFootReturn receipt)
         {
             receipt.RequireCompleteFootReload();
@@ -155,7 +161,28 @@ public sealed record NativeSavedWorldState
         ArgumentNullException.ThrowIfNull(receipt);
         Validate();
         receipt.Validate();
-        return this with { FootReturn = receipt };
+        return this with { FootReturn = receipt, CarReturn = null };
+    }
+
+    public NativeSavedWorldState WithCarReturn(NativeSavedWorldCarReturn receipt)
+    {
+        Validate();
+        receipt.Validate();
+        if (Slot4.ShapeId != 73)
+        {
+            throw new InvalidDataException("The native car save requires its active shape73 vehicle slot.");
+        }
+        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt };
+    }
+
+    public NativeSavedWorldState WithOrdinaryCarEntry()
+    {
+        Validate();
+        if (Slot4.ShapeId is not 0 and not 255 || Slot5.ShapeId != 0)
+        {
+            throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
+        }
+        return this with { Slot4 = Slot4 with { ShapeId = 73 }, CarReturn = null };
     }
 
     public static NativeSavedWorldState CreateNewGame()
@@ -192,6 +219,11 @@ public sealed record NativeSavedWorldState
             throw new InvalidDataException("Native saved-world vehicle slots require their original poses.");
         }
         FootReturn?.Validate();
+        CarReturn?.Validate();
+        if (CarReturn is not null && (FootReturn is not null || Slot4.ShapeId != 255 || Slot4.Pose != CarReturn.Pose))
+        {
+            throw new InvalidDataException("Native car return disagrees with its retired vehicle slot.");
+        }
         if (InitialMapDisplayMode110 is not null and not 0)
         {
             throw new InvalidDataException("Native initial saved-world map-display authority differs from the New Game zeroing proof.");

@@ -51,7 +51,14 @@ public sealed record GameState
 
 public sealed record DialogueDraft(int Channel, int MessageId, int SelectedChoice, string EnteredName);
 public sealed record MoviePlaybackState(int FrameIndex, int TerminalFrame, bool IsPlaying, bool Completed, bool Skipped);
-public sealed record FieldTransition(int FieldId, float X, float Y, int Triangle, int Direction, short? NativeExtraWord = null);
+public sealed record FieldTransition(int FieldId, float X, float Y, int Triangle, int Direction, short? NativeExtraWord = null)
+{
+    public static FieldTransition FromMapJumpOrigin(int fieldId, int triangle)
+    {
+        // Native521C30 stores both operands as WORDs; X/Y7FFF requests the triangle centroid.
+        return new FieldTransition(unchecked((ushort)fieldId), short.MaxValue, short.MaxValue, unchecked((ushort)triangle), 0);
+    }
+}
 
 public readonly record struct InputFrame(float Horizontal, float Vertical, bool Confirm, bool Cancel, bool Skip, bool Save, int MenuVertical = 0, bool QuickLoad = false, bool SaveMenu = false, bool LoadMenu = false, int MenuHorizontal = 0, int MenuPage = 0, bool RecreateSave = false);
 

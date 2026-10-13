@@ -18,6 +18,8 @@ internal static partial class Program
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["causal-replay"] = CausalReplayContract,
+                    ["map-jump-origin"] = NativeMapJumpOriginContract,
+                    ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
                     ["field-media"] = NativeFieldMediaContract,
                     ["exam-timer"] = NativeExamTimerContract,
                     ["native-scalar-memory"] = NativeScalarMemoryContract,
@@ -47,6 +49,7 @@ internal static partial class Program
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["key-on"] = NativeKeyOnContract,
                     ["movie-timer"] = NativeMovieTimerClockContract,
+                    ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["sound-initialization"] = () => NativeSoundInitializationContract(selectedGameDirectory),
@@ -97,6 +100,7 @@ internal static partial class Program
             NativeDressContract(gameDirectory);
             NativeKeyOnContract();
             NativeMovieTimerClockContract();
+            NativeCarCommandsContract(gameDirectory);
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeSoundInitializationContract(gameDirectory);
