@@ -168,9 +168,9 @@ public sealed class FieldNativeMovementProbeTests
     [Fact]
     public void AmbiguousRoundingDegenerateGeometryAndUnknownContactsRemainUnsupported()
     {
-        // Normal cross/256 = (21,0,-251), normalized X = 341.500080116... .
-        // The x87 magic-add can double-round across the integer midpoint; do not guess parity.
-        WalkmeshTriangle rounding = new(Vector3.Zero, new Vector3(0, 256, 0), new Vector3(251, 0, 21), -1, -1, -1);
+        // Normal cross/256 = (6,0,-413), normalized X =59.4997746399... .
+        // Precision53 rounds to59; precision64 double-rounds to60. Do not pick a mode.
+        WalkmeshTriangle rounding = new(Vector3.Zero, new Vector3(0, 256, 0), new Vector3(413, 0, 6), -1, -1, -1);
         FieldNativeMovementResult ambiguous = FieldNativeMovementProbe.Resolve(new FieldWalkmesh([rounding]), Request(0, 20, 20, 0, 64, radius: 0));
         Assert.Equal(FieldNativeMovementStatus.Unsupported, ambiguous.Status);
         Assert.Contains("rounding", ambiguous.UnsupportedReason!);
@@ -184,6 +184,44 @@ public sealed class FieldNativeMovementProbeTests
         Assert.Contains("cycle", cyclic.UnsupportedReason!);
         FieldWalkmesh fractional = new([Square().Triangles[0] with { A = new Vector3(0.5f, 0, 40) }]);
         Assert.Equal(FieldNativeMovementStatus.Unsupported, FieldNativeMovementProbe.Resolve(fractional, Request(0, 500, 500, 40, 0)).Status);
+    }
+
+    [Fact]
+    public void NativeMagicAdditionAdmitsACommonDoubleRoundedResultWithoutTheOldErrorBand()
+    {
+        // 341.500080116... rounds to342 directly and through the1/2048
+        // magic-add grid. A symmetric error band incorrectly included341.
+        WalkmeshTriangle slope = new(Vector3.Zero, new Vector3(0, 256, 0), new Vector3(251, 0, 21), -1, -1, -1);
+        FieldNativeMovementResult result = FieldNativeMovementProbe.Resolve(new FieldWalkmesh([slope]), Request(0, 20, 20, 0, 64, radius: 0));
+        Assert.Equal(FieldNativeMovementStatus.Accepted, result.Status);
+        Assert.Equal(342, result.Factors!.Value.NormalX);
+        Assert.Equal(0, result.Factors.Value.NormalY);
+        Assert.Equal(-4082, result.Factors.Value.NormalZ);
+    }
+
+    [Fact]
+    public void OriginalDolletLandingExactStoredHalfNormalProducesTheNativeGroundProposal()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        Assert.SkipUnless(Directory.Exists(directory), "Installed selected field corpus is required.");
+        using GameAssets assets = new(directory);
+        FieldWalkmesh mesh = assets.LoadField(339).Walkmesh;
+        Assert.Equal(new Vector3(923, -1438, 218), mesh.Triangles[89].A);
+        Assert.Equal(new Vector3(878, -1937, 207), mesh.Triangles[89].B);
+        Assert.Equal(new Vector3(721, -1576, 186), mesh.Triangles[89].C);
+        // Actual source93 pre-step body, with independently clear contact input
+        // for this pure geometry regression. Root validates real actor contacts.
+        FieldNativeMovementRequest request = new(89, 3203978, -7022544, 794624, 136, 10676, 48, false, true, 0, true);
+        FieldNativeMovementResult result = FieldNativeMovementProbe.Resolve(mesh, request, hasActorCollision: _ => false);
+        Assert.Equal(FieldNativeMovementStatus.Accepted, result.Status);
+        Assert.Equal(new FieldNativeSlopeFactors(615, 33, -4050, 4050, 4096), result.Factors);
+        Assert.Equal((3171033, -6855023, 790528, 89, (byte)136), (result.FixedX, result.FixedY, result.FixedZ, result.Triangle, result.Direction));
+        FieldNativeMovementProposal proposal = Assert.Single(result.Proposals);
+        Assert.Equal(new[] { 189, 197, 192 }, proposal.FanProbes.Select(probe => probe.NativeHeight!.Value));
+        Assert.All(proposal.FanProbes, probe => Assert.True(probe.Supported && probe.Steering == 0 && !probe.ActorCollision));
+        Assert.Equal(193, result.CenterProbe!.NativeHeight);
+        Assert.Equal(1, result.RetryCount);
+        Assert.Null(result.UnsupportedReason);
     }
 
     [Fact]

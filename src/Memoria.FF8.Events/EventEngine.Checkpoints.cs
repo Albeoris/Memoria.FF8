@@ -61,6 +61,23 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Event checkpoint does not match the loaded field/program or has invalid timing.");
         }
+        if (saved.Scene.MovieActors is NativeMovieActorLifecycle movieActors)
+        {
+            movieActors.Validate(saved.Frame);
+            if (movieActors.MovieIndex != saved.PreparedMovie || movieActors.Active != services.IsMoviePlaying)
+            {
+                throw new InvalidDataException("Saved movie actor lifecycle disagrees with its prepared index or current service.");
+            }
+            IEnumerable<int> movieObjects = saved.Scene.NativeActorLayoutVersion == 1 ? saved.Scene.NativeActorObjectIds : program.NativeObjects.Take(program.NativeActorCount);
+            if (movieObjects.Any(id => (uint)id >= saved.Actors.Length || saved.Actors[id].NativeMovementBaseSpeed is null))
+            {
+                throw new InvalidDataException("Saved native movie actor writes have missing WORD512 allocation authority.");
+            }
+        }
+        else if (services.IsMoviePlaying || saved.MovieProgressExpected)
+        {
+            throw new InvalidDataException("Active or pending movie snapshot has no executed native actor lifecycle; recreate its journal.");
+        }
         if (saved.NativeVariableValues is { Count: > 0 } savedMemory)
         {
             if (!services.CanStoreNativeVariableValues)

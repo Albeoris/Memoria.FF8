@@ -22,37 +22,46 @@ internal static partial class Program
 
         var current = Create();
         current.Engine.Step();
-        Require(current.Session.NativeMovieClockFlag == true && current.Session.ExamTimer!.ClockCalls == 2 && current.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 1, MovieCallbacks: 0 }, "MOVIE start retroactively added active-movie calls to the earlier pre-VM sample.");
+        Require(current.Session.NativeMovieClockFlag == false && current.Session.ExamTimer!.ClockCalls == 2, "MOVIEREADY did not yield its original return3 callback before starting playback.");
         current.Engine.Step();
-        Require(current.Session.ExamTimer!.ClockCalls == 6 && current.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 1, MovieCallbacks: 1 }, "An actual active movie callback did not run four native clock calls.");
-        NativeExamTimerState expected = NativeExamTimerState.FromReachedSet(600).KillDisplay().AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1).AdvanceCallbacks(NativeTimerCallbackKind.MovieField, 1);
+        Require(current.Session.NativeMovieClockFlag == true && current.Session.ExamTimer!.ClockCalls == 4 && current.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 2, MovieCallbacks: 0 }, "MOVIE start retroactively added active-movie calls to the earlier pre-VM sample.");
+        current.Engine.Step();
+        Require(current.Session.ExamTimer!.ClockCalls == 8 && current.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 2, MovieCallbacks: 1 }, "An actual active movie callback did not run four native clock calls.");
+        NativeExamTimerState expected = NativeExamTimerState.FromReachedSet(600).KillDisplay().AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 2).AdvanceCallbacks(NativeTimerCallbackKind.MovieField, 1);
         Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(current.Session.ExamTimer)), "Movie callbacks changed the correlated unknown native fractional phase.");
 
         current.Session.SetMoviePlayback(new MoviePlaybackState(350, 999, true, false, false));
         current.Session.SetMoviePosition(12345);
         current.Session.SetMoviePlayback(new MoviePlaybackState(999, 999, true, false, false));
-        Require(current.Session.ExamTimer.ClockCalls == 6, "Decoded frame or duration samples fabricated native callback clocks.");
+        Require(current.Session.ExamTimer.ClockCalls == 8, "Decoded frame or duration samples fabricated native callback clocks.");
         JsonElement saved = current.Engine.Capture();
         var independent = Create(current.Session.State);
         independent.Engine.Restore(saved);
         Require(JsonElement.DeepEquals(saved, independent.Engine.Capture()), "Active movie callback ledger did not restore independently.");
         current.Engine.Step();
         independent.Engine.Step();
-        Require(current.Session.ExamTimer.ClockCalls == 10 && JsonElement.DeepEquals(current.Engine.Capture(), independent.Engine.Capture()), "Restored active movie callback or timer phase diverged.");
+        Require(current.Session.ExamTimer.ClockCalls == 12 && JsonElement.DeepEquals(current.Engine.Capture(), independent.Engine.Capture()), "Restored active movie callback or timer phase diverged.");
         Require(current.Engine.Apply(new PlayerAction(PlayerActionKind.SkipMovie)) is { Accepted: true, FramesAdvanced: 0 }, "Ordinary movie skip was not accepted without a fabricated field callback.");
         independent.Engine.Apply(new PlayerAction(PlayerActionKind.SkipMovie));
-        Require(current.Session.NativeMovieClockFlag == false && current.Session.ExamTimer.ClockCalls == 10 && current.Session.State.MoviePlayback is { Completed: true, Skipped: true }, "Skip completion failed to clear the movie lifecycle or inferred callbacks from the terminal frame.");
+        Require(current.Session.NativeMovieClockFlag == false && current.Session.ExamTimer.ClockCalls == 12 && current.Session.State.MoviePlayback is { Completed: true, Skipped: true }, "Skip completion failed to clear the movie lifecycle or inferred callbacks from the terminal frame.");
         current.Engine.Step();
         independent.Engine.Step();
-        Require(current.Session.ExamTimer.ClockCalls == 12 && current.Session.State.Variables[5000] == 77 && JsonElement.DeepEquals(current.Engine.Capture(), independent.Engine.Capture()), "Post-skip VM continuation failed to return to two ordinary calls.");
+        Require(current.Session.ExamTimer.ClockCalls == 14 && current.Session.State.Variables[5000] == 77 && JsonElement.DeepEquals(current.Engine.Capture(), independent.Engine.Capture()), "Post-skip VM continuation failed to return to two ordinary calls.");
 
         var natural = Create();
         natural.Engine.Step();
-        natural.Session.SetMoviePlayback(new MoviePlaybackState(100, 100, false, true, false));
-        natural.Session.CompleteMovie();
-        Require(natural.Session.ExamTimer!.ClockCalls == 2 && natural.Session.NativeMovieClockFlag == false, "Natural movie cleanup introduced an unrecorded callback.");
         natural.Engine.Step();
-        Require(natural.Session.ExamTimer.ClockCalls == 4 && natural.Session.State.Variables[5000] == 77, "Natural completion failed to resume the normal field clock.");
+        long startFrame = natural.Engine.Frame;
+        natural.Session.SetMoviePlayback(new MoviePlaybackState(0, 2, true, false, false));
+        natural.Session.SetMoviePlayback(new MoviePlaybackState(1, 2, true, false, false));
+        Require(natural.Engine.Frame == startFrame && natural.Session.ExamTimer!.ClockCalls == 4 && natural.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 2, MovieCallbacks: 0 } && natural.Session.State.Variables[80] == 0, "The two actual startup samples fabricated an extra callback or copied a postdecode native movie word into the start VM.");
+        natural.Session.SetMoviePlayback(new MoviePlaybackState(2, 2, true, false, false));
+        natural.Engine.Step();
+        Require(natural.Session.ExamTimer!.ClockCalls == 8 && natural.Session.State.Variables[80] == 2 && natural.Engine.Scene.FieldCallbackClock is { OrdinaryCallbacks: 2, MovieCallbacks: 1 }, "The first post-start decoded frame did not use the previous one-based native frame word and one active callback.");
+        natural.Session.CompleteMovie();
+        Require(natural.Session.ExamTimer!.ClockCalls == 8 && natural.Session.NativeMovieClockFlag == false, "Natural movie cleanup introduced an unrecorded callback.");
+        natural.Engine.Step();
+        Require(natural.Session.ExamTimer.ClockCalls == 10 && natural.Session.State.Variables[5000] == 77 && natural.Session.State.Variables[80] == 2, "Natural completion failed to resume the normal field clock or changed the retained predecode movie word.");
 
         UnprovedMovieClockServices unproved = new();
         EventEngine unsupported = new(unproved, new Dictionary<int, int>());
@@ -60,12 +69,13 @@ internal static partial class Program
         try
         {
             unsupported.Step();
+            unsupported.Step();
             throw new InvalidOperationException("Movie departure accepted a service without native lifecycle flag authority.");
         }
         catch (EventScriptException) when (unsupported.LastFault?.Opcode == "MOVIE")
         {
         }
-        Require(!unproved.IsMoviePlaying && unproved.ExamTimer.ClockCalls == 2 && unsupported.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 4, "Unproved movie departure mutated its scene or advanced the original MOVIE operation.");
+        Require(!unproved.IsMoviePlaying && unproved.ExamTimer.ClockCalls == 4 && unsupported.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 4, "Unproved movie departure mutated its scene or advanced the original MOVIE operation.");
 
         foreach (Action<JsonNode> corrupt in new Action<JsonNode>[]
         {

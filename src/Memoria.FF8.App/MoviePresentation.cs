@@ -34,13 +34,13 @@ internal sealed class MoviePresentation : IDisposable
         return position >= duration && videoFinished && audioFinished && pendingAudioBuffers == 0;
     }
 
-    public void Update()
+    public void Update(Func<MoviePlaybackState, double, bool>? decodedFrame = null)
     {
         while (sound.PendingBufferCount < 3 && decoder.TryGetAudio(out byte[]? buffer))
         {
             sound.SubmitBuffer(buffer!);
         }
-        if (decoder.TryGetFrame(clock.Elapsed.TotalSeconds, out MovieFrame? frame))
+        while (decoder.TryGetNextFrame(clock.Elapsed.TotalSeconds, out MovieFrame? frame))
         {
             Texture.SetData(frame!.Rgba);
             absoluteFrame = Math.Min(decoder.Information.FrameCount - 1, MovieClock.AbsoluteFrame(decoder.StartSeconds, decoder.Information) + checked((int)frame.Index));
@@ -51,6 +51,11 @@ internal sealed class MoviePresentation : IDisposable
                 Console.WriteLine($"movie-audio={sound.State} buffered={sound.PendingBufferCount} pcm=44100Hz/stereo");
                 clock.Start();
                 started = true;
+            }
+            double seconds = decoder.StartSeconds + frame.Index / decoder.Information.FramesPerSecond;
+            if (decodedFrame?.Invoke(new MoviePlaybackState(absoluteFrame, decoder.Information.FrameCount - 1, true, false, false), seconds) == false)
+            {
+                break;
             }
         }
     }

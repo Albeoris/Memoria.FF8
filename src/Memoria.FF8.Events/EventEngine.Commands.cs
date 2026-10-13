@@ -385,6 +385,9 @@ public sealed partial class EventEngine
                     actor.NativeScriptMovement = previousMovement with { FacingDirection = (byte)actor.Direction };
                 }
                 break;
+            case Jsm.Opcode.Unknown9:
+                args = ExecutePositiveCosineTurn(fiber);
+                break;
             case Jsm.Opcode.CTURNL:
             case Jsm.Opcode.CTURNR:
                 args = Pop(fiber, 2);
@@ -441,7 +444,13 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MSPEED:
                 args = Pop(fiber, 1);
-                actor.MovementSpeed = args[0];
+                short nativeSpeed = unchecked((short)args[0]);
+                actor.MovementSpeed = nativeSpeed;
+                actor.NativeMovementBaseSpeed = nativeSpeed;
+                if (actor.NativeScriptMovement is NativeScriptMovementState speedMovement)
+                {
+                    actor.NativeScriptMovement = speedMovement with { Speed = nativeSpeed };
+                }
                 break;
             case Jsm.Opcode.MLIMIT:
                 args = Pop(fiber, 1);
@@ -617,6 +626,9 @@ public sealed partial class EventEngine
                 preparedMovie = args[0];
                 variables[80] = 0;
                 movieProgressExpected = false;
+                Scene.MovieActors = new NativeMovieActorLifecycle(1, preparedMovie, args[1], Frame, null, null);
+                fiber.WaitReason = WaitReason.Frames;
+                fiber.WaitUntil = Frame + 1;
                 break;
             case Jsm.Opcode.MOVIE:
                 if (preparedMovie < 0)
@@ -624,7 +636,7 @@ public sealed partial class EventEngine
                     throw Fault(fiber, "MOVIE has no preceding MOVIEREADY.");
                 }
                 movieProgressExpected = true;
-                services.RequestMovie(preparedMovie);
+                StartNativeMovieActors();
                 break;
             case Jsm.Opcode.MOVIESYNC:
                 fiber.WaitReason = WaitReason.Movie;

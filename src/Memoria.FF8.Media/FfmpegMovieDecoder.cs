@@ -46,6 +46,12 @@ public sealed class FfmpegMovieDecoder : IDisposable
         return frame is not null;
     }
 
+    public bool TryGetNextFrame(double seconds, out MovieFrame? frame)
+    {
+        frame = null;
+        return frames.Reader.TryPeek(out MovieFrame? next) && next.Index / Information.FramesPerSecond <= seconds && frames.Reader.TryRead(out frame);
+    }
+
     public bool TryGetAudio(out byte[]? buffer)
     {
         return samples.Reader.TryRead(out buffer);

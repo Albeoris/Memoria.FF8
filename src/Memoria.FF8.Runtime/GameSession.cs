@@ -123,6 +123,7 @@ public sealed partial class GameSession : IEventServices
         if (State.Scene == SceneKind.Movie)
         {
             GameState source = State;
+            MovieCompleting?.Invoke();
             MoviePlaybackState? playback = State.MoviePlayback;
             if (playback is not null)
             {

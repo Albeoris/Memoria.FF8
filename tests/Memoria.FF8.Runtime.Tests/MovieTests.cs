@@ -7,6 +7,57 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class MovieTests
 {
     [Fact]
+    public async Task Installed_short_movie_next_frame_preserves_every_decoded_callback_when_late()
+    {
+        string tools = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../../tools/ffmpeg/ffmpeg-9.0.2-essentials_build/bin"));
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string path = Path.Combine(game, "Data", "movies", "disc00_01h.avi");
+        Assert.SkipUnless(File.Exists(Path.Combine(tools, "ffmpeg.exe")) && File.Exists(Path.Combine(tools, "ffprobe.exe")) && File.Exists(path), "Installed short AVI corpus and cached FFmpeg are required.");
+        using var decoder = new FfmpegMovieDecoder(tools, path);
+        Assert.Equal(15, decoder.Information.FramesPerSecond);
+        Assert.Equal(205, decoder.Information.FrameCount);
+        Assert.False(decoder.TryGetNextFrame(-1, out MovieFrame? early));
+        Assert.Null(early);
+        Stopwatch timeout = Stopwatch.StartNew();
+        int callbacks = 0;
+        long audioBytes = 0;
+        bool firstFrameAdmitted = false;
+        while ((!decoder.VideoFinished || !decoder.AudioFinished) && timeout.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            while (decoder.TryGetAudio(out byte[]? pcm))
+            {
+                Assert.Equal(0, pcm!.Length % 4);
+                audioBytes += pcm.Length;
+            }
+            // Admit frame0 at its exact deadline, then simulate a late UI update.
+            // Every call must still return exactly the next frame, including the tail.
+            double deadline = firstFrameAdmitted ? 1000 : 0;
+            while (decoder.TryGetNextFrame(deadline, out MovieFrame? frame))
+            {
+                Assert.NotNull(frame);
+                Assert.Equal(callbacks, frame.Index);
+                Assert.Equal(decoder.Information.Width * decoder.Information.Height * 4, frame.Rgba.Length);
+                callbacks++;
+                if (!firstFrameAdmitted)
+                {
+                    firstFrameAdmitted = true;
+                    Assert.False(decoder.TryGetNextFrame(0, out MovieFrame? notYetDue));
+                    Assert.Null(notYetDue);
+                    break;
+                }
+            }
+            await Task.Delay(1, TestContext.Current.CancellationToken);
+        }
+        Assert.True(decoder.VideoFinished, $"Video did not drain in30s: callbacks={callbacks}; error={decoder.Error}");
+        Assert.True(decoder.AudioFinished, "Audio did not drain in30s.");
+        Assert.Null(decoder.Error);
+        Assert.True(audioBytes > 0);
+        Assert.Equal(decoder.Information.FrameCount, callbacks);
+        Assert.False(decoder.TryGetNextFrame(1000, out MovieFrame? afterEnd));
+        Assert.Null(afterEnd);
+    }
+
+    [Fact]
     public async Task Installed_opening_and_next_movie_decode_frames_audio_and_dispose_processes()
     {
         string tools = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../../tools/ffmpeg/ffmpeg-9.0.2-essentials_build/bin"));

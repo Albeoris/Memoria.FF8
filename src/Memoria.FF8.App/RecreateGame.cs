@@ -174,7 +174,26 @@ internal sealed class RecreateGame : Game
                 movieIndex = session.State.MovieIndex;
                 error = null;
             }
-            movie.Update();
+            int playbackField = session.State.FieldId;
+            int playbackMovie = session.State.MovieIndex;
+            movie.Update((playback, seconds) =>
+            {
+                session.SetMoviePlayback(playback);
+                session.SetMoviePosition(seconds);
+                // MOVIE's ordinary callback presents frames0/1 through55A530
+                // and the tail of4767B0; they do not own extra field callbacks.
+                if (world is not null && !fieldFaulted && playback.FrameIndex >= 2)
+                {
+                    events!.Step();
+                    metrics.Simulate(1);
+                }
+                return session.State.Scene == SceneKind.Movie && session.State.MovieIndex == playbackMovie && session.State.FieldId == playbackField;
+            });
+            if (session.State.Scene != SceneKind.Movie || session.State.MovieIndex != playbackMovie || session.State.FieldId != playbackField)
+            {
+                fieldSeconds = 0;
+                return;
+            }
             session.SetMoviePlayback(movie.Playback);
             session.SetMoviePosition(movie.PositionSeconds);
             if (movie.Error is string playbackError)
@@ -185,21 +204,6 @@ internal sealed class RecreateGame : Game
             {
                 Console.WriteLine($"movie-complete={movieIndex} position={movie.PositionSeconds:F3} video-eof=true audio-drained=true");
                 session.CompleteMovie();
-            }
-            if (world is not null && !fieldFaulted)
-            {
-                fieldSeconds += gameTime.ElapsedGameTime.TotalSeconds;
-                while (fieldSeconds + 1e-9 >= 1d / EventEngine.SimulationFps)
-                {
-                    fieldSeconds -= 1d / EventEngine.SimulationFps;
-                    events!.Step();
-                    metrics.Simulate(1);
-                    if (session.State.FieldId != field!.Id)
-                    {
-                        fieldSeconds = 0;
-                        break;
-                    }
-                }
             }
         }
         catch (EventScriptException exception)

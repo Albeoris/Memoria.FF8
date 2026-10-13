@@ -68,6 +68,9 @@ public sealed class ActorState
     [JsonInclude]
     public int MovementSpeed { get; internal set; } = 1000;
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public short? NativeMovementBaseSpeed { get; internal set; }
+    [JsonInclude]
     public byte MovementDirectionLimit { get; internal set; }
     [JsonInclude]
     public NativeScriptMovementState? NativeScriptMovement { get; internal set; }

@@ -54,6 +54,7 @@ internal static partial class Program
                     ["set-placement"] = NativeSetPlacementContract,
                     ["rcmove"] = NativeRcMoveContract,
                     ["door-line-toggle"] = NativeDoorLineToggleContract,
+                    ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
                     ["party-actor-direction"] = NativePartyActorDirectionContract,
                     ["player-script-handoff"] = NativePlayerScriptHandoffContract,
                     ["empty-party-model"] = NativeEmptyPartyModelContract,
@@ -118,6 +119,7 @@ internal static partial class Program
             NativeActorScrollContract();
             NativeSetPlacementContract();
             NativeRcMoveContract();
+            NativePositiveCosineTurnContract();
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
             NativePlayerScriptHandoffContract();

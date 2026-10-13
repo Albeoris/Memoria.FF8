@@ -303,13 +303,17 @@ public static class FieldNativeMovementProbe
             low = lowFloat;
             high = highFloat;
         }
-        // Adding 2^52+2^31 can round first to extended precision (half ULP = 2^-12), then binary64.
-        // Refuse ambiguous double-rounding cases; do not substitute Math.Round's tie behavior for x87.
-        const double magicAddError = 1.0 / 4096;
-        int lowInteger = (int)Math.Round(low - magicAddError, MidpointRounding.ToEven);
-        int highInteger = (int)Math.Round(high + magicAddError, MidpointRounding.ToEven);
-        normalized = lowInteger;
-        return lowInteger == highInteger;
+        // At magic2^52+2^31, precision64 first rounds on the1/2048 grid;
+        // the binary64 store then rounds to an integer. Precision53 rounds
+        // directly. The magic base is even on both grids, so nearest-even
+        // ties have the same parity as these signed component coordinates.
+        // Preserve both native modes and accept only their common result.
+        int low53 = (int)Math.Round(low, MidpointRounding.ToEven);
+        int high53 = (int)Math.Round(high, MidpointRounding.ToEven);
+        int low64 = (int)Math.Round(Math.Round(low * 2048, MidpointRounding.ToEven) / 2048, MidpointRounding.ToEven);
+        int high64 = (int)Math.Round(Math.Round(high * 2048, MidpointRounding.ToEven) / 2048, MidpointRounding.ToEven);
+        normalized = low53;
+        return low53 == high53 && low53 == low64 && low64 == high64;
     }
 
     private static int NativeSquareRoot(int value)
