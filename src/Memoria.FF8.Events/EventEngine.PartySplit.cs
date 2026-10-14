@@ -13,10 +13,10 @@ public sealed partial class EventEngine
 
     private bool CanUseNativeSplitMovement(int callerObjectId)
     {
-        ActorState[] targets = Enumerable.Range(0, 3).Select(ResolvePartyActor).OfType<ActorState>().ToArray();
+        ActorState[] targets = Enumerable.Range(0, 3).Select(ResolveJoinPartyActor).OfType<ActorState>().ToArray();
         bool solo = targets.Length == 1;
         bool fresh = Scene.NativeFieldInitialization?.IsFrom(NativeRuntimeProfile, FieldId, programHash) == true && Scene.NativeFieldInitialization.Stage == Memoria.FF8.Runtime.NativeFieldInitializationStage.Completed;
-        return targets.Length != 0 && targets[0].ObjectId == callerObjectId && fresh && ResolveNativeJoinMovement is not null && targets.All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true && (solo || !actor.CollisionEnabled));
+        return targets.Length != 0 && targets[0].ObjectId == callerObjectId && fresh && ResolveNativeJoinMovement is not null && ResolveNativeScriptDirection is not null && targets.All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true && (solo || !actor.CollisionEnabled));
     }
 
     private string? UnsupportedSplitContext(Fiber fiber)
@@ -26,10 +26,10 @@ public sealed partial class EventEngine
             return LastFault is not null ? "Saved unsupported native SPLIT substep requires its original pre-SPLIT source" : partySplit.FiberSequence == fiber.Sequence ? null : "Concurrent SPLIT would replace original global party movement targets";
         }
         bool usesNativeMovement = CanUseNativeSplitMovement(fiber.ObjectId);
-        bool solo = ResolvePartyActor(1) is null && ResolvePartyActor(2) is null;
-        if (partyJoin is not null || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolvePartyActor(0)?.ObjectId != fiber.ObjectId || IsUserControlEnabled || !usesNativeMovement)
+        bool solo = ResolveJoinPartyActor(1) is null && ResolveJoinPartyActor(2) is null;
+        if (partyJoin is not null || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolveJoinPartyActor(0)?.ObjectId != fiber.ObjectId || IsUserControlEnabled || !usesNativeMovement)
         {
-            return "Native SPLIT requires the reached compact leader/disabled-control context and bounded flat movement service";
+            return "Native SPLIT requires the reached compact leader/disabled-control context and saved party bodies and shared native movement services";
         }
         int[] args = fiber.Stack.ToArray();
         if (args.Length < 9 || args.Take(9).Any(value => value is < short.MinValue or > short.MaxValue))
@@ -38,17 +38,23 @@ public sealed partial class EventEngine
         }
         for (int slot = 0; slot < 3; slot++)
         {
-            if (ResolvePartyActor(slot) is not ActorState actor)
+            if (ResolveJoinPartyActor(slot) is not ActorState actor)
             {
                 continue;
             }
             if (actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || ReadNativeSplitPosition(actor) is null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.PushRadius is < 0 or > ushort.MaxValue)
             {
-                return "Native SPLIT requires proved fixed actor positions, completed prior motion and the reached flat target height";
+                return "Native SPLIT requires proved fixed actor positions, completed prior motion and native motion authority";
+            }
+            // TODO(TD-003):.525560 preserves
+            // signed474; nonzero610 cannot consume an inferred accumulator.
+            if (actor.MovementDirectionLimit != 0)
+            {
+                return "SPLIT with nonzero MLIMIT requires retained original native474 before target issue";
             }
             if (!solo && actor.CollisionEnabled)
             {
-                return "Native SPLIT atomic preflight requires the reached THROUGHON moving party peers; enabled moving-peer contact needs native staged ordering";
+                return "Native SPLIT movement requires THROUGHON moving party peers; enabled moving-peer contact needs native staged ordering";
             }
             if (actor.ObjectId != fiber.ObjectId && fibers.Any(other => other.ObjectId == actor.ObjectId && !other.Complete && other.WaitReason != WaitReason.NativeHalt))
             {
@@ -71,7 +77,7 @@ public sealed partial class EventEngine
             List<PartyJoinTarget> targets = [];
             for (int slot = 0; slot < 3; slot++)
             {
-                if (ResolvePartyActor(slot) is not ActorState actor)
+                if (ResolveJoinPartyActor(slot) is not ActorState actor)
                 {
                     continue;
                 }
@@ -85,6 +91,7 @@ public sealed partial class EventEngine
                 int speed = (short)((walk ? 69020 : 203000) * 20 >> 9);
                 actor.MovementSpeed = speed;
                 actor.MovementStopDistance = 8;
+                actor.NativeScriptMovement = null;
                 SelectFullNativeAnimation(actor, walk ? actor.WalkAnimationId : actor.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed, 0));
             }
@@ -114,51 +121,42 @@ public sealed partial class EventEngine
         partySplit = null;
     }
 
-    private void StepSplitParty()
+    private bool StepNativeSplitCompanion(ActorState actor)
     {
-        if (partySplit is null)
+        int index = partySplit is null ? -1 : Array.FindIndex(partySplit.Targets, target => target.ObjectId == actor.ObjectId);
+        if (index < 0)
         {
-            return;
+            return false;
         }
-        if (partySplit.UsesNativeMovement && !CanUseNativeSplitMovement(partySplit.CallerObjectId))
+        PartyJoinTarget target = partySplit!.Targets[index];
+        if (target.Completion == 2)
         {
-            throw FreezeSplit("Saved native SPLIT requires its certified party geometry callback and moving-peer flags; flat fallback is unsupported");
+            return true;
         }
-        PartyJoinTarget[] next = new PartyJoinTarget[partySplit.Targets.Length];
-        WalkmeshPosition?[] positions = new WalkmeshPosition?[next.Length];
-        int[] directions = new int[next.Length];
+        if (!partySplit.UsesNativeMovement || ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement(partySplit.CallerObjectId) || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.MovementDirectionLimit != 0 || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
+        {
+            throw FreezeSplit("SPLIT requires its certified native mode1 adapters, actual motion authority and zero direction limit; nonzero MLIMIT needs retained native474");
+        }
         HashSet<int> pushContacts = [];
-        for (int index = 0; index < next.Length; index++)
+        NativeScriptDirectionResult direction;
+        try
         {
-            PartyJoinTarget target = partySplit.Targets[index];
-            ActorState actor = actors[target.ObjectId];
-            next[index] = target;
-            if (target.Completion == 2)
+            // 525560 preserves474. With610=0,479970 never reads or writes
+            // that accumulator; this query placeholder asserts no physical474.
+            direction = PrepareNativeDirectionStep(new NativeScriptDirectionQuery(actor.ObjectId, target.FixedX, target.FixedY, target.TargetX, target.TargetY, (short)target.Speed, 8, (ushort)actor.PushRadius, authority.MovementDirection, (byte)actor.Direction, 0, 0, authority.FacingHold != 0));
+        }
+        catch (NotSupportedException exception)
+        {
+            throw FreezeSplit(exception.Message);
+        }
+        PartyJoinTarget next = target with { FixedX = direction.FixedX, FixedY = direction.FixedY, Completion = 2 };
+        if (direction.Status == NativeScriptDirectionStatus.Moving)
+        {
+            NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction.Direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
+            NativeJoinMovementResult movement = ResolveNativeJoinMovement(nativeQuery) ?? throw FreezeSplit("Unsupported native SPLIT movement geometry; preserved raw coordinates and SPLIT PC require the certified adapter");
+            if (movement.Proposals is null || movement.Proposals.Count is < 1 or > 16 || (uint)movement.Direction > 255 || movement.Triangle is < 0 or > short.MaxValue || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || movement.Proposals.Any(proposal => (uint)proposal.Direction > 255) || movement.Proposals[0].Direction != direction.Direction || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY || movement.Direction != movement.Proposals[^1].Direction || (movement.FixedZ & 4095) != 0) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ))
             {
-                continue;
-            }
-            int x = target.FixedX >> 12;
-            int y = target.FixedY >> 12;
-            int dx = (target.TargetX >> 12) - x;
-            int dy = (target.TargetY >> 12) - y;
-            int distanceSquared = unchecked(dx * dx + dy * dy);
-            int stop = actor.PushRadius + 8;
-            if (distanceSquared <= stop * stop + 4096)
-            {
-                next[index] = target with { Completion = 2 };
-                continue;
-            }
-            if (distanceSquared < (target.Speed * target.Speed >> 16) || distanceSquared < 4)
-            {
-                next[index] = target with { FixedX = target.TargetX, FixedY = target.TargetY, Completion = 2 };
-                continue;
-            }
-            int direction = NativePartyDirection(x, y, target.TargetX >> 12, target.TargetY >> 12);
-            NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
-            NativeJoinMovementResult movement = ResolveNativeJoinMovement?.Invoke(nativeQuery) ?? throw FreezeSplit("Native SPLIT geometry callback refused the original scripted step");
-            if (movement.Proposals.Count is < 1 or > 16 || movement.Direction is < 0 or > 255 || movement.Triangle is < 0 or > short.MaxValue || movement.Proposals.Any(proposal => proposal.Direction is < 0 or > 255 || (proposal.FixedX >> 12) is < short.MinValue or > short.MaxValue || (proposal.FixedY >> 12) is < short.MinValue or > short.MaxValue) || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (movement.FixedZ & 4095) != 0 || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ))
-            {
-                throw FreezeSplit("Native SPLIT geometry returned invalid fixed coordinates, proposal order or blocked placement");
+                throw FreezeSplit("Native SPLIT movement adapter returned an inconsistent raw proposal, phase or result");
             }
             try
             {
@@ -166,7 +164,7 @@ public sealed partial class EventEngine
                 {
                     if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
                     {
-                        throw new NotSupportedException("Native SPLIT ground/contact fans do not match all original retry proposals.");
+                        throw new NotSupportedException("Native SPLIT ground/contact fans do not match all ordered proposals.");
                     }
                     for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
                     {
@@ -186,36 +184,31 @@ public sealed partial class EventEngine
             {
                 throw FreezeSplit(exception.Message);
             }
-            positions[index] = new WalkmeshPosition(new System.Numerics.Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
-            directions[index] = movement.Direction;
-            next[index] = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
-            continue;
+            next = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
+            actor.WalkmeshTriangle = movement.Triangle;
+            if (authority.FacingHold == 0)
+            {
+                actor.Direction = movement.Direction;
+            }
+            authority = authority with { MovementDirection = (byte)movement.Direction };
         }
-        for (int index = 0; index < next.Length; index++)
+        actor.InvalidateNativeMotionAuthority();
+        actor.NativeMotionAuthority = authority;
+        actor.X = next.FixedX / 4096f;
+        actor.Y = next.FixedY / 4096f;
+        actor.Z = next.FixedZ / 4096f;
+        PartyJoinTarget[] targets = (PartyJoinTarget[])partySplit.Targets.Clone();
+        targets[index] = next;
+        partySplit = partySplit with { Targets = targets };
+        if (actor.ObjectId == partySplit.CallerObjectId)
         {
-            ActorState actor = actors[next[index].ObjectId];
-            NativeMotionAuthority authority = actor.NativeMotionAuthority ?? throw FreezeSplit("SPLIT requires preserved native movement575 and facing hold576");
-            actor.InvalidateNativeMotionAuthority();
-            actor.X = next[index].FixedX / 4096f;
-            actor.Y = next[index].FixedY / 4096f;
-            actor.Z = next[index].FixedZ / 4096f;
-            if (positions[index] is WalkmeshPosition position)
-            {
-                actor.WalkmeshTriangle = position.Triangle;
-                actor.Direction = authority.FacingHold == 1 ? actor.Direction : directions[index];
-            }
-            // Native mode1 changes575 and changes577 only when576 is clear.
-            actor.NativeMotionAuthority = authority with { MovementDirection = positions[index] is null ? authority.MovementDirection : (byte)directions[index] };
-            if (actor.ObjectId == partySplit.CallerObjectId)
-            {
-                Scene.NativePlayerPosition = new FieldFixedPosition(next[index].FixedX, next[index].FixedY, next[index].FixedZ);
-            }
+            Scene.NativePlayerPosition = new FieldFixedPosition(next.FixedX, next.FixedY, next.FixedZ);
         }
         foreach (int objectId in pushContacts)
         {
             actors[objectId].NativePushContactPending = true;
         }
-        partySplit = partySplit with { Targets = next };
+        return true;
     }
 
     private EventScriptException FreezeSplit(string reason)

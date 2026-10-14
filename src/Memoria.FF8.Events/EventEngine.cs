@@ -293,7 +293,6 @@ public sealed partial class EventEngine
         StepNativeScriptMovement();
         StepNativeJump();
         SampleNativeDoorActionEdges();
-        StepSplitParty();
         StepNativeShake();
         StepNativeActorBackgroundScroll();
         StepNativeBackgroundScroll();

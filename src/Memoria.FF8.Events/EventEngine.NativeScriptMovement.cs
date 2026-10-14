@@ -267,11 +267,7 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native scripted MOVE lost its certified actor, direction limit or speed; original substep preserved.");
         }
         NativeScriptDirectionQuery directionQuery = new(actor.ObjectId, state.FixedX, state.FixedY, state.TargetX, state.TargetY, state.Speed, state.StopDistance, (ushort)actor.PushRadius, state.MovementDirection, state.FacingDirection, state.TurnAccumulator, state.DirectionLimit, held != 0);
-        NativeScriptDirectionResult direction = ResolveNativeScriptDirection(directionQuery) ?? throw new NotSupportedException("Native scripted MOVE direction/stop proposal is outside its proved bounds.");
-        if (!Enum.IsDefined(direction.Status) || direction.Status != NativeScriptDirectionStatus.Snapped && (direction.FixedX != state.FixedX || direction.FixedY != state.FixedY) || direction.Status == NativeScriptDirectionStatus.Snapped && (direction.FixedX != state.TargetX || direction.FixedY != state.TargetY) || direction.Status != NativeScriptDirectionStatus.Moving && (direction.Direction != state.MovementDirection || direction.TurnAccumulator != state.TurnAccumulator))
-        {
-            throw new NotSupportedException("Native scripted MOVE direction adapter returned inconsistent stop/snap state.");
-        }
+        NativeScriptDirectionResult direction = PrepareNativeDirectionStep(directionQuery);
         if (direction.Status != NativeScriptDirectionStatus.Moving)
         {
             return state with { FixedX = direction.FixedX, FixedY = direction.FixedY, Completion = 2 };
@@ -300,12 +296,24 @@ public sealed partial class EventEngine
         return state with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Triangle = movement.Triangle, MovementDirection = movement.Direction, FacingDirection = held != 0 ? state.FacingDirection : movement.Direction, TurnAccumulator = direction.TurnAccumulator, Completion = 1 };
     }
 
+    private NativeScriptDirectionResult PrepareNativeDirectionStep(NativeScriptDirectionQuery query)
+    {
+        NativeScriptDirectionResult direction = ResolveNativeScriptDirection?.Invoke(query) ?? throw new NotSupportedException("Native mode1 direction/stop proposal is outside its proved bounds.");
+        if (!Enum.IsDefined(direction.Status) || direction.Status != NativeScriptDirectionStatus.Snapped && (direction.FixedX != query.FixedX || direction.FixedY != query.FixedY) || direction.Status == NativeScriptDirectionStatus.Snapped && (direction.FixedX != query.TargetX || direction.FixedY != query.TargetY) || direction.Status != NativeScriptDirectionStatus.Moving && (direction.Direction != query.MovementDirection || direction.TurnAccumulator != query.TurnAccumulator))
+        {
+            throw new NotSupportedException("Native mode1 direction adapter returned inconsistent stop/snap state.");
+        }
+        return direction;
+    }
+
     private void StepNativeScriptMovement()
     {
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             ActorState actor = actors[objectId];
-            if (partyJoin?.Targets.Any(target => target.ObjectId == objectId) == true)
+            // 524F40 issues mode572=1 for JOIN too.4789A0 commits each body
+            // at its native index before later mode1 bodies inspect peer contacts.
+            if (StepNativeJoinedCompanion(actor) || StepNativeSplitCompanion(actor))
             {
                 continue;
             }
@@ -342,8 +350,5 @@ public sealed partial class EventEngine
                 actor.MovementTarget = null;
             }
         }
-        // 524F40 gives JOIN targets the same mode572=1 as scripted MOVE.
-        // 4789A0 advances every such body after VM dispatch, in every field.
-        StepJoinedCompanions();
     }
 }

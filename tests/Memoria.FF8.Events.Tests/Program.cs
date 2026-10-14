@@ -108,6 +108,7 @@ internal static partial class Program
                     ["previous-field"] = NativePreviousFieldContract,
                     ["previous-world-entity"] = NativePreviousWorldEntityContract,
                     ["native-sloped-line"] = () => NativeSlopedLineContract(selectedGameDirectory),
+                    ["native-split-saved-bindings"] = NativeSplitSavedBindingsContract,
                     ["native-sloped-split"] = () =>
                     {
                         NativeSoloSlopedSplitContract(selectedGameDirectory);

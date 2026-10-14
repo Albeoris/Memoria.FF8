@@ -387,9 +387,18 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native SPLIT does not match its preserved caller, raw party targets or reached movement context.");
         }
-        if (saved.PartySplit is { UsesNativeMovement: true } nativeSplit && (nativeSplit.Targets[0].ObjectId != nativeSplit.CallerObjectId || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || saved.Scene.FieldPartyNativeActorIds.Count != 3 || saved.Scene.FieldPartyNativeActorIds[0] == byte.MaxValue || saved.Scene.FieldPartyNativeActorIds[0] >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[saved.Scene.FieldPartyNativeActorIds[0]] != nativeSplit.CallerObjectId || !saved.Scene.FieldPartyNativeActorIds.Where(index => index != byte.MaxValue).Select(index => index >= 0 && index < saved.Scene.NativeActorObjectIds.Count ? saved.Scene.NativeActorObjectIds[index] : -1).SequenceEqual(nativeSplit.Targets.Select(target => target.ObjectId)) || nativeSplit.Targets.Length > 1 && nativeSplit.Targets.Any(target => saved.Actors[target.ObjectId].CollisionEnabled) || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0)) || saved.Scene.NativePlayerPosition != new FieldFixedPosition(nativeSplit.Targets[0].FixedX, nativeSplit.Targets[0].FixedY, nativeSplit.Targets[0].FixedZ)))
+        if (saved.PartySplit is { UsesNativeMovement: true } nativeSplit && (nativeSplit.Targets[0].ObjectId != nativeSplit.CallerObjectId || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || nativeSplit.Targets.Length > 1 && nativeSplit.Targets.Any(target => saved.Actors[target.ObjectId].CollisionEnabled) || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0)) || saved.Scene.NativePlayerPosition != new FieldFixedPosition(nativeSplit.Targets[0].FixedX, nativeSplit.Targets[0].FixedY, nativeSplit.Targets[0].FixedZ)))
         {
             throw new InvalidDataException("Saved native SPLIT requires its exact caller/party bindings, supported moving-peer flags and raw placement.");
+        }
+        if (saved.PartySplit is { } boundSplit)
+        {
+            NativePartyBindingMemory memory = saved.Scene.PartyBindingMemory ?? throw new InvalidDataException("Saved native SPLIT lacks its original saved party body pointers.");
+            int[] bindings = Enumerable.Range(0, 3).Select(slot => (int)memory.At(slot)).ToArray();
+            if (memory.Version != 1 || bindings.Any(binding => binding != byte.MaxValue && (uint)binding >= saved.Scene.NativeActorObjectIds.Count) || bindings[0] == byte.MaxValue || saved.Scene.NativeActorObjectIds[bindings[0]] != boundSplit.CallerObjectId || !bindings.Where(binding => binding != byte.MaxValue).Select(binding => saved.Scene.NativeActorObjectIds[binding]).SequenceEqual(boundSplit.Targets.Select(target => target.ObjectId)) || boundSplit.Targets.Any(target => saved.Actors[target.ObjectId].MovementDirectionLimit != 0))
+            {
+                throw new InvalidDataException("Saved native SPLIT targets differ from saved party bodies or require unretained native474; runtime follow slots are not substitutes.");
+            }
         }
         if (saved.PartySplit is null && restored.Any(fiber => fiber.WaitReason == WaitReason.PartySplit))
         {
