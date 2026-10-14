@@ -43,7 +43,7 @@ internal static class ActorBackgroundScrollCertificate
             return null;
         }
         ActorState? actor = actors.FirstOrDefault(item => item.ObjectId == scene.NativeActorObjectIds[nativeActor]);
-        if (actor is null || !actor.Active || (uint)actor.ModelId >= field.Models.Count)
+        if (actor is null)
         {
             return null;
         }
@@ -75,6 +75,6 @@ internal static class ActorBackgroundScrollCertificate
 
     private static bool HasBaseline(FieldAssets field, SceneEventState scene)
     {
-        return DirectBackgroundScrollCertificate.HasBaseline(field, scene) && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? DirectBackgroundScrollCertificate.IsCompleted(pair.Value) : NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
+        return DirectBackgroundScrollCertificate.HasBaseline(field, scene) && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? DirectBackgroundScrollCertificate.IsCompleted(pair.Value) : field.Information!.BackgroundWrapMask == 0 ? NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value) : NativeWrappedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
     }
 }

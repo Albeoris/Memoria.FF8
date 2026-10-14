@@ -11,6 +11,40 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeWrappedDirectScrollTests
 {
     [Fact]
+    public void SelectedLinearCenterUsesExistingModeFourAndIndependentWrappedPixels()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        using GameAssets assets = new(directory);
+        FieldAssets field = assets.LoadField(930);
+        SceneEventState scene = ComponentScene(field);
+        // Declared component records match the reached physical phase words, without loading/patching its checkpoint.
+        scene.BackgroundScrollLayers[2] = new BackgroundScrollSettings(0, 0, 0, 0);
+        scene.BackgroundScrollPositions[1] = new BackgroundScrollPosition(100, 0, 0, 0, 240, 0, 71, 4, 1, 120, NativeLinearVersion: 1);
+        scene.BackgroundScrollPositions[2] = new BackgroundScrollPosition(-288, 0, -320, 0, 0, 0, 10, 4, 1, 10, NativeLinearVersion: 1);
+        NativeLinearScrollQuery query = new(0, 55, -8, -15, -8, 60);
+        Assert.True(DirectBackgroundScrollCertificate.CanSetLinear(field, query));
+        Assert.True(DirectBackgroundScrollCertificate.CanBeginLinear(field, query, scene));
+        Assert.False(DirectBackgroundScrollCertificate.CanSetLinear(field, query with { TargetY = 9 }));
+        Assert.False(DirectBackgroundScrollCertificate.CanSetLinear(field, query with { Duration = -1 }));
+        FieldRenderer renderer = new(field, 640, 448);
+        foreach (short elapsed in new short[] { 0, 1, 29, 30, 59, 60 })
+        {
+            short x = (short)(55 + elapsed * (-15 - 55) / 60);
+            scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(x, -8, -15, -8, 55, -8, elapsed == 60 ? elapsed : (short)(elapsed + 1), 4, elapsed == 60 ? (byte)2 : (byte)1, 60, NativeLinearVersion: 1);
+            Assert.True(NativeLinearScrollPhase.IsValid(scene.BackgroundScrollPositions[0]));
+            Assert.True(DirectBackgroundScrollCertificate.SupportsLinearPhase(field, scene));
+            BackgroundScrollFrame prepared = DirectBackgroundScrollCertificate.Prepare(field, scene)!;
+            Assert.Equal(new Vector2(-x, 8), prepared.ActorOffset);
+            Assert.Equal(IndependentPixels(field, scene, new FieldNativeCameraCenter(x, -8)), renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: prepared.LayerOffsets, actorScrollOffset: prepared.ActorOffset, nativeWrapFrame: prepared.NativeWrap));
+        }
+        scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(55, -8, -15, -8, 55, -8, 0, 4, 2, 0, NativeLinearVersion: 1);
+        Assert.True(DirectBackgroundScrollCertificate.SupportsLinearPhase(field, scene));
+        Assert.Equal((short)55, NativeLinearScrollPhase.Interpolate(55, -15, 0, 0));
+        scene.BackgroundScrollLayers.Remove(2);
+        Assert.False(DirectBackgroundScrollCertificate.CanBeginLinear(field, query, scene));
+    }
+
+    [Fact]
     public void ActualRoofDirectLayerUsesTheSharedCurrentPlacementAndKeepsUnwrappedOrigins()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
@@ -45,15 +79,23 @@ public sealed class NativeWrappedDirectScrollTests
         Assert.True(DirectBackgroundScrollCertificate.CanSet(field, scene, 0, 160, -8));
         BackgroundScrollFrame selected = DirectBackgroundScrollCertificate.PrepareCenter(field, scene, 160, -8);
         Assert.Equal(frame.Layers, selected.NativeWrap!.Layers);
+        Dictionary<int, Vector2> offsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, _ => new Vector2(-center.X, -center.Y));
+        FieldRenderer renderer = new(field, 640, 448);
+        Assert.Equal(IndependentPixels(field, scene, center), renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: new Vector2(-center.X, -center.Y), nativeWrapFrame: frame));
+    }
+
+    private static byte[] IndependentPixels(FieldAssets field, SceneEventState scene, FieldNativeCameraCenter center)
+    {
         List<BackgroundTile> placed = [];
         foreach (BackgroundTile tile in field.Background)
         {
             BackgroundScrollSettings settings = scene.BackgroundScrollLayers[tile.Layer];
-            int translationX = tile.Layer == 0 ? 0 : center.X + settings.OffsetX - center.X * settings.ScaleX / 256 - (tile.Layer == 1 ? 240 : 0);
-            int translationY = tile.Layer == 0 ? 0 : center.Y + settings.OffsetY - center.Y * settings.ScaleY / 256;
+            BackgroundScrollPosition? current = scene.BackgroundScrollPositions.GetValueOrDefault(tile.Layer);
+            int translationX = tile.Layer == 0 ? 0 : center.X + settings.OffsetX - center.X * settings.ScaleX / 256 - (current?.X ?? 0);
+            int translationY = tile.Layer == 0 ? 0 : center.Y + settings.OffsetY - center.Y * settings.ScaleY / 256 - (current?.Y ?? 0);
             int x = unchecked((short)(tile.X + translationX));
             int y = unchecked((short)(tile.Y + translationY));
-            if ((field.Information.BackgroundWrapMask & (1 << tile.Layer)) != 0)
+            if ((field.Information!.BackgroundWrapMask & (1 << tile.Layer)) != 0)
             {
                 FieldBounds bounds = field.Information.CameraBounds[tile.Layer];
                 x = x < center.X - 192 ? unchecked((short)(x + 2 * bounds.Right)) : x > center.X + 176 ? unchecked((short)(x - 2 * bounds.Right)) : x;
@@ -65,10 +107,8 @@ public sealed class NativeWrappedDirectScrollTests
             }
             placed.Add(tile with { X = x - center.X, Y = y - center.Y });
         }
-        Dictionary<int, Vector2> offsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, _ => new Vector2(-center.X, -center.Y));
-        FieldRenderer renderer = new(field, 640, 448);
         FieldRenderer independent = new(field with { Background = placed }, 640, 448);
-        Assert.Equal(independent.Render(new Dictionary<int, int>(), [], TimeSpan.Zero), renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets, actorScrollOffset: new Vector2(-center.X, -center.Y), nativeWrapFrame: frame));
+        return independent.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
     }
 
     private static SceneEventState ComponentScene(FieldAssets field)
