@@ -40,6 +40,14 @@ public sealed partial class EventEngine
         {
             return UnsupportedShake(fiber, operation);
         }
+        if (operation.Opcode is Jsm.Opcode.FACEDIR or Jsm.Opcode.RFACEDIR)
+        {
+            return UnsupportedNativeFacePoint(fiber);
+        }
+        if (operation.Opcode is Jsm.Opcode.FACEDIROFF or Jsm.Opcode.RFACEDIROFF)
+        {
+            return UnsupportedNativeFaceReturn(fiber);
+        }
         if (operation.Opcode is Jsm.Opcode.SEPOS or Jsm.Opcode.SEPOSTRANS)
         {
             return UnsupportedSoundPosition(fiber, operation);
@@ -56,6 +64,10 @@ public sealed partial class EventEngine
         }
         if (writing && fiber.Stack.Count > 0 && !fiber.Stack.PeekValue().IsExact)
         {
+            if (fiber.Stack.PeekValue().ActorInfoOrigin is not null)
+            {
+                return "Native memory cannot consume an unknown out-of-retained-table actor-info result";
+            }
             long last = (long)operation.Parameter + width - 1;
             if (!services.CanStoreNativeVariableValues || operation.Parameter < 0 || last > ushort.MaxValue - 3 || operation.Parameter <= 86 && last >= 84 || operation.Parameter <= 107 && last >= 101 || operation.Parameter <= 217 && last >= 179 || operation.Parameter <= 242 && last >= 240)
             {
@@ -66,7 +78,7 @@ public sealed partial class EventEngine
                 return "Uncertain native store overlaps a legacy untyped memory alias";
             }
         }
-        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC || writing)
+        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.FACEDIRSYNC || writing)
         {
             return null;
         }
@@ -138,9 +150,18 @@ public sealed partial class EventEngine
         return raw;
     }
 
-    private void ValidateNativeScalarSource(NativeScalarValue value, int fieldId, string sourceHash, long frame, NativeFieldInitializationProof? initialization, NativeExamTimerState? timer)
+    private void ValidateNativeScalarSource(NativeScalarValue value, int fieldId, string sourceHash, long frame, NativeFieldInitializationProof? initialization, NativeExamTimerState? timer, SceneEventState scene)
     {
         value.Validate();
+        if (value.ActorInfoOrigin is NativeActorInfoReadOrigin actorRead)
+        {
+            EventScript? actorScript = (uint)actorRead.ObjectId < program!.Objects.Count ? program.Objects[actorRead.ObjectId].Scripts.FirstOrDefault(script => script.Id == actorRead.ScriptId) : null;
+            if (actorRead.FieldId != fieldId || actorRead.ProgramHash != sourceHash || actorRead.RetainedActorCount != scene.NativeActorObjectIds.Count || actorRead.Frame > frame || actorScript is null || actorRead.Operation < actorScript.Start || actorRead.Operation >= actorScript.End || program.Operations[actorRead.Operation].Opcode != Jsm.Opcode.PGETINFO)
+            {
+                throw new InvalidDataException("Unknown actor-info scalar source does not identify its executed PGETINFO operation.");
+            }
+            return;
+        }
         if (value.Origin is not { } origin || origin.FieldId != fieldId)
         {
             return;

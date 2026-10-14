@@ -1,11 +1,14 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private ActorState ResolveNativeActorInfoBody(Fiber fiber, bool party)
+    private ActorState? ResolveNativeActorInfoBody(Fiber fiber, bool party, out int bankAddress, out byte nativeActor)
     {
+        bankAddress = -1;
+        nativeActor = 0;
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
             throw new NotSupportedException("Native actor information requires authenticated field body allocation.");
@@ -13,15 +16,43 @@ public sealed partial class EventEngine
         ActorState actor;
         if (party)
         {
-            if (fiber.Stack.Count == 0 || (uint)fiber.Stack.Peek() >= 3 || Scene.NativeActorLayoutVersion != 1 || Scene.PartyBindingMemory is not { Version: 1 } memory)
+            if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || Scene.NativeActorLayoutVersion != 1 || Scene.NativeActorObjectIds.Count is < 1 or > 255 || Scene.NativeActorObjectIds.Any(id => (uint)id >= actors.Count) || Scene.NativeActorObjectIds.Distinct().Count() != Scene.NativeActorObjectIds.Count)
             {
-                throw new NotSupportedException("PGETINFO requires its original saved party slot and native body table.");
+                throw new NotSupportedException("PGETINFO requires its exact original DWORD operand and native compact body table.");
             }
-            int slot = fiber.Stack.Peek();
-            int nativeActor = memory.At(slot);
-            if ((uint)nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(194 + slot, out int alias) && alias != nativeActor)
+            long address = 194L + fiber.Stack.Peek();
+            if (address is < 0 or >= 248)
             {
-                throw new NotSupportedException("PGETINFO cannot substitute a runtime follower for the saved party body.");
+                throw new NotSupportedException("PGETINFO indexed byte lies outside the retained native event bank.");
+            }
+            bankAddress = (int)address;
+            int index;
+            if (bankAddress is >= 194 and <= 196 && Scene.PartyBindingMemory is { Version: 1 } memory)
+            {
+                index = memory.At(bankAddress - 194);
+            }
+            else if (TryReadNativeMusicByte(bankAddress, out int music))
+            {
+                index = music;
+            }
+            else if (TryReadSoundVolumeByte(bankAddress, out int volume))
+            {
+                index = volume;
+            }
+            else
+            {
+                throw new NotSupportedException("PGETINFO requires an executed owner for its indexed native event-bank byte.");
+            }
+            if (variables.TryGetValue(bankAddress, out int alias) && alias != index)
+            {
+                throw new NotSupportedException("PGETINFO indexed byte differs from its canonical native owner.");
+            }
+            nativeActor = checked((byte)index);
+            if (nativeActor >= Scene.NativeActorObjectIds.Count)
+            {
+                // Native51EEB0 still reads base+612*index. No retained body supplies
+                // those bytes; preserve unknown results rather than select another actor.
+                return null;
             }
             actor = actors[Scene.NativeActorObjectIds[nativeActor]];
         }
@@ -44,7 +75,7 @@ public sealed partial class EventEngine
         }
         try
         {
-            _ = ResolveNativeActorInfoBody(fiber, operation.Opcode == Jsm.Opcode.PGETINFO);
+            _ = ResolveNativeActorInfoBody(fiber, operation.Opcode == Jsm.Opcode.PGETINFO, out _, out _);
             return null;
         }
         catch (NotSupportedException exception)
@@ -55,17 +86,29 @@ public sealed partial class EventEngine
 
     private int[] ExecuteNativeActorInfo(Fiber fiber, bool party)
     {
-        ActorState actor = ResolveNativeActorInfoBody(fiber, party);
-        FieldFixedPosition position = ReadNativeScriptPosition(actor)!;
+        ActorState? actor = ResolveNativeActorInfoBody(fiber, party, out int bankAddress, out byte nativeActor);
+        int rawOperand = party ? fiber.Stack.Peek() : 0;
+        NativeScalarValue[] values;
+        if (actor is null)
+        {
+            values = new[] { 0, 1, 2, 4, 5, 6 }.Select(register => new NativeScalarValue([], ActorInfoOrigin: new NativeActorInfoReadOrigin(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, rawOperand, bankAddress, nativeActor, Scene.NativeActorObjectIds.Count, register))).ToArray();
+        }
+        else
+        {
+            FieldFixedPosition position = ReadNativeScriptPosition(actor)!;
+            values = [position.X / 4096, position.Y / 4096, position.Z / 4096, (byte)actor.Direction, (ushort)actor.WalkmeshTriangle, (short)actor.MovementSpeed];
+        }
+        foreach (NativeScalarValue value in values)
+        {
+            value.Validate();
+        }
         int[] args = party ? Pop(fiber, 1) : [];
-        // Native51EE30/51EEB0 use signed division, preserve R3/R7 and read
-        // the saved B194 body for PGETINFO, independent of FOLLOWOFF.
-        fiber.Results[0] = position.X / 4096;
-        fiber.Results[1] = position.Y / 4096;
-        fiber.Results[2] = position.Z / 4096;
-        fiber.Results[4] = (byte)actor.Direction;
-        fiber.Results[5] = (ushort)actor.WalkmeshTriangle;
-        fiber.Results[6] = (short)actor.MovementSpeed;
+        // Native51EE30/51EEB0 use signed division and preserve R3/R7.
+        int[] registers = [0, 1, 2, 4, 5, 6];
+        for (int index = 0; index < registers.Length; index++)
+        {
+            fiber.Results[registers[index]] = values[index];
+        }
         return args;
     }
 }

@@ -32,7 +32,8 @@ public enum WaitReason
     MinimalMenu,
     MinimalBattle,
     NativeJump,
-    NativeHalt
+    NativeHalt,
+    NativeFaceSync
 }
 
 public sealed partial class EventEngine
@@ -107,7 +108,7 @@ public sealed partial class EventEngine
             NativeMemoryValue.Validate(savedMemory, saved.Variables);
             foreach (NativeMemoryValue entry in savedMemory.Values)
             {
-                ValidateNativeScalarSource(entry.Value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer);
+                ValidateNativeScalarSource(entry.Value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer, saved.Scene);
             }
         }
         if (saved.Scene.UnlockedTutorials.Any(id => (uint)id >= 128))
@@ -347,6 +348,10 @@ public sealed partial class EventEngine
                     throw new InvalidDataException("Saved scroll synchronization wait does not preserve its original instruction, unconsumed layer operand and known scroll state.");
                 }
             }
+            if (savedFiber.WaitReason == WaitReason.NativeFaceSync && (savedFiber.Complete || savedFiber.Position == script.End || program.Operations[savedFiber.Position].Opcode != Jsm.Opcode.FACEDIRSYNC || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(savedFiber.ObjectId) || saved.Actors[savedFiber.ObjectId].FaceStateVersion != 1))
+            {
+                throw new InvalidDataException("Saved FACEDIRSYNC wait requires its original retained PC and current native face-word owner.");
+            }
             Fiber fiber = new(savedFiber.ObjectId, script, savedFiber.Priority, savedFiber.Sequence, savedFiber.Initialization)
             {
                 Position = savedFiber.Position,
@@ -364,7 +369,7 @@ public sealed partial class EventEngine
             };
             foreach (NativeScalarValue operand in savedFiber.Stack.Reverse())
             {
-                ValidateNativeScalarSource(operand, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer);
+                ValidateNativeScalarSource(operand, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer, saved.Scene);
                 fiber.Stack.Push(operand);
             }
             foreach (string expression in savedFiber.StackExpressions.Reverse())
@@ -373,7 +378,7 @@ public sealed partial class EventEngine
             }
             foreach ((int key, NativeScalarValue value) in savedFiber.Results)
             {
-                ValidateNativeScalarSource(value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer);
+                ValidateNativeScalarSource(value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer, saved.Scene);
                 fiber.Results.Add(key, value);
             }
             restored.Add(fiber);

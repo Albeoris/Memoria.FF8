@@ -8,7 +8,9 @@ public static class NormalCameraCertificate
 {
     internal static bool HasBaseline(FieldAssets field, int cameraIndex)
     {
-        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count == 1 && BackgroundParallaxPlacement.SupportsPan(field) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
+        // Native4767B0 selects the CA base record for camera0 independently
+        // of whether an unselected second record is present in the resource.
+        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count > 0 && field.Camera == field.Cameras[0] && BackgroundParallaxPlacement.SupportsPan(field) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
     }
 
     public static BackgroundScrollFrame? Prepare(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)

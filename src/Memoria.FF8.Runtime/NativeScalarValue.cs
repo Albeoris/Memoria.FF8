@@ -6,9 +6,12 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeScalarProjection([property: JsonRequired] int Width, [property: JsonRequired] bool Signed);
 public sealed record NativeTimerReadOrigin(int Version, int FieldId, string ProgramHash, int ObjectId, int ScriptId, int Operation, long Frame, NativeExamTimerState Timer, uint Mask = uint.MaxValue, bool SignedWord = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarProjection[]? Projections = null);
 
-/// <summary>An exact integer or all possible results of one executed native timer read. No representative value is selected.</summary>
+/// <summary>An executed PGETINFO read outside the retained body table; it supplies no invented memory value.</summary>
+public sealed record NativeActorInfoReadOrigin(int Version, int FieldId, string ProgramHash, int ObjectId, int ScriptId, int Operation, long Frame, int RawOperand, int BankAddress, byte NativeActorIndex, int RetainedActorCount, int ResultRegister);
+
+/// <summary>An exact integer, timer alternatives, or an explicitly unknown executed actor-info read. No representative value is selected.</summary>
 [JsonConverter(typeof(NativeScalarValueJsonConverter))]
-public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Origin = null)
+public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Origin = null, NativeActorInfoReadOrigin? ActorInfoOrigin = null)
 {
     public bool IsExact => Values is { Length: 1 };
 
@@ -25,6 +28,14 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
 
     public void Validate()
     {
+        if (ActorInfoOrigin is NativeActorInfoReadOrigin read)
+        {
+            if (Values is not { Length: 0 } || Origin is not null || read.Version != 1 || read.FieldId < 72 || read.ProgramHash is not { Length: 64 } readHash || !readHash.All(Uri.IsHexDigit) || read.ObjectId < 0 || read.ScriptId < 0 || read.Operation < 0 || read.Frame < 0 || read.BankAddress is < 0 or >= 248 || (long)read.RawOperand + 194 != read.BankAddress || read.RetainedActorCount is < 1 or > 255 || read.NativeActorIndex < read.RetainedActorCount || read.ResultRegister is not (0 or 1 or 2 or 4 or 5 or 6))
+            {
+                throw new InvalidDataException("Unknown actor-info scalar lacks its executed out-of-retained-table read provenance.");
+            }
+            return;
+        }
         if (Values is null || Values.Length == 0 || Values.Length > 64 || !Values.SequenceEqual(Values.Distinct().Order()))
         {
             throw new InvalidDataException("Native scalar alternatives must be nonempty, distinct and ordered.");
@@ -68,6 +79,10 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
             throw new ArgumentException("Signed native projection requires a BYTE or WORD.", nameof(signedWord));
         }
         Validate();
+        if (ActorInfoOrigin is not null)
+        {
+            throw new NotSupportedException("An out-of-retained-table actor-info result has no known value to project or store.");
+        }
         if (IsExact)
         {
             int value = unchecked((int)((uint)Values[0] & mask));
@@ -106,7 +121,9 @@ public sealed class NativeScalarValueJsonConverter : JsonConverter<NativeScalarV
         }
         using JsonDocument document = JsonDocument.ParseValue(ref reader);
         JsonElement root = document.RootElement;
-        NativeScalarValue value = new(root.GetProperty("Values").Deserialize<int[]>(options)!, root.GetProperty("Origin").Deserialize<NativeTimerReadOrigin>(options));
+        NativeTimerReadOrigin? timerOrigin = root.TryGetProperty("Origin", out JsonElement timer) ? timer.Deserialize<NativeTimerReadOrigin>(options) : null;
+        NativeActorInfoReadOrigin? actorOrigin = root.TryGetProperty("ActorInfoOrigin", out JsonElement actor) ? actor.Deserialize<NativeActorInfoReadOrigin>(options) : null;
+        NativeScalarValue value = new(root.GetProperty("Values").Deserialize<int[]>(options)!, timerOrigin, actorOrigin);
         value.Validate();
         return value;
     }
@@ -122,8 +139,16 @@ public sealed class NativeScalarValueJsonConverter : JsonConverter<NativeScalarV
         writer.WriteStartObject();
         writer.WritePropertyName("Values");
         JsonSerializer.Serialize(writer, value.Values, options);
-        writer.WritePropertyName("Origin");
-        JsonSerializer.Serialize(writer, value.Origin, options);
+        if (value.ActorInfoOrigin is NativeActorInfoReadOrigin actorOrigin)
+        {
+            writer.WritePropertyName("ActorInfoOrigin");
+            JsonSerializer.Serialize(writer, actorOrigin, options);
+        }
+        else
+        {
+            writer.WritePropertyName("Origin");
+            JsonSerializer.Serialize(writer, value.Origin, options);
+        }
         writer.WriteEndObject();
     }
 }
@@ -134,7 +159,7 @@ public sealed record NativeMemoryValue(int Width, NativeScalarValue Value)
     {
         foreach ((int address, NativeMemoryValue entry) in memory)
         {
-            if (address < 0 || address > ushort.MaxValue - 3 || entry is null || entry.Width is not (1 or 2 or 4) || entry.Value is null || entry.Value.IsExact)
+            if (address < 0 || address > ushort.MaxValue - 3 || entry is null || entry.Width is not (1 or 2 or 4) || entry.Value is null || entry.Value.IsExact || entry.Value.ActorInfoOrigin is not null)
             {
                 throw new InvalidDataException("Invalid uncertain native memory entry.");
             }

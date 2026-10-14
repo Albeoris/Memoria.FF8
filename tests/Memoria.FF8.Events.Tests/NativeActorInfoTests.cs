@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -7,8 +8,10 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeActorInfoContract()
+    private static void NativeActorInfoContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         EventEngine Create(bool fractional)
         {
             List<(Jsm.Opcode, int)> init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -19), (Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.PSHN_L, -4), (Jsm.Opcode.SET3, fractional ? 0 : 65535), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)];
@@ -28,7 +31,7 @@ internal static partial class Program
                 main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5010 + register)]);
             }
             main.Add((Jsm.Opcode.RET, 8));
-            var session = new GameSession(new GameState());
+            var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
             var engine = new EventEngine(session, session.State.Variables)
             {
                 AnimationFrameCount = (_, _) => 4,

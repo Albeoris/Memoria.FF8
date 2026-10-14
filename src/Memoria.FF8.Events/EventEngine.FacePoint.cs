@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
@@ -6,7 +7,7 @@ public sealed partial class EventEngine
 {
     private Vector3 PrepareNativeFacePoint(Fiber fiber)
     {
-        int[] args = fiber.Stack.Take(4).Reverse().ToArray();
+        int[] args = fiber.Stack.Capture().Take(4).Reverse().Select(value => value.ToWidth(2).RequireExact()).ToArray();
         return new Vector3(unchecked((short)args[0]), unchecked((short)args[1]), unchecked((short)args[2]));
     }
 
@@ -15,10 +16,14 @@ public sealed partial class EventEngine
         ActorState actor = actors[fiber.ObjectId];
         if (fiber.Stack.Count < 4 || NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.FaceStateVersion != 1 || actor.ModelId < 0 || ReadFaceAnchorHeight is null || ResolveNativeActorFacing is null || actor.FaceElapsed is < short.MinValue or > short.MaxValue || actor.FaceSecondAngle is < short.MinValue or > short.MaxValue || actor.FacePendingBaseline is < short.MinValue or > short.MaxValue)
         {
-            return "FACEDIR requires four WORD operands, current allocated face words and the actual native joint/facing providers";
+            return "Native point-facing requires four WORD operands, current allocated face words and the actual native joint/facing providers";
         }
         try
         {
+            if (fiber.Stack.Capture().Take(4).Any(value => !value.ToWidth(2).IsExact))
+            {
+                return "Native point-facing requires exact consumed low WORDs; no representative is selected";
+            }
             _ = PrepareNativeFaceTargets(actor, PrepareNativeFacePoint(fiber));
         }
         catch (NotSupportedException exception)
@@ -28,17 +33,27 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private int[] ExecuteNativeFacePoint(Fiber fiber)
+    private int[] ExecuteNativeFacePoint(Fiber fiber, bool asynchronous, out NativeScalarValue[]? scalarArguments)
     {
         Vector3 point = PrepareNativeFacePoint(fiber);
-        int[] args = Pop(fiber, 4);
+        NativeScalarValue[] original = fiber.Stack.Capture().Take(4).Reverse().ToArray();
+        scalarArguments = original.Any(value => !value.IsExact) ? original : null;
+        int[] args = new int[4];
+        string[] expressions = new string[4];
+        for (int index = 3; index >= 0; index--)
+        {
+            NativeScalarValue raw = fiber.Stack.PopValue();
+            args[index] = raw.IsExact ? raw.RequireExact() : raw.ToWidth(2).RequireExact();
+            expressions[index] = fiber.StackExpressions.Pop();
+        }
+        fiber.LastExpressions = expressions;
         ActorState actor = actors[fiber.ObjectId];
-        //527B90 writes546/548/550/564/566/571, preserving the current joint start/target and limit words.
+        //527B90/527FA0 share the point WORD stores;527FA0 always returns2.
         actor.FaceTargetPoint = point;
         actor.FaceDuration = unchecked((ushort)args[3]);
         actor.FaceProgress = 0;
         actor.FaceReturning = false;
-        fiber.WaitReason = actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
+        fiber.WaitReason = asynchronous || actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
         return args;
     }
 

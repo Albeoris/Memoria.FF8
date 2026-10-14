@@ -270,7 +270,8 @@ public sealed partial class EventEngine
                 args = ExecutePartyActorDirection(fiber);
                 break;
             case Jsm.Opcode.FACEDIR:
-                args = ExecuteNativeFacePoint(fiber);
+            case Jsm.Opcode.RFACEDIR:
+                args = ExecuteNativeFacePoint(fiber, opcode == Jsm.Opcode.RFACEDIR, out scalarArgs);
                 break;
             case Jsm.Opcode.FACEDIRLIMIT:
                 args = Pop(fiber, 3);
@@ -278,6 +279,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.FACEDIRINIT:
                 InitializeFaceDirection(actor, fiber);
+                break;
+            case Jsm.Opcode.FACEDIRSYNC:
+                ExecuteNativeFaceSync(fiber);
                 break;
             case Jsm.Opcode.FACEDIRA:
                 args = Pop(fiber, 2);
@@ -302,20 +306,8 @@ public sealed partial class EventEngine
                 fiber.WaitReason = actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
                 break;
             case Jsm.Opcode.FACEDIROFF:
-                args = Pop(fiber, 1);
-                FaceDirectionBaseline returnBaseline = ReadFaceBaseline?.Invoke(actor) ?? throw Fault(fiber, "FACEDIROFF requires the declared control-node animation baseline.");
-                if (returnBaseline.FirstAngle is < 0 or > 255 || returnBaseline.SecondAngle is < 0 or > 255 || returnBaseline.XAngle is < 0 or > 255)
-                {
-                    throw Fault(fiber, "Model face return baseline is outside native byte-angle bounds.");
-                }
-                actor.FaceDuration = (ushort)args[0];
-                actor.FaceProgress = 0;
-                actor.FacePitchTarget = returnBaseline.XAngle;
-                actor.FacePendingBaseline = returnBaseline.FirstAngle;
-                actor.FaceYawTarget = returnBaseline.SecondAngle;
-                actor.FaceTargetPoint = null;
-                actor.FaceReturning = true;
-                fiber.WaitReason = actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
+            case Jsm.Opcode.RFACEDIROFF:
+                args = ExecuteNativeFaceReturn(fiber, opcode == Jsm.Opcode.RFACEDIROFF, out scalarArgs);
                 break;
             case Jsm.Opcode.ISPARTY:
                 args = Pop(fiber, 1);
@@ -1041,6 +1033,8 @@ public sealed partial class EventEngine
                 }
                 args = Pop(fiber, 1);
                 int soundIndex = (byte)args[0];
+                // Native51FDE0 writes physical music/effect BYTE202 before backend polling.
+                Scene.MusicProcess = (Scene.MusicProcess ?? new NativeMusicProcessState(1, null, null, null, null, null)) with { Bank202 = (byte)soundIndex };
                 SoundResourceStatus soundStatus = LoadSoundResource(soundIndex);
                 if (!Enum.IsDefined(soundStatus))
                 {
@@ -1061,6 +1055,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SESTOP:
                 args = ExecuteSoundStop(fiber);
+                break;
+            case Jsm.Opcode.MUSICSTATUS:
+                ExecuteNativeMusicStatus(fiber);
                 break;
             case Jsm.Opcode.MUSICLOAD:
                 args = ExecuteNativeMusicLoad(fiber);

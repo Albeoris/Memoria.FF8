@@ -118,7 +118,8 @@ public sealed class BackgroundScrollParallaxTests
 
     private static ActorState Actor(int x, int y, int z)
     {
-        return JsonSerializer.Deserialize<ActorState>($"{{\"NativeMovementAccelerationTarget\":null,\"ObjectId\":0,\"Label\":0,\"CharacterId\":0,\"ModelId\":0,\"X\":{x},\"Y\":{y},\"Z\":{z}}}")!;
+        // This declared projection component has no native motion-word authority.
+        return JsonSerializer.Deserialize<ActorState>($"{{\"NativeMovementAccelerationTarget\":null,\"NativeMovementCompletion542\":null,\"NativeLandingTriangle508\":null,\"NativeTurnAccumulator474\":null,\"ObjectId\":0,\"Label\":0,\"CharacterId\":0,\"ModelId\":0,\"X\":{x},\"Y\":{y},\"Z\":{z}}}")!;
     }
 
     private static GameAssets OpenAssets()

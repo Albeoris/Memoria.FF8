@@ -83,7 +83,9 @@ internal static partial class Program
                     ["rcmove"] = NativeRcMoveContract,
                     ["door-line-toggle"] = NativeDoorLineToggleContract,
                     ["door-operand-suspension"] = NativeDoorOperandSuspensionContract,
-                    ["native-actor-info"] = NativeActorInfoContract,
+                    ["native-music-status"] = () => NativeMusicStatusContract(selectedGameDirectory),
+                    ["native-actor-info-unknown"] = NativeActorInfoUnknownReadContract,
+                    ["native-actor-info"] = () => NativeActorInfoContract(selectedGameDirectory),
                     ["native-movement-request"] = NativeMovementRequestContract,
                     ["native-move-cancel"] = NativeMovementCancellationContract,
                     ["native-push-radius"] = NativePushRadiusContract,
@@ -92,6 +94,9 @@ internal static partial class Program
                     ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
                     ["native-facedir"] = NativeFacePointContract,
+                    ["native-face-sync"] = NativeFaceSyncContract,
+                    ["native-rfacedir"] = NativeAsyncFacePointContract,
+                    ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,
                     ["native-face-angles"] = FaceDirectionAnglesAndResume,
                     ["native-dirp"] = () => NativeDirectionPointContract(selectedGameDirectory),
                     ["native-join-direction-limit"] = () => NativeJoinDirectionLimitContract(selectedGameDirectory),
@@ -654,7 +659,6 @@ internal static partial class Program
         // The target must have run its original SET3 before the caller captures it.
         engine.Step();
         engine.Step();
-        engine.Step();
         Require(engine.Actors[0].FaceProgress == 1 && !session.State.Variables.ContainsKey(512), "FACEDIRA did not block its source fiber or advance the control-node driver.");
         Require(engine.Actors[0].FirstControlRotation is System.Numerics.Vector3 firstRotation && Math.Abs(firstRotation.Y - MathF.Tau / 256) < 0.00001 && Math.Abs(firstRotation.Z + MathF.Tau / 256) < 0.00001, "Native first cosine sample did not truncate to pitch1/yaw1.");
         var snapshot = engine.Capture();
@@ -674,6 +678,9 @@ internal static partial class Program
             }
         }
         Require(engine.Capture().GetRawText() == restored.Capture().GetRawText(), "Resuming a face transition changed its endpoint or script wait.");
+        Require(!session.State.Variables.ContainsKey(512), "FACEDIRA closing successor ran before its next native VM callback.");
+        engine.Step();
+        restored.Step();
         ActorState actor = engine.Actors[0];
         Require(actor.FaceYawTarget == 10 && actor.FacePitchTarget == 8 && actor.FaceSecondAngle == 10 && actor.FaceElapsed == 8 && session.State.Variables[512] == 7, "Native head target clamping or duration completion failed.");
         Require(actor.FirstControlRotation is System.Numerics.Vector3 rotation && Math.Abs(rotation.Y - 8 * MathF.Tau / 256) < 0.00001 && Math.Abs(rotation.Z + 10 * MathF.Tau / 256) < 0.00001, "Native pitch/yaw signs did not reach the declared control-node override.");

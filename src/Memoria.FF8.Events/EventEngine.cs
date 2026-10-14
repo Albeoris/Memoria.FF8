@@ -275,7 +275,6 @@ public sealed partial class EventEngine
         foreach (ActorState actor in actors)
         {
             actor.StepRotation();
-            StepFaceDirection(actor);
         }
         StepVisualTransitions();
         StepBackgroundShadeLoops();
@@ -349,6 +348,11 @@ public sealed partial class EventEngine
         }
         fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item));
         StepNativeNormalBackgroundScrollCenter();
+        // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
+        foreach (ActorState actor in actors)
+        {
+            StepFaceDirection(actor);
+        }
         if (services.SalaryPresentation is NativeSalaryPresentation salaryPresentation)
         {
             bool movie = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Salary presentation requires the actual movie callback flag.") : false);
@@ -739,6 +743,7 @@ public sealed partial class EventEngine
         {
             WaitReason.SoundResource => SoundResourceReady(fiber),
             WaitReason.FaceDirection => actor.FaceProgress == actor.FaceDuration,
+            WaitReason.NativeFaceSync => actor.FaceProgress == actor.FaceDuration,
             WaitReason.PartyJoin => true,
             WaitReason.PartySplit => true,
             WaitReason.NativeScriptMovement => true,

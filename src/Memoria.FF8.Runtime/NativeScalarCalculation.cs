@@ -24,6 +24,10 @@ public static class NativeScalarCalculation
             }
             left.Validate();
         }
+        if (right.ActorInfoOrigin is not null || left?.ActorInfoOrigin is not null)
+        {
+            throw new NotSupportedException("Native CAL cannot consume an unknown out-of-retained-table actor-info result.");
+        }
         int? unanimous = null;
         foreach (int a in operands == 1 ? new[] { 0 } : left!.Values)
         {

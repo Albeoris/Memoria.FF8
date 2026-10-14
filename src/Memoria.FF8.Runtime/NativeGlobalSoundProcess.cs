@@ -11,7 +11,7 @@ public enum NativeGlobalSoundBackend
 
 public sealed record NativeGlobalSoundAllocation([property: JsonRequired] byte BeforeRotation, [property: JsonRequired] byte AfterRotation, [property: JsonRequired] byte Voice);
 
-/// <summary>The explicit managed bufferless backend owns native46B0F0 rotation and32 original-effect-ID words; transient output owns no native FF8 buffers.</summary>
+/// <summary>The explicit managed bufferless backend owns native46B0F0 rotation and32 original-effect-ID words; transient output owns no native FF8 sound/music buffers or DirectMusic handles.</summary>
 public sealed record NativeGlobalSoundProcess
 {
     public const string CurrentRule = "ff8-en-46b0f0-bufferless-process-pe-rotation1-v1";
@@ -33,7 +33,8 @@ public sealed record NativeGlobalSoundProcess
     public static NativeGlobalSoundProcess FromBufferlessColdProcess()
     {
         // B7F428's actual PE.data DWORD is1;1CD17C4's32 DWORDs are cold BSS zero.
-        // This backend creates no native FF8 DirectSound voice buffers:46A5D0 therefore reports0.
+        // This backend creates no native FF8 DirectSound voice/music buffers or DirectMusic handles.
+        // Native46A5D0 and all three46B970 queries therefore report0.
         return new NativeGlobalSoundProcess { Version = 1, Rule = CurrentRule, Backend = NativeGlobalSoundBackend.Bufferless, Rotation = 1, OriginalEffectIds = Enumerable.Repeat(0u, 32).ToImmutableArray() };
     }
 
@@ -43,6 +44,16 @@ public sealed record NativeGlobalSoundProcess
         {
             throw new InvalidDataException("Global sound requires the current explicit bufferless process, retained allocator and all32 physical effect IDs; native buffered availability is unsupported.");
         }
+    }
+
+    public int QueryMusicStatus()
+    {
+        Validate();
+        // Native46B970 ORs46D530(0),46EB00 and46C870. This explicit backend
+        // creates no original DS music buffer, segment handles or COM player.
+        // Transient output belongs to separate host instances/processes.
+        // TODO(TD-003): — native buffered music status requires its real playback lifecycle.
+        return 0;
     }
 
     public NativeGlobalSoundProcess RecordEffect(uint originalEffectId, uint rawMask, out NativeGlobalSoundAllocation allocation)

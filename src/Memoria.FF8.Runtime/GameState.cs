@@ -105,6 +105,12 @@ public interface IEventServices
     NativeCardInventory? CardInventory => null;
     NativeEconomy? Economy => null;
     NativeGlobalSoundProcess? GlobalSoundProcess => null;
+    int QueryNativeMusicStatus()
+    {
+        NativeGlobalSoundProcess backend = GlobalSoundProcess ?? throw new NotSupportedException("Native MUSICSTATUS requires the explicit current audio backend owner.");
+        return backend.QueryMusicStatus();
+    }
+
     bool CanStoreGlobalSoundProcess => false;
     void SetGlobalSoundProcess(NativeGlobalSoundProcess state)
     {

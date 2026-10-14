@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Events;
 
 public sealed record NativeMusicBootstrap(int Version, string Rule, string ExecutableHash);
-public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? Requested213, byte? Complete214, byte? Bank201, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeMusicBootstrap? Bootstrap = null);
+public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? Requested213, byte? Complete214, byte? Bank201, [property: JsonRequired] byte? Bank202, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeMusicBootstrap? Bootstrap = null);
 public sealed record NativeMusicLoadRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawMusic, byte Music, int PriorSecondChannel, byte? PriorKeep207, bool Loaded, GlobalSoundBackendStatus BackendStatus);
 public sealed record NativeMusicPlayRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, string Opcode, bool ConsumedPending, byte? Music, byte? PriorBank, byte? Bank, bool? PriorKeepBit400, int? Volume, int? Duration, int? Channel, GlobalSoundBackendStatus BackendStatus, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SkipPosition = null);
 
@@ -21,9 +21,9 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native New Game music reset intersects memory without an executed empty bootstrap.");
         }
-        // 470560 executes52CA90(1): B201=0, B199/200=FF, DWORD108/112=-1;
+        // 470560 executes52CA90(1): B201=0, B199/200/202=FF, DWORD108/112=-1;
         // the preceding248-byte clear proves B207/213/214 and bit400 zero.
-        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, new NativeMusicBootstrap(1, "ff8-en-music-new-game-470560-52ca90-v1", profile.ExecutableHash));
+        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, "ff8-en-music-new-game-470560-52ca90-v1", profile.ExecutableHash));
         Scene.MusicChannel108 = new NativeMusicChannelState(-1, 255);
         Scene.MusicChannel112 = new NativeMusicChannelState(-1, 255);
         variables[108] = -1;
@@ -60,6 +60,7 @@ public sealed partial class EventEngine
         byte? known = address switch
         {
             201 => Scene.MusicProcess?.Bank201,
+            202 => Scene.MusicProcess?.Bank202,
             207 => services.WorldControls?.MusicKeep207,
             213 => Scene.MusicProcess?.Requested213,
             214 => Scene.MusicProcess?.Complete214,
@@ -71,6 +72,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedMusicLoad(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.EFFECTLOAD && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || LoadSoundResource is null || variables.ContainsKey(202) || services.NativeVariableValues?.Any(pair => pair.Key <= 202 && pair.Key + pair.Value.Width > 202) == true))
+        {
+            return "EFFECTLOAD requires its exact operand, explicit backend and unaliased physical BYTE202 owner";
+        }
         if (operation.Opcode is Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC)
         {
             int count = operation.Opcode is Jsm.Opcode.MUSICLOAD or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICSKIP ? 1 : operation.Opcode == Jsm.Opcode.CROSSMUSIC ? 2 : 0;
@@ -103,7 +108,7 @@ public sealed partial class EventEngine
                     return aliases;
                 }
             }
-            if (services.NativeVariableValues?.Any(pair => new[] { 108, 109, 110, 111, 112, 113, 114, 115, 199, 200, 201, 207, 213, 214 }.Any(address => pair.Key <= address && pair.Key + pair.Value.Width > address)) == true)
+            if (services.NativeVariableValues?.Any(pair => new[] { 108, 109, 110, 111, 112, 113, 114, 115, 199, 200, 201, 202, 207, 213, 214 }.Any(address => pair.Key <= address && pair.Key + pair.Value.Width > address)) == true)
             {
                 return "Native music load/play overlaps uncertain memory without an exact owned-byte projection";
             }
@@ -121,7 +126,7 @@ public sealed partial class EventEngine
             return null;
         }
         int width = NativeMemoryWidth(operation.Opcode);
-        if (width == 0 || !new[] { 201, 213, 214 }.Any(address => operation.Parameter <= address && (long)operation.Parameter + width > address))
+        if (width == 0 || !new[] { 201, 202, 213, 214 }.Any(address => operation.Parameter <= address && (long)operation.Parameter + width > address))
         {
             return null;
         }
@@ -133,7 +138,7 @@ public sealed partial class EventEngine
         byte music = unchecked((byte)fiber.Stack.Peek());
         int channel = Scene.MusicChannel112!.ChannelId;
         bool load = channel == -1;
-        NativeMusicProcessState prior = Scene.MusicProcess ?? new NativeMusicProcessState(1, null, null, null, null);
+        NativeMusicProcessState prior = Scene.MusicProcess ?? new NativeMusicProcessState(1, null, null, null, null, null);
         byte? priorKeep = services.WorldControls?.MusicKeep207;
         if (load)
         {
@@ -218,9 +223,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }
-        foreach (int address in new[] { 201, 213, 214 })
+        foreach (int address in new[] { 201, 202, 213, 214 })
         {
-            byte? known = address == 201 ? process?.Bank201 : address == 213 ? process?.Requested213 : process?.Complete214;
+            byte? known = address == 201 ? process?.Bank201 : address == 202 ? process?.Bank202 : address == 213 ? process?.Requested213 : process?.Complete214;
             if (saved.Variables.TryGetValue(address, out int alias) && known is byte value && alias != value)
             {
                 throw new InvalidDataException("Saved native music byte disagrees with its exact alias.");

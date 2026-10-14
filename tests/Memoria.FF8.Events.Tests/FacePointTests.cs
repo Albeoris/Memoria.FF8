@@ -41,7 +41,7 @@ internal static partial class Program
             live.Step();
         }
         ActorState actor = live.Actors[0];
-        Require(actor.FaceTargetPoint == new Vector3(100, 0, 100) && actor.FaceDuration == 4 && actor.FaceProgress == 0 && actor.FirstControlRotation is null && queries.Count == 2 && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "FACEDIR did not preserve its XYZ/duration issue words, pure preflight or native wait.");
+        Require(actor.FaceTargetPoint == new Vector3(100, 0, 100) && actor.FaceDuration == 4 && actor.FaceProgress == 1 && actor.FirstControlRotation is not null && queries.Count == 4 && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "FACEDIR did not preserve its XYZ/duration issue words, pure preflight, native wait and same-callback post-VM face sample.");
         Require(queries[0] == new NativeActorFacingQuery(0, 0, 100 * 4096, 0) && queries[1] == new NativeActorFacingQuery(0, 100 * 4096, 100 * 4096, 0), "FACEDIR did not use the shared native477380 yaw/pitch queries.");
         EventEngine restored = Create();
         restored.Restore(live.Capture());
@@ -69,7 +69,9 @@ internal static partial class Program
         }
         int[] pitch = [1, 4, 6, 8];
         int[] yaw = [1, 5, 8, 10];
-        for (int callback = 0; callback < 4; callback++)
+        Vector3 firstRotation = actor.FirstControlRotation!.Value;
+        Require(Math.Abs(firstRotation.Y - pitch[0] * MathF.Tau / 256) < 0.00001 && Math.Abs(firstRotation.Z + yaw[0] * MathF.Tau / 256) < 0.00001, "FACEDIR first sample was postponed past its actual post-VM callback.");
+        for (int callback = 1; callback < 4; callback++)
         {
             live.Step();
             restored.Step();
@@ -77,9 +79,10 @@ internal static partial class Program
             Vector3 rotation = actor.FirstControlRotation!.Value;
             Require(Math.Abs(rotation.Y - pitch[callback] * MathF.Tau / 256) < 0.00001 && Math.Abs(rotation.Z + yaw[callback] * MathF.Tau / 256) < 0.00001, "FACEDIR first-control-node override differs from original cosine/signs.");
         }
-        Require(actor.FaceProgress == 4 && actor.FaceElapsed == 8 && actor.FaceSecondAngle == 10 && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && actor.Direction == 0 && actor.MovementDirectionLimit == 0, "FACEDIR completed late or changed body facing/movement instead of the joint.");
+        Require(actor.FaceProgress == 4 && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "FACEDIR consumed completion before the next native VM observed post-body equality.");
         live.Step();
-        Require(actor.FirstControlRotation is not null, "Completed point-facing unexpectedly released its joint override.");
+        restored.Step();
+        Require(actor.FaceElapsed == 8 && actor.FaceSecondAngle == 10 && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && actor.Direction == 0 && actor.MovementDirectionLimit == 0 && actor.FirstControlRotation is not null && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "FACEDIR closing callback delayed its successor, changed physical facing or released the completed joint override.");
         foreach ((int x, int duration, int expectedDuration) in new[] { (100 + 65536, 65536 + 4, 4), (100, 65535, 65535), (100, 0, 0) })
         {
             EventEngine edge = Create(x, duration);
