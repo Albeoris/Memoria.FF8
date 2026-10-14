@@ -21,9 +21,11 @@ public sealed class OpeningPresentationTests
             world.EnsureField();
             if (session.State.Scene == SceneKind.Field)
             {
-                RenderOpeningFrame(world);
-                renderedFields.Add(world.Field!.Id);
-                if (world.Field.Id == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
+                if (RenderOpeningFrame(world))
+                {
+                    renderedFields.Add(world.Field!.Id);
+                }
+                if (world.Field!.Id == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
                 {
                     Assert.Contains(180, renderedFields);
                     Assert.Contains(181, renderedFields);
@@ -39,8 +41,12 @@ public sealed class OpeningPresentationTests
         Assert.Fail("Fresh opening presentation exceeded its bounded action budget.");
     }
 
-    private static void RenderOpeningFrame(GameWorld world)
+    private static bool RenderOpeningFrame(GameWorld world)
     {
+        if (FieldPresentationReadiness.HasUnobservedShakeOutput(world.Events.Scene.Shake))
+        {
+            return false;
+        }
         try
         {
             Assert.NotEmpty(world.Render(TimeSpan.Zero));
@@ -57,5 +63,6 @@ public sealed class OpeningPresentationTests
             FieldNativeCameraResult? probe = position is FieldFixedPosition fixedPosition && world.Field!.Information is FieldInformation information ? FieldNativeCameraProbe.Resolve(world.Field.Camera, information, fixedPosition.X, fixedPosition.Y, fixedPosition.Z, scene.CameraIndex) : null;
             Assert.Fail(JsonSerializer.Serialize(new { exception.Message, Field = world.Events.FieldId, world.Events.Frame, scene.CameraIndex, Leader = leader is null ? null : new { leader.ObjectId, leader.X, leader.Y, leader.Z }, Position = position, Probe = probe }));
         }
+        return true;
     }
 }
