@@ -269,16 +269,7 @@ internal sealed partial class GameWorld : IDisposable
         DebugSceneView? view = session.State.DebugView;
         NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; recreate the session journal.");
         shake.Validate();
-        Vector2 jitter = new(shake.X.Output, shake.Y.Output);
-        if (jitter != Vector2.Zero)
-        {
-            if (scroll.NativeWrap is not null)
-            {
-                throw new NotSupportedException("Native wrapped background shake placement requires a separate shared renderer contract.");
-            }
-            scroll = new BackgroundScrollFrame(Field!.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => scroll.LayerOffsets.GetValueOrDefault(layer) + jitter), scroll.ActorOffset + jitter);
-        }
-        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap);
+        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output);
         FieldColorComposite.Apply(pixels, Events.Scene.AdditiveColor, Events.Scene.SubtractiveColor);
         return pixels;
     }

@@ -85,7 +85,7 @@ public sealed partial class FieldRenderer
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0)
     {
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
@@ -97,10 +97,21 @@ public sealed partial class FieldRenderer
         }
         IReadOnlyDictionary<int, Vector2> nextOffsets = backgroundScrollOffsets ?? EmptyScrollOffsets;
         ValidateNativeWrapFrame(nativeWrapFrame, cameraIndex, actorScrollOffset, nextOffsets);
+        Vector2 jitter = new(drawingJitterX, drawingJitterY);
+        if (jitter != Vector2.Zero)
+        {
+            Vector2 nativeOrigin = drawingOrigin + field.GetCamera(cameraIndex).Pan + actorScrollOffset + jitter;
+            if (!float.IsFinite(nativeOrigin.X) || !float.IsFinite(nativeOrigin.Y) || nativeOrigin.X != MathF.Truncate(nativeOrigin.X) || nativeOrigin.Y != MathF.Truncate(nativeOrigin.Y) || nativeOrigin.X is < -1024 or > 1023 || nativeOrigin.Y is < -1024 or > 1023)
+            {
+                throw new NotSupportedException("Native shaken drawing origin exceeds the proved signed11-bit E5 domain.");
+            }
+            // 476450 adds shake only to DRAWENV.475480 relocation/culling retains the unshaken camera window.
+            nextOffsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => nextOffsets.GetValueOrDefault(layer) + jitter);
+        }
         camera = field.GetCamera(cameraIndex);
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
-        this.actorScrollOffset = actorScrollOffset;
+        this.actorScrollOffset = actorScrollOffset + jitter;
         if (this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame))
         {
             TileRaster[] nextBackground = nextOffsets.Count == 0 && nativeWrapFrame is null ? background : PrepareBackgroundRasters(nextOffsets, nativeWrapFrame);

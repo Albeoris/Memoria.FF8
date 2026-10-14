@@ -33,17 +33,17 @@ internal static class DirectBackgroundScrollCertificate
 
     public static bool CanSetLinear(FieldAssets field, NativeLinearScrollQuery query)
     {
-        return query.Layer == 0 && query.Duration >= 0 && InRange(query.StartX) && InRange(query.StartY) && InRange(query.TargetX) && InRange(query.TargetY) && NormalCameraCertificate.HasBaseline(field, 0) && field.Information!.BackgroundWrapMask == 0 && BackgroundParallaxPlacement.SupportsDrawingOrigin(query.StartX, query.StartY, field.Camera.Pan) && BackgroundParallaxPlacement.SupportsDrawingOrigin(query.TargetX, query.TargetY, field.Camera.Pan);
+        return query.Layer == 0 && query.Duration >= 0 && InRange(query.StartX) && InRange(query.StartY) && InRange(query.TargetX) && InRange(query.TargetY) && NormalCameraCertificate.HasBaseline(field, 0) && BackgroundParallaxPlacement.SupportsDrawingOrigin(query.StartX, query.StartY, field.Camera.Pan) && BackgroundParallaxPlacement.SupportsDrawingOrigin(query.TargetX, query.TargetY, field.Camera.Pan) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsLayerCurrentMetadata(field, 0) && FieldNativeNormalBackgroundWrap.Prepare(field, 0, new FieldNativeCameraCenter(query.StartX, query.StartY)) is not null && FieldNativeNormalBackgroundWrap.Prepare(field, 0, new FieldNativeCameraCenter(query.TargetX, query.TargetY)) is not null);
     }
 
     public static bool CanBeginLinear(FieldAssets field, NativeLinearScrollQuery query, SceneEventState scene)
     {
-        return CanSetLinear(field, query) && HasBaseline(field, scene) && ValidPositions(field, scene);
+        return CanSetLinear(field, query) && HasBaseline(field, scene) && ValidPositions(field, scene) && SupportsCenter(field, scene, query.StartX, query.StartY) && SupportsCenter(field, scene, query.TargetX, query.TargetY);
     }
 
     public static bool SupportsLinearPhase(FieldAssets field, SceneEventState scene)
     {
-        return scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && position.Mode == 4 && HasBaseline(field, scene) && ValidPositions(field, scene);
+        return scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && position.Mode == 4 && NativeLinearScrollPhase.IsValid(position) && (position.Status == 0 ? position.X : position.PreviousX) is short startX && (position.Status == 0 ? position.Y : position.PreviousY) is short startY && position.Duration is short duration && CanBeginLinear(field, new NativeLinearScrollQuery(0, startX, startY, position.TargetX, position.TargetY, duration), scene);
     }
 
     internal static (short X, short Y)? ResolveNormalCenter(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
