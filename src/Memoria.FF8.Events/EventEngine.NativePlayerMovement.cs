@@ -4,7 +4,7 @@ namespace Memoria.FF8.Events;
 
 public sealed record NativePlayerMovementQuery(int ObjectId, int Triangle, int FixedX, int FixedY, int FixedZ, int Direction, short Speed, int Radius, byte? EarlyRetryState = null, Func<NativePlayerGroundProbe, bool>? HasActorCollision = null);
 public sealed record NativePlayerGroundProbe(int FixedX, int FixedY, int NativeHeight, bool ActorCollision = false);
-public sealed record NativePlayerMovementResult(int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<NativePlayerGroundProbe>? GroundProbes = null, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null, bool Accepted = true);
+public sealed record NativePlayerMovementResult(int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null, bool Accepted = true);
 
 public sealed partial class EventEngine
 {
@@ -42,12 +42,12 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Persisted native player movement requires its certified bounded-attempt adapter; original state preserved.");
         }
-        byte? earlyRetry = Scene.NativePlayerEarlyRetryState;
+        byte earlyRetry = Scene.NativePlayerEarlyRetryState is byte known && known <= 1 ? known : throw new NotSupportedException("Native player movement requires executed retry-state provenance; recreate the authentic journal.");
         NativePlayerMovementQuery query = new(player.ObjectId, player.WalkmeshTriangle, current.X, current.Y, current.Z, direction, (short)speed, player.PushRadius, earlyRetry, probe => EvaluateNativePlayerGroundContacts(player, probe).Collision);
         NativePlayerMovementResult movement = ResolveNativePlayerMovement(query) ?? throw new NotSupportedException("Native player movement requires a certified original retry-state result; unproved retry/contact chains preserve original state.");
-        bool blocked = !movement.Accepted && (earlyRetry is 0 or 1 || FieldId == 229 && Scene.NativeFieldLoadVersion == 1);
-        int maximumAttempts = earlyRetry == 0 || blocked && earlyRetry is null ? 16 : 2;
-        if (earlyRetry is > 1 || !movement.Accepted && !blocked || movement.Proposals is null || movement.Proposals.Count < 1 || movement.Proposals.Count > maximumAttempts || movement.Direction is < 0 or > byte.MaxValue || movement.Proposals[0].Direction != direction || movement.Accepted && movement.Proposals[^1].Direction != movement.Direction || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || blocked && (movement.FixedX != current.X || movement.FixedY != current.Y || movement.FixedZ != current.Z) || movement.Triangle is < 0 or > short.MaxValue || (movement.FixedX >> 12) is < short.MinValue or > short.MaxValue || (movement.FixedY >> 12) is < short.MinValue or > short.MaxValue || (movement.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (movement.FixedZ & 4095) != 0)
+        bool blocked = !movement.Accepted;
+        int maximumAttempts = earlyRetry == 0 ? 16 : 2;
+        if (movement.Proposals is null || movement.Proposals.Count < 1 || movement.Proposals.Count > maximumAttempts || movement.Direction is < 0 or > byte.MaxValue || movement.Proposals[0].Direction != direction || movement.Accepted && movement.Proposals[^1].Direction != movement.Direction || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || blocked && (movement.FixedX != current.X || movement.FixedY != current.Y || movement.FixedZ != current.Z) || movement.Triangle is < 0 or > short.MaxValue || (movement.FixedX >> 12) is < short.MinValue or > short.MaxValue || (movement.FixedY >> 12) is < short.MinValue or > short.MaxValue || (movement.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (movement.FixedZ & 4095) != 0)
         {
             throw new NotSupportedException("Native bounded-attempt adapter returned an inconsistent fixed proposal, direction or geometry result; original state preserved.");
         }
@@ -68,15 +68,11 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native blocked movement changed its final direction outside the last ground steering increment; original state preserved.");
         }
-        if (earlyRetry is null && movement.Accepted && movement.Proposals.Count == 2 && movement.Direction != ((direction + 8) & 255) && movement.Direction != ((direction - 8) & 255))
-        {
-            throw new NotSupportedException("Native player second attempt needs one original eight-unit steering adjustment; original state preserved.");
-        }
         ValidatePendingNativePushContacts();
         int[] pushContacts;
         if (movement.ProposalGroundProbes is not null)
         {
-            if (movement.ProposalGroundProbes.Count != movement.Proposals.Count || movement.ProposalGroundProbes.Any(probes => probes is null) || movement.GroundProbes is not null)
+            if (movement.ProposalGroundProbes.Count != movement.Proposals.Count || movement.ProposalGroundProbes.Any(probes => probes is null))
             {
                 throw new NotSupportedException("Native retry ground probes must match every ordered proposal without an ambiguous legacy triple; original state preserved.");
             }
@@ -98,21 +94,9 @@ public sealed partial class EventEngine
             }
             pushContacts = contacts.ToArray();
         }
-        else if (movement.GroundProbes is not null && movement.Proposals.Count == 1)
-        {
-            if (movement.Accepted && movement.GroundProbes.Any(probe => probe.ActorCollision))
-            {
-                throw new NotSupportedException("Native ordinary player actor collision must reject XYZ; original state preserved.");
-            }
-            pushContacts = ValidateNativePlayerGroundContacts(player, movement.Proposals[0], movement.GroundProbes);
-        }
         else
         {
-            if (movement.Proposals.Count != 1 || movement.GroundProbes is not null || FieldId != 172 || movement.FixedZ != current.Z)
-            {
-                throw new NotSupportedException("Native player movement outside the historical172 flat contract requires all three original fan ground heights; original state preserved.");
-            }
-            pushContacts = EnsureNativeActorEnvelopeClear(player, movement.FixedX, movement.FixedY, current.Z, direction, true);
+            throw new NotSupportedException("Native player movement requires all ordered original fan ground heights; original state preserved.");
         }
         WalkmeshPosition position = new(new Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
         PreparePartyTraceFollowers(position, movement.Direction, movement.FixedX != current.X || movement.FixedY != current.Y);

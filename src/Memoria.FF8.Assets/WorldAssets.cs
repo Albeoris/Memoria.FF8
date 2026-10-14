@@ -39,7 +39,7 @@ public sealed partial class WorldAssets : IDisposable
     private byte[]? texl;
     private PixelImage? roads;
     private PixelImage? water;
-    private FieldModel? squall;
+    private readonly Dictionary<byte, FieldModel> footModels = [];
     private WorldFieldEntryReader? fieldEntries;
 
     public WorldAssets(string gameDirectory)
@@ -61,8 +61,25 @@ public sealed partial class WorldAssets : IDisposable
     public IReadOnlyList<WorldSky> Skies { get; }
     public int LoadedSegmentCount => segments.Count;
     public int LoadedTextureCount => textures.Count;
-    public FieldModel Squall => squall ??= WorldAssetReader.ReadSquall(Read("chara.one"));
+    public FieldModel Squall => GetFootModel(0);
     public WorldFieldEntryReader FieldEntries => fieldEntries ??= ReadFieldEntries();
+
+    public FieldModel GetFootModel(byte entityType)
+    {
+        // Native546E10 selects stored shape4 for uniform Squall type1.
+        int shape = entityType switch
+        {
+            0 => 0,
+            1 => 4,
+            _ => throw new NotSupportedException($"Native foot entity type {entityType} has no implemented original model path.")
+        };
+        if (!footModels.TryGetValue(entityType, out FieldModel? model))
+        {
+            model = WorldAssetReader.ReadWorldCharacter(Read("chara.one"), shape);
+            footModels.Add(entityType, model);
+        }
+        return model;
+    }
 
     public short GetNativeMapLocationId(int x, int rawZ)
     {

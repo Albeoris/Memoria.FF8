@@ -92,6 +92,9 @@ public sealed class ActorState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeJoinedPosition? NativeJoinedPosition { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeJoinedPosition? NativeSplitPosition { get; internal set; }
+    [JsonInclude]
     public int MovementFlags { get; internal set; }
     [JsonInclude]
     public bool MovementIgnoresWalkmesh { get; internal set; }
@@ -212,12 +215,6 @@ public sealed class ActorState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RotationUsesNativeLinear { get; internal set; }
 
-    internal void Step()
-    {
-        StepAnimation();
-        StepMovementAndRotation();
-    }
-
     internal void StepAnimation()
     {
         if (AnimationPlaying)
@@ -246,29 +243,8 @@ public sealed class ActorState
         }
     }
 
-    private void StepMovementAndRotation()
+    internal void StepRotation()
     {
-        if (NativeScriptMovement is not { Active: true } && MovementTarget is Vector3 target)
-        {
-            InvalidateNativeMotionAuthority();
-            Vector3 position = new(X, Y, Z);
-            Vector3 delta = target - position;
-            float step = Math.Max(1, MovementSpeed) / 256f;
-            if (delta.Length() <= step)
-            {
-                X = target.X;
-                Y = target.Y;
-                Z = target.Z;
-                MovementTarget = null;
-            }
-            else
-            {
-                Vector3 updated = position + Vector3.Normalize(delta) * step;
-                X = updated.X;
-                Y = updated.Y;
-                Z = updated.Z;
-            }
-        }
         if (!RotationUsesNativeCosine && !RotationUsesNativeLinear && RotationTarget is float direction)
         {
             RotationFrames--;
@@ -288,6 +264,7 @@ public sealed class ActorState
         NativeScriptMovement = null;
         NativeJump = null;
         NativeJoinedPosition = null;
+        NativeSplitPosition = null;
     }
 
     internal void SetBaseAnimation()

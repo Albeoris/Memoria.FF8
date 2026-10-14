@@ -14,33 +14,8 @@ public sealed class NativeWorldControlStateTests
         Assert.Equal(1, state.Origin.ProofVersion);
         Assert.Equal(NativeWorldControlOriginKind.NativeNewGame, state.Origin.Kind);
         Assert.Equal(NativeWorldControlState.InitializationRule, state.Origin.InitializationRule);
-        Assert.Null(state.Origin.LegacyCheckpointSha256);
         Assert.False(state.SourceDisabled);
         Assert.Equal((byte)0, state.Menu209);
-    }
-
-    [Fact]
-    public void OnlyTheVerified172PreinitCheckpointHasTheOrdinaryIntroFlags()
-    {
-        NativeWorldControlState state = NativeWorldControlState.CreateVerifiedLegacyNewGame(NativeWorldControlState.LegacyCheckpoint172PreinitSha256.ToUpperInvariant());
-        state.Validate();
-        Assert.Equal(NativeWorldControlOriginKind.VerifiedLegacyNewGame, state.Origin.Kind);
-        Assert.Equal(NativeWorldControlState.LegacyCheckpoint172PreinitSha256, state.Origin.LegacyCheckpointSha256);
-        Assert.True(state.SourceDisabled);
-        Assert.Equal((byte)0, state.Menu209);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("unverified-newgame")]
-    [InlineData("9d370a2f777cb1994c65e3a060b038a870879e04142e7a0d407a51476a2907d0")]
-    [InlineData(NativeSavedWorldState.LegacyCheckpoint265Sha256)]
-    [InlineData(NativeSavedWorldState.LegacyCheckpoint300Sha256)]
-    public void UnknownLegacyStateCannotBecomeKnownFlags(string? sha256)
-    {
-        Assert.False(NativeWorldControlState.IsApprovedLegacyCheckpoint(sha256));
-        Assert.Throws<InvalidDataException>(() => NativeWorldControlState.CreateVerifiedLegacyNewGame(sha256!));
     }
 
     [Fact]
@@ -62,7 +37,7 @@ public sealed class NativeWorldControlStateTests
     [InlineData(int.MaxValue)]
     public void NonzeroPartyPowerClearsSourceWithoutChangingMenu(int argument)
     {
-        NativeWorldControlState state = NativeWorldControlState.CreateVerifiedLegacyNewGame(NativeWorldControlState.LegacyCheckpoint172PreinitSha256) with { Menu209 = 0xA7 };
+        NativeWorldControlState state = NativeWorldControlState.CreateNewGame().WithPartyPower(0) with { Menu209 = 0xA7 };
         NativeWorldControlState updated = state.WithPartyPower(argument);
         Assert.False(updated.SourceDisabled);
         Assert.Equal(state.Menu209, updated.Menu209);
@@ -104,7 +79,7 @@ public sealed class NativeWorldControlStateTests
     [Fact]
     public void UpdatedFlagsAndProvenanceRoundTripWithoutReinitialization()
     {
-        NativeWorldControlState state = NativeWorldControlState.CreateVerifiedLegacyNewGame(NativeWorldControlState.LegacyCheckpoint172PreinitSha256) with { SourceDisabled = false, Menu209 = 0xE7 };
+        NativeWorldControlState state = NativeWorldControlState.CreateNewGame() with { SourceDisabled = false, Menu209 = 0xE7 };
         NativeWorldControlState restored = JsonSerializer.Deserialize<NativeWorldControlState>(JsonSerializer.Serialize(state))!;
         restored.Validate();
         Assert.Equal(state, restored);
@@ -123,9 +98,8 @@ public sealed class NativeWorldControlStateTests
             valid with { Origin = valid.Origin with { ProofVersion = 0 } },
             valid with { Origin = valid.Origin with { Kind = (NativeWorldControlOriginKind)99 } },
             valid with { Origin = valid.Origin with { InitializationRule = "unknown" } },
-            valid with { Origin = valid.Origin with { LegacyCheckpointSha256 = NativeWorldControlState.LegacyCheckpoint172PreinitSha256 } },
-            valid with { Origin = valid.Origin with { Kind = NativeWorldControlOriginKind.VerifiedLegacyNewGame } },
-            valid with { Origin = valid.Origin with { Kind = NativeWorldControlOriginKind.VerifiedLegacyNewGame, LegacyCheckpointSha256 = NativeSavedWorldState.LegacyCheckpoint300Sha256 } }
+            valid with { Origin = valid.Origin with { Kind = (NativeWorldControlOriginKind)1 } },
+            valid with { ScriptBattleDisabled20 = null }
         ];
 
         foreach (NativeWorldControlState state in invalid)
@@ -143,7 +117,7 @@ public sealed class NativeWorldControlStateTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeWorldControlState>("{}"));
         string complete = JsonSerializer.Serialize(NativeWorldControlState.CreateNewGame());
 
-        foreach (string member in new[] { "SchemaVersion", "Origin", "SourceDisabled", "Menu209" })
+        foreach (string member in new[] { "SchemaVersion", "Origin", "SourceDisabled", "Menu209", "ScriptBattleDisabled20" })
         {
             Dictionary<string, JsonElement> properties = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(complete)!;
             properties.Remove(member);
@@ -151,7 +125,7 @@ public sealed class NativeWorldControlStateTests
         }
 
         string origin = JsonSerializer.Serialize(NativeWorldControlState.CreateNewGame().Origin);
-        foreach (string member in new[] { "ProofVersion", "Kind", "InitializationRule", "LegacyCheckpointSha256" })
+        foreach (string member in new[] { "ProofVersion", "Kind", "InitializationRule" })
         {
             Dictionary<string, JsonElement> properties = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(origin)!;
             properties.Remove(member);

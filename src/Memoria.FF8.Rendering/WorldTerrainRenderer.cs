@@ -101,7 +101,7 @@ public sealed class WorldTerrainRenderer
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
 
-    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, WorldStaticModel? staticModel = null, int staticModelTilt = 0, NativeWorldStaticModelPose? staticModelPose = null)
+    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, WorldStaticModel? staticModel = null, int staticModelTilt = 0, NativeWorldStaticModelPose? staticModelPose = null, FieldModel? avatarModel = null)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
@@ -164,7 +164,7 @@ public sealed class WorldTerrainRenderer
             }
             else
             {
-                DrawAvatar(position, heading, animationId, animationFrame);
+                DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame);
             }
         }
         foreach ((WorldTriangle triangle, Vector3 offset) in transparent.OrderByDescending(item => Vector3.DistanceSquared((item.Triangle.A + item.Triangle.B + item.Triangle.C) / 48 + item.Offset, eye)))
@@ -229,9 +229,8 @@ public sealed class WorldTerrainRenderer
         Draw(new Vertex(TerrainPoint(triangle.A), triangle.UvA * uvScale), new Vertex(TerrainPoint(triangle.B), triangle.UvB * uvScale), new Vertex(TerrainPoint(triangle.C), triangle.UvC * uvScale), assets.GetTexture(triangle), transparent);
     }
 
-    private void DrawAvatar(Vector3 position, float heading, int animationId, float frame)
+    private void DrawAvatar(FieldModel model, Vector3 position, float heading, int animationId, float frame)
     {
-        FieldModel model = assets.Squall;
         Vector3[] pose = WorldModelPose.Pose(model, animationId, (int)frame, heading);
         Vector3[] vertices = pose.Select(point => point / 16 + position / 16).ToArray();
         foreach (ModelFace face in model.Faces)

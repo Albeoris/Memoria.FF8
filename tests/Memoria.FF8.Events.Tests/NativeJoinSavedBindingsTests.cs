@@ -11,10 +11,10 @@ internal static partial class Program
 {
     private static void NativeJoinSavedBindingsContract()
     {
-        (Jsm.Opcode, int)[] Actor(int label, int character, int y) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, character), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, y), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] Actor(int label, int character, int y) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, character), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, y), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)];
         List<(Jsm.Opcode, int)> leader = Actor(8, 0, 0).ToList();
         leader.InsertRange(2, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0)]);
-        byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 4, (24 << 7) | 4], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], leader.ToArray(), [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 2), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 28), (Jsm.Opcode.REQ, 3), (Jsm.Opcode.JOIN, 0), (Jsm.Opcode.RET, 8)], Actor(16, 1, 300), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 20), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)], Actor(24, 5, -300), [(Jsm.Opcode.LBL, 25), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 26), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 27), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 28), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)]]);
+        byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 4, (24 << 7) | 4], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], leader.ToArray(), [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 2), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 28), (Jsm.Opcode.REQ, 3), (Jsm.Opcode.JOIN, 0), (Jsm.Opcode.RET, 8)], Actor(16, 1, 300), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 20), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)], Actor(24, 5, -300), [(Jsm.Opcode.LBL, 25), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 26), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 27), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 28), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine Create()
         {
             var session = new GameSession(new GameState());
@@ -22,13 +22,12 @@ internal static partial class Program
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolvePartyTraceTriangle = (_, _, _) => 0,
-                ResolvePartyJoinStep = query => new WalkmeshPosition(new Vector3(query.FixedX / 4096f, query.FixedY / 4096f, query.FixedZ / 4096f), query.Triangle),
                 CanUseNativeJoinMovement = actor => actor.ObjectId is 2 or 3,
                 ResolveNativeJoinMovement = query =>
                 {
                     int x = query.FixedX + 123;
                     int y = query.FixedY + (query.FixedY > 0 ? -20 : 20) * 4096;
-                    return new NativeJoinMovementResult(true, x, y, query.FixedZ, query.Triangle, query.Direction, [new NativeJoinMovementProposal(x, y, query.Direction)]);
+                    return new NativeJoinMovementResult(true, x, y, query.FixedZ, query.Triangle, query.Direction, [new NativeJoinMovementProposal(x, y, query.Direction)], [[new NativePlayerGroundProbe(x, y, query.FixedZ >> 12), new NativePlayerGroundProbe(x, y, query.FixedZ >> 12), new NativePlayerGroundProbe(x, y, query.FixedZ >> 12)]]);
                 }
             };
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -40,6 +39,7 @@ internal static partial class Program
             live.Step();
         }
         JsonElement pending = live.Capture();
+        Require(pending.GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => target.GetProperty("Completion").GetInt32() == 1), "JOIN failed to advance all ordinary mode1 targets in its issuing frame's post-VM update.");
         Require(live.Scene.FieldPartyNativeActorIds.SequenceEqual(new[] { 1, 255, 255 }) && live.Scene.PartyBindingMemory is { First: 1, Second: 2, Third: 3 } && pending.GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().Select(target => target.GetProperty("ObjectId").GetInt32()).SequenceEqual(new[] { 2, 3 }), $"JOIN substituted detached runtime slots for original saved B194 body pointers: frame{live.Frame}, runtime[{string.Join(",", live.Scene.FieldPartyNativeActorIds)}], saved={live.Scene.PartyBindingMemory}, targets={pending.GetProperty("PartyJoin")}.");
         EventEngine restored = Create();
         restored.Restore(pending);

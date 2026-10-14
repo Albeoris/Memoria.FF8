@@ -4,11 +4,11 @@ namespace Memoria.FF8.Runtime;
 
 public enum NativeWorldControlOriginKind
 {
-    NativeNewGame,
-    VerifiedLegacyNewGame
+    NativeNewGame
 }
 
-public sealed record NativeWorldControlOrigin([property: JsonRequired] int ProofVersion, [property: JsonRequired] NativeWorldControlOriginKind Kind, [property: JsonRequired] string InitializationRule, [property: JsonRequired] string? LegacyCheckpointSha256);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record NativeWorldControlOrigin([property: JsonRequired] int ProofVersion, [property: JsonRequired] NativeWorldControlOriginKind Kind, [property: JsonRequired] string InitializationRule);
 
 /// <summary>Known source/menu flags and optional script-battle mask20; this does not establish the complete DWORD104.</summary>
 public sealed record NativeWorldControlState
@@ -16,7 +16,6 @@ public sealed record NativeWorldControlState
     public const int CurrentSchemaVersion = 1;
     public const int CurrentProofVersion = 1;
     public const string InitializationRule = "ff8-en-world-control-52ca90-522230-v1";
-    public const string LegacyCheckpoint172PreinitSha256 = "9d370a2f777cb1994c65e3a060b038a870879e04142e7a0d407a51476a2907d6";
 
     [JsonRequired]
     public required int SchemaVersion { get; init; }
@@ -29,32 +28,13 @@ public sealed record NativeWorldControlState
     [JsonRequired]
     public required byte Menu209 { get; init; }
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonRequired]
     public bool? ScriptBattleDisabled20 { get; init; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeScriptBattleFlagMigrationProof? ScriptBattleFlagMigration { get; init; }
 
     public static NativeWorldControlState CreateNewGame()
     {
         // 52CA90 clears event bytes 0..247, then ORs DWORD 104 with 0x18.
-        return CreateInitial(new NativeWorldControlOrigin(CurrentProofVersion, NativeWorldControlOriginKind.NativeNewGame, InitializationRule, null), false);
-    }
-
-    public static NativeWorldControlState CreateVerifiedLegacyNewGame(string sha256)
-    {
-        if (!IsApprovedLegacyCheckpoint(sha256))
-        {
-            throw new InvalidDataException("The legacy checkpoint has no approved native world-control flag provenance.");
-        }
-
-        // This exact ordinary lineage executed start0 PHSPOWER 0; destination 172 has not been ticked.
-        return CreateInitial(new NativeWorldControlOrigin(CurrentProofVersion, NativeWorldControlOriginKind.VerifiedLegacyNewGame, InitializationRule, sha256.ToLowerInvariant()), true);
-    }
-
-    public static bool IsApprovedLegacyCheckpoint(string? sha256)
-    {
-        return string.Equals(sha256, LegacyCheckpoint172PreinitSha256, StringComparison.OrdinalIgnoreCase);
+        return CreateInitial(new NativeWorldControlOrigin(CurrentProofVersion, NativeWorldControlOriginKind.NativeNewGame, InitializationRule));
     }
 
     public void Validate()
@@ -63,15 +43,9 @@ public sealed record NativeWorldControlState
         {
             throw new InvalidDataException("Unsupported or invalid native world-control provenance.");
         }
-        ScriptBattleFlagMigration?.Validate();
-        if (ScriptBattleFlagMigration is not null && (Origin.Kind != NativeWorldControlOriginKind.VerifiedLegacyNewGame || ScriptBattleDisabled20 is null) || Origin.Kind == NativeWorldControlOriginKind.VerifiedLegacyNewGame && ScriptBattleDisabled20 is not null && ScriptBattleFlagMigration is null)
+        if (ScriptBattleDisabled20 is null)
         {
-            throw new InvalidDataException("Legacy script-battle flag requires its explicit retained-route migration provenance.");
-        }
-
-        if (Origin.Kind == NativeWorldControlOriginKind.NativeNewGame && Origin.LegacyCheckpointSha256 is not null || Origin.Kind == NativeWorldControlOriginKind.VerifiedLegacyNewGame && !IsApprovedLegacyCheckpoint(Origin.LegacyCheckpointSha256))
-        {
-            throw new InvalidDataException("Invalid legacy checkpoint identity for native world-control provenance.");
+            throw new InvalidDataException("Native world-control state requires its recorded script-battle flag.");
         }
     }
 
@@ -107,15 +81,15 @@ public sealed record NativeWorldControlState
         return this with { Menu209 = (byte)(Menu209 & 0xFC) };
     }
 
-    private static NativeWorldControlState CreateInitial(NativeWorldControlOrigin origin, bool sourceDisabled)
+    private static NativeWorldControlState CreateInitial(NativeWorldControlOrigin origin)
     {
         return new NativeWorldControlState
         {
             SchemaVersion = CurrentSchemaVersion,
             Origin = origin,
-            SourceDisabled = sourceDisabled,
+            SourceDisabled = false,
             Menu209 = 0,
-            ScriptBattleDisabled20 = origin.Kind == NativeWorldControlOriginKind.NativeNewGame ? false : null
+            ScriptBattleDisabled20 = false
         };
     }
 }

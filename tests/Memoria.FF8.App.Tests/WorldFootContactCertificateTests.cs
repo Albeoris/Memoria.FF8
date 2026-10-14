@@ -17,6 +17,37 @@ public sealed class WorldFootContactCertificateTests
         Assert.Equal(new WorldFootContactProof(1, 17, 24576, -29406, 24576, state.Origin), result.Certificate);
     }
 
+    [Fact]
+    public void UniformStoryClauseAdmitsRetiredCarAndInactiveBoatWithoutManufacturedContactState()
+    {
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with
+        {
+            Slot4 = new NativeSavedWorldVehicleSlot(255, new NativeSavedWorldPose(12884, -26807, -304, 2699))
+        };
+        string before = JsonSerializer.Serialize(saved);
+        WorldFootContactCertificateResult result = WorldFootContactCertificate.Evaluate(saved, 135, 0, 0, 13000, -26700, 13000, allowTravel: true, entityType: 1);
+        Assert.True(result.Certified);
+        Assert.Equal(3, result.Certificate!.RuleVersion);
+        Assert.Equal(135, result.Certificate.StoryWord);
+        Assert.Equal(before, JsonSerializer.Serialize(saved));
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 205, 0, 0, 13000, -26700, 13000, allowTravel: true, entityType: 1), WorldFootContactRefusal.UnsupportedStory);
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 33, 0, 0, 13000, -26700, 13000, allowTravel: true, entityType: 1), WorldFootContactRefusal.UnsupportedStory);
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 135, 0, 1, 13000, -26700, 13000, allowTravel: true, entityType: 1), WorldFootContactRefusal.ActiveObjectPairs);
+    }
+
+    [Fact]
+    public void UniformClauseRefusesPotentialCarPresentationAndTrainProximity()
+    {
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with
+        {
+            Slot4 = new NativeSavedWorldVehicleSlot(73, new NativeSavedWorldPose(12884, -26807, -304, 2699)),
+            Slot5 = new NativeSavedWorldVehicleSlot(78, new NativeSavedWorldPose(0, 0, 0, 0))
+        };
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 135, 0, 0, 13000, -26700, 13000, allowTravel: true, entityType: 1), WorldFootContactRefusal.UnsupportedSavedVehicle);
+        Assert.True(WorldFootContactCertificate.Evaluate(saved, 135, 0, 0, 30000, -29406, 30000, allowTravel: true, entityType: 1).Certified);
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 135, 0, 0, -30000, -26700, -30000, allowTravel: true, entityType: 1), WorldFootContactRefusal.CameraEyeOutsideRegion);
+    }
+
     [Theory]
     [InlineData(22528, -31454, 8192)]
     [InlineData(22528, -27358, 40960)]
@@ -70,7 +101,7 @@ public sealed class WorldFootContactCertificateTests
         AssertRefused(Evaluate(state with { SchemaVersion = 2 }), WorldFootContactRefusal.InvalidSavedWorld);
         AssertRefused(Evaluate(state with { Origin = null! }), WorldFootContactRefusal.InvalidSavedWorld);
         AssertRefused(Evaluate(state with { Origin = state.Origin with { ProofVersion = 0 } }), WorldFootContactRefusal.InvalidSavedWorld);
-        AssertRefused(Evaluate(state with { Origin = state.Origin with { Kind = NativeSavedWorldOriginKind.VerifiedLegacyNewGame, LegacyCheckpointSha256 = new string('0', 64) } }), WorldFootContactRefusal.InvalidSavedWorld);
+        AssertRefused(Evaluate(state with { Origin = state.Origin with { Kind = (NativeSavedWorldOriginKind)1 } }), WorldFootContactRefusal.InvalidSavedWorld);
         AssertRefused(Evaluate(state with { Slot4 = null! }), WorldFootContactRefusal.InvalidSavedWorld);
         AssertRefused(Evaluate(state with { Slot5 = state.Slot5 with { Pose = null! } }), WorldFootContactRefusal.InvalidSavedWorld);
     }
@@ -90,7 +121,7 @@ public sealed class WorldFootContactCertificateTests
     [Fact]
     public void ValidInactivePosesArePreservedWithoutSyntheticVehicleOrTrainState()
     {
-        NativeSavedWorldState state = NativeSavedWorldState.CreateVerifiedLegacyNewGame(NativeSavedWorldState.LegacyCheckpoint300Sha256) with
+        NativeSavedWorldState state = NativeSavedWorldState.CreateNewGame() with
         {
             Slot4 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(int.MinValue, int.MaxValue, short.MinValue, ushort.MaxValue)),
             Slot5 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(98765, -43210, short.MaxValue, 4097))

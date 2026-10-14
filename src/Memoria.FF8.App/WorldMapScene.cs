@@ -31,7 +31,8 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         bool car = unchecked((sbyte)arrival.Mode) == 33;
         bool boat = IsSupportedBoatPacket(arrival);
-        if (unchecked((sbyte)arrival.Mode) != 0 && !car && !boat)
+        byte footEntityType = unchecked((byte)arrival.Mode);
+        if (footEntityType is not (0 or 1) && !car && !boat)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }
@@ -41,7 +42,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!boat && (car ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord >= 34))
+        if (!boat && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord >= 34))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -78,17 +79,26 @@ internal sealed partial class WorldMapScene : IDisposable
             if (entry == 62)
             {
                 reload = session.State.SavedWorld.FootReturn ?? throw new NotSupportedException("World entry62 requires an executed native foot-save receipt.");
+                if (reload.EntityType105 != footEntityType)
+                {
+                    throw new NotSupportedException("Native foot reload changes the packet entity type outside this implemented loader contract.");
+                }
                 initialFootRuntime = NativeFootWorldRuntimeState.CreateSavedReload(reload);
             }
             else
             {
-                initialFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(session.State.SavedWorld);
+                initialFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(session.State.SavedWorld, footEntityType);
             }
             initialFootRuntime.RequireSupportedNormalFoot();
         }
         else
         {
-            session.State.World.NativeFootRuntime?.RequireSupportedNormalFoot();
+            NativeFootWorldRuntimeState runtime = session.State.World.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
+            runtime.RequireSupportedNormalFoot();
+            if (runtime.EntityType != footEntityType)
+            {
+                throw new InvalidDataException("The restored native foot entity type differs from its world packet.");
+            }
             if (entry == 62 && session.State.World.NativeFootRuntime?.Rule != NativeFootWorldRuntimeState.SavedReloadRule)
             {
                 throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
@@ -297,7 +307,7 @@ internal sealed partial class WorldMapScene : IDisposable
         EnsureContactCertificate(state);
         WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
-        return renderer.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is not null || state.GroundType is null or > 5, state.NativeCarRuntime is null ? null : assets.ExamCar, state.NativeCarRuntime?.ModelTilt ?? 0);
+        return renderer.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is not null || state.GroundType is null or > 5, state.NativeCarRuntime is null ? null : assets.ExamCar, state.NativeCarRuntime?.ModelTilt ?? 0, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null);
     }
 
     private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, ReplayWorldNavigationStimulus? proposal = null)
@@ -340,7 +350,7 @@ internal sealed partial class WorldMapScene : IDisposable
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
         int animation = moving ? 1 : 0;
-        int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.Squall.Animations[1].Frames.Count * 16) : 0;
+        int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;
         // During reconstruction these are game-recorded exogenous travel proposals.
         // Current terrain, story selection and native field-entry contracts still execute below.
         int x = proposal?.X ?? WrapCoordinate(before.X + moveX, 262144);
@@ -356,7 +366,7 @@ internal sealed partial class WorldMapScene : IDisposable
             if (accepted.Triangle.FieldEntrance)
             {
                 WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-                fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(x, z, inputs.StoryWord, 0), accepted.Triangle.TextureFlags);
+                fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(x, z, inputs.StoryWord, before.NativeFootRuntime!.EntityType), accepted.Triangle.TextureFlags);
             }
             nativeHeight = -(int)accepted.Height + (accepted.Triangle.GroundType <= 5 ? 320 : 0);
             groundType = accepted.Triangle.GroundType;
@@ -400,7 +410,12 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
         double eyeX = camera.FootFrame(new Vector3(state.X, -state.NativeHeight, state.Z)).Eye.X;
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        WorldFootContactCertificateResult result = WorldFootContactCertificate.Evaluate(session.State.SavedWorld, (byte)inputs.StoryWord, (byte)(inputs.StoryWord >> 8), inputs.ReplacementFlags, state.X, state.Z, eyeX, allowTravel: true);
+        byte entityType = state.NativeFootRuntime?.EntityType ?? throw new NotSupportedException("Native foot contacts require executed entity-type loader authority.");
+        if (entityType == 1)
+        {
+            assets.ReadScriptedBoatFootRecord(inputs.StoryWord);
+        }
+        WorldFootContactCertificateResult result = WorldFootContactCertificate.Evaluate(session.State.SavedWorld, (byte)inputs.StoryWord, (byte)(inputs.StoryWord >> 8), inputs.ReplacementFlags, state.X, state.Z, eyeX, allowTravel: true, entityType: entityType);
         if (!result.Certified)
         {
             throw new NotSupportedException($"Unsupported native world contact state: {result.Reason}");

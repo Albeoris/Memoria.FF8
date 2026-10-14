@@ -23,11 +23,6 @@ internal static partial class Program
                 ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle) ? new WalkmeshPosition(position, triangle) : null
             };
             result.LoadField(139, field.Jsm, field.Messages);
-            result.ResolvePartyJoinStep = query =>
-            {
-                FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(field.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, result.Scene.LockedTriangles);
-                return point is FieldNativeWalkmeshPosition native && native.NativeHeight * 4096 == query.FixedZ ? new WalkmeshPosition(new Vector3(native.FixedX / 4096f, native.FixedY / 4096f, native.NativeHeight), native.Triangle) : null;
-            };
             result.Restore(session.State.EventState!.Value);
             return result;
         }
@@ -99,11 +94,6 @@ internal static partial class Program
                 ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle) ? new WalkmeshPosition(position, triangle) : null
             };
             result.LoadField(field.Id, field.Jsm, field.Messages);
-            result.ResolvePartyJoinStep = query =>
-            {
-                FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(field.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, result.Scene.LockedTriangles);
-                return point is FieldNativeWalkmeshPosition native && native.NativeHeight * 4096 == query.FixedZ ? new WalkmeshPosition(new Vector3(native.FixedX / 4096f, native.FixedY / 4096f, native.NativeHeight), native.Triangle) : null;
-            };
             result.Restore(session.State.EventState!.Value);
             return result;
         }
@@ -147,7 +137,6 @@ internal static partial class Program
         resumed.Apply(wait);
         Require(first.Capture().GetRawText() == resumed.Capture().GetRawText() && first.Scene.PartyTrace!.Cursor == 1 && first.Actors[0].AnimationId == 0, "Stationary native trace advanced the ring or failed to select idle.");
         var beforeBlockedMove = first.Capture();
-        first.ResolvePartyJoinStep = _ => null;
         try
         {
             first.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));
@@ -162,7 +151,6 @@ internal static partial class Program
         EventEngine bounded = Create(new GameSession(GameSession.Load(path)));
         bounded.Apply(wait);
         var beforeFailure = bounded.Capture();
-        bounded.ResolvePartyJoinStep = _ => null;
         try
         {
             bounded.Apply(wait);

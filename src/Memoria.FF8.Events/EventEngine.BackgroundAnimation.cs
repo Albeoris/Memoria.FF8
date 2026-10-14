@@ -2,17 +2,12 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private BackgroundAnimation GetBackgroundAnimation(int moduleIndex, bool replaceLegacy = true)
+    private BackgroundAnimation GetBackgroundAnimation(int moduleIndex)
     {
         if (!backgroundAnimations.TryGetValue(moduleIndex, out BackgroundAnimation? animation))
         {
             animation = new BackgroundAnimation();
             backgroundAnimations.Add(moduleIndex, animation);
-        }
-        else if (replaceLegacy && animation.NativeVersion == 0)
-        {
-            animation = new BackgroundAnimation();
-            backgroundAnimations[moduleIndex] = animation;
         }
         return animation;
     }
@@ -33,11 +28,7 @@ public sealed partial class EventEngine
 
     private void StepBackgroundAnimation(int moduleIndex)
     {
-        BackgroundAnimation animation = GetBackgroundAnimation(moduleIndex, false);
-        if (animation.NativeVersion == 0)
-        {
-            return;
-        }
+        BackgroundAnimation animation = GetBackgroundAnimation(moduleIndex);
         animation.Counter = (short)(animation.Counter - 1);
         if (animation.Counter > 0)
         {
@@ -77,26 +68,5 @@ public sealed partial class EventEngine
         public bool Complete;
         public bool Loop;
         public int NativeVersion = 1;
-        public float LegacyProgress;
-    }
-
-    private void StepLegacyBackgroundAnimations()
-    {
-        foreach ((int id, BackgroundAnimation animation) in backgroundAnimations)
-        {
-            if (animation.NativeVersion != 0 || animation.Complete)
-            {
-                continue;
-            }
-            animation.LegacyProgress += animation.Speed / (float)SimulationFps;
-            int direction = Math.Sign(animation.Last - animation.First);
-            int frame = animation.First + (int)animation.LegacyProgress * direction;
-            if (direction == 0 || direction > 0 && frame >= animation.Last || direction < 0 && frame <= animation.Last)
-            {
-                frame = animation.Last;
-                animation.Complete = true;
-            }
-            backgroundStates[id] = frame;
-        }
     }
 }

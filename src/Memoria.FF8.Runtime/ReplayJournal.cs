@@ -30,7 +30,7 @@ public sealed record ReplayWorldNavigationStimulus(int X, int Z);
 public sealed record ReplayReceipt(ReplayReceiptKind Kind, int FieldId, long Frame, int ObjectId, int ScriptId, int Operation, int Code = 0, int Value = 0, string? Text = null, int[]? Arguments = null);
 
 /// <summary>An engine input transaction with its ordered causal receipts; these are never applied as state writes.</summary>
-public sealed record ReplayJournalEntry(ReplayEntryKind Kind, SceneKind Scene, int FieldId, long Frame)
+public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind Kind, [property: JsonRequired] SceneKind Scene, [property: JsonRequired] int FieldId, [property: JsonRequired] long Frame)
 {
     public int Code { get; init; }
     public int Value { get; init; }
@@ -134,13 +134,18 @@ public sealed class ReplayJournal
     public const int CurrentVersion = 1;
     public const int MaximumEntries = 262144;
     public const int MaximumDecodedBytes = 64 * 1024 * 1024;
+    // Authentic capsules written before storage compaction may exceed the
+    // compact journal budget. Reading their inputs must preserve reconstruction.
+    public const int MaximumInputDecodedBytes = 256 * 1024 * 1024;
     public const string NewGameRoot = "Memoria.FF8.NewGame.causal.v1";
     private readonly Node? tail;
+    private readonly Node? completedVisits;
 
-    private ReplayJournal(string sessionId, Node? tail, int count, int bytes, bool complete, string? reason)
+    private ReplayJournal(string sessionId, Node? tail, int count, int bytes, bool complete, string? reason, Node? completedVisits = null)
     {
         SessionId = sessionId;
         this.tail = tail;
+        this.completedVisits = completedVisits;
         EntryCount = count;
         EncodedByteCount = bytes;
         IsComplete = complete;
@@ -189,23 +194,63 @@ public sealed class ReplayJournal
         {
             return this;
         }
+        ReplayJournal current = tail is not null && (entry.Kind == ReplayEntryKind.FieldLoad || entry.Scene == SceneKind.WorldMap && tail.Entry.Scene != SceneKind.WorldMap) ? CompleteVisit() : this;
+        return current.AppendCore(entry);
+    }
+
+    private ReplayJournal AppendCore(ReplayJournalEntry entry)
+    {
         if (tail is Node previous && CanRepeat(previous.Entry, entry))
         {
             ReplayJournalEntry combined = previous.Entry with { Repeat = previous.Entry.Repeat + 1, ResultFrame = entry.ResultFrame };
-            int oldBytes = JsonSerializer.SerializeToUtf8Bytes(previous.Entry).Length;
-            int newBytes = JsonSerializer.SerializeToUtf8Bytes(combined).Length;
+            int oldBytes = ReplayJournalEntryStorage.Encode(previous.Entry).Length;
+            int newBytes = ReplayJournalEntryStorage.Encode(combined).Length;
             if (EncodedByteCount - oldBytes > MaximumDecodedBytes - newBytes)
             {
                 return MarkUnavailable("The causal journal capacity was reached. Its authentic prefix remains saved, but reconstruction is unavailable.");
             }
-            return new ReplayJournal(SessionId, new Node(combined, previous.Previous), EntryCount, EncodedByteCount - oldBytes + newBytes, true, null);
+            return new ReplayJournal(SessionId, new Node(combined, previous.Previous), EntryCount, EncodedByteCount - oldBytes + newBytes, true, null, completedVisits);
         }
-        int bytes = JsonSerializer.SerializeToUtf8Bytes(entry).Length + (EntryCount == 0 ? 0 : 1);
+        int bytes = ReplayJournalEntryStorage.Encode(entry).Length + (EntryCount == 0 ? 0 : 1);
         if (EntryCount == MaximumEntries || EncodedByteCount > MaximumDecodedBytes - bytes)
         {
             return MarkUnavailable("The causal journal capacity was reached. Its authentic prefix remains saved, but reconstruction is unavailable.");
         }
-        return new ReplayJournal(SessionId, new Node(Snapshot(entry), tail), EntryCount + 1, EncodedByteCount + bytes, true, null);
+        return new ReplayJournal(SessionId, new Node(Snapshot(entry), tail), EntryCount + 1, EncodedByteCount + bytes, true, null, completedVisits);
+    }
+
+    private ReplayJournal CompleteVisit()
+    {
+        List<ReplayJournalEntry> visit = [];
+        int visitBytes = 0;
+        for (Node? node = tail; !ReferenceEquals(node, completedVisits); node = node!.Previous)
+        {
+            visit.Add(node!.Entry);
+            visitBytes = checked(visitBytes + ReplayJournalEntryStorage.Encode(node.Entry).Length);
+        }
+        int earlierCount = EntryCount - visit.Count;
+        int earlierBytes = earlierCount == 0 ? 2 : EncodedByteCount - visitBytes - visit.Count;
+        ReplayJournal compact = new(SessionId, completedVisits, earlierCount, earlierBytes, true, null, completedVisits);
+        for (int index = visit.Count - 1; index >= 0; index--)
+        {
+            ReplayJournalEntry entry = visit[index];
+            // Completed visits retain actual inputs, movement stimuli, callback
+            // cadence, allocation barriers, memory writes, progress and decisions.
+            // Branch audits and duplicate top-level poses never drive reconstruction.
+            compact = compact.AppendCore(entry with
+            {
+                StartPose = null,
+                EndPose = null,
+                CommandCount = 0,
+                CommandDigest = 0,
+                Receipts = entry.Receipts.Where(receipt => receipt.Kind != ReplayReceiptKind.Branch).ToArray()
+            });
+            if (!compact.IsComplete)
+            {
+                throw new InvalidDataException("Completed-visit compaction exceeded the capacity of its original committed prefix.");
+            }
+        }
+        return new ReplayJournal(SessionId, compact.tail, compact.EntryCount, compact.EncodedByteCount, true, null, compact.tail);
     }
 
     public ReplayJournal MarkUnavailable(string reason)
@@ -214,14 +259,14 @@ public sealed class ReplayJournal
         {
             throw new ArgumentException("A bounded replay-unavailable reason is required.", nameof(reason));
         }
-        return IsComplete ? new ReplayJournal(SessionId, tail, EntryCount, EncodedByteCount, false, reason) : this;
+        return IsComplete ? new ReplayJournal(SessionId, tail, EntryCount, EncodedByteCount, false, reason, completedVisits) : this;
     }
 
     /// <summary>Explicitly selects only recorded committed transactions. This does not recover any failed or unrecorded suffix of the source save.</summary>
     public ReplayJournal GetCommittedPrefix()
     {
         Validate();
-        return IsComplete ? this : new ReplayJournal(SessionId, tail, EntryCount, EncodedByteCount, true, null);
+        return IsComplete ? this : new ReplayJournal(SessionId, tail, EntryCount, EncodedByteCount, true, null, completedVisits);
     }
 
     public void Validate()
@@ -244,7 +289,9 @@ public sealed class ReplayJournal
 
     private static bool CanRepeat(ReplayJournalEntry previous, ReplayJournalEntry next)
     {
-        if (previous.Kind != ReplayEntryKind.Step || next.Kind != ReplayEntryKind.Step || next.Repeat != 1 || previous.Repeat >= 30000 || previous.Advanced != 1 || next.Advanced != 1 || previous.Frame > long.MaxValue - previous.Repeat || previous.Frame + previous.Repeat != next.Frame || previous.Navigation.Length != 0 || next.Navigation.Length != 0 || previous.WorldNavigation.Length != 0 || next.WorldNavigation.Length != 0 || previous.Receipts.Length != next.Receipts.Length || previous.ResultFrame.HasValue != next.ResultFrame.HasValue || next.ResultFrame.HasValue && (previous.ResultFrame != next.Frame || next.Frame == long.MaxValue || next.ResultFrame != next.Frame + 1))
+        // Action code5 is the shared causal input contract for one ordinary Wait.
+        bool cadence = previous.Kind == ReplayEntryKind.Step || previous.Kind == ReplayEntryKind.Action && previous.Code == 5 && previous.Frames == 1;
+        if (!cadence || next.Kind != previous.Kind || next.Repeat != 1 || previous.Repeat >= 30000 || previous.Advanced != 1 || next.Advanced != 1 || previous.Frame > long.MaxValue - previous.Repeat || previous.Frame + previous.Repeat != next.Frame || previous.Navigation.Length != 0 || next.Navigation.Length != 0 || previous.WorldNavigation.Length != 0 || next.WorldNavigation.Length != 0 || previous.Receipts.Length != next.Receipts.Length || previous.ResultFrame.HasValue != next.ResultFrame.HasValue || next.ResultFrame.HasValue && (previous.ResultFrame != next.Frame || next.Frame == long.MaxValue || next.ResultFrame != next.Frame + 1))
         {
             return false;
         }
@@ -298,7 +345,7 @@ public sealed class ReplayJournalJsonConverter : JsonConverter<ReplayJournal>
             }
             int count = root.GetProperty("EntryCount").GetInt32();
             string data = root.GetProperty("Data").GetString() ?? throw new InvalidDataException("Missing causal journal data.");
-            if (count is < 0 or > ReplayJournal.MaximumEntries || data.Length > ReplayJournal.MaximumDecodedBytes * 2)
+            if (count is < 0 or > ReplayJournal.MaximumEntries || data.Length > ReplayJournal.MaximumInputDecodedBytes * 2)
             {
                 throw new InvalidDataException("Causal journal exceeds its declared capacity.");
             }
@@ -309,7 +356,7 @@ public sealed class ReplayJournalJsonConverter : JsonConverter<ReplayJournal>
             int bytes;
             while ((bytes = decompressor.Read(buffer)) != 0)
             {
-                if (decoded.Length + bytes > ReplayJournal.MaximumDecodedBytes)
+                if (decoded.Length + bytes > ReplayJournal.MaximumInputDecodedBytes)
                 {
                     throw new InvalidDataException("Causal journal decompression exceeds its capacity.");
                 }
@@ -344,7 +391,7 @@ public sealed class ReplayJournalJsonConverter : JsonConverter<ReplayJournal>
         using MemoryStream compressed = new();
         using (BrotliStream compressor = new(compressed, CompressionLevel.Optimal, true))
         {
-            JsonSerializer.Serialize(compressor, value.Entries);
+            JsonSerializer.Serialize(compressor, value.Entries, ReplayJournalEntryStorage.Options);
         }
         writer.WriteStartObject();
         writer.WriteNumber("Version", value.Version);

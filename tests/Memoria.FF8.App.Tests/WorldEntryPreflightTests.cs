@@ -7,26 +7,6 @@ namespace Memoria.FF8.App.Tests;
 public sealed class WorldEntryPreflightTests
 {
     [Fact]
-    public void SelectedEntryPreparationPreservesTheCompleteDepartingState()
-    {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
-        Assert.SkipUnless(Directory.Exists(directory), "Installed world corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
-        GameState departure = LegacyWorldControlProof.Upgrade(File.ReadAllBytes(Path.Combine(repository!.FullName, "../fixtures/external-fixture.json")));
-        string before = JsonSerializer.Serialize(departure);
-        using PreparedWorldEntry entry = WorldEntryPreflight.Prepare(departure, directory, new WorldTransition(0, 0, 0));
-        Assert.Equal((24576, -29406, -658), (entry.InitialState.X, entry.InitialState.Z, entry.InitialState.NativeHeight));
-        Assert.Equal(0, entry.InitialState.Frame);
-        Assert.Empty(entry.InitialState.Actions);
-        Assert.Equal(before, JsonSerializer.Serialize(departure));
-        Assert.Equal(17, departure.Variables[256]);
-    }
-
-    [Fact]
     public void UnsupportedEntryPreparationPreservesItsSourceBeforeResources()
     {
         GameState departure = new() { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame() };

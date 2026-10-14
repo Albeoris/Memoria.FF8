@@ -35,6 +35,33 @@ public sealed class InputTests
     }
 
     [Fact]
+    public void F1_speed_toggle_rearms_after_release_and_respects_focus_without_repeating_actions()
+    {
+        KeyboardInput keyboard = new();
+        GameplayClock clock = new();
+        Runtime.InputFrame first = keyboard.Read(new KeyboardState(Keys.F1, Keys.Right, Keys.Enter), true);
+        Assert.True(keyboard.SpeedToggleRequested);
+        clock.ToggleSpeed();
+        Assert.Equal(3, clock.SpeedMultiplier);
+        Assert.Equal(1, first.Horizontal);
+        Assert.True(first.Confirm);
+        Runtime.InputFrame held = keyboard.Read(new KeyboardState(Keys.F1, Keys.Right, Keys.Enter), true);
+        Assert.False(keyboard.SpeedToggleRequested);
+        Assert.Equal(1, held.Horizontal);
+        Assert.False(held.Confirm);
+        keyboard.Read(new KeyboardState(), true);
+        keyboard.Read(new KeyboardState(Keys.F1), false);
+        Assert.False(keyboard.SpeedToggleRequested);
+        keyboard.Read(new KeyboardState(Keys.F1), true);
+        Assert.False(keyboard.SpeedToggleRequested);
+        keyboard.Read(new KeyboardState(), true);
+        keyboard.Read(new KeyboardState(Keys.F1), true);
+        Assert.True(keyboard.SpeedToggleRequested);
+        clock.ToggleSpeed();
+        Assert.Equal(1, clock.SpeedMultiplier);
+    }
+
+    [Fact]
     public void Confirm_and_cancel_rearm_only_after_release()
     {
         KeyboardInput keyboard = new();

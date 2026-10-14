@@ -111,7 +111,7 @@ internal static partial class Program
             legacyLoop.Step();
         }
         JsonElement legacyFiber = legacyLoop.Capture().GetProperty("Fibers")[0];
-        Require(legacyFiber.GetProperty("Position").GetInt32() == 0 && legacyFiber.GetProperty("WaitReason").GetString() == "Frames" && legacyFiber.GetProperty("WaitUntil").GetInt64() == 10, "An unqualified backward JMP acquired the scoped native135 continuation policy.");
+        Require(legacyFiber.GetProperty("Position").GetInt32() == 9 && legacyFiber.GetProperty("WaitReason").GetString() == "BackgroundScroll" && legacyLoop.Scene.BackgroundScrollPositions[1] is { Counter: 1, Status: 1 }, "Backward JMP must restart the ordinary linear scroll within the same native budget and hold its actual synchronization command.");
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(135);

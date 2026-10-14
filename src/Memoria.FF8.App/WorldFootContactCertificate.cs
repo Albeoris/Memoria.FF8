@@ -15,7 +15,7 @@ public enum WorldFootContactRefusal
     CameraEyeOutsideRegion
 }
 
-/// <summary>A local object/train contact exclusion for normal Squall world type 0, not a terrain or script certificate.</summary>
+/// <summary>A local object/train exclusion for original Squall foot types0/1, not a terrain or script certificate.</summary>
 public sealed record WorldFootContactProof(int RuleVersion, ushort StoryWord, int PlayerX, int PlayerRawZ, double CameraEyeX, NativeSavedWorldOrigin SavedWorldOrigin);
 
 public sealed record WorldFootContactCertificateResult(WorldFootContactProof? Certificate, WorldFootContactRefusal? Refusal, string? Reason)
@@ -23,7 +23,7 @@ public sealed record WorldFootContactCertificateResult(WorldFootContactProof? Ce
     public bool Certified => Certificate is not null;
 }
 
-/// <summary>Pure native contact exclusion within the audited Garden-road region. The caller must establish normal Squall type 0.</summary>
+/// <summary>Pure native contact exclusion for the supported original normal and uniform Squall allocation clauses.</summary>
 public static class WorldFootContactCertificate
 {
     public const int RuleVersion = 1;
@@ -32,7 +32,7 @@ public static class WorldFootContactCertificate
     public const int PlayerRadius = 2048;
     public const int CameraEyeXRadius = 16384;
 
-    public static WorldFootContactCertificateResult Evaluate(NativeSavedWorldState? savedWorld, byte event256, byte event257, byte event264, int playerX, int playerRawZ, double cameraEyeX, bool allowTravel = false)
+    public static WorldFootContactCertificateResult Evaluate(NativeSavedWorldState? savedWorld, byte event256, byte event257, byte event264, int playerX, int playerRawZ, double cameraEyeX, bool allowTravel = false, byte entityType = 0)
     {
         if (savedWorld is null)
         {
@@ -48,17 +48,17 @@ public static class WorldFootContactCertificate
         }
 
         ushort storyWord = (ushort)(event256 | event257 << 8);
-        if (storyWord >= 34)
+        if (entityType == 0 ? storyWord >= 34 : entityType != 1 || storyWord is < 34 or >= 205)
         {
-            return Refuse(WorldFootContactRefusal.UnsupportedStory, "The native setup clause must have story WORD in [0,34).");
+            return Refuse(WorldFootContactRefusal.UnsupportedStory, "The native setup requires type0/story [0,34) or type1/story [34,205).");
         }
         if ((event264 & 7) != 0)
         {
             return Refuse(WorldFootContactRefusal.ActiveObjectPairs, "Native byte264 enables object pairs outside this contact exclusion.");
         }
-        if (savedWorld.Slot4.ShapeId != 0 || savedWorld.Slot5.ShapeId != 0)
+        if (entityType == 0 ? savedWorld.Slot4.ShapeId != 0 || savedWorld.Slot5.ShapeId != 0 : savedWorld.Slot4.ShapeId is not (0 or 73 or 255) || savedWorld.Slot5.ShapeId is not (0 or 78))
         {
-            return Refuse(WorldFootContactRefusal.UnsupportedSavedVehicle, "This contact exclusion requires both native saved vehicle shape IDs to be zero.");
+            return Refuse(WorldFootContactRefusal.UnsupportedSavedVehicle, "Saved vehicle shapes lie outside the proved original foot allocation clause.");
         }
         if (allowTravel && (playerX is < -131072 or >= 131072 || playerRawZ is < -98304 or >= 98304))
         {
@@ -80,10 +80,15 @@ public static class WorldFootContactCertificate
         {
             return Refuse(WorldFootContactRefusal.CameraEyeOutsideRegion, "The actual camera eye X is outside the native train-block exclusion envelope.");
         }
+        if (entityType == 1 && savedWorld.Slot4.ShapeId == 73 && !ExcludesOriginalStaticVehicle(cameraEyeX, savedWorld.Slot4.Pose.X))
+        {
+            return Refuse(WorldFootContactRefusal.UnsupportedSavedVehicle, "The active saved car may be presented or contacted inside the native camera block envelope.");
+        }
 
-        // Clause 0 creates the excluded player; type 94 is skipped. Routes 0/1 fail
-        // native camera-block proximity here regardless of their unrepresented phase.
-        var proof = new WorldFootContactProof(allowTravel ? 2 : RuleVersion, storyWord, playerX, playerRawZ, cameraEyeX, savedWorld.Origin);
+        // Clauses0/1 create controlled shapes0/4;548CD0 skips that selected record
+        // and94. Mode0/203FD60=0 inspects slot4 only; boat shape78 is not a car,
+        // so the native saved-vehicle append branch never adds it from slot5.
+        var proof = new WorldFootContactProof(entityType == 1 ? 3 : allowTravel ? 2 : RuleVersion, storyWord, playerX, playerRawZ, cameraEyeX, savedWorld.Origin);
         return new WorldFootContactCertificateResult(proof, null, null);
     }
 
@@ -119,6 +124,33 @@ public static class WorldFootContactCertificate
                         return false;
                     }
                 }
+            }
+        }
+        return true;
+    }
+
+    private static bool ExcludesOriginalStaticVehicle(double cameraEyeX, int vehicleX)
+    {
+        if (vehicleX is < -131072 or >= 131072)
+        {
+            return false;
+        }
+        int cameraCell = (int)Math.Floor((cameraEyeX + 131072) / 2048);
+        int vehicleCell = (vehicleX + 131072) / 2048;
+        for (int roundingCell = -1; roundingCell <= 1; roundingCell++)
+        {
+            int difference = vehicleCell - ((cameraCell + roundingCell + 128) % 128);
+            if (difference > 64)
+            {
+                difference -= 128;
+            }
+            else if (difference < -64)
+            {
+                difference += 128;
+            }
+            if (Math.Abs(difference) <= 5)
+            {
+                return false;
             }
         }
         return true;

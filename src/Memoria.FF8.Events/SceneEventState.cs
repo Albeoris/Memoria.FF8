@@ -220,8 +220,6 @@ public sealed class SceneEventState
     public NativeMediaHistoryBoundary? NativeMediaHistoryBoundary { get; internal set; }
     /// <summary>Latest direct global request per native voice; Failed does not imply successful playback or overwrite of an earlier audible buffer.</summary>
     public Dictionary<int, GlobalSoundRequest> GlobalSoundVoices { get; } = [];
-    [JsonInclude]
-    public BackgroundShade? BackgroundShade { get; internal set; }
     /// <summary>Native byte1CE490A; only value1 requests a color-buffer clear. Fresh normal field loads reset it to0.</summary>
     [JsonInclude]
     public byte BackgroundClearValue { get; internal set; }

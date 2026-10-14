@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeFootWorldRuntimeStateTests
 {
     [Fact]
-    public void ExecutedFirstLoaderEstablishesNativeZeroAuxiliariesWithoutChangingOldSnapshots()
+    public void ExecutedFirstLoaderRequiresCurrentNativeInitialization()
     {
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame();
         Assert.Equal<byte?>(0, saved.InitialMapDisplayMode110);
@@ -17,18 +17,14 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Null(runtime.ReloadSourceWorldFrame);
         runtime.RequireSupportedNormalFoot();
 
-        NativeSavedWorldState legacy = NativeSavedWorldState.CreateVerifiedLegacyNewGame(NativeSavedWorldState.LegacyCheckpoint300Sha256) with { InitialMapDisplayMode110 = null };
-        string before = JsonSerializer.Serialize(legacy);
-        Assert.Equal(runtime, NativeFootWorldRuntimeState.CreateFirstNormalLoad(legacy));
-        Assert.Equal(before, JsonSerializer.Serialize(legacy));
+        NativeSavedWorldState incomplete = saved with { InitialMapDisplayMode110 = null };
+        string before = JsonSerializer.Serialize(incomplete);
+        Assert.Throws<InvalidDataException>(() => NativeFootWorldRuntimeState.CreateFirstNormalLoad(incomplete));
+        Assert.Equal(before, JsonSerializer.Serialize(incomplete));
         WorldState old = JsonSerializer.Deserialize<WorldState>("{\"Frame\":1649,\"X\":30240,\"Z\":-29393,\"NativeHeight\":-691,\"BodyYaw\":165,\"CameraYaw\":199}")!;
         Assert.Null(old.NativeFootRuntime);
         Assert.DoesNotContain("NativeFootRuntime", JsonSerializer.Serialize(old));
-        NativeSavedWorldFootReturn oldReceipt = NativeSavedWorldFootReturn.RecordFootDeparture(old, 159, 17, 1);
-        Assert.Null(oldReceipt.AnimationVariant108);
-        Assert.Null(oldReceipt.MovementMode110);
-        Assert.Throws<NotSupportedException>(oldReceipt.RequireCompleteFootReload);
-        Assert.Throws<NotSupportedException>(() => NativeFootWorldRuntimeState.CreateFirstNormalLoad(saved.WithFootReturn(oldReceipt)));
+        Assert.Throws<NotSupportedException>(() => NativeSavedWorldFootReturn.RecordFootDeparture(old, 159, 17, 1));
     }
 
     [Fact]
@@ -58,6 +54,7 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Throws<InvalidDataException>(() => (first with { AnimationVariant = 1 }).Validate());
         Assert.Throws<InvalidDataException>(() => (first with { ReloadSourceWorldFrame = 0 }).Validate());
         Assert.Throws<InvalidDataException>(() => (first with { MapDisplayMode = 4 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (first with { EntityType = 2 }).Validate());
         Assert.Throws<NotSupportedException>(() => (first with { MapDisplayMode = 1 }).RequireSupportedNormalFoot());
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeFootWorldRuntimeState>("{}"));
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(new WorldState(), 159, 17, 1, 1, 0);
@@ -65,5 +62,21 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Throws<NotSupportedException>(reload.RequireSupportedNormalFoot);
         Assert.Throws<InvalidDataException>(() => (reload with { ReloadSourceWorldFrame = null }).Validate());
         Assert.Throws<InvalidDataException>(() => (reload with { ReloadSourceWorldFrame = -1 }).Validate());
+    }
+
+    [Theory]
+    [InlineData((byte)0)]
+    [InlineData((byte)1)]
+    public void FootEntryTypeSurvivesDepartureSerializationAndSavedReload(byte entityType)
+    {
+        NativeFootWorldRuntimeState runtime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame(), entityType);
+        var world = new WorldState { Frame = 1, NativeFootRuntime = runtime };
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(world, 159, 135, 1);
+        Assert.Equal(entityType, receipt.EntityType105);
+        NativeSavedWorldFootReturn restored = JsonSerializer.Deserialize<NativeSavedWorldFootReturn>(JsonSerializer.Serialize(receipt))!;
+        NativeFootWorldRuntimeState reload = NativeFootWorldRuntimeState.CreateSavedReload(restored);
+        Assert.Equal(entityType, reload.EntityType);
+        reload.RequireSupportedNormalFoot();
+        Assert.Equal(runtime.EntityType, JsonSerializer.Deserialize<NativeFootWorldRuntimeState>(JsonSerializer.Serialize(runtime))!.EntityType);
     }
 }

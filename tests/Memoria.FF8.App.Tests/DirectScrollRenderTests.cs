@@ -20,8 +20,8 @@ public sealed class DirectScrollRenderTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        var session = new GameSession(GameSession.Load(source));
-        using var world = new GameWorld(session, directory);
+        var session = new GameSession(NativeField135LinearScrollTests.RecreateBoundary(directory, source, 172, 3));
+        using var world = new GameWorld(session, directory, persistReplayJournal: false);
         world.EnsureField();
         var original = world.Events.Actors.Select(actor => (actor.X, actor.Y, actor.Z)).ToArray();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
@@ -32,7 +32,7 @@ public sealed class DirectScrollRenderTests
         Assert.Equal(original, world.Events.Actors.Select(actor => (actor.X, actor.Y, actor.Z)).ToArray());
         BackgroundScrollFrame scroll = BackgroundScrollCertificate.Prepare(world.Field!, world.Events.Scene);
         Assert.Equal(new Vector2(0, -224), scroll.ActorOffset);
-        Assert.Equal(Vector2.Zero, scroll.LayerOffsets[1]);
+        Assert.Equal(Vector2.Zero, scroll.LayerOffsets.GetValueOrDefault(1));
         ActorState player = world.Events.Actors[0];
         var visual = new ActorVisual(player.ObjectId, player.ModelId, player.X, player.Y, player.Z, player.Direction, player.AnimationId, player.AnimationFrame, true, PolygonColor: player.PolygonColor);
         var isolatedRenderer = new FieldRenderer(world.Field!);
@@ -42,7 +42,7 @@ public sealed class DirectScrollRenderTests
         Assert.True(shiftedBody.Where((_, index) => index % 4 != 3).All(value => value == 0));
         byte[] pixels = world.Render(TimeSpan.Zero).ToArray();
         GameState captured = session.State with { EventState = world.Events.Capture() };
-        using var resumed = new GameWorld(new GameSession(captured), directory);
+        using var resumed = new GameWorld(new GameSession(captured), directory, persistReplayJournal: false);
         resumed.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), resumed.Events.Capture()));
         Assert.Equal(pixels, resumed.Render(TimeSpan.Zero));
@@ -61,13 +61,14 @@ public sealed class DirectScrollRenderTests
         {
             var renderer = new FieldRenderer(field, 320 * multiplier, 240 * multiplier);
             byte[] baseline = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
-            byte[] translated = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: new Dictionary<int, Vector2> { [1] = new(32, 24) }).ToArray();
-            for (int y = 104 * multiplier; y < 120 * multiplier; y++)
+            byte[] translated = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: new Dictionary<int, Vector2> { [1] = new(32, 28) }).ToArray();
+            // Native224 drawing lines scale into240 PC lines;28 native lines therefore move30 output lines.
+            for (int y = (int)MathF.Ceiling(96 * 240f / 224 * multiplier); y < 120 * multiplier; y++)
             {
                 for (int x = 144 * multiplier; x < 160 * multiplier; x++)
                 {
                     int source = (y * 320 * multiplier + x) * 4;
-                    int target = ((y + 24 * multiplier) * 320 * multiplier + x + 32 * multiplier) * 4;
+                    int target = ((y + 30 * multiplier) * 320 * multiplier + x + 32 * multiplier) * 4;
                     Assert.Equal(baseline.AsSpan(source, 4).ToArray(), translated.AsSpan(target, 4).ToArray());
                 }
             }

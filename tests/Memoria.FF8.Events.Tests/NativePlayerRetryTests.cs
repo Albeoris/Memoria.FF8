@@ -93,7 +93,7 @@ internal static partial class Program
                 }
                 if (malformed == 3)
                 {
-                    return result with { GroundProbes = groups[0] };
+                    return result with { ProposalGroundProbes = groups.Append(groups[0]).ToArray() };
                 }
                 if (malformed == 4)
                 {

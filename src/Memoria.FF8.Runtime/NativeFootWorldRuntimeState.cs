@@ -13,6 +13,9 @@ public sealed record NativeFootWorldRuntimeState
     public required int ProofVersion { get; init; }
     [JsonRequired]
     public required string Rule { get; init; }
+    /// <summary>Native world entity type selected by the original world-entry packet.</summary>
+    [JsonRequired]
+    public required byte EntityType { get; init; }
     /// <summary>Native 20409E4, selected separately from locomotion animation IDs and their phase.</summary>
     [JsonRequired]
     public required byte AnimationVariant { get; init; }
@@ -22,7 +25,7 @@ public sealed record NativeFootWorldRuntimeState
     [JsonRequired]
     public required long? ReloadSourceWorldFrame { get; init; }
 
-    public static NativeFootWorldRuntimeState CreateFirstNormalLoad(NativeSavedWorldState savedWorld)
+    public static NativeFootWorldRuntimeState CreateFirstNormalLoad(NativeSavedWorldState savedWorld, byte entityType = 0)
     {
         ArgumentNullException.ThrowIfNull(savedWorld);
         byte mapDisplayMode = savedWorld.ReadMapDisplayModeForFreshFootLoader();
@@ -30,6 +33,7 @@ public sealed record NativeFootWorldRuntimeState
         {
             ProofVersion = CurrentProofVersion,
             Rule = FirstLoadRule,
+            EntityType = entityType,
             AnimationVariant = 0,
             MapDisplayMode = mapDisplayMode,
             ReloadSourceWorldFrame = null
@@ -46,6 +50,7 @@ public sealed record NativeFootWorldRuntimeState
         {
             ProofVersion = CurrentProofVersion,
             Rule = SavedReloadRule,
+            EntityType = receipt.EntityType105,
             AnimationVariant = receipt.AnimationVariant108!.Value,
             MapDisplayMode = receipt.MovementMode110!.Value,
             ReloadSourceWorldFrame = receipt.SourceWorldFrame
@@ -56,7 +61,7 @@ public sealed record NativeFootWorldRuntimeState
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule) || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

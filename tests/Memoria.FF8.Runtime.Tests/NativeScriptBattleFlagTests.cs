@@ -15,14 +15,13 @@ public sealed class NativeScriptBattleFlagTests
     }
 
     [Fact]
-    public void Omitted_historical_bit_stays_unknown_during_restore_and_normal_load()
+    public void Omitted_historical_bit_requires_recreation()
     {
         JsonNode original = JsonNode.Parse(JsonSerializer.Serialize(NativeWorldControlState.CreateNewGame()))!;
         original.AsObject().Remove(nameof(NativeWorldControlState.ScriptBattleDisabled20));
-        NativeWorldControlState restored = original.Deserialize<NativeWorldControlState>()!;
-        restored.Validate();
-        Assert.Null(restored.ScriptBattleDisabled20);
-        Assert.Null(restored.WithNormalFieldLoad().WithPartyPower(1).ScriptBattleDisabled20);
-        Assert.Null(NativeWorldControlState.CreateVerifiedLegacyNewGame(NativeWorldControlState.LegacyCheckpoint172PreinitSha256).ScriptBattleDisabled20);
+        Assert.Throws<JsonException>(() => original.Deserialize<NativeWorldControlState>());
+        NativeWorldControlState unknown = NativeWorldControlState.CreateNewGame() with { ScriptBattleDisabled20 = null };
+        Assert.Throws<InvalidDataException>(unknown.Validate);
+        Assert.Throws<InvalidDataException>(() => unknown.WithNormalFieldLoad());
     }
 }

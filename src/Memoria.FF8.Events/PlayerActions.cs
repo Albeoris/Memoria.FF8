@@ -153,7 +153,7 @@ public sealed partial class EventEngine
                         throw new ArgumentOutOfRangeException(nameof(action), "Movement axes must be finite and between -1 and 1.");
                     }
                     ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
-                    accepted = player is not null && IsUserControlEnabled && !IsDialogueBlocking && !services.IsMoviePlaying;
+                    accepted = player is not null && IsUserControlEnabled && !IsMovementBlockedByDialogue && !services.IsMoviePlaying;
                     if (accepted && ResolveWalkmesh is null)
                     {
                         throw new InvalidOperationException("Player movement requires the field walkmesh resolver.");
@@ -173,7 +173,7 @@ public sealed partial class EventEngine
                                 RecordReplayNavigation(player, new WalkmeshPosition(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle), position, (int)player.Direction, false, null, []);
                                 Step();
                                 advanced++;
-                                if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested)
+                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested)
                                 {
                                     break;
                                 }
@@ -219,7 +219,7 @@ public sealed partial class EventEngine
                             }
                             CommitNativeLineMovement(lineChanges);
                             advanced++;
-                            if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested)
+                            if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested)
                             {
                                 break;
                             }

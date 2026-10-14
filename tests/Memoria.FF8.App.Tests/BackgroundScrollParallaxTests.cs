@@ -84,7 +84,8 @@ public sealed class BackgroundScrollParallaxTests
 
     private static SceneEventState Scene()
     {
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
+        // Isolated projection fixture; it is neither restored by an engine nor published as a causal save.
+        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"AudioLoadEpoch\":0,\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
         scene.NativeActorObjectIds.Add(0);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
         return scene;

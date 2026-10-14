@@ -169,21 +169,53 @@ internal static class WorldAssetReader
 
     public static FieldModel ReadSquall(byte[] bytes)
     {
-        int[] textures = new int[2];
-        int position = 4;
-        for (int i = 0; i < textures.Length; i++)
+        return ReadWorldCharacter(bytes, 0);
+    }
+
+    public static FieldModel ReadWorldCharacter(byte[] bytes, int shape)
+    {
+        if (bytes.Length < 12 || BinaryPrimitives.ReadInt32LittleEndian(bytes) != bytes.Length)
         {
-            textures[i] = position;
-            position = ReadTim(bytes, position).End;
+            throw new InvalidDataException("Invalid original world character container length.");
         }
-        while (BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(position)) == 0)
+        int count = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(bytes.Length - 4));
+        if (count is < 1 or > 64 || shape < 0 || shape >= count)
         {
-            position += 2;
+            throw new InvalidDataException("The selected world character shape is absent from its original footer.");
+        }
+        // Native653410 walks the footer backward from length-8, skipping each
+        // positive TIM pointer list and its sentinel/model pointer pair.
+        int cursor = bytes.Length - 8;
+        List<int> textures = [];
+        int position = -1;
+        for (int index = 0; index <= shape; index++)
+        {
+            textures.Clear();
+            while (cursor >= 8 && BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(cursor)) > 0)
+            {
+                int texture = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(cursor)) & 0x0FFFFFFF;
+                if (texture < 4 || texture > bytes.Length - 8 || textures.Count >= 4)
+                {
+                    throw new InvalidDataException("Invalid original world character TIM footer pointer.");
+                }
+                textures.Add(texture);
+                cursor -= 4;
+            }
+            if (cursor < 8 || BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(cursor)) != -1)
+            {
+                throw new NotSupportedException("The selected world character footer requires an implemented embedded model layout.");
+            }
+            position = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(cursor - 4));
+            cursor -= 8;
+        }
+        if (position < 4 || position > cursor - 64 || textures.Count == 0)
+        {
+            throw new InvalidDataException("World character geometry lies outside its original data region.");
         }
         int bones = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(position));
         int animationOffset = checked(position + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(position + 56)));
         IReadOnlyList<ModelAnimation> animations = ReadWorldAnimations(bytes, animationOffset, bones);
-        return FieldModelReader.ReadModel("World Squall", bytes, position, textures, 0, null, 0, animations);
+        return FieldModelReader.ReadModel($"World character shape {shape}", bytes, position, textures, 0, null, 0, animations);
     }
 
     private static IReadOnlyList<ModelAnimation> ReadWorldAnimations(byte[] bytes, int offset, int bones)

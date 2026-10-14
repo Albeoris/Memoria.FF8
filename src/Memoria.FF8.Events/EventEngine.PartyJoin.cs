@@ -2,7 +2,6 @@ using System.Numerics;
 
 namespace Memoria.FF8.Events;
 
-public sealed record PartyJoinStepQuery(int Triangle, int FixedX, int FixedY, int FixedZ, int Radius, int Direction);
 public sealed record NativeJoinMovementQuery(int ObjectId, int Triangle, int FixedX, int FixedY, int FixedZ, int Direction, short Speed, int Radius, Func<NativePlayerGroundProbe, bool>? HasActorCollision = null);
 public sealed record NativeJoinMovementProposal(int FixedX, int FixedY, int Direction);
 public sealed record NativeJoinMovementResult(bool Accepted, int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null);
@@ -14,7 +13,6 @@ public sealed partial class EventEngine
 {
     private PartyJoinState? partyJoin;
     public Func<int, int, int, int?>? ResolvePartyTraceTriangle { get; set; }
-    public Func<PartyJoinStepQuery, WalkmeshPosition?>? ResolvePartyJoinStep { get; set; }
     public Func<NativeJoinMovementQuery, NativeJoinMovementResult?>? ResolveNativeJoinMovement { get; set; }
     public Func<ActorState, bool>? CanUseNativeJoinMovement { get; set; }
 
@@ -22,7 +20,7 @@ public sealed partial class EventEngine
     {
         if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            return ResolvePartyActor(slot);
+            throw new NotSupportedException("JOIN requires authenticated original runtime provenance.");
         }
         if (Scene.NativeActorLayoutVersion != 1 || Scene.PartyBindingMemory is not { Version: 1 } memory)
         {
@@ -80,15 +78,9 @@ public sealed partial class EventEngine
         idle = actor.BaseAnimationId;
         walk = actor.WalkAnimationId;
         run = actor.RunAnimationId;
-        if (actor.NativeBaseAnimationVersion == 0)
+        if (actor.NativeBaseAnimationVersion != 1)
         {
-            if (actor.BaseFirstFrame == 0 && actor.BaseLastFrame == 0 && actor.BaseAnimationId == 0)
-            {
-                return false;
-            }
-            // The old handler stored the original two BASEANIME operands here.
-            walk = (byte)actor.BaseFirstFrame;
-            run = (byte)actor.BaseLastFrame;
+            return false;
         }
         return idle is >= 0 and <= 255 && walk is >= 0 and <= 255 && run is >= 0 and <= 255;
     }
@@ -107,7 +99,7 @@ public sealed partial class EventEngine
         {
             return "Unsupported JOIN requires the proved compact bindings and original party leader caller";
         }
-        if (ResolvePartyTraceTriangle is null || ResolvePartyJoinStep is null)
+        if (ResolvePartyTraceTriangle is null || ResolveNativeJoinMovement is null)
         {
             return "Unsupported JOIN requires native trace geometry and bounded native movement geometry";
         }
@@ -119,10 +111,13 @@ public sealed partial class EventEngine
         {
             return "Unsupported fractional JOIN leader requires its matching preserved native fixed position";
         }
-        bool nativeMovement = ResolveNativeJoinMovement is not null && Enumerable.Range(1, 2).Select(ResolveJoinPartyActor).OfType<ActorState>().All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true);
+        if (Enumerable.Range(1, 2).Select(ResolveJoinPartyActor).OfType<ActorState>().Any(actor => CanUseNativeJoinMovement?.Invoke(actor) != true))
+        {
+            return "JOIN requires the certified native movement adapter for every companion; flat fallback is unsupported";
+        }
         foreach (ActorState actor in Enumerable.Range(0, 3).Select(ResolveJoinPartyActor).OfType<ActorState>())
         {
-            if (nativeMovement && actor.ObjectId != fiber.ObjectId && actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 })
+            if (actor.ObjectId != fiber.ObjectId && actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 })
             {
                 return "Native JOIN requires actual companion movement575 and facing hold576 before issue";
             }
@@ -134,9 +129,9 @@ public sealed partial class EventEngine
             {
                 return "JOIN requires completed native companion MOVE before the certified movement driver starts";
             }
-            if ((actor.ObjectId != fiber.ObjectId && (actor.X != MathF.Truncate(actor.X) || actor.Y != MathF.Truncate(actor.Y))) || actor.Z != MathF.Truncate(actor.Z) || actor.PushRadius is < 0 or > 200 || actor.Z != actors[fiber.ObjectId].Z && !nativeMovement)
+            if (ReadNativeScriptPosition(actor) is null || actor.PushRadius is < 0 or > ushort.MaxValue)
             {
-                return "Unsupported JOIN movement requires the reached flat height and integral companions with native peer-envelope checks";
+                return "JOIN requires preserved native raw companion coordinates and unsigned radius";
             }
         }
         return null;
@@ -170,7 +165,6 @@ public sealed partial class EventEngine
                 {
                     continue;
                 }
-                RegisterLegacyBaseAnimations(target);
                 FieldFixedPosition raw = ReadNativeScriptPosition(target)!;
                 int fixedX = raw.X;
                 int fixedY = raw.Y;
@@ -187,10 +181,8 @@ public sealed partial class EventEngine
                 SelectFullNativeAnimation(target, walk ? target.WalkAnimationId : target.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(target.ObjectId, fixedX, fixedY, fixedZ, callerPosition.X, callerPosition.Y, callerPosition.Z, speed, 0));
             }
-            RegisterLegacyBaseAnimations(caller);
             SelectFullNativeAnimation(caller, caller.BaseAnimationId, true);
-            bool nativeMovement = targets.Count > 0 && targets.All(target => ResolveNativeJoinMovement is not null && CanUseNativeJoinMovement?.Invoke(actors[target.ObjectId]) == true);
-            partyJoin = new PartyJoinState(fiber.Sequence, caller.ObjectId, targets.ToArray(), nativeMovement);
+            partyJoin = new PartyJoinState(fiber.Sequence, caller.ObjectId, targets.ToArray(), true);
             fiber.Position--;
             fiber.WaitReason = WaitReason.PartyJoin;
             return;
@@ -220,21 +212,6 @@ public sealed partial class EventEngine
             }
         }
         partyJoin = null;
-    }
-
-    private static void RegisterLegacyBaseAnimations(ActorState actor)
-    {
-        if (actor.NativeBaseAnimationVersion != 0)
-        {
-            return;
-        }
-        if (!TryReadNativeBaseAnimations(actor, out _, out int walk, out int run))
-        {
-            throw new NotSupportedException("Legacy native base animation operands are unavailable.");
-        }
-        actor.WalkAnimationId = walk;
-        actor.RunAnimationId = run;
-        actor.NativeBaseAnimationVersion = 1;
     }
 
     private void SelectFullNativeAnimation(ActorState actor, int animation, bool reset)
@@ -272,17 +249,15 @@ public sealed partial class EventEngine
         return NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.ModelId is -1 or ushort.MaxValue;
     }
 
-    private bool IsCavernNativeMoveJoin => FieldId == 129 && partyJoin is { UsesNativeMovement: true, Targets.Length: 1 } && partyJoin.Targets[0].ObjectId == 5 && actors[5].NativeMotionAuthority is { Version: 1, FacingHold: 0 };
-
-    private void StepJoinedCompanions(bool postVm = false)
+    private void StepJoinedCompanions()
     {
         if (partyJoin is null)
         {
             return;
         }
-        if (IsCavernNativeMoveJoin != postVm)
+        if (!partyJoin.UsesNativeMovement || ResolveNativeJoinMovement is null || partyJoin.Targets.Any(target => CanUseNativeJoinMovement?.Invoke(actors[target.ObjectId]) != true))
         {
-            return;
+            throw FreezeJoin("JOIN requires its certified native movement adapter; legacy flat movement is unsupported");
         }
         PartyJoinTarget[] next = new PartyJoinTarget[partyJoin.Targets.Length];
         WalkmeshPosition?[] positions = new WalkmeshPosition?[next.Length];
@@ -313,72 +288,46 @@ public sealed partial class EventEngine
                 continue;
             }
             int direction = NativePartyDirection(x, y, target.TargetX >> 12, target.TargetY >> 12);
-            if (partyJoin.UsesNativeMovement)
+            NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
+            NativeJoinMovementResult movement = ResolveNativeJoinMovement?.Invoke(nativeQuery) ?? throw FreezeJoin("Unsupported native JOIN movement geometry; preserved raw coordinates and JOIN PC require the certified adapter");
+            if (movement.Proposals.Count is < 1 or > 16 || (uint)movement.Direction > 255 || movement.Triangle is < 0 or > short.MaxValue || movement.Proposals.Any(proposal => (uint)proposal.Direction > 255) || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ) || (movement.FixedZ & 4095) != 0)
             {
-                NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
-                NativeJoinMovementResult movement = ResolveNativeJoinMovement?.Invoke(nativeQuery) ?? throw FreezeJoin("Unsupported native JOIN movement geometry; preserved raw coordinates and JOIN PC require the certified adapter");
-                if (movement.Proposals.Count is < 1 or > 16 || (uint)movement.Direction > 255 || movement.Triangle is < 0 or > short.MaxValue || movement.Proposals.Any(proposal => (uint)proposal.Direction > 255) || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ) || (movement.FixedZ & 4095) != 0)
-                {
-                    throw FreezeJoin("Native JOIN movement adapter returned an inconsistent raw proposal, phase or result");
-                }
-                try
-                {
-                    if (movement.ProposalGroundProbes is not null)
-                    {
-                        if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
-                        {
-                            throw new NotSupportedException("Native JOIN ground/contact fans do not match all ordered proposals.");
-                        }
-                        for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
-                        {
-                            _ = ValidateNativePlayerGroundContacts(actor, movement.Proposals[proposal], movement.ProposalGroundProbes[proposal]);
-                        }
-                        if (movement.Accepted && movement.ProposalGroundProbes[^1].Any(probe => probe.ActorCollision))
-                        {
-                            throw new NotSupportedException("Accepted native JOIN result retains a blocking actor fan.");
-                        }
-                    }
-                    else
-                    {
-                        foreach (NativeJoinMovementProposal proposal in movement.Proposals)
-                        {
-                            EnsureNativeActorEnvelopeClear(actor, proposal.FixedX, proposal.FixedY, target.FixedZ, proposal.Direction, false);
-                        }
-                    }
-                }
-                catch (NotSupportedException exception)
-                {
-                    throw FreezeJoin(exception.Message);
-                }
-                positions[index] = new WalkmeshPosition(new Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
-                directions[index] = movement.Direction;
-                next[index] = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
-                continue;
+                throw FreezeJoin("Native JOIN movement adapter returned an inconsistent raw proposal, phase or result");
             }
-            int proposalX = unchecked(target.FixedX + NativeSine(direction) * target.Speed / 256);
-            int proposalY = unchecked(target.FixedY - NativeCosine(direction) * target.Speed / 256);
             try
             {
-                EnsureNativeActorEnvelopeClear(actor, proposalX, proposalY, target.FixedZ, direction, false);
+                if (movement.ProposalGroundProbes is not null)
+                {
+                    if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
+                    {
+                        throw new NotSupportedException("Native JOIN ground/contact fans do not match all ordered proposals.");
+                    }
+                    for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
+                    {
+                        _ = ValidateNativePlayerGroundContacts(actor, movement.Proposals[proposal], movement.ProposalGroundProbes[proposal]);
+                    }
+                    if (movement.Accepted && movement.ProposalGroundProbes[^1].Any(probe => probe.ActorCollision))
+                    {
+                        throw new NotSupportedException("Accepted native JOIN result retains a blocking actor fan.");
+                    }
+                }
+                else
+                {
+                    throw new NotSupportedException("Native party movement requires all ordered original fan ground heights.");
+                }
             }
             catch (NotSupportedException exception)
             {
                 throw FreezeJoin(exception.Message);
             }
-            PartyJoinStepQuery query = new(actor.WalkmeshTriangle, proposalX, proposalY, target.FixedZ, actor.PushRadius, direction);
-            WalkmeshPosition position = ResolvePartyJoinStep?.Invoke(query) ?? throw FreezeJoin("Unsupported native JOIN step needs slope, wall or triangle-traversal evidence; current positions and original JOIN PC preserved");
-            if (position.Position.Z != target.FixedZ / 4096f || Math.Abs(position.Position.X - proposalX / 4096f) > 0.001f || Math.Abs(position.Position.Y - proposalY / 4096f) > 0.001f)
-            {
-                throw FreezeJoin("Native JOIN step resolver changed its fixed proposal or flat height");
-            }
-            positions[index] = position;
-            directions[index] = direction;
-            next[index] = target with { FixedX = proposalX, FixedY = proposalY, Completion = 1 };
+            positions[index] = new WalkmeshPosition(new Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
+            directions[index] = movement.Direction;
+            next[index] = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
+            continue;
         }
         for (int index = 0; index < next.Length; index++)
         {
             ActorState actor = actors[next[index].ObjectId];
-            bool cavernJoin = IsCavernNativeMoveJoin;
             NativeMotionAuthority? authority = actor.NativeMotionAuthority;
             actor.InvalidateNativeMotionAuthority();
             actor.X = next[index].FixedX / 4096f;
@@ -393,10 +342,7 @@ public sealed partial class EventEngine
             {
                 actor.NativeMotionAuthority = authority with { MovementDirection = positions[index] is null ? authority.MovementDirection : (byte)directions[index] };
             }
-            else if (cavernJoin)
-            {
-                actor.NativeMotionAuthority = new NativeMotionAuthority(1, (byte)actor.Direction, 0);
-            }
+
         }
         partyJoin = partyJoin with { Targets = next };
     }
@@ -411,11 +357,12 @@ public sealed partial class EventEngine
 
     private void ValidateNativeJoinedPositions(Checkpoint saved)
     {
-        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeJoinedPosition is not null))
+        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeJoinedPosition is not null || actor.NativeSplitPosition is not null))
         {
-            NativeJoinedPosition joined = actor.NativeJoinedPosition!;
+            NativeJoinedPosition joined = actor.NativeJoinedPosition ?? actor.NativeSplitPosition!;
+            Albeoris.Games.FF8.Jsm.Jsm.Opcode opcode = actor.NativeJoinedPosition is not null ? Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN : Albeoris.Games.FF8.Jsm.Jsm.Opcode.SPLIT;
             EventScript? script = (uint)joined.CallerObjectId < program!.Objects.Count ? program.Objects[joined.CallerObjectId].Scripts.FirstOrDefault(script => script.Id == joined.ScriptId) : null;
-            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || joined.Operation < script.Start || joined.Operation >= script.End || program.Operations[joined.Operation].Opcode != Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1, FacingHold: <= 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
+            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || joined.Operation < script.Start || joined.Operation >= script.End || program.Operations[joined.Operation].Opcode != opcode || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1, FacingHold: <= 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
             {
                 throw new InvalidDataException("Saved completed JOIN body lost its original instruction, raw position or physical motion authority.");
             }
@@ -489,35 +436,18 @@ public sealed partial class EventEngine
         FieldFixedPosition current = ReadNativePartyPlayerPosition(player);
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection);
         int speed = (Scene.RunEnabled ? 203000 : 69020) * 20 >> 9;
-        bool nativeMovement = Scene.NativePlayerMovementVersion == 1 || ResolveNativePlayerMovement is not null && CanUseNativePlayerMovement?.Invoke(player) == true;
-        if (nativeMovement)
+        if (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true)
         {
-            if (axes != Vector2.Zero)
-            {
-                return ResolveCertifiedNativePlayerStep(player, current, direction, speed);
-            }
-            ValidatePendingNativePushContacts();
-            WalkmeshPosition stationary = new(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle);
-            PreparePartyTraceFollowers(stationary, direction, false);
-            return (stationary, current, direction, [], false, null);
+            throw new NotSupportedException("Native party player movement requires the certified native adapter; flat fallback is unsupported.");
         }
-        int x = unchecked(current.X + NativeSine(direction) * speed / 256);
-        int y = unchecked(current.Y - NativeCosine(direction) * speed / 256);
-        if (axes == Vector2.Zero)
+        if (axes != Vector2.Zero)
         {
-            x = current.X;
-            y = current.Y;
+            return ResolveCertifiedNativePlayerStep(player, current, direction, speed);
         }
         ValidatePendingNativePushContacts();
-        int[] pushContacts = axes == Vector2.Zero ? [] : EnsureNativeActorEnvelopeClear(player, x, y, current.Z, direction, true);
-        PartyJoinStepQuery query = new(player.WalkmeshTriangle, x, y, current.Z, player.PushRadius, direction);
-        WalkmeshPosition position = ResolvePartyJoinStep?.Invoke(query) ?? throw new NotSupportedException("Native party player movement needs slope, wall or blocked-envelope steering evidence; original position preserved.");
-        if (position.Position.Z != current.Z / 4096f)
-        {
-            throw new NotSupportedException("Native party player movement left its proved flat height; original position preserved.");
-        }
-        PreparePartyTraceFollowers(position, direction, x != current.X || y != current.Y);
-        return (position, new FieldFixedPosition(x, y, current.Z), direction, pushContacts, false, null);
+        WalkmeshPosition stationary = new(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle);
+        PreparePartyTraceFollowers(stationary, direction, false);
+        return (stationary, current, direction, [], false, null);
     }
 
     private FieldFixedPosition ReadNativePartyPlayerPosition(ActorState player)
@@ -528,49 +458,6 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Script movement changed the native party leader's position outside the proved fixed movement driver.");
         }
         return position;
-    }
-
-    private int[] EnsureNativeActorEnvelopeClear(ActorState player, int x, int y, int z, int direction, bool nativePlayer)
-    {
-        HashSet<int> pushContacts = [];
-        foreach (int offset in new[] { 32, -32, 0 })
-        {
-            int probeX = unchecked(x + player.PushRadius * NativeSine(direction + offset));
-            int probeY = unchecked(y - player.PushRadius * NativeCosine(direction + offset));
-            if (player.ModelId is -1 or 65535)
-            {
-                continue;
-            }
-            foreach (int objectId in Scene.NativeActorObjectIds)
-            {
-                ActorState other = actors[objectId];
-                if (other.ObjectId == player.ObjectId || other.ModelId is -1 or 65535 || !other.CollisionEnabled && (!nativePlayer || !other.PushEnabled))
-                {
-                    continue;
-                }
-                int heightDifference = (int)MathF.Floor(other.Z) - (z >> 12);
-                if (heightDifference is <= -127 or >= 128)
-                {
-                    continue;
-                }
-                int dx = (checked((int)(other.X * 4096)) - probeX) >> 12;
-                int dy = (checked((int)(other.Y * 4096)) - probeY) >> 12;
-                int radius = (player.PushRadius + other.PushRadius) / 2;
-                if (radius * radius > unchecked(dx * dx + dy * dy))
-                {
-                    if (other.CollisionEnabled)
-                    {
-                        throw new NotSupportedException("Native player actor-contact envelope requires collision/steering continuation evidence; original position preserved.");
-                    }
-                    if (nativePlayer && other.PushEnabled)
-                    {
-                        ValidateNativePushDispatch(other);
-                        pushContacts.Add(other.ObjectId);
-                    }
-                }
-            }
-        }
-        return pushContacts.ToArray();
     }
 
     private (ActorState Actor, PartyTraceSample Animation, PartyTraceSample Position)[] PreparePartyTraceFollowers(WalkmeshPosition position, int direction, bool moved)
@@ -657,7 +544,7 @@ public sealed partial class EventEngine
             Scene.PartyTraceMovementPending = false;
             return;
         }
-        if (Scene.NativePartyTraceVersion != 1 || !IsUserControlEnabled || IsDialogueOpen || services.IsMoviePlaying || partyJoin is not null)
+        if (Scene.NativePartyTraceVersion != 1 || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || partyJoin is not null)
         {
             return;
         }

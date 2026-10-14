@@ -30,19 +30,6 @@ internal static class Program
             {
                 return HeadlessPlayer.Run(args[1..]);
             }
-            if (args.Length == 3 && args[0] is "--upgrade-saved-world-checkpoint" or "--upgrade-world-control-checkpoint")
-            {
-                string source = Path.GetFullPath(args[1]);
-                string target = Path.GetFullPath(args[2]);
-                if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase) || File.Exists(target))
-                {
-                    throw new IOException("Saved-world upgrade requires a new destination checkpoint.");
-                }
-                GameState upgraded = args[0] == "--upgrade-saved-world-checkpoint" ? LegacySavedWorldProof.Upgrade(File.ReadAllBytes(source)) : LegacyWorldControlProof.Upgrade(File.ReadAllBytes(source));
-                new GameSession(upgraded).Save(target);
-                Console.WriteLine($"Native world provenance added: {target}");
-                return 0;
-            }
             LaunchOptions options = LaunchOptions.Parse(args);
             if (!Directory.Exists(options.GameDirectory))
             {
