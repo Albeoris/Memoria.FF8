@@ -29,6 +29,7 @@ public sealed partial class EventEngine
         // 46BC50 requests the full initial volume at0, then final at effective duration.
         SetSoundVolumeByte(197 + slot, stored);
         Scene.MusicVolumeRequest = new NativeMusicVolume(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, unchecked((uint)args[0]), slot, channel?.ChannelId, volume, stored, duration, duration < 50 ? 0 : duration, channel is null ? null : unchecked((uint)channel.ChannelId) > 1, GlobalSoundBackendStatus.Muted, transition, initial);
+        AudioCommandExecuted?.Invoke(Scene.MusicVolumeRequest);
         return args;
     }
 

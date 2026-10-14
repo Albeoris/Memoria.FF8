@@ -49,6 +49,7 @@ public sealed partial class EventEngine
         // Native5201A0 calls46B450(0, mask), then46C040 literally returns0.
         // Native46A0A0 stops buffers without clearing the original-effect table.
         Scene.SoundStop = new NativeSoundStop(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, rawMask, mask, SoundStopVoices(mask), 0, 0, GlobalSoundBackendStatus.Muted);
+        AudioCommandExecuted?.Invoke(Scene.SoundStop);
         return args;
     }
 

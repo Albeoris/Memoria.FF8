@@ -14,5 +14,18 @@
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
     <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" AdditionalProperties="RuntimeIdentifier=win-x86;SelfContained=true" />
   </ItemGroup>
+  <Target Name="CopyMusicHost" AfterTargets="Build">
+    <MSBuild Projects="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x86;SelfContained=true">
+      <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
+    </MSBuild>
+    <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishMusicHost" AfterTargets="Publish">
+    <ItemGroup>
+      <MusicHostPublishFile Include="$(OutDir)audio-host/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(MusicHostPublishFile)" DestinationFiles="@(MusicHostPublishFile->'$(PublishDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

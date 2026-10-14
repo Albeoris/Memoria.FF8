@@ -17,6 +17,8 @@ public sealed record LaunchOptions
     public int Height { get; init; } = 720;
     public string? ControlDirectory { get; init; }
     public bool ControlStep { get; init; }
+    public bool MuteAudio { get; init; }
+    public bool AudioEnabled => !MuteAudio && ControlDirectory is null && !System.Diagnostics.Debugger.IsAttached;
     public int WorldRenderLimit { get; init; } = 2048;
 
     public static LaunchOptions Parse(string[] args)
@@ -52,6 +54,7 @@ public sealed record LaunchOptions
                 "--resolution" => SetResolution(options, Value()),
                 "--control-dir" => options with { ControlDirectory = Path.GetFullPath(Value()) },
                 "--control-step" => options with { ControlStep = true },
+                "--mute-audio" => options with { MuteAudio = true },
                 "--world-render-limit" => options with { WorldRenderLimit = int.Parse(Value()) },
                 _ => throw new ArgumentException($"Unknown argument: {argument}")
             };

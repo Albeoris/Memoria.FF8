@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
+    <Project Path="src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" />
     <Project Path="src/Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
     <Project Path="src/Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
     <Project Path="src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
