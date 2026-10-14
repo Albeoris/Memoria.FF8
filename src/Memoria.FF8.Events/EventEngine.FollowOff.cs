@@ -38,6 +38,7 @@ public sealed partial class EventEngine
         byte nativeActor = checked((byte)Scene.NativeActorObjectIds.IndexOf(actor.ObjectId));
         // 51EC30 clears only runtime follow mapping1CE4772; saved aliasesB194..196 remain intact.
         Scene.FieldPartyNativeActorIds[slot] = 255;
+        actor.NativePartyFlags = new NativeActorPartyFlags(false, true);
         // 51EC30 resets animation and runtime follow mapping, not575/576.
         actor.BaseFirstFrame = 0;
         actor.BaseLastFrame = frames - 1;

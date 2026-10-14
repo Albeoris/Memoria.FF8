@@ -114,7 +114,7 @@ internal sealed partial class GameWorld : IDisposable
             worldScene!.Dispose();
             worldScene = null;
         }
-        if (Events.PartyMenu?.Phase == NativePartyMenuPhase.FieldReentry)
+        if (Events.PartyMenu is { Phase: NativePartyMenuPhase.FieldReentry, NativeReturnResult: 1 })
         {
             LoadField(session.State.FieldId, session.State.FieldArrival, null, menuReentry: true);
             return true;
@@ -135,9 +135,9 @@ internal sealed partial class GameWorld : IDisposable
 
     private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false, bool menuReentry = false)
     {
-        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null))
+        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null))
         {
-            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world random/vibration process from its earlier snapshot.");
+            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world random/vibration/fade process from its earlier snapshot.");
         }
         using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
         FieldAssets next = assets.LoadField(fieldId);
@@ -203,6 +203,7 @@ internal sealed partial class GameWorld : IDisposable
         NativeSalaryPresentation? sceneSalaryPresentation = restoreDeparting ? session.SalaryPresentation : null;
         NativeEventRandomState? sceneEventRandom = restoreDeparting ? session.EventRandom : null;
         NativeVibrationProcessState? sceneVibration = restoreDeparting ? session.VibrationProcess : null;
+        NativeFieldFadeState? sceneFade = restoreDeparting ? session.FieldFade : null;
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null && !menuReentry ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, menuReentry: nativeMenuReentry);
         if (next.Information is FieldInformation information)
         {
@@ -241,6 +242,10 @@ internal sealed partial class GameWorld : IDisposable
             if (sceneEventRandom is not null)
             {
                 session.SetEventRandom(sceneEventRandom);
+            }
+            if (sceneFade is not null)
+            {
+                session.SetFieldFade(sceneFade);
             }
             if (sceneVibration is not null)
             {
@@ -281,8 +286,10 @@ internal sealed partial class GameWorld : IDisposable
         DebugSceneView? view = session.State.DebugView;
         NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; recreate the session journal.");
         shake.Validate();
+        NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
+        fade.Validate();
         byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output);
-        FieldColorComposite.Apply(pixels, Events.Scene.AdditiveColor, Events.Scene.SubtractiveColor);
+        FieldColorComposite.Apply(pixels, fade.Draw);
         return pixels;
     }
 
@@ -340,8 +347,20 @@ internal sealed partial class GameWorld : IDisposable
 
 internal static class FieldColorComposite
 {
-    public static void Apply(byte[] rgba, Vector3 additive, Vector3 subtractive)
+    public static void Apply(byte[] rgba, NativeFadeDraw draw)
     {
+        if (draw.Mode == NativeFadeDrawMode.Black)
+        {
+            for (int offset = 0; offset < rgba.Length; offset += 4)
+            {
+                rgba[offset] = 0;
+                rgba[offset + 1] = 0;
+                rgba[offset + 2] = 0;
+            }
+            return;
+        }
+        Vector3 additive = draw.Mode == NativeFadeDrawMode.Add ? new(draw.Red, draw.Green, draw.Blue) : Vector3.Zero;
+        Vector3 subtractive = draw.Mode == NativeFadeDrawMode.Subtract ? new(draw.Red, draw.Green, draw.Blue) : Vector3.Zero;
         if (additive == Vector3.Zero && subtractive == Vector3.Zero)
         {
             return;

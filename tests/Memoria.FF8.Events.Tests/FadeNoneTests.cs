@@ -11,65 +11,68 @@ internal static partial class Program
     private static void NativeFadeNoneContract()
     {
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADEOUT, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHM_W, 216), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        EventEngine Create(byte[]? bytes = null)
+        EventEngine Create(byte[]? bytes = null, bool known = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
+            // Declared VM component: genuine cold process plus executed control initializer,
+            // without claiming the unrelated full character/economy New Game producers.
+            session.SetWorldControls(NativeWorldControlState.CreateNewGame());
+            if (!known)
+            {
+                session = new GameSession(session.State with { FieldFade = null });
+            }
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(100, bytes ?? content, []);
             return engine;
         }
         EventEngine first = Create();
         first.Step();
-        NativeFadeNone none = first.Scene.FadeNone ?? throw new InvalidOperationException("FADENONE lost original provenance.");
         JsonElement begun = first.Capture();
-        Require(first.Scene.FadeMode216 == 0 && first.Scene.FadeOpacity == 0 && begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 0 && begun.GetProperty("FadeEndFrame").GetInt64() > 0, "FADENONE consumed an operand, reset a prior fade counter or lost exact WORD216/immediate continuation.");
+        Require(first.FieldFade is { Physical.Mode: 0, Physical.Rate: 8, Saved.Mode: 0, SyncMode: 3, Draw.Mode: NativeFadeDrawMode.None } && begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 0, "FADENONE consumed an operand, reset retained physical words or lost exact native WORD216.");
+        Require(!begun.GetProperty("Variables").TryGetProperty("216", out _), "Fade bank has a second mutable memory owner.");
         EventEngine resumed = Create();
         resumed.Restore(begun);
         for (int tick = 0; tick < 4; tick++)
         {
             first.Step();
             resumed.Step();
-            Require(first.Scene.FadeOpacity == 0 && JsonElement.DeepEquals(first.Capture(), resumed.Capture()), "Mode0 fade overlay resumed a retained transition or changed after restore.");
+            Require(first.FieldFade!.Draw.Mode == NativeFadeDrawMode.None && JsonElement.DeepEquals(first.Capture(), resumed.Capture()), "Mode0 resumed a retained transition or changed after independent restore.");
         }
-        byte[] legacy = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.FADEBLACK, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        EventEngine changed = Create(legacy);
+        byte[] direct = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.FADEBLACK, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        EventEngine changed = Create(direct);
         changed.Step();
-        Require(changed.Scene.FadeMode216 is null && changed.Scene.FadeNone is not null && changed.Scene.FadeOpacity == 1 && !changed.Capture().GetProperty("Variables").TryGetProperty("216", out _), "Legacy fade changed overlay while retaining stale native mode0 or erased none history.");
+        Require(changed.FieldFade is { Physical.Mode: 4, Saved.Mode: 4, Draw.Mode: NativeFadeDrawMode.Black }, "FADEBLACK did not replace the sole physical mode and drawing sample.");
         byte[] overlap = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_L, 215), (Jsm.Opcode.RET, 0));
         EventEngine refused = Create(overlap);
         try
         {
             refused.Step();
-            throw new InvalidOperationException("Mixed-width fade alias bypassed canonical WORD216.");
+            throw new InvalidOperationException("Cross-bank write bypassed native fade ownership.");
         }
         catch (EventScriptException) when (refused.LastFault?.Opcode == "POPM_L")
         {
         }
-        Require(refused.Scene.FadeMode216 == 0 && refused.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 77, "Fade alias refusal consumed the write or changed native mode.");
-        EventEngine ambiguous = Create();
-        JsonNode source = JsonNode.Parse(ambiguous.Capture().GetRawText())!;
-        source["Variables"]!["215"] = 65536;
-        ambiguous.Restore(JsonSerializer.SerializeToElement(source));
+        Require(refused.FieldFade!.Physical.Mode == 0 && refused.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 77, "Cross-bank refusal consumed the write or changed physical fade.");
+        EventEngine unknown = Create(direct, known: false);
         try
         {
-            ambiguous.Step();
-            throw new InvalidOperationException("FADENONE overwrote an ambiguous preexisting alias.");
+            unknown.Step();
+            throw new InvalidOperationException("Unknown fade owner acquired invented zero words.");
         }
-        catch (EventScriptException) when (ambiguous.LastFault?.Opcode == "FADENONE")
+        catch (EventScriptException) when (unknown.LastFault?.Opcode == "FADENONE")
         {
         }
-        Require(ambiguous.Scene.FadeNone is null && ambiguous.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 1234, "Refused FADENONE changed state or consumed its sentinel.");
+        Require(unknown.FieldFade is null, "Unknown fade refusal fabricated an owner.");
         JsonNode malformed = JsonNode.Parse(begun.GetRawText())!;
-        malformed["Scene"]!["FadeMode216"] = 1;
+        malformed["FieldFade"]!["Physical"]!.AsObject().Remove("Rate");
         try
         {
             Create().Restore(JsonSerializer.SerializeToElement(malformed));
-            throw new InvalidOperationException("Unsupported native fade mode passed restore.");
+            throw new InvalidOperationException("Missing physical fade WORD passed restore.");
         }
-        catch (InvalidDataException)
+        catch (JsonException)
         {
         }
-        Require(none.Operation == 3, "FADENONE provenance lost its original operation.");
-        Console.WriteLine("Native FADENONE: zero operands/return2, mode0 and WORD216 zero, no overlay with retained counters, exact reads, restore and mixed-width/unknown alias guards verified.");
+        Console.WriteLine("Native fade: zero-operand commands, retained physical/saved words, single bank reads, independent restore, cross-bank and unknown atomic refusals verified.");
     }
 }

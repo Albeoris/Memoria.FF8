@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Events;
 
 public sealed record NativeMotionAuthority(int Version, byte MovementDirection, byte FacingHold);
+public sealed record NativeActorPartyFlags([property: JsonRequired] bool AutoAnimation4, [property: JsonRequired] bool DetachedFollow64);
 
 /// <summary>Script-driven field actor state. Direction uses FF8's 256-unit full turn.</summary>
 public sealed class ActorState
@@ -108,6 +109,9 @@ public sealed class ActorState
     public NativeJumpState? NativeJump { get; internal set; }
     [JsonInclude]
     public NativeMotionAuthority? NativeMotionAuthority { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
+    public NativeActorPartyFlags? NativePartyFlags { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeJoinedPosition? NativeJoinedPosition { get; internal set; }

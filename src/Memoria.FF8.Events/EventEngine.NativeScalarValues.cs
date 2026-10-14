@@ -1,4 +1,4 @@
-﻿using Albeoris.Games.FF8.Jsm;
+using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -32,9 +32,9 @@ public sealed partial class EventEngine
         {
             return random;
         }
-        if (operation.Opcode == Jsm.Opcode.MENUPHS)
+        if (operation.Opcode is Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL)
         {
-            // Native521D40 reads no operand stack slots.
+            // Native521D10/521D40 read no operand stack slots.
             return null;
         }
         if (operation.Opcode == Jsm.Opcode.HOLD)
@@ -95,7 +95,7 @@ public sealed partial class EventEngine
                 return "Uncertain native store overlaps a legacy untyped memory alias";
             }
         }
-        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.RND || writing)
+        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADENONE or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADESYNC or Jsm.Opcode.COLSYNC or Jsm.Opcode.MAPFADEOFF or Jsm.Opcode.MAPFADEON or Jsm.Opcode.RND || writing)
         {
             return null;
         }

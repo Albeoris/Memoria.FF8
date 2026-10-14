@@ -12,12 +12,18 @@ internal sealed partial class RecreateGame
     {
         if (events!.PartyMenu!.Phase == NativePartyMenuPhase.Active)
         {
+            if (events.PartyMenu.Kind == NativeFieldMenuKind.Normal && input.Cancel)
+            {
+                world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
+                fieldSeconds = 0;
+                return;
+            }
             IReadOnlyList<byte> candidates = events.PartyMenuCandidates;
             if (candidates.Count > 0)
             {
                 partyMenuCandidate = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, candidates.Count - 1);
             }
-            if (input.Confirm)
+            if (input.Confirm && events.PartyMenu.Kind == NativeFieldMenuKind.PartySelection)
             {
                 bool full = events.PartyMenu.TemporaryCombatParty!.All(row => row != 255);
                 world!.Apply(full ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.SelectPartyMember, candidates.Count > 0 ? candidates[partyMenuCandidate] : -1));

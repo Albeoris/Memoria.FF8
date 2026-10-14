@@ -74,6 +74,11 @@ public sealed partial class EventEngine
 
     private void RefreshParty()
     {
+        foreach (int objectId in Scene.NativeActorObjectIds)
+        {
+            ActorState retained = actors[objectId];
+            retained.NativePartyFlags = new NativeActorPartyFlags(false, false);
+        }
         Scene.FieldPartyNativeActorIds.Clear();
         for (int slot = 0; slot < 3; slot++)
         {

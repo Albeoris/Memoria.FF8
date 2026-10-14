@@ -89,6 +89,7 @@ public sealed partial class EventEngine
                 {
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
+                    PlayerActionKind.Cancel => CloseNormalMenu(),
                     PlayerActionKind.Wait => true,
                     _ => false
                 };
@@ -96,9 +97,20 @@ public sealed partial class EventEngine
                 {
                     if (action.Kind == PlayerActionKind.Wait)
                     {
-                        Step();
+                        for (int callback = 0; callback < action.Frames; callback++)
+                        {
+                            Step();
+                            advanced++;
+                            if (partyMenu is null)
+                            {
+                                break;
+                            }
+                        }
                     }
-                    advanced = 1;
+                    else
+                    {
+                        advanced = 1;
+                    }
                 }
                 else
                 {

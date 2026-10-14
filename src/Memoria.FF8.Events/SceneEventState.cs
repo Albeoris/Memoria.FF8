@@ -83,8 +83,6 @@ public sealed class SceneEventState
     [JsonInclude]
     public bool RandomBattlesEnabled { get; internal set; } = true;
     [JsonInclude]
-    public bool MapFadeEnabled { get; internal set; } = true;
-    [JsonInclude]
     public bool MapJumpDisabled { get; internal set; }
     [JsonInclude]
     public NativeWorldTransitionRequest? WorldTransitionRequest { get; internal set; }
@@ -158,18 +156,6 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMusicVolume? MusicVolumeRequest { get; internal set; }
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ushort? FadeMode216 { get; internal set; }
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeFadeNone? FadeNone { get; internal set; }
-    [JsonInclude]
-    public Vector3 AdditiveColor { get; internal set; }
-    [JsonInclude]
-    public Vector3 SubtractiveColor { get; internal set; }
-    [JsonInclude]
-    public float FadeOpacity { get; internal set; }
     public SortedSet<int> LockedTriangles { get; } = [];
     [JsonRequired]
     [JsonInclude]

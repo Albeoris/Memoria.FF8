@@ -31,8 +31,8 @@ public sealed class SoundInitializationContinuationTests
         Assert.Equal((byte?)127, world.Events.Scene.SoundMusicVolume198);
         Assert.Equal(music, world.Events.Scene.LoadedMusic);
         Assert.True(world.Events.Scene.MusicPlaying);
-        Assert.NotNull(world.Events.Scene.FadeNone);
-        Assert.Equal((ushort?)0, world.Events.Scene.FadeMode216);
+        Assert.NotNull(world.Events.FieldFade);
+        Assert.Equal((short)0, world.Events.FieldFade.Physical.Mode);
         using var replay = new GameWorld(new GameSession(session.State with { Variables = new Dictionary<int, int>(session.State.Variables), EventState = world.Events.Capture() }), directory);
         replay.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -124,6 +124,7 @@ internal static partial class Program
                     ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,
+                    ["native-field-fade"] = NativeFadeNoneContract,
                     ["cosine-scroll-zero"] = NativeLayerZeroCosineScrollContract,
                     ["native-jump"] = NativeJumpContract,
                     ["native-jump3"] = NativeJump3Contract,
