@@ -22,6 +22,8 @@ internal static partial class Program
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
                     ["native-party-hold"] = () => NativePartyHoldContract(selectedGameDirectory),
                     ["native-party-menu"] = () => NativePartyMenuContract(selectedGameDirectory),
+                    ["native-party-slots"] = () => NativePartySlotContract(selectedGameDirectory),
+                    ["native-train-control-byte"] = () => NativeTrainControlByteContract(selectedGameDirectory),
                     ["native-base-animation"] = NativeBaseAnimationContract,
                     ["native-maccel"] = NativeMovementAccelerationContract,
                     ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),

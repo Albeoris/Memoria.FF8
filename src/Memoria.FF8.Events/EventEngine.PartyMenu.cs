@@ -26,7 +26,7 @@ public enum NativeFieldMenuKind
 }
 
 /// <summary>Executed521D40 request and the4CB880 temporary party; the minimal interactive panel does not claim original raster parity.</summary>
-public sealed record NativePartyMenuState([property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] string ExecutableHash, [property: JsonRequired] long Frame, [property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] long OwnerSequence, [property: JsonRequired] NativePartyMenuPhase Phase, [property: JsonRequired] long Callbacks, [property: JsonRequired] byte[]? TemporaryCombatParty, [property: JsonRequired] byte EligibleMask, [property: JsonRequired] byte LockedMask, [property: JsonRequired] byte ForcedFieldMask, [property: JsonRequired] bool? TimerDisplayBeforeMenu, [property: JsonRequired] NativeFieldMenuKind Kind, [property: JsonRequired] byte NativeEntrySelection, [property: JsonRequired] ushort NativeReturnResult, [property: JsonRequired] int? ShopRawArgument, [property: JsonRequired] NativeShopTransaction? Shop, [property: JsonRequired] NativeWeaponShopTransaction? WeaponShop)
+public sealed record NativePartyMenuState([property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] string ExecutableHash, [property: JsonRequired] long Frame, [property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] long OwnerSequence, [property: JsonRequired] NativePartyMenuPhase Phase, [property: JsonRequired] long Callbacks, [property: JsonRequired] byte[]? TemporaryCombatParty, [property: JsonRequired] byte EligibleMask, [property: JsonRequired] byte LockedMask, [property: JsonRequired] byte ForcedFieldMask, [property: JsonRequired] bool? TimerDisplayBeforeMenu, [property: JsonRequired] NativeFieldMenuKind Kind, [property: JsonRequired] byte NativeEntrySelection, [property: JsonRequired] ushort NativeReturnResult, [property: JsonRequired] int? ShopRawArgument, [property: JsonRequired] NativeShopTransaction? Shop, [property: JsonRequired] NativeWeaponShopTransaction? WeaponShop, [property: JsonRequired] byte[]? TemporaryReserveParty, [property: JsonRequired] int? SelectedPartySlot)
 {
     [JsonIgnore]
     public int NativeMode => 5;
@@ -39,8 +39,8 @@ public sealed record NativePartyMenuState([property: JsonRequired] int FieldId, 
 public sealed partial class EventEngine
 {
     private NativePartyMenuState? partyMenu;
-    public NativePartyMenuState? PartyMenu => partyMenu is NativePartyMenuState current ? current with { TemporaryCombatParty = current.TemporaryCombatParty?.ToArray() } : null;
-    public IReadOnlyList<byte> PartyMenuCandidates => partyMenu is { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection } current ? Enumerable.Range(0, 8).Where(row => (current.EligibleMask & 1 << row) != 0 && (current.LockedMask & 1 << row) == 0 && !current.TemporaryCombatParty!.Contains((byte)row)).Select(row => (byte)row).ToArray() : [];
+    public NativePartyMenuState? PartyMenu => partyMenu is NativePartyMenuState current ? current with { TemporaryCombatParty = current.TemporaryCombatParty?.ToArray(), TemporaryReserveParty = current.TemporaryReserveParty?.ToArray() } : null;
+    public IReadOnlyList<byte> PartyMenuCandidates => partyMenu is { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection, TemporaryReserveParty: not null } current ? current.TemporaryReserveParty.Where(row => row == 255 ? current.SelectedPartySlot is not null : (current.LockedMask & 1 << row) == 0).Distinct().ToArray() : [];
 
     private string? UnsupportedPartyMenuRequest(Jsm.Opcode opcode)
     {
@@ -92,7 +92,7 @@ public sealed partial class EventEngine
     {
         NativeFieldMenuKind kind = opcode == Jsm.Opcode.MENUNORMAL ? NativeFieldMenuKind.Normal : NativeFieldMenuKind.PartySelection;
         byte selection = kind == NativeFieldMenuKind.Normal ? services.WorldControls!.Menu209 : (byte)2;
-        partyMenu = new NativePartyMenuState(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, kind, selection, 0, null, null, null);
+        partyMenu = new NativePartyMenuState(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, kind, selection, 0, null, null, null, null, null);
         fiber.WaitReason = WaitReason.NativePartyMenu;
     }
 
@@ -202,7 +202,7 @@ public sealed partial class EventEngine
                 }
             }
             PublishPartyMenuCallback(prepared.Vitals, prepared.Economy, prepared.Shots, prepared.Salary, clearControllerRequests: true);
-            partyMenu = current with { Phase = NativePartyMenuPhase.Active, Callbacks = checked(current.Callbacks + 1), TemporaryCombatParty = prepared.Vitals.CombatParty.ToArray(), EligibleMask = eligible, LockedMask = locked, ForcedFieldMask = forced, NativeReturnResult = current.Kind == NativeFieldMenuKind.PartySelection ? (ushort)1 : (ushort)0 };
+            partyMenu = current with { Phase = NativePartyMenuPhase.Active, Callbacks = checked(current.Callbacks + 1), TemporaryCombatParty = prepared.Vitals.CombatParty.ToArray(), TemporaryReserveParty = current.Kind == NativeFieldMenuKind.PartySelection ? CreatePartyMenuReserve(prepared.Vitals.CombatParty, eligible) : null, EligibleMask = eligible, LockedMask = locked, ForcedFieldMask = forced };
         }
         else
         {
@@ -220,31 +220,13 @@ public sealed partial class EventEngine
         }
     }
 
-    private bool SelectPartyMenuMember(int character)
-    {
-        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection } current || (uint)character >= 8 || !PartyMenuCandidates.Contains((byte)character))
-        {
-            return false;
-        }
-        int slot = Array.IndexOf(current.TemporaryCombatParty!, (byte)255);
-        if (slot < 0)
-        {
-            throw new NotSupportedException("Replacing an occupied party-menu slot requires an explicit slot selection; no automatic member removal is implemented.");
-        }
-        byte[] selected = current.TemporaryCombatParty!.ToArray();
-        selected[slot] = (byte)character;
-        StepPartyMenu();
-        partyMenu = partyMenu! with { TemporaryCombatParty = selected };
-        return true;
-    }
-
     private bool ConfirmPartyMenu()
     {
         if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection } current)
         {
             return false;
         }
-        if (current.TemporaryCombatParty!.Any(row => row == 255))
+        if (current.SelectedPartySlot is not null || current.TemporaryCombatParty!.Any(row => row == 255))
         {
             return false;
         }
@@ -254,7 +236,7 @@ public sealed partial class EventEngine
         PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
         Scene.Party.Clear();
         Scene.Party.AddRange(fieldParty.Select(value => (int)value));
-        partyMenu = current with { Phase = NativePartyMenuPhase.Closing, Callbacks = checked(current.Callbacks + 1) };
+        partyMenu = current with { Phase = NativePartyMenuPhase.Closing, Callbacks = checked(current.Callbacks + 1), NativeReturnResult = 1 };
         // Native4ABF10 sets the menu-local result bit1. The next menu callback observes completion and exits without49A970.
         return true;
     }
@@ -282,7 +264,7 @@ public sealed partial class EventEngine
             }
             return;
         }
-        if (menu.FieldId != saved.FieldId || menu.ProgramHash != saved.ProgramHash || menu.ExecutableHash != NativeRuntimeProfile?.ExecutableHash || menu.Frame != saved.Frame || menu.Callbacks < 0 || saved.Scene.FieldCallbackClock is null || menu.Callbacks > saved.Scene.FieldCallbackClock.MenuCallbacks || !Enum.IsDefined(menu.Phase) || !Enum.IsDefined(menu.Kind) || menu.NativeReturnResult != (menu.Phase is NativePartyMenuPhase.Requested or NativePartyMenuPhase.Entering || menu.Kind != NativeFieldMenuKind.PartySelection ? 0 : 1) || menu.Kind == NativeFieldMenuKind.PartySelection && menu.NativeEntrySelection != 2 || !bySequence.TryGetValue(menu.OwnerSequence, out Fiber? owner) || owner.ObjectId != menu.ObjectId || owner.Script.Id != menu.ScriptId || menu.Operation < owner.Script.Start || menu.Operation >= owner.Script.End || program!.Operations[menu.Operation].Opcode != (menu.Kind switch { NativeFieldMenuKind.Normal => Jsm.Opcode.MENUNORMAL, NativeFieldMenuKind.PartySelection => Jsm.Opcode.MENUPHS, NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop => Jsm.Opcode.MENUSHOP, _ => throw new InvalidDataException("Unsupported native menu kind.") }) || (owner.Complete || owner.Position != menu.Operation + 1 || owner.WaitReason != WaitReason.NativePartyMenu))
+        if (menu.FieldId != saved.FieldId || menu.ProgramHash != saved.ProgramHash || menu.ExecutableHash != NativeRuntimeProfile?.ExecutableHash || menu.Frame != saved.Frame || menu.Callbacks < 0 || saved.Scene.FieldCallbackClock is null || menu.Callbacks > saved.Scene.FieldCallbackClock.MenuCallbacks || !Enum.IsDefined(menu.Phase) || !Enum.IsDefined(menu.Kind) || menu.NativeReturnResult != (menu.Kind == NativeFieldMenuKind.PartySelection && menu.Phase is NativePartyMenuPhase.Closing or NativePartyMenuPhase.Teardown or NativePartyMenuPhase.Restoring or NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? 1 : 0) || menu.Kind == NativeFieldMenuKind.PartySelection && menu.NativeEntrySelection != 2 || !bySequence.TryGetValue(menu.OwnerSequence, out Fiber? owner) || owner.ObjectId != menu.ObjectId || owner.Script.Id != menu.ScriptId || menu.Operation < owner.Script.Start || menu.Operation >= owner.Script.End || program!.Operations[menu.Operation].Opcode != (menu.Kind switch { NativeFieldMenuKind.Normal => Jsm.Opcode.MENUNORMAL, NativeFieldMenuKind.PartySelection => Jsm.Opcode.MENUPHS, NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop => Jsm.Opcode.MENUSHOP, _ => throw new InvalidDataException("Unsupported native menu kind.") }) || (owner.Complete || owner.Position != menu.Operation + 1 || owner.WaitReason != WaitReason.NativePartyMenu))
         {
             throw new InvalidDataException("Saved party menu changed its original request, owner or suspended field frame.");
         }
@@ -290,6 +272,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved party menu lacks its actual native entry/temporary selection.");
         }
+        ValidatePartyMenuSelectionCheckpoint(menu);
         if (menu.Kind is not (NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop) && (menu.ShopRawArgument is not null || menu.Shop is not null || menu.WeaponShop is not null))
         {
             throw new InvalidDataException("Non-shop request contains an unrelated transaction or raw argument.");

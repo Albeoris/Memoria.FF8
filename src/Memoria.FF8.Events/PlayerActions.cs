@@ -15,7 +15,8 @@ public enum PlayerActionKind
     Cancel,
     FieldButtons,
     SelectPartyMember,
-    BuyShopItem
+    BuyShopItem,
+    SelectPartySlot
 }
 
 public enum PlayerTriggerKind
@@ -88,10 +89,11 @@ public sealed partial class EventEngine
             {
                 accepted = action.Kind switch
                 {
+                    PlayerActionKind.SelectPartySlot => SelectPartyMenuSlot(action.Value),
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
                     PlayerActionKind.BuyShopItem => action.Quantity is int quantity && BuyNativeShopItem(action.Value, quantity),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
-                    PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), _ => CloseNormalMenu() },
+                    PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), NativeFieldMenuKind.PartySelection => CancelPartyMenuSelection(), _ => CloseNormalMenu() },
                     PlayerActionKind.Wait => true,
                     _ => false
                 };
@@ -123,6 +125,7 @@ public sealed partial class EventEngine
             {
                 switch (action.Kind)
                 {
+                    case PlayerActionKind.SelectPartySlot:
                     case PlayerActionKind.SelectPartyMember:
                     case PlayerActionKind.BuyShopItem:
                         accepted = false;

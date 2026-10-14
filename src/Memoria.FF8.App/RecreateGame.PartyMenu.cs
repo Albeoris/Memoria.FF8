@@ -1,4 +1,5 @@
 using Memoria.FF8.Events;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Microsoft.Xna.Framework;
 
@@ -18,17 +19,27 @@ internal sealed partial class RecreateGame
                 fieldSeconds = 0;
                 return;
             }
-            IReadOnlyList<byte> candidates = events.PartyMenuCandidates;
-            if (candidates.Count > 0)
+            if (events.PartyMenu.Kind == NativeFieldMenuKind.PartySelection)
             {
-                partyMenuCandidate = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, candidates.Count - 1);
-            }
-            if (input.Confirm && events.PartyMenu.Kind == NativeFieldMenuKind.PartySelection)
-            {
-                bool full = events.PartyMenu.TemporaryCombatParty!.All(row => row != 255);
-                world!.Apply(full ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.SelectPartyMember, candidates.Count > 0 ? candidates[partyMenuCandidate] : -1));
-                fieldSeconds = 0;
-                return;
+                if (input.Cancel && events.PartyMenu.SelectedPartySlot is not null)
+                {
+                    world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
+                    partyMenuCandidate = 0;
+                    fieldSeconds = 0;
+                    return;
+                }
+                IReadOnlyList<PlayerAction> choices = NativePartyMenuProjection.Inputs(events.PartyMenu);
+                if (choices.Count > 0)
+                {
+                    partyMenuCandidate = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, choices.Count - 1);
+                }
+                if (input.Confirm && choices.Count > 0)
+                {
+                    world!.Apply(choices[partyMenuCandidate]);
+                    partyMenuCandidate = 0;
+                    fieldSeconds = 0;
+                    return;
+                }
             }
         }
         fieldSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;

@@ -99,12 +99,18 @@ internal sealed partial class RecreateGame
             5 => "Selphie",
             6 => "Seifer",
             7 => "Edea",
+            255 => "Empty",
             _ => throw new NotSupportedException("Party menu labels require native normal character identities.")
         };
         string party = menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
-        List<string> candidates = events.PartyMenuCandidates.Select(Name).ToList();
-        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Esc: return to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
-        string key = string.Join("|", title, party, partyMenuCandidate, instruction, string.Join(";", candidates));
+        List<string> candidates = Memoria.FF8.GameUi.NativePartyMenuProjection.Inputs(menu).Select(input => input.Kind switch
+        {
+            PlayerActionKind.SelectPartySlot => $"Slot {input.Value + 1}: {Name(menu.TemporaryCombatParty![input.Value])}",
+            PlayerActionKind.SelectPartyMember => input.Value == 255 ? "Reserve: Empty (remove member)" : $"Reserve: {Name((byte)input.Value)}",
+            _ => "Confirm party"
+        }).ToList();
+        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Esc: return to field" : menu.SelectedPartySlot is not null ? "Select destination   Enter: swap   Esc: cancel selection" : "Select a slot to change, or Confirm party";
+        string key = string.Join("|", title, party, menu.SelectedPartySlot, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
         if (nativePartyWindowUi is null || nativePartyWindowKey != key)
         {
