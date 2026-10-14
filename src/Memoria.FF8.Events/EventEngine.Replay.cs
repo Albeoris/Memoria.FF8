@@ -20,12 +20,12 @@ public sealed partial class EventEngine
         recordedMemoryDigest = ReplayMemoryDigest();
     }
 
-    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null, NativeMenuFieldReentry? menuReentry = null)
+    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null)
     {
         ReplayJournalEntry input = ReplayBoundary(ReplayEntryKind.FieldLoad) with { FieldId = fieldId, Frame = 0, NativeSourceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm)), Text = nativeRuntimeProfile?.ExecutableHash };
         RunReplay(input, () =>
         {
-            LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext, menuReentry);
+            LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext);
             return true;
         });
     }
@@ -62,7 +62,11 @@ public sealed partial class EventEngine
     public PlayerActionResult Apply(PlayerAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        return RunReplay(ReplayBoundary(ReplayEntryKind.Action) with { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames }, () => ApplyCore(action));
+        if (action.Kind == PlayerActionKind.BuyShopItem && action.Quantity is null)
+        {
+            throw new ArgumentException("Shop purchase requires an explicit quantity.", nameof(action));
+        }
+        return RunReplay(ReplayBoundary(ReplayEntryKind.Action) with { Code = (int)action.Kind, Value = action.Value, Quantity = action.Quantity, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames }, () => ApplyCore(action));
     }
 
     private ReplayJournalEntry ReplayBoundary(ReplayEntryKind kind)

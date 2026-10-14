@@ -174,7 +174,7 @@ internal static partial class Program
             throw new NotSupportedException("Test native saved-character publication rejection.");
         }
 
-        public void SetNativeEventOwners(NativeWorldControlState state, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null)
+        public void SetNativeEventOwners(NativeWorldControlState state, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
         {
             throw new NotSupportedException("Test composite native owner publication rejection.");
         }

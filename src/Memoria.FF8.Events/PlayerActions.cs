@@ -14,7 +14,8 @@ public enum PlayerActionKind
     SkipMovie,
     Cancel,
     FieldButtons,
-    SelectPartyMember
+    SelectPartyMember,
+    BuyShopItem
 }
 
 public enum PlayerTriggerKind
@@ -30,7 +31,7 @@ public enum PlayerTriggerKind
     PartyMenu
 }
 
-public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1);
+public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null);
 public sealed record PlayerTrigger(PlayerTriggerKind Kind, int FieldId, long Frame, int? MessageId, string? Text);
 public sealed record PlayerActionResult(bool Accepted, PlayerTrigger Trigger, int FramesAdvanced, string? Detail = null);
 public sealed record PlayerActionObservation(long Index, int FieldId, long Frame, PlayerAction Action, PlayerActionResult Result);
@@ -88,8 +89,9 @@ public sealed partial class EventEngine
                 accepted = action.Kind switch
                 {
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
+                    PlayerActionKind.BuyShopItem => action.Quantity is int quantity && BuyNativeShopItem(action.Value, quantity),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
-                    PlayerActionKind.Cancel => CloseNormalMenu(),
+                    PlayerActionKind.Cancel => PartyMenu.Kind == NativeFieldMenuKind.Shop ? CloseNativeShop() : CloseNormalMenu(),
                     PlayerActionKind.Wait => true,
                     _ => false
                 };
@@ -122,6 +124,7 @@ public sealed partial class EventEngine
                 switch (action.Kind)
                 {
                     case PlayerActionKind.SelectPartyMember:
+                    case PlayerActionKind.BuyShopItem:
                         accepted = false;
                         break;
                     case PlayerActionKind.FieldButtons:

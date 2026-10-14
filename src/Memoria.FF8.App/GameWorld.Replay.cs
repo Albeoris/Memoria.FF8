@@ -135,7 +135,7 @@ internal sealed partial class GameWorld
                         });
                         ValidateDialogueSite(world.Events, entry);
                         movieSkip = entry.Code == (int)PlayerActionKind.SkipMovie ? entry : null;
-                        result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
+                        result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames, entry.Quantity));
                         break;
                     case ReplayEntryKind.Dialogue:
                         AwaitRecordedDialogueSite(world.Events, entry, () =>
@@ -279,15 +279,15 @@ internal sealed partial class GameWorld
 
     private static void ValidatePartyMenuDecisionSite(EventEngine engine, ReplayJournalEntry entry)
     {
-        bool decision = entry.Code == (int)PlayerActionKind.SelectPartyMember || entry.Code is (int)PlayerActionKind.Confirm or (int)PlayerActionKind.Cancel && entry.Trigger == (int)PlayerTriggerKind.PartyMenu;
+        bool decision = entry.Code is (int)PlayerActionKind.SelectPartyMember or (int)PlayerActionKind.BuyShopItem || entry.Code is (int)PlayerActionKind.Confirm or (int)PlayerActionKind.Cancel && entry.Trigger == (int)PlayerTriggerKind.PartyMenu;
         if (!decision || entry.Trigger != (int)PlayerTriggerKind.PartyMenu && entry.Accepted == false)
         {
             return;
         }
         NativePartyMenuState? menu = engine.PartyMenu;
-        if (entry.MessageId is not null || menu is not { Phase: NativePartyMenuPhase.Active } || engine.FieldId != entry.FieldId || menu.ObjectId != entry.ObjectId || menu.ScriptId != entry.ScriptId || menu.Operation != entry.Operation || menu.ProgramHash != entry.NativeSourceHash)
+        if (entry.MessageId is not null || menu is null || entry.Accepted && menu.Phase != NativePartyMenuPhase.Active || engine.FieldId != entry.FieldId || menu.ObjectId != entry.ObjectId || menu.ScriptId != entry.ScriptId || menu.Operation != entry.Operation || menu.ProgramHash != entry.NativeSourceHash)
         {
-            throw new InvalidDataException("Recorded party selection no longer matches its actual MENUPHS issuing site and active menu.");
+            throw new InvalidDataException("Recorded menu decision no longer matches its actual native request site and active menu.");
         }
     }
 

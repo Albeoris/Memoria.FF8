@@ -6,7 +6,6 @@ public sealed partial class GameSession
 {
     public NativeShotAvailabilityState? ShotAvailability => State.ShotAvailability;
     public NativeFieldLocation? NativeFieldLocation => State.NativeFieldLocation;
-    public FieldTransition? NativeIncomingFieldEntryWords => State.FieldArrival;
     public bool CanStoreNativePartyMenuOwners => true;
 
     public void InitializeNewGameShotAvailability(NativeShotAvailabilityState shots)
@@ -19,7 +18,7 @@ public sealed partial class GameSession
         State = State with { ShotAvailability = shots };
     }
 
-    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null)
+    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null)
     {
         characterVitals.Validate();
         economy.Validate();
@@ -30,6 +29,12 @@ public sealed partial class GameSession
         vibrationProcess?.Validate();
         worldProcess?.Validate();
         fieldFade?.Validate();
+        shopHistory?.Validate();
+        menuRandom?.Validate();
+        if (shopHistory is not null && shopHistory.InitOutSha256 != economy.InitOutSha256)
+        {
+            throw new InvalidDataException("Native shop history and economy have different New Game resource provenance.");
+        }
         ValidateJunctionPartyBackupAliases(State.Variables, State.NativeVariableValues);
         ValidateEconomyAliases(State.Variables, State.NativeVariableValues);
         if (characterVitals.InitOutSha256 != economy.InitOutSha256 || shots.InitOutSha256 != economy.InitOutSha256 || shots.KernelSha256 != characterVitals.KernelSha256)
@@ -42,7 +47,7 @@ public sealed partial class GameSession
         {
             MarkReplayUnavailable("Party menu owners changed outside a recorded engine transaction.");
         }
-        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade };
+        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom };
     }
 
     private static void ValidatePartyMenuOwnersCheckpoint(GameState state, JsonElement? vm)

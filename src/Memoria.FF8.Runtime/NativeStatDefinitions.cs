@@ -6,7 +6,16 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeMagicStock([property: JsonRequired] byte SpellId, [property: JsonRequired] byte Count);
 public sealed record NativeStatCurve([property: JsonRequired] byte ExperienceStep, [property: JsonRequired] byte ExperienceFraction, [property: JsonRequired] byte HitPointLinear, [property: JsonRequired] byte HitPointDivisor, [property: JsonRequired] byte HitPointConstant);
 public sealed record NativeStatModifier([property: JsonRequired] byte Flags, [property: JsonRequired] byte Selector, [property: JsonRequired] byte Percentage);
-public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] ulong LearnedAbilities, [property: JsonRequired] ushort? MaximumHitPoints);
+public sealed record NativeGuardianForceLearnedBank([property: JsonRequired] ulong Low, [property: JsonRequired] ulong High)
+{
+    public bool Has(int ability)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(ability);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ability, 127);
+        return ((ability < 64 ? Low : High) & (1UL << (ability & 63))) != 0;
+    }
+}
+public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ushort? MaximumHitPoints);
 
 /// <summary>Immutable inputs decoded from the authenticated current kernel sections, not a cache of a saved character's identity-dependent maximum.</summary>
 public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArray<NativeStatCurve> Characters, [property: JsonRequired] ImmutableArray<byte> MagicHitPoints, [property: JsonRequired] ImmutableArray<NativeStatModifier> CharacterPassives, [property: JsonRequired] ImmutableArray<NativeStatCurve> GuardianForces, [property: JsonRequired] ImmutableArray<NativeStatModifier> GuardianForceModifiers)
@@ -65,7 +74,7 @@ public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArr
         for (int bit = 19; bit < 28; bit++)
         {
             NativeStatModifier modifier = GuardianForceModifiers[bit - 19];
-            if ((guardianForce.LearnedAbilities & (1UL << bit)) != 0 && modifier.Selector == 1)
+            if ((guardianForce.LearnedBank.High & (1UL << bit)) != 0 && modifier.Selector == 1)
             {
                 percentage += modifier.Percentage;
             }

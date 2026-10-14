@@ -27,6 +27,7 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         writer.WriteNumber(nameof(value.Frame), value.Frame);
         Number(writer, nameof(value.Code), value.Code);
         Number(writer, nameof(value.Value), value.Value);
+        Optional(writer, nameof(value.Quantity), value.Quantity);
         Optional(writer, nameof(value.Text), value.Text);
         Number(writer, nameof(value.Horizontal), value.Horizontal);
         Number(writer, nameof(value.Vertical), value.Vertical);
