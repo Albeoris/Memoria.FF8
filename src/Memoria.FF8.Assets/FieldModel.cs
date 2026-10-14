@@ -1,16 +1,19 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
 public readonly record struct ModelBone(int Parent, float Length);
-public readonly record struct ModelVertex(Vector3 Position, int Bone);
+public readonly record struct ModelVertex(Vector3 Position, int Bone, int SkinBinding = -1);
 public sealed record ModelFace(int[] Vertices, Vector2[] TextureCoordinates, int Texture, bool Quad);
 public sealed record AnimationFrame(Vector3 Translation, IReadOnlyList<Vector3> Rotations);
 public sealed record ModelAnimation(IReadOnlyList<AnimationFrame> Frames);
 public sealed record ModelControlBones(int First, int Second, int Additional, uint RawHeader);
 public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IReadOnlyList<ModelVertex> Vertices, IReadOnlyList<ModelFace> Faces, IReadOnlyList<PixelImage> Textures, IReadOnlyList<ModelAnimation> Animations)
 {
+    public NativeModelPartsDefinition? NativeParts { get; init; }
+
     public ModelControlBones ControlBones { get; init; } = new(-1, -1, -1, 0);
 
     public Vector3 ReadFirstControlRotation(int animationId, float frameNumber)
@@ -30,7 +33,7 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
         return GetFirstControlBoneAnchor(animationId, frameNumber, rootTranslationZ, firstControlRotation).Z;
     }
 
-    public Vector3[] Pose(int animationId, float frameNumber, Vector3? firstControlRotation = null, float rootTranslationZ = 0)
+    public Vector3[] Pose(int animationId, float frameNumber, Vector3? firstControlRotation = null, float rootTranslationZ = 0, IReadOnlyDictionary<int, Vector3>? skinTranslations = null)
     {
         Matrix4x4[] transforms = BuildTransforms(animationId, frameNumber, firstControlRotation, rootTranslationZ);
         Vector3[] positions = new Vector3[Vertices.Count];
@@ -38,6 +41,10 @@ public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IRe
         {
             ModelVertex vertex = Vertices[i];
             positions[i] = Vector3.Transform(vertex.Position, transforms[vertex.Bone]);
+            if (skinTranslations is not null && skinTranslations.TryGetValue(vertex.SkinBinding, out Vector3 translation))
+            {
+                positions[i] += Vector3.TransformNormal(translation, transforms[vertex.Bone]);
+            }
         }
         return positions;
     }

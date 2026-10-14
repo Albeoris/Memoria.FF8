@@ -21,6 +21,7 @@ internal static partial class Program
                     ["message-variable"] = NativeMessageVariableContract,
                     ["native-base-animation"] = NativeBaseAnimationContract,
                     ["native-maccel"] = NativeMovementAccelerationContract,
+                    ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),
                     ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
                     ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
                     ["native-split-control-caller"] = () => NativeSplitControlCallerContract(selectedGameDirectory),

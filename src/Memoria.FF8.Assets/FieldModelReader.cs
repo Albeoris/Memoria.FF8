@@ -1,6 +1,7 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -119,7 +120,7 @@ internal static class FieldModelReader
         int vertexCount = Count(reader.ReadUInt32(), 10000, "MCH vertices");
         reader.ReadUInt32();
         int faceCount = Count(reader.ReadUInt32(), 20000, "MCH faces");
-        reader.ReadUInt32();
+        int partCount = Count(reader.ReadUInt32(), 1000, "MCH parts");
         int skinCount = Count(reader.ReadUInt32(), 1000, "MCH skin groups");
         reader.ReadUInt32();
         reader.ReadUInt32();
@@ -127,7 +128,7 @@ internal static class FieldModelReader
         int vertexOffset = checked(modelOffset + (int)reader.ReadUInt32());
         reader.ReadUInt32();
         int faceOffset = checked(modelOffset + (int)reader.ReadUInt32());
-        reader.ReadUInt32();
+        int partOffset = checked(modelOffset + (int)reader.ReadUInt32());
         int skinOffset = checked(modelOffset + (int)reader.ReadUInt32());
         int embeddedAnimation = checked(modelOffset + (int)reader.ReadUInt32());
         uint controlHeader = reader.ReadUInt32();
@@ -147,6 +148,18 @@ internal static class FieldModelReader
             }
             bones[i] = new ModelBone(parent, length);
         }
+        NativeModelPartDefinition[] parts = new NativeModelPartDefinition[partCount];
+        for (int index = 0; index < parts.Length; index++)
+        {
+            reader.BaseStream.Position = checked(partOffset + index * 32);
+            short[] words = Enumerable.Range(0, 16).Select(_ => reader.ReadInt16()).ToArray();
+            parts[index] = new NativeModelPartDefinition(words);
+            if (words[0] < 0 || words[1] < 0 || words[0] + words[1] > skinCount)
+            {
+                throw new InvalidDataException($"{name}: native part{index} skin bindings exceed their original table.");
+            }
+        }
+        NativeModelSkinBinding[] skinBindings = new NativeModelSkinBinding[skinCount];
         ModelVertex[] vertices = new ModelVertex[vertexCount];
         reader.BaseStream.Position = vertexOffset;
         for (int i = 0; i < vertices.Length; i++)
@@ -160,14 +173,15 @@ internal static class FieldModelReader
             int start = reader.ReadInt16();
             int length = reader.ReadInt16();
             int bone = reader.ReadInt16() - 1;
-            reader.ReadInt16();
+            ushort skinFlags = reader.ReadUInt16();
+            skinBindings[i] = new NativeModelSkinBinding(checked((short)start), checked((short)length), checked((short)bone), skinFlags);
             if (start < 0 || length < 0 || start + length > vertices.Length || bone < 0 || bone >= bones.Length)
             {
                 throw new InvalidDataException($"{name}: invalid skin group {i}.");
             }
             for (int vertex = start; vertex < start + length; vertex++)
             {
-                vertices[vertex] = vertices[vertex] with { Bone = bone };
+                vertices[vertex] = vertices[vertex] with { Bone = bone, SkinBinding = i };
             }
         }
         ModelFace[] faces = new ModelFace[faceCount];
@@ -195,7 +209,7 @@ internal static class FieldModelReader
             throw new InvalidDataException($"{name}: face references an absent texture.");
         }
         animations ??= ReadAnimations(animationContent ?? content, animationContent is null ? embeddedAnimation : animationOffset, boneCount);
-        return new FieldModel(name, bones, vertices, faces, textures, animations) { ControlBones = controls };
+        return new FieldModel(name, bones, vertices, faces, textures, animations) { ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
     }
 
     private static PixelImage DecodeTim(byte[] content, int offset)

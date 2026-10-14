@@ -337,6 +337,7 @@ public sealed partial class EventEngine
                 Scene.NativeFieldInitialization = proof with { Stage = NativeFieldInitializationStage.Completed };
             }
             InitializeNativeDoorDriverAfterInitialization();
+            InitializeNativeModelParts();
             defaultsStarted = true;
             foreach (EventObject obj in program.Objects)
             {
@@ -353,6 +354,7 @@ public sealed partial class EventEngine
         {
             StepFaceDirection(actor);
         }
+        StepNativeModelParts();
         if (services.SalaryPresentation is NativeSalaryPresentation salaryPresentation)
         {
             bool movie = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Salary presentation requires the actual movie callback flag.") : false);

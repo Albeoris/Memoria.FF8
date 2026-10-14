@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null);
 
 public enum ModelTextureSampling
 {
@@ -284,7 +284,7 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        Vector3[] pose = model.Pose(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ);
+        Vector3[] pose = model.Pose(actor.AnimationId, actor.AnimationFrame, actor.FirstControlRotation, actor.RootTranslationZ, actor.SkinTranslations);
         // Native field-to-model bridge adds a quarter turn before converting DIR to the 4096-angle scale.
         float direction = (actor.Direction + 64) * MathF.Tau / 256;
         Matrix4x4 rotation = Matrix4x4.CreateRotationZ(direction);

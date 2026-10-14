@@ -366,6 +366,10 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;
                 break;
+            case Jsm.Opcode.MODELDOOROPEN:
+            case Jsm.Opcode.MODELDOORCLOSE:
+                args = ExecuteNativeModelDoor(fiber, opcode == Jsm.Opcode.MODELDOORCLOSE);
+                break;
             case Jsm.Opcode.JUNCTION:
                 args = ExecuteJunction(fiber);
                 break;

@@ -82,6 +82,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved VM requires exactly three native party character bytes; compressed or malformed party slots require authentic reconstruction.");
         }
+        ValidateNativeModelParts(saved.Scene, saved.Actors, saved.Frame, saved.DefaultsStarted);
         if (saved.Scene.MovieActors is NativeMovieActorLifecycle movieActors)
         {
             movieActors.Validate(saved.Frame);

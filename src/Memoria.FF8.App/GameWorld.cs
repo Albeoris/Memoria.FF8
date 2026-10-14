@@ -129,6 +129,7 @@ internal sealed partial class GameWorld : IDisposable
             return new NativeFieldSoundTable(table.MemberName, table.Sha256, table.EffectIds);
         };
         Events.AnimationFrameCount = next.GetAnimationFrameCount;
+        Events.ReadNativeModelParts = model => (uint)model < next.Models.Count ? next.Models[model].NativeParts : null;
         Events.ReadFaceBaseline = actor =>
         {
             next.GetAnimationFrameCount(actor.ModelId, actor.AnimationId);

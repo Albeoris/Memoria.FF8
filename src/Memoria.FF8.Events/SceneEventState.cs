@@ -27,6 +27,10 @@ public sealed record DialogueWindow(int Channel, int X, int Y, int Width, int He
 [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
 public sealed class SceneEventState
 {
+    [JsonRequired]
+    [JsonInclude]
+    public NativeFieldModelPartsState? ModelParts { get; internal set; }
+
     [System.Text.Json.Serialization.JsonRequired]
     [System.Text.Json.Serialization.JsonInclude]
     public long AudioLoadEpoch { get; internal set; }
