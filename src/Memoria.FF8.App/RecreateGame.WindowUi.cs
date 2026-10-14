@@ -88,6 +88,7 @@ internal sealed partial class RecreateGame
     private void DrawNativePartyUi(Rectangle bounds)
     {
         NativePartyMenuState menu = events!.PartyMenu!;
+        string title = menu.Kind == NativeFieldMenuKind.Normal ? "Menu" : "Party";
         string Name(byte row) => row switch
         {
             0 => events.Scene.Names.GetValueOrDefault(0, "Squall"),
@@ -102,8 +103,8 @@ internal sealed partial class RecreateGame
         };
         string party = menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
         List<string> candidates = events.PartyMenuCandidates.Select(Name).ToList();
-        string instruction = menu.Phase == NativePartyMenuPhase.FieldReentry ? "Returning to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
-        string key = string.Join("|", party, partyMenuCandidate, instruction, string.Join(";", candidates));
+        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Normal ? "Esc: return to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
+        string key = string.Join("|", title, party, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
         if (nativePartyWindowUi is null || nativePartyWindowKey != key)
         {
@@ -115,7 +116,7 @@ internal sealed partial class RecreateGame
             content.RowDefinitions.Add(UiGridLength.Pixel(40));
             content.RowDefinitions.Add(UiGridLength.Star());
             content.RowDefinitions.Add(UiGridLength.Pixel(40));
-            content.Children.Add(new UiLabel { Text = "Party", FontSize = 26 });
+            content.Children.Add(new UiLabel { Text = title, FontSize = 26 });
             content.Children.Add(new UiLabel { GridRow = 1, Text = party, FontSize = 20 });
             content.Children.Add(new UiList { GridRow = 2, Items = candidates, SelectedIndex = partyMenuCandidate, RowHeight = 40, FontSize = 20 });
             content.Children.Add(new UiLabel { GridRow = 3, Text = instruction, FontSize = 16, Muted = true });

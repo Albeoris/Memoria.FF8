@@ -1,4 +1,5 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
@@ -74,13 +75,18 @@ internal sealed partial class RecreateGame
         throw new NotSupportedException($"Live menu action '{action.Kind}' requires a proved game-owned command and causal replay contract.");
     }
 
-    private bool UpdateGameUi(InputFrame input)
+    private bool UpdateGameUi(TimeSpan elapsed, InputFrame input)
     {
         if (gameMenus is null)
         {
             return false;
         }
         GamePadState pad = GamePad.GetState(PlayerIndex.One);
+        if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeNormalMenuActive)
+        {
+            gameMenus.Open("main", false);
+        }
+        bool nativeMainWasOpen = IsNativeNormalMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         bool menuWasOpen = gameMenus.IsOpen;
         MouseState mouse = Mouse.GetState();
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
@@ -118,6 +124,10 @@ internal sealed partial class RecreateGame
         if (!gameMenus.IsOpen)
         {
             previousUiPad = pad;
+            if (CompleteNativeNormalMenu(nativeMainWasOpen))
+            {
+                return true;
+            }
             if (drainUiButtons && (keyboard.HeldFieldButtons & 0xF0) != 0)
             {
                 return true;
@@ -179,9 +189,32 @@ internal sealed partial class RecreateGame
         if (!gameMenus.IsOpen)
         {
             drainUiButtons = true;
+            CompleteNativeNormalMenu(nativeMainWasOpen);
+        }
+        else if (!gameMenus.IsDemo && IsNativeNormalMenuActive)
+        {
+            UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene), default);
         }
         SynchronizeUiMoviePause();
         previousUiPad = pad;
+        return true;
+    }
+
+    private bool IsNativeNormalMenuActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+
+    private bool CompleteNativeNormalMenu(bool wasPresented)
+    {
+        if (!wasPresented || gameMenus!.IsOpen || saveMenu.IsOpen || !IsNativeNormalMenuActive)
+        {
+            return false;
+        }
+        PlayerActionResult result = world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
+        if (!result.Accepted)
+        {
+            throw new NotSupportedException(result.Detail);
+        }
+        fieldSeconds = 0;
+        drainUiButtons = true;
         return true;
     }
 
@@ -218,6 +251,7 @@ internal sealed partial class RecreateGame
             throw new InvalidOperationException("UI is not initialized.");
         }
         UiControlCommand command = request.Ui ?? new UiControlCommand();
+        bool nativeMainWasOpen = IsNativeNormalMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         if (request.Command.Equals("ui-close", StringComparison.OrdinalIgnoreCase))
         {
             gameMenus.Close();
@@ -248,6 +282,7 @@ internal sealed partial class RecreateGame
         {
             throw new ArgumentException("UI commands: debug-room, ui-open, ui-close, ui-input, ui-status.");
         }
+        CompleteNativeNormalMenu(nativeMainWasOpen);
         SynchronizeUiMoviePause();
         return GameUiStatus()!;
     }

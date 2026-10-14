@@ -107,7 +107,7 @@ internal sealed partial class RecreateGame : Game
             Exit();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
-        if (UpdateGameUi(input))
+        if (UpdateGameUi(gameTime.ElapsedGameTime, input))
         {
             fieldAudio?.Update();
             base.Update(gameTime);
