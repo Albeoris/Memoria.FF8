@@ -243,8 +243,8 @@ public sealed partial class EventEngine
         {
             return;
         }
+        NativeEconomy? economySample = PrepareNativeGilBeforeVm();
         Action? nativePlayerInput = pendingNativePlayerInput;
-        pendingNativePlayerInput = null;
         NativeSeeDState? salarySample = PrepareNativeFieldSalarySample();
         ValidatePendingNativePushContacts();
         ValidatePendingNativeLineCrossings();
@@ -252,6 +252,11 @@ public sealed partial class EventEngine
         {
             services.SetSeeD(salarySample);
         }
+        if (economySample is not null && economySample != services.Economy)
+        {
+            services.SetEconomy(economySample);
+        }
+        pendingNativePlayerInput = null;
         AdvanceNativeFieldCallbackClock();
         Frame++;
         SampleFieldButtons();

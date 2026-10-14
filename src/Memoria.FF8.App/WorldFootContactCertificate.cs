@@ -48,15 +48,17 @@ public static class WorldFootContactCertificate
         }
 
         ushort storyWord = (ushort)(event256 | event257 << 8);
-        if (entityType == 0 ? storyWord >= 34 : entityType != 1 || storyWord is < 34 or >= 205)
+        bool postGraduation = entityType == 0 && storyWord is >= 205 and < 290;
+        if (entityType == 0 ? storyWord is >= 34 and < 205 or >= 290 : entityType != 1 || storyWord is < 34 or >= 205)
         {
-            return Refuse(WorldFootContactRefusal.UnsupportedStory, "The native setup requires type0/story [0,34) or type1/story [34,205).");
+            return Refuse(WorldFootContactRefusal.UnsupportedStory, "The native setup requires type0/story [0,34) or [205,290), or type1/story [34,205).");
         }
         if ((event264 & 7) != 0)
         {
             return Refuse(WorldFootContactRefusal.ActiveObjectPairs, "Native byte264 enables object pairs outside this contact exclusion.");
         }
-        if (entityType == 0 ? savedWorld.Slot4.ShapeId != 0 || savedWorld.Slot5.ShapeId != 0 : savedWorld.Slot4.ShapeId is not (0 or 73 or 255) || savedWorld.Slot5.ShapeId is not (0 or 78))
+        bool supportedVehicles = entityType == 1 ? (savedWorld.Slot4.ShapeId is 0 or 73 or 255) && (savedWorld.Slot5.ShapeId is 0 or 78) : savedWorld.Slot4.ShapeId == 0 && savedWorld.Slot5.ShapeId == 0 || postGraduation && savedWorld.Slot4.ShapeId == 255 && savedWorld.Slot5.ShapeId == 0;
+        if (!supportedVehicles)
         {
             return Refuse(WorldFootContactRefusal.UnsupportedSavedVehicle, "Saved vehicle shapes lie outside the proved original foot allocation clause.");
         }
@@ -85,10 +87,10 @@ public static class WorldFootContactCertificate
             return Refuse(WorldFootContactRefusal.UnsupportedSavedVehicle, "The active saved car may be presented or contacted inside the native camera block envelope.");
         }
 
-        // Clauses0/1 create controlled shapes0/4;548CD0 skips that selected record
+        // Clauses0/1/2 create controlled shapes0/4/0;548CD0 skips that selected record
         // and94. Mode0/203FD60=0 inspects slot4 only; boat shape78 is not a car,
         // so the native saved-vehicle append branch never adds it from slot5.
-        var proof = new WorldFootContactProof(entityType == 1 ? 3 : allowTravel ? 2 : RuleVersion, storyWord, playerX, playerRawZ, cameraEyeX, savedWorld.Origin);
+        var proof = new WorldFootContactProof(postGraduation ? 4 : entityType == 1 ? 3 : allowTravel ? 2 : RuleVersion, storyWord, playerX, playerRawZ, cameraEyeX, savedWorld.Origin);
         return new WorldFootContactCertificateResult(proof, null, null);
     }
 

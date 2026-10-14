@@ -65,6 +65,15 @@ public sealed class GameAssets : IDisposable
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeCharacterInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
     }
+    public NativeEconomy ReadNewGameEconomy()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native economy initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeEconomyInitialization.Read(Read(main, "init.out"));
+    }
     public NativeFieldRuntimeProfile? NativeRuntimeProfile => NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash ? NativeFieldRuntimeProfile.FF8En : null;
 
     public NativeCharacterAppearance ReadNewGameCharacterAppearance()

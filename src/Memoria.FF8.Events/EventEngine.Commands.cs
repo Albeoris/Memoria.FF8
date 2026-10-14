@@ -47,9 +47,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (TryReadNativeOwnedEventMemory(operation, out int nativeRank))
+                if (TryReadNativeEconomyMemory(operation, out int nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
                 {
-                    fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeRank) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeRank) : nativeRank);
+                    fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
                     fiber.StackExpressions.Push($"native[{parameter}]");
                     return;
                 }
@@ -91,7 +91,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteNativeOwnedEventMemory(fiber, operation, out args))
+                if (TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -1084,6 +1084,11 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.RESETGF:
                 args = ExecuteGuardianForceReset(fiber);
+                break;
+            case Jsm.Opcode.ADDITEM:
+            case Jsm.Opcode.ADDGIL:
+            case Jsm.Opcode.ADDPASTGIL:
+                args = ExecuteNativeEconomy(fiber, opcode);
                 break;
             case Jsm.Opcode.FOOTSTEPOFFALL:
                 args = ExecuteFootstepOffAll(fiber);

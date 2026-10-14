@@ -23,6 +23,7 @@ internal static partial class Program
                     ["native-maccel"] = NativeMovementAccelerationContract,
                     ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
                     ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
+                    ["native-economy"] = () => NativeEconomyContract(selectedGameDirectory),
                     ["native-jump-budget"] = NativeJumpBudgetContract,
                     ["map-jump-origin"] = NativeMapJumpOriginContract,
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,

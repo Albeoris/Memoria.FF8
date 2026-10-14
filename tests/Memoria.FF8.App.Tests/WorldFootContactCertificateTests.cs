@@ -48,6 +48,24 @@ public sealed class WorldFootContactCertificateTests
         AssertRefused(WorldFootContactCertificate.Evaluate(saved, 135, 0, 0, -30000, -26700, -30000, allowTravel: true, entityType: 1), WorldFootContactRefusal.CameraEyeOutsideRegion);
     }
 
+    [Fact]
+    public void PostGraduationClauseAdmitsTheRetiredCarAndRetainsAuxiliaryObjectAndTrainRefusals()
+    {
+        NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with
+        {
+            Slot4 = new NativeSavedWorldVehicleSlot(255, new NativeSavedWorldPose(12882, -26782, -303, 2850))
+        };
+        string before = JsonSerializer.Serialize(saved);
+        WorldFootContactCertificateResult result = WorldFootContactCertificate.Evaluate(saved, 205, 0, 0, 24576, -29406, 24576, allowTravel: true);
+        Assert.True(result.Certified);
+        Assert.Equal(4, result.Certificate!.RuleVersion);
+        Assert.Equal(before, JsonSerializer.Serialize(saved));
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 205, 0, 1, 24576, -29406, 24576, allowTravel: true), WorldFootContactRefusal.ActiveObjectPairs);
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved, 205, 0, 0, -30000, -26700, -30000, allowTravel: true), WorldFootContactRefusal.CameraEyeOutsideRegion);
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved with { Slot4 = saved.Slot4 with { ShapeId = 73 } }, 205, 0, 0, 24576, -29406, 24576, allowTravel: true), WorldFootContactRefusal.UnsupportedSavedVehicle);
+        AssertRefused(WorldFootContactCertificate.Evaluate(saved with { Slot5 = saved.Slot5 with { ShapeId = 78 } }, 205, 0, 0, 24576, -29406, 24576, allowTravel: true), WorldFootContactRefusal.UnsupportedSavedVehicle);
+    }
+
     [Theory]
     [InlineData(22528, -31454, 8192)]
     [InlineData(22528, -27358, 40960)]
@@ -64,8 +82,11 @@ public sealed class WorldFootContactCertificateTests
     [InlineData(0, 0, true)]
     [InlineData(33, 0, true)]
     [InlineData(34, 0, false)]
-    [InlineData(255, 0, false)]
-    [InlineData(0, 1, false)]
+    [InlineData(205, 0, true)]
+    [InlineData(255, 0, true)]
+    [InlineData(0, 1, true)]
+    [InlineData(33, 1, true)]
+    [InlineData(34, 1, false)]
     [InlineData(17, 255, false)]
     public void StoryWordUsesBothBytesAndExclusiveUpperBound(byte low, byte high, bool certified)
     {

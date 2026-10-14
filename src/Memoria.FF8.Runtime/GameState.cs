@@ -43,6 +43,7 @@ public sealed record GameState
     public NativeCharacterAppearance? CharacterAppearance { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCardInventory? CardInventory { get; init; }
+    public NativeEconomy? Economy { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeSeeDState? SeeD { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
@@ -94,6 +95,12 @@ public interface IEventServices
     NativeCharacterVitals? CharacterVitals => null;
     NativeCharacterAppearance? CharacterAppearance => null;
     NativeCardInventory? CardInventory => null;
+    NativeEconomy? Economy => null;
+    bool CanStoreEconomy => false;
+    void SetEconomy(NativeEconomy economy)
+    {
+        throw new NotSupportedException("Native economy is not implemented by this event service.");
+    }
     bool CanStoreCardInventory => false;
     NativeMessageVariables? MessageVariables => null;
     bool CanStoreMessageVariables => false;

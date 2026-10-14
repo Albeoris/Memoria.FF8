@@ -21,6 +21,10 @@ internal sealed partial class GameWorld : IDisposable
         this.session = session;
         assets = new GameAssets(gameDirectory);
         bool initializedNativeParty = false;
+        if (session.State.Economy is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        }
         if (session.State.CharacterVitals is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

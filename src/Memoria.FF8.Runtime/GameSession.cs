@@ -473,6 +473,7 @@ public sealed partial class GameSession : IEventServices
         }
         ValidateAllocatedWorldEntityCheckpoint(state, currentVm);
         ValidateCardInventoryCheckpoint(state, currentVm);
+        ValidateEconomyCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -588,6 +589,15 @@ public sealed partial class GameSession : IEventServices
         state.CharacterVitals?.Validate();
         state.CharacterAppearance?.Validate();
         state.CardInventory?.Validate();
+        state.Economy?.Validate();
+        if (state.Economy is not null)
+        {
+            ValidateEconomyAliases(state.Variables, state.NativeVariableValues);
+            if (state.CharacterVitals is not null && state.Economy.InitOutSha256 != state.CharacterVitals.InitOutSha256)
+            {
+                throw new InvalidDataException("Native economy and character state have different New Game template identities.");
+            }
+        }
         if (state.CharacterAppearance is not null && state.CharacterVitals is not null && state.CharacterAppearance.InitOutSha256 != state.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("Native appearance and character vitals have different New Game template identities.");

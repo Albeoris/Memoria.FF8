@@ -42,7 +42,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!boat && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord >= 34))
+        if (!boat && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 290))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -410,10 +410,7 @@ internal sealed partial class WorldMapScene : IDisposable
         double eyeX = camera.FootFrame(new Vector3(state.X, -state.NativeHeight, state.Z)).Eye.X;
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         byte entityType = state.NativeFootRuntime?.EntityType ?? throw new NotSupportedException("Native foot contacts require executed entity-type loader authority.");
-        if (entityType == 1)
-        {
-            assets.ReadScriptedBoatFootRecord(inputs.StoryWord);
-        }
+        assets.ReadFootAllocation(entityType, inputs.StoryWord);
         WorldFootContactCertificateResult result = WorldFootContactCertificate.Evaluate(session.State.SavedWorld, (byte)inputs.StoryWord, (byte)(inputs.StoryWord >> 8), inputs.ReplacementFlags, state.X, state.Z, eyeX, allowTravel: true, entityType: entityType);
         if (!result.Certified)
         {
