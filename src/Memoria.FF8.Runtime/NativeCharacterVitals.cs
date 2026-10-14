@@ -60,6 +60,22 @@ public sealed record NativeCharacterVitals
         return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() } }).ToArray(), CombatParty = CombatParty.ToArray() };
     }
 
+    /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>
+    public NativeCharacterVitals WithSavedHitPoints(int rawRow, int rawHitPoints)
+    {
+        Validate();
+        uint offset = unchecked((uint)rawRow * 152u);
+        if (offset > 7u * 152u || offset % 152u != 0)
+        {
+            throw new NotSupportedException("SETHP destination is outside the eight owned saved HP WORDs; no identity lookup or low-byte row truncation is applied.");
+        }
+        int row = (int)(offset / 152u);
+        ushort hitPoints = unchecked((ushort)rawHitPoints);
+        NativeCharacterVital[] records = Records.ToArray();
+        records[row] = records[row] with { HitPoints = new NativeHpWord(hitPoints, hitPoints) };
+        return (this with { Records = records }).DeepCopy();
+    }
+
     public NativeCharacterVitals ResetGuardianForces(int rawCharacter)
     {
         Validate();

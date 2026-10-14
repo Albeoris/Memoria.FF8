@@ -11,12 +11,12 @@ internal static class DirectBackgroundScrollCertificate
 {
     public static bool CanSet(FieldAssets field, SceneEventState scene, int layer, short x, short y)
     {
-        return layer == 0 && InRange(x) && InRange(y) && HasBaseline(field, scene) && ValidPositions(scene) && SupportsCenter(field, scene, x, y);
+        return layer == 0 && InRange(x) && InRange(y) && HasBaseline(field, scene) && ValidPositions(field, scene) && SupportsCenter(field, scene, x, y);
     }
 
     public static bool CanSetCosine(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
     {
-        if (layer != 0 || duration < 0 || !InRange(x) || !InRange(y) || !HasBaseline(field, scene) || !ValidPositions(scene) || !SupportsCenter(field, scene, x, y))
+        if (layer != 0 || duration < 0 || !InRange(x) || !InRange(y) || !HasBaseline(field, scene) || !ValidPositions(field, scene) || !SupportsCenter(field, scene, x, y))
         {
             return false;
         }
@@ -38,12 +38,12 @@ internal static class DirectBackgroundScrollCertificate
 
     public static bool CanBeginLinear(FieldAssets field, NativeLinearScrollQuery query, SceneEventState scene)
     {
-        return CanSetLinear(field, query) && HasBaseline(field, scene) && ValidPositions(scene);
+        return CanSetLinear(field, query) && HasBaseline(field, scene) && ValidPositions(field, scene);
     }
 
     public static bool SupportsLinearPhase(FieldAssets field, SceneEventState scene)
     {
-        return scene.BackgroundScrollPositions.Count == 1 && scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && position.Mode == 4 && HasBaseline(field, scene) && ValidPositions(scene);
+        return scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && position.Mode == 4 && HasBaseline(field, scene) && ValidPositions(field, scene);
     }
 
     internal static (short X, short Y)? ResolveNormalCenter(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
@@ -69,7 +69,7 @@ internal static class DirectBackgroundScrollCertificate
 
     public static BackgroundScrollFrame? Prepare(FieldAssets field, SceneEventState scene)
     {
-        if (scene.BackgroundScrollPositions.Count == 0 || !HasBaseline(field, scene) || !ValidPositions(scene))
+        if (!scene.BackgroundScrollPositions.ContainsKey(0) || !HasBaseline(field, scene) || !ValidPositions(field, scene))
         {
             return null;
         }
@@ -88,9 +88,9 @@ internal static class DirectBackgroundScrollCertificate
         Dictionary<int, Vector2> layers = [];
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
         {
-            BackgroundScrollSettings settings = scene.BackgroundScrollLayers.GetValueOrDefault(layer) ?? new BackgroundScrollSettings(0, 0, 256, 256);
+            BackgroundScrollSettings settings = BackgroundScrollCertificate.ReadSettings(scene, layer);
             Vector2 offset = -center;
-            if (layer != 0 && !BackgroundParallaxPlacement.TryOffset(x, y, settings, out offset))
+            if (layer != 0 && !BackgroundParallaxPlacement.TryOffset(x, y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out offset))
             {
                 throw new NotSupportedException("Scripted camera parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
             }
@@ -109,7 +109,7 @@ internal static class DirectBackgroundScrollCertificate
 
     internal static bool HasBaseline(FieldAssets field, SceneEventState scene)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || scene.BackgroundScrollLayers.Count == 0 && FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && scene.BackgroundScrollLayers.All(pair => BackgroundScrollCertificate.CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex));
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || BackgroundScrollCertificate.HasDefaultSettings(scene) && FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
     }
 
     internal static bool SupportsCenter(FieldAssets field, SceneEventState scene, short x, short y)
@@ -117,12 +117,12 @@ internal static class DirectBackgroundScrollCertificate
         return BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.GetCamera(scene.CameraIndex).Pan) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, new FieldNativeCameraCenter(x, y)) is not null);
     }
 
-    private static bool ValidPositions(SceneEventState scene)
+    private static bool ValidPositions(FieldAssets field, SceneEventState scene)
     {
-        return scene.BackgroundScrollPositions.Count <= 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 && ValidPosition(pair.Value));
+        return scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? ValidPosition(pair.Value) : NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
     }
 
-    private static bool ValidPosition(BackgroundScrollPosition state)
+    internal static bool ValidPosition(BackgroundScrollPosition state)
     {
         if (state.X.HasValue != state.Y.HasValue || state.PreviousX.HasValue != state.PreviousY.HasValue || !InRange(state.TargetX) || !InRange(state.TargetY))
         {

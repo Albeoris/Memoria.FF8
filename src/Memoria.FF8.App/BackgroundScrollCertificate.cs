@@ -11,12 +11,32 @@ public static class BackgroundScrollCertificate
 {
     public static bool CanSet(FieldAssets field, int layer, BackgroundScrollSettings settings, int cameraIndex)
     {
-        return CanSetNormal(field, layer, settings, cameraIndex);
+        return layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && CanSetNormal(field, layer, settings, cameraIndex);
+    }
+
+    internal static bool HasCurrentSettings(SceneEventState scene)
+    {
+        return scene.BackgroundScrollLayers.Count == 8 && scene.BackgroundScrollLayers.Keys.All(layer => (uint)layer < 8) && scene.BackgroundScrollLayers.Values.All(settings => settings is not null);
+    }
+
+    internal static bool HasDefaultSettings(SceneEventState scene)
+    {
+        return HasCurrentSettings(scene) && scene.BackgroundScrollLayers.Values.All(settings => settings == new BackgroundScrollSettings(0, 0, 256, 256));
+    }
+
+    internal static bool HasSupportedSettings(FieldAssets field, SceneEventState scene)
+    {
+        return HasCurrentSettings(scene) && (field.Information!.BackgroundWrapMask != 0 ? HasDefaultSettings(scene) : scene.BackgroundScrollLayers.All(pair => CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex)));
+    }
+
+    internal static BackgroundScrollSettings ReadSettings(SceneEventState scene, int layer)
+    {
+        return scene.BackgroundScrollLayers.TryGetValue(layer, out BackgroundScrollSettings? settings) ? settings : throw new NotSupportedException("Native layer placement needs its executed retained offset/ratio record; absent records are unknown.");
     }
 
     internal static bool CanSetNormal(FieldAssets field, int layer, BackgroundScrollSettings settings, int cameraIndex)
     {
-        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings);
+        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 0 and <= 7 && (layer == 0 || !field.Background.Any(tile => tile.Layer == layer) || BackgroundParallaxPlacement.SupportsCameraRange(field, settings));
     }
 
     public static bool CanSetForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
@@ -29,6 +49,23 @@ public static class BackgroundScrollCertificate
         {
             BackgroundScrollFrame? current = NormalCameraCertificate.Prepare(field, scene, actors);
             return current is not null && BackgroundParallaxPlacement.TryOffset((int)-current.ActorOffset.X, (int)-current.ActorOffset.Y, settings, out _);
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    public static bool CanSetRatioForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
+    {
+        if (!CanSetNormal(field, layer, settings, scene.CameraIndex))
+        {
+            return false;
+        }
+        try
+        {
+            BackgroundScrollFrame? current = ActorBackgroundScrollCertificate.Prepare(field, scene) ?? DirectBackgroundScrollCertificate.Prepare(field, scene) ?? NormalCameraCertificate.Prepare(field, scene, actors);
+            return current is not null && (layer == 0 || BackgroundParallaxPlacement.TryOffset((int)-current.ActorOffset.X, (int)-current.ActorOffset.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out _));
         }
         catch (NotSupportedException)
         {

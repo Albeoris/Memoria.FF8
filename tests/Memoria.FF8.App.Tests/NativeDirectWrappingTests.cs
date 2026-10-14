@@ -65,7 +65,7 @@ public sealed class NativeDirectWrappingTests
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(251);
         SceneEventState scene = CreateScene(field);
-        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
+        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
         scene.NativeActorObjectIds.Add(1);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
         BackgroundScrollFrame normal = NormalCameraCertificate.Prepare(field, scene, [actor])!;
@@ -77,7 +77,7 @@ public sealed class NativeDirectWrappingTests
     private static SceneEventState CreateScene(FieldAssets field)
     {
         NativeFieldInitializationProof proof = new(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm)), 20, NativeFieldInitializationStage.Completed);
-        return JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { AudioLoadEpoch = 1, NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, FieldCallbackClock = new NativeFieldCallbackClock(1, 1, 0), PartyBindingMemory = new NativePartyBindingMemory(1, 0, 255, 255), Party = new[] { 0, 255, 255 } }))!;
+        return JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { AudioLoadEpoch = 1, NativeSalaryMovementUnits = (byte?)null, BackgroundScrollLayers = Enumerable.Range(0, 8).ToDictionary(layer => layer, _ => new BackgroundScrollSettings(0, 0, 256, 256)), NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, NativeActorLayoutVersion = 1, FieldCallbackClock = new NativeFieldCallbackClock(1, 1, 0), PartyBindingMemory = new NativePartyBindingMemory(1, 0, 255, 255), Party = new[] { 0, 255, 255 } }))!;
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class NativeDirectWrappingTests
         SceneEventState scene = CreateScene(field);
         scene.NativeActorObjectIds.Add(1);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
-        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
+        ActorState actor = JsonSerializer.Deserialize<ActorState>("{\"NativeMovementAccelerationTarget\":null,\"ObjectId\":1,\"Label\":0,\"ModelId\":1,\"CharacterId\":0,\"X\":459,\"Y\":1659,\"Z\":0}")!;
         scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 8, 0, 8, -32, 8, 0, 3, 2);
         Assert.True(ActorBackgroundScrollCertificate.CanSetInterpolated(field, scene, [actor], 0, 15));
         Assert.True(BackgroundScrollCertificate.CanSetPartyPosition(field, scene, [actor], 0, 0, 15));

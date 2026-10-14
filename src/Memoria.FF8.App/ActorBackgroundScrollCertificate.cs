@@ -75,6 +75,6 @@ internal static class ActorBackgroundScrollCertificate
 
     private static bool HasBaseline(FieldAssets field, SceneEventState scene)
     {
-        return DirectBackgroundScrollCertificate.HasBaseline(field, scene) && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 && DirectBackgroundScrollCertificate.IsCompleted(pair.Value));
+        return DirectBackgroundScrollCertificate.HasBaseline(field, scene) && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? DirectBackgroundScrollCertificate.IsCompleted(pair.Value) : NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
     }
 }

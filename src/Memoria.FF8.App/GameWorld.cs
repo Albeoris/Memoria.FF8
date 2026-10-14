@@ -136,7 +136,8 @@ internal sealed partial class GameWorld : IDisposable
         };
         Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
         Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSetForState(next, Events.Scene, Events.Actors, layer, settings);
-        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y);
+        Events.CanSetBackgroundScrollRatio = (layer, settings) => BackgroundScrollCertificate.CanSetRatioForState(next, Events.Scene, Events.Actors, layer, settings);
+        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || NativeNonselectedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y);
         Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
@@ -149,9 +150,9 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeTriangleCentroid = triangle => FieldPartyTraceGeometry.ResolveTriangleCentroid(next.Walkmesh, triangle);
         Events.CanUseNativeFieldEntryStack = arrival => NativeFieldEntryStackAdapter.Supports(next, arrival);
         Events.NativeFieldWalkmeshHash = next.WalkmeshHash;
-        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeLinearBackgroundScrollCertificate.CanSet(next, query);
-        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene);
-        Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene);
+        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeLinearBackgroundScrollCertificate.CanSet(next, query) || NativeNonselectedBackgroundScrollCertificate.CanSetLinear(next, query);
+        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeNonselectedBackgroundScrollCertificate.SupportsLinearPhase(next, scene);
+        Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeNonselectedBackgroundScrollCertificate.CanBeginLinear(next, query, scene);
         Events.CanUseNativeJoinMovement = actor => NativeJoinMovementAdapter.Supports(next, Events.Scene, actor);
         Events.ResolveNativeJoinMovement = query => NativeJoinMovementAdapter.Resolve(next, Events.Scene, query);
         Events.CanUseNativePlayerMovement = actor => NativePlayerMovementAdapter.Supports(next, Events.Scene, actor);

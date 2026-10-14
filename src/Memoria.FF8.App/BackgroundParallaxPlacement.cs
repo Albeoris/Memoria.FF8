@@ -22,7 +22,7 @@ internal static class BackgroundParallaxPlacement
         return drawX is >= -1024 and <= 1023 && drawY is >= -1024 and <= 1023;
     }
 
-    public static bool SupportsCameraRange(FieldAssets field, BackgroundScrollSettings settings)
+    public static bool SupportsCameraRange(FieldAssets field, BackgroundScrollSettings settings, short currentX = 0, short currentY = 0)
     {
         if (settings.ScaleX is < 0 or > 256 || settings.ScaleY is < 0 or > 256 || field.Information is not { CameraBounds.Count: > 0 } information)
         {
@@ -35,13 +35,13 @@ internal static class BackgroundParallaxPlacement
         int highY = Math.Max(lowY, camera.Bottom - 112);
         // For scale0..256, C - trunc(C*scale/256) is monotone. The two
         // original cap-then-floor clamp endpoints certify every normal C.
-        return TryAxis(lowX, settings.OffsetX, settings.ScaleX, out _) && TryAxis(highX, settings.OffsetX, settings.ScaleX, out _) && TryAxis(lowY, settings.OffsetY, settings.ScaleY, out _) && TryAxis(highY, settings.OffsetY, settings.ScaleY, out _);
+        return TryAxis(lowX, settings.OffsetX, settings.ScaleX, currentX, out _) && TryAxis(highX, settings.OffsetX, settings.ScaleX, currentX, out _) && TryAxis(lowY, settings.OffsetY, settings.ScaleY, currentY, out _) && TryAxis(highY, settings.OffsetY, settings.ScaleY, currentY, out _);
     }
 
     public static bool TryOffset(int x, int y, BackgroundScrollSettings settings, out Vector2 offset)
     {
         offset = default;
-        if (!TryAxis(x, settings.OffsetX, settings.ScaleX, out int offsetX) || !TryAxis(y, settings.OffsetY, settings.ScaleY, out int offsetY))
+        if (!TryAxis(x, settings.OffsetX, settings.ScaleX, 0, out int offsetX) || !TryAxis(y, settings.OffsetY, settings.ScaleY, 0, out int offsetY))
         {
             return false;
         }
@@ -49,7 +49,23 @@ internal static class BackgroundParallaxPlacement
         return true;
     }
 
-    private static bool TryAxis(int center, short origin, short scale, out int offset)
+    public static bool TryOffset(int x, int y, BackgroundScrollSettings settings, BackgroundScrollPosition? position, out Vector2 offset)
+    {
+        if (position is null)
+        {
+            // Normal475E60 has written zero current8/10 for this nonselected mode0 record.
+            return TryOffset(x, y, settings, out offset);
+        }
+        offset = default;
+        if (!NativeNonselectedBackgroundScrollCertificate.ValidPosition(position) || !TryAxis(x, settings.OffsetX, settings.ScaleX, position.X!.Value, out int offsetX) || !TryAxis(y, settings.OffsetY, settings.ScaleY, position.Y!.Value, out int offsetY))
+        {
+            return false;
+        }
+        offset = new Vector2(offsetX, offsetY);
+        return true;
+    }
+
+    private static bool TryAxis(int center, short origin, short scale, short current, out int offset)
     {
         offset = 0;
         if (center is < -4096 or > 4096 || scale is < 0 or > 256)
@@ -57,7 +73,7 @@ internal static class BackgroundParallaxPlacement
             return false;
         }
         int quotient = center * scale / 256;
-        int raw = center + origin - quotient;
+        int raw = center + origin - quotient - current;
         if (raw is < -4096 or > 4095)
         {
             return false;

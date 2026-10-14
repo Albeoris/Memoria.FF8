@@ -4,13 +4,14 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
 
-public sealed record BackgroundScrollSettings(short OffsetX, short OffsetY, short ScaleX, short ScaleY);
+public sealed record BackgroundScrollSettings([property: JsonRequired] short OffsetX, [property: JsonRequired] short OffsetY, [property: JsonRequired] short ScaleX, [property: JsonRequired] short ScaleY);
 public sealed record BackgroundScrollPosition([property: JsonRequired] short? X, [property: JsonRequired] short? Y, short TargetX, short TargetY, [property: JsonRequired] short? PreviousX, [property: JsonRequired] short? PreviousY, [property: JsonRequired] short? Counter, byte Mode, byte Status, [property: JsonRequired] short? Duration = null, byte? NativeActorId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int NativeLinearVersion = 0);
 public sealed record NativeLinearScrollQuery(int Layer, short StartX, short StartY, short TargetX, short TargetY, short Duration);
 
 public sealed partial class EventEngine
 {
     public Func<int, BackgroundScrollSettings, bool>? CanSetBackgroundScroll { get; set; }
+    public Func<int, BackgroundScrollSettings, bool>? CanSetBackgroundScrollRatio { get; set; }
     public Func<int, short, short, bool>? CanSetBackgroundScrollPosition { get; set; }
     public Func<int, byte, short, bool>? CanSetPartyBackgroundScroll { get; set; }
     public Func<int, short, short, short, bool>? CanSetCosineBackgroundScroll { get; set; }
@@ -270,6 +271,43 @@ public sealed partial class EventEngine
         }
         BackgroundScrollSettings settings = new((short)top[3], (short)top[2], (short)top[1], (short)top[0]);
         return CanSetBackgroundScroll?.Invoke(top[4], settings) == true ? null : "Native SCROLLMODE2 needs a proved renderer for the selected signed-word offsets/scales and camera state";
+    }
+
+    private void InitializeNativeBackgroundScrollSettings()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return;
+        }
+        // Executed normal52B4F0 entry1/3 writes all eight records, not a constructor or snapshot default.
+        for (int layer = 0; layer < 8; layer++)
+        {
+            Scene.BackgroundScrollLayers.Add(layer, new BackgroundScrollSettings(0, 0, 256, 256));
+        }
+    }
+
+    private string? UnsupportedBackgroundScrollRatio(Fiber fiber)
+    {
+        int[] top = fiber.Stack.ToArray();
+        if (top.Length < 3 || (uint)top[2] >= 8)
+        {
+            return "Native SCROLLRATIO2 requires three original operands and a full DWORD index into eight scroll records";
+        }
+        if (!Scene.BackgroundScrollLayers.TryGetValue(top[2], out BackgroundScrollSettings? previous))
+        {
+            return "Native SCROLLRATIO2 needs executed retained offset20/22 authority; unknown offsets are preserved";
+        }
+        BackgroundScrollSettings next = previous with { ScaleX = unchecked((short)top[1]), ScaleY = unchecked((short)top[0]) };
+        return CanSetBackgroundScrollRatio?.Invoke(top[2], next) == true ? null : "Native SCROLLRATIO2 needs certified signed-WORD layer placement before changing only its ratio words";
+    }
+
+    private int[] ExecuteBackgroundScrollRatio(Fiber fiber)
+    {
+        int[] args = Pop(fiber, 3);
+        BackgroundScrollSettings previous = Scene.BackgroundScrollLayers[args[0]];
+        // 521460 writes only signedWORD24/26; offset20/22 and motion0..18 are untouched.
+        Scene.BackgroundScrollLayers[args[0]] = previous with { ScaleX = unchecked((short)args[1]), ScaleY = unchecked((short)args[2]) };
+        return args;
     }
 
     private int[] ExecuteBackgroundScroll(Fiber fiber)

@@ -194,7 +194,11 @@ public sealed partial class EventEngine
         ValidateActorShadowCheckpoint(saved);
         ValidateFootstepPairCheckpoint(saved);
         ValidateFootstepOffAllCheckpoint(saved);
-        if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8))
+        if (saved.Scene.NativeFieldInitialization is not null && saved.Scene.BackgroundScrollLayers.Count != 8)
+        {
+            throw new InvalidDataException("Native field background settings require all eight executed current loader records; recreate this source from its authentic journal.");
+        }
+        if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8) || saved.Scene.BackgroundScrollLayers.Values.Any(settings => settings is null))
         {
             throw new InvalidDataException("Saved background scroll layer is outside the eight original records.");
         }

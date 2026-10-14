@@ -10,7 +10,7 @@ internal static class NormalBackgroundWrapCertificate
 {
     public static bool Supports(FieldAssets field, SceneEventState scene)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollLayers.Count == 0 && scene.BackgroundScrollPositions.Count == 0 && FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex);
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && BackgroundScrollCertificate.HasDefaultSettings(scene) && scene.BackgroundScrollPositions.Count == 0 && FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex);
     }
 
     public static FieldNativeBackgroundWrapFrame Prepare(FieldAssets field, SceneEventState scene, FieldNativeCameraCenter center)

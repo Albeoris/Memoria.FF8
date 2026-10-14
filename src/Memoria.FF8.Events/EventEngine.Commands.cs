@@ -192,6 +192,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SCROLLMODE2:
                 args = ExecuteBackgroundScroll(fiber);
                 break;
+            case Jsm.Opcode.SCROLLRATIO2:
+                args = ExecuteBackgroundScrollRatio(fiber);
+                break;
             case Jsm.Opcode.DSCROLL2:
                 args = ExecuteDirectBackgroundScroll(fiber);
                 break;
@@ -1003,6 +1006,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.DYING:
                 services.SetCharacterVitals(services.CharacterVitals!.RepairDyingParty());
+                break;
+            case Jsm.Opcode.SETHP:
+                args = ExecuteSetHitPoints(fiber);
                 break;
             case Jsm.Opcode.HOLD:
                 args = Pop(fiber, 3);

@@ -36,7 +36,7 @@ internal static class NativeLinearBackgroundScrollCertificate
 
     private static bool HasNormalRuntime(FieldAssets field, SceneEventState scene)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollLayers.Count == 0 && FieldNativeNormalBackgroundWrap.SupportsLinearMetadata(field, scene.CameraIndex);
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && BackgroundScrollCertificate.HasDefaultSettings(scene) && FieldNativeNormalBackgroundWrap.SupportsLinearMetadata(field, scene.CameraIndex);
     }
 
     private static bool ValidPositions(FieldAssets field, SceneEventState scene)

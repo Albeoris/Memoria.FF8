@@ -74,7 +74,10 @@ public sealed class BackgroundScrollParallaxTests
         Assert.False(BackgroundScrollCertificate.Supports(wrapping, scene, actors));
         scene.BackgroundScrollLayers[1] = settings with { OffsetX = short.MaxValue };
         Assert.False(BackgroundScrollCertificate.Supports(field, scene, actors));
-        scene.BackgroundScrollLayers.Clear();
+        for (int layer = 0; layer < 8; layer++)
+        {
+            scene.BackgroundScrollLayers[layer] = new BackgroundScrollSettings(0, 0, 256, 256);
+        }
         scene.FieldPartyNativeActorIds[0] = 1;
         Assert.False(BackgroundScrollCertificate.Supports(field, scene, actors));
         scene.FieldPartyNativeActorIds[0] = 0;
@@ -103,7 +106,11 @@ public sealed class BackgroundScrollParallaxTests
     private static SceneEventState Scene()
     {
         // Isolated projection fixture; it is neither restored by an engine nor published as a causal save.
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"AudioLoadEpoch\":0,\"Party\":[0,255,255],\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
+        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"AudioLoadEpoch\":0,\"NativeSalaryMovementUnits\":null,\"Party\":[0,255,255],\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
+        for (int layer = 0; layer < 8; layer++)
+        {
+            scene.BackgroundScrollLayers[layer] = new BackgroundScrollSettings(0, 0, 256, 256);
+        }
         scene.NativeActorObjectIds.Add(0);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
         return scene;
@@ -111,7 +118,7 @@ public sealed class BackgroundScrollParallaxTests
 
     private static ActorState Actor(int x, int y, int z)
     {
-        return JsonSerializer.Deserialize<ActorState>($"{{\"ObjectId\":0,\"Label\":0,\"CharacterId\":0,\"ModelId\":0,\"X\":{x},\"Y\":{y},\"Z\":{z}}}")!;
+        return JsonSerializer.Deserialize<ActorState>($"{{\"NativeMovementAccelerationTarget\":null,\"ObjectId\":0,\"Label\":0,\"CharacterId\":0,\"ModelId\":0,\"X\":{x},\"Y\":{y},\"Z\":{z}}}")!;
     }
 
     private static GameAssets OpenAssets()
