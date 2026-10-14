@@ -75,7 +75,7 @@ public sealed partial class EventEngine
     public NativeFieldRuntimeProfile? NativeRuntimeProfile { get; private set; }
     public event Action<ScriptCommand>? CommandExecuted;
 
-    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null)
+    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, NativeMenuFieldReentry? menuReentry = null)
     {
         if (nativeRuntimeProfile is not null && !nativeRuntimeProfile.IsVerified)
         {
@@ -89,7 +89,17 @@ public sealed partial class EventEngine
         ValidatePreviousWorldEntityLoad(fieldId, jsm, worldEntityAllocationContext);
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
         JsmProgram next = JsmProgram.Read(jsm);
-        ResetNativeShakeForLoad(nativeRuntimeProfile);
+        string nextHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
+        ValidateMenuFieldReentry(menuReentry, fieldId, nextHash, arrival, previousFieldId);
+        if (menuReentry is null)
+        {
+            ResetNativeShakeForLoad(nativeRuntimeProfile);
+        }
+        else
+        {
+            //Returned4706B0 has no4701B0 clock call;52D110/52D050 precedes fresh471F70 allocation.
+            RefreshParty();
+        }
         InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
         if (program is null && fieldId == 74)
         {
@@ -104,13 +114,18 @@ public sealed partial class EventEngine
         program = next;
         pendingArrival = arrival;
         LastFault = null;
-        axisStart = InitInputAxisDirection;
-        axisTarget = InitInputAxisDirection;
-        axisDuration = 0;
-        axisElapsed = 0;
-        InputAxisDirection = InitInputAxisDirection;
+        if (menuReentry is null)
+        {
+            axisStart = InitInputAxisDirection;
+            axisTarget = InitInputAxisDirection;
+            axisDuration = 0;
+            axisElapsed = 0;
+            InputAxisDirection = InitInputAxisDirection;
+        }
         partyMenu = null;
-        programHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
+        issuedMenuFieldReentry = null;
+        initializingMenuFieldReentry = menuReentry;
+        programHash = nextHash;
         NativeRuntimeProfile = nativeRuntimeProfile;
         messages = fieldMessages ?? throw new ArgumentNullException(nameof(fieldMessages));
         actors.Clear();
@@ -144,8 +159,14 @@ public sealed partial class EventEngine
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         InitializeNativeBackgroundScrollSettings();
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0);
-        // This loader executes normal471F70 entry kinds0..2, which clear1CE477C.
-        Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
+        //471F70 kind10 skips the <=2 run/axis/shake/previous movement resets.
+        Scene.NativeSalaryMovementUnits = menuReentry is not null ? previousScene.NativeSalaryMovementUnits : nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
+        if (menuReentry is not null)
+        {
+            Scene.RunEnabled = previousScene.RunEnabled;
+            Scene.PreviousFieldWord84 = previousScene.PreviousFieldWord84;
+            variables[87] = 10;
+        }
         pendingNativePlayerInput = null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
@@ -335,6 +356,7 @@ public sealed partial class EventEngine
             {
                 ApplyPendingArrival();
             }
+            CompleteMenuFieldInitialization();
             if (Scene.NativeFieldInitialization is NativeFieldInitializationProof proof)
             {
                 Scene.NativeFieldInitialization = proof with { Stage = NativeFieldInitializationStage.Completed };
@@ -358,14 +380,25 @@ public sealed partial class EventEngine
             StepFaceDirection(actor);
         }
         StepNativeModelParts();
-        if (services.SalaryPresentation is NativeSalaryPresentation salaryPresentation)
+        bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
+        NativeSalaryPresentation? salaryUi = services.SalaryPresentation?.Advance(movieUi ? 4 : 2);
+        NativeVibrationProcessState? vibrationUi = services.VibrationProcess?.Advance(movieUi ? 4 : 2);
+        if (vibrationUi is not null && Scene.NativeFieldInitialization is not null)
         {
-            bool movie = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Salary presentation requires the actual movie callback flag.") : false);
-            NativeSalaryPresentation advanced = salaryPresentation.Advance(movie ? 4 : 2);
-            if (advanced != salaryPresentation)
+            //471F70 state4 remains active: every4767B0 callback ends with4A2940(-1)/49E8E0.
+            vibrationUi = vibrationUi.EndFieldCallback();
+        }
+        if (vibrationUi is not null)
+        {
+            if (!services.CanStoreNativeEventOwners || services.WorldControls is not NativeWorldControlState uiControls)
             {
-                services.SetSalaryPresentation(advanced);
+                throw new NotSupportedException("Native UI callback requires atomic current salary/vibration owners.");
             }
+            services.SetNativeEventOwners(uiControls, salaryPresentation: salaryUi, vibrationProcess: vibrationUi);
+        }
+        else if (salaryUi is not null && salaryUi != services.SalaryPresentation)
+        {
+            services.SetSalaryPresentation(salaryUi);
         }
         ValidateNativeTimerExpiryAfterVm();
     }

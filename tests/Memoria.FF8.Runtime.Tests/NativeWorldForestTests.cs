@@ -11,11 +11,11 @@ public sealed class NativeWorldForestTests
     {
         byte[] random = Enumerable.Range(0, 256).Select(index => (byte)index).ToArray();
         NativeWorldForestState state = NativeWorldForestState.Create(255, -5);
-        NativeWorldForestState first = state.Advance(1, 1000, -800, -2000, 2048, 32, random, Effects);
+        NativeWorldForestState first = state.Advance(1, 1000, -800, -2000, 2048, 0, random, Effects);
         Assert.Empty(first.Particles);
         Assert.Equal((byte)0, first.RandomCursor);
         Assert.Equal((byte)12, first.RandomOffset);
-        NativeWorldForestState second = first.Advance(1, 1032, -800, -2000, 2048, 0, random, Effects);
+        NativeWorldForestState second = first.Advance(1, 1032, -800, -2000, 2048, 32, random, Effects);
         NativeWorldForestParticle particle = Assert.Single(second.Particles);
         Assert.Equal((1032, -1120, 2000, (byte)5, (byte)1), (particle.X, particle.NativeY, particle.GraphicsZ, particle.Type, particle.Age));
         Assert.Equal((byte)5, second.RandomCursor);
@@ -28,7 +28,7 @@ public sealed class NativeWorldForestTests
     public void Pool_reuses_first_expired_slot_and_restored_next_callback_matches()
     {
         byte[] random = new byte[256];
-        NativeWorldForestState state = NativeWorldForestState.Create(0, 0) with { RawSpeed = 32, Particles = [new(0, 4, 0, 0, 0, 0, 0, 4096, 4, 4, true), new(1, 4, 0, 0, 0, 0, 0, 4096, 3, 4, true)] };
+        NativeWorldForestState state = NativeWorldForestState.Create(0, 0) with { Particles = [new(0, 4, 0, 0, 0, 0, 0, 4096, 4, 4, true), new(1, 4, 0, 0, 0, 0, 0, 4096, 3, 4, true)] };
         NativeWorldForestState first = state.Advance(0, 200, -300, 400, 0, 32, random, Effects);
         Assert.Equal(2, first.Particles.Length);
         Assert.Equal((byte)1, first.Particles[0].Age);
@@ -40,5 +40,19 @@ public sealed class NativeWorldForestTests
         Assert.Equal(JsonSerializer.Serialize(next), JsonSerializer.Serialize(restored.Advance(6, 300, -300, 400, 0, 0, random, Effects)));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeWorldForestState>(JsonSerializer.Serialize(first).Replace("RandomCursor", "MissingCursor", StringComparison.Ordinal)));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeWorldForestState>(JsonSerializer.Serialize(first).Replace("Scale", "MissingScale", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void CanonicalPriorGraphicsInputIsRequiredEachCallbackWithoutAStoredForestAlias()
+    {
+        NativeWorldForestState state = NativeWorldForestState.Create(0, 0);
+        byte[] random = new byte[256];
+        Assert.Empty(state.Advance(0, 0, 0, 0, 0, 0, random, Effects).Particles);
+        Assert.Single(state.Advance(0, 0, 0, 0, 0, 1, random, Effects).Particles);
+        Assert.DoesNotContain("RawSpeed", JsonSerializer.Serialize(state));
+        string before = JsonSerializer.Serialize(state);
+        Assert.Throws<InvalidDataException>(() => state.Advance(0, 0, 0, 0, 0, -1, random, Effects));
+        Assert.Throws<InvalidDataException>(() => state.Advance(0, 0, 0, 0, 0, 46341, random, Effects));
+        Assert.Equal(before, JsonSerializer.Serialize(state));
     }
 }

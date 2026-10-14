@@ -244,7 +244,13 @@ internal sealed partial class WorldMapScene : IDisposable
             for (int index = 0; index < action.Frames; index++)
             {
                 bool advanceUi = candidate.NativeScriptedRuntime?.Path.EndpointRequested != true;
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits);
+                if (advanceUi && candidate.NativeCarRuntime is NativeCarWorldRuntimeState car)
+                {
+                    salary = salary.PrepareCarVibration(car.EntityType, assets.VibrationBank);
+                }
+                int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, priorGraphics, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed);
+                salary = salary.WithGraphicsSpeed(graphicsSpeed);
                 if (candidate.NativeScriptedRuntime is null)
                 {
                     //53FAC0 calls6519D0 with the same accepted-vector /8 units before salary, regardless of its suppression flag.
@@ -270,7 +276,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     effects = new NativeSalaryEffects(presentation, salary.SoundProcess, []);
                 }
                 //53FAC0 calls49A970 after ordinary body update; its already-requested departure fade returns before that call.
-                salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits);
+                salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
                 salaryRequests.AddRange(effects.Requests);
                 navigation.Add(proposal);
                 advanced++;
@@ -336,17 +342,18 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits)
+    private WorldState Step(WorldState before, float horizontal, float vertical, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (before.NativeScriptedRuntime is not null)
         {
             // Native53FAC0 does not call6519D0 for scripted entities16..22/65/66.
             salaryMovementUnits = 0;
+            graphicsSpeed = before.NativeScriptedRuntime.Path.EndpointRequested ? priorGraphicsSpeed : 0;
             return StepScripted(before, out fieldEntry, out inputProposal, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeScriptedRuntime.Path.EntityType).ProjectNode(node));
         }
         if (before.NativeCarRuntime is not null)
         {
-            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, out salaryMovementUnits);
+            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, out salaryMovementUnits, out graphicsSpeed);
         }
         fieldEntry = null;
         NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
@@ -383,8 +390,8 @@ internal sealed partial class WorldMapScene : IDisposable
         byte currentGroundType = before.GroundType ?? throw new NotSupportedException("Native forest camera/emission requires the current selected polygon type.");
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest camera has no executed process history.");
         NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType);
-        int rawSpeed = (int)Math.Sqrt((long)moveX * moveX + (long)graphicsMoveZ * graphicsMoveZ);
-        forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, rawSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
+        graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
+        forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         foot = foot with { Forest = forest };
         int animation = moving ? 1 : 0;
         int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;

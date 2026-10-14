@@ -110,7 +110,7 @@ public sealed class NativeScriptedWorldStateTests
         NativeWorldSalaryState batch = NativeWorldSalaryState.Begin(before);
         for (long callback = before.World!.Frame; callback < final.Frame; callback++)
         {
-            batch = batch.Advance(null, batch.Presentation, batch.SoundProcess, 0);
+            batch = batch.Advance(null, batch.Presentation, batch.SoundProcess, 0, 2);
         }
         return batch;
     }

@@ -66,6 +66,6 @@ internal sealed partial class RecreateGame
         {
             text.Draw(batch, (index == partyMenuCandidate ? "> " : "  ") + Name(candidates[index]), 16 * scale, new Vector2(panel.X + 16 * scale, panel.Y + (82 + index * 24) * scale), index == partyMenuCandidate ? Color.White : Color.Gray);
         }
-        text.Draw(batch, menu.Phase == NativePartyMenuPhase.FieldReentry ? "Native field reentry is unsupported" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member", 14 * scale, new Vector2(panel.X + 16 * scale, panel.Bottom - 32 * scale), Color.White);
+        text.Draw(batch, menu.Phase == NativePartyMenuPhase.FieldReentry ? "Returning to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member", 14 * scale, new Vector2(panel.X + 16 * scale, panel.Bottom - 32 * scale), Color.White);
     }
 }

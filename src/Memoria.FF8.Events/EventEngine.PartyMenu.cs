@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 using System.Text.Json.Serialization;
 
@@ -34,7 +35,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedPartyMenuRequest()
     {
-        if (NativeRuntimeProfile is not { IsVerified: true } || partyMenu is not null || services.IsMoviePlaying || !services.CanStoreNativePartyMenuOwners || services.CharacterVitals is null || services.Economy is null || services.ShotAvailability is null || services.SalaryPresentation is null || services.ExamTimer is null)
+        if (NativeRuntimeProfile is not { IsVerified: true } || partyMenu is not null || services.IsMoviePlaying || !services.CanStoreNativePartyMenuOwners || services.CharacterVitals is null || services.Economy is null || services.ShotAvailability is null || services.SalaryPresentation is null || services.ExamTimer is null || services.VibrationProcess is null)
         {
             return "MENUPHS requires the verified native request, actual character/economy/shot/UI/clock owners and no active menu or movie";
         }
@@ -69,7 +70,31 @@ public sealed partial class EventEngine
         fiber.WaitReason = WaitReason.NativePartyMenu;
     }
 
-    private void PublishPartyMenuCallback(NativeCharacterVitals vitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salary, bool? timerDisplay = null)
+    private NativeFieldLocation CaptureNativeMenuFieldLocation(NativePartyMenuState request)
+    {
+        ImmutableArray<NativeFieldLocationSlot>.Builder slots = ImmutableArray.CreateBuilder<NativeFieldLocationSlot>(3);
+        for (int slot = 0; slot < 3; slot++)
+        {
+            byte? binding = Scene.FieldPartyNativeActorIds.Count == 3 ? checked((byte)Scene.FieldPartyNativeActorIds[slot]) : null;
+            NativeFieldLocationPose? pose = null;
+            if (binding is byte row && row < Scene.NativeActorObjectIds.Count)
+            {
+                ActorState actor = actors[Scene.NativeActorObjectIds[row]];
+                FieldFixedPosition? position = ReadNativeScriptPosition(actor);
+                if (position is not null && actor.WalkmeshTriangle is >= 0 and <= ushort.MaxValue && actor.Direction == MathF.Truncate(actor.Direction) && actor.Direction is >= 0 and <= byte.MaxValue)
+                {
+                    //470250 uses SAR12, not signed division toward zero.
+                    pose = NativeFieldLocationPose.FromPhysicalWords(position.X, position.Y, (ushort)actor.WalkmeshTriangle, (byte)actor.Direction);
+                }
+            }
+            slots.Add(new NativeFieldLocationSlot(binding, pose));
+        }
+        NativeFieldLocation location = new((ushort)FieldId, Scene.PreviousFieldWord84, 1, slots.MoveToImmutable(), programHash, NativeRuntimeProfile!.ExecutableHash, Frame, request.ObjectId, request.ScriptId, request.Operation, services.NativeIncomingFieldEntryWords);
+        location.Validate();
+        return location;
+    }
+
+    private void PublishPartyMenuCallback(NativeCharacterVitals vitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salary, bool? timerDisplay = null, NativeFieldLocation? fieldLocation = null, bool advanceVibration = false, bool clearControllerRequests = false, bool markPrimaryControllerPending = false)
     {
         NativeFieldCallbackClock clock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Party menu requires its actual field allocation clock history.");
         clock.Validate(Frame);
@@ -81,7 +106,20 @@ public sealed partial class EventEngine
         }
         // Native4A22C0 calls4701B0 once before497380. It replaces the field/world
         // callbacks and does not execute their4022B0 world-process producer.
-        services.SetNativePartyMenuOwners(vitals, economy, shots, salary, timer);
+        NativeVibrationProcessState? vibration = services.VibrationProcess;
+        if (advanceVibration)
+        {
+            vibration = (vibration ?? throw new NotSupportedException("Active native party menu requires its49A970 vibration process owner.")).Advance(1);
+        }
+        if (clearControllerRequests)
+        {
+            vibration = (vibration ?? throw new NotSupportedException("Native party menu teardown requires its49E8E0 controller request owner.")).ClearControllerRequests();
+        }
+        if (markPrimaryControllerPending)
+        {
+            vibration = (vibration ?? throw new NotSupportedException("Native party menu entry requires its49E6D0 controller request owner.")).MarkControllerPending(0);
+        }
+        services.SetNativePartyMenuOwners(vitals, economy, shots, salary, timer, fieldLocation, vibration);
         Scene.FieldCallbackClock = clock with { MenuCallbacks = menuCallbacks };
     }
 
@@ -90,12 +128,13 @@ public sealed partial class EventEngine
         NativePartyMenuState current = partyMenu!;
         if (current.Phase == NativePartyMenuPhase.FieldReentry)
         {
-            throw new NotSupportedException("Confirmed native MENUPHS requires4706B0/52D110/471F70/52B4F0(3) field reentry; the loader, actor flags and bindings are unproved, so no field VM, pose or rendering consumer resumes.");
+            throw new NotSupportedException("Direct VM stepping cannot consume native MENUPHS field reentry; the host must execute the typed4706B0/471F70/52B4F0(3) same-field allocation before any field consumer resumes.");
         }
         if (current.Phase == NativePartyMenuPhase.Requested)
         {
+            NativeFieldLocation location = CaptureNativeMenuFieldLocation(current);
             bool timerDisplay = services.ExamTimer!.DisplayEnabled;
-            PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Reset(), false);
+            PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Reset(), false, location, markPrimaryControllerPending: true);
             partyMenu = current with { Phase = NativePartyMenuPhase.Entering, Callbacks = 1, TimerDisplayBeforeMenu = timerDisplay };
         }
         else if (current.Phase == NativePartyMenuPhase.Entering)
@@ -127,7 +166,7 @@ public sealed partial class EventEngine
         {
             NativeSalaryPresentation salary = current.Phase == NativePartyMenuPhase.Active ? services.SalaryPresentation!.Advance(1) : services.SalaryPresentation!;
             bool? timerDisplay = current.Phase == NativePartyMenuPhase.Restoring ? current.TimerDisplayBeforeMenu : null;
-            PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, salary, timerDisplay);
+            PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, salary, timerDisplay, advanceVibration: current.Phase == NativePartyMenuPhase.Active, clearControllerRequests: current.Phase == NativePartyMenuPhase.Teardown);
             NativePartyMenuPhase nextPhase = current.Phase switch
             {
                 NativePartyMenuPhase.Closing => NativePartyMenuPhase.Teardown,
@@ -170,7 +209,7 @@ public sealed partial class EventEngine
         NativeCharacterVitals vitals = services.CharacterVitals!;
         byte[] fieldParty = vitals.PreparePartyMenuFieldSlots(Scene.Party, current.TemporaryCombatParty!);
         NativeCharacterVitals next = (vitals with { CombatParty = current.TemporaryCombatParty!.ToArray() }).RebuildParty();
-        PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1));
+        PublishPartyMenuCallback(next, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
         Scene.Party.Clear();
         Scene.Party.AddRange(fieldParty.Select(value => (int)value));
         partyMenu = current with { Phase = NativePartyMenuPhase.Closing, Callbacks = checked(current.Callbacks + 1) };
@@ -230,6 +269,10 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Completed party menu differs from its confirmed saved combat party.");
             }
+        }
+        if (menu.Phase != NativePartyMenuPhase.Requested && (saved.NativeFieldLocation is not NativeFieldLocation location || location.FieldId != menu.FieldId || location.ProgramHash != menu.ProgramHash || location.ExecutableHash != menu.ExecutableHash || location.Frame != menu.Frame || location.ObjectId != menu.ObjectId || location.ScriptId != menu.ScriptId || location.Operation != menu.Operation))
+        {
+            throw new InvalidDataException("Saved menu lacks its actual470250 capture before the replacement menu callback.");
         }
         if (menu.Phase is not (NativePartyMenuPhase.Requested or NativePartyMenuPhase.FieldReentry) && saved.ExamTimer?.DisplayEnabled != false || menu.Phase == NativePartyMenuPhase.FieldReentry && saved.ExamTimer?.DisplayEnabled != menu.TimerDisplayBeforeMenu)
         {

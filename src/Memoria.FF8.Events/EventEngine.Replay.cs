@@ -20,12 +20,12 @@ public sealed partial class EventEngine
         recordedMemoryDigest = ReplayMemoryDigest();
     }
 
-    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null)
+    public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null, NativeMenuFieldReentry? menuReentry = null)
     {
         ReplayJournalEntry input = ReplayBoundary(ReplayEntryKind.FieldLoad) with { FieldId = fieldId, Frame = 0, NativeSourceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm)), Text = nativeRuntimeProfile?.ExecutableHash };
         RunReplay(input, () =>
         {
-            LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext);
+            LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext, menuReentry);
             return true;
         });
     }
