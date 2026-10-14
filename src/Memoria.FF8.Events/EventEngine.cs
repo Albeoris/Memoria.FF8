@@ -272,7 +272,7 @@ public sealed partial class EventEngine
         StepVisualTransitions();
         StepBackgroundShadeLoops();
         int currentGeneration = generation;
-        foreach (ActorState actor in actors)
+        foreach (ActorState actor in NativeCallbackActors())
         {
             DispatchNativePushContact(actor);
             DispatchInfAreaEntry(actor);
@@ -529,6 +529,7 @@ public sealed partial class EventEngine
             {
                 return 0;
             }
+            bool nativeRequestCompleted = NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && fiber.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
             if (fiber.WaitReason == WaitReason.MinimalMenu)
             {
                 Scene.MinimalMenuWaits.Remove(fiber.Sequence);
@@ -539,6 +540,10 @@ public sealed partial class EventEngine
             }
             fiber.WaitReason = WaitReason.None;
             fiber.Request = null;
+            if (nativeRequestCompleted)
+            {
+                return 1;
+            }
         }
         fiber.Started = true;
         // The original field VM limits each entity to 16 instructions per frame.
@@ -551,7 +556,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedRequestContext(fiber, operation);
+            string? unsupportedContext = UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
@@ -573,7 +578,7 @@ public sealed partial class EventEngine
             {
                 throw Fault(fiber, $"{operation.Opcode}: {exception.Message}", exception);
             }
-            if (fiber.Complete || fiber.WaitReason != WaitReason.None || transitionRequested)
+            if (fiber.Complete || fiber.WaitReason != WaitReason.None || transitionRequested || NativeRequestEndsTurn(fiber, operation))
             {
                 return count + 1;
             }

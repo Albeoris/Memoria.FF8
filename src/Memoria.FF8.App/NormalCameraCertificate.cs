@@ -19,6 +19,10 @@ public static class NormalCameraCertificate
         {
             return null;
         }
+        if (FixedViewportCameraCertificate.Prepare(field, scene) is BackgroundScrollFrame fixedViewport)
+        {
+            return fixedViewport;
+        }
         FieldInformation? information = field.Information;
         FieldCamera camera = field.Camera;
         bool genericLinear = NativeLinearBackgroundScrollCertificate.SupportsPhase(field, scene);

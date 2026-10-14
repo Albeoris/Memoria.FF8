@@ -1157,7 +1157,7 @@ public sealed partial class EventEngine
             throw Fault(caller, $"Request targets inactive object {objectId}; behavior requires further evidence.");
         }
         bool busy = RequestPriorityOccupied(objectId, priority);
-        if (busy && opcode == Jsm.Opcode.REQ)
+        if (busy && (opcode == Jsm.Opcode.REQ || NativeRuntimeProfile is { IsVerified: true }))
         {
             return;
         }

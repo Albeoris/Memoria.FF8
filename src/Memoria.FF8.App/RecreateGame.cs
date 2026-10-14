@@ -654,7 +654,7 @@ internal sealed class RecreateGame : Game
 
     private void UploadField(TimeSpan elapsed)
     {
-        if (session.State.Scene != SceneKind.WorldMap && FieldPresentationReadiness.HasUnobservedShakeOutput(world!.Events.Scene.Shake))
+        if (session.State.Scene != SceneKind.WorldMap && (FieldPresentationReadiness.HasPendingInitialization(world!.Events.Scene.NativeFieldInitialization) || FieldPresentationReadiness.HasUnobservedShakeOutput(world.Events.Scene.Shake)))
         {
             return;
         }
