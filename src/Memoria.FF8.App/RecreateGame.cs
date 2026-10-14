@@ -38,7 +38,7 @@ internal sealed class RecreateGame : Game
     private bool frameCaptured;
     private bool fieldFaulted;
     private bool fieldRenderFaulted;
-    private bool shakeRenderDeferred;
+    private bool worldPresentationDeferred;
     private double fieldSeconds;
     private ControlQueue? controls;
     private string? pendingCapture;
@@ -686,7 +686,7 @@ internal sealed class RecreateGame : Game
 
     private void UploadField(TimeSpan elapsed)
     {
-        if (session.State.Scene != SceneKind.WorldMap && (FieldPresentationReadiness.HasPendingInitialization(world!.Events.Scene.NativeFieldInitialization) || FieldPresentationReadiness.HasUnobservedShakeOutput(world.Events.Scene.Shake)))
+        if (session.State.Scene != SceneKind.WorldMap && FieldPresentationReadiness.HasPendingInitialization(world!.Events.Scene.NativeFieldInitialization))
         {
             return;
         }
@@ -719,22 +719,16 @@ internal sealed class RecreateGame : Game
             try
             {
                 UploadField(gameplayClock.Total);
-                if (shakeRenderDeferred)
+                if (worldPresentationDeferred)
                 {
-                    shakeRenderDeferred = false;
+                    worldPresentationDeferred = false;
                     error = null;
                 }
-            }
-            catch (NativeShakeRenderException exception)
-            {
-                // Uncertain camera pixels do not stop the original VM/callback history.
-                error = exception.Message;
-                shakeRenderDeferred = true;
             }
             catch (NativeWorldPresentationDeferredException exception)
             {
                 error = exception.Message;
-                shakeRenderDeferred = true;
+                worldPresentationDeferred = true;
             }
             catch (Exception exception)
             {

@@ -313,7 +313,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native scripted MOVE lost its certified actor or current speed; original substep preserved.");
         }
-        NativeScriptDirectionQuery directionQuery = new(actor.ObjectId, state.FixedX, state.FixedY, state.TargetX, state.TargetY, state.Speed, state.StopDistance, (ushort)actor.PushRadius, state.MovementDirection, state.FacingDirection, issuing ? (short)0 : actor.NativeTurnAccumulator474!.Value, resettingHold ? (byte)0 : actor.MovementDirectionLimit, held != 0);
+        NativeScriptDirectionQuery directionQuery = new(actor.ObjectId, state.FixedX, state.FixedY, state.TargetX, state.TargetY, state.Speed, state.StopDistance, (ushort)actor.PushRadius, state.MovementDirection, state.FacingDirection, issuing && !IsNativeDirectionPoint(state) ? (short)0 : actor.NativeTurnAccumulator474!.Value, resettingHold ? (byte)0 : actor.MovementDirectionLimit, held != 0);
         NativeScriptDirectionResult direction = PrepareNativeDirectionStep(directionQuery);
         if (direction.Status != NativeScriptDirectionStatus.Moving)
         {

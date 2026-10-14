@@ -5,18 +5,18 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class WorldAssets
 {
-    private readonly Dictionary<int, NativeWorldScriptedPathDefinition> scriptedBoatPaths = [];
+    private readonly Dictionary<int, NativeWorldScriptedPathDefinition> scriptedPaths = [];
     private readonly Dictionary<byte, WorldStaticModel> scriptedStaticModels = [];
 
-    /// <summary>Reads passive original mode1 resources; this does not accept or activate a world packet.</summary>
-    public NativeWorldScriptedPathDefinition ReadScriptedBoatPath(int trackIndex)
+    /// <summary>Reads passive original mode1/2 resources; this does not accept or activate a world packet.</summary>
+    public NativeWorldScriptedPathDefinition ReadScriptedPath(int trackIndex)
     {
-        if (!scriptedBoatPaths.TryGetValue(trackIndex, out NativeWorldScriptedPathDefinition? definition))
+        if (!scriptedPaths.TryGetValue(trackIndex, out NativeWorldScriptedPathDefinition? definition))
         {
             byte[] rail = Read("rail.obj");
             byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
             definition = NativeWorldScriptedPathReader.Read(rail, wmset.AsSpan(sections[17], sections[18] - sections[17]), executable, trackIndex);
-            scriptedBoatPaths.Add(trackIndex, definition);
+            scriptedPaths.Add(trackIndex, definition);
         }
         return definition;
     }

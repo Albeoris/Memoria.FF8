@@ -36,6 +36,10 @@ public sealed partial class EventEngine
                 return exception.Message;
             }
         }
+        if (operation.Opcode is Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF)
+        {
+            return UnsupportedShake(fiber, operation);
+        }
         if (operation.Opcode == Jsm.Opcode.MESVAR)
         {
             return UnsupportedMessageVariable(fiber, operation);

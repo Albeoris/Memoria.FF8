@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -28,90 +29,77 @@ public sealed class NativeShakeTables
     public short Cosine(byte angle) => cosine[angle];
 }
 
-public sealed record NativeShakeAlternative(byte Cursor, short? Previous, short? Target, sbyte? Output);
-
-public sealed record NativeShakeAxis(bool Enabled, bool Oscillating, short? Amplitude, short Duration, short Counter, NativeShakeAlternative[] Alternatives)
+/// <summary>The fourteen physical bytes at1CE4882 or1CE4890, retained by the process across fields.</summary>
+public sealed record NativeShakeAxis([property: JsonRequired] bool Enabled, [property: JsonRequired] bool Oscillating, [property: JsonRequired] byte Cursor, [property: JsonRequired] sbyte Output, [property: JsonRequired] short Amplitude, [property: JsonRequired] short Previous, [property: JsonRequired] short Target, [property: JsonRequired] short Duration, [property: JsonRequired] short Counter)
 {
-    public static NativeShakeAxis UnknownProcessHistory()
+    public static NativeShakeAxis FromColdProcess()
     {
-        return new NativeShakeAxis(false, false, null, 0, 0, Enumerable.Range(0, 256).Select(index => new NativeShakeAlternative((byte)index, null, null, null)).ToArray());
+        // Both complete blocks lie in the authenticated PE.data zero-filled virtual tail.
+        return new NativeShakeAxis(false, false, 0, 0, 0, 0, 0, 0, 0);
     }
 
     public NativeShakeAxis ResetForLoad()
     {
+        // Native4765A0 writes only bytes0/1 and words10/12.
         return this with { Enabled = false, Oscillating = false, Duration = 0, Counter = 0 };
     }
 
-    public void Validate()
+    public NativeShakeAxis Step(NativeShakeTables? tables)
     {
-        if (Duration < 0 || Duration == short.MaxValue || Counter < 0 || Alternatives is null || Alternatives.Length != 256 || Alternatives.Any(item => item is null) || Alternatives.Select(item => item.Cursor).Distinct().Count() != 256 || (Enabled && Amplitude is null) || (Oscillating || !Enabled && Duration > Counter) && Alternatives.Any(item => item.Previous is null || item.Target is null))
-        {
-            throw new InvalidDataException("Native shake axis lost its supported signed-word phase or complete unknown cursor domain.");
-        }
-    }
-
-    public NativeShakeAxis Step(NativeShakeTables tables)
-    {
-        Validate();
         if (!Enabled && !Oscillating && Duration <= Counter)
         {
-            return Alternatives.All(item => item.Output == 0) ? this : this with { Alternatives = Alternatives.Select(item => item with { Output = 0 }).ToArray() };
+            return Output == 0 ? this : this with { Output = 0 };
+        }
+        if (tables is null)
+        {
+            throw new NotSupportedException("Native active shake requires authenticated random and cosine tables.");
         }
         if (Enabled && !Oscillating)
         {
-            // 4765C0's first active phase does not write output+3.
-            return this with { Oscillating = true, Counter = 0, Alternatives = Alternatives.Select(item => item with { Cursor = unchecked((byte)(item.Cursor + 1)), Previous = 0, Target = (short)(unchecked((short)(Amplitude!.Value * tables.Random(item.Cursor))) / 256) }).ToArray() };
+            // Native4765C0's first active phase preserves byte3 output.
+            short target = unchecked((short)(Amplitude * tables.Random(Cursor)));
+            return this with { Oscillating = true, Counter = 0, Cursor = unchecked((byte)(Cursor + 1)), Previous = 0, Target = (short)(target / 256) };
         }
-        NativeShakeAlternative[] next = Alternatives;
-        bool oscillating = Oscillating;
-        short counter = Counter;
-        if (Duration < Counter)
+        NativeShakeAxis phase = this;
+        if (Duration < Counter && Oscillating)
         {
-            counter = 0;
-            if (Enabled)
-            {
-                next = next.Select(item => item with { Cursor = unchecked((byte)(item.Cursor + 1)), Previous = item.Target, Target = (short)(unchecked((short)(Amplitude!.Value * tables.Random(item.Cursor))) / (item.Target >= 0 ? -256 : 256)) }).ToArray();
-            }
-            else
-            {
-                oscillating = false;
-                next = next.Select(item => item with { Cursor = unchecked((byte)(item.Cursor + 1)), Previous = item.Target, Target = 0 }).ToArray();
-            }
+            short target = Enabled ? (short)(unchecked((short)(Amplitude * tables.Random(Cursor))) / (Target >= 0 ? -256 : 256)) : (short)0;
+            phase = phase with { Counter = 0, Previous = Target, Target = target, Cursor = unchecked((byte)(Cursor + 1)), Oscillating = Enabled };
         }
-        byte angle = Duration == 0 ? (byte)0 : unchecked((byte)((counter << 12) / Duration / 32 + 128));
+        byte angle = phase.Duration == 0 ? (byte)0 : unchecked((byte)((phase.Counter << 12) / phase.Duration / 32 + 128));
         int weight = tables.Cosine(angle) + 4096;
-        next = next.Select(item => item with { Output = unchecked((sbyte)(item.Previous!.Value + (item.Target!.Value - item.Previous.Value) * weight / 8192)) }).ToArray();
-        return this with { Oscillating = oscillating, Counter = checked((short)(counter + 1)), Alternatives = next };
-    }
-
-    public sbyte RequireUniqueOutput()
-    {
-        Validate();
-        sbyte? value = Alternatives[0].Output;
-        if (value is null || Alternatives.Any(item => item.Output != value))
-        {
-            throw new NativeShakeRenderException("Native camera shake has multiple possible historical cursor outputs; no guessed pixel displacement is rendered.");
-        }
-        return value.Value;
+        sbyte output = unchecked((sbyte)(phase.Previous + (phase.Target - phase.Previous) * weight / 8192));
+        return phase with { Output = output, Counter = unchecked((short)(phase.Counter + 1)) };
     }
 }
 
-public sealed record NativeFieldShake(int Version, string ExecutableHash, NativeShakeAxis X, NativeShakeAxis Y)
+public sealed record NativeFieldShake([property: JsonRequired] int Version, [property: JsonRequired] string ExecutableHash, [property: JsonRequired] NativeShakeAxis X, [property: JsonRequired] NativeShakeAxis Y)
 {
-    public static NativeFieldShake UnknownProcessHistory()
+    public static NativeFieldShake FromColdProcess()
     {
-        return new NativeFieldShake(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, NativeShakeAxis.UnknownProcessHistory(), NativeShakeAxis.UnknownProcessHistory());
+        return new NativeFieldShake(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, NativeShakeAxis.FromColdProcess(), NativeShakeAxis.FromColdProcess());
     }
+
+    [JsonIgnore]
+    public bool IsColdProcess => this == FromColdProcess();
 
     public void Validate()
     {
         if (Version != 1 || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || X is null || Y is null)
         {
-            throw new InvalidDataException("Native camera shake has no original runtime provenance.");
+            throw new InvalidDataException("Native camera shake has no original current process provenance.");
         }
-        X.Validate();
-        Y.Validate();
     }
 
-    public NativeFieldShake ResetForLoad() => this with { X = X.ResetForLoad(), Y = Y.ResetForLoad() };
+    public NativeFieldShake ResetForLoad()
+    {
+        Validate();
+        return this with { X = X.ResetForLoad(), Y = Y.ResetForLoad() };
+    }
+
+    public NativeFieldShake Step(NativeShakeTables? tables)
+    {
+        Validate();
+        return this with { X = X.Step(tables), Y = Y.Step(tables) };
+    }
 }

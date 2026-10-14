@@ -26,8 +26,8 @@ public sealed class NativeBoatWorldTests
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(departure, directory, packet);
         Assert.Same(departure, session.State);
         Assert.Equal(0, ticket.InitialState.Frame);
-        Assert.Null(ticket.InitialState.NativeBoatRuntime!.Path.ModelAngles);
-        Assert.Null(ticket.InitialState.NativeBoatRuntime.Path.ModelProjection);
+        Assert.Null(ticket.InitialState.NativeScriptedRuntime!.Path.Presentation[1].Angles);
+        Assert.Null(ticket.InitialState.NativeScriptedRuntime.Path.Presentation[1].Projection);
         session.CommitPreparedWorldEntry(packet, ticket.InitialState, session.WorldControls!, ticket.ValidateAdoption, ticket.InitialSavedWorld);
         using WorldMapScene scene = ticket.Adopt(session);
         Assert.True(scene.IsPresentationDeferred);
@@ -36,12 +36,12 @@ public sealed class NativeBoatWorldTests
         PlayerActionResult first = scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1));
         Assert.Equal(1, first.FramesAdvanced);
         Assert.False(scene.IsPresentationDeferred);
-        NativeWorldScriptedPathState path = scene.State.NativeBoatRuntime!.Path;
+        NativeWorldScriptedPathState path = scene.State.NativeScriptedRuntime!.Path;
         Assert.Equal(1, path.Callback);
         Assert.Equal(123u, session.SeeD!.SalaryMovementCounter);
         Assert.Equal((ushort)65535, session.SeeD.RankPoints);
-        Assert.NotNull(path.ModelAngles);
-        Assert.NotNull(path.ModelProjection);
+        Assert.NotNull(path.Presentation[1].Angles);
+        Assert.NotNull(path.Presentation[1].Projection);
         Assert.Equal(beforeCallback.World!.X, scene.State.X);
         Assert.Equal(beforeCallback.World.Z, scene.State.Z);
         byte[] pixels = scene.Render(320, 224);
@@ -57,31 +57,31 @@ public sealed class NativeBoatWorldTests
         GameState restoredState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         using WorldMapScene restored = new(new GameSession(restoredState), directory);
         Assert.Equal(pixels, restored.Render(320, 224));
-        NativeWorldPathOrientationReceipt orientation = path.OrientationReceipt!;
+        NativeWorldPathOrientationReceipt orientation = path.Presentation[1].Orientation!;
         NativeWorldPathNodeProjection shiftedMiddle = orientation.Middle with { Words = orientation.Middle.Words with { X = unchecked((short)(orientation.Middle.Words.X + 1)) } };
         NativeWorldPathNodeProjection shiftedLinked = orientation.Linked with { Words = orientation.Linked.Words with { X = unchecked((short)(orientation.Linked.Words.X + 1)) } };
-        NativeWorldScriptedPathState alteredPath = path with { ModelProjection = shiftedMiddle, OrientationReceipt = orientation with { Middle = shiftedMiddle, Linked = shiftedLinked } };
+        NativeWorldScriptedPathState alteredPath = path with { Presentation = path.Presentation.SetItem(1, path.Presentation[1] with { Projection = shiftedMiddle, Orientation = orientation with { Middle = shiftedMiddle, Linked = shiftedLinked } }) };
         using (var assets = new WorldAssets(directory))
         {
-            alteredPath.Validate(assets.ReadScriptedBoatPath(11));
+            alteredPath.Validate(assets.ReadScriptedPath(11));
         }
-        NativeBoatWorldRuntimeState alteredBoat = scene.State.NativeBoatRuntime with { Path = alteredPath };
-        var alteredSession = new GameSession(session.State with { World = scene.State with { NativeBoatRuntime = alteredBoat } });
+        NativeScriptedWorldRuntimeState alteredBoat = scene.State.NativeScriptedRuntime with { Path = alteredPath };
+        var alteredSession = new GameSession(session.State with { World = scene.State with { NativeScriptedRuntime = alteredBoat } });
         GameState unchanged = alteredSession.State;
         Assert.Throws<InvalidDataException>(() => new WorldMapScene(alteredSession, directory));
         Assert.Same(unchanged, alteredSession.State);
         scene.PrepareFieldEntry = (selection, final, location, salary) =>
         {
-            NativeSavedWorldBoatReturn receipt = final.NativeBoatRuntime!.Return!;
+            NativeSavedWorldScriptedReturn receipt = final.NativeScriptedRuntime!.Return!;
             Assert.Equal(61, selection.Entry.Index);
             Assert.Equal(260, selection.Entry.FieldId);
             Assert.Equal(receipt.MapLocationId, location);
             Assert.Equal(0u, salary.MovementUnits);
             GameState current = session.State;
-            return () => session.CommitPreparedBoatFieldEntry(current, final, receipt.FieldEntry, salary, _ => { });
+            return () => session.CommitPreparedScriptedFieldEntry(current, final, receipt.FieldEntry, salary, _ => { });
         };
         Assert.Equal(229, scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 229)).FramesAdvanced);
-        Assert.True(scene.State.NativeBoatRuntime!.Path.EndpointRequested);
+        Assert.True(scene.State.NativeScriptedRuntime!.Path.EndpointRequested);
         // Declared retained UI process: native formatting starts a live phase just
         // before the already-requested departure fade; no payout history is claimed.
         NativeSalaryPresentation beforeFade = session.SalaryPresentation!.StartPayment(6, 5, 4000, 3000);
@@ -91,7 +91,7 @@ public sealed class NativeBoatWorldTests
         Assert.Equal(beforeFade, session.SalaryPresentation);
         Assert.Equal(PlayerTriggerKind.FieldTransition, completed.Trigger.Kind);
         Assert.Equal(260, session.State.FieldId);
-        Assert.Equal(230, session.State.SavedWorld!.BoatReturn!.SourceWorldFrame);
+        Assert.Equal(230, session.State.SavedWorld!.ScriptedReturn!.SourceWorldFrame);
         Assert.Equal(246, session.State.DepartingWorldState!.Frame);
         Assert.Equal(246, scene.LastDeparture!.Frame);
         Assert.Equal(pixels.Length, scene.Render(320, 224).Length);
@@ -100,13 +100,14 @@ public sealed class NativeBoatWorldTests
         // This second isolated allocation uses the genuinely executed preceding boat callbacks,
         // not a car seed or a patched retained world. Story135 selects the same original static-foot clause.
         GameState returnDeparture = session.State with { Variables = new() { [256] = 135 } };
-        NativeSavedWorldBoatReturn outboundReturn = returnDeparture.SavedWorld!.BoatReturn!;
+        NativeSavedWorldScriptedReturn outboundReturn = returnDeparture.SavedWorld!.ScriptedReturn!;
         var returnPacket = new WorldTransition(12, 66, 60);
         Assert.Throws<InvalidDataException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = returnDeparture.DepartingWorldState! with { Frame = 245 } }, directory, returnPacket));
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = previous }, directory, returnPacket));
         using PreparedWorldEntry returnTicket = WorldEntryPreflight.Prepare(returnDeparture, directory, returnPacket);
-        Assert.Equal(outboundReturn.Load, returnTicket.InitialState.NativeBoatRuntime!.Load);
-        Assert.Equal(outboundReturn, returnTicket.InitialSavedWorld!.BoatReturn);
+        NativeScriptedWorldLoadReceipt expectedReturnLoad = outboundReturn.Load with { SourceWorldFrame = returnDeparture.DepartingWorldState!.Frame };
+        Assert.Equal(expectedReturnLoad, returnTicket.InitialState.NativeScriptedRuntime!.Load);
+        Assert.Equal(outboundReturn, returnTicket.InitialSavedWorld!.ScriptedReturn);
         session.Restore(returnDeparture);
         session.CommitPreparedWorldEntry(returnPacket, returnTicket.InitialState, session.WorldControls!, returnTicket.ValidateAdoption, returnTicket.InitialSavedWorld);
         using WorldMapScene returning = returnTicket.Adopt(session);
@@ -114,13 +115,13 @@ public sealed class NativeBoatWorldTests
         returning.PrepareFieldEntry = (selection, final, location, salary) =>
         {
             Assert.Equal(60, selection.Entry.Index);
-            Assert.Equal(new FieldTransition(123, 881, 937, 25, 180), final.NativeBoatRuntime!.Return!.FieldEntry);
+            Assert.Equal(new FieldTransition(123, 881, 937, 25, 180), final.NativeScriptedRuntime!.Return!.FieldEntry);
             Assert.Equal(0u, salary.MovementUnits);
             GameState current = session.State;
-            return () => session.CommitPreparedBoatFieldEntry(current, final, final.NativeBoatRuntime.Return.FieldEntry, salary, _ => { });
+            return () => session.CommitPreparedScriptedFieldEntry(current, final, final.NativeScriptedRuntime.Return.FieldEntry, salary, _ => { });
         };
         Assert.Equal(1, returning.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced);
-        Assert.Equal(outboundReturn, session.State.SavedWorld!.BoatReturn);
+        Assert.Equal(outboundReturn, session.State.SavedWorld!.ScriptedReturn);
         byte[] returnPixels = returning.Render(320, 224);
         GameState returningRestored = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         using (WorldMapScene restoredReturn = new(new GameSession(returningRestored), directory))
@@ -131,9 +132,9 @@ public sealed class NativeBoatWorldTests
         Assert.Equal(PlayerTriggerKind.FieldTransition, returned.Trigger.Kind);
         Assert.Equal(123, session.State.FieldId);
         Assert.Equal(260, session.State.PreviousFieldId);
-        Assert.Equal((ushort)135, session.State.SavedWorld!.BoatReturn!.StoryWord);
-        Assert.Equal(returnPacket, session.State.SavedWorld.BoatReturn.Packet);
-        Assert.Equal(outboundReturn.Load, session.State.SavedWorld.BoatReturn.Load);
-        Assert.Equal(session.State.SavedWorld.BoatReturn.SourceWorldFrame + 16, session.State.DepartingWorldState!.Frame);
+        Assert.Equal((ushort)135, session.State.SavedWorld!.ScriptedReturn!.StoryWord);
+        Assert.Equal(returnPacket, session.State.SavedWorld.ScriptedReturn.Packet);
+        Assert.Equal(expectedReturnLoad, session.State.SavedWorld.ScriptedReturn.Load);
+        Assert.Equal(session.State.SavedWorld.ScriptedReturn.SourceWorldFrame + 16, session.State.DepartingWorldState!.Frame);
     }
 }

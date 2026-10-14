@@ -35,6 +35,7 @@ internal static partial class Program
                     ["salary-presentation-effects"] = NativeSalaryPresentationEffectsContract,
                     ["exam-timer"] = NativeExamTimerContract,
                     ["native-process-clock"] = NativeProcessClockContract,
+                    ["native-field-shake"] = () => NativeFieldShakeContract(selectedGameDirectory),
                     ["native-direct-scroll"] = NativeCurrentDirectScrollContract,
                     ["native-scalar-memory"] = NativeScalarMemoryContract,
                     ["native-scalar-calculation"] = NativeScalarCalculationContract,
@@ -87,6 +88,9 @@ internal static partial class Program
                     ["native-dialogue-busy"] = NativeDialogueBusyContract,
                     ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
+                    ["native-facedir"] = NativeFacePointContract,
+                    ["native-face-angles"] = FaceDirectionAnglesAndResume,
+                    ["native-dirp"] = () => NativeDirectionPointContract(selectedGameDirectory),
                     ["native-join-direction-limit"] = () => NativeJoinDirectionLimitContract(selectedGameDirectory),
                     ["native-meaningful-contact"] = NativeMeaningfulContactContract,
                     ["native-rmovea"] = NativeRmMoveActorContract,
@@ -641,7 +645,7 @@ internal static partial class Program
         (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
         byte[] program = SyntheticObjects([0, 16 << 7], [source, target]);
         GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables) { ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0), ReadFaceAnchorHeight = _ => 0 };
+        EventEngine engine = new(session, session.State.Variables) { ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0), ReadFaceAnchorHeight = _ => 0, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
         engine.LoadField(100, program, []);
         // The target must have run its original SET3 before the caller captures it.
         engine.Step();
@@ -651,7 +655,7 @@ internal static partial class Program
         Require(engine.Actors[0].FirstControlRotation is System.Numerics.Vector3 firstRotation && Math.Abs(firstRotation.Y - MathF.Tau / 256) < 0.00001 && Math.Abs(firstRotation.Z + MathF.Tau / 256) < 0.00001, "Native first cosine sample did not truncate to pitch1/yaw1.");
         var snapshot = engine.Capture();
         GameSession otherSession = new(new GameState());
-        EventEngine restored = new(otherSession, otherSession.State.Variables) { ReadFaceBaseline = engine.ReadFaceBaseline, ReadFaceAnchorHeight = engine.ReadFaceAnchorHeight };
+        EventEngine restored = new(otherSession, otherSession.State.Variables) { ReadFaceBaseline = engine.ReadFaceBaseline, ReadFaceAnchorHeight = engine.ReadFaceAnchorHeight, ResolveNativeActorFacing = engine.ResolveNativeActorFacing };
         restored.LoadField(100, program, []);
         restored.Restore(snapshot);
         Require(snapshot.GetRawText() == restored.Capture().GetRawText(), "Face transition snapshot changed its captured point, override or cosine phase.");
@@ -687,6 +691,7 @@ internal static partial class Program
                 return new FaceDirectionBaseline((int)MathF.Round(angles.Y * 4096 / MathF.Tau) / 16, (int)MathF.Round(angles.Z * 4096 / MathF.Tau) / 16, (int)MathF.Round(angles.X * 4096 / MathF.Tau) / 16);
             };
             engine.ReadFaceAnchorHeight = actor => field.Models[actor.ModelId].GetFirstControlBoneHeight(actor.AnimationId, actor.AnimationFrame, 0, actor.FirstControlRotation);
+            engine.ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY);
             engine.LoadField(232, field.Jsm, field.Messages);
             return engine;
         }

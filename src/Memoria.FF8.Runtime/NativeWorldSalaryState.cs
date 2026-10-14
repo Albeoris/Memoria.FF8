@@ -41,7 +41,7 @@ public sealed record NativeWorldSalaryState
 
     public GameState ApplyTo(GameState candidate, WorldState finalWorld)
     {
-        if (Departure.Scene != SceneKind.WorldMap || Departure.World is null || Callbacks != finalWorld.Frame - Departure.World.Frame || MovementUnits > (ulong)Callbacks * 5792 || finalWorld.NativeBoatRuntime is not null && MovementUnits != 0)
+        if (Departure.Scene != SceneKind.WorldMap || Departure.World is null || Callbacks != finalWorld.Frame - Departure.World.Frame || MovementUnits > (ulong)Callbacks * 5792 || finalWorld.NativeScriptedRuntime is not null && MovementUnits != 0)
         {
             throw new InvalidDataException("World salary owners do not belong to the actual callback sequence.");
         }

@@ -91,6 +91,7 @@ public sealed partial class EventEngine
         ValidatePreviousWorldEntityLoad(fieldId, jsm, worldEntityAllocationContext);
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
         JsmProgram next = JsmProgram.Read(jsm);
+        ResetNativeShakeForLoad(nativeRuntimeProfile);
         InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
         if (program is null && fieldId == 74)
         {
@@ -147,7 +148,6 @@ public sealed partial class EventEngine
         // This loader executes normal471F70 entry kinds0..2, which clear1CE477C.
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
         pendingNativePlayerInput = null;
-        Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
         Scene.VibrationRequest = previousScene.VibrationRequest;
@@ -240,6 +240,7 @@ public sealed partial class EventEngine
         {
             return;
         }
+        ValidateNativeShakeCallback();
         NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
         NativeEconomy? economySample = PrepareNativeGilBeforeVm(salarySample?.Economy ?? services.Economy);
         NativeSalaryEffects? salaryEffects = salarySample is null ? null : PrepareSalaryEffects(salarySample, services.SalaryPresentation, services.GlobalSoundProcess);
@@ -735,7 +736,7 @@ public sealed partial class EventEngine
         return fiber.WaitReason switch
         {
             WaitReason.SoundResource => SoundResourceReady(fiber),
-            WaitReason.FaceDirection => actor.FaceProgress >= actor.FaceDuration,
+            WaitReason.FaceDirection => actor.FaceProgress == actor.FaceDuration,
             WaitReason.PartyJoin => true,
             WaitReason.PartySplit => true,
             WaitReason.NativeScriptMovement => true,

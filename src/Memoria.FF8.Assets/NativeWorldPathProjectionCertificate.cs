@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-/// <summary>552EB0/544490/5470E0 sector-relative boat node projection with explicit native rounding intervals.</summary>
+/// <summary>552EB0/544490/5470E0 sector-relative scripted node projection with explicit native rounding intervals.</summary>
 public sealed class NativeWorldPathProjectionCertificate
 {
     private readonly record struct Range(int Low, int High)
@@ -88,9 +88,9 @@ public sealed class NativeWorldPathProjectionCertificate
     public static NativeWorldPathProjectionCertificate Create(NativeWorldPathCamera camera, NativeWorldPathPosition callbackEntityOrigin, byte entityType)
     {
         ArgumentNullException.ThrowIfNull(camera);
-        if (entityType is not (65 or 66))
+        if (entityType is not (65 or 66) && entityType is not (>= 16 and <= 22))
         {
-            throw new NotSupportedException("Native scripted projection setup requires the executed65/66 entity branch, not inferred foot camera defaults.");
+            throw new NotSupportedException("Native scripted projection setup requires the executed16..22/65/66 entity branch, not inferred foot camera defaults.");
         }
         if (callbackEntityOrigin.X is < -131072 or >= 131072 || callbackEntityOrigin.Z is <= -98304 or > 98304)
         {

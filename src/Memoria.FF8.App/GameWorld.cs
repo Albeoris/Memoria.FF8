@@ -249,17 +249,16 @@ internal sealed partial class GameWorld : IDisposable
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
         BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
         DebugSceneView? view = session.State.DebugView;
-        if (Events.Scene.Shake is NativeFieldShake shake)
+        NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; recreate the session journal.");
+        shake.Validate();
+        Vector2 jitter = new(shake.X.Output, shake.Y.Output);
+        if (jitter != Vector2.Zero)
         {
-            Vector2 jitter = new(shake.X.RequireUniqueOutput(), shake.Y.RequireUniqueOutput());
-            if (jitter != Vector2.Zero)
+            if (scroll.NativeWrap is not null)
             {
-                if (scroll.NativeWrap is not null)
-                {
-                    throw new NotSupportedException("Native wrapped background shake placement requires a separate shared renderer contract.");
-                }
-                scroll = new BackgroundScrollFrame(Field!.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => scroll.LayerOffsets.GetValueOrDefault(layer) + jitter), scroll.ActorOffset + jitter);
+                throw new NotSupportedException("Native wrapped background shake placement requires a separate shared renderer contract.");
             }
+            scroll = new BackgroundScrollFrame(Field!.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => layer, layer => scroll.LayerOffsets.GetValueOrDefault(layer) + jitter), scroll.ActorOffset + jitter);
         }
         byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap);
         FieldColorComposite.Apply(pixels, Events.Scene.AdditiveColor, Events.Scene.SubtractiveColor);

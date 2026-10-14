@@ -59,14 +59,14 @@ internal sealed partial class GameWorld
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(departure);
         FieldTransition transition = new(selection.Entry.FieldId, selection.Entry.X, selection.Entry.Y, selection.Entry.Triangle, selection.Entry.Direction);
-        if (finalWorld.NativeBoatRuntime is not null)
+        if (finalWorld.NativeScriptedRuntime is not null)
         {
-            NativeSavedWorldBoatReturn boatReceipt = finalWorld.NativeBoatRuntime.Return ?? throw new NotSupportedException("Boat field entry has no actual endpoint saved globals.");
-            if (selection.Entry.Index != unchecked((byte)boatReceipt.Packet.Extra) || transition != boatReceipt.FieldEntry || mapLocationId != boatReceipt.MapLocationId)
+            NativeSavedWorldScriptedReturn scriptedReceipt = finalWorld.NativeScriptedRuntime.Return ?? throw new NotSupportedException("Boat field entry has no actual endpoint saved globals.");
+            if (selection.Entry.Index != unchecked((byte)scriptedReceipt.Packet.Extra) || transition != scriptedReceipt.FieldEntry || mapLocationId != scriptedReceipt.MapLocationId)
             {
-                throw new InvalidDataException("Prepared boat arrival differs from its original terminal row or endpoint map metadata.");
+                throw new InvalidDataException("Prepared scripted arrival differs from its original terminal row or endpoint map metadata.");
             }
-            return () => session.CommitPreparedBoatFieldEntry(departure, finalWorld, transition, salary, candidate => ValidatePreparedField(candidate));
+            return () => session.CommitPreparedScriptedFieldEntry(departure, finalWorld, transition, salary, candidate => ValidatePreparedField(candidate));
         }
         if (finalWorld.NativeCarRuntime is not null)
         {

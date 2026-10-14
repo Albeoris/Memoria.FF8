@@ -16,8 +16,11 @@ public sealed class NativeCarFieldRenderTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Reached original car journal and installed game are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.Load(source), directory);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic route journal and installed game are required.");
+        ReplayJournalEntry[] entries = GameSession.LoadReplaySource(source).ReplayJournal!.GetCommittedPrefix().Entries.ToArray();
+        int departure = Array.FindIndex(entries, entry => entry.Scene == SceneKind.Field && entry.FieldId == 262 && entry.ResultScene == SceneKind.WorldMap);
+        Assert.True(departure > 0, "Authentic journal must include the actual car-field departure.");
+        GameState current = ExamTimerContinuationTests.RecreateRecordedPrefix(source, directory, departure);
         Assert.Equal(262, current.FieldId);
         GameSession session = new(current);
         using GameWorld world = new(session, directory, persistReplayJournal: false);
@@ -27,8 +30,8 @@ public sealed class NativeCarFieldRenderTests
         Assert.True(DirectBackgroundScrollCertificate.CanSet(world.Field!, world.Events.Scene, 0, -3, 4));
         Assert.False(DirectBackgroundScrollCertificate.CanSet(world.Field!, world.Events.Scene, 1, 0, 0));
         Assert.NotNull(DirectBackgroundScrollCertificate.Prepare(world.Field!, world.Events.Scene));
-        Assert.Equal(0, world.Events.Scene.Shake!.X.RequireUniqueOutput());
-        Assert.Equal(0, world.Events.Scene.Shake.Y.RequireUniqueOutput());
+        Assert.Equal(0, world.Events.FieldShake!.X.Output);
+        Assert.Equal(0, world.Events.FieldShake.Y.Output);
         byte[] pixels = world.Render(TimeSpan.Zero);
         JsonElement vm = world.Events.Capture();
         GameState saved = session.State with { EventState = vm };

@@ -27,7 +27,7 @@ public sealed record WorldState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeCarWorldRuntimeState? NativeCarRuntime { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeBoatWorldRuntimeState? NativeBoatRuntime { get; init; }
+    public NativeScriptedWorldRuntimeState? NativeScriptedRuntime { get; init; }
     public List<WorldActionRecord> Actions { get; init; } = [];
 }
 

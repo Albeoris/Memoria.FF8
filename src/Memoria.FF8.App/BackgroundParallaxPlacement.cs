@@ -57,7 +57,7 @@ internal static class BackgroundParallaxPlacement
             return TryOffset(x, y, settings, out offset);
         }
         offset = default;
-        if (!NativeNonselectedBackgroundScrollCertificate.ValidPosition(position) || !TryAxis(x, settings.OffsetX, settings.ScaleX, position.X!.Value, out int offsetX) || !TryAxis(y, settings.OffsetY, settings.ScaleY, position.Y!.Value, out int offsetY))
+        if (!NativeNonselectedBackgroundScrollCertificate.ValidPosition(position) || position.X is not short currentX || position.Y is not short currentY || !TryAxis(x, settings.OffsetX, settings.ScaleX, currentX, out int offsetX) || !TryAxis(y, settings.OffsetY, settings.ScaleY, currentY, out int offsetY))
         {
             return false;
         }

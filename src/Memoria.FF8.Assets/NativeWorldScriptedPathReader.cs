@@ -59,7 +59,7 @@ public static class NativeWorldScriptedPathReader
         int secondShape = executable[ExecutableOffset(executable, 0xC763B5 + 2 * trackIndex)];
         short frontLength = BinaryPrimitives.ReadInt16LittleEndian(executable[ExecutableOffset(executable, 0xC76460 + firstShape * 8)..]);
         short rearLength = BinaryPrimitives.ReadInt16LittleEndian(executable[ExecutableOffset(executable, 0xC76460 + secondShape * 8)..]);
-        var definition = new NativeWorldScriptedPathDefinition(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(rail)), Convert.ToHexString(SHA256.HashData(chunk)), Convert.ToHexString(SHA256.HashData(cameraSection.Slice(script, position - script))), trackIndex, frontLength, rearLength, points.MoveToImmutable(), records.ToImmutable());
+        var definition = new NativeWorldScriptedPathDefinition(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(rail)), Convert.ToHexString(SHA256.HashData(chunk)), Convert.ToHexString(SHA256.HashData(cameraSection.Slice(script, position - script))), trackIndex, checked((byte)firstShape), checked((byte)secondShape), frontLength, rearLength, points.MoveToImmutable(), records.ToImmutable());
         definition.Validate();
         return definition;
     }

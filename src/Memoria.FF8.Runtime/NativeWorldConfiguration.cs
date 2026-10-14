@@ -17,11 +17,11 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
     {
         byte entity;
         long sourceFrame = world.Frame;
-        if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat)
+        if (world.NativeScriptedRuntime is NativeScriptedWorldRuntimeState boat)
         {
             boat.Validate();
             entity = boat.Path.EntityType;
-            sourceFrame = boat.Return?.SourceWorldFrame ?? throw new NotSupportedException("Boat world configuration requires its executed endpoint packet write.");
+            sourceFrame = boat.Return?.SourceWorldFrame ?? throw new NotSupportedException("Scripted world configuration requires its executed endpoint packet write.");
         }
         else if (world.NativeCarRuntime is NativeCarWorldRuntimeState car)
         {
@@ -42,7 +42,7 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
 
     public void Validate()
     {
-        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 33 or 66)) || Rule != PacketRule && Rule != ReturnRule)
+        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 33 or >= 16 and <= 22 or 65 or 66)) || Rule != PacketRule && Rule != ReturnRule)
         {
             throw new InvalidDataException("Native world configuration lacks its original executed packet/entity authority.");
         }

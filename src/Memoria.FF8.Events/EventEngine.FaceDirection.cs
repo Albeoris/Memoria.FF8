@@ -25,21 +25,9 @@ public sealed partial class EventEngine
         }
         if (actor.FaceProgress == 0 && actor.FaceTargetPoint is Vector3 target)
         {
-            float height = ReadFaceAnchorHeight?.Invoke(actor) ?? throw new InvalidDataException("Active face transition requires its model control-node height provider.");
-            if (!float.IsFinite(height))
-            {
-                throw new InvalidDataException("Model face anchor height is not finite.");
-            }
-            float x = MathF.Floor(actor.X) + actor.DisplayOffset.X;
-            float y = MathF.Floor(actor.Y) + actor.DisplayOffset.Y;
-            float z = MathF.Floor(actor.Z) + actor.DisplayOffset.Z + (int)height;
-            int yaw = (sbyte)(byte)(NativeDirection(x, y, target.X, target.Y) - (byte)actor.Direction);
-            actor.FaceYawTarget = Math.Clamp(yaw, -(int)actor.FaceLimits.Z, (int)actor.FaceLimits.Z);
-            long dx = (long)target.X - (long)x;
-            long dy = (long)target.Y - (long)y;
-            int distance = (int)Math.Sqrt(dx * dx + dy * dy);
-            int pitch = (sbyte)(byte)NativeDirection(z, distance, target.Z, 0);
-            actor.FacePitchTarget = Math.Clamp(pitch, -(int)actor.FaceLimits.X, (int)actor.FaceLimits.X);
+            (int pitch, int yaw) = PrepareNativeFaceTargets(actor, target);
+            actor.FacePitchTarget = pitch;
+            actor.FaceYawTarget = yaw;
         }
         if (actor.FaceProgress >= actor.FaceDuration)
         {

@@ -13,7 +13,7 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
     public int? NativeOffsetZ { get; init; }
     public bool NativeProjection => NativeFoot || ScriptedFrame.HasValue;
 
-    public static WorldCamera ScriptedBoat(NativeWorldPathCamera camera, float farDistance, int skyIndex = 0)
+    public static WorldCamera ScriptedPath(NativeWorldPathCamera camera, float farDistance, int skyIndex = 0)
     {
         int dx = unchecked((short)(camera.Target.X - camera.Eye.X));
         int dy = unchecked((short)(camera.Target.Y - camera.Eye.Y));
@@ -22,12 +22,12 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
         long horizontal = (long)dx * dx + (long)dz * dz;
         if (squared is <= 0 or > int.MaxValue || horizontal > int.MaxValue)
         {
-            throw new NotSupportedException("Native boat camera distance exceeds the proved signed square-root contract.");
+            throw new NotSupportedException("Native scripted camera distance exceeds the proved signed square-root contract.");
         }
         int distance = (int)Math.Sqrt(squared);
         if (distance > short.MaxValue)
         {
-            throw new NotSupportedException("Native boat camera distance exceeds its signed WORD.");
+            throw new NotSupportedException("Native scripted camera distance exceeds its signed WORD.");
         }
         short pitch = unchecked((short)NativeWorldScriptedPathMath.NativeAngle(-dy, (int)Math.Sqrt(horizontal)));
         short yaw = unchecked((short)NativeWorldScriptedPathMath.NativeAngle(dx, dz));
@@ -68,6 +68,8 @@ public readonly record struct WorldCameraFrame(Vector3 Eye, Vector3 Forward, Vec
 /// <summary>Canonical raw native anchor and proved rail orientation; the renderer divides the anchor by16.</summary>
 public readonly record struct NativeWorldStaticModelPose(Vector3 Anchor, NativeWorldPathAngles Angles);
 
+public readonly record struct NativeWorldStaticModelDraw(WorldStaticModel Model, NativeWorldStaticModelPose Pose);
+
 /// <summary>Perspective rasterizer for selected original WMX terrain and world Squall; no installed resources are altered.</summary>
 public sealed class WorldTerrainRenderer
 {
@@ -101,11 +103,15 @@ public sealed class WorldTerrainRenderer
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
 
-    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, WorldStaticModel? staticModel = null, int staticModelTilt = 0, NativeWorldStaticModelPose? staticModelPose = null, FieldModel? avatarModel = null)
+    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
+        }
+        if (staticModels?.Any(draw => draw.Pose.Angles.Roll != 0) == true)
+        {
+            throw new NotSupportedException("Current native static-model placement requires its proved zero-roll transform.");
         }
         Array.Fill(depth, float.NegativeInfinity);
         rasterTriangles.Clear();
@@ -158,13 +164,13 @@ public sealed class WorldTerrainRenderer
         }
         if (avatarVisible)
         {
-            if (staticModel is not null)
+            DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame);
+        }
+        if (staticModels is not null)
+        {
+            foreach (NativeWorldStaticModelDraw draw in staticModels)
             {
-                DrawStaticModel(staticModel, position, heading, staticModelTilt, staticModelPose);
-            }
-            else
-            {
-                DrawAvatar(avatarModel ?? assets.Squall, position, heading, animationId, animationFrame);
+                DrawStaticModel(draw.Model, draw.Pose);
             }
         }
         foreach ((WorldTriangle triangle, Vector3 offset) in transparent.OrderByDescending(item => Vector3.DistanceSquared((item.Triangle.A + item.Triangle.B + item.Triangle.C) / 48 + item.Offset, eye)))
@@ -249,16 +255,10 @@ public sealed class WorldTerrainRenderer
         }
     }
 
-    private void DrawStaticModel(WorldStaticModel model, Vector3 position, float heading, int tilt, NativeWorldStaticModelPose? pose)
+    private void DrawStaticModel(WorldStaticModel model, NativeWorldStaticModelPose pose)
     {
-        // Native5472C0 applies car yaw-1024 and the computed model Z tilt before canonical conversion.
-        Matrix4x4 rotation = Matrix4x4.CreateRotationZ(tilt * MathF.Tau / 4096) * Matrix4x4.CreateRotationY(heading - MathF.PI / 2);
-        if (pose is NativeWorldStaticModelPose native)
-        {
-            //547B20 model14 selects56CD50: encoded Z slope, Y yaw, X0. There is no car yaw offset.
-            rotation = Matrix4x4.CreateRotationZ(native.Angles.Pitch * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(native.Angles.Yaw * 0.0015339808305725455f);
-            position = native.Anchor;
-        }
+        Matrix4x4 rotation = Matrix4x4.CreateRotationZ(pose.Angles.Pitch * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(pose.Angles.Yaw * 0.0015339808305725455f);
+        Vector3 position = pose.Anchor;
         Vector3[] vertices = model.NativeVertices.Select(vertex => Vector3.Transform(vertex, rotation)).Select(vertex => new Vector3(vertex.X, -vertex.Y, -vertex.Z) / 16 + position / 16).ToArray();
         foreach (WorldStaticFace face in model.Faces)
         {

@@ -18,7 +18,7 @@ public sealed partial class GameSession : IEventServices
 
     public static GameSession CreateColdProcess()
     {
-        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess() });
+        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess() });
     }
 
     public GameState State { get; private set; }
@@ -69,7 +69,11 @@ public sealed partial class GameSession : IEventServices
         {
             journal = journal.MarkUnavailable("Warm New Game preserves sound allocation and salary UI process history; the journal lacks its preceding producers.");
         }
-        Change(new GameState { MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
+        if (State.FieldShake?.IsColdProcess != true)
+        {
+            journal = journal.MarkUnavailable("Warm NewGame retains prior shake process history that this new journal does not contain.");
+        }
+        Change(new GameState { FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -302,7 +306,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         ValidatePreparedWorldActions(liveWorld, state);
-        GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), WorldConfiguration = PrepareBoatWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) }, state);
+        GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareScriptedWorldSave(departure, state), WorldConfiguration = PrepareScriptedWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) }, state);
         Validate(candidate);
         State = candidate;
     }
@@ -488,6 +492,7 @@ public sealed partial class GameSession : IEventServices
         ValidateCardInventoryCheckpoint(state, currentVm);
         ValidateEconomyCheckpoint(state, currentVm);
         ValidatePresentationProcessCheckpoint(state, currentVm);
+        ValidateFieldShakeCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -610,6 +615,7 @@ public sealed partial class GameSession : IEventServices
         state.Economy?.Validate();
         state.GlobalSoundProcess?.Validate();
         state.SalaryPresentation?.Validate();
+        state.FieldShake?.Validate();
         if (state.Economy is not null)
         {
             ValidateEconomyAliases(state.Variables, state.NativeVariableValues);
@@ -662,9 +668,9 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
             }
-            if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat && (state.Scene != SceneKind.WorldMap || state.WorldArrival != boat.Path.Packet || boat.Return is null && (state.SavedWorld is null || state.DepartingWorldState is null || boat.Load != NativeBoatWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, boat.Load.FootRecord0)) || boat.Return is not null && (state.SavedWorld?.BoatReturn != boat.Return || boat.Return.LastFieldId != state.FieldId || boat.Return.StoryWord != state.Variables.GetValueOrDefault(256))))
+            if (world.NativeScriptedRuntime is NativeScriptedWorldRuntimeState scripted && (state.Scene != SceneKind.WorldMap || state.WorldArrival != scripted.Path.Packet || scripted.Return is null && (state.SavedWorld is null || state.DepartingWorldState is null || scripted.Load != NativeScriptedWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, scripted.Load.FootRecord0)) || scripted.Return is not null && (state.SavedWorld?.ScriptedReturn != scripted.Return || scripted.Return.LastFieldId != state.FieldId || scripted.Return.StoryWord != state.Variables.GetValueOrDefault(256))))
             {
-                throw new InvalidDataException("Native boat world state disagrees with its original packet or retained world/object record.");
+                throw new InvalidDataException("Native scripted world state disagrees with its original packet or retained world/object record.");
             }
         }
         if (state.DepartingWorldState is WorldState departingWorld)
@@ -677,16 +683,16 @@ public sealed partial class GameSession : IEventServices
     {
         world.NativeFootRuntime?.Validate();
         world.NativeCarRuntime?.Validate();
-        world.NativeBoatRuntime?.Validate();
-        if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeBoatRuntime is not null ? 1 : 0) > 1)
+        world.NativeScriptedRuntime?.Validate();
+        if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeScriptedRuntime is not null ? 1 : 0) > 1)
         {
-            throw new InvalidDataException("A world scene cannot simultaneously own foot and car runtime authority.");
+            throw new InvalidDataException("A world scene cannot simultaneously own foot, car and scripted runtime authority.");
         }
-        if (world.NativeBoatRuntime is NativeBoatWorldRuntimeState boat && (world.Frame != boat.Path.Callback || world.X != boat.Path.EntityPosition.X || world.Z != unchecked(-boat.Path.EntityPosition.Z) || world.NativeHeight != boat.Path.EntityPosition.Y || world.BodyYaw != boat.Load.RetainedBodyYaw || world.CameraYaw != NativeSavedWorldBoatReturn.CameraYaw(boat.Path.Camera)))
+        if (world.NativeScriptedRuntime is NativeScriptedWorldRuntimeState scripted && (world.Frame != scripted.Path.Callback || world.X != scripted.Path.EntityPosition.X || world.Z != unchecked(-scripted.Path.EntityPosition.Z) || world.NativeHeight != scripted.Path.EntityPosition.Y || world.BodyYaw != scripted.Load.RetainedBodyYaw || world.CameraYaw != NativeSavedWorldScriptedReturn.CameraYaw(scripted.Path.Camera)))
         {
-            throw new InvalidDataException("World boat projection globals disagree with their executed native callback.");
+            throw new InvalidDataException("World scripted projection globals disagree with their executed native callback.");
         }
-        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.NativeBoatRuntime is null && world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
+        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.NativeScriptedRuntime is null && world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
         {
             throw new InvalidDataException("Invalid world checkpoint.");
         }

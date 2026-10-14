@@ -33,12 +33,27 @@ internal static class NativeNonselectedBackgroundScrollCertificate
 
     internal static bool ValidPosition(BackgroundScrollPosition position)
     {
-        return InRange(position.X) && InRange(position.Y) && (NativeLinearScrollPhase.IsValid(position) || position is { Mode: 3, Status: 2, NativeLinearVersion: 0, Counter: 0 } && position.X == position.TargetX && position.Y == position.TargetY);
+        if (position.Mode == 3)
+        {
+            // 520FA0 leaves current/previous/counter untouched until post-VM
+            // 475DF0 commits the target. Another actor VM may issue DSCROLL2
+            // while this same callback still contains a pending direct row.
+            return DirectBackgroundScrollCertificate.ValidPosition(position);
+        }
+        return InRange(position.X) && InRange(position.Y) && NativeLinearScrollPhase.IsValid(position);
     }
 
     internal static bool SupportsRetainedPosition(FieldAssets field, SceneEventState scene, int layer, BackgroundScrollPosition position)
     {
-        return layer is >= 1 and <= 7 && field.Information is { BackgroundWrapMask: 0 } && field.Background.Any(tile => tile.Layer == layer) && ValidPosition(position) && SupportsEndpoint(field, scene, layer, position.X!.Value, position.Y!.Value) && (position.Mode != 4 || SupportsEndpoint(field, scene, layer, position.TargetX, position.TargetY) && (position.Status == 0 || SupportsEndpoint(field, scene, layer, position.PreviousX!.Value, position.PreviousY!.Value)));
+        if (layer is < 1 or > 7 || field.Information is not { BackgroundWrapMask: 0 } || !field.Background.Any(tile => tile.Layer == layer) || !ValidPosition(position))
+        {
+            return false;
+        }
+        if (position.Mode == 3 && position.Status == 0)
+        {
+            return SupportsEndpoint(field, scene, layer, position.TargetX, position.TargetY) && (position.X is null || InRange(position.X) && InRange(position.Y) && SupportsEndpoint(field, scene, layer, position.X.Value, position.Y!.Value));
+        }
+        return position.X is short currentX && position.Y is short currentY && SupportsEndpoint(field, scene, layer, currentX, currentY) && (position.Mode != 4 || SupportsEndpoint(field, scene, layer, position.TargetX, position.TargetY) && (position.Status == 0 || SupportsEndpoint(field, scene, layer, position.PreviousX!.Value, position.PreviousY!.Value)));
     }
 
     private static bool HasBaseline(FieldAssets field, SceneEventState scene)

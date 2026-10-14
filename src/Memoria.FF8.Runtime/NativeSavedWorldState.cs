@@ -133,7 +133,7 @@ public sealed record NativeSavedWorldState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldCarReturn? CarReturn { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeSavedWorldBoatReturn? BoatReturn { get; init; }
+    public NativeSavedWorldScriptedReturn? ScriptedReturn { get; init; }
     /// <summary>Saved-world +110 initialized by native New Game whole-save zeroing.</summary>
     [JsonRequired]
     public byte? InitialMapDisplayMode110 { get; init; }
@@ -141,7 +141,7 @@ public sealed record NativeSavedWorldState
     public byte ReadMapDisplayModeForFreshFootLoader()
     {
         Validate();
-        if (BoatReturn is NativeSavedWorldBoatReturn boat)
+        if (ScriptedReturn is NativeSavedWorldScriptedReturn boat)
         {
             return boat.MapDisplayMode110;
         }
@@ -162,7 +162,7 @@ public sealed record NativeSavedWorldState
         ArgumentNullException.ThrowIfNull(receipt);
         Validate();
         receipt.Validate();
-        return this with { FootReturn = receipt, CarReturn = null, BoatReturn = null };
+        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null };
     }
 
     public NativeSavedWorldState WithCarReturn(NativeSavedWorldCarReturn receipt)
@@ -173,20 +173,21 @@ public sealed record NativeSavedWorldState
         {
             throw new InvalidDataException("The native car save requires its active shape73 vehicle slot.");
         }
-        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, BoatReturn = null };
+        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null };
     }
 
-    public NativeSavedWorldState WithBoatReturn(NativeSavedWorldBoatReturn receipt)
+    public NativeSavedWorldState WithScriptedReturn(NativeSavedWorldScriptedReturn receipt)
     {
         Validate();
         receipt.Validate();
-        bool retainedCar = CarReturn is NativeSavedWorldCarReturn car && car.SourceWorldFrame == receipt.Load.CarSourceFrame && car.Pose.Yaw == receipt.Load.RetainedBodyYaw;
-        bool retainedBoat = BoatReturn is NativeSavedWorldBoatReturn boat && boat.Load == receipt.Load;
-        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedBoat)
+        bool retainedCar = CarReturn is NativeSavedWorldCarReturn car && car.SourceWorldFrame == receipt.Load.SourceWorldFrame && car.Pose.Yaw == receipt.Load.RetainedBodyYaw && car.MapDisplayMode110 == receipt.Load.MapDisplayMode;
+        bool retainedFoot = FootReturn is NativeSavedWorldFootReturn foot && foot.SourceWorldFrame == receipt.Load.SourceWorldFrame && foot.Pose0.Yaw == receipt.Load.RetainedBodyYaw && foot.MapDisplayMode110 == receipt.Load.MapDisplayMode;
+        bool retainedScripted = ScriptedReturn is NativeSavedWorldScriptedReturn prior && prior.SourceWorldFrame + 16 == receipt.Load.SourceWorldFrame && prior.Load.RetainedBodyYaw == receipt.Load.RetainedBodyYaw && prior.MapDisplayMode110 == receipt.Load.MapDisplayMode;
+        if (Slot4 != receipt.Load.Slot4 || Slot5 != receipt.Load.Slot5 || !retainedCar && !retainedFoot && !retainedScripted)
         {
-            throw new InvalidDataException("Native boat save differs from its retained original object/vehicle records.");
+            throw new InvalidDataException("Native scripted save differs from its preceding return and retained original object/vehicle records.");
         }
-        return this with { FootReturn = null, CarReturn = null, BoatReturn = receipt };
+        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt };
     }
 
     public NativeSavedWorldState WithOrdinaryCarEntry()
@@ -196,7 +197,7 @@ public sealed record NativeSavedWorldState
         {
             throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
         }
-        return this with { Slot4 = Slot4 with { ShapeId = 73 }, CarReturn = null, BoatReturn = null };
+        return this with { Slot4 = Slot4 with { ShapeId = 73 }, CarReturn = null, ScriptedReturn = null };
     }
 
     public static NativeSavedWorldState CreateNewGame()
@@ -216,10 +217,10 @@ public sealed record NativeSavedWorldState
         }
         FootReturn?.Validate();
         CarReturn?.Validate();
-        BoatReturn?.Validate();
-        if (BoatReturn is not null && (FootReturn is not null || CarReturn is not null || Slot4 != BoatReturn.Load.Slot4 || Slot5 != BoatReturn.Load.Slot5))
+        ScriptedReturn?.Validate();
+        if (ScriptedReturn is not null && (FootReturn is not null || CarReturn is not null || Slot4 != ScriptedReturn.Load.Slot4 || Slot5 != ScriptedReturn.Load.Slot5))
         {
-            throw new InvalidDataException("Native boat return disagrees with its retained saved vehicle slots.");
+            throw new InvalidDataException("Native scripted return disagrees with its retained saved vehicle slots.");
         }
         if (CarReturn is not null && (FootReturn is not null || Slot4.ShapeId != 255 || Slot4.Pose != CarReturn.Pose))
         {

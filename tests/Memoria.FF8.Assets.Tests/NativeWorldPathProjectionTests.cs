@@ -10,7 +10,7 @@ public sealed class NativeWorldPathProjectionTests
     public void OriginalTrackElevenProjectsActualNodesAndRestoresTheirNativeReceipts()
     {
         using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
-        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedBoatPath(11);
+        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(11);
         NativeWorldScriptedPathState live = NativeWorldScriptedPathState.Create(definition, new WorldTransition(11, 66, 61), null);
         NativeWorldPathNodeProjection? Project(NativeWorldPathPosition node, NativeWorldPathCamera camera, NativeWorldPathPosition origin)
         {
@@ -27,10 +27,10 @@ public sealed class NativeWorldPathProjectionTests
             return projection;
         }
         live = live.Step(definition, Project);
-        Assert.NotNull(live.ModelProjection);
-        Assert.True(live.ModelProjection.Visible);
-        Assert.NotNull(live.ModelAngles);
-        Assert.Equal((short)0, live.ModelAngles.Pitch);
+        Assert.NotNull(live.Presentation[1].Projection);
+        Assert.True(live.Presentation[1].Projection!.Visible);
+        Assert.NotNull(live.Presentation[1].Angles);
+        Assert.Equal((short)0, live.Presentation[1].Angles!.Pitch);
         int known = 1;
         int unknown = 0;
         int visible = 1;
@@ -40,14 +40,14 @@ public sealed class NativeWorldPathProjectionTests
             live = live.Step(definition, Project);
             restored = restored.Step(definition, Project);
             Assert.Equal(JsonSerializer.Serialize(live), JsonSerializer.Serialize(restored));
-            if (live.ModelProjection is null)
+            if (live.Presentation[1].Projection is null)
             {
                 unknown++;
             }
             else
             {
                 known++;
-                visible += live.ModelProjection.Visible ? 1 : 0;
+                visible += live.Presentation[1].Projection!.Visible ? 1 : 0;
             }
         }
         Assert.Equal(230, live.Callback);

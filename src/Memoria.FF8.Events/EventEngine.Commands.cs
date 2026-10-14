@@ -265,6 +265,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PDIRA:
                 args = ExecutePartyActorDirection(fiber);
                 break;
+            case Jsm.Opcode.FACEDIR:
+                args = ExecuteNativeFacePoint(fiber);
+                break;
             case Jsm.Opcode.FACEDIRLIMIT:
                 args = Pop(fiber, 3);
                 actor.FaceLimits = new Vector3((byte)args[0], (byte)args[1], (byte)args[2]);
@@ -417,6 +420,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SET:
                 args = ExecuteNativeSet(fiber, parameter);
+                break;
+            case Jsm.Opcode.DIRP:
+                args = ExecuteNativeDirectionPoint(fiber);
                 break;
             case Jsm.Opcode.DIR:
                 args = Pop(fiber, 1);

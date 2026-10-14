@@ -43,7 +43,7 @@ public sealed class OpeningPresentationTests
 
     private static bool RenderOpeningFrame(GameWorld world)
     {
-        if (FieldPresentationReadiness.HasUnobservedShakeOutput(world.Events.Scene.Shake))
+        if (FieldPresentationReadiness.HasPendingInitialization(world.Events.Scene.NativeFieldInitialization))
         {
             return false;
         }
