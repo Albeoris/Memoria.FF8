@@ -110,17 +110,19 @@ internal static class WorldTerrainNavigationGuide
         {
             int samples = Math.Max(1, (int)Math.Ceiling(Distance(from.X, from.RawZ, x, z) / 16));
             int height = from.GroundHeight;
+            probes++;
+            byte? previousType = assets.FindNativeGround(from.X, from.RawZ, replacements, height)?.Triangle.GroundType;
             for (int sample = 1; sample <= samples; sample++)
             {
                 int sampleX = from.X + (int)Math.Round((x - (double)from.X) * sample / samples);
                 int sampleZ = from.RawZ + (int)Math.Round((z - (double)from.RawZ) * sample / samples);
-                if (Probe(sampleX, sampleZ, height) is not WorldGround center)
+                if (Probe(sampleX, sampleZ, height, previousType) is not WorldGround center)
                 {
                     return null;
                 }
                 foreach ((int fanX, int fanZ) in new (int, int)[] { (-32, 0), (0, 32), (32, 0), (0, -32) })
                 {
-                    if (Probe(sampleX + fanX, sampleZ + fanZ, height) is not WorldGround fan || !AllowsEntrance(fan, sampleX + fanX, sampleZ + fanZ, terminal))
+                    if (Probe(sampleX + fanX, sampleZ + fanZ, height, previousType) is not WorldGround fan || !AllowsEntrance(fan, sampleX + fanX, sampleZ + fanZ, terminal))
                     {
                         return null;
                     }
@@ -130,7 +132,7 @@ internal static class WorldTerrainNavigationGuide
                     int radius = 32 + advisoryClearance;
                     foreach ((int fanX, int fanZ) in new (int, int)[] { (-radius, 0), (0, radius), (radius, 0), (0, -radius) })
                     {
-                        if (Probe(sampleX + fanX, sampleZ + fanZ, height) is not WorldGround fan || !AllowsEntrance(fan, sampleX + fanX, sampleZ + fanZ, terminal))
+                        if (Probe(sampleX + fanX, sampleZ + fanZ, height, previousType) is not WorldGround fan || !AllowsEntrance(fan, sampleX + fanX, sampleZ + fanZ, terminal))
                         {
                             return null;
                         }
@@ -141,14 +143,15 @@ internal static class WorldTerrainNavigationGuide
                     return null;
                 }
                 height = (int)center.Height;
+                previousType = center.Triangle.GroundType;
             }
             return new WorldTerrainWaypoint(x, z, height);
         }
 
-        WorldGround? Probe(int x, int z, int height)
+        WorldGround? Probe(int x, int z, int height, byte? previousType)
         {
             probes++;
-            return assets.FindNativeGround(x, z, replacements, height);
+            return assets.FindNativeGround(x, z, replacements, height, previousGroundType: previousType);
         }
 
         bool AllowsEntrance(WorldGround ground, int x, int z, bool terminal)

@@ -216,6 +216,10 @@ public sealed partial class EventEngine
         foreach (ActorState actor in saved.Actors)
         {
             bool allocated = saved.Scene.NativeFieldInitialization?.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) == true && program!.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId);
+            if (allocated != (actor.NativeLadderAnimation is not null))
+            {
+                throw new InvalidDataException("Saved ladder animation bytes594..596 require the current explicit native actor allocation.");
+            }
             if (allocated && (actor.NativeMovementCompletion542 is null or > 2 || actor.NativeLandingTriangle508 is null || actor.NativeTurnAccumulator474 is null) || !allocated && (actor.NativeMovementCompletion542 is not null || actor.NativeLandingTriangle508 is not null || actor.NativeTurnAccumulator474 is not null))
             {
                 throw new InvalidDataException("Saved physical WORD474/508/542 requires current explicit native allocation state.");

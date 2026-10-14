@@ -53,7 +53,7 @@ internal sealed partial class WorldMapScene
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
         WorldState candidate = before with { Frame = before.Frame + 1, X = x, Z = z, BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight };
         EnsureCarContactCertificate(candidate);
-        int previousHeight = -before.NativeHeight + (before.GroundType is <= 5 ? 320 : 0);
+        int previousHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         // Drawing uses the prior ground pointers and lookup cache before this callback's movement query.
         (int tilt, int tiltBlend) = CarModelTilt(before, bodyYaw, car);
         int proposedMoveX = NearWrapped(x, before.X, 262144) - before.X;
@@ -68,7 +68,7 @@ internal sealed partial class WorldMapScene
             WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
             fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(candidate.X, candidate.Z, inputs.StoryWord, 33), entrance.Triangle.TextureFlags);
         }
-        int height = accepted is WorldGround selected ? unchecked((short)(-(int)selected.Height + (selected.Triangle.GroundType <= 5 ? 320 : 0))) : before.NativeHeight;
+        int height = accepted is WorldGround selected ? NativeWorldTerrain.ResolveHeight(33, -(int)selected.Height, selected.Triangle.GroundType, before.NativeHeight).Height : before.NativeHeight;
         // Accepted53BB90 retains the unrotated raw velocity, even when a sliding candidate wins.
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsZ);
         return candidate with { NativeHeight = height, GroundType = accepted?.Triangle.GroundType ?? before.GroundType, NativeCarRuntime = car with { Speed = speed, CameraFollowSpeed = follow, TerrainTiltBlend = tiltBlend, ModelTilt = tilt + tiltBlend, GroundCache = ground.Cache, GroundYaw = ground.GroundYaw } };

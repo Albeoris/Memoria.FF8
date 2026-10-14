@@ -18,7 +18,7 @@ public sealed partial class GameSession : IEventServices
 
     public static GameSession CreateColdProcess()
     {
-        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess() });
+        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess(), WorldProcess = NativeWorldProcess.FromColdProcess() });
     }
 
     public GameState State { get; private set; }
@@ -73,7 +73,11 @@ public sealed partial class GameSession : IEventServices
         {
             journal = journal.MarkUnavailable("Warm NewGame retains prior shake process history that this new journal does not contain.");
         }
-        Change(new GameState { FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
+        if (State.WorldProcess?.IsColdProcess != true)
+        {
+            journal = journal.MarkUnavailable("Warm New Game preserves the main-loop counter and world camera cooldown; the journal lacks earlier process history.");
+        }
+        Change(new GameState { WorldProcess = State.WorldProcess, FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -204,7 +208,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
         }
-        Validate(departure with { World = finalWorldState });
+        Validate(departure with { World = finalWorldState, WorldProcess = PrepareWorldProcess(departure, finalWorldState) });
         ValidatePreparedWorldActions(liveWorld, finalWorldState);
         if (transition.FieldId is < 0 or > ushort.MaxValue)
         {
@@ -236,6 +240,7 @@ public sealed partial class GameSession : IEventServices
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorldState),
+            WorldProcess = PrepareWorldProcess(departure, finalWorldState),
             SeeD = salary.SeeD
         };
         candidate = salary.ApplyTo(candidate, finalWorldState);
@@ -306,7 +311,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         ValidatePreparedWorldActions(liveWorld, state);
-        GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareScriptedWorldSave(departure, state), WorldConfiguration = PrepareScriptedWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) }, state);
+        GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareScriptedWorldSave(departure, state), WorldConfiguration = PrepareScriptedWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state), WorldProcess = PrepareWorldProcess(departure, state) }, state);
         Validate(candidate);
         State = candidate;
     }
@@ -623,6 +628,7 @@ public sealed partial class GameSession : IEventServices
         state.CardInventory?.Validate();
         state.Economy?.Validate();
         state.GlobalSoundProcess?.Validate();
+        state.WorldProcess?.Validate();
         state.SalaryPresentation?.Validate();
         state.FieldShake?.Validate();
         if (state.Economy is not null)
@@ -669,6 +675,10 @@ public sealed partial class GameSession : IEventServices
         if (state.World is WorldState world)
         {
             ValidateWorldState(world);
+            if (world.NativeFootRuntime?.Forest is NativeWorldForestState forest && (state.WorldProcess is null || forest.CameraCooldown != state.WorldProcess.CameraCooldown))
+            {
+                throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
+            }
             if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != foot.EntityType))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");

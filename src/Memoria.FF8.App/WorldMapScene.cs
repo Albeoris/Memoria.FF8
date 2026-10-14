@@ -143,7 +143,8 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original foot spawn has no native53EB80 ground lookup result.");
                     NativeWorldGroundCacheState? retained = session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache;
-                    initialFootRuntime = initialFootRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, retained) };
+                    NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest loader requires the executed main-loop/camera process history; recreate its journal.");
+                    initialFootRuntime = initialFootRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, retained), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
                     ground = initialGround.Ground;
                 }
                 WorldState initial = new()
@@ -323,11 +324,11 @@ internal sealed partial class WorldMapScene : IDisposable
             return RenderScripted(state);
         }
         EnsureContactCertificate(state);
-        WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
+        WorldCamera camera = FootCamera(state);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
         IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? [new NativeWorldStaticModelDraw(assets.ExamCar, new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(state.BodyYaw - 1024)), 0)))] : null;
-        return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models);
+        return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
     private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits)
@@ -345,6 +346,7 @@ internal sealed partial class WorldMapScene : IDisposable
         fieldEntry = null;
         NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
         foot.RequireNativeGroundState();
+        NativeWorldForestState forest = foot.Forest!;
         int inputX = Math.Sign(horizontal);
         int inputZ = -Math.Sign(vertical);
         int magnitude = inputX != 0 && inputZ != 0 ? 90 : 127;
@@ -373,18 +375,24 @@ internal sealed partial class WorldMapScene : IDisposable
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
+        byte currentGroundType = before.GroundType ?? throw new NotSupportedException("Native forest camera/emission requires the current selected polygon type.");
+        NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest camera has no executed process history.");
+        NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType);
+        int rawSpeed = (int)Math.Sqrt((long)moveX * moveX + (long)graphicsMoveZ * graphicsMoveZ);
+        forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, rawSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
+        foot = foot with { Forest = forest };
         int animation = moving ? 1 : 0;
         int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;
         int x = WrapCoordinate(before.X + moveX, 262144);
         int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
         inputProposal = new ReplayWorldNavigationStimulus(x, z);
-        EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight });
-        int previousGroundHeight = -before.NativeHeight + (before.GroundType is <= 5 ? 320 : 0);
+        EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+        int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;
         WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null);
         x = ground.X;
         z = ground.Z;
-        EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight });
+        EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         WorldGround? center = ground.Center?.Ground;
         int nativeHeight = before.NativeHeight;
         byte? groundType = before.GroundType;
@@ -395,7 +403,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
                 fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(x, z, inputs.StoryWord, foot.EntityType), accepted.Triangle.TextureFlags);
             }
-            nativeHeight = unchecked((short)(-(int)accepted.Height + (accepted.Triangle.GroundType <= 5 ? 320 : 0)));
+            nativeHeight = NativeWorldTerrain.ResolveHeight(foot.EntityType, -(int)accepted.Height, accepted.Triangle.GroundType, before.NativeHeight).Height;
             groundType = accepted.Triangle.GroundType;
         }
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsMoveZ);
@@ -430,7 +438,7 @@ internal sealed partial class WorldMapScene : IDisposable
             EnsureCarContactCertificate(state);
             return;
         }
-        WorldCamera camera = WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ) };
+        WorldCamera camera = FootCamera(state);
         double eyeX = camera.FootFrame(new Vector3(state.X, -state.NativeHeight, state.Z)).Eye.X;
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         byte entityType = state.NativeFootRuntime?.EntityType ?? throw new NotSupportedException("Native foot contacts require executed entity-type loader authority.");
@@ -440,6 +448,11 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new NotSupportedException($"Unsupported native world contact state: {result.Reason}");
         }
+    }
+
+    private static WorldCamera FootCamera(WorldState state)
+    {
+        return WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch };
     }
 
     private static int FollowCamera(int velocity, int delta, bool damping)

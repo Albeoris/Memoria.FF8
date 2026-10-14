@@ -50,6 +50,8 @@ public sealed record GameState
     public NativeSalaryPresentation? SalaryPresentation { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldShake? FieldShake { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeWorldProcess? WorldProcess { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeSeeDState? SeeD { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
@@ -109,6 +111,12 @@ public interface IEventServices
         throw new NotSupportedException("Native global sound process ownership is not implemented by this event service.");
     }
     NativeFieldShake? FieldShake => null;
+    NativeWorldProcess? WorldProcess => null;
+    bool CanStoreWorldProcess => false;
+    void SetWorldProcess(NativeWorldProcess process)
+    {
+        throw new NotSupportedException("Native world process ownership is not implemented by this event service.");
+    }
     bool CanStoreFieldShake => false;
     void SetFieldShake(NativeFieldShake state)
     {

@@ -81,8 +81,8 @@ public sealed partial class WorldAssets
         {
             throw new NotSupportedException("Native ground query requires the supported normal foot/car entity and exact signed-WORD velocity.");
         }
-        int radius = foot ? 32 : 64;
-        byte permission = foot ? (byte)0x80 : (byte)0x40;
+        int radius = NativeWorldTerrain.ProbeRadius(entityType);
+        byte permission = NativeWorldTerrain.PermissionMask(entityType);
         ValidateNativeGroundCache(prior, replacements);
         List<NativeWorldGroundAlternative> alternatives = [];
         WorldGroundSelection? center = null;

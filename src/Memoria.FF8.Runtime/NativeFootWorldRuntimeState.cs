@@ -31,6 +31,8 @@ public sealed record NativeFootWorldRuntimeState
     public int? GroundYaw { get; init; }
     [JsonRequired]
     public int? PreviousHorizontalInput { get; init; }
+    [JsonRequired]
+    public NativeWorldForestState? Forest { get; init; }
 
     public static NativeFootWorldRuntimeState CreateFirstNormalLoad(NativeSavedWorldState savedWorld, byte entityType = 0)
     {
@@ -74,6 +76,7 @@ public sealed record NativeFootWorldRuntimeState
 
     public void Validate()
     {
+        Forest?.Validate();
         GroundCache?.Validate();
         if (PreviousHorizontalInput is < -1 or > 1 || GroundYaw is < -1120 or > 1120)
         {
@@ -88,9 +91,9 @@ public sealed record NativeFootWorldRuntimeState
     public void RequireNativeGroundState()
     {
         Validate();
-        if (GroundCache is null || GroundYaw is null)
+        if (GroundCache is null || GroundYaw is null || Forest is null)
         {
-            throw new NotSupportedException("Native foot movement requires executed53E200/53EB80 ground-cache and selected-yaw authority; recreate its authentic journal.");
+            throw new NotSupportedException("Native foot movement requires executed ground-cache, selected-yaw and forest presentation authority; recreate its authentic journal.");
         }
     }
 

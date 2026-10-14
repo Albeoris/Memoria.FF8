@@ -14,6 +14,7 @@ public sealed record WorldTriangle(Vector3 A, Vector3 B, Vector3 C, Vector2 UvA,
     public int NativeBlockIndex { get; init; }
     public int NativePolygonIndex { get; init; }
     public bool Walkable => (VertexFlags & 0x80) != 0;
+    public bool Forest => GroundType <= 5;
     public bool Road => (TextureFlags & 0x20) != 0;
     public bool Water => (TextureFlags & 0x40) != 0;
     public bool Transparent => (TextureFlags & 0x10) != 0;
@@ -153,7 +154,7 @@ public sealed partial class WorldAssets : IDisposable
         return result;
     }
 
-    public WorldGround? FindNativeGround(int x, int z, IReadOnlyDictionary<int, int>? replacements = null, int? previousHeight = null, int entityType = 0)
+    public WorldGround? FindNativeGround(int x, int z, IReadOnlyDictionary<int, int>? replacements = null, int? previousHeight = null, int entityType = 0, byte? previousGroundType = null)
     {
         x = (int)Wrap(x, Columns * SegmentUnits);
         z = (int)Wrap(z, Rows * SegmentUnits);
@@ -161,8 +162,8 @@ public sealed partial class WorldAssets : IDisposable
         WorldGround? selected = null;
         foreach (WorldTriangle triangle in GetSegment(mapId, replacements).Triangles)
         {
-            byte permission = entityType == 33 ? (byte)0x40 : entityType == 0 ? (byte)0x80 : throw new NotSupportedException("Original world terrain permission for this entity is unrepresented.");
-            if ((triangle.VertexFlags & permission) == 0 || !WorldAssetReader.TryNativeHeight(triangle, x, z, out int height) || previousHeight.HasValue && Math.Abs(height - previousHeight.Value) >= 200)
+            byte permission = entityType is 0 or 1 or 33 ? Memoria.FF8.Runtime.NativeWorldTerrain.PermissionMask(entityType) : throw new NotSupportedException("Original advisory world terrain selection for this entity is unrepresented.");
+            if ((triangle.VertexFlags & permission) == 0 || !WorldAssetReader.TryNativeHeight(triangle, x, z, out int height) || previousHeight.HasValue && !triangle.Forest && previousGroundType is not <= 5 && Math.Abs(height - previousHeight.Value) >= 200)
             {
                 continue;
             }

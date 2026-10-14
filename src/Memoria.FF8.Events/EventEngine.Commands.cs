@@ -545,6 +545,9 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 actor.GetaParameter = args[0];
                 break;
+            case Jsm.Opcode.LADDERANIME:
+                args = ExecuteLadderAnimation(fiber, actor, parameter);
+                break;
             case Jsm.Opcode.SETROOTTRANS:
                 args = Pop(fiber, 1);
                 actor.RootTranslationZ = unchecked((short)args[0]);

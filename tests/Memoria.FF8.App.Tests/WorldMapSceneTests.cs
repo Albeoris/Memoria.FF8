@@ -14,6 +14,7 @@ public sealed class WorldMapSceneTests
     {
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
+        using GameWorld initialization = new(session, GameDirectory(), persistReplayJournal: false);
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10);
         if (!displayed)
@@ -178,7 +179,11 @@ public sealed class WorldMapSceneTests
 
     private static GameSession ComponentSession()
     {
-        return new GameSession(new GameState { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0), SavedWorld = NativeSavedWorldState.CreateNewGame() });
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using GameWorld initialization = new(session, GameDirectory(), persistReplayJournal: false);
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
+        return session;
     }
 
     private static string GameDirectory()

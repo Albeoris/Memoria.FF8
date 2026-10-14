@@ -46,6 +46,10 @@ public sealed class ActorState
     public int AnimationId { get; internal set; }
     [JsonInclude]
     public float AnimationFrame { get; internal set; }
+    /// <summary>Physical actor bytes594..596, zeroed by fresh530710 allocation and written by51DA00.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public NativeLadderAnimationState? NativeLadderAnimation { get; internal set; }
     [JsonInclude]
     public int AnimationSpeed { get; internal set; } = 16;
     [JsonInclude]

@@ -27,10 +27,17 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native movie flag disagrees with its active service lifecycle.");
         }
-        if (services.ExamTimer is NativeExamTimerState timer)
+        NativeWorldProcess? process = services.CanStoreWorldProcess ? services.WorldProcess?.AdvanceMainLoopCallbacks(1) : null;
+        NativeExamTimerState? timer = services.ExamTimer?.AdvanceCallbacks(movie ? NativeTimerCallbackKind.MovieField : NativeTimerCallbackKind.NormalField, 1);
+        if (process is not null)
+        {
+            // Native52DA20/52DCF0 execute4022B0 once before dispatching the field callback.
+            services.SetWorldProcess(process);
+        }
+        if (timer is not null)
         {
             // 46FEE0 samples209A798 before4767B0: normal2calls, active movie4calls.
-            services.SetExamTimer(timer.AdvanceCallbacks(movie ? NativeTimerCallbackKind.MovieField : NativeTimerCallbackKind.NormalField, 1));
+            services.SetExamTimer(timer);
         }
         Scene.FieldCallbackClock = movie ? clock with { MovieCallbacks = checked(clock.MovieCallbacks + 1) } : clock with { OrdinaryCallbacks = checked(clock.OrdinaryCallbacks + 1) };
     }

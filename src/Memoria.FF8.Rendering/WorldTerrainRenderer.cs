@@ -11,6 +11,7 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
     public Vector3? TargetPosition { get; init; }
     public WorldCameraFrame? ScriptedFrame { get; init; }
     public int? NativeOffsetZ { get; init; }
+    public short? NativePitch { get; init; }
     public bool NativeProjection => NativeFoot || ScriptedFrame.HasValue;
 
     public static WorldCamera ScriptedPath(NativeWorldPathCamera camera, float farDistance, int skyIndex = 0)
@@ -53,7 +54,7 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
 
     public WorldCameraFrame FootFrame(Vector3 playerPosition)
     {
-        Matrix4x4 rotation = Matrix4x4.CreateRotationX(-112 * MathF.Tau / 4096) * Matrix4x4.CreateRotationY(Heading);
+        Matrix4x4 rotation = Matrix4x4.CreateRotationX((NativePitch ?? -112) * MathF.Tau / 4096) * Matrix4x4.CreateRotationY(Heading);
         static Vector3 Canonical(Vector3 native) => new(native.X, -native.Y, -native.Z);
         Vector3 target = TargetPosition ?? playerPosition + Vector3.UnitY * 256;
         Vector3 eye = target + Canonical(Vector3.Transform(new Vector3(0, -341, -7168), rotation));
@@ -103,7 +104,7 @@ public sealed class WorldTerrainRenderer
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
 
-    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null)
+    public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null)
     {
         if (camera.Distance <= 0 || camera.Height <= 0 || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.FarDistance <= camera.Distance)
         {
@@ -177,6 +178,10 @@ public sealed class WorldTerrainRenderer
         {
             DrawTerrain(triangle, offset, true);
         }
+        if (forest is not null)
+        {
+            DrawForest(forest, position);
+        }
         int workers = Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
         Parallel.For(0, workers, worker =>
         {
@@ -189,6 +194,36 @@ public sealed class WorldTerrainRenderer
         });
         DrawnTriangles = rasterTriangles.Count;
         return pixels;
+    }
+
+    private void DrawForest(NativeWorldForestState forest, Vector3 position)
+    {
+        forest.Validate();
+        foreach (NativeWorldForestParticle particle in forest.Particles.Where(particle => particle.Visible))
+        {
+            NativeWorldForestEffect effect = assets.ForestTables.Effects[particle.Type - 4];
+            int frame = Math.Clamp(particle.Age / effect.FrameDuration, 0, effect.Frames - 1);
+            PixelImage texture = assets.GetForestTexture(particle.Type, frame);
+            int halfSize = particle.Scale * effect.HalfSize >> 13;
+            Matrix4x4 rotation = Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f);
+            //555B80 ->5470E0 selects the nearest periodic image around the current world entity.
+            float nearX = position.X + WorldAssets.Wrap(particle.X - position.X, 262144);
+            float nearZ = position.Z + WorldAssets.Wrap(-particle.GraphicsZ - position.Z, 196608);
+            Vector3 anchor = new(nearX, particle.NativeY, -nearZ);
+            Vector3 Point(int x, int z)
+            {
+                Vector3 native = Vector3.Transform(new Vector3(x, 0, z), rotation) + anchor;
+                return new Vector3(native.X, -native.Y, -native.Z) / 16;
+            }
+            Vertex a = new(Point(-halfSize, halfSize), Vector2.Zero);
+            Vertex b = new(Point(halfSize, halfSize), Vector2.UnitX);
+            Vertex c = new(Point(-halfSize, -halfSize), Vector2.UnitY);
+            Vertex d = new(Point(halfSize, -halfSize), Vector2.One);
+            //TODO(TD-008):. The shared CPU rasterizer
+            //does not reproduce the original GPU ordering-table depth bias or fixed GTE rounding.
+            Draw(a, b, c, texture, true);
+            Draw(c, b, d, texture, true);
+        }
     }
 
     private void DrawSky(WorldSky sky, WorldSkyGradient? nativeGradient)

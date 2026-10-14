@@ -200,6 +200,7 @@ public sealed partial class EventEngine
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
+                actors[^1].NativeLadderAnimation = new NativeLadderAnimationState(0, 0, 0);
                 actors[^1].NativeFootstepPair = new NativeFootstepPairState(1, 255, 255, new NativeFootstepPairSource(1, "Allocation", fieldId, programHash, nativeRuntimeProfile.ExecutableHash, obj.Index, -1, -1, 0));
             }
             if (obj.BackgroundModuleIndex is int moduleIndex)
