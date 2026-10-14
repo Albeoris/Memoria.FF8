@@ -244,7 +244,7 @@ public sealed class IfritCausalRecreationTests
         return new Vector2((value.A.X + value.B.X + value.C.X) / 3f, (value.A.Y + value.B.Y + value.C.Y) / 3f);
     }
 
-    private static void WalkDirectToInteraction(GameWorld world, GameSession session, int target, Func<bool>? complete = null)
+    internal static void WalkDirectToInteraction(GameWorld world, GameSession session, int target, Func<bool>? complete = null)
     {
         int unchanged = 0;
         for (int tick = 0; tick < 3000; tick++)

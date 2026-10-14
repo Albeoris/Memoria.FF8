@@ -185,6 +185,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedGetCard(fiber);
         }
+        if (UnsupportedCardMemoryAccess(operation) is string cardAccess)
+        {
+            return cardAccess;
+        }
         if (operation.Opcode == Jsm.Opcode.SAVEENABLE)
         {
             return UnsupportedSaveEnable(fiber);
