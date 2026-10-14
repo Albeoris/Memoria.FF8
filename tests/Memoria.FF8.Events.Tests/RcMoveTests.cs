@@ -45,7 +45,7 @@ internal static partial class Program
         int animation = live.Engine.Actors[0].AnimationId;
         live.Engine.Step();
         ActorState actor = live.Engine.Actors[0];
-        Require(actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { HoldsFacing: true, Asynchronous: true, AutomaticAnimation: false, DirectionLimit: 0, MovementDirection: 8, FacingDirection: 128 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 1) && actor.X == 1 && actor.Direction == 128 && actor.AnimationId == animation && !actor.MovementIgnoresWalkmesh && !live.Session.State.Variables.ContainsKey(5000), "RCMOVE lost asynchronous budget yield, distinct movement/facing bytes, grounded substep or unchanged animation.");
+        Require(actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { HoldsFacing: true, Asynchronous: true, AutomaticAnimation: false, MovementDirection: 8, FacingDirection: 128 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 1) && actor.X == 1 && actor.Direction == 128 && actor.AnimationId == animation && !actor.MovementIgnoresWalkmesh && !live.Session.State.Variables.ContainsKey(5000), "RCMOVE lost asynchronous budget yield, distinct movement/facing bytes, grounded substep or unchanged animation.");
         JsonElement saved = live.Engine.Capture();
         var restored = Create();
         restored.Engine.Restore(saved);

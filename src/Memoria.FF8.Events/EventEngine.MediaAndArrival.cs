@@ -336,18 +336,6 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeMovementCancellation(fiber);
         }
-        if (caller.MovementDirectionLimit != 0 && operation.Opcode is Jsm.Opcode.MOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.MOVEA)
-        {
-            return "Unsupported nonzero MLIMIT movement requires native prior-direction byte577 and turn-accumulator word474 consumers";
-        }
-        if (operation.Opcode == Jsm.Opcode.MLIMIT && fiber.Stack.Count != 0 && (byte)fiber.Stack.Peek() != 0 && (caller.MovementTarget is not null || caller.MovementActorId is not null))
-        {
-            return "Unsupported nonzero MLIMIT during existing scripted movement requires the native direction-limit consumer";
-        }
-        if (operation.Opcode is Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT && Enumerable.Range(0, 3).Select(ResolvePartyActor).OfType<ActorState>().Any(actor => actor.MovementDirectionLimit != 0))
-        {
-            return "Unsupported native party movement with nonzero MLIMIT requires its original direction-limit consumer";
-        }
         string? worldControlAccess = UnsupportedWorldControlAccess(operation);
         if (worldControlAccess is not null)
         {

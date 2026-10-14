@@ -18,7 +18,6 @@ public sealed class FreshPartySplitTests
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         world.EnsureField();
         JsonElement begun = world.Events.Capture();
-        Assert.True(begun.GetProperty("PartySplit").GetProperty("UsesNativeMovement").GetBoolean());
         Assert.Equal(2, begun.GetProperty("PartySplit").GetProperty("Targets").GetArrayLength());
         Assert.False(world.Events.IsUserControlEnabled);
         Assert.Equal(new[] { 0, 5, 255 }, world.Events.Scene.Party);

@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Events;
 
-public sealed record PartySplitState(long FiberSequence, int CallerObjectId, PartyJoinTarget[] Targets, bool UsesNativeMovement = false);
+public sealed record PartySplitState(long FiberSequence, int CallerObjectId, PartyJoinTarget[] Targets);
 
 public sealed partial class EventEngine
 {
@@ -46,11 +46,9 @@ public sealed partial class EventEngine
             {
                 return "Native SPLIT requires proved fixed actor positions, completed prior motion and native motion authority";
             }
-            // TODO(TD-003):.525560 preserves
-            // signed474; nonzero610 cannot consume an inferred accumulator.
-            if (actor.MovementDirectionLimit != 0)
+            if (actor.NativeTurnAccumulator474 is null)
             {
-                return "SPLIT with nonzero MLIMIT requires retained original native474 before target issue";
+                return "Native SPLIT requires its actual preserved WORD474 before target issue";
             }
             if (!solo && actor.CollisionEnabled)
             {
@@ -72,7 +70,6 @@ public sealed partial class EventEngine
     {
         if (partySplit is null)
         {
-            bool usesNativeMovement = CanUseNativeSplitMovement(fiber.ObjectId);
             int[] args = Pop(fiber, 9);
             List<PartyJoinTarget> targets = [];
             for (int slot = 0; slot < 3; slot++)
@@ -92,11 +89,13 @@ public sealed partial class EventEngine
                 actor.MovementSpeed = speed;
                 actor.MovementStopDistance = 8;
                 actor.NativeScriptMovement = null;
+                // Native issue replaces mode572=2 with mode1; its former ballistic phase no longer owns this body.
+                actor.NativeJump = null;
                 actor.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(actor, walk ? actor.WalkAnimationId : actor.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed));
             }
-            partySplit = new PartySplitState(fiber.Sequence, fiber.ObjectId, targets.ToArray(), usesNativeMovement);
+            partySplit = new PartySplitState(fiber.Sequence, fiber.ObjectId, targets.ToArray());
         }
         foreach (PartyJoinTarget target in partySplit.Targets)
         {
@@ -134,17 +133,17 @@ public sealed partial class EventEngine
         {
             return true;
         }
-        if (!partySplit.UsesNativeMovement || ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement(partySplit.CallerObjectId) || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.MovementDirectionLimit != 0 || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
+        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement(partySplit.CallerObjectId) || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
         {
-            throw FreezeSplit("SPLIT requires its certified native mode1 adapters, actual motion authority and zero direction limit; nonzero MLIMIT needs retained native474");
+            throw FreezeSplit("SPLIT requires its certified native mode1 adapters, actual motion authority and retained native WORD474");
         }
         HashSet<int> pushContacts = [];
         NativeScriptDirectionResult direction;
         try
         {
-            // 525560 preserves474. With610=0,479970 never reads or writes
-            // that accumulator; this query placeholder asserts no physical474.
-            direction = PrepareNativeDirectionStep(new NativeScriptDirectionQuery(actor.ObjectId, target.FixedX, target.FixedY, target.TargetX, target.TargetY, (short)target.Speed, 8, (ushort)actor.PushRadius, authority.MovementDirection, (byte)actor.Direction, 0, 0, authority.FacingHold != 0));
+            // 525560 preserves474/610; use the same current physical words
+            // as the ordinary mode1 direction/stop consumer.
+            direction = PrepareNativeDirectionStep(new NativeScriptDirectionQuery(actor.ObjectId, target.FixedX, target.FixedY, target.TargetX, target.TargetY, (short)target.Speed, 8, (ushort)actor.PushRadius, authority.MovementDirection, (byte)actor.Direction, actor.NativeTurnAccumulator474!.Value, actor.MovementDirectionLimit, authority.FacingHold != 0));
         }
         catch (NotSupportedException exception)
         {
@@ -197,6 +196,7 @@ public sealed partial class EventEngine
         }
         actor.InvalidateNativeMotionAuthority();
         actor.NativeMovementCompletion542 = completion;
+        actor.NativeTurnAccumulator474 = direction.TurnAccumulator;
         actor.NativeMotionAuthority = authority;
         actor.X = next.FixedX / 4096f;
         actor.Y = next.FixedY / 4096f;

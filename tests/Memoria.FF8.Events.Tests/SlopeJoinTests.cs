@@ -40,7 +40,7 @@ internal static partial class Program
         EventEngine first = Create();
         first.Step();
         JsonElement entered = first.Capture();
-        Require(first.Frame == 32 && entered.GetProperty("PartyJoin").GetProperty("UsesNativeMovement").GetBoolean() && first.Actors[0].Z == 1344 && first.Actors[6].Z == 1347 && entered.GetProperty("PartyJoin").GetProperty("Targets")[0].GetProperty("Speed").GetInt32() == 7929, "Original slope JOIN entry did not preserve the script MOVE endpoint, distinct follower height or native run speed.");
+        Require(first.Frame == 32 && first.Actors[0].Z == 1344 && first.Actors[6].Z == 1347 && entered.GetProperty("PartyJoin").GetProperty("Targets")[0].GetProperty("Speed").GetInt32() == 7929, "Original slope JOIN entry did not preserve the script MOVE endpoint, distinct follower height or native run speed.");
         EventEngine resumed = Create();
         resumed.Restore(entered);
         HashSet<int> visited = [];
@@ -55,7 +55,7 @@ internal static partial class Program
             if (tick == 0)
             {
                 JsonElement target = first.Capture().GetProperty("PartyJoin").GetProperty("Targets")[0];
-                Require(target.GetProperty("FixedX").GetInt32() == -501578 && target.GetProperty("FixedY").GetInt32() == -9583134 && first.Actors[6].WalkmeshTriangle == 89 && first.Actors[6].Direction == 6, "First native slope JOIN step differs from independent original direction6/run7929/92→89 proof.");
+                Require(target.GetProperty("FixedX").GetInt32() == -501578 && target.GetProperty("FixedY").GetInt32() == -9583134 && first.Actors[6].WalkmeshTriangle == 89 && first.Actors[6].Direction == 6, "First native slope JOIN step differs from independent original direction6/run7929/92â†’89 proof.");
             }
         }
         Require(first.Capture().GetProperty("PartyJoin").ValueKind == JsonValueKind.Null && first.LastFault is null && heights.Contains(1344) && heights.Contains(1347) && visited.Contains(87) && first.Scene.PartyTrace is not null && first.Scene.BackgroundScrollPositions[0].Status == 2, "Original JOIN failed to traverse the selected ramp, preserve native height or complete trace/scroll state.");
@@ -104,6 +104,6 @@ internal static partial class Program
         {
         }
         Require(peer.Actors[6].X == -127 && peer.Actors[6].Y == -2309 && peer.Actors[6].Z == 1347 && peer.Capture().GetProperty("PartyJoin").GetProperty("Targets").GetRawText() == entered.GetProperty("PartyJoin").GetProperty("Targets").GetRawText(), "Earlier native retry contact partially committed final clear movement.");
-        Console.WriteLine($"Original172 slope JOIN: Wait1/frame31→32 leaderZ1344/followerZ1347; original92 adjacency ramp87 reaches1344, distinct native run7929; completed frame{first.Frame}, exact midmovement restore, trace/scroll retained.");
+        Console.WriteLine($"Original172 slope JOIN: Wait1/frame31â†’32 leaderZ1344/followerZ1347; original92 adjacency ramp87 reaches1344, distinct native run7929; completed frame{first.Frame}, exact midmovement restore, trace/scroll retained.");
     }
 }

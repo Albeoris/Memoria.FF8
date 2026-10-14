@@ -11,21 +11,23 @@ internal static partial class Program
 {
     private static void NativeSplitSavedBindingsContract()
     {
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         byte[] Content(bool nonzeroLimit)
         {
             (Jsm.Opcode, int)[] Actor(int label, int character) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, character), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)];
             List<(Jsm.Opcode, int)> leader = Actor(8, 0).ToList();
-            leader.InsertRange(2, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0)]);
+            leader.InsertRange(2, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0)]);
             List<(Jsm.Opcode, int)> follower = Actor(16, 1).ToList();
             if (nonzeroLimit)
             {
-                follower.InsertRange(2, [(Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.MLIMIT, 0)]);
+                follower.InsertRange(2, [(Jsm.Opcode.PSHN_L, 39), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.MLIMIT, 0)]);
             }
             return SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 1, (24 << 7) | 1, (32 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], leader.ToArray(), [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 400), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -400), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SPLIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], follower.ToArray(), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Actor(24, 5), [(Jsm.Opcode.LBL, 25), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 6), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         }
         EventEngine Create(bool nonzeroLimit = false)
         {
-            GameSession session = new(new GameState());
+            GameSession session = new(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
             EventEngine engine = new(session, session.State.Variables)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -33,7 +35,7 @@ internal static partial class Program
                 CanUseNativeScriptMove = actor => actor.ObjectId == 4,
                 ResolveNativeScriptDirection = query =>
                 {
-                    Require((query.ObjectId == 4 ? query.StopDistance == 0 : query.StopDistance == 8) && query.DirectionLimit == 0, "SPLIT bypassed its shared native stop8/direction contract.");
+                    Require((query.ObjectId == 4 ? query.StopDistance == 0 : query.StopDistance == 8) && query.DirectionLimit == (nonzeroLimit && query.ObjectId == 2 ? 6 : 0), "SPLIT bypassed its shared native stop8/direction contract.");
                     FieldNativeScriptDirectionResult result = FieldNativeScriptDirectionProbe.Resolve(new(query.FixedX, query.FixedY, query.TargetX, query.TargetY, query.Speed, query.StopDistance, query.Radius, query.MovementDirection, query.FacingDirection, query.TurnAccumulator, query.DirectionLimit));
                     return result.Status == FieldNativeScriptDirectionStatus.Unsupported ? null : new NativeScriptDirectionResult((NativeScriptDirectionStatus)result.Status, result.FixedX, result.FixedY, result.Direction, result.TurnAccumulator);
                 },
@@ -146,6 +148,17 @@ internal static partial class Program
         EventEngine frozenCopy = Create();
         frozenCopy.Restore(partial.Capture());
         Require(JsonElement.DeepEquals(partial.Capture(), frozenCopy.Capture()), "Native partial SPLIT boundary failed exact current restore.");
+        EventEngine limited = Create(true);
+        while (limited.Capture().GetProperty("PartySplit").ValueKind == JsonValueKind.Null && limited.Frame < 20)
+        {
+            limited.Step();
+        }
+        Require(limited.Actors[2].MovementDirectionLimit == 6 && Math.Abs(limited.Actors[2].NativeTurnAccumulator474!.Value) == 6, "SPLIT ignored its current limited-direction WORD474 turn.");
+        EventEngine limitedCopy = Create(true);
+        limitedCopy.Restore(limited.Capture());
+        limited.Step();
+        limitedCopy.Step();
+        Require(JsonElement.DeepEquals(limited.Capture(), limitedCopy.Capture()), "Nonzero-MLIMIT SPLIT lost the shared native turn after restore.");
         foreach (bool nonzero in new[] { false, true })
         {
             EventEngine refused = Create(nonzero);
@@ -153,13 +166,17 @@ internal static partial class Program
             {
                 refused.ResolveNativeScriptDirection = null;
             }
+            else
+            {
+                refused.CanUseNativeJoinMovement = _ => false;
+            }
             try
             {
                 while (refused.Frame < 20)
                 {
                     refused.Step();
                 }
-                throw new InvalidOperationException("SPLIT accepted missing direction or unretained native474.");
+                throw new InvalidOperationException("SPLIT accepted missing direction or unproved shared body adapter.");
             }
             catch (EventScriptException) when (refused.LastFault?.Opcode == "SPLIT")
             {

@@ -12,16 +12,18 @@ internal static partial class Program
 {
     private static void NativeJoinSavedBindingsContract()
     {
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         (Jsm.Opcode, int)[] Actor(int label, int character, int y) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, character), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, y), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)];
         byte[] Content(bool reverseBindings, int companionY)
         {
             List<(Jsm.Opcode, int)> leader = Actor(8, 0, 0).ToList();
-            leader.InsertRange(2, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, reverseBindings ? 5 : 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, reverseBindings ? 1 : 5), (Jsm.Opcode.ADDPARTY, 0)]);
+            leader.InsertRange(2, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, reverseBindings ? 5 : 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, reverseBindings ? 1 : 5), (Jsm.Opcode.ADDPARTY, 0)]);
             return SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 4, (24 << 7) | 4], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], leader.ToArray(), [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 2), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 28), (Jsm.Opcode.REQ, 3), (Jsm.Opcode.JOIN, 0), (Jsm.Opcode.RET, 8)], Actor(16, 1, companionY), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 20), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)], Actor(24, 5, -companionY), [(Jsm.Opcode.LBL, 25), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 26), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 27), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 28), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)]]);
         }
         EventEngine Create(bool reverseBindings = false, int companionY = 300)
         {
-            var session = new GameSession(new GameState());
+            var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
             var engine = new EventEngine(session, session.State.Variables)
             {
                 AnimationFrameCount = (_, _) => 4,

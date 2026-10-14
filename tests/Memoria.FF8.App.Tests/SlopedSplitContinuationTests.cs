@@ -26,7 +26,6 @@ public sealed class SlopedSplitContinuationTests
         Assert.True(world.Apply(wait).Accepted);
         Assert.Null(world.Events.LastFault);
         JsonElement begun = world.Events.Capture();
-        Assert.True(begun.GetProperty("PartySplit").GetProperty("UsesNativeMovement").GetBoolean());
         using var replay = new GameWorld(new GameSession(session.State with { EventState = begun }), directory);
         replay.EnsureField();
         bool heightChanged = false;

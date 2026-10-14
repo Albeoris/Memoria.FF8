@@ -55,7 +55,7 @@ internal static partial class Program
         live.Step();
         live.Step();
         ActorState actor = live.Actors[0];
-        Require(actor.NativeScriptMovement is { Active: true, Accelerated: true, Speed: 1400, DirectionLimit: 0, HoldsFacing: true } && actor.NativeMovementAccelerationTarget == 3000 && actor.NativeMovementBaseSpeed == 1000 && actor.MovementSpeed == 1400 && actor.Direction == 77 && actor.MovementDirectionLimit == 0 && actor.AnimationId == actor.WalkAnimationId, "MACCEL first issue lost operand width, base/current/target words or held facing.");
+        Require(actor.NativeScriptMovement is { Active: true, Accelerated: true, Speed: 1400, HoldsFacing: true } && actor.NativeMovementAccelerationTarget == 3000 && actor.NativeMovementBaseSpeed == 1000 && actor.MovementSpeed == 1400 && actor.Direction == 77 && actor.MovementDirectionLimit == 0 && actor.AnimationId == actor.WalkAnimationId, "MACCEL first issue lost operand width, base/current/target words or held facing.");
         JsonElement saved = live.Capture();
         EventEngine restored = Create();
         restored.Restore(saved);

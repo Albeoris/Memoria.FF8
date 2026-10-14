@@ -99,11 +99,51 @@ internal static partial class Program
         NativeSingleBackupOverwriteContract();
         NativeTurnMoveCallbackOrderContract();
         NativeHaltedModuleRequestContract();
+        NativeLiveMovementLimitContract();
         Console.WriteLine("Native REQ slot2/MOVE above held default MOVEA: single target/stop/speed backup, independent upper operands/results, current-position RET8 restore, MSPEED current/base distinction, HALT occupied slot and corrupt-backup atomic rejection passed.");
+    }
+
+    private static void NativeLiveMovementLimitContract()
+    {
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 39), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]]);
+        EventEngine Create()
+        {
+            GameSession session = new(new GameState());
+            EventEngine engine = new(session, session.State.Variables)
+            {
+                AnimationFrameCount = (_, _) => 4,
+                CanUseNativeScriptMove = _ => true,
+                ResolveNativeScriptDirection = query =>
+                {
+                    Memoria.FF8.Assets.FieldNativeScriptDirectionResult native = Memoria.FF8.Assets.FieldNativeScriptDirectionProbe.Resolve(new(query.FixedX, query.FixedY, query.TargetX, query.TargetY, query.Speed, query.StopDistance, query.Radius, query.MovementDirection, query.FacingDirection, query.TurnAccumulator, query.DirectionLimit));
+                    return native.Status == Memoria.FF8.Assets.FieldNativeScriptDirectionStatus.Unsupported ? null : new NativeScriptDirectionResult((NativeScriptDirectionStatus)native.Status, native.FixedX, native.FixedY, native.Direction, native.TurnAccumulator);
+                },
+                ResolveNativeScriptMovement = query => new NativeScriptMovementResult(NativeScriptMovementStatus.Blocked, query.FixedX, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new NativeScriptMovementProposal(query.FixedX, query.FixedY, query.Direction, [new NativeScriptGroundProbe(query.FixedX, query.FixedY, query.FixedZ >> 12), new NativeScriptGroundProbe(query.FixedX, query.FixedY, query.FixedZ >> 12), new NativeScriptGroundProbe(query.FixedX, query.FixedY, query.FixedZ >> 12)])])
+            };
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            return engine;
+        }
+        EventEngine live = Create();
+        live.Step();
+        live.Step();
+        ActorState actor = live.Actors[0];
+        Require(actor.NativeScriptMovement is { Active: true, Asynchronous: true } && actor.MovementDirectionLimit == 5 && actor.NativeTurnAccumulator474 == 5 && actor.Direction == 44, "Initial RFMOVE did not consume the current native474/610 direction state.");
+        EventEngine restored = Create();
+        restored.Restore(live.Capture());
+        live.Step();
+        restored.Step();
+        Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && actor.NativeScriptMovement is { Active: true } && actor.MovementDirectionLimit == 11 && actor.NativeTurnAccumulator474 == 16 && actor.Direction == 55 && actor.X == 0 && actor.Y == 0, "MLIMIT during asynchronous RFMOVE was refused or ignored by the same callback's native direction kernel.");
+        EventEngine currentCopy = Create();
+        currentCopy.Restore(live.Capture());
+        live.Step();
+        currentCopy.Step();
+        Require(JsonElement.DeepEquals(live.Capture(), currentCopy.Capture()), "Current610 changed during active MOVE was not retained by independent restore.");
     }
 
     private static void NativeTurnMoveCallbackOrderContract()
     {
+        using Memoria.FF8.Assets.GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         foreach (bool linear in new[] { false, true })
         {
             (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
@@ -113,7 +153,7 @@ internal static partial class Program
             byte[] content = SyntheticObjects([0, (16 << 7) | 4, (32 << 7) | 1], [player, actor, turn, [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], move, [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
             EventEngine Create()
             {
-                var session = new GameSession(new GameState());
+                var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
                 var engine = new EventEngine(session, session.State.Variables)
                 {
                     AnimationFrameCount = (_, _) => 4,

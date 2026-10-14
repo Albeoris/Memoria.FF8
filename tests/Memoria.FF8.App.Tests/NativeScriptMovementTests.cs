@@ -103,7 +103,7 @@ public sealed class NativeScriptMovementTests
         NativeScriptMovementState state = actor.NativeScriptMovement!;
         Assert.True(state.Active);
         Assert.Equal(1705, state.Operation);
-        Assert.Equal(5, state.DirectionLimit);
+        Assert.Equal(5, actor.MovementDirectionLimit);
         Assert.Equal(2500, state.Speed);
         Assert.Equal(-4462 * 4096, state.TargetX);
         Assert.Equal(-4570 * 4096, state.TargetY);
@@ -152,8 +152,8 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(730 * 4096, state.TargetY);
         Assert.Equal(582 * 4096, state.TargetZ);
         Assert.Equal(2500, state.Speed);
-        Assert.Equal(5, state.DirectionLimit);
-        Assert.Equal(-5, state.TurnAccumulator);
+        Assert.Equal(5, npc.MovementDirectionLimit);
+        Assert.Equal(-5, npc.NativeTurnAccumulator474!.Value);
         Assert.Equal((ushort)1, npc.NativeMovementCompletion542);
         Assert.Equal(npc.WalkAnimationId, npc.AnimationId);
         Assert.False(npc.CollisionEnabled);
@@ -166,7 +166,7 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(494 * 4096, parallel.NativeScriptMovement.TargetY);
         Assert.Equal(582 * 4096, parallel.NativeScriptMovement.TargetZ);
         Assert.Equal(2500, parallel.NativeScriptMovement.Speed);
-        Assert.Equal(5, parallel.NativeScriptMovement.DirectionLimit);
+        Assert.Equal(5, parallel.MovementDirectionLimit);
         Assert.False(parallel.CollisionEnabled);
         Assert.False(parallel.PushEnabled);
 
@@ -187,8 +187,8 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(0, fiber.GetProperty("Stack").GetArrayLength());
         Assert.Equal("NativeScriptMovement", fiber.GetProperty("WaitReason").GetString());
 
-        Assert.Null(NativeScriptMovementAdapter.ResolveDirection(world.Field, world.Events.Scene, new NativeScriptDirectionQuery(17, state.FixedX, state.FixedY, state.TargetX, state.TargetY, 2500, 1, 48, state.MovementDirection, state.FacingDirection, state.TurnAccumulator, 5)));
-        Assert.Null(NativeScriptMovementAdapter.ResolveDirection(world.Field, world.Events.Scene, new NativeScriptDirectionQuery(17, state.FixedX, state.FixedY, 32768 * 4096, state.TargetY, 2500, 0, 48, state.MovementDirection, state.FacingDirection, state.TurnAccumulator, 5)));
+        Assert.Null(NativeScriptMovementAdapter.ResolveDirection(world.Field, world.Events.Scene, new NativeScriptDirectionQuery(17, state.FixedX, state.FixedY, state.TargetX, state.TargetY, 2500, 1, 48, state.MovementDirection, state.FacingDirection, npc.NativeTurnAccumulator474!.Value, 5)));
+        Assert.Null(NativeScriptMovementAdapter.ResolveDirection(world.Field, world.Events.Scene, new NativeScriptDirectionQuery(17, state.FixedX, state.FixedY, 32768 * 4096, state.TargetY, 2500, 0, 48, state.MovementDirection, state.FacingDirection, npc.NativeTurnAccumulator474!.Value, 5)));
         using var resumed = new GameWorld(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
         resumed.EnsureField();
         for (int tick = 0; tick < 6; tick++)
@@ -229,7 +229,7 @@ public sealed class NativeScriptMovementTests
         Assert.True(state.Active);
         Assert.Equal(4, state.MovementDirection);
         Assert.Equal(4, state.FacingDirection);
-        Assert.Equal(4, state.TurnAccumulator);
+        Assert.Equal(4, actor.NativeTurnAccumulator474!.Value);
         Assert.Equal((ushort)1, actor.NativeMovementCompletion542);
         Assert.Equal(1861, state.Operation);
         JsonElement fiber = world.Events.Capture().GetProperty("Fibers").EnumerateArray().Single(value => value.GetProperty("Sequence").GetInt64() == state.FiberSequence);
@@ -275,9 +275,9 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(-1781 * 4096, state.TargetX);
         Assert.Equal(-5752 * 4096, state.TargetY);
         Assert.Equal(6500, state.Speed);
-        Assert.Equal(6, state.DirectionLimit);
+        Assert.Equal(6, runner.MovementDirectionLimit);
         Assert.Equal(30, state.FacingDirection);
-        Assert.Equal(6, state.TurnAccumulator);
+        Assert.Equal(6, runner.NativeTurnAccumulator474!.Value);
         Assert.Equal(runner.RunAnimationId, runner.AnimationId);
         Assert.Equal((ushort)1, runner.NativeMovementCompletion542);
         using var resumed = new GameWorld(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
@@ -324,7 +324,7 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(567 * 4096, state.TargetZ);
         Assert.Equal((ushort)1, runner.NativeMovementCompletion542);
         Assert.Equal(6500, state.Speed);
-        Assert.Equal(6, state.DirectionLimit);
+        Assert.Equal(6, runner.MovementDirectionLimit);
         Assert.Equal(runner.RunAnimationId, runner.AnimationId);
         using var resumed = new GameWorld(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
         resumed.EnsureField();

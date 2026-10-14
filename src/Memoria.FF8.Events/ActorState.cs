@@ -92,6 +92,10 @@ public sealed class ActorState
     [JsonInclude]
     [JsonRequired]
     public ushort? NativeLandingTriangle508 { get; internal set; }
+    /// <summary>Shared signed WORD474: mode1 turn accumulation and mode2 jump elapsed counter, preserved by JOIN/SPLIT and request backups.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public short? NativeTurnAccumulator474 { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMovementRequestState? NativeMovementRequest { get; internal set; }

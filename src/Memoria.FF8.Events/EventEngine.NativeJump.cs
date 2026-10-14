@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Events;
 
 /// <summary>Native mode572=2, WORD472/474/542/508 and DWORD400..448, preserved independently of grounded MOVE.</summary>
-public sealed record NativeJumpState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, short Duration, short Elapsed, int Velocity, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AsyncFlag20000 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AnimationFlag40000 = null, [property: JsonRequired] int? LandingPlaneTriangle = null);
+public sealed record NativeJumpState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int StartX, int StartY, int StartZ, int TargetX, int TargetY, int TargetZ, short Duration, int Velocity, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AsyncFlag20000 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AnimationFlag40000 = null, [property: JsonRequired] int? LandingPlaneTriangle = null);
 
 public static class NativeJumpMath
 {
@@ -31,9 +31,9 @@ public sealed partial class EventEngine
     private string? UnsupportedNativeJump(Fiber fiber, int triangle, bool includesZ = false)
     {
         ActorState actor = actors[fiber.ObjectId];
-        if (actor.NativeMovementCompletion542 is null || actor.NativeLandingTriangle508 is null)
+        if (actor.NativeMovementCompletion542 is null || actor.NativeLandingTriangle508 is null || actor.NativeTurnAccumulator474 is null)
         {
-            return "Native JUMP requires allocated physical WORD508/542";
+            return "Native JUMP requires allocated physical WORD474/508/542";
         }
         if (actor.NativeJump is { Active: true } current)
         {
@@ -73,7 +73,7 @@ public sealed partial class EventEngine
             actor.NativeJoinedPosition = null;
             actor.MovementTarget = null;
             // JUMP3's supplied target444 is overwritten by the same mode2 plane evaluation before velocity is calculated.
-            actor.NativeJump = new NativeJumpState(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw.X, raw.Y, raw.Z, unchecked(operands[0] << 12), unchecked(operands[1] << 12), includesZ ? unchecked(operands[2] << 12) : 0, unchecked((short)operands[^1]), 0, 0, asyncFlag, animationFlag);
+            actor.NativeJump = new NativeJumpState(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw.X, raw.Y, raw.Z, unchecked(operands[0] << 12), unchecked(operands[1] << 12), includesZ ? unchecked(operands[2] << 12) : 0, unchecked((short)operands[^1]), 0, asyncFlag, animationFlag);
         }
         else if (actor.NativeMovementCompletion542 == 2)
         {
@@ -126,10 +126,11 @@ public sealed partial class EventEngine
                     throw new EventScriptException(message);
                 }
                 int targetZ = unchecked(height.Value << 12);
-                next = current with { StartX = current.FixedX, StartY = current.FixedY, StartZ = current.FixedZ, TargetZ = targetZ, LandingPlaneTriangle = actor.NativeLandingTriangle508!.Value, Elapsed = 0, Velocity = NativeJumpMath.Velocity(current.FixedZ, targetZ, current.Duration) };
+                next = current with { StartX = current.FixedX, StartY = current.FixedY, StartZ = current.FixedZ, TargetZ = targetZ, LandingPlaneTriangle = actor.NativeLandingTriangle508!.Value, Velocity = NativeJumpMath.Velocity(current.FixedZ, targetZ, current.Duration) };
                 actor.NativeMovementCompletion542 = 1;
+                actor.NativeTurnAccumulator474 = 0;
             }
-            else if (current.Elapsed == current.Duration)
+            else if (actor.NativeTurnAccumulator474 == current.Duration)
             {
                 // Native completion copies triangle508 to506 one update after the final position; no endpoint snap.
                 next = current with { Triangle = unchecked((short)actor.NativeLandingTriangle508!.Value) };
@@ -137,8 +138,9 @@ public sealed partial class EventEngine
             }
             else
             {
-                short elapsed = unchecked((short)(current.Elapsed + 1));
-                next = current with { FixedX = NativeJumpMath.Interpolate(current.StartX, current.TargetX, current.Duration, elapsed), FixedY = NativeJumpMath.Interpolate(current.StartY, current.TargetY, current.Duration, elapsed), FixedZ = NativeJumpMath.Height(current.StartZ, current.Velocity, elapsed), Elapsed = elapsed };
+                short elapsed = unchecked((short)(actor.NativeTurnAccumulator474!.Value + 1));
+                next = current with { FixedX = NativeJumpMath.Interpolate(current.StartX, current.TargetX, current.Duration, elapsed), FixedY = NativeJumpMath.Interpolate(current.StartY, current.TargetY, current.Duration, elapsed), FixedZ = NativeJumpMath.Height(current.StartZ, current.Velocity, elapsed) };
+                actor.NativeTurnAccumulator474 = elapsed;
             }
             actor.NativeJump = next;
             actor.X = next.FixedX / 4096f;
@@ -174,7 +176,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native JUMP lost its inherited physical motion flags or the higher request slot's original owner.");
             }
-            bool invalid = jump.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || jump.Duration <= 0 || jump.Elapsed < 0 || jump.Elapsed > jump.Duration || actor.NativeMovementCompletion542 is null or > 2 || issuingScript is null || jump.Operation < issuingScript.Start || jump.Operation >= issuingScript.End || (uint)jump.Operation >= program.Operations.Count || program.Operations[jump.Operation].Opcode is not (Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3) || !boundedTarget || landingHeight is null or < short.MinValue or > short.MaxValue || jump.TargetZ != unchecked(landingHeight.Value << 12) || owner is not null && (owner.ObjectId != actor.ObjectId || owner.Script.Id != jump.ScriptId) || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || !MatchesNativeJumpPlacement(actor, jump) || jump.Velocity != NativeJumpMath.Velocity(jump.StartZ, jump.TargetZ, jump.Duration) || jump.FixedX != NativeJumpMath.Interpolate(jump.StartX, jump.TargetX, jump.Duration, jump.Elapsed) || jump.FixedY != NativeJumpMath.Interpolate(jump.StartY, jump.TargetY, jump.Duration, jump.Elapsed) || jump.FixedZ != NativeJumpMath.Height(jump.StartZ, jump.Velocity, jump.Elapsed) || (jump.TargetZ & 4095) != 0 || jump.Active && (owner is null || owner.Complete || owner.Position != jump.Operation || owner.WaitReason != WaitReason.NativeJump);
+            bool invalid = jump.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || jump.Duration <= 0 || actor.NativeTurnAccumulator474 is null or < 0 || actor.NativeTurnAccumulator474 > jump.Duration || actor.NativeMovementCompletion542 is null or > 2 || issuingScript is null || jump.Operation < issuingScript.Start || jump.Operation >= issuingScript.End || (uint)jump.Operation >= program.Operations.Count || program.Operations[jump.Operation].Opcode is not (Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3) || !boundedTarget || landingHeight is null or < short.MinValue or > short.MaxValue || jump.TargetZ != unchecked(landingHeight.Value << 12) || owner is not null && (owner.ObjectId != actor.ObjectId || owner.Script.Id != jump.ScriptId) || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || !MatchesNativeJumpPlacement(actor, jump) || jump.Velocity != NativeJumpMath.Velocity(jump.StartZ, jump.TargetZ, jump.Duration) || jump.FixedX != NativeJumpMath.Interpolate(jump.StartX, jump.TargetX, jump.Duration, actor.NativeTurnAccumulator474!.Value) || jump.FixedY != NativeJumpMath.Interpolate(jump.StartY, jump.TargetY, jump.Duration, actor.NativeTurnAccumulator474!.Value) || jump.FixedZ != NativeJumpMath.Height(jump.StartZ, jump.Velocity, actor.NativeTurnAccumulator474!.Value) || (jump.TargetZ & 4095) != 0 || jump.Active && (owner is null || owner.Complete || owner.Position != jump.Operation || owner.WaitReason != WaitReason.NativeJump);
             if (invalid)
             {
                 throw new InvalidDataException("Saved native JUMP has inconsistent raw body, ballistic phase, landing plane or held original instruction.");

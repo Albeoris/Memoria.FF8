@@ -53,11 +53,13 @@ internal static partial class Program
             }
             EventEngine live = Create();
             NativeScriptMovementState? before = null;
+            short? previousTurn = null;
             NativeMovementRequestState? backup = null;
             JsonElement? issued = null;
             while (live.Actors[1].NativeScriptMovement is not { Cancelled: true } && live.Frame < 14)
             {
                 before = live.Actors[1].NativeScriptMovement;
+                previousTurn = live.Actors[1].NativeTurnAccumulator474;
                 backup = live.Actors[1].NativeMovementRequest;
                 if (before is { Active: true } && !asynchronous)
                 {
@@ -67,7 +69,7 @@ internal static partial class Program
             }
             ActorState body = live.Actors[1];
             NativeScriptMovementState cancelled = body.NativeScriptMovement!;
-            Require(body.NativeMovementCompletion542 == 1 && before is { Active: true } && body.NativeMovementCompletion542 == 1 && cancelled is { Active: false, Cancelled: true } && cancelled.FixedX == before.FixedX && cancelled.FixedY == before.FixedY && cancelled.FixedZ == before.FixedZ && cancelled.TurnAccumulator == before.TurnAccumulator && body.NativeMotionAuthority!.MovementDirection == before.MovementDirection && body.NativeMotionAuthority.FacingHold == 0 && body.MovementTarget is null && body.AnimationId == body.BaseAnimationId && body.AnimationFirst == 0 && body.AnimationLast == 3 && body.AnimationLoop && body.NativeMovementRequest == backup, "MOVECANCEL changed completion/physical motion scalars/backup or failed mode0/full idle selection.");
+            Require(body.NativeMovementCompletion542 == 1 && before is { Active: true } && body.NativeMovementCompletion542 == 1 && cancelled is { Active: false, Cancelled: true } && cancelled.FixedX == before.FixedX && cancelled.FixedY == before.FixedY && cancelled.FixedZ == before.FixedZ && body.NativeTurnAccumulator474 == previousTurn && body.NativeMotionAuthority!.MovementDirection == before.MovementDirection && body.NativeMotionAuthority.FacingHold == 0 && body.MovementTarget is null && body.AnimationId == body.BaseAnimationId && body.AnimationFirst == 0 && body.AnimationLast == 3 && body.AnimationLoop && body.NativeMovementRequest == backup, "MOVECANCEL changed completion/physical motion scalars/backup or failed mode0/full idle selection.");
             if (!asynchronous)
             {
                 JsonElement held = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Sequence").GetInt64() == cancelled.FiberSequence);
@@ -97,6 +99,6 @@ internal static partial class Program
                 Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && body.X == cancelled.FixedX / 4096f && body.MovementTarget is null && body.NativeMovementCompletion542 == 1 && body.NativeScriptMovement is { Cancelled: true }, "Cancelled movement restarted, fabricated completion2 or diverged during independently restored polling.");
             }
         }
-        Console.WriteLine("MOVECANCEL: sync MOVE/MOVEA and async RFMOVE mode1â†’0, physical completion/issued operands/flags/backup retained, full idle, stationary held consumer polling and malformed-state atomic refusal passed.");
+        Console.WriteLine("MOVECANCEL: sync MOVE/MOVEA and async RFMOVE mode1Ã¢â€ â€™0, physical completion/issued operands/flags/backup retained, full idle, stationary held consumer polling and malformed-state atomic refusal passed.");
     }
 }

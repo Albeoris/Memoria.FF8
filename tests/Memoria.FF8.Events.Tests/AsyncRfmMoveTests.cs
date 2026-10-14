@@ -45,7 +45,7 @@ internal static partial class Program
         NativeScriptMovementState entered = actor.NativeScriptMovement ?? throw new InvalidOperationException("Original RFMOVE did not create native movement state.");
         JsonElement snapshot = first.Capture();
         JsonElement issuer = snapshot.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 61);
-        Require(first.Frame == 8 && entered.Asynchronous && entered.Active && entered.Operation == 1576 && entered.TargetX == -4083 * 4096 && entered.TargetY == -5854 * 4096 && entered.TargetZ == 8341 * 4096 && entered.DirectionLimit == 2 && issuer.GetProperty("Position").GetInt32() == 1577 && issuer.GetProperty("Stack").GetArrayLength() == 0 && issuer.GetProperty("WaitReason").GetString() != "NativeScriptMovement", "RFMOVE lost its original operands, limited direction or advance-and-yield contract.");
+        Require(first.Frame == 8 && entered.Asynchronous && entered.Active && entered.Operation == 1576 && entered.TargetX == -4083 * 4096 && entered.TargetY == -5854 * 4096 && entered.TargetZ == 8341 * 4096 && actor.MovementDirectionLimit == 2 && issuer.GetProperty("Position").GetInt32() == 1577 && issuer.GetProperty("Stack").GetArrayLength() == 0 && issuer.GetProperty("WaitReason").GetString() != "NativeScriptMovement", "RFMOVE lost its original operands, limited direction or advance-and-yield contract.");
         Require(actor.AnimationId == 0 && actor.AnimationFrame == 0 && !actor.AnimationPlaying && !actor.MovementIgnoresWalkmesh, "RFMOVE changed native animation or incorrectly bypassed ground geometry.");
         Require(first.Actors[12].NativeScriptMovement is { Asynchronous: true, AutomaticAnimation: true, Operation: 2484 } && first.Actors[12].AnimationId == 1 && first.Actors[12].AnimationPlaying, "Parallel original RMOVE did not retain its distinct automatic walk/idle behavior.");
         EventEngine resumed = Create();
@@ -93,6 +93,6 @@ internal static partial class Program
         catch (InvalidDataException)
         {
         }
-        Console.WriteLine($"Original139 RFMOVE: frame7Ã¢â€ â€™8 consumes4/PC1577, animation retained, first raw({entered.FixedX},{entered.FixedY},{entered.FixedZ})/dir{entered.MovementDirection}/turn{entered.TurnAccumulator}; four native updates restore exactly, next-scheduler completion and preconsume refusal verified.");
+        Console.WriteLine($"Original139 RFMOVE: frame7ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢8 consumes4/PC1577, animation retained, first raw({entered.FixedX},{entered.FixedY},{entered.FixedZ})/dir{entered.MovementDirection}/turn{first.Actors[11].NativeTurnAccumulator474}; four native updates restore exactly, next-scheduler completion and preconsume refusal verified.");
     }
 }

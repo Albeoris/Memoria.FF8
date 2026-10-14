@@ -10,10 +10,10 @@ internal static partial class Program
 {
     private static void NativeJumpMovementRequestContract()
     {
-        foreach (bool completedUpperMove in new[] { false, true })
+        foreach ((bool completedUpperMove, bool animatedLower) in new[] { (false, false), (true, false), (false, true) })
         {
             (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] lower = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] lower = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (animatedLower ? Jsm.Opcode.MOVE : Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             List<(Jsm.Opcode, int)> upper = [(Jsm.Opcode.LBL, 4)];
             if (completedUpperMove)
             {
@@ -49,7 +49,7 @@ internal static partial class Program
             ActorState body = live.Actors[0];
             NativeJumpState jump = body.NativeJump ?? throw new InvalidOperationException("Higher native request did not replace its genuine suspended/completed mode1 body with JUMP3.");
             NativeMovementRequestState backup = body.NativeMovementRequest ?? throw new InvalidOperationException("JUMP3 discarded the one original lower movement backup.");
-            Require(body.NativeMovementCompletion542 == 1 && body.NativeLandingTriangle508 == 23 && jump is { Active: true, Elapsed: 0, TargetZ: 16384, AsyncFlag20000: true, AnimationFlag40000: false } && body.NativeScriptMovement is null && body.MovementTarget is null && backup.SavedMovement is { ScriptId: 1, Active: true, Asynchronous: true, Speed: 1000, TargetX: 40960000 } && body.NativeMotionAuthority is { MovementDirection: 64 } authority && authority.FacingHold == (completedUpperMove ? 1 : 0), "Requested JUMP3 fabricated an idle state, lost its physical flags/hold or changed the lower target/speed backup.");
+            Require(body.NativeMovementCompletion542 == 1 && body.NativeLandingTriangle508 == 23 && body.NativeTurnAccumulator474 == 0 && jump is { Active: true, TargetZ: 16384 } && jump.AsyncFlag20000 == !animatedLower && jump.AnimationFlag40000 == animatedLower && body.NativeScriptMovement is null && body.MovementTarget is null && backup.SavedMovement is { ScriptId: 1, Active: true, Speed: 1000, TargetX: 40960000 } && backup.SavedMovement.Asynchronous == !animatedLower && body.NativeMotionAuthority is { MovementDirection: 64 } authority && authority.FacingHold == (completedUpperMove ? 1 : 0), "Requested JUMP3 fabricated an idle state, lost its physical flags/hold or changed the lower target/speed backup.");
             JsonElement issued = live.Capture();
             EventEngine restored = Create();
             restored.Restore(issued);
@@ -61,13 +61,16 @@ internal static partial class Program
                 Require(body.NativeMotionAuthority!.FacingHold == (completedUpperMove ? 1 : 0), "Requested JUMP3 cleared live576 before native529FF0 could consume completion542.");
             }
             NativeJumpState landed = body.NativeJump!;
-            Require(body.NativeMovementCompletion542 == 2 && landed is { Active: true, AsyncFlag20000: true } && landed.FixedZ == 16383 && body.WalkmeshTriangle == 23, "Requested JUMP3 missed its native raw endpoint residue or delayed triangle completion.");
+            Require(body.NativeMovementCompletion542 == 2 && landed is { Active: true } && landed.AsyncFlag20000 == !animatedLower && landed.FixedZ == 16383 && body.WalkmeshTriangle == 23, "Requested JUMP3 missed its native raw endpoint residue or delayed triangle completion.");
             live.Step();
             restored.Step();
-            Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && body.NativeJump is { Active: false, AsyncFlag20000: false, AnimationFlag40000: false } && body.NativeMotionAuthority!.FacingHold == 0 && body.NativeMovementRequest == backup, "Native post-VM jump completion did not consume inherited20000 and clear576 independently of RET8.");
+            Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && body.NativeJump is { Active: false, AsyncFlag20000: false } completedJump && completedJump.AnimationFlag40000 == animatedLower && body.NativeMotionAuthority!.FacingHold == 0 && body.NativeMovementRequest == backup, "Native post-VM jump completion did not consume inherited20000 and clear576 independently of RET8.");
             live.Step();
             restored.Step();
-            Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && body.NativeJump is null && body.NativeMovementRequest is null && body.NativeMovementCompletion542 == 1 && body.NativeScriptMovement is { Active: true, ScriptId: 1, Speed: 1000, TurnAccumulator: 3 } resumed && resumed.FixedX == landed.FixedX + 4096 && resumed.FixedY == landed.FixedY && body.NativeMotionAuthority!.FacingHold == 0, "RET8 failed to restore the lower target/speed from the actual raw jump landing or retained an obsolete jump body.");
+            Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && body.NativeJump is null && body.NativeMovementRequest is null && body.NativeMovementCompletion542 == 1 && body.NativeTurnAccumulator474 == (animatedLower ? 0 : 3) && body.NativeScriptMovement is { Active: true, ScriptId: 1, Speed: 1000 } resumed && resumed.FixedX == landed.FixedX + 4096 && resumed.FixedY == landed.FixedY && body.NativeMotionAuthority!.FacingHold == 0, "RET8 failed to restore the lower target/speed from the actual raw jump landing or retained an obsolete jump body.");
+            EventEngine resumedCopy = Create();
+            resumedCopy.Restore(live.Capture());
+            Require(JsonElement.DeepEquals(live.Capture(), resumedCopy.Capture()), "Completed JUMP phase survived RET8 and incorrectly constrained its rewritten physical474 during restore.");
             JsonNode malformed = JsonNode.Parse(issued.GetRawText())!;
             malformed["Actors"]![0]!["NativeJump"]!.AsObject().Remove("AnimationFlag40000");
             JsonElement valid = restored.Capture();

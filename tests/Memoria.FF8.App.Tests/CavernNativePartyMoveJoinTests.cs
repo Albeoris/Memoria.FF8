@@ -182,7 +182,6 @@ public sealed class CavernNativePartyMoveJoinTests
         JsonElement joining = world.Events.Capture();
         JsonNode state = JsonNode.Parse(joining.GetRawText())!;
         Assert.NotNull(state["PartyJoin"]);
-        Assert.True(state["PartyJoin"]!["UsesNativeMovement"]!.GetValue<bool>());
         Assert.Equal(2696, state["PartyJoin"]!["Targets"]![0]!["Speed"]!.GetValue<int>());
         Assert.Equal(475, world.Events.Frame);
         Assert.Equal((-182f, 5032.53125f), (quistis.X, quistis.Y));

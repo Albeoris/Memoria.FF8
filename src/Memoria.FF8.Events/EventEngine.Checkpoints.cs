@@ -190,9 +190,9 @@ public sealed partial class EventEngine
         foreach (ActorState actor in saved.Actors)
         {
             bool allocated = saved.Scene.NativeFieldInitialization?.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) == true && program!.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId);
-            if (allocated && (actor.NativeMovementCompletion542 is null or > 2 || actor.NativeLandingTriangle508 is null) || !allocated && (actor.NativeMovementCompletion542 is not null || actor.NativeLandingTriangle508 is not null))
+            if (allocated && (actor.NativeMovementCompletion542 is null or > 2 || actor.NativeLandingTriangle508 is null || actor.NativeTurnAccumulator474 is null) || !allocated && (actor.NativeMovementCompletion542 is not null || actor.NativeLandingTriangle508 is not null || actor.NativeTurnAccumulator474 is not null))
             {
-                throw new InvalidDataException("Saved physical WORD508/542 requires current explicit native allocation state.");
+                throw new InvalidDataException("Saved physical WORD474/508/542 requires current explicit native allocation state.");
             }
         }
         ValidateDisplayOffsetCheckpoint(saved);
@@ -241,10 +241,6 @@ public sealed partial class EventEngine
         if (saved.Actors.Any(actor => actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true }))
         {
             throw new InvalidDataException("Saved managed scripted movement is unsupported; recreate the authentic journal with native movement contracts.");
-        }
-        if (saved.PartyJoin is { UsesNativeMovement: false } || saved.PartySplit is { UsesNativeMovement: false })
-        {
-            throw new InvalidDataException("Saved flat-only party movement is unsupported; recreate the authentic journal with certified native geometry.");
         }
         if (saved.Scene.FieldPartyNativeActorIds.Count != 0 && saved.Scene.NativeActorLayoutVersion != 1)
         {
@@ -370,9 +366,9 @@ public sealed partial class EventEngine
             bool validOwner = ownerExists && owner!.ObjectId == actor.ObjectId && owner.Script.Id == motion.ScriptId;
             EventScript? issuingScript = program.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == motion.ScriptId);
             string movementOpcode = motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
-            if (motion.HoldsFacing && !motion.Accelerated && (motion.AutomaticAnimation || motion.TargetNativeObjectId is not null || motion.DirectionLimit != 0))
+            if (motion.HoldsFacing && !motion.Accelerated && (motion.AutomaticAnimation || motion.TargetNativeObjectId is not null))
             {
-                throw new InvalidDataException("Saved held-facing CMOVE/RCMOVE lost its animation policy or cleared direction limit.");
+                throw new InvalidDataException("Saved held-facing CMOVE/RCMOVE lost its animation policy.");
             }
             if (motion.ResetAnimationOnCompletion is not null && (motion.ResetAnimationOnCompletion != true || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null))
             {
@@ -390,7 +386,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native MACCEL lost its blocking held-facing mode or executed target WORD516.");
             }
-            if (motion.FacingHold576 > 1 || motion.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || (uint)motion.Operation >= program.Operations.Count || program.Operations[motion.Operation].Opcode.ToString() != movementOpcode || motion.Asynchronous && (issuingScript is null || motion.Operation < issuingScript.Start || motion.Operation >= issuingScript.End || ownerExists && !validOwner || validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || (actor.NativeMotionAuthority is not { Version: 1 } || actor.NativeMotionAuthority.FacingHold != (motion.Active || motion.Cancelled ? NativeMoveFacingHold(motion) : 0))) || actor.NativeMovementCompletion542 > 2 || !motion.Active && !motion.Cancelled && actor.NativeMovementCompletion542 == 1 || motion.Speed <= 0 || motion.Active && (motion.DirectionLimit != actor.MovementDirectionLimit || motion.Speed != actor.MovementSpeed) || motion.Triangle != actor.WalkmeshTriangle || motion.Triangle is < 0 or > short.MaxValue || actor.X != motion.FixedX / 4096f || actor.Y != motion.FixedY / 4096f || actor.Z != motion.FixedZ / 4096f || motion.Active && actor.Direction != motion.FacingDirection || (motion.FixedZ & 4095) != 0 || new[] { motion.FixedX, motion.FixedY, motion.FixedZ, motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || motion.TargetNativeObjectId is null && new[] { motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value & 4095) != 0) || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Complete || owner.Position != motion.Operation || owner.WaitReason != WaitReason.NativeScriptMovement) || !motion.Active && !motion.Cancelled && validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || motion.Active && actor.NativeMovementCompletion542 != 2 && actor.MovementTarget != new Vector3(motion.TargetX / 4096f, motion.TargetY / 4096f, motion.TargetZ / 4096f) || actor.NativeMovementCompletion542 == 2 && actor.MovementTarget is not null)
+            if (motion.FacingHold576 > 1 || motion.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || (uint)motion.Operation >= program.Operations.Count || program.Operations[motion.Operation].Opcode.ToString() != movementOpcode || motion.Asynchronous && (issuingScript is null || motion.Operation < issuingScript.Start || motion.Operation >= issuingScript.End || ownerExists && !validOwner || validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || (actor.NativeMotionAuthority is not { Version: 1 } || actor.NativeMotionAuthority.FacingHold != (motion.Active || motion.Cancelled ? NativeMoveFacingHold(motion) : 0))) || actor.NativeMovementCompletion542 > 2 || !motion.Active && !motion.Cancelled && actor.NativeMovementCompletion542 == 1 || motion.Speed <= 0 || motion.Active && motion.Speed != actor.MovementSpeed || motion.Triangle != actor.WalkmeshTriangle || motion.Triangle is < 0 or > short.MaxValue || actor.X != motion.FixedX / 4096f || actor.Y != motion.FixedY / 4096f || actor.Z != motion.FixedZ / 4096f || motion.Active && actor.Direction != motion.FacingDirection || (motion.FixedZ & 4095) != 0 || new[] { motion.FixedX, motion.FixedY, motion.FixedZ, motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || motion.TargetNativeObjectId is null && new[] { motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value & 4095) != 0) || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Complete || owner.Position != motion.Operation || owner.WaitReason != WaitReason.NativeScriptMovement) || !motion.Active && !motion.Cancelled && validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || motion.Active && actor.NativeMovementCompletion542 != 2 && actor.MovementTarget != new Vector3(motion.TargetX / 4096f, motion.TargetY / 4096f, motion.TargetZ / 4096f) || actor.NativeMovementCompletion542 == 2 && actor.MovementTarget is not null)
             {
                 throw new InvalidDataException("Saved native scripted MOVE has invalid raw placement, owner, instruction wait or completion state.");
             }
@@ -403,7 +399,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native JOIN does not match its preserved caller, retained targets or movement state.");
         }
-        if (saved.PartyJoin is { UsesNativeMovement: true } nativeJoin && (nativeJoin.Targets.Any(target => (target.FixedX >> 12) is < short.MinValue or > short.MaxValue || (target.FixedY >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ & 4095) != 0 || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
+        if (saved.PartyJoin is { } nativeJoin && (nativeJoin.Targets.Any(target => (target.FixedX >> 12) is < short.MinValue or > short.MaxValue || (target.FixedY >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ & 4095) != 0 || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
         {
             throw new InvalidDataException("Saved native JOIN movement does not match its exact preserved raw companion coordinates.");
         }
@@ -424,7 +420,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native SPLIT does not match its preserved caller, raw party targets or reached movement context.");
         }
-        if (saved.PartySplit is { UsesNativeMovement: true } nativeSplit && (nativeSplit.Targets[0].ObjectId != nativeSplit.CallerObjectId || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || nativeSplit.Targets.Length > 1 && nativeSplit.Targets.Any(target => saved.Actors[target.ObjectId].CollisionEnabled) || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0)) || saved.Scene.NativePlayerPosition != new FieldFixedPosition(nativeSplit.Targets[0].FixedX, nativeSplit.Targets[0].FixedY, nativeSplit.Targets[0].FixedZ)))
+        if (saved.PartySplit is { } nativeSplit && (nativeSplit.Targets[0].ObjectId != nativeSplit.CallerObjectId || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || nativeSplit.Targets.Length > 1 && nativeSplit.Targets.Any(target => saved.Actors[target.ObjectId].CollisionEnabled) || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0)) || saved.Scene.NativePlayerPosition != new FieldFixedPosition(nativeSplit.Targets[0].FixedX, nativeSplit.Targets[0].FixedY, nativeSplit.Targets[0].FixedZ)))
         {
             throw new InvalidDataException("Saved native SPLIT requires its exact caller/party bindings, supported moving-peer flags and raw placement.");
         }
@@ -432,9 +428,9 @@ public sealed partial class EventEngine
         {
             NativePartyBindingMemory memory = saved.Scene.PartyBindingMemory ?? throw new InvalidDataException("Saved native SPLIT lacks its original saved party body pointers.");
             int[] bindings = Enumerable.Range(0, 3).Select(slot => (int)memory.At(slot)).ToArray();
-            if (memory.Version != 1 || bindings.Any(binding => binding != byte.MaxValue && (uint)binding >= saved.Scene.NativeActorObjectIds.Count) || bindings[0] == byte.MaxValue || saved.Scene.NativeActorObjectIds[bindings[0]] != boundSplit.CallerObjectId || !bindings.Where(binding => binding != byte.MaxValue).Select(binding => saved.Scene.NativeActorObjectIds[binding]).SequenceEqual(boundSplit.Targets.Select(target => target.ObjectId)) || boundSplit.Targets.Any(target => saved.Actors[target.ObjectId].MovementDirectionLimit != 0))
+            if (memory.Version != 1 || bindings.Any(binding => binding != byte.MaxValue && (uint)binding >= saved.Scene.NativeActorObjectIds.Count) || bindings[0] == byte.MaxValue || saved.Scene.NativeActorObjectIds[bindings[0]] != boundSplit.CallerObjectId || !bindings.Where(binding => binding != byte.MaxValue).Select(binding => saved.Scene.NativeActorObjectIds[binding]).SequenceEqual(boundSplit.Targets.Select(target => target.ObjectId)))
             {
-                throw new InvalidDataException("Saved native SPLIT targets differ from saved party bodies or require unretained native474; runtime follow slots are not substitutes.");
+                throw new InvalidDataException("Saved native SPLIT targets differ from saved party bodies; runtime follow slots are not substitutes.");
             }
         }
         if (saved.PartySplit is null && restored.Any(fiber => fiber.WaitReason == WaitReason.PartySplit))

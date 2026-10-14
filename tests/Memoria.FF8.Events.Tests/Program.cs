@@ -83,6 +83,7 @@ internal static partial class Program
                     ["native-dialogue-busy"] = NativeDialogueBusyContract,
                     ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
+                    ["native-join-direction-limit"] = () => NativeJoinDirectionLimitContract(selectedGameDirectory),
                     ["native-meaningful-contact"] = NativeMeaningfulContactContract,
                     ["native-rmovea"] = NativeRmMoveActorContract,
                     ["positive-cosine-turn"] = NativePositiveCosineTurnContract,

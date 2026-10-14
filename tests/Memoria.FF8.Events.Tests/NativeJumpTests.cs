@@ -35,7 +35,7 @@ internal static partial class Program
         int sourceTriangle = actual.Actors[0].WalkmeshTriangle;
         actual.Step();
         NativeJumpState setup = actual.Actors[0].NativeJump ?? throw new InvalidOperationException("JUMP3 did not establish raw mode2 state.");
-        Require(evidence.Count == 1 && evidence[0].SequenceEqual(new[] { 400, 5, 900, 65539 }) && issuedTargetZ == 900 * 4096 && actual.Actors[0].NativeMovementCompletion542 == 1 && actual.Actors[0].NativeLandingTriangle508 == 333 && setup is { Duration: 3, Elapsed: 0, TargetZ: 16384 } && setup.FixedX == 4096 && setup.FixedY == 8192 && setup.FixedZ == 12288 && setup.Triangle == sourceTriangle, "JUMP3 did not consume all four original operands or failed the native suppliedZ444 overwrite by the inline333 original plane.");
+        Require(evidence.Count == 1 && evidence[0].SequenceEqual(new[] { 400, 5, 900, 65539 }) && issuedTargetZ == 900 * 4096 && actual.Actors[0].NativeMovementCompletion542 == 1 && actual.Actors[0].NativeLandingTriangle508 == 333 && actual.Actors[0].NativeTurnAccumulator474 == 0 && setup is { Duration: 3, TargetZ: 16384 } && setup.FixedX == 4096 && setup.FixedY == 8192 && setup.FixedZ == 12288 && setup.Triangle == sourceTriangle, "JUMP3 did not consume all four original operands or failed the native suppliedZ444 overwrite by the inline333 original plane.");
         EventEngine restored = Create();
         restored.Restore(actual.Capture());
         for (int update = 1; update <= 5; update++)
@@ -46,7 +46,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(actual.Capture(), restored.Capture()), "Independent JUMP3 restoration diverged in raw ballistic placement, target plane or held PC.");
             if (update <= 3)
             {
-                Require(actual.Actors[0].NativeMovementCompletion542 == 1 && state.Triangle == sourceTriangle && state.Elapsed == update && state.FixedZ == NativeJumpMath.Height(12288, NativeJumpMath.Velocity(12288, 16384, 3), (short)update), "JUMP3 used its discarded suppliedZ as the ballistic endpoint or changed triangle early.");
+                Require(actual.Actors[0].NativeMovementCompletion542 == 1 && state.Triangle == sourceTriangle && actual.Actors[0].NativeTurnAccumulator474 == update && state.FixedZ == NativeJumpMath.Height(12288, NativeJumpMath.Velocity(12288, 16384, 3), (short)update), "JUMP3 used its discarded suppliedZ as the ballistic endpoint or changed triangle early.");
             }
             else
             {
@@ -94,7 +94,7 @@ internal static partial class Program
         actual.Step();
         ActorState actor = actual.Actors[0];
         NativeJumpState jump = actor.NativeJump ?? throw new InvalidOperationException("Native JUMP did not establish mode2 raw state.");
-        Require(actor.NativeMovementCompletion542 == 1 && actor.NativeLandingTriangle508 == 9 && jump is { Active: true, Duration: 3, Elapsed: 0, TargetZ: 16384 } && actor.X == 1 && actor.Y == 2 && actor.Z == 3 && actor.WalkmeshTriangle == originalTriangle && actor.AnimationId == animation && actor.Direction == direction, $"JUMP changed placement, animation or direction on its setup update, or confused parameter9 with durationWORD472: {jump}.");
+        Require(actor.NativeMovementCompletion542 == 1 && actor.NativeLandingTriangle508 == 9 && actor.NativeTurnAccumulator474 == 0 && jump is { Active: true, Duration: 3, TargetZ: 16384 } && actor.X == 1 && actor.Y == 2 && actor.Z == 3 && actor.WalkmeshTriangle == originalTriangle && actor.AnimationId == animation && actor.Direction == direction, $"JUMP changed placement, animation or direction on its setup update, or confused parameter9 with durationWORD472: {jump}.");
         JsonElement saved = actual.Capture();
         JsonElement owner = saved.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Sequence").GetInt64() == jump.FiberSequence);
         Require(owner.GetProperty("Position").GetInt32() == jump.Operation && owner.GetProperty("Stack").GetArrayLength() == 0 && owner.GetProperty("WaitReason").GetString() == "NativeJump", "JUMP did not preserve its consumed operand stack and held instruction.");
@@ -105,7 +105,7 @@ internal static partial class Program
             actual.Step();
             independent.Step();
             Require(JsonElement.DeepEquals(actual.Capture(), independent.Capture()), "Independent JUMP restore changed ballistic phase, raw body or PC wait.");
-            Require(actor.NativeMovementCompletion542 == 1 && actor.NativeJump is {  } phase && phase.Elapsed == elapsed && actor.WalkmeshTriangle == originalTriangle && actor.AnimationId == animation && actor.Direction == direction, "JUMP changed triangle before its separate completion update or altered actor animation/direction.");
+            Require(actor.NativeMovementCompletion542 == 1 && actor.NativeJump is {  } phase && actor.NativeTurnAccumulator474 == elapsed && actor.WalkmeshTriangle == originalTriangle && actor.AnimationId == animation && actor.Direction == direction, "JUMP changed triangle before its separate completion update or altered actor animation/direction.");
         }
         Require(actor.NativeJump!.FixedX == NativeJumpMath.Interpolate(4096, 400 * 4096, 3, 3) && actor.NativeJump.FixedZ == 16383, "JUMP forced an exact endpoint instead of preserving native truncated XY/velocity arithmetic.");
         actual.Step();
@@ -136,7 +136,7 @@ internal static partial class Program
                 NativeJumpState completed = actor.NativeJump!;
                 int targetZ = completed.TargetZ + 4096;
                 int velocity = NativeJumpMath.Velocity(completed.StartZ, targetZ, completed.Duration);
-                int fixedZ = NativeJumpMath.Height(completed.StartZ, velocity, completed.Elapsed);
+                int fixedZ = NativeJumpMath.Height(completed.StartZ, velocity, actor.NativeTurnAccumulator474!.Value);
                 forgedJump["TargetZ"] = targetZ;
                 forgedJump["Velocity"] = velocity;
                 forgedJump["FixedZ"] = fixedZ;

@@ -36,7 +36,7 @@ internal static partial class Program
         first.Step();
         JsonElement entered = first.Capture();
         JsonElement split = entered.GetProperty("PartySplit");
-        Require(first.Frame == 60 && split.GetProperty("UsesNativeMovement").GetBoolean() && split.GetProperty("Targets").GetArrayLength() == 1 && split.GetProperty("Targets")[0].GetProperty("TargetZ").GetInt32() == 1347 * 4096 && first.Actors[0].CollisionEnabled, "Original solo SPLIT did not preserve its unequal target height, enabled self collision or certified movement provenance.");
+        Require(first.Frame == 60 && split.GetProperty("Targets").GetArrayLength() == 1 && split.GetProperty("Targets")[0].GetProperty("TargetZ").GetInt32() == 1347 * 4096 && first.Actors[0].CollisionEnabled, "Original solo SPLIT did not preserve its unequal target height, enabled self collision or certified movement provenance.");
         EventEngine resumed = Create();
         resumed.Restore(entered);
         bool heightChanged = false;
@@ -74,6 +74,6 @@ internal static partial class Program
         catch (InvalidDataException)
         {
         }
-        Console.WriteLine($"Original172 solo SPLIT: frame59→60 certified sloped movement, one target/FF exclusion, midmovement full VM restore, completed frame{first.Frame}; missing callback preserves XYZ.");
+        Console.WriteLine($"Original172 solo SPLIT: frame59â†’60 certified sloped movement, one target/FF exclusion, midmovement full VM restore, completed frame{first.Frame}; missing callback preserves XYZ.");
     }
 }
