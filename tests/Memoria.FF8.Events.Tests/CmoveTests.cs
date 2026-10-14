@@ -67,13 +67,13 @@ internal static partial class Program
             live.Engine.Step();
             if (priorMove)
             {
-                Require(live.Engine.Actors[0].NativeScriptMovement is { Active: true, HoldsFacing: false, Completion: 2 }, "CMOVE prior-motion regression did not reach a genuine native MOVE completion.");
+                Require(live.Engine.Actors[0].NativeMovementCompletion542 == 2 && live.Engine.Actors[0].NativeScriptMovement is { Active: true, HoldsFacing: false }, "CMOVE prior-motion regression did not reach a genuine native MOVE completion.");
                 animation = live.Engine.Actors[0].BaseAnimationId;
                 live.Engine.Step();
             }
             ActorState actor = live.Engine.Actors[0];
             NativeScriptMovementState initial = actor.NativeScriptMovement!;
-            Require(initial is { HoldsFacing: true, Asynchronous: false, AutomaticAnimation: false, DirectionLimit: 0, Completion: 1, MovementDirection: 8, FacingDirection: 128, StopDistance: 3 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 1) && actor.X == 1 && actor.Z == 0 && actor.Direction == 128 && actor.AnimationId == animation && !actor.MovementIgnoresWalkmesh && !live.Session.State.Variables.ContainsKey(5000) && issued.Count == 1 && issued[0].SequenceEqual(new[] { 100, 100, 123, 65539 }), $"CMOVE lost synchronous wait, held577/independent575, ground substep, unchanged animation or original fullDWORD issue arguments: prior{priorMove}, {initial}, actorXYZ{actor.X}/{actor.Y}/{actor.Z}, anim{animation}/{actor.AnimationId}, argsCount{issued.Count}.");
+            Require(actor.NativeMovementCompletion542 == 1 && initial is { HoldsFacing: true, Asynchronous: false, AutomaticAnimation: false, DirectionLimit: 0, MovementDirection: 8, FacingDirection: 128, StopDistance: 3 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 1) && actor.X == 1 && actor.Z == 0 && actor.Direction == 128 && actor.AnimationId == animation && !actor.MovementIgnoresWalkmesh && !live.Session.State.Variables.ContainsKey(5000) && issued.Count == 1 && issued[0].SequenceEqual(new[] { 100, 100, 123, 65539 }), $"CMOVE lost synchronous wait, held577/independent575, ground substep, unchanged animation or original fullDWORD issue arguments: prior{priorMove}, {initial}, actorXYZ{actor.X}/{actor.Y}/{actor.Z}, anim{animation}/{actor.AnimationId}, argsCount{issued.Count}.");
             JsonElement saved = live.Engine.Capture();
             JsonElement owner = saved.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Sequence").GetInt64() == initial.FiberSequence);
             Require(owner.GetProperty("Position").GetInt32() == initial.Operation && owner.GetProperty("Stack").GetArrayLength() == 0 && owner.GetProperty("WaitReason").GetString() == "NativeScriptMovement", "CMOVE did not hold its issuing PC with the four operands consumed exactly once.");
@@ -85,13 +85,13 @@ internal static partial class Program
                 live.Engine.Step();
                 restored.Engine.Step();
                 Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()) && actor.AnimationId == animation && actor.X <= 4, "CMOVE diverged after independent restore, changed animation or teleported to its target.");
-                if (actor.NativeScriptMovement is { Active: true, Completion: 2 })
+                if (actor.NativeMovementCompletion542 == 2 && actor.NativeScriptMovement is { Active: true })
                 {
                     completedHeld = true;
                     Require(actor.NativeMotionAuthority is { FacingHold: 1 } && actor.Direction == 128 && !live.Session.State.Variables.ContainsKey(5000), "CMOVE cleared576 or continued its VM before the native completion consumer.");
                 }
             }
-            Require(completedHeld && actor.NativeScriptMovement is { Active: false, HoldsFacing: true, Asynchronous: false, Completion: 2 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 0) && live.Session.State.Variables[5000] == 77 && actor.Direction == 192 && issued.Count == 1, "CMOVE did not clear576 and continue the next command within the completion VM budget.");
+            Require(completedHeld && actor.NativeMovementCompletion542 == 2 && actor.NativeScriptMovement is { Active: false, HoldsFacing: true, Asynchronous: false } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 0) && live.Session.State.Variables[5000] == 77 && actor.Direction == 192 && issued.Count == 1, "CMOVE did not clear576 and continue the next command within the completion VM budget.");
             JsonNode malformed = JsonNode.Parse(saved.GetRawText())!;
             malformed["Actors"]![0]!["NativeScriptMovement"]!["Asynchronous"] = true;
             JsonElement before = live.Engine.Capture();

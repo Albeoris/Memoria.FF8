@@ -509,7 +509,11 @@ public sealed partial class EventEngine
                 ExecuteNativeScriptMove(fiber);
                 break;
             case Jsm.Opcode.MOVESYNC:
-                fiber.WaitReason = WaitReason.Movement;
+                if (actor.NativeMovementCompletion542 != 2)
+                {
+                    fiber.Position--;
+                    fiber.WaitReason = WaitReason.Movement;
+                }
                 break;
             case Jsm.Opcode.MOVECANCEL:
                 args = Pop(fiber, 1);
@@ -545,6 +549,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.LOFFSET:
             case Jsm.Opcode.LOFFSETS:
             case Jsm.Opcode.COFFSET:
+            case Jsm.Opcode.COFFSETS:
                 args = ExecuteDisplayOffset(fiber, actor, operation);
                 break;
             case Jsm.Opcode.OFFSETSYNC:

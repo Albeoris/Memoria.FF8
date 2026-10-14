@@ -25,6 +25,8 @@ internal static partial class Program
                     ["native-jump-budget"] = NativeJumpBudgetContract,
                     ["map-jump-origin"] = NativeMapJumpOriginContract,
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
+                    ["cosine-offset-start"] = NativeCosineOffsetExplicitStartContract,
+                    ["physical-motion-words"] = NativePhysicalMotionWordContract,
                     ["field-media"] = NativeFieldMediaContract,
                     ["exam-timer"] = NativeExamTimerContract,
                     ["native-process-clock"] = NativeProcessClockContract,

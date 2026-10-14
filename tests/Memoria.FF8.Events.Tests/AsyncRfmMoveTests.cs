@@ -61,7 +61,7 @@ internal static partial class Program
         complete.Restore(snapshot);
         complete.ResolveNativeScriptDirection = query => new NativeScriptDirectionResult(NativeScriptDirectionStatus.Stopped, query.FixedX, query.FixedY, query.MovementDirection, query.TurnAccumulator);
         complete.Step();
-        Require(complete.Actors[11].NativeScriptMovement is { Active: true, Completion: 2, Asynchronous: true } && complete.Actors[11].MovementTarget is null, "Async stop did not preserve completion until the following actor scheduler pass.");
+        Require(complete.Actors[11].NativeMovementCompletion542 == 2 && complete.Actors[11].NativeScriptMovement is { Active: true, Asynchronous: true } && complete.Actors[11].MovementTarget is null, "Async stop did not preserve completion until the following actor scheduler pass.");
         int preservedAnimation = complete.Actors[11].AnimationId;
         bool preservedPlaying = complete.Actors[11].AnimationPlaying;
         EventEngine completeRestore = Create();
@@ -69,7 +69,7 @@ internal static partial class Program
         completeRestore.ResolveNativeScriptDirection = complete.ResolveNativeScriptDirection;
         complete.Step();
         completeRestore.Step();
-        Require(complete.Actors[11].NativeScriptMovement is { Active: false, Completion: 2, Asynchronous: true } && complete.Actors[11].AnimationPlaying == preservedPlaying && complete.Actors[11].AnimationId == preservedAnimation && complete.Actors[12].NativeScriptMovement is { Active: false, Completion: 2, AutomaticAnimation: true } && complete.Actors[12].AnimationId == 0 && complete.Actors[12].AnimationPlaying && JsonElement.DeepEquals(complete.Capture(), completeRestore.Capture()), "Async completion lost original RFMOVE script animation/RMOVE idle reset or diverged after restore.");
+        Require(complete.Actors[11].NativeMovementCompletion542 == 2 && complete.Actors[11].NativeScriptMovement is { Active: false, Asynchronous: true } && complete.Actors[11].AnimationPlaying == preservedPlaying && complete.Actors[11].AnimationId == preservedAnimation && complete.Actors[12].NativeMovementCompletion542 == 2 && complete.Actors[12].NativeScriptMovement is { Active: false, AutomaticAnimation: true } && complete.Actors[12].AnimationId == 0 && complete.Actors[12].AnimationPlaying && JsonElement.DeepEquals(complete.Capture(), completeRestore.Capture()), "Async completion lost original RFMOVE script animation/RMOVE idle reset or diverged after restore.");
 
         EventEngine refused = Create();
         refused.ResolveNativeScriptMovement = _ => null;
@@ -93,6 +93,6 @@ internal static partial class Program
         catch (InvalidDataException)
         {
         }
-        Console.WriteLine($"Original139 RFMOVE: frame7→8 consumes4/PC1577, animation retained, first raw({entered.FixedX},{entered.FixedY},{entered.FixedZ})/dir{entered.MovementDirection}/turn{entered.TurnAccumulator}; four native updates restore exactly, next-scheduler completion and preconsume refusal verified.");
+        Console.WriteLine($"Original139 RFMOVE: frame7Ã¢â€ â€™8 consumes4/PC1577, animation retained, first raw({entered.FixedX},{entered.FixedY},{entered.FixedZ})/dir{entered.MovementDirection}/turn{entered.TurnAccumulator}; four native updates restore exactly, next-scheduler completion and preconsume refusal verified.");
     }
 }

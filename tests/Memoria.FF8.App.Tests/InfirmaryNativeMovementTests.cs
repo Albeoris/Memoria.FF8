@@ -16,6 +16,7 @@ public sealed class InfirmaryNativeMovementTests
         using var world = new GameWorld(session, directory);
         int centering = 0;
         NativeScriptMovementState? beforeCancel = null;
+        ushort? beforeCompletion = null;
         for (int input = 0; input < 8000; input++)
         {
             world.EnsureField();
@@ -24,7 +25,7 @@ public sealed class InfirmaryNativeMovementTests
             {
                 Assert.NotNull(beforeCancel);
                 Assert.False(cancelled.Active);
-                Assert.Equal(beforeCancel.Completion, cancelled.Completion);
+                Assert.Equal(beforeCompletion, quistis.NativeMovementCompletion542);
                 Assert.Equal((beforeCancel.FixedX, beforeCancel.FixedY, beforeCancel.FixedZ, beforeCancel.Triangle), (cancelled.FixedX, cancelled.FixedY, cancelled.FixedZ, cancelled.Triangle));
                 Assert.Equal(quistis.BaseAnimationId, quistis.AnimationId);
                 Assert.Null(quistis.MovementTarget);
@@ -45,6 +46,7 @@ public sealed class InfirmaryNativeMovementTests
             if (quistis?.NativeScriptMovement is { Active: true, Asynchronous: true } current)
             {
                 beforeCancel = current;
+                beforeCompletion = quistis.NativeMovementCompletion542;
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
             PlayerAction next;
@@ -107,7 +109,7 @@ public sealed class InfirmaryNativeMovementTests
             DialogueState? dialogue = world.Events.CurrentDialogue;
             PlayerAction next = session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is not null ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
             Assert.True(world.Apply(next).Accepted);
-            foreach (ActorState moving in world.Events.Actors.Where(actor => actor.Visible && actor.NativeScriptMovement is { Active: true, Completion: 1 }))
+            foreach (ActorState moving in world.Events.Actors.Where(actor => actor.Visible && actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { Active: true }))
             {
                 NativeScriptMovementState motion = moving.NativeScriptMovement!;
                 Assert.Equal(motion.MovementDirection, (byte)moving.Direction);

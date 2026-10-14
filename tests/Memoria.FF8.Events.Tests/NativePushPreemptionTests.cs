@@ -41,7 +41,7 @@ internal static partial class Program
         live.Step();
         ActorState actor = live.Actors[1];
         NativeScriptMovementState movement = actor.NativeScriptMovement!;
-        Require(movement is { Active: true, Completion: 1 } && actor.AnimationId == 1, $"Synthetic native MOVE failed to establish its genuine held instruction and full walk animation: {movement}, animation{actor.AnimationId}");
+        Require(actor.NativeMovementCompletion542 == 1 && movement is { Active: true } && actor.AnimationId == 1, $"Synthetic native MOVE failed to establish its genuine held instruction and full walk animation: {movement}, animation{actor.AnimationId}");
         typeof(ActorState).GetProperty(nameof(ActorState.NativePushContactPending))!.SetValue(actor, true);
         JsonElement beforePush = live.Capture();
         EventEngine restored = Create();
@@ -64,7 +64,7 @@ internal static partial class Program
         };
         PlayerAction wait = new(PlayerActionKind.Wait);
         Require(live.Apply(wait) == restored.Apply(wait) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Native MOVE push/resume diverged after an independent ordinary-boundary restore.");
-        Require(suspensionObserved && !actor.NativePushContactPending && actor.NativeScriptMovement is { Active: true, Suspended: false, Completion: 1 } resumed && resumed.FiberSequence == movement.FiberSequence && resumed.Operation == movement.Operation && resumed.TargetX == movement.TargetX && resumed.FixedX == movement.FixedX + 4096, "Empty native push failed same-budget RET/resume and actual subsequent native movement.");
-        Console.WriteLine("Native empty local3/slot6 push preemption: authentic MOVE target/speed/raw state retained, operand owner/PC preserved, mode0→RET mode1/completion0, same callback lower-slot resumption and independent restore passed (synthetic component geometry).");
+        Require(suspensionObserved && !actor.NativePushContactPending && actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { Active: true, Suspended: false } resumed && resumed.FiberSequence == movement.FiberSequence && resumed.Operation == movement.Operation && resumed.TargetX == movement.TargetX && resumed.FixedX == movement.FixedX + 4096, "Empty native push failed same-budget RET/resume and actual subsequent native movement.");
+        Console.WriteLine("Native empty local3/slot6 push preemption: authentic MOVE target/speed/raw state retained, operand owner/PC preserved, mode0â†’RET mode1/completion0, same callback lower-slot resumption and independent restore passed (synthetic component geometry).");
     }
 }

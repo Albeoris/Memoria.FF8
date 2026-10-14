@@ -61,11 +61,11 @@ internal static partial class Program
                     JsonElement during = live.Capture();
                     EventEngine duringCopy = Create();
                     duringCopy.Restore(during);
-                    foreach (string property in new[] { "Speed", "TargetX", "Operation", "Completion" })
+                    foreach (string property in new[] { "Speed", "TargetX", "Operation" })
                     {
                         JsonNode invalid = JsonNode.Parse(during.GetRawText())!;
                         JsonNode saved = invalid["Actors"]![1]!["NativeMovementRequest"]!["SavedMovement"]!;
-                        saved[property] = property == "Speed" ? -1 : property == "TargetX" ? int.MaxValue : property == "Completion" ? 9 : saved[property]!.GetValue<int>() + 1;
+                        saved[property] = property == "Speed" ? -1 : property == "TargetX" ? int.MaxValue : saved[property]!.GetValue<int>() + 1;
                         try
                         {
                             duringCopy.Restore(JsonSerializer.SerializeToElement(invalid));

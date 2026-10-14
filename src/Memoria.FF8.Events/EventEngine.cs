@@ -200,7 +200,7 @@ public sealed partial class EventEngine
         {
             // Original471010 selects clock20 before52BC00 initializes every
             // allocated actor. Executed field scripts may override this default.
-            actors.Add(new ActorState(obj.Index, obj.Label) { MovementSpeed = nativeRuntimeProfile?.AllocatedActorSpeed ?? 1000, NativeMovementBaseSpeed = nativeRuntimeProfile is not null ? checked((short)nativeRuntimeProfile.AllocatedActorSpeed) : null, LineEnabled = nativeRuntimeProfile is null || !obj.IsDoor, NativeMotionAuthority = new NativeMotionAuthority(1, 0, 0), NativeDisplayOffset = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? NativeDisplayOffsetState.AllocatedZero : null });
+            actors.Add(new ActorState(obj.Index, obj.Label) { MovementSpeed = nativeRuntimeProfile?.AllocatedActorSpeed ?? 1000, NativeMovementBaseSpeed = nativeRuntimeProfile is not null ? checked((short)nativeRuntimeProfile.AllocatedActorSpeed) : null, LineEnabled = nativeRuntimeProfile is null || !obj.IsDoor, NativeMotionAuthority = new NativeMotionAuthority(1, 0, 0), NativeMovementCompletion542 = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? (ushort?)0 : null, NativeLandingTriangle508 = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? (ushort?)0 : null, NativeDisplayOffset = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? NativeDisplayOffsetState.AllocatedZero : null });
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
@@ -733,7 +733,7 @@ public sealed partial class EventEngine
             WaitReason.None => true,
             WaitReason.Frames => Frame >= fiber.WaitUntil,
             WaitReason.Animation => !actor.AnimationPlaying || actor.AnimationLoop,
-            WaitReason.Movement => actor.MovementTarget is null,
+            WaitReason.Movement => actor.NativeMovementCompletion542 == 2,
             WaitReason.MoveActor => actor.MovementActorId is null,
             WaitReason.Rotation => actor.RotationTarget is null,
             WaitReason.Dialogue => !dialogues.ContainsKey(fiber.DialogueChannel),

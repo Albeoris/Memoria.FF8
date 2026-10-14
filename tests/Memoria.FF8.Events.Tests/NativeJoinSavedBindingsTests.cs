@@ -48,7 +48,7 @@ internal static partial class Program
             live.Step();
         }
         JsonElement pending = live.Capture();
-        Require(pending.GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => target.GetProperty("Completion").GetInt32() == 1), "JOIN failed to advance all ordinary mode1 targets in its issuing frame's post-VM update.");
+        Require(pending.GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => pending.GetProperty("Actors")[target.GetProperty("ObjectId").GetInt32()].GetProperty("NativeMovementCompletion542").GetInt32() == 1), "JOIN failed to advance all ordinary mode1 targets in its issuing frame's post-VM update.");
         Require(live.Scene.FieldPartyNativeActorIds.SequenceEqual(new[] { 1, 255, 255 }) && live.Scene.PartyBindingMemory is { First: 1, Second: 2, Third: 3 } && pending.GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().Select(target => target.GetProperty("ObjectId").GetInt32()).SequenceEqual(new[] { 2, 3 }), $"JOIN substituted detached runtime slots for original saved B194 body pointers: frame{live.Frame}, runtime[{string.Join(",", live.Scene.FieldPartyNativeActorIds)}], saved={live.Scene.PartyBindingMemory}, targets={pending.GetProperty("PartyJoin")}.");
         EventEngine restored = Create();
         restored.Restore(pending);
@@ -141,7 +141,7 @@ internal static partial class Program
         {
             stopped.Step();
         }
-        Require(stopped.Capture().GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => target.GetProperty("Completion").GetInt32() == 2) && stopped.Actors[2].Y == 80 && stopped.Actors[3].Y == -80, "JOIN stop96 did not use shared native stop-before-snap policy or changed stopped coordinates.");
+        Require(stopped.Capture().GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => stopped.Capture().GetProperty("Actors")[target.GetProperty("ObjectId").GetInt32()].GetProperty("NativeMovementCompletion542").GetInt32() == 2) && stopped.Actors[2].Y == 80 && stopped.Actors[3].Y == -80, "JOIN stop96 did not use shared native stop-before-snap policy or changed stopped coordinates.");
         // Isolated physical-byte state test, not a reconstructed research save:
         // JOIN must preserve an already held576 and consume actual577 separately.
         JsonNode heldState = JsonNode.Parse(pending.GetRawText())!;
@@ -159,7 +159,7 @@ internal static partial class Program
         Vector3 heldPosition = new(heldBody.X, heldBody.Y, heldBody.Z);
         blocked.Step();
         blockedCopy.Step();
-        Require(JsonElement.DeepEquals(blocked.Capture(), blockedCopy.Capture()) && heldBody.Direction == 17 && heldBody.NativeMotionAuthority is { FacingHold: 1 } && heldBody.NativeMotionAuthority.MovementDirection != 17 && new Vector3(heldBody.X, heldBody.Y, heldBody.Z) == heldPosition && blocked.Capture().GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => target.GetProperty("Completion").GetInt32() == 1), "Blocked JOIN lost native completion1, distinct movement575/held577 or independent restore.");
+        Require(JsonElement.DeepEquals(blocked.Capture(), blockedCopy.Capture()) && heldBody.Direction == 17 && heldBody.NativeMotionAuthority is { FacingHold: 1 } && heldBody.NativeMotionAuthority.MovementDirection != 17 && new Vector3(heldBody.X, heldBody.Y, heldBody.Z) == heldPosition && blocked.Capture().GetProperty("PartyJoin").GetProperty("Targets").EnumerateArray().All(target => blocked.Capture().GetProperty("Actors")[target.GetProperty("ObjectId").GetInt32()].GetProperty("NativeMovementCompletion542").GetInt32() == 1), "Blocked JOIN lost native completion1, distinct movement575/held577 or independent restore.");
         Console.WriteLine("JOIN saved B194 bodies: native actor-order commit despite reversed slots, shared stop96, blocked completion1/held576, missing-direction refusal, raw completion receipt and independent VM continuation passed.");
     }
 }

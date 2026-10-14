@@ -5,7 +5,7 @@ using Albeoris.Games.FF8.Jsm;
 namespace Memoria.FF8.Events;
 
 public sealed record NativeDisplayOffsetCommand(int Version, int ObjectId, int ScriptId, int Operation, long Frame, string Opcode, int InlineParameter, ImmutableArray<int> Operands, short PreviousTargetX, short PreviousTargetY, short PreviousTargetZ);
-public sealed record NativeDisplayOffsetState(int Version, short X, short Y, short Z, short StartX, short StartY, short StartZ, short TargetX, short TargetY, short TargetZ, ushort Duration, ushort Counter, byte Mode, short DirectParameter = 0, short Auxiliary = 0, NativeDisplayOffsetCommand? Command = null)
+public sealed record NativeDisplayOffsetState(int Version, short X, short Y, short Z, short StartX, short StartY, short StartZ, short TargetX, short TargetY, short TargetZ, ushort Duration, ushort Counter, byte Mode, NativeDisplayOffsetCommand? Command = null)
 {
     public static NativeDisplayOffsetState AllocatedZero { get; } = new(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
@@ -14,7 +14,7 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedDisplayOffset(Fiber fiber, Jsm.Opcode opcode)
     {
-        int count = opcode == Jsm.Opcode.LOFFSETS ? 7 : opcode is Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET ? 4 : opcode == Jsm.Opcode.DOFFSET ? 3 : 0;
+        int count = opcode is Jsm.Opcode.LOFFSETS or Jsm.Opcode.COFFSETS ? 7 : opcode is Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET ? 4 : opcode == Jsm.Opcode.DOFFSET ? 3 : 0;
         if (fiber.Stack.Count < count)
         {
             return "Native display offset requires its complete original operands";
@@ -24,33 +24,28 @@ public sealed partial class EventEngine
         {
             return "Native display offset requires an original allocated actor record";
         }
-        if (opcode != Jsm.Opcode.DOFFSET && actor.NativeDisplayOffset is null)
+        if (actor.NativeDisplayOffset is null || actor.NativeMovementCompletion542 is null || actor.NativeLandingTriangle508 is null)
         {
-            return "Native display offset requires known allocated target words; migrate or replay a fresh native field load";
+            return "Native display offset requires known executed native offset words; recreate from authentic field history";
         }
         return null;
     }
 
     private int[] ExecuteDisplayOffset(Fiber fiber, ActorState actor, JsmOperation operation)
     {
-        bool explicitStart = operation.Opcode == Jsm.Opcode.LOFFSETS;
+        bool explicitStart = operation.Opcode is Jsm.Opcode.LOFFSETS or Jsm.Opcode.COFFSETS;
         int[] operands = Pop(fiber, operation.Opcode == Jsm.Opcode.DOFFSET ? 3 : explicitStart ? 7 : 4);
         short x = unchecked((short)operands[0]);
         short y = unchecked((short)operands[1]);
         short z = unchecked((short)operands[2]);
-        NativeDisplayOffsetState? state = actor.NativeDisplayOffset;
-        if (state is null)
-        {
-            // A direct write establishes current XYZ, not previously unknown
-            // target words. Legacy saves remain unable to request interpolation.
-            actor.DisplayOffset = new Vector3(x, y, z);
-            return operands;
-        }
+        NativeDisplayOffsetState state = actor.NativeDisplayOffset!;
         NativeDisplayOffsetCommand command = new(1, actor.ObjectId, fiber.Script.Id, operation.Index, Frame, operation.Opcode.ToString(), operation.Parameter, operands.ToImmutableArray(), state.TargetX, state.TargetY, state.TargetZ);
         if (operation.Opcode == Jsm.Opcode.DOFFSET)
         {
-            state = state with { X = x, Y = y, Z = z, StartX = x, StartY = y, StartZ = z, Mode = 0, Counter = 0, DirectParameter = unchecked((short)operation.Parameter), Auxiliary = 0, Command = command };
+            state = state with { X = x, Y = y, Z = z, StartX = x, StartY = y, StartZ = z, Mode = 0, Counter = 0, Command = command };
             actor.DisplayOffset = new Vector3(x, y, z);
+            actor.NativeLandingTriangle508 = unchecked((ushort)operation.Parameter);
+            actor.NativeMovementCompletion542 = 0;
         }
         else
         {
@@ -116,8 +111,8 @@ public sealed partial class EventEngine
                 continue;
             }
             bool direct = command.Opcode == nameof(Jsm.Opcode.DOFFSET);
-            bool cosine = command.Opcode == nameof(Jsm.Opcode.COFFSET);
-            bool explicitStart = command.Opcode == nameof(Jsm.Opcode.LOFFSETS);
+            bool cosine = command.Opcode is nameof(Jsm.Opcode.COFFSET) or nameof(Jsm.Opcode.COFFSETS);
+            bool explicitStart = command.Opcode is nameof(Jsm.Opcode.LOFFSETS) or nameof(Jsm.Opcode.COFFSETS);
             if (command.Version != 1 || command.ObjectId != actor.ObjectId || command.ScriptId < 0 || command.Operation < 0 || command.Frame < 0 || command.Frame > saved.Frame || command.Operands.IsDefault || command.Operands.Length != (direct ? 3 : explicitStart ? 7 : 4) || !direct && !cosine && !explicitStart && command.Opcode != nameof(Jsm.Opcode.LOFFSET) || !MatchesNativeMediaInstruction(command.ObjectId, command.ScriptId, command.Operation) || program!.Operations[command.Operation].Opcode.ToString() != command.Opcode || program.Operations[command.Operation].Parameter != command.InlineParameter)
             {
                 throw new InvalidDataException("Saved display offset has invalid issuing command provenance.");
@@ -127,7 +122,7 @@ public sealed partial class EventEngine
             short z = unchecked((short)command.Operands[2]);
             if (direct)
             {
-                if (state.Mode != 0 || state.X != x || state.Y != y || state.Z != z || state.StartX != x || state.StartY != y || state.StartZ != z || state.TargetX != command.PreviousTargetX || state.TargetY != command.PreviousTargetY || state.TargetZ != command.PreviousTargetZ || state.DirectParameter != unchecked((short)command.InlineParameter) || state.Auxiliary != 0)
+                if (state.Mode != 0 || state.X != x || state.Y != y || state.Z != z || state.StartX != x || state.StartY != y || state.StartZ != z || state.TargetX != command.PreviousTargetX || state.TargetY != command.PreviousTargetY || state.TargetZ != command.PreviousTargetZ)
                 {
                     throw new InvalidDataException("Saved direct offset differs from its native current/start writes or retained targets.");
                 }

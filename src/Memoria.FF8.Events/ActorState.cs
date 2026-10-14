@@ -84,6 +84,14 @@ public sealed class ActorState
     public byte MovementDirectionLimit { get; internal set; }
     [JsonInclude]
     public NativeScriptMovementState? NativeScriptMovement { get; internal set; }
+    /// <summary>Shared physical WORD542, allocated by the fresh native actor loader and written by motion, DOFFSET and RET.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public ushort? NativeMovementCompletion542 { get; internal set; }
+    /// <summary>Shared physical WORD508; JUMP selects its landing triangle and DOFFSET writes its inline low word.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public ushort? NativeLandingTriangle508 { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMovementRequestState? NativeMovementRequest { get; internal set; }

@@ -135,7 +135,7 @@ internal static partial class Program
         };
         first.Step();
         replay.Step();
-        Require(replaced is { X: 3, Y: 4, Z: 5, StartX: 100, StartY: -200, StartZ: 300, TargetX: 400, Counter: 0, DirectParameter: 240 } && first.Actors[0].NativeDisplayOffset is { X: 100, Y: -200, Z: 300, Counter: 1 }, "DOFFSET overwrote target words or COFFSET incorrectly started from current display XYZ.");
+        Require(first.Actors[0].NativeLandingTriangle508 == 240 && first.Actors[0].NativeMovementCompletion542 == 0 && replaced is { X: 3, Y: 4, Z: 5, StartX: 100, StartY: -200, StartZ: 300, TargetX: 400, Counter: 0 } && first.Actors[0].NativeDisplayOffset is { X: 100, Y: -200, Z: 300, Counter: 1 }, "DOFFSET overwrote target words or COFFSET incorrectly started from current display XYZ.");
         Require(JsonElement.DeepEquals(first.Capture(), replay.Capture()), "Chained direct/cosine offsets changed restored VM.");
         for (int tick = 0; tick < 10; tick++)
         {

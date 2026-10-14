@@ -5,7 +5,7 @@ namespace Memoria.FF8.Events;
 public sealed record NativeJoinMovementQuery(int ObjectId, int Triangle, int FixedX, int FixedY, int FixedZ, int Direction, short Speed, int Radius, Func<NativePlayerGroundProbe, bool>? HasActorCollision = null);
 public sealed record NativeJoinMovementProposal(int FixedX, int FixedY, int Direction);
 public sealed record NativeJoinMovementResult(bool Accepted, int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null);
-public sealed record PartyJoinTarget(int ObjectId, int FixedX, int FixedY, int FixedZ, int TargetX, int TargetY, int TargetZ, int Speed, int Completion);
+public sealed record PartyJoinTarget(int ObjectId, int FixedX, int FixedY, int FixedZ, int TargetX, int TargetY, int TargetZ, int Speed);
 public sealed record PartyJoinState(long FiberSequence, int CallerObjectId, PartyJoinTarget[] Targets, bool UsesNativeMovement = false);
 public sealed record NativeJoinedPosition(int Version, int FieldId, int CallerObjectId, int ScriptId, int Operation, long FiberSequence, long Frame, int FixedX, int FixedY, int FixedZ, int Triangle, NativeMotionAuthority Authority);
 
@@ -184,8 +184,9 @@ public sealed partial class EventEngine
                 target.MovementTarget = null;
                 target.MovementStopDistance = 96;
                 target.NativeScriptMovement = null;
+                target.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(target, walk ? target.WalkAnimationId : target.RunAnimationId, true);
-                targets.Add(new PartyJoinTarget(target.ObjectId, fixedX, fixedY, fixedZ, callerPosition.X, callerPosition.Y, callerPosition.Z, speed, 0));
+                targets.Add(new PartyJoinTarget(target.ObjectId, fixedX, fixedY, fixedZ, callerPosition.X, callerPosition.Y, callerPosition.Z, speed));
             }
             SelectFullNativeAnimation(caller, caller.BaseAnimationId, true);
             partyJoin = new PartyJoinState(fiber.Sequence, caller.ObjectId, targets.ToArray(), true);
@@ -196,12 +197,12 @@ public sealed partial class EventEngine
         foreach (PartyJoinTarget target in partyJoin.Targets)
         {
             ActorState actor = actors[target.ObjectId];
-            if (target.Completion == 2 && actor.AnimationId != actor.BaseAnimationId)
+            if (actors[target.ObjectId].NativeMovementCompletion542 == 2 && actor.AnimationId != actor.BaseAnimationId)
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
             }
         }
-        if (partyJoin.Targets.Any(target => target.Completion != 2))
+        if (partyJoin.Targets.Any(target => actors[target.ObjectId].NativeMovementCompletion542 != 2))
         {
             fiber.Position--;
             fiber.WaitReason = WaitReason.PartyJoin;
@@ -263,7 +264,7 @@ public sealed partial class EventEngine
             return false;
         }
         PartyJoinTarget target = partyJoin!.Targets[index];
-        if (target.Completion == 2)
+        if (actors[target.ObjectId].NativeMovementCompletion542 == 2)
         {
             return true;
         }
@@ -282,7 +283,8 @@ public sealed partial class EventEngine
         {
             throw FreezeJoin(exception.Message);
         }
-        PartyJoinTarget next = target with { FixedX = direction.FixedX, FixedY = direction.FixedY, Completion = 2 };
+        ushort completion = 2;
+        PartyJoinTarget next = target with { FixedX = direction.FixedX, FixedY = direction.FixedY };
         if (direction.Status == NativeScriptDirectionStatus.Moving)
         {
             NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction.Direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
@@ -317,7 +319,8 @@ public sealed partial class EventEngine
             {
                 throw FreezeJoin(exception.Message);
             }
-            next = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
+            next = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ };
+            completion = 1;
             actor.WalkmeshTriangle = movement.Triangle;
             if (authority.FacingHold == 0)
             {
@@ -326,6 +329,7 @@ public sealed partial class EventEngine
             authority = authority with { MovementDirection = (byte)movement.Direction };
         }
         actor.InvalidateNativeMotionAuthority();
+        actor.NativeMovementCompletion542 = completion;
         actor.NativeMotionAuthority = authority;
         actor.X = next.FixedX / 4096f;
         actor.Y = next.FixedY / 4096f;

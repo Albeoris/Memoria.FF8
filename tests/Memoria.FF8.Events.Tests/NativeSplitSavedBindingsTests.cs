@@ -130,7 +130,7 @@ internal static partial class Program
         }
         blocked.Step();
         blockedCopy.Step();
-        Require(JsonElement.DeepEquals(blocked.Capture(), blockedCopy.Capture()) && blocked.Actors[2].Direction == 17 && blocked.Actors[2].NativeMotionAuthority is { FacingHold: 1 } authority && authority.MovementDirection != 17 && blocked.Actors[2].Y == -20 && blocked.Capture().GetProperty("PartySplit").GetProperty("Targets").EnumerateArray().All(target => target.GetProperty("Completion").GetInt32() == 1), "Blocked SPLIT lost completion1, held577/independent575 or restore consistency.");
+        Require(JsonElement.DeepEquals(blocked.Capture(), blockedCopy.Capture()) && blocked.Actors[2].Direction == 17 && blocked.Actors[2].NativeMotionAuthority is { FacingHold: 1 } authority && authority.MovementDirection != 17 && blocked.Actors[2].Y == -20 && blocked.Capture().GetProperty("PartySplit").GetProperty("Targets").EnumerateArray().All(target => blocked.Capture().GetProperty("Actors")[target.GetProperty("ObjectId").GetInt32()].GetProperty("NativeMovementCompletion542").GetInt32() == 1), "Blocked SPLIT lost completion1, held577/independent575 or restore consistency.");
         EventEngine partial = Create();
         partial.Restore(pending);
         partial.ResolveNativeJoinMovement = query => query.ObjectId == 2 ? null : geometry(query);

@@ -34,7 +34,7 @@ internal static partial class Program
             fresh.Step();
         }
         ActorState stopped = fresh.Actors[0];
-        Require(stopped.NativeScriptMovement is { Completion: 2, MovementDirection: 0, FacingDirection: 128 } && stopped.NativeMotionAuthority == new NativeMotionAuthority(1, 0, 0), "Native stop used body577 as movement575 after DIR/SET3 or changed preserved scalars.");
+        Require(stopped.NativeMovementCompletion542 == 2 && stopped.NativeScriptMovement is { MovementDirection: 0, FacingDirection: 128 } && stopped.NativeMotionAuthority == new NativeMotionAuthority(1, 0, 0), "Native stop used body577 as movement575 after DIR/SET3 or changed preserved scalars.");
         JsonElement stoppedSaved = fresh.Capture();
         EventEngine independent = Create();
         independent.Restore(stoppedSaved);

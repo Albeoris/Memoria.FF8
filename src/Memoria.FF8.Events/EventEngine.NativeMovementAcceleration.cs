@@ -42,7 +42,7 @@ public sealed partial class EventEngine
             throw new NotSupportedException("MACCEL current signed speed requires unsupported zero or reverse mode1 geometry.");
         }
         ActorState actor = actors[fiber.ObjectId];
-        return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, x, y, z, speed, unchecked((short)args[3]), 0, movementDirection, (byte)actor.Direction, 0, 0, HoldsFacing: true, Accelerated: true);
+        return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, x, y, z, speed, unchecked((short)args[3]), movementDirection, (byte)actor.Direction, 0, 0, HoldsFacing: true, Accelerated: true);
     }
 
     private NativeScriptMovementState PrepareNativeAccelerationStep(ActorState actor, NativeScriptMovementState state)

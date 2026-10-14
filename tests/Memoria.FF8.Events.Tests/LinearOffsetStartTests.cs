@@ -54,16 +54,16 @@ internal static partial class Program
         EventEngine zero = CreateFieldMedia(zeroContent);
         zero.Step();
         Require(zero.Actors[0].NativeDisplayOffset is { X: 11, Y: -15, Z: 8, TargetX: 100, TargetY: 200, TargetZ: 300, Duration: 0, Counter: 0, Mode: 3 }, "Native zero-duration linear explicit offset must complete at its start while retaining its independently written target.");
-        EventEngine legacy = CreateFieldMedia(content, native: false);
+        EventEngine unknown = CreateFieldMedia(content, native: false);
         try
         {
-            legacy.Step();
-            throw new InvalidOperationException("LOFFSETS inferred native allocation for a legacy actor.");
+            unknown.Step();
+            throw new InvalidOperationException("DOFFSET inferred native allocation for an unknown actor.");
         }
-        catch (EventScriptException) when (legacy.LastFault?.Opcode == "LOFFSETS")
+        catch (EventScriptException) when (unknown.LastFault?.Opcode == "DOFFSET")
         {
         }
-        Require(legacy.Actors[0].NativeDisplayOffset is null && legacy.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").GetArrayLength() == 7, "Unproved LOFFSETS allocation consumed its original operands.");
+        Require(unknown.Actors[0].NativeDisplayOffset is null && unknown.Actors[0].DisplayOffset == Vector3.Zero && unknown.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").GetArrayLength() == 3, "Unproved DOFFSET allocation consumed its original operands.");
 
         byte[] waitingContent = FieldMediaProgram([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.LOFFSETS, 0)]);
         EventEngine missing = CreateFieldMedia(waitingContent);

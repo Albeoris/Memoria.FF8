@@ -42,7 +42,7 @@ internal static partial class Program
             live.Step();
             live.Step();
             ActorState body = live.Actors[1];
-            Require(body.ModelId == (explicitEmptyModel ? 65535 : -1) && !body.Visible && body.NativeScriptMovement is { Active: true, Asynchronous: true, Completion: 1 } movement && (movement.FixedX & 4095) != 0 && body.NativeMotionAuthority is { Version: 1, MovementDirection: 64, FacingHold: 0 } && !body.AnimationPlaying, "Retained empty body did not execute genuine fractional native mode1 movement independently from a rendered model.");
+            Require(body.ModelId == (explicitEmptyModel ? 65535 : -1) && !body.Visible && body.NativeMovementCompletion542 == 1 && body.NativeScriptMovement is { Active: true, Asynchronous: true } movement && (movement.FixedX & 4095) != 0 && body.NativeMotionAuthority is { Version: 1, MovementDirection: 64, FacingHold: 0 } && !body.AnimationPlaying, "Retained empty body did not execute genuine fractional native mode1 movement independently from a rendered model.");
             EventEngine restored = Create();
             restored.Restore(live.Capture());
             bool queryObserved = false;
@@ -62,7 +62,7 @@ internal static partial class Program
                 restored.Step();
                 Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Empty-body raw motion/GETINFO diverged after independent full VM restore.");
             }
-            Require(queryObserved && body.X == 100 && body.Y == 100 && body.NativeScriptMovement is { Active: false, Completion: 2, AnimationFlag40000: false } && !body.AnimationPlaying, "Empty-body async movement did not complete/clean physical flags without inventing a rendered animation.");
+            Require(queryObserved && body.X == 100 && body.Y == 100 && body.NativeMovementCompletion542 == 2 && body.NativeScriptMovement is { Active: false, AnimationFlag40000: false } && !body.AnimationPlaying, "Empty-body async movement did not complete/clean physical flags without inventing a rendered animation.");
         }
         Console.WriteLine("Empty WORD536 body: hidden allocated -1/FFFF RMOVE raw fixed movement, SET placement authority, no animation resource or actor collision, exact GETINFO sampling, async completion and independent VM restore passed.");
     }

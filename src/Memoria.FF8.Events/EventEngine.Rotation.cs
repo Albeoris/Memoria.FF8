@@ -2,7 +2,7 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private static bool NativeMovementOwnsFacing(ActorState actor) => actor.NativeScriptMovement is { Active: true, Suspended: false, Completion: 1, HoldsFacing: false } movement && actor.NativeMotionAuthority is { Version: 1, FacingHold: 0 } authority && actor.Direction == movement.FacingDirection && movement.FacingDirection == movement.MovementDirection && authority.MovementDirection == movement.MovementDirection && actor.X == movement.FixedX / 4096f && actor.Y == movement.FixedY / 4096f && actor.Z == movement.FixedZ / 4096f && actor.WalkmeshTriangle == movement.Triangle;
+    private static bool NativeMovementOwnsFacing(ActorState actor) => actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { Active: true, Suspended: false, HoldsFacing: false } movement && actor.NativeMotionAuthority is { Version: 1, FacingHold: 0 } authority && actor.Direction == movement.FacingDirection && movement.FacingDirection == movement.MovementDirection && authority.MovementDirection == movement.MovementDirection && actor.X == movement.FixedX / 4096f && actor.Y == movement.FixedY / 4096f && actor.Z == movement.FixedZ / 4096f && actor.WalkmeshTriangle == movement.Triangle;
 
     private void StepCosineRotation(ActorState actor)
     {

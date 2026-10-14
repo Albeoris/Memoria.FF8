@@ -172,7 +172,7 @@ public sealed class CavernNativePartyMoveJoinTests
         Assert.Equal((moving.FixedX / 4096f, moving.FixedY / 4096f), (quistis.X, quistis.Y));
 
         Assert.Equal((-182 * 4096, 5022 * 4096, 0), (moving.FixedX, moving.FixedY, moving.FixedZ));
-        Assert.Equal((byte)2, moving.Completion);
+        Assert.Equal((ushort)2, quistis.NativeMovementCompletion542);
         Console.WriteLine($"Fresh129 native MOVE complete before474: raw({moving.FixedX},{moving.FixedY},{moving.FixedZ}), tri{moving.Triangle}, dir{moving.FacingDirection}, contactsteering{sawActorCollision}.");
         var replaySession = new GameSession(session.State with { EventState = world.Events.Capture(), Variables = new Dictionary<int, int>(session.State.Variables) });
         using var replay = new GameWorld(replaySession, directory);

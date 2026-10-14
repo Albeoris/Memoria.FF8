@@ -83,7 +83,7 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Fractional player-to-script handoff diverged after independent restore.");
         }
-        Require(live.Scene.FieldPartyNativeActorIds[0] == 255 && live.Scene.PartyBindingMemory is { First: 0 } && live.Actors[0].NativeScriptMovement is { Active: false, Completion: 2, FixedX: 884736, FixedY: 2265088, FixedZ: 819200, Triangle: 7 } && live.Scene.NativePlayerPosition == new FieldFixedPosition(884736, 2265088, 819200) && live.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 133, 0), "FOLLOWOFF/native MOVE fell back to float movement, lost saved leader binding or changed snap triangle authority.");
+        Require(live.Scene.FieldPartyNativeActorIds[0] == 255 && live.Scene.PartyBindingMemory is { First: 0 } && live.Actors[0].NativeMovementCompletion542 == 2 && live.Actors[0].NativeScriptMovement is { Active: false, FixedX: 884736, FixedY: 2265088, FixedZ: 819200, Triangle: 7 } && live.Scene.NativePlayerPosition == new FieldFixedPosition(884736, 2265088, 819200) && live.Actors[0].NativeMotionAuthority == new NativeMotionAuthority(1, 133, 0), "FOLLOWOFF/native MOVE fell back to float movement, lost saved leader binding or changed snap triangle authority.");
         EventEngine held = Create();
         held.Step();
         held.Step();
@@ -99,12 +99,12 @@ internal static partial class Program
         moving.Step();
         moving.Step();
         NativeScriptMovementState owner = moving.Actors[0].NativeScriptMovement!;
-        Require(owner is { Active: true, Completion: 1 } && moving.IsUserControlEnabled, "Synthetic active script must retain global control to exercise native body572 input suppression.");
+        Require(moving.Actors[0].NativeMovementCompletion542 == 1 && owner is { Active: true } && moving.IsUserControlEnabled, "Synthetic active script must retain global control to exercise native body572 input suppression.");
         EventEngine movingRestored = Create(true);
         movingRestored.Restore(moving.Capture());
         PlayerAction input = new(PlayerActionKind.Move, Horizontal: 1);
         Require(moving.Apply(input) is { Accepted: true, FramesAdvanced: 1 } && movingRestored.Apply(input) is { Accepted: true, FramesAdvanced: 1 }, "Active native movement input did not advance its ordinary callback.");
-        Require(moving.Actors[0].NativeScriptMovement is { Active: true, Completion: 1 } next && next.FiberSequence == owner.FiberSequence && next.FixedX == owner.FixedX + 4096 && moving.Scene.NativePlayerPosition == new FieldFixedPosition(next.FixedX, next.FixedY, next.FixedZ) && JsonElement.DeepEquals(moving.Capture(), movingRestored.Capture()), "Ordinary player input replaced active native MOVE ownership, ran legacy locomotion or diverged after restore.");
+        Require(moving.Actors[0].NativeMovementCompletion542 == 1 && moving.Actors[0].NativeScriptMovement is { Active: true } next && next.FiberSequence == owner.FiberSequence && next.FixedX == owner.FixedX + 4096 && moving.Scene.NativePlayerPosition == new FieldFixedPosition(next.FixedX, next.FixedY, next.FixedZ) && JsonElement.DeepEquals(moving.Capture(), movingRestored.Capture()), "Ordinary player input replaced active native MOVE ownership, ran legacy locomotion or diverged after restore.");
         GameSession movingSession = (GameSession)typeof(EventEngine).GetField("services", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(moving)!;
         movingSession.SetSeeD(NativeSeeDState.CreateNewGame().WithSalaryEnabled(true));
         Set(moving.Scene, nameof(SceneEventState.NativeSalaryMovementUnits), (byte)5);

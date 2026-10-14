@@ -8,7 +8,7 @@ public sealed partial class EventEngine
 
     private bool NativePlayerWalking => !Scene.RunEnabled || ((Scene.ButtonInput?.Held ?? 0) & 0x10) != 0;
 
-    private bool NativePlayerHasScriptedMode(ActorState actor) => actor.NativeScriptMovement is { Active: true, Suspended: false, Completion: < 2 } || actor.NativeJump is { Active: true } || partyJoin?.Targets.Any(target => target.ObjectId == actor.ObjectId && target.Completion < 2) == true || partySplit?.Targets.Any(target => target.ObjectId == actor.ObjectId && target.Completion < 2) == true;
+    private bool NativePlayerHasScriptedMode(ActorState actor) => actor.NativeMovementCompletion542 < 2 && actor.NativeScriptMovement is { Active: true, Suspended: false } || actor.NativeJump is { Active: true } || partyJoin?.Targets.Any(target => target.ObjectId == actor.ObjectId && actors[target.ObjectId].NativeMovementCompletion542 < 2) == true || partySplit?.Targets.Any(target => target.ObjectId == actor.ObjectId && actors[target.ObjectId].NativeMovementCompletion542 < 2) == true;
 
     private NativeSeeDState? PrepareNativeFieldSalarySample()
     {

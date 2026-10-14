@@ -159,7 +159,7 @@ public sealed class OpeningCorridorMovementTests
             }
             previousNpcX = quistis.X;
             // Async movement leaves its script free to select a different animation.
-            foreach (ActorState npc in world.Events.Actors.Where(actor => actor.Visible && actor.CharacterId != 0 && actor.NativeScriptMovement is { Active: true, Asynchronous: false, AutomaticAnimation: true, Completion: 1 }))
+            foreach (ActorState npc in world.Events.Actors.Where(actor => actor.Visible && actor.CharacterId != 0 && actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { Active: true, Asynchronous: false, AutomaticAnimation: true }))
             {
                 if (!npcMovementSeen)
                 {

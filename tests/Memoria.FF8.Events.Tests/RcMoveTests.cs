@@ -45,7 +45,7 @@ internal static partial class Program
         int animation = live.Engine.Actors[0].AnimationId;
         live.Engine.Step();
         ActorState actor = live.Engine.Actors[0];
-        Require(actor.NativeScriptMovement is { HoldsFacing: true, Asynchronous: true, AutomaticAnimation: false, DirectionLimit: 0, Completion: 1, MovementDirection: 8, FacingDirection: 128 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 1) && actor.X == 1 && actor.Direction == 128 && actor.AnimationId == animation && !actor.MovementIgnoresWalkmesh && !live.Session.State.Variables.ContainsKey(5000), "RCMOVE lost asynchronous budget yield, distinct movement/facing bytes, grounded substep or unchanged animation.");
+        Require(actor.NativeMovementCompletion542 == 1 && actor.NativeScriptMovement is { HoldsFacing: true, Asynchronous: true, AutomaticAnimation: false, DirectionLimit: 0, MovementDirection: 8, FacingDirection: 128 } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 1) && actor.X == 1 && actor.Direction == 128 && actor.AnimationId == animation && !actor.MovementIgnoresWalkmesh && !live.Session.State.Variables.ContainsKey(5000), "RCMOVE lost asynchronous budget yield, distinct movement/facing bytes, grounded substep or unchanged animation.");
         JsonElement saved = live.Engine.Capture();
         var restored = Create();
         restored.Engine.Restore(saved);
@@ -56,13 +56,13 @@ internal static partial class Program
             restored.Engine.Step();
             Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "RCMOVE diverged after independent restore.");
             Require(actor.Direction == 192 && actor.AnimationId == animation && actor.X <= 4, "Held RCMOVE overwrote an explicit DIR/animation or teleported to its target.");
-            if (actor.NativeScriptMovement is { Active: true, Completion: 2 })
+            if (actor.NativeMovementCompletion542 == 2 && actor.NativeScriptMovement is { Active: true })
             {
                 completedHeld = true;
                 Require(actor.NativeMotionAuthority is { FacingHold: 1 }, "RCMOVE cleared576 before the next actor VM completion consumer.");
             }
         }
-        Require(completedHeld && actor.NativeScriptMovement is { Active: false, Completion: 2, HoldsFacing: true } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 0) && live.Session.State.Variables[5000] == 7 && live.Session.State.Variables[5001] == 9, "RCMOVE did not preserve async completion timing, clear native hold or release MOVESYNC.");
+        Require(completedHeld && actor.NativeMovementCompletion542 == 2 && actor.NativeScriptMovement is { Active: false, HoldsFacing: true } && actor.NativeMotionAuthority == new NativeMotionAuthority(1, 8, 0) && live.Session.State.Variables[5000] == 7 && live.Session.State.Variables[5001] == 9, "RCMOVE did not preserve async completion timing, clear native hold or release MOVESYNC.");
         JsonNode invalid = JsonNode.Parse(saved.GetRawText())!;
         invalid["Actors"]![0]!["NativeMotionAuthority"]!["FacingHold"] = 0;
         try

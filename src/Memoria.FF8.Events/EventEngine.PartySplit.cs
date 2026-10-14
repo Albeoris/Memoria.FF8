@@ -92,20 +92,21 @@ public sealed partial class EventEngine
                 actor.MovementSpeed = speed;
                 actor.MovementStopDistance = 8;
                 actor.NativeScriptMovement = null;
+                actor.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(actor, walk ? actor.WalkAnimationId : actor.RunAnimationId, true);
-                targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed, 0));
+                targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed));
             }
             partySplit = new PartySplitState(fiber.Sequence, fiber.ObjectId, targets.ToArray(), usesNativeMovement);
         }
         foreach (PartyJoinTarget target in partySplit.Targets)
         {
             ActorState actor = actors[target.ObjectId];
-            if (target.Completion == 2 && actor.AnimationId != actor.BaseAnimationId)
+            if (actors[target.ObjectId].NativeMovementCompletion542 == 2 && actor.AnimationId != actor.BaseAnimationId)
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
             }
         }
-        if (partySplit.Targets.Any(target => target.Completion != 2))
+        if (partySplit.Targets.Any(target => actors[target.ObjectId].NativeMovementCompletion542 != 2))
         {
             fiber.Position--;
             fiber.WaitReason = WaitReason.PartySplit;
@@ -129,7 +130,7 @@ public sealed partial class EventEngine
             return false;
         }
         PartyJoinTarget target = partySplit!.Targets[index];
-        if (target.Completion == 2)
+        if (actors[target.ObjectId].NativeMovementCompletion542 == 2)
         {
             return true;
         }
@@ -149,7 +150,8 @@ public sealed partial class EventEngine
         {
             throw FreezeSplit(exception.Message);
         }
-        PartyJoinTarget next = target with { FixedX = direction.FixedX, FixedY = direction.FixedY, Completion = 2 };
+        ushort completion = 2;
+        PartyJoinTarget next = target with { FixedX = direction.FixedX, FixedY = direction.FixedY };
         if (direction.Status == NativeScriptDirectionStatus.Moving)
         {
             NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction.Direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
@@ -184,7 +186,8 @@ public sealed partial class EventEngine
             {
                 throw FreezeSplit(exception.Message);
             }
-            next = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
+            next = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ };
+            completion = 1;
             actor.WalkmeshTriangle = movement.Triangle;
             if (authority.FacingHold == 0)
             {
@@ -193,6 +196,7 @@ public sealed partial class EventEngine
             authority = authority with { MovementDirection = (byte)movement.Direction };
         }
         actor.InvalidateNativeMotionAuthority();
+        actor.NativeMovementCompletion542 = completion;
         actor.NativeMotionAuthority = authority;
         actor.X = next.FixedX / 4096f;
         actor.Y = next.FixedY / 4096f;

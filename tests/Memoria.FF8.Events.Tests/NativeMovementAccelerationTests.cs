@@ -68,7 +68,7 @@ internal static partial class Program
         bool completedBeforeSuccessor = false;
         live.CommandExecuted += command =>
         {
-            if (command.Name == nameof(Jsm.Opcode.MACCEL) && Variable(live, 1100) == 0 && actor.NativeScriptMovement is { Active: false, Completion: 2 })
+            if (command.Name == nameof(Jsm.Opcode.MACCEL) && Variable(live, 1100) == 0 && actor.NativeMovementCompletion542 == 2 && actor.NativeScriptMovement is { Active: false })
             {
                 completedBeforeSuccessor = actor.NativeMotionAuthority?.FacingHold == 0 && actor.AnimationId == actor.BaseAnimationId && actor.NativeMovementBaseSpeed == 1000;
             }
@@ -154,7 +154,7 @@ internal static partial class Program
         live.CommandExecuted += command =>
         {
             ActorState body = live.Actors[0];
-            if (command.ScriptId == 2 && command.Name == "MACCEL" && body.NativeScriptMovement is { Active: false, Completion: 2 } finished)
+            if (command.ScriptId == 2 && command.Name == "MACCEL" && body.NativeMovementCompletion542 == 2 && body.NativeScriptMovement is { Active: false } finished)
             {
                 upperTerminal = finished.Speed;
                 terminalBackupObserved = body.NativeMovementRequest?.SavedMovement.Speed == finished.Speed && body.NativeMovementBaseSpeed == 2000;

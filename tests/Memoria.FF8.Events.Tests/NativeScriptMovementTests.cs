@@ -43,7 +43,7 @@ internal static partial class Program
         actual.Apply(new PlayerAction(PlayerActionKind.Wait));
         ActorState actor = actual.Actors[20];
         NativeScriptMovementState state = actor.NativeScriptMovement ?? throw new InvalidOperationException("Actual native MOVE did not preserve its raw state.");
-        Require(actual.Frame == 6 && state.Operation == 1861 && state.ScriptId == 103 && state.FixedX == -2864 * 4096 && state.FixedY == -5474 * 4096 && state.FixedZ == 567 * 4096 && state.Triangle == 212 && state.Completion == 1 && state.MovementDirection == 4 && state.FacingDirection == 4 && state.TurnAccumulator == 4 && actor.AnimationId == actor.WalkAnimationId && actor.AnimationFrame == 0 && actor.MovementTarget is not null, $"Actual third-branch blocked MOVE changed native initial raw placement, limited turn, animation or completion: {state}, animation{actor.AnimationId}/{actor.AnimationFrame}.");
+        Require(actual.Frame == 6 && state.Operation == 1861 && state.ScriptId == 103 && state.FixedX == -2864 * 4096 && state.FixedY == -5474 * 4096 && state.FixedZ == 567 * 4096 && state.Triangle == 212 && actor.NativeMovementCompletion542 == 1 && state.MovementDirection == 4 && state.FacingDirection == 4 && state.TurnAccumulator == 4 && actor.AnimationId == actor.WalkAnimationId && actor.AnimationFrame == 0 && actor.MovementTarget is not null, $"Actual third-branch blocked MOVE changed native initial raw placement, limited turn, animation or completion: {state}, animation{actor.AnimationId}/{actor.AnimationFrame}.");
         JsonElement saved = actual.Capture();
         JsonElement owner = saved.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Sequence").GetInt64() == state.FiberSequence);
         Require(owner.GetProperty("Position").GetInt32() == 1861 && owner.GetProperty("Stack").GetArrayLength() == 0 && owner.GetProperty("WaitReason").GetString() == "NativeScriptMovement", "Native MOVE consumed its operands more than once or advanced its held original instruction.");
@@ -106,7 +106,7 @@ internal static partial class Program
             completed.ResolveNativeScriptMovement = _ => throw new InvalidOperationException("Stopped/snap MOVE unnecessarily queried ground geometry.");
             completed.Apply(new PlayerAction(PlayerActionKind.Wait));
             NativeScriptMovementState finish = completed.Actors[20].NativeScriptMovement!;
-            Require(finish is { Active: true, Completion: 2 } && completed.Actors[20].MovementTarget is null && finish.FixedZ == initial.FixedZ && finish.Triangle == initial.Triangle && finish.FacingDirection == initial.FacingDirection, "Native stop/snap changed height, triangle or body direction.");
+            Require(completed.Actors[20].NativeMovementCompletion542 == 2 && finish is { Active: true } && completed.Actors[20].MovementTarget is null && finish.FixedZ == initial.FixedZ && finish.Triangle == initial.Triangle && finish.FacingDirection == initial.FacingDirection, "Native stop/snap changed height, triangle or body direction.");
             EventEngine restored = Create();
             restored.Restore(completed.Capture());
             restored.ResolveNativeScriptDirection = completed.ResolveNativeScriptDirection;
@@ -116,7 +116,7 @@ internal static partial class Program
             {
                 if (command.ObjectId == 20 && command.Operation == initial.Operation)
                 {
-                    resumedIdle = completed.Actors[20].NativeScriptMovement is { Active: false, Completion: 2 } && completed.Actors[20].AnimationId == completed.Actors[20].BaseAnimationId && completed.Actors[20].AnimationFrame == 0;
+                    resumedIdle = completed.Actors[20].NativeMovementCompletion542 == 2 && completed.Actors[20].NativeScriptMovement is { Active: false } && completed.Actors[20].AnimationId == completed.Actors[20].BaseAnimationId && completed.Actors[20].AnimationFrame == 0;
                 }
             };
             completed.Apply(new PlayerAction(PlayerActionKind.Wait));
@@ -125,11 +125,11 @@ internal static partial class Program
         }
 
         JsonElement valid = actual.Capture();
-        foreach (string property in new[] { "FixedX", "Operation", "Completion", "Version" })
+        foreach (string property in new[] { "FixedX", "Operation", "Version" })
         {
             JsonNode invalid = JsonNode.Parse(valid.GetRawText())!;
             JsonNode motion = invalid["Actors"]![20]!["NativeScriptMovement"]!;
-            motion[property] = property == "Completion" ? 9 : motion[property]!.GetValue<int>() + 1;
+            motion[property] = motion[property]!.GetValue<int>() + 1;
             try
             {
                 actual.Restore(JsonSerializer.SerializeToElement(invalid));

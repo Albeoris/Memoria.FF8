@@ -56,7 +56,7 @@ internal static partial class Program
             restored.Engine.Step();
             Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()) && live.Engine.Actors[1].NativeScriptMovement!.TargetX == issued.TargetX && live.Engine.Actors[1].NativeScriptMovement!.TargetY == issued.TargetY, "Frozen RMOVEA target refreshed after issue or active/completed restore diverged.");
         }
-        Require(operands.Count == 1 && live.Session.State.Variables[5000] == 77 && live.Engine.Actors[1].NativeScriptMovement is { Active: false, Asynchronous: true, Completion: 2 } && live.Engine.Actors[1].AnimationId == live.Engine.Actors[1].BaseAnimationId, "RMOVEA did not release its original VM independently and finish with next-VM automatic idle cleanup.");
+        Require(operands.Count == 1 && live.Session.State.Variables[5000] == 77 && live.Engine.Actors[1].NativeMovementCompletion542 == 2 && live.Engine.Actors[1].NativeScriptMovement is { Active: false, Asynchronous: true } && live.Engine.Actors[1].AnimationId == live.Engine.Actors[1].BaseAnimationId, "RMOVEA did not release its original VM independently and finish with next-VM automatic idle cleanup.");
         var absent = Create(99);
         absent.Engine.Step();
         absent.Engine.Step();

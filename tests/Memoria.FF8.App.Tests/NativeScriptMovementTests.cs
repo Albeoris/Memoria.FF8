@@ -154,7 +154,7 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(2500, state.Speed);
         Assert.Equal(5, state.DirectionLimit);
         Assert.Equal(-5, state.TurnAccumulator);
-        Assert.Equal(1, state.Completion);
+        Assert.Equal((ushort)1, npc.NativeMovementCompletion542);
         Assert.Equal(npc.WalkAnimationId, npc.AnimationId);
         Assert.False(npc.CollisionEnabled);
         Assert.False(npc.PushEnabled);
@@ -230,7 +230,7 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(4, state.MovementDirection);
         Assert.Equal(4, state.FacingDirection);
         Assert.Equal(4, state.TurnAccumulator);
-        Assert.Equal(1, state.Completion);
+        Assert.Equal((ushort)1, actor.NativeMovementCompletion542);
         Assert.Equal(1861, state.Operation);
         JsonElement fiber = world.Events.Capture().GetProperty("Fibers").EnumerateArray().Single(value => value.GetProperty("Sequence").GetInt64() == state.FiberSequence);
         Assert.Equal(1861, fiber.GetProperty("Position").GetInt32());
@@ -279,7 +279,7 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(30, state.FacingDirection);
         Assert.Equal(6, state.TurnAccumulator);
         Assert.Equal(runner.RunAnimationId, runner.AnimationId);
-        Assert.Equal(1, state.Completion);
+        Assert.Equal((ushort)1, runner.NativeMovementCompletion542);
         using var resumed = new GameWorld(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
         resumed.EnsureField();
         for (int tick = 0; tick < 4; tick++)
@@ -311,7 +311,7 @@ public sealed class NativeScriptMovementTests
         ActorState runner = world.Events.Actors.Single(actor => actor.ObjectId == 19);
         Assert.Equal(110, world.Events.Frame);
         Assert.Equal(1397, runner.NativeScriptMovement!.Operation);
-        Assert.Equal(2, runner.NativeScriptMovement.Completion);
+        Assert.Equal((ushort)2, runner.NativeMovementCompletion542);
         Assert.Equal(-1781 * 4096, runner.NativeScriptMovement.FixedX);
         Assert.Equal(-5752 * 4096, runner.NativeScriptMovement.FixedY);
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
@@ -322,7 +322,7 @@ public sealed class NativeScriptMovementTests
         Assert.Equal(-1086 * 4096, state.TargetX);
         Assert.Equal(-6240 * 4096, state.TargetY);
         Assert.Equal(567 * 4096, state.TargetZ);
-        Assert.Equal(1, state.Completion);
+        Assert.Equal((ushort)1, runner.NativeMovementCompletion542);
         Assert.Equal(6500, state.Speed);
         Assert.Equal(6, state.DirectionLimit);
         Assert.Equal(runner.RunAnimationId, runner.AnimationId);
