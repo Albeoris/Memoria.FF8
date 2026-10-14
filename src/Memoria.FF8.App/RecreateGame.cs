@@ -752,12 +752,12 @@ internal sealed class RecreateGame : Game
                     displayed += "\nArrows: select   Enter: confirm";
                 }
                 DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
-                float maximumWidth = Math.Clamp((window?.Width ?? 304) - 16, 1, 288) * dialogueScale;
+                float maximumWidth = Math.Clamp((window?.Width ?? 304) - 2 * DialoguePresentation.Padding, 1, 288) * dialogueScale;
                 Vector2 measured = text.MeasureWrapped(displayed, fontSize, maximumWidth);
                 PixelBounds panelBounds = DialoguePresentation.Bounds(dialogue, window, viewport, measured.X, measured.Y);
                 Rectangle panel = new(panelBounds.X, panelBounds.Y, panelBounds.Width, panelBounds.Height);
                 DrawPanel(panel);
-                text.DrawWrapped(batch, displayed, fontSize, new Vector2(panel.X + 8 * dialogueScale, panel.Y + 8 * dialogueScale), Math.Max(1, panel.Width - 16 * dialogueScale), Color.White);
+                text.DrawWrapped(batch, displayed, fontSize, new Vector2(panel.X + DialoguePresentation.Padding * dialogueScale, panel.Y + (panel.Height - measured.Y) / 2), maximumWidth, Color.White);
             }
         }
         if (session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
