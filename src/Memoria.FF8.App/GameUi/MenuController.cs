@@ -37,6 +37,8 @@ public sealed partial class MenuController
     }
 
     public bool IsOpen { get; private set; }
+    public event Action? BattleDebugRequested;
+    public bool BattleDebugAvailable => BattleDebugRequested is not null;
     public bool IsDemo { get; private set; }
     public string ScreenId { get; private set; } = "main";
     public string Message { get; private set; } = "";
@@ -276,6 +278,14 @@ public sealed partial class MenuController
         _view = null;
         switch (action.Kind)
         {
+            case "open-battle-debug":
+                if (BattleDebugRequested is null)
+                {
+                    Message = "The battle laboratory is not connected to this menu host.";
+                    return;
+                }
+                BattleDebugRequested.Invoke();
+                return;
             case "menu-back":
                 Back();
                 return;

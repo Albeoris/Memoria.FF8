@@ -33,7 +33,7 @@ internal static class BattleResourceReader
     {
         using BinaryReader reader = Reader(bytes);
         int[] offsets = Directory(reader);
-        if (offsets.Length is not (7 or 8 or 9 or 11))
+        if (offsets.Length is not (7 or 8 or 9 or 10 or 11))
         {
             throw new NotSupportedException($"{name}: {offsets.Length}-section battle model has no supported skeleton contract.");
         }
@@ -52,7 +52,7 @@ internal static class BattleResourceReader
             }
             bones[index] = new BattleBone(parent == ushort.MaxValue ? -1 : parent, length / 2048f);
         }
-        int textureSection = textureSectionOverride ?? (offsets.Length == 11 ? 10 : offsets.Length == 9 ? 8 : 5);
+        int textureSection = textureSectionOverride ?? (offsets.Length == 11 ? 10 : offsets.Length is 9 or 10 ? 8 : 5);
         IReadOnlyList<PixelImage> textures = Textures(reader, bytes, offsets[textureSection]);
         IReadOnlyList<BattleMesh> meshes = Geometry(reader, offsets[1], bones.Length, textures.Count);
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
@@ -372,6 +372,3 @@ internal static class BattleResourceReader
         return new BattleStage(stageId, meshes, textures);
     }
 }
-
-
-

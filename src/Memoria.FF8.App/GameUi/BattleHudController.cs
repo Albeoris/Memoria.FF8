@@ -10,14 +10,16 @@ public sealed class BattleHudController
     private readonly Action openDebug;
     private readonly Action advanceTurn;
     private readonly Action<string, string> attack;
+    private readonly Action? complete;
     private readonly UiView view;
     private string? selectedActorId;
     private string? selectedTargetId;
 
-    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn)
+    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null)
     {
         this.session = session;
         this.attack = attack;
+        this.complete = complete;
         this.openDebug = openDebug;
         this.advanceTurn = advanceTurn;
         view = new UiView(new BattleHudElement(this)) { Cancel = CancelTarget };
@@ -80,7 +82,14 @@ public sealed class BattleHudController
         }
         else if (input == MenuInput.Confirm)
         {
-            Attack();
+            if (session.Outcome == BattleOutcome.Active)
+            {
+                Attack();
+            }
+            else
+            {
+                Complete();
+            }
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight)
         {
@@ -150,6 +159,14 @@ public sealed class BattleHudController
     public void OpenDebug()
     {
         openDebug();
+    }
+
+    public void Complete()
+    {
+        if (session.Outcome != BattleOutcome.Active)
+        {
+            complete?.Invoke();
+        }
     }
 
     private void CancelTarget()

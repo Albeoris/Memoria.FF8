@@ -3,7 +3,7 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-public sealed record BattleDebugEquipment(int Id, string Name);
+public sealed record BattleDebugEquipment(int Id, string Name, int? CharacterId = null);
 
 /// <summary>Choices supplied by the installed-asset host; no original combat statistics are inferred by the UI.</summary>
 public sealed record BattleDebugCatalog
@@ -13,6 +13,7 @@ public sealed record BattleDebugCatalog
     public BattleDebugEquipment[] Weapons { get; init; } = [];
     public BattleDebugEquipment[] Equipment { get; init; } = [];
     public int[] StageIds { get; init; } = [];
+    public Dictionary<int, int[]> PlayerCostumes { get; init; } = [];
 }
 
 /// <summary>A separate editable scenario. Starting it never patches the running battle or research save.</summary>
@@ -88,7 +89,14 @@ public sealed class BattleDebugController
 
     public void Start()
     {
-        start(Definition, Mode);
+        try
+        {
+            start(Definition, Mode);
+        }
+        catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IOException)
+        {
+            Message = "Cannot start scenario: " + error.Message;
+        }
     }
 
     private void Adjust(int direction)
@@ -165,7 +173,7 @@ public sealed class BattleDebugController
     {
         BattleCombatantDefinition actor = actors[index];
         string prefix = $"{side} {index + 1} · ";
-        rows.Add(new(prefix + "Character / model", actor.Name, "Cycle installed model choices. The selected prototype supplies explicit scenario statistics.", direction =>
+        rows.Add(new(prefix + "Character / model", actor.Name, actor.IsPlayer ? "Cycle installed model choices. The selected prototype supplies explicit scenario statistics." : "Cycle installed enemy models. Enemy weapons belong to the model. The selected prototype supplies explicit scenario statistics.", direction =>
         {
             if (choices.Length == 0)
             {
@@ -175,19 +183,36 @@ public sealed class BattleDebugController
             int current = Array.FindIndex(choices, choice => choice.ModelId == actor.ModelId);
             actors[index] = choices[(Math.Max(0, current) + direction + choices.Length) % choices.Length] with { IsPlayer = actor.IsPlayer };
         }));
+        if (actor.IsPlayer)
+        {
+            rows.Add(new(prefix + "Costume", actor.Costume.ToString(), "Cycle installed costume indices for this character. These indices identify asset choices, without inferring native save mappings.", direction =>
+            {
+                if (!catalog.PlayerCostumes.TryGetValue(actor.ModelId, out int[]? costumes) || costumes.Length == 0)
+                {
+                    Message = "No alternate installed costumes in the catalog.";
+                    return;
+                }
+                int current = Array.IndexOf(costumes, actor.Costume);
+                actors[index] = actor with { Costume = costumes[(Math.Max(0, current) + direction + costumes.Length) % costumes.Length] };
+            }));
+        }
         AddNumber(prefix + "Maximum HP", actor.MaximumHp, 10, 9999, 10, value => actors[index] = actors[index] with { MaximumHp = value, CurrentHp = Math.Min(actors[index].CurrentHp, value) });
         AddNumber(prefix + "Current HP", actor.CurrentHp, 1, actor.MaximumHp, 10, value => actors[index] = actors[index] with { CurrentHp = value });
         AddNumber(prefix + "Speed", actor.Speed, 1, 255, 5, value => actors[index] = actors[index] with { Speed = value });
         AddNumber(prefix + "Attack", actor.Attack, 1, 255, 5, value => actors[index] = actors[index] with { Attack = value });
         AddNumber(prefix + "Defense", actor.Defense, 0, 255, 5, value => actors[index] = actors[index] with { Defense = value });
         AddNumber(prefix + "Initial ATB", actor.InitialAtb, 0, BattleSession.AtbMaximum, 1000, value => actors[index] = actors[index] with { InitialAtb = value });
-        rows.Add(new(prefix + "Weapon", actor.WeaponName ?? actor.WeaponId?.ToString() ?? "None", "Weapon identity and presentation. Adjust Attack explicitly for the scenario; native equipment stat formulas are unproved.", direction =>
+        if (actor.IsPlayer)
         {
-            int current = actor.WeaponId.HasValue ? Array.FindIndex(catalog.Weapons, weapon => weapon.Id == actor.WeaponId.Value) + 1 : 0;
-            int next = (current + direction + catalog.Weapons.Length + 1) % (catalog.Weapons.Length + 1);
-            BattleDebugEquipment? weapon = next == 0 ? null : catalog.Weapons[next - 1];
-            actors[index] = actor with { WeaponId = weapon?.Id, WeaponName = weapon?.Name };
-        }));
+            BattleDebugEquipment[] weapons = catalog.Weapons.Where(weapon => weapon.CharacterId is null || weapon.CharacterId == actor.ModelId).ToArray();
+            rows.Add(new(prefix + "Weapon", actor.WeaponName ?? actor.WeaponId?.ToString() ?? "None", "Choose a weapon for this character. Adjust Attack explicitly for the scenario; native equipment stat formulas are unproved.", direction =>
+            {
+                int current = actor.WeaponId.HasValue ? Array.FindIndex(weapons, weapon => weapon.Id == actor.WeaponId.Value) + 1 : 0;
+                int next = (current + direction + weapons.Length + 1) % (weapons.Length + 1);
+                BattleDebugEquipment? weapon = next == 0 ? null : weapons[next - 1];
+                actors[index] = actor with { WeaponId = weapon?.Id, WeaponName = weapon?.Name };
+            }));
+        }
         rows.Add(new(prefix + "Equipment", actor.EquipmentIds.Length == 0 ? "None" : string.Join(", ", actor.EquipmentIds.Select(id => catalog.Equipment.FirstOrDefault(item => item.Id == id)?.Name ?? id.ToString())), "Select scenario equipment metadata. Adjust battle statistics explicitly above.", direction =>
         {
             int current = actor.EquipmentIds.Length == 0 ? 0 : Array.FindIndex(catalog.Equipment, item => item.Id == actor.EquipmentIds[0]) + 1;

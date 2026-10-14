@@ -254,6 +254,7 @@ internal sealed partial class GameWorld : IDisposable
             }
         }
         Field = next;
+        ValidateBattleHostState();
         renderer = new FieldRenderer(next, renderWidth, renderHeight);
     }
 

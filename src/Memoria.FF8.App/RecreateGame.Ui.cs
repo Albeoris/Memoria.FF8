@@ -29,6 +29,7 @@ internal sealed partial class RecreateGame
         uiPreferences = UiPreferences.Load(UiPreferencesPath);
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        gameMenus.BattleDebugRequested += OpenBattleDebug;
         if (options.DebugUiScreen is string screen)
         {
             gameMenus.Open(screen, true);
@@ -73,8 +74,9 @@ internal sealed partial class RecreateGame
         }
         if (action.Kind == "config")
         {
-            uiPreferences = uiPreferences.WithSetting(action.SubjectId, action.Value);
-            uiPreferences.Save(UiPreferencesPath);
+            UiPreferences nextPreferences = uiPreferences.WithSetting(action.SubjectId, action.Value);
+            nextPreferences.Save(UiPreferencesPath);
+            uiPreferences = nextPreferences;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
             if (ActiveBattle is not null && ActiveBattle.Mode != uiPreferences.AtbMode)
             {
@@ -121,7 +123,11 @@ internal sealed partial class RecreateGame
             {
                 gameMenus.Close();
             }
-            else if (ActiveBattle is not null || session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events is { IsUserControlEnabled: true, CurrentDialogue: null } && events.Scene.MenuEnabled)
+            else if (ActiveBattle is not null)
+            {
+                gameMenus.Open("config", false);
+            }
+            else if (session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events is { IsUserControlEnabled: true, CurrentDialogue: null } && events.Scene.MenuEnabled)
             {
                 gameMenus.Open("main", false);
             }
@@ -234,7 +240,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = gameMenus?.IsOpen == true || drainUiButtons;
+        bool pause = gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null;
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();

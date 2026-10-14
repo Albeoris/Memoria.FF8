@@ -281,8 +281,6 @@ public sealed class LiveMenuCatalog
     public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Name : null;
     public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Description : null;
     public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? kernel.Weapons[id].Name : null;
-    public int WeaponAttackPower(int id) => (uint)id < kernel.Weapons.Count ? kernel.Weapons[id].AttackPower : throw new NotSupportedException("The equipped weapon has no original kernel record.");
-    public IReadOnlyList<Albeoris.Games.FF8.KernelBin.Abstractions.Weapon> Weapons => kernel.Weapons;
     public string? CommandName(int id) => (uint)id < kernel.BattleCommands.Count ? kernel.BattleCommands[id].Name : null;
     public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Name : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Name : null;
     public string? ItemDescription(int id) => (uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Description : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Description : null;

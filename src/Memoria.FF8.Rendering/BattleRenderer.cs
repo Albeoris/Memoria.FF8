@@ -64,10 +64,10 @@ public sealed class BattleRenderer
         Vector3 minimum = new(positions.Min(vertex => vertex.X), positions.Min(vertex => vertex.Y), positions.Min(vertex => vertex.Z));
         Vector3 maximum = new(positions.Max(vertex => vertex.X), positions.Max(vertex => vertex.Y), positions.Max(vertex => vertex.Z));
         float height = maximum.Y - minimum.Y;
-        Vector3 target = new((minimum.X + maximum.X) / 2, maximum.Y - height * 0.17f, (minimum.Z + maximum.Z) / 2);
+        Vector3 target = new((minimum.X + maximum.X) / 2, maximum.Y - height * 0.09f, (minimum.Z + maximum.Z) / 2);
         // TODO(TD-009): The initiative portrait crops the upper model bounds until native head/bone ownership is researched
         BattleRenderer portrait = new(size, size);
-        portrait.Begin(new BattleCamera(target + new Vector3(0, height * 0.015f, -height * 0.65f), target, 0.72f), false);
+        portrait.Begin(new BattleCamera(target + new Vector3(0, height * 0.015f, -height * 0.35f), target, 0.72f), false);
         portrait.DrawActor(new BattleActorDraw(model, Vector3.Zero));
         Rgba32[] rgba = new Rgba32[size * size];
         for (int index = 0; index < rgba.Length; index++)

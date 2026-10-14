@@ -207,6 +207,16 @@ public sealed class ReplayJournal
 
     private ReplayJournal AppendCore(ReplayJournalEntry entry)
     {
+        if (tail is Node lastBattle && TryCombineBattleTicks(lastBattle.Entry, entry) is ReplayJournalEntry combinedBattle)
+        {
+            int oldBytes = ReplayJournalEntryStorage.Encode(lastBattle.Entry).Length;
+            int newBytes = ReplayJournalEntryStorage.Encode(combinedBattle).Length;
+            if (EncodedByteCount - oldBytes > MaximumDecodedBytes - newBytes)
+            {
+                return MarkUnavailable("The causal journal capacity was reached. Its authentic prefix remains saved, but reconstruction is unavailable.");
+            }
+            return new ReplayJournal(SessionId, new Node(combinedBattle, lastBattle.Previous), EntryCount, EncodedByteCount - oldBytes + newBytes, true, null, completedVisits);
+        }
         if (tail is Node previous && CanRepeat(previous.Entry, entry))
         {
             ReplayJournalEntry combined = previous.Entry with { Repeat = previous.Entry.Repeat + 1, ResultFrame = entry.ResultFrame };
@@ -224,6 +234,18 @@ public sealed class ReplayJournal
             return MarkUnavailable("The causal journal capacity was reached. Its authentic prefix remains saved, but reconstruction is unavailable.");
         }
         return new ReplayJournal(SessionId, new Node(Snapshot(entry), tail), EntryCount + 1, EncodedByteCount + bytes, true, null, completedVisits);
+    }
+
+    private static ReplayJournalEntry? TryCombineBattleTicks(ReplayJournalEntry previous, ReplayJournalEntry next)
+    {
+        if (previous.Kind != ReplayEntryKind.BattleInput || next.Kind != ReplayEntryKind.BattleInput || previous.BattleInput is not { Kind: BattleInputKind.Tick } oldInput || next.BattleInput is not { Kind: BattleInputKind.Tick } newInput || previous.Repeat != 1 || next.Repeat != 1 || oldInput.Frames > 30000 - newInput.Frames || previous.Advanced > 30000 - next.Advanced || previous.Receipts.Length != 0 || next.Receipts.Length != 0 || previous.Navigation.Length != 0 || next.Navigation.Length != 0 || previous.WorldNavigation.Length != 0 || next.WorldNavigation.Length != 0)
+        {
+            return null;
+        }
+        ReplayJournalEntry oldBoundary = previous with { BattleInput = oldInput with { Frames = 1 }, Advanced = 0 };
+        ReplayJournalEntry newBoundary = next with { BattleInput = newInput with { Frames = 1 }, Advanced = 0 };
+        // The suspended VM boundary is identical. Every represented battle dispatch still executes; player commands and mode changes fence this timing run.
+        return oldBoundary == newBoundary ? previous with { BattleInput = oldInput with { Frames = oldInput.Frames + newInput.Frames }, Advanced = previous.Advanced + next.Advanced } : null;
     }
 
     private ReplayJournal CompleteVisit()

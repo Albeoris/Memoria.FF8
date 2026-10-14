@@ -9,6 +9,10 @@ internal static class Program
     {
         try
         {
+            if (args.Length > 0 && args[0] == "--battle-preview")
+            {
+                return BattlePreview.Run(args[1..]);
+            }
             if (args.Length >= 4 && args[0] is "--recreate-save" or "--recreate-prefix" && args[2] == "--output")
             {
                 string sourcePath = Path.GetFullPath(args[1]);

@@ -348,7 +348,7 @@ internal sealed partial class RecreateGame : Game
                     events.Step();
                     metrics.Simulate(1);
                 }
-                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
+                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null)
                 {
                     fieldSeconds = 0;
                     return;
@@ -849,11 +849,11 @@ internal sealed partial class RecreateGame : Game
                 DrawDialogueUi(bounds, viewport, panelBounds, dialogue.Channel, displayed, measured.Y);
             }
         }
-        if (session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
+        if (ActiveBattle is null && session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
         {
             DrawTimerUi(bounds, timer);
         }
-        if (session.State.Scene != SceneKind.Title && session.State.SalaryPresentation is { Scale9A: > 0 } salary)
+        if (ActiveBattle is null && session.State.Scene != SceneKind.Title && session.State.SalaryPresentation is { Scale9A: > 0 } salary)
         {
             DrawSalaryUi(bounds, salary);
         }

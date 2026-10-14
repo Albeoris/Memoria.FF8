@@ -3,17 +3,17 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 /// <summary>Actual field callbacks since allocation, classified by the movie flag sampled before VM dispatch.</summary>
-public sealed record NativeFieldCallbackClock(int Version, long OrdinaryCallbacks, long MovieCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long MenuCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long FieldLoaderCallbacks)
+public sealed record NativeFieldCallbackClock(int Version, long OrdinaryCallbacks, long MovieCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long MenuCallbacks, [property: System.Text.Json.Serialization.JsonRequired] long FieldLoaderCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] long? BattleCallbacks = null)
 {
     public void Validate(long frame)
     {
-        if (Version != 1 || OrdinaryCallbacks < 0 || MovieCallbacks < 0 || MenuCallbacks < 0 || FieldLoaderCallbacks < 0 || OrdinaryCallbacks > frame || MovieCallbacks != frame - OrdinaryCallbacks)
+        if (Version != 1 || OrdinaryCallbacks < 0 || MovieCallbacks < 0 || MenuCallbacks < 0 || FieldLoaderCallbacks < 0 || BattleCallbacks < 0 || OrdinaryCallbacks > frame || MovieCallbacks != frame - OrdinaryCallbacks)
         {
             throw new InvalidDataException("Native field callback clock does not match its executed frame history.");
         }
     }
 
-    public long TimerCalls => checked(2 * OrdinaryCallbacks + 4 * MovieCallbacks + MenuCallbacks + 2 * FieldLoaderCallbacks);
+    public long TimerCalls => checked(2 * OrdinaryCallbacks + 4 * MovieCallbacks + MenuCallbacks + 2 * FieldLoaderCallbacks + 4 * BattleCallbacks.GetValueOrDefault());
 }
 
 public sealed partial class EventEngine

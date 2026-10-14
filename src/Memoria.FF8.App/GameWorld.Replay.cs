@@ -162,6 +162,14 @@ internal sealed partial class GameWorld
                         rebuilt.CompleteMovie(entry.Skipped);
                         break;
                     case ReplayEntryKind.BattleInput:
+                        if (entry.BattleInput!.Kind != BattleInputKind.ConfigurePlaythrough)
+                        {
+                            NativeBattleCompletion request = world.Events.PendingInteractiveBattle ?? throw new InvalidDataException("Recorded battle input has no current suspended battle request.");
+                            if (entry.ObjectId != request.ObjectId || entry.ScriptId != request.ScriptId || entry.Operation != request.Operation || entry.Code != request.Flags || entry.Value != request.Encounter || entry.NativeSourceHash != request.ProgramHash)
+                            {
+                                throw new InvalidDataException("Recorded battle input diverged from its original issuing BATTLE site.");
+                            }
+                        }
                         world.ApplyBattleInput(entry.BattleInput!);
                         break;
                     default:

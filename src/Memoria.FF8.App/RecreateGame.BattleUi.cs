@@ -1,16 +1,14 @@
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
-using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using NVector3 = System.Numerics.Vector3;
 
 namespace Memoria.FF8;
 
-internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null);
+internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? ShowInitiative = null);
 
 internal sealed partial class RecreateGame
 {
@@ -18,11 +16,12 @@ internal sealed partial class RecreateGame
     private BattleSession? debugBattle;
     private BattleHudController? battleHud;
     private BattleDebugController? battleDebug;
-    private BattleRenderer? battleRenderer;
+    private BattleScenePresentation? battleScene;
     private Texture2D? battleTexture;
     private readonly Dictionary<string, Texture2D> battleHeads = [];
     private double battleSeconds;
     private bool previousBattleMouse;
+    private GamePadState previousBattlePad;
     private BattleSession? presentedBattle;
     private BattleDefinition? debugBattleDefinition;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
@@ -55,6 +54,24 @@ internal sealed partial class RecreateGame
 
     private bool UpdateBattle(TimeSpan elapsed, InputFrame input)
     {
+        try
+        {
+            return UpdateBattleCore(elapsed, input);
+        }
+        catch (Exception exception) when (exception is Memoria.FF8.Events.EventScriptException or NotSupportedException or InvalidDataException or InvalidOperationException)
+        {
+            fieldFaulted = true;
+            error = exception.Message;
+            return true;
+        }
+    }
+
+    private bool UpdateBattleCore(TimeSpan elapsed, InputFrame input)
+    {
+        if (fieldFaulted && debugBattle is null)
+        {
+            return false;
+        }
         if (world?.Events.PendingInteractiveBattle is not null && world.Battle is null)
         {
             world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, Mode: uiPreferences.AtbMode));
@@ -65,7 +82,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
-        if (keyboard.BattleInstantVictoryRequested)
+        if (keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.InstantVictory));
         }
@@ -79,21 +96,14 @@ internal sealed partial class RecreateGame
         }
         else if (input.Confirm || keyboard.UiConfirmRequested)
         {
-            if (debugBattle is not null)
-            {
-                ClearBattlePresentation();
-                return true;
-            }
-            if (active.Outcome == BattleOutcome.Victory)
-            {
-                ApplyBattleCommand(new BattleInput(BattleInputKind.Return));
-                ClearBattlePresentation();
-                fieldSeconds = 0;
-                return true;
-            }
-            ShowSaveNotice("Defeat. Load a save with F9/F10 or open Debug Battle with F4.");
+            CompleteBattleResult();
+            return true;
         }
         PointerBattleView(battleHud!.BuildView());
+        if (ActiveBattle is null)
+        {
+            return true;
+        }
         if (!options.ControlStep && active.Outcome == BattleOutcome.Active)
         {
             battleSeconds += elapsed.TotalSeconds;
@@ -112,6 +122,23 @@ internal sealed partial class RecreateGame
 
     private void NavigateBattleView(Action<MenuInput> navigate, InputFrame input)
     {
+        GamePadState pad = GamePad.GetState(PlayerIndex.One);
+        bool PadPressed(Buttons button)
+        {
+            return IsActive && pad.IsButtonDown(button) && previousBattlePad.IsButtonUp(button);
+        }
+        foreach ((Buttons button, MenuInput action) in new[] { (Buttons.DPadUp, MenuInput.Up), (Buttons.DPadDown, MenuInput.Down), (Buttons.DPadLeft, MenuInput.Left), (Buttons.DPadRight, MenuInput.Right), (Buttons.LeftShoulder, MenuInput.PageLeft), (Buttons.RightShoulder, MenuInput.PageRight), (Buttons.A, MenuInput.Confirm), (Buttons.B, MenuInput.Cancel) })
+        {
+            if (PadPressed(button))
+            {
+                navigate(action);
+            }
+        }
+        if (PadPressed(Buttons.X) && ActiveBattle?.Mode == BattleAtbMode.TurnBased && ActiveBattle.Outcome == BattleOutcome.Active && battleDebug is null)
+        {
+            battleHud!.AdvanceTurn();
+        }
+        previousBattlePad = pad;
         if (input.MenuVertical != 0)
         {
             navigate(input.MenuVertical < 0 ? MenuInput.Up : MenuInput.Down);
@@ -123,6 +150,10 @@ internal sealed partial class RecreateGame
         if (input.MenuPage != 0)
         {
             navigate(input.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
+        }
+        if (keyboard.UiCharacterPage != 0)
+        {
+            navigate(keyboard.UiCharacterPage < 0 ? MenuInput.PageLeft : MenuInput.PageRight);
         }
         if (input.Confirm || keyboard.UiConfirmRequested)
         {
@@ -149,12 +180,30 @@ internal sealed partial class RecreateGame
         {
             DisposeBattleTextures();
             presentedBattle = active;
-            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)));
+            battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
+            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult);
             battleHud.HeadRenderer = DrawBattleHead;
             battleSeconds = 0;
         }
         battleHud!.ShowInitiative = uiPreferences.ShowInitiative;
         battleHud.TextScale = uiPreferences.TextScale / 100f;
+    }
+
+    private void CompleteBattleResult()
+    {
+        if (debugBattle is not null)
+        {
+            ClearBattlePresentation();
+            return;
+        }
+        if (ActiveBattle?.Outcome == BattleOutcome.Victory)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.Return));
+            ClearBattlePresentation();
+            fieldSeconds = 0;
+            return;
+        }
+        OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
     }
 
     private int ApplyBattleCommand(BattleInput input)
@@ -198,10 +247,11 @@ internal sealed partial class RecreateGame
         return new BattleDebugCatalog
         {
             Players = resources.PlayerCharacterIds.Select(id => new BattleCombatantDefinition { Id = $"player-{id}", Name = liveMenuCatalog!.CharacterName(id) ?? $"Character {id}", IsPlayer = true, ModelId = id, MaximumHp = 1000, CurrentHp = 1000, Speed = 100, Attack = 80, Defense = 20 }).ToArray(),
-            Enemies = resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = $"Enemy {id:000}", ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 }).ToArray(),
-            Weapons = liveMenuCatalog!.Weapons.Select((weapon, id) => new BattleDebugEquipment(id, weapon.Name ?? $"Weapon {id}")).ToArray(),
-            Equipment = Enumerable.Range(0, 16).Select(id => new BattleDebugEquipment(id, liveMenuCatalog.GuardianForceName(id) ?? $"GF {id}")).ToArray(),
-            StageIds = resources.StageIds.ToArray()
+            Enemies = resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 }).ToArray(),
+            Weapons = resources.WeaponDefinitions.Select(weapon => new BattleDebugEquipment(weapon.Id, weapon.Name, weapon.CharacterId)).ToArray(),
+            Equipment = Enumerable.Range(0, 16).Select(id => new BattleDebugEquipment(id, liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}")).ToArray(),
+            StageIds = resources.StageIds.ToArray(),
+            PlayerCostumes = resources.PlayerCharacterIds.ToDictionary(id => id, id => Enumerable.Range(0, resources.PlayerModelNames(id).Count).ToArray())
         };
     }
 
@@ -216,8 +266,9 @@ internal sealed partial class RecreateGame
 
     private void ApplyBattleDebugSettings(BattleAtbMode mode, string policy, bool initiative)
     {
-        uiPreferences = uiPreferences with { AtbMode = mode, BattlePolicy = policy, ShowInitiative = initiative };
-        uiPreferences.Save(UiPreferencesPath);
+        UiPreferences nextPreferences = uiPreferences with { AtbMode = mode, BattlePolicy = policy, ShowInitiative = initiative };
+        nextPreferences.Save(UiPreferencesPath);
+        uiPreferences = nextPreferences;
         if (ActiveBattle is not null && ActiveBattle.Mode != mode)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.SetMode, Mode: mode));
@@ -228,10 +279,7 @@ internal sealed partial class RecreateGame
     {
         BattleSession next = new(definition, mode);
         _ = PresentationBattleResources.LoadStage(definition.StageId ?? throw new ArgumentException("A debug battle needs a stage ID."));
-        foreach (BattleCombatant actor in next.Combatants)
-        {
-            _ = ReadBattleModel(actor);
-        }
+        _ = new BattleScenePresentation(PresentationBattleResources, definition, false);
         debugBattleDefinition = BattleSession.CloneDefinition(definition);
         debugBattle = next;
         battleDebug = null;
@@ -239,49 +287,17 @@ internal sealed partial class RecreateGame
         EnsureBattleHud(next);
     }
 
-    private BattleModel ReadBattleModel(BattleCombatant actor)
-    {
-        return actor.IsPlayer ? PresentationBattleResources.LoadPlayer(actor.ModelId, actor.Costume) : PresentationBattleResources.LoadEnemy(actor.ModelId);
-    }
-
     private void DrawBattle(Rectangle bounds)
     {
         BattleSession active = ActiveBattle!;
         EnsureBattleHud(active);
         PixelBounds size = ViewportLayout.WorldRenderTarget(bounds.Width, bounds.Height, options.WorldRenderLimit, false);
-        if (battleRenderer?.Width != size.Width || battleRenderer.Height != size.Height)
+        if (battleTexture?.Width != size.Width || battleTexture.Height != size.Height)
         {
-            battleRenderer = new BattleRenderer(size.Width, size.Height);
             battleTexture?.Dispose();
             battleTexture = new Texture2D(GraphicsDevice, size.Width, size.Height);
         }
-        BattleDefinition definition = active.Capture().Definition;
-        BattleStage stage = PresentationBattleResources.LoadStage(definition.StageId!.Value);
-        BattleEncounter? encounter = debugBattle is null && definition.EncounterId is int id ? PresentationBattleResources.LoadEncounter(id) : null;
-        List<BattleActorDraw> actors = [];
-        List<BattleCombatant> party = active.Combatants.Where(actor => actor.IsPlayer).ToList();
-        List<BattleCombatant> enemies = active.Combatants.Where(actor => !actor.IsPlayer).ToList();
-        Dictionary<string, NVector3> places = [];
-        for (int index = 0; index < party.Count; index++)
-        {
-            places[party[index].Id] = new NVector3(-12, 0, (index - (party.Count - 1) / 2f) * 7);
-        }
-        for (int index = 0; index < enemies.Count; index++)
-        {
-            places[enemies[index].Id] = encounter?.Enemies[index].Position ?? new NVector3(12 + index / 4 * 7, 0, (index % 4 - (Math.Min(4, enemies.Count) - 1) / 2f) * 7);
-        }
-        foreach (BattleCombatant actor in active.Combatants)
-        {
-            NVector3 offset = NVector3.Zero;
-            if (active.ActiveAction is BattleActionPresentation action && action.ActorId == actor.Id)
-            {
-                float progress = action.Phase == BattleActionPhase.Windup ? 1 - action.RemainingFrames / (float)BattleSession.AttackWindupFrames : action.RemainingFrames / (float)BattleSession.AttackRecoveryFrames;
-                offset = (places[action.TargetId] - places[actor.Id]) * Math.Clamp(progress, 0, 1) * 0.7f;
-            }
-            BattleModel model = ReadBattleModel(actor);
-            actors.Add(new BattleActorDraw(model, places[actor.Id], actor.IsPlayer ? MathF.PI / 2 : -MathF.PI / 2, Frame: active.Frame / 2f, AttackOffset: offset, Opacity: actor.IsAlive ? 1 : 0.25f));
-        }
-        battleTexture!.SetData(battleRenderer!.Render(stage, actors));
+        battleTexture!.SetData(battleScene!.Render(active, size.Width, size.Height));
         PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         batch.Draw(battleTexture, new Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height), Color.White);
         UiView view = battleHud!.BuildView();
@@ -294,7 +310,7 @@ internal sealed partial class RecreateGame
         string key = $"{actor.IsPlayer}:{actor.ModelId}:{actor.Costume}";
         if (!battleHeads.TryGetValue(key, out Texture2D? head))
         {
-            var image = (battleRenderer ??= new BattleRenderer(640, 448)).RenderPortrait(ReadBattleModel(actor));
+            var image = battleScene!.Head(actor);
             head = new Texture2D(GraphicsDevice, image.Width, image.Height);
             head.SetData(image.Pixels.Select(color => new Color(color.R, color.G, color.B, color.A)).ToArray());
             battleHeads.Add(key, head);
@@ -330,6 +346,9 @@ internal sealed partial class RecreateGame
             case "battle-input":
                 ApplyBattleCommand(command.Input ?? throw new ArgumentException("Battle Input is required."));
                 break;
+            case "battle-settings":
+                ApplyBattleDebugSettings(command.Mode ?? uiPreferences.AtbMode, command.Policy ?? uiPreferences.BattlePolicy, command.ShowInitiative ?? uiPreferences.ShowInitiative);
+                break;
             case "battle-debug-open":
                 OpenBattleDebug();
                 break;
@@ -363,7 +382,7 @@ internal sealed partial class RecreateGame
         battleHeads.Clear();
         battleTexture?.Dispose();
         battleTexture = null;
-        battleRenderer = null;
+        battleScene = null;
     }
 
     private void ClearBattlePresentation()
