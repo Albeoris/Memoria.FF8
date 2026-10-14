@@ -23,8 +23,18 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
 
     public static NativeScriptedWorldLoadReceipt Create(NativeSavedWorldState saved, WorldState previousWorld, NativeScriptedWorldFootRecord footRecord)
     {
-        saved.Validate();
         footRecord.Validate();
+        (long sourceFrame, ushort bodyYaw, byte mapDisplay) = ResolveRetained(saved, previousWorld);
+        // 548080 mode1/2 replaces position from the selected rail and retains body yaw;
+        // it reads current saved BYTE110. Executed 542B90 resets animation variant0.
+        var receipt = new NativeScriptedWorldLoadReceipt(1, LoadRule, sourceFrame, bodyYaw, footRecord, saved.Slot4, saved.Slot5, 0, mapDisplay);
+        receipt.Validate();
+        return receipt;
+    }
+
+    public static (long SourceFrame, ushort BodyYaw, byte MapDisplay) ResolveRetained(NativeSavedWorldState saved, WorldState previousWorld)
+    {
+        saved.Validate();
         long sourceFrame;
         ushort bodyYaw;
         byte mapDisplay;
@@ -67,11 +77,7 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
         {
             throw new NotSupportedException("Scripted allocation requires an executed preceding native world return.");
         }
-        // 548080 mode1/2 replaces position from the selected rail and retains body yaw;
-        // it reads current saved BYTE110. Executed 542B90 resets animation variant0.
-        var receipt = new NativeScriptedWorldLoadReceipt(1, LoadRule, sourceFrame, bodyYaw, footRecord, saved.Slot4, saved.Slot5, 0, mapDisplay);
-        receipt.Validate();
-        return receipt;
+        return (sourceFrame, bodyYaw, mapDisplay);
     }
 
     private static NativeSavedWorldPose CurrentPose(WorldState world)

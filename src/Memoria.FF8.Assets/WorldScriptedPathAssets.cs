@@ -5,18 +5,19 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class WorldAssets
 {
-    private readonly Dictionary<int, NativeWorldScriptedPathDefinition> scriptedPaths = [];
+    private readonly Dictionary<(int Track, int Camera), NativeWorldScriptedPathDefinition> scriptedPaths = [];
     private readonly Dictionary<byte, WorldStaticModel> scriptedStaticModels = [];
 
     /// <summary>Reads passive original mode1/2 resources; this does not accept or activate a world packet.</summary>
-    public NativeWorldScriptedPathDefinition ReadScriptedPath(int trackIndex)
+    public NativeWorldScriptedPathDefinition ReadScriptedPath(int trackIndex, int? selectedCameraList = null)
     {
-        if (!scriptedPaths.TryGetValue(trackIndex, out NativeWorldScriptedPathDefinition? definition))
+        int cameraList = selectedCameraList ?? trackIndex;
+        if (!scriptedPaths.TryGetValue((trackIndex, cameraList), out NativeWorldScriptedPathDefinition? definition))
         {
             byte[] rail = Read("rail.obj");
             byte[] executable = File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe"));
-            definition = NativeWorldScriptedPathReader.Read(rail, wmset.AsSpan(sections[17], sections[18] - sections[17]), executable, trackIndex);
-            scriptedPaths.Add(trackIndex, definition);
+            definition = NativeWorldScriptedPathReader.Read(rail, wmset.AsSpan(sections[17], sections[18] - sections[17]), executable, trackIndex, cameraList);
+            scriptedPaths.Add((trackIndex, cameraList), definition);
         }
         return definition;
     }
