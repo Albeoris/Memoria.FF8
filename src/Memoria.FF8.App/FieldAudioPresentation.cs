@@ -20,6 +20,40 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
     private Ramp? streamRamp;
     private float midiVolume = 127;
     private float streamVolume = 127;
+    private int musicPreference = 100;
+    private int soundPreference = 100;
+
+    internal static int OutputGain(int nativeGain, int percentage)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(percentage);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(percentage, 100);
+        return percentage == 0 ? -10000 : Math.Clamp(nativeGain + (int)Math.Round(2000 * Math.Log10(percentage / 100d)), -10000, 0);
+    }
+
+    public void SetOutputPreferences(int musicVolume, int soundVolume)
+    {
+        OutputGain(0, musicVolume);
+        OutputGain(0, soundVolume);
+        musicPreference = musicVolume;
+        soundPreference = soundVolume;
+        TryOutput(() =>
+        {
+            foreach (Voice voice in voices.Values)
+            {
+                int gain = OutputGain(Catalog.SoundVolume(Math.Clamp((int)voice.Volume, 0, 127)), soundPreference);
+                voice.Primary.Volume(gain);
+                voice.Loop?.Volume(gain);
+            }
+            if (music is not null)
+            {
+                music.Volume(OutputGain(Catalog.MusicVolume(Math.Clamp((int)midiVolume, 0, 127)), musicPreference));
+            }
+            if (streamedMusic is not null)
+            {
+                streamedMusic.Volume(OutputGain(Catalog.SoundVolume(Math.Clamp((int)streamVolume, 0, 127)), musicPreference));
+            }
+        });
+    }
 
     public string? Error { get; private set; }
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameDirectory);
@@ -125,7 +159,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                 int length = checked((int)(policy.LoopEndPcmByte - policy.LoopStartPcmByte));
                 loop = Sound.Create(pcm.Bytes.AsSpan(start, length).ToArray(), pcm.SampleRate, pcm.Channels);
             }
-            int gain = Catalog.SoundVolume((int)request.Volume);
+            int gain = OutputGain(Catalog.SoundVolume((int)request.Volume), soundPreference);
             int pan = Catalog.SoundPan((int)request.EffectivePan);
             primary.Volume(gain);
             primary.Pan(pan);
@@ -160,7 +194,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         string path = Path.Combine(gameDirectory, Catalog.MusicFile(track, fieldId));
         if (Path.GetExtension(path).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
         {
-            Music.Play(path, Catalog.MusicVolume(volume.Value), startPoint);
+            Music.Play(path, OutputGain(Catalog.MusicVolume(volume.Value), musicPreference), startPoint);
             musicKinds[slot] = MusicKind.Midi;
             midiVolume = volume.Value;
             midiRamp = null;
@@ -170,7 +204,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             PcmAudio pcm = PcmAudioDecoder.ReadFile(toolsDirectory, path);
             streamedMusic?.Dispose();
             streamedMusic = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
-            streamedMusic.Volume(Catalog.SoundVolume(volume.Value));
+            streamedMusic.Volume(OutputGain(Catalog.SoundVolume(volume.Value), musicPreference));
             streamedMusic.Play(true);
             musicKinds[slot] = MusicKind.Stream;
             streamVolume = volume.Value;
@@ -189,12 +223,12 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             if (midi)
             {
                 midiVolume = initial;
-                music?.Volume(Catalog.MusicVolume(initial));
+                music?.Volume(OutputGain(Catalog.MusicVolume(initial), musicPreference));
             }
             if (stream)
             {
                 streamVolume = initial;
-                streamedMusic?.Volume(Catalog.SoundVolume(initial));
+                streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(initial), musicPreference));
             }
         }
         if (request.RequestedVolume is >= 0 and <= 127)
@@ -250,7 +284,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                 if (voice.VolumeRamp is Ramp ramp)
                 {
                     voice.Volume = ramp.Value;
-                    int gain = Catalog.SoundVolume(Math.Clamp((int)voice.Volume, 0, 127));
+                    int gain = OutputGain(Catalog.SoundVolume(Math.Clamp((int)voice.Volume, 0, 127)), soundPreference);
                     voice.Primary.Volume(gain);
                     voice.Loop?.Volume(gain);
                     if (ramp.Finished)
@@ -273,7 +307,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             if (midiRamp is Ramp transition)
             {
                 midiVolume = transition.Value;
-                music?.Volume(Catalog.MusicVolume(Math.Clamp((int)midiVolume, 0, 127)));
+                music?.Volume(OutputGain(Catalog.MusicVolume(Math.Clamp((int)midiVolume, 0, 127)), musicPreference));
                 if (transition.Finished)
                 {
                     midiRamp = null;
@@ -282,7 +316,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             if (streamRamp is Ramp streamTransition)
             {
                 streamVolume = streamTransition.Value;
-                streamedMusic?.Volume(Catalog.SoundVolume(Math.Clamp((int)streamVolume, 0, 127)));
+                streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(Math.Clamp((int)streamVolume, 0, 127)), musicPreference));
                 if (streamTransition.Finished)
                 {
                     streamRamp = null;

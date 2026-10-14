@@ -10,6 +10,9 @@
     <PackageReference Include="MonoGame.Framework.WindowsDX" />
     <PackageReference Include="System.Drawing.Common" />
     <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
+    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.KernelBin/Albeoris.Games.FF8.KernelBin.csproj" />
+    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.MngrpBin/Albeoris.Games.FF8.MngrpBin.csproj" />
+    <ProjectReference Include="../Memoria.FF8.Ui/Memoria.FF8.Ui.csproj" />
     <ProjectReference Include="../Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />

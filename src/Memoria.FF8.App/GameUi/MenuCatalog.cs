@@ -1,0 +1,208 @@
+namespace Memoria.FF8.GameUi;
+
+/// <summary>Menu information architecture. Native effects remain owned by the live provider.</summary>
+public static class MenuCatalog
+{
+    public static void Register(MenuController controller)
+    {
+        void Add(string id, string title, string help, Func<MenuController, IReadOnlyList<MenuEntry>> entries, Func<MenuController, IReadOnlyList<string>>? details = null, MenuLayout layout = MenuLayout.List, bool main = false, int columns = 1)
+        {
+            controller.Register(new MenuScreenDefinition { Id = id, Title = title, Help = help, Entries = entries, Details = details ?? (c => Boundary(c)), Layout = layout, MainCommand = main, Columns = columns });
+        }
+
+        Add("main", "Menu", "Select a command. H / G changes the selected character.", c => c.Definitions.Where(s => s.MainCommand).Select(s => new MenuEntry(s.Id, s.Title, s.Help, s.Id)).ToArray(), layout: MenuLayout.Main);
+        Add("junction", "Junction", "Junction Guardian Forces, magic, commands and abilities.", _ =>
+        [
+            Link("junction-gf", "GF", "Select a Guardian Force to junction."),
+            Link("junction-magic", "Magic", "Junction stocked magic to a stat."),
+            Link("junction-element", "Elemental", "Elemental attack and defense junction slots."),
+            Link("junction-status", "Status", "Status attack and defense junction slots."),
+            Link("junction-off", "Off", "Remove magic or all junctions."),
+            Link("junction-auto", "Auto", "Choose an original Auto priority; native optimization is unsupported."),
+            Link("junction-command", "Command", "Set command abilities."),
+            Link("junction-ability", "Ability", "Set passive character abilities.")
+        ], Stats, MenuLayout.Junction, true);
+        Add("junction-gf", "Junction · GF", "Choose a GF. Demo ownership toggles; live junction contract must be supported.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, $"{(c.Character?.GuardianForceIds.Contains(g.Id) == true ? "J " : "")}{g.Name}", $"Junction {g.Name} to {c.Character?.Name}.", Action: new MenuAction("junction-gf", g.Id))).ToArray(), c => ["Character: " + (c.Character?.Name ?? "Unavailable"), "Junctioned GF:", .. c.Data.GuardianForces.Where(g => c.Character?.GuardianForceIds.Contains(g.Id) == true).Select(g => g.Name).Take(10), .. Boundary(c)], MenuLayout.Junction);
+        Add("junction-magic", "Junction · Magic", "Choose the stat, then the stocked spell.", c => Slots(c, ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"]), Stats, MenuLayout.Junction);
+        Add("junction-element", "Junction · Elemental", "Elemental attack and defense; slot unlocks require actual GF ability data.", c => Slots(c, ["Elem-Atk", "Elem-Def 1", "Elem-Def 2", "Elem-Def 3", "Elem-Def 4"]), Stats, MenuLayout.Junction);
+        Add("junction-status", "Junction · Status", "Status attack and defense; slot unlocks require actual GF ability data.", c => Slots(c, ["ST-Atk", "ST-Def 1", "ST-Def 2", "ST-Def 3", "ST-Def 4"]), Stats, MenuLayout.Junction);
+        Add("junction-stock", "Junction · Select magic", "Choose stocked magic. Native junction strength is not estimated.", c => CharacterMagic(c).Select(m => new MenuEntry(m.Id, $"{m.Name}   {m.Quantity}", $"Assign {m.Name} to {c.JunctionSlot}.", Action: new MenuAction("junction-magic", m.Id, Value: m.Name))).ToArray(), c => [$"Slot: {c.JunctionSlot}", "Current: " + (c.Character?.Junctions.GetValueOrDefault(c.JunctionSlot) ?? "Unavailable"), "Quantities are projected stock, not stat bonuses.", .. Boundary(c)], MenuLayout.Junction);
+        Add("junction-off", "Junction · Off", "Remove a junction category.", _ => [Action("magic", "Magic", "Remove stat / elemental / status magic junctions.", "junction-off", value: "Magic"), Action("all", "All", "Remove GF and magic junctions.", "junction-off", value: "All")], Stats, MenuLayout.Junction);
+        Add("junction-auto", "Junction · Auto", "Choose an optimization priority.", _ => [Action("attack", "Atk", "Prioritize attack in the original Auto menu.", "junction-auto", value: "Attack"), Action("magic", "Mag", "Prioritize magic in the original Auto menu.", "junction-auto", value: "Magic"), Action("defense", "Def", "Prioritize defense in the original Auto menu.", "junction-auto", value: "Defense")], c => ["Native optimization is unsupported.", "Demo assigns one visible fixture junction.", .. Stats(c)], MenuLayout.Junction);
+        Add("junction-command", "Junction · Command", "Choose a configurable command slot.", c => Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Commands.ElementAtOrDefault(slot) ?? "Unavailable"}", "Select a command for this slot.", "junction-command-choice", new MenuAction("select-command-slot", slot.ToString()))).ToArray(), c => ["Attack occupies the fixed first slot.", "Three configurable command slots follow.", .. CharacterDetails(c)], MenuLayout.Junction);
+        Add("junction-command-choice", "Junction · Select Command", "Choose a command for the selected slot.", _ => new[] { "Magic", "GF", "Draw", "Item", "Card", "Doom", "Darkside", "Recover", "Treatment", "Revive", "Death", "Mad Rush", "Defend", "Kamikaze", "Absorb", "LV Down", "LV Up" }.Select(command => Action(command, command, "Fixture command choice; native availability requires learned abilities.", "junction-command", value: command)).ToArray(), c => [$"Selected command slot: {c.CommandSlot + 1}", "Availability is not a native learned-ability claim.", .. CharacterDetails(c)], MenuLayout.Junction);
+        Add("junction-ability", "Junction · Ability", "Choose a passive ability slot.", c => Enumerable.Range(0, c.IsDemo ? 3 : Math.Max(2, c.Character?.Abilities.Count ?? 0)).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Abilities.ElementAtOrDefault(slot) ?? "Unavailable"}", "Native slot unlocks must be authenticated.", "junction-ability-choice", new MenuAction("select-ability-slot", slot.ToString()))).ToArray(), c => ["Assigned abilities:", .. (c.Character?.Abilities ?? []).Take(4), .. Boundary(c)], MenuLayout.Junction);
+        Add("junction-ability-choice", "Junction · Select Ability", "Choose a passive character ability.", _ => new[] { "Empty", "HP+20%", "HP+40%", "HP+80%", "Str+20%", "Str+40%", "Str+60%", "Vit+20%", "Mag+20%", "Spr+20%", "Spd+20%", "Luck+50%", "Mug", "Auto-Protect", "Auto-Shell", "Auto-Haste", "Auto-Reflect", "Auto-Potion", "Move-HP Up", "Cover", "Counter", "Return Damage" }.Select(ability => Action(ability, ability, "Set a fixture passive; native slot unlocks and effect calculation unsupported.", "junction-ability", value: ability)).ToArray(), c => [$"Selected ability slot: {c.AbilitySlot + 1}", .. Boundary(c)], MenuLayout.Junction);
+
+        Add("item", "Item", "Use and arrange inventory.", _ => [Link("item-use", "Use", "Choose an item and character target."), Link("item-rearrange", "Rearrange", "Exchange two inventory positions."), Action("sort", "Sort", "Sort the explicit fixture inventory by name.", "item-sort")], InventoryDetails, main: true);
+        Add("item-use", "Item · Use", "Select an item.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", i.Description, "item-target", new MenuAction("select-item", i.Id))).ToArray(), InventoryDetails);
+        Add("item-target", "Item · Target", "Select the target character.", c => Targets(c, "item-use"), c => [$"Item: {c.Item?.Name ?? "Unavailable"}", $"Quantity: {c.Item?.Quantity.ToString() ?? "?"}", c.Item?.Description ?? "No item projection.", .. CharacterDetails(c)]);
+        Add("item-rearrange", "Item · Rearrange", "Choose the item to move.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", "Choose its destination position next.", "item-position", new MenuAction("select-item", i.Id))).ToArray(), InventoryDetails);
+        Add("item-position", "Item · Destination", "Choose the inventory position to exchange.", c => c.Data.Items.Select(i => Action(i.Id, i.Name, "Exchange the fixture item positions.", "item-move", target: i.Id)).ToArray(), c => [$"Moving: {c.Item?.Name}", .. Boundary(c)]);
+
+        Add("magic", "Magic", "Use, rearrange and exchange stocked magic.", _ => [Link("magic-use", "Use", "Choose field magic and a target."), Link("magic-stock", "Stock", "Browse the selected character's magic stock."), Link("magic-exchange", "Exchange", "Transfer stock to another character."), Action("sort", "Rearrange", "Sort explicit fixture magic stocks by name.", "magic-sort")], MagicDetails, MenuLayout.Character, true);
+        Add("magic-use", "Magic · Use", "Select a field spell.", c => MagicEntries(c, "magic-target"), MagicDetails, MenuLayout.Character);
+        Add("magic-stock", "Magic · Stock", "Stock list and descriptions.", c => MagicEntries(c, "magic-detail"), MagicDetails, MenuLayout.Character);
+        Add("magic-detail", "Magic · Details", "Inspect selected magic stock.", _ => [], c => [$"Spell: {c.Magic?.Name ?? "Unavailable"}", $"Stock: {c.Magic?.Quantity.ToString() ?? "?"}", c.Magic?.Description ?? "No stock owner projection.", .. Boundary(c)], MenuLayout.Character);
+        Add("magic-target", "Magic · Target", "Choose a character to receive the spell.", c => Targets(c, "magic-use"), c => [$"Spell: {c.Magic?.Name ?? "Unavailable"}", .. CharacterDetails(c)], MenuLayout.Character);
+        Add("magic-exchange", "Magic · Exchange", "Choose the stock to transfer.", c => MagicEntries(c, "magic-exchange-target"), MagicDetails, MenuLayout.Character);
+        Add("magic-exchange-target", "Magic · Transfer Target", "Choose the recipient, then transfer quantity.", c => c.Data.Characters.Select(ch => new MenuEntry(ch.Id, $"{ch.Name}   HP {MenuController.Hp(ch)}", "Choose the recipient's transfer quantity next.", "magic-exchange-quantity", new MenuAction("select-exchange", ch.Id))).ToArray(), MagicDetails, MenuLayout.Character);
+        Add("magic-exchange-quantity", "Magic · Transfer Quantity", "Choose quantity; stock is conserved and capped at 100 in the fixture.", _ => new[] { "1", "10", "100", "All" }.Select(amount => Action(amount, amount == "All" ? "All available" : "Transfer " + amount, "The fixture clamps to available source stock and recipient capacity.", "magic-transfer", value: amount)).ToArray(), c => [$"Spell: {c.Magic?.Name ?? "Unavailable"}", $"Source stock: {c.Magic?.Quantity.ToString() ?? "?"}", "Quantity choices: 1 / 10 / 100 / All", "Native exchange legality is unsupported.", .. Boundary(c)], MenuLayout.Character);
+
+        Add("status", "Status", "Character status pages and Limit Breaks.", _ => [Link("status-stats", "Stats", "View stats and equipped junctions."), Link("status-info", "Information", "Weapon, experience and conditions."), Link("status-limit", "Limit Break", "Limit Break overview. S opens this page.")], Stats, MenuLayout.Character, true);
+        Add("status-stats", "Status · Stats", "Browse current projected character stats.", _ => [], Stats, MenuLayout.Character);
+        Add("status-info", "Status · Information", "Character experience and equipment.", _ => [], CharacterDetails, MenuLayout.Character);
+        Add("status-limit", "Status · Limit Break", "Browse Limit Break information; setup requires native contracts.", c => c.Character?.LimitBreak switch
+        {
+            "Renzokuken" => [Link("status-renzokuken", "Renzokuken", "Gunblade trigger and finishing move options.")],
+            "Combine" => [Link("status-angelo", "Angelo", "Angelo learned moves and progress."), Link("status-angel-wing", "Angel Wing", "Angel Wing details.")],
+            "Duel" => [Link("status-duel", "Duel", "Duel input sequence reference.")],
+            "Slot" => [Link("status-slot", "Slot", "Slot limit overview.")],
+            "Blue Magic" => [Link("status-blue-magic", "Blue Magic", "Learned Blue Magic overview.")],
+            "Shot" => [Link("status-shot", "Shot", "Ammo and shooting overview.")],
+            _ => []
+        }, c => [$"Limit: {c.Character?.LimitBreak ?? "Unavailable"}", "Learned moves / limit conditions require native data.", .. Boundary(c)], MenuLayout.Character);
+        Add("status-renzokuken", "Limit · Renzokuken", "Auto / Indicator setup and finishing moves.", c =>
+        {
+            var owner = LimitCharacter(c, "Renzokuken");
+            return [.. new[] { "Auto", "Indicator" }.Select(setting => Action(setting, $"{setting}   {owner?.LimitSettings.GetValueOrDefault(setting, "Unavailable") ?? "Unavailable"}", "Toggle the isolated fixture option.", "limit-setting", setting, owner?.Id ?? "", owner?.LimitSettings.GetValueOrDefault(setting) == "On" ? "Off" : "On")), .. LimitEntries(c, "Renzokuken")];
+        }, c => LimitDetails(c, "Renzokuken"), MenuLayout.Character);
+        Add("status-angelo", "Limit · Angelo", "Inspect learned trick progress; choose a fixture learning target.", c => LimitEntries(c, "Combine", learn: true), c => LimitDetails(c, "Combine"), MenuLayout.Character);
+        Add("status-angel-wing", "Limit · Angel Wing", "Inspect Angel Wing's separate state.", c => [Action("wing", "Angel Wing preview", "Toggle the explicit fixture mode; no battle state changes.", "limit-setting", "Angel Wing", LimitCharacter(c, "Combine")?.Id ?? "", LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing") == "On" ? "Off" : "On")], c => [$"Fixture mode: {LimitCharacter(c, "Combine")?.LimitSettings.GetValueOrDefault("Angel Wing", c.IsDemo ? "Off" : "Unavailable") ?? "Unavailable"}", "Native story availability and battle behavior unsupported.", .. Boundary(c)], MenuLayout.Character);
+        Add("status-duel", "Limit · Duel", "Inspect learned moves and their explicit fixture input sequences.", c => LimitEntries(c, "Duel"), c => LimitDetails(c, "Duel"), MenuLayout.Character);
+        Add("status-slot", "Limit · Slot", "Inspect a spell preview, Select or Do Over.", c => [Action("select", "Select", "Select only the fixture preview; no spell is cast.", "slot-select"), Action("do-over", "Do Over", "Advance the deterministic fixture preview.", "slot-do-over", target: LimitCharacter(c, "Slot")?.Id ?? "")], SlotDetails, MenuLayout.Character);
+        Add("status-blue-magic", "Limit · Blue Magic", "Inspect the explicit learned-skill list.", c => LimitEntries(c, "Blue Magic"), c => LimitDetails(c, "Blue Magic"), MenuLayout.Character);
+        Add("status-shot", "Limit · Shot", "Inspect ammo stocks and shot controls.", c => LimitEntries(c, "Shot"), c => LimitDetails(c, "Shot"), MenuLayout.Character);
+
+        Add("gf", "GF", "Choose a Guardian Force.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, g.Name, $"Inspect {g.Name}.", "gf-detail", new MenuAction("select-gf", g.Id))).ToArray(), SelectedGfDetails, MenuLayout.GuardianForceGrid, true, 8);
+        Add("gf-detail", "GF · Details", "GF stats, junction owner and learned abilities.", _ => [Link("gf-learn", "Learn", "Choose the GF ability learning target."), Link("gf-abilities", "Abilities", "Browse ability catalogue.")], GfDetails);
+        Add("gf-learn", "GF · Learn", "Choose a learning target from explicitly provided abilities.", c => (c.GuardianForce?.Abilities ?? []).Select(a => Action(a, a, "Select the fixture GF learning target.", "gf-learn", value: a)).ToArray(), GfDetails);
+        Add("gf-abilities", "GF · Abilities", "GF ability overview.", c => (c.GuardianForce?.Abilities ?? []).Select(a => new MenuEntry(a, a, "Learned / available distinction requires native AP and bit banks.")).ToArray(), GfDetails);
+
+        Add("ability", "Ability", "Refine items and magic with learned menu abilities.", c => c.Data.Recipes.Select(r => r.Ability).Distinct().Select(a => new MenuEntry(a, a, "Browse explicit fixture recipes.", "ability-recipes", new MenuAction("select-recipe", c.Data.Recipes.First(r => r.Ability == a).Id))).ToArray(), c => ["Only explicit recipes are offered.", "Native learned abilities / recipe tables are not inferred.", .. Boundary(c)], main: true);
+        Add("ability-recipes", "Ability · Recipes", "Select a recipe.", c => c.Data.Recipes.Where(r => r.Ability == c.Recipe?.Ability).Select(r => new MenuEntry(r.Id, $"{r.IngredientQuantity} → {r.ResultQuantity} {r.ResultName}", "Inspect the recipe before executing.", "ability-refine", new MenuAction("select-recipe", r.Id))).ToArray(), RecipeDetails);
+        Add("ability-refine", "Ability · Refine Quantity", "Choose recipe batches for the selected character stock.", _ => new[] { "1", "5", "10", "All" }.Select(amount => Action(amount, amount == "All" ? "All possible" : "Refine ×" + amount, "The fixture clamps batches to ingredient stock and output capacity.", "refine", value: amount)).ToArray(), RecipeDetails, MenuLayout.Character);
+
+        Add("switch", "Switch", "Change party members or exchange junction packages.", _ => [Link("switch-party", "Party", "Choose source and target party members."), Link("switch-junction", "Junction Exchange", "Exchange GF, magic, commands and abilities.")], CharacterDetails, main: true);
+        Add("switch-party", "Switch · Party", "Select the source character.", c => c.Data.Characters.Select(ch => new MenuEntry(ch.Id, $"{ch.Name} {(ch.InParty ? "[Party]" : "[Reserve]")}", "Select the other member next.", "switch-party-target", new MenuAction("select-exchange", ch.Id))).ToArray(), CharacterDetails);
+        Add("switch-party-target", "Switch · Target", "Choose the other party / reserve member.", c => Targets(c, "party-switch"), CharacterDetails);
+        Add("switch-junction", "Switch · Junction Exchange", "Choose the source junction package.", c => c.Data.Characters.Select(ch => new MenuEntry(ch.Id, ch.Name, "Choose the destination character next.", "switch-junction-target", new MenuAction("select-exchange", ch.Id))).ToArray(), CharacterDetails);
+        Add("switch-junction-target", "Switch · Junction Target", "Choose the destination for the exchange.", c => Targets(c, "junction-exchange"), CharacterDetails);
+
+        Add("card", "Card", "Browse Triple Triad collection.", c => c.Data.Cards.Select(card => new MenuEntry(card.Id, $"{card.Name} x{card.Quantity}", "Inspect card values and ownership.", "card-detail", new MenuAction("select-card", card.Id))).ToArray(), SelectedCardDetails, MenuLayout.CardGrid, true, 4);
+        Add("card-detail", "Card · Details", "Card rank, element and collection metadata.", _ => [], c => CardDetails(c.Card));
+
+        Add("config", "Config", "Confirm or Left / Right changes a setting; original unsupported settings stay read-only.", c => [.. MenuSettings.Definitions.Select(s => new MenuEntry(s.Id, $"{s.Id}   {c.Data.Settings.GetValueOrDefault(s.Id, "Unavailable")}", s.Description, Action: new MenuAction("config", s.Id, Value: NextSetting(c, s)))), Link("config-controller", "Controller mappings", "Map original controller actions in the fixture."), Link("config-keyboard", "Keyboard mappings", "Map keyboard actions in the fixture.")], c => [c.SelectedEntry?.Help ?? "Select a setting.", "Unavailable values are not inferred defaults.", "Music / effects / text preferences belong to the host.", "Original battle settings require native owners.", .. Boundary(c)], main: true);
+        Add("config-controller", "Config · Controller", "Select an action to map.", _ => MappingActions("config-controller-choice"), c => MappingDetails(c, "Button"));
+        Add("config-keyboard", "Config · Keyboard", "Select an action to map.", _ => MappingActions("config-keyboard-choice"), c => MappingDetails(c, "Key"));
+        Add("config-controller-choice", "Config · Controller Button", "Choose a fixture button for the selected action.", c => new[] { "Cross / A", "Circle / B", "Square / X", "Triangle / Y", "L1 / LB", "R1 / RB", "L2 / LT", "R2 / RT", "Start", "Select" }.Select(value => Action(value, value, "Native mapping application requires a supported controller contract.", "config", "Button:" + c.MappingId, value: value)).ToArray(), c => MappingDetails(c, "Button"));
+        Add("config-keyboard-choice", "Config · Keyboard Key", "Choose a fixture key for the selected action.", c => new[] { "X", "C", "V", "S", "H", "G", "D", "F", "Enter", "Space", "Escape", "Tab", "Up", "Down", "Left", "Right" }.Select(value => Action(value, value, "Native mapping application requires a supported key-input contract.", "config", "Key:" + c.MappingId, value: value)).ToArray(), c => MappingDetails(c, "Key"));
+
+        Add("tutorial", "Tutorial", "Reference topics and SeeD test entry.", _ => [Link("tutorial-junction", "Junction", "GF, magic and ability junction concepts."), Link("tutorial-battle", "Battle", "Battle command concepts."), Link("tutorial-gf", "GF", "GF learning and junction concepts."), Link("tutorial-card", "Card", "Triple Triad concepts."), Link("tutorial-menu", "Menu", "Menu control reference."), Link("tutorial-seed", "SeeD test", "Original test bank is unsupported; isolated demo questions available.")], _ => ["Concept reference pages are rewritten summaries.", "These pages do not reproduce original tutorial scripts."], main: true);
+        Add("tutorial-junction", "Tutorial · Junction", "Junction concept reference.", _ => [], _ => ["Junction a GF to unlock supported junction slots.", "Stocked magic can be assigned to enabled stats.", "The spell and stock affect the original stat bonus.", "Commands and passive abilities use separate slots.", "This UI does not guess native stat formulas."]);
+        Add("tutorial-battle", "Tutorial · Battle", "Battle concept reference.", _ => [], _ => ["Attack uses the equipped weapon.", "Magic casts stocked spells.", "Draw obtains available spells from a target.", "GF summons the junctioned Guardian Force.", "Item uses an available battle item.", "Limit Break availability depends on battle state."]);
+        Add("tutorial-gf", "Tutorial · GF", "Guardian Force concept reference.", _ => [], _ => ["Guardian Forces earn EXP and AP.", "Choose an ability learning target in Learn.", "Learned abilities enable commands and junctions.", "GF details require authentic native progression data."]);
+        Add("tutorial-card", "Tutorial · Card", "Triple Triad concept reference.", _ => [], _ => ["Cards carry values on four sides.", "Adjacent values determine captures under basic rules.", "Regional rules can change captures and trading.", "Card ownership is separate from encountered cards.", "No Triple Triad match engine is implemented here."]);
+        Add("tutorial-menu", "Tutorial · Menu", "Current host menu controls.", _ => [], _ => ["Directional keys move the menu cursor.", "Confirm opens a page or requests an action.", "Cancel returns to the previous page.", "H / G switches the selected character.", "S opens the Limit Break page from Status.", "V opens the game menu through the host."]);
+        Add("tutorial-seed", "Tutorial · SeeD Test", "Start the isolated test fixture.", _ => [new MenuEntry("test", "Start fixture test", "Ten synthetic questions; no native rank mutation.", "seed-test", new MenuAction("test-reset"))], c => [$"Projected SeeD rank: {MenuController.Number(c.Data.SeeDRank)}", "Original numbered tests and eligibility are unsupported.", "The debug fixture tests navigation and answer recording."]);
+        Add("seed-test", "SeeD Test · Fixture", "Synthetic navigation exercise; not the original question bank.", _ => [Action("yes", "Yes", "Record a fixture Yes answer.", "test-answer", value: "Yes"), Action("no", "No", "Record a fixture No answer.", "test-answer", value: "No"), Action("restart", "Restart", "Reset this synthetic test.", "test-reset")], c => [c.TestQuestion >= 10 ? "Fixture completed" : $"Question {c.TestQuestion + 1} / 10", c.TestQuestion >= 10 ? $"Score: {c.TestCorrect}/10" : c.TestQuestion % 2 == 0 ? "Fixture question: does Confirm select an entry?" : "Fixture question: does Cancel increase your gil?", "This is not an original FF8 SeeD test.", "No game rank or salary changes."]);
+
+        Add("save", "Save", "Select a slot. Live saving is delegated to the existing save owner.", c => c.IsDemo ? c.Data.SaveSlots.Select(s => Action(s.Id, $"{s.Name}   {s.Summary}", "Update this isolated fixture slot in memory.", "save", s.Id)).ToArray() : [new MenuEntry("live-save", "Open save slots", c.Data.SaveAvailable ? "Open the authentic host save flow." : "Saving is not currently available.", Action: new MenuAction("save"), Enabled: c.Data.SaveAvailable)], c => ["Native / host saves are not created by the fixture.", .. Boundary(c)], main: true);
+        Add("shop", "Shop", "Reusable buy / sell menu; shop inventory must be supplied by its owner.", _ => [Link("shop-buy", "Buy", "Inspect items and prices."), Link("shop-sell", "Sell", "Sell an inventory item."), Link("shop-junk", "Junk shop", "Weapon remodeling boundary.")], InventoryDetails);
+        Add("shop-buy", "Shop · Buy", "Fixture prices are synthetic; live shop contract unsupported.", c => c.Data.Items.Where(i => i.Price.HasValue).Select(i => Action(i.Id, $"{i.Name}   {i.Price} gil", "Buy one fixture item.", "shop-buy", i.Id)).ToArray(), InventoryDetails);
+        Add("shop-sell", "Shop · Sell", "Select an item to sell.", c => c.Data.Items.Where(i => i.Price.HasValue).Select(i => Action(i.Id, $"{i.Name} x{i.Quantity}   {i.Price / 2} gil", "Sell one fixture item.", "shop-sell", i.Id)).ToArray(), InventoryDetails);
+        Add("shop-junk", "Shop · Junk Shop", "Weapon remodeling requires native recipe and weapon contracts.", _ => [], _ => ["Native weapon recipes and requirements unavailable.", "No weapon upgrade is fabricated."]);
+        Add("battle-command", "Battle · Commands", "Reusable list layout; no battle execution contract supplied.", c => (c.Character?.Commands ?? []).Select(command => new MenuEntry(command, command, "Native battle scheduling and target owner are unsupported.", command == "Magic" ? "battle-magic" : command == "Item" ? "battle-item" : "battle-target")).ToArray(), CharacterDetails, MenuLayout.Character);
+        Add("battle-magic", "Battle · Magic", "Reusable magic stock list; battle resolution unsupported.", c => MagicEntries(c, "battle-target"), MagicDetails, MenuLayout.Character);
+        Add("battle-item", "Battle · Item", "Reusable item stock list; battle resolution unsupported.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name} x{i.Quantity}", "Inspect a projected battle item.", "battle-target", new MenuAction("select-item", i.Id))).ToArray(), InventoryDetails);
+        Add("battle-target", "Battle · Target", "No native combat target state is projected.", _ => [], _ => ["Unsupported native battle target contract.", "No enemies, HP or turn state are fabricated."]);
+
+        Add("debug-room", "Debug Room · Menu Gallery", "Select a registered screen to open its mutable fixture view.", c => [Action("reset", "Reset all fixture data", "Reset only this isolated menu fixture.", "demo-reset"), .. c.Definitions.Where(s => s.Id != "debug-room").Select(s => new MenuEntry(s.Id, s.Title, $"Preview {s.Title}. {s.Help}", s.Id, PreviewCharacter(c, s.Id)))], c => ["Complete registered screen gallery", $"Registered screens: {c.Definitions.Count}", $"Selection: {c.SelectedEntry?.Label ?? "Unavailable"}", "Confirm opens the selected screen.", "All demo writes are isolated in memory.", "Native support and original parity remain separate.", .. Boundary(c)], MenuLayout.Gallery);
+    }
+
+    private static MenuEntry Link(string destination, string label, string help) => new(destination, label, help, destination);
+    private static MenuEntry Action(string id, string label, string help, string kind, string subject = "", string target = "", string value = "") => new(id, label, help, Action: new MenuAction(kind, subject, target, value));
+    private static IReadOnlyList<string> Boundary(MenuController c) => c.IsDemo ? ["DEMO: synthetic data / simplified effects", "Native FF8 parity is not claimed."] : ["LIVE: game-owned projected data only", "Missing contracts remain unavailable."];
+    private static IEnumerable<MenuMagic> CharacterMagic(MenuController c) => c.Data.Magic.Where(m => m.CharacterId == c.Character?.Id);
+    private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination) => CharacterMagic(c).Select(m => new MenuEntry(m.Id, $"{m.Name}   {m.Quantity}", m.Description, destination, new MenuAction("select-magic", m.Id))).ToArray();
+    private static IReadOnlyList<MenuEntry> Slots(MenuController c, string[] slots) => slots.Select(slot => new MenuEntry(slot, $"{slot}   {c.Character?.Junctions.GetValueOrDefault(slot, "--") ?? "Unavailable"}", "Native slot unlocks and stat effects require a supported junction owner.", "junction-stock", new MenuAction("select-slot", slot))).ToArray();
+    private static IReadOnlyList<MenuEntry> Targets(MenuController c, string kind) => c.Data.Characters.Select(ch => Action(ch.Id, $"{ch.Name}   HP {MenuController.Hp(ch)}", "Request this action on the selected target.", kind, target: ch.Id)).ToArray();
+    private static IReadOnlyList<string> CharacterDetails(MenuController c)
+    {
+        var ch = c.Character;
+        return ch == null ? ["Character data unavailable.", .. Boundary(c)] : [ch.Name, $"Level {MenuController.Number(ch.Level)}", $"HP {MenuController.Hp(ch)}", $"EXP {MenuController.Number(ch.Experience)}", $"Next level {MenuController.Number(ch.NextLevelExperience)}", $"Weapon: {ch.Weapon}", $"Limit Break: {ch.LimitBreak}", "Commands: " + (ch.Commands.Count == 0 ? "Unavailable" : string.Join(" / ", ch.Commands)), "Conditions: " + (ch.Conditions.Count == 0 ? "Unavailable / none projected" : string.Join(" / ", ch.Conditions))];
+    }
+    private static IReadOnlyList<string> Stats(MenuController c)
+    {
+        var ch = c.Character;
+        return ch == null ? ["Character stats unavailable.", .. Boundary(c)] : new[] { "HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck" }.Select(stat => $"{stat,-5} {(ch.Stats.TryGetValue(stat, out var value) ? value.ToString() : "?")}    {ch.Junctions.GetValueOrDefault(stat, "--")}").Concat(Boundary(c)).ToArray();
+    }
+    private static IReadOnlyList<string> InventoryDetails(MenuController c) => [$"Inventory entries: {c.Data.Items.Count}", $"Selected item: {c.SelectedEntry?.Label ?? c.Item?.Name ?? "Unavailable"}", c.Item?.Description ?? "Item descriptions unavailable.", $"Gil {MenuController.Number(c.Data.Currency)}", .. Boundary(c)];
+    private static IReadOnlyList<string> MagicDetails(MenuController c) => [$"Character: {c.Character?.Name ?? "Unavailable"}", $"Stock entries: {CharacterMagic(c).Count()}", "Max stock: 100 in the explicit fixture", c.Magic?.Description ?? "Magic descriptions unavailable.", .. Boundary(c)];
+    private static IReadOnlyList<string> GfDetails(MenuController c)
+    {
+        var gf = c.GuardianForce;
+        return gf == null ? ["GF data unavailable.", .. Boundary(c)] : [gf.Name, $"Lv {MenuController.Number(gf.Level)}", $"HP {MenuController.Number(gf.CurrentHp)} / {MenuController.Number(gf.MaximumHp)}", $"EXP {MenuController.Number(gf.Experience)}    AP {MenuController.Number(gf.AbilityPoints)}", $"Element: {gf.Element}", $"Learning: {gf.Learning}", "Owner: " + (c.Data.Characters.FirstOrDefault(ch => ch.GuardianForceIds.Contains(gf.Id))?.Name ?? "None projected"), .. Boundary(c)];
+    }
+    private static IReadOnlyList<string> SelectedGfDetails(MenuController c)
+    {
+        var gf = c.Data.GuardianForces.FirstOrDefault(g => g.Id == c.SelectedEntry?.Id);
+        return gf == null ? ["No GF collection is projected.", .. Boundary(c)] : [$"{gf.Name}    Lv {MenuController.Number(gf.Level)}    HP {MenuController.Number(gf.CurrentHp)} / {MenuController.Number(gf.MaximumHp)}", $"Learning: {gf.Learning}", .. Boundary(c)];
+    }
+    private static IReadOnlyList<string> SelectedCardDetails(MenuController c) => CardDetails(c.Data.Cards.FirstOrDefault(card => card.Id == c.SelectedEntry?.Id));
+    private static IReadOnlyList<string> CardDetails(MenuCard? card) => card == null ? ["No card metadata is projected."] : [$"{card.Name}    Quantity {card.Quantity}    Level {MenuController.Number(card.Level)}", "Ranks (top / right / bottom / left): " + card.Ranks, "Element: " + card.Element, card.Description];
+    private static IReadOnlyList<string> RecipeDetails(MenuController c)
+    {
+        var recipe = c.Recipe;
+        return recipe == null ? ["No recipes are projected.", .. Boundary(c)] : [recipe.Ability, $"Ingredient: {recipe.IngredientQuantity} x {c.Data.Items.FirstOrDefault(i => i.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId}", $"Result: {recipe.ResultQuantity} x {recipe.ResultName}", "Recipient: " + (c.Character?.Name ?? "Unavailable"), "Native recipe rules are not inferred.", .. Boundary(c)];
+    }
+    private static string NextSetting(MenuController c, MenuSetting setting)
+    {
+        var index = Array.IndexOf(setting.Values, c.Data.Settings.GetValueOrDefault(setting.Id));
+        return setting.Values[(index + 1) % setting.Values.Length];
+    }
+    private static MenuCharacter? LimitCharacter(MenuController c, string family) => c.Character?.LimitBreak == family ? c.Character : c.IsDemo ? c.Data.Characters.FirstOrDefault(ch => ch.LimitBreak == family) : c.Character;
+    private static IReadOnlyList<MenuEntry> LimitEntries(MenuController c, string family, bool learn = false)
+    {
+        var owner = LimitCharacter(c, family);
+        return (owner?.LimitMoves ?? []).Select(move => new MenuEntry(move.Id, $"{move.Name}   {(move.Stock.HasValue ? "×" + move.Stock : move.LearningProgress.HasValue ? move.LearningProgress + "%" : move.Learned == true ? "Learned" : move.Learned == false ? "--" : "?")}", move.Description, Action: learn ? new MenuAction("limit-setting", "Learning", owner?.Id ?? "", move.Name) : null)).ToArray();
+    }
+    private static IReadOnlyList<string> LimitDetails(MenuController c, string family)
+    {
+        var owner = LimitCharacter(c, family);
+        var move = owner?.LimitMoves.FirstOrDefault(m => m.Id == c.SelectedEntry?.Id) ?? owner?.LimitMoves.FirstOrDefault();
+        return move == null ? ["No learned-move owner is projected.", .. Boundary(c)] : [$"{owner!.Name} · {move.Name}", $"Learned: {(move.Learned.HasValue ? move.Learned.Value ? "Yes" : "No" : "Unavailable")}", $"Progress: {(move.LearningProgress.HasValue ? move.LearningProgress + "%" : "Unavailable")}", "Inputs: " + move.InputSequence, $"Ammo stock: {MenuController.Number(move.Stock)}", "Learning: " + owner.LimitSettings.GetValueOrDefault("Learning", "--"), "Fixture state and sequences; native parity unproved.", .. Boundary(c)];
+    }
+    private static IReadOnlyList<string> SlotDetails(MenuController c)
+    {
+        var owner = LimitCharacter(c, "Slot");
+        var index = int.TryParse(owner?.LimitSettings.GetValueOrDefault("Preview index"), out var preview) ? preview : 0;
+        var spell = owner is { SlotPreview.Count: > 0 } ? owner.SlotPreview[index % owner.SlotPreview.Count] : "Unavailable";
+        return [owner?.Name ?? "Unavailable", "Spell preview: " + spell, "Select accepts the fixture preview.", "Do Over cycles explicit fixture choices.", "Native random draws and battle casting unsupported.", .. Boundary(c)];
+    }
+    private static MenuAction? PreviewCharacter(MenuController c, string screenId)
+    {
+        if (!c.IsDemo)
+        {
+            return null;
+        }
+        var family = LimitFamilyForScreen(screenId);
+        var character = c.Data.Characters.FirstOrDefault(ch => ch.LimitBreak == family);
+        return character == null ? null : new MenuAction("select-character", character.Id);
+    }
+    internal static string? LimitFamilyForScreen(string screenId)
+    {
+        return screenId switch
+        {
+            "status-renzokuken" => "Renzokuken",
+            "status-angelo" or "status-angel-wing" => "Combine",
+            "status-duel" => "Duel",
+            "status-slot" => "Slot",
+            "status-blue-magic" => "Blue Magic",
+            "status-shot" => "Shot",
+            _ => null
+        };
+    }
+    private static IReadOnlyList<MenuEntry> MappingActions(string destination) => new[] { "Confirm", "Cancel", "Menu", "Card", "Switch character left", "Switch character right", "Rotate camera left", "Rotate camera right", "Pause", "Select" }.Select(action => new MenuEntry(action, action, "Inspect and choose an explicit mapping.", destination, new MenuAction("select-mapping", action))).ToArray();
+    private static IReadOnlyList<string> MappingDetails(MenuController c, string kind) => [$"Action: {c.MappingId}", $"Mapping: {c.Data.Settings.GetValueOrDefault(kind + ":" + c.MappingId, "Unavailable")}", "Mapping only mutates isolated fixtures by default.", "Live mapping requires an explicitly supported host contract.", .. Boundary(c)];
+}

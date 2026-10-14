@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
-internal sealed class RecreateGame : Game
+internal sealed partial class RecreateGame : Game
 {
     private readonly LaunchOptions options;
     private readonly GameSession session;
@@ -75,6 +75,7 @@ internal sealed class RecreateGame : Game
         {
             fieldAudio = new FieldAudioPresentation(Window.Handle, options.GameDirectory, movieClock.ToolsDirectory);
         }
+        InitializeGameUi();
         if (options.ControlDirectory is not null)
         {
             controls = new ControlQueue(options.ControlDirectory, DispatchControl);
@@ -91,7 +92,11 @@ internal sealed class RecreateGame : Game
             gameplayClock.ToggleSpeed();
             Window.Title = gameplayClock.SpeedMultiplier == 1 ? "Memoria - Final Fantasy VIII" : "Memoria - Final Fantasy VIII (events x3)";
         }
-        controls?.Poll();
+        // A capture fences the queue until Draw publishes that exact presented frame.
+        if (pendingCapture is null)
+        {
+            controls?.Poll();
+        }
         updateFrames++;
         if (options.ExitAfterFrames is int frames && updateFrames >= frames)
         {
@@ -102,6 +107,13 @@ internal sealed class RecreateGame : Game
             Exit();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        if (UpdateGameUi(input))
+        {
+            fieldAudio?.Update();
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (UpdatePlayerSaves(input))
         {
             fieldAudio?.Update();
@@ -535,6 +547,8 @@ internal sealed class RecreateGame : Game
 
     private void StartNewGameSession()
     {
+        gameMenus?.Close();
+        SynchronizeUiMoviePause();
         movie?.Dispose();
         movie = null;
         movieIndex = -1;
@@ -551,6 +565,15 @@ internal sealed class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (request.Command.Equals("debug-room", StringComparison.OrdinalIgnoreCase) || request.Command.StartsWith("ui-", StringComparison.OrdinalIgnoreCase))
+        {
+            return DispatchUiControl(request);
+        }
+        if (request.Command.Equals("quit", StringComparison.OrdinalIgnoreCase))
+        {
+            Exit();
+            return new { Exiting = true };
+        }
         if (request.Command.Equals("new-game", StringComparison.OrdinalIgnoreCase))
         {
             StartNewGameSession();
@@ -602,6 +625,10 @@ internal sealed class RecreateGame : Game
         }
         else if (request.Command.Equals("action", StringComparison.OrdinalIgnoreCase) || request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase))
         {
+            if (gameMenus?.IsOpen == true)
+            {
+                throw new InvalidOperationException("Close the UI before advancing the game-owned simulation.");
+            }
             if (session.State.Scene == SceneKind.Title)
             {
                 throw new InvalidOperationException("Start a new game before applying player actions.");
@@ -659,6 +686,7 @@ internal sealed class RecreateGame : Game
             Performance = metrics.Latest,
             EventSpeedMultiplier = gameplayClock.SpeedMultiplier,
             DebugPresentation = session.State.DebugView,
+            GameUi = GameUiStatus(),
             DebugActionLog = world?.DebugActions,
             Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names, events.MessageVariables) : null } : null,
             Dialogue = events?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events.Scene.Names, events.MessageVariables) } : null,
@@ -714,7 +742,7 @@ internal sealed class RecreateGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (!fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
+        if (gameMenus?.IsOpen != true && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
         {
             try
             {
@@ -741,6 +769,7 @@ internal sealed class RecreateGame : Game
         GraphicsDevice.Clear(Color.Black);
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
+        text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
         if (session.State.Scene == SceneKind.Title)
         {
@@ -825,6 +854,7 @@ internal sealed class RecreateGame : Game
             DrawPanel(panel);
             text.DrawWrapped(batch, saveNotice, 19 * uiScale, new Vector2(panel.X + 16 * uiScale, panel.Y + 14 * uiScale), panel.Width - 32 * uiScale, Color.White);
         }
+        DrawGameUi(bounds);
         batch.End();
         string? capturePath = pendingCapture ?? (!frameCaptured && gameTime.TotalGameTime.TotalSeconds >= options.CaptureAfterSeconds ? options.CaptureFramePath : null);
         if (capturePath is not null)
@@ -922,9 +952,7 @@ internal sealed class RecreateGame : Game
 
     private void DrawPanel(Rectangle rectangle)
     {
-        batch.Draw(pixel, rectangle, new Color(156, 156, 160));
-        int border = Math.Max(1, (int)(2 * ViewportLayout.UiScale(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height)));
-        batch.Draw(pixel, new Rectangle(rectangle.X + border, rectangle.Y + border, Math.Max(1, rectangle.Width - 2 * border), Math.Max(1, rectangle.Height - 2 * border)), new Color(16, 23, 43, 244));
+        uiTheme.Panel(uiCanvas!, new Memoria.FF8.Ui.UiRect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height));
     }
 
     protected override void Dispose(bool disposing)
@@ -935,6 +963,7 @@ internal sealed class RecreateGame : Game
             movie?.Dispose();
             world?.Dispose();
             fieldTexture?.Dispose();
+            uiCanvas?.Dispose();
             pixel?.Dispose();
             text?.Dispose();
             batch?.Dispose();

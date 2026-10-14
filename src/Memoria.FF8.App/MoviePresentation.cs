@@ -27,6 +27,20 @@ internal sealed class MoviePresentation : IDisposable
     public double PositionSeconds => decoder.StartSeconds + clock.Elapsed.TotalSeconds;
     public bool Finished => started && IsComplete(PositionSeconds, decoder.Information.DurationSeconds, decoder.VideoFinished, decoder.AudioFinished, sound.PendingBufferCount);
     public bool HasFrame => started;
+    public void Suspend()
+    {
+        clock.Stop();
+        sound.Pause();
+    }
+
+    public void Resume()
+    {
+        if (started)
+        {
+            clock.Start();
+            sound.Resume();
+        }
+    }
     public string? Error => decoder.Error;
     public MoviePlaybackState Playback => new(absoluteFrame, decoder.Information.FrameCount - 1, !Finished, Finished, false);
 

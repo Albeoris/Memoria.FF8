@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-internal sealed record ControlRequest(string Id, string Command, PlayerAction? Action = null, int Frames = 900, string? Path = null, string? Name = null, int? Selection = null, DebugSceneCommand? Debug = null, bool Compact = false);
+internal sealed record ControlRequest(string Id, string Command, PlayerAction? Action = null, int Frames = 900, string? Path = null, string? Name = null, int? Selection = null, DebugSceneCommand? Debug = null, bool Compact = false, UiControlCommand? Ui = null);
 
 /// <summary>A local opt-in queue. Producers atomically rename each unique request from .tmp to .json.</summary>
 internal sealed class ControlQueue
