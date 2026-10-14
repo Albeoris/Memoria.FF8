@@ -393,6 +393,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SET3:
                 args = Pop(fiber, 3);
+                actor.NativeJoinedPosition = null;
                 actor.X = args[0];
                 actor.Y = args[1];
                 actor.Z = args[2];
@@ -526,7 +527,7 @@ public sealed partial class EventEngine
                 ActorState cancelledActor = actors[program.NativeObjects[args[0]]];
                 // Native 0x524620 acts only on a model entity in ordinary scripted movement.
                 // A stationary target retains its current animation and all other state.
-                if (cancelledActor.ModelId >= 0 && (cancelledActor.MovementTarget is not null || cancelledActor.MovementActorId is not null))
+                if (!CancelNativeScriptMovement(cancelledActor) && cancelledActor.ModelId >= 0 && (cancelledActor.MovementTarget is not null || cancelledActor.MovementActorId is not null))
                 {
                     int cancelledAnimationFrames = AnimationFrameCount?.Invoke(cancelledActor.ModelId, cancelledActor.BaseAnimationId) ?? throw Fault(fiber, "MOVECANCEL requires the target base animation's frame count.");
                     if (cancelledAnimationFrames <= 0)
@@ -924,7 +925,7 @@ public sealed partial class EventEngine
                 }
                 else
                 {
-                    actor.PushRadius = args[0];
+                    actor.PushRadius = unchecked((ushort)args[0]);
                 }
                 break;
             case Jsm.Opcode.THROUGHON:

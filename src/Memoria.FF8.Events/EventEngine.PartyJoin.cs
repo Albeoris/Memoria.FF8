@@ -8,6 +8,7 @@ public sealed record NativeJoinMovementProposal(int FixedX, int FixedY, int Dire
 public sealed record NativeJoinMovementResult(bool Accepted, int FixedX, int FixedY, int FixedZ, int Triangle, int Direction, IReadOnlyList<NativeJoinMovementProposal> Proposals, IReadOnlyList<IReadOnlyList<NativePlayerGroundProbe>>? ProposalGroundProbes = null);
 public sealed record PartyJoinTarget(int ObjectId, int FixedX, int FixedY, int FixedZ, int TargetX, int TargetY, int TargetZ, int Speed, int Completion);
 public sealed record PartyJoinState(long FiberSequence, int CallerObjectId, PartyJoinTarget[] Targets, bool UsesNativeMovement = false);
+public sealed record NativeJoinedPosition(int Version, int FieldId, int CallerObjectId, int ScriptId, int Operation, long FiberSequence, long Frame, int FixedX, int FixedY, int FixedZ, int Triangle, NativeMotionAuthority Authority);
 
 public sealed partial class EventEngine
 {
@@ -16,6 +17,26 @@ public sealed partial class EventEngine
     public Func<PartyJoinStepQuery, WalkmeshPosition?>? ResolvePartyJoinStep { get; set; }
     public Func<NativeJoinMovementQuery, NativeJoinMovementResult?>? ResolveNativeJoinMovement { get; set; }
     public Func<ActorState, bool>? CanUseNativeJoinMovement { get; set; }
+
+    private ActorState? ResolveJoinPartyActor(int slot)
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return ResolvePartyActor(slot);
+        }
+        if (Scene.NativeActorLayoutVersion != 1 || Scene.PartyBindingMemory is not { Version: 1 } memory)
+        {
+            throw new NotSupportedException("Native JOIN requires its original saved party body bindings.");
+        }
+        int nativeActor = memory.At(slot);
+        if (variables.TryGetValue(194 + slot, out int alias) && alias != nativeActor || nativeActor != byte.MaxValue && (uint)nativeActor >= Scene.NativeActorObjectIds.Count)
+        {
+            throw new NotSupportedException("Native JOIN saved party binding differs from its represented body table.");
+        }
+        // 524BA0 and47ACE0 read savedB194..196, independently of the
+        // runtime1CE4772 follow mappings changed by FOLLOWOFF/FOLLOWON.
+        return nativeActor == byte.MaxValue ? null : actors[Scene.NativeActorObjectIds[nativeActor]];
+    }
 
     // Original signed-WORD quarter-wave at B80D1C. The full native table is
     // reconstructed by its exact quadrant symmetry, without rounded trig.
@@ -82,7 +103,7 @@ public sealed partial class EventEngine
             }
             return partyJoin.FiberSequence == fiber.Sequence ? null : "Unsupported concurrent JOIN would replace the native global companion targets";
         }
-        if (Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolvePartyActor(0)?.ObjectId != fiber.ObjectId || Scene.Party.Count == 0 || actors[fiber.ObjectId].CharacterId != Scene.Party[0])
+        if (Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolveJoinPartyActor(0)?.ObjectId != fiber.ObjectId || Scene.Party.Count == 0 || actors[fiber.ObjectId].CharacterId != Scene.Party[0])
         {
             return "Unsupported JOIN requires the proved compact bindings and original party leader caller";
         }
@@ -98,9 +119,13 @@ public sealed partial class EventEngine
         {
             return "Unsupported fractional JOIN leader requires its matching preserved native fixed position";
         }
-        bool nativeMovement = ResolveNativeJoinMovement is not null && Enumerable.Range(1, 2).Select(ResolvePartyActor).OfType<ActorState>().All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true);
-        foreach (ActorState actor in Enumerable.Range(0, 3).Select(ResolvePartyActor).OfType<ActorState>())
+        bool nativeMovement = ResolveNativeJoinMovement is not null && Enumerable.Range(1, 2).Select(ResolveJoinPartyActor).OfType<ActorState>().All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true);
+        foreach (ActorState actor in Enumerable.Range(0, 3).Select(ResolveJoinPartyActor).OfType<ActorState>())
         {
+            if (nativeMovement && actor.ObjectId != fiber.ObjectId && actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 })
+            {
+                return "Native JOIN requires actual companion movement575 and facing hold576 before issue";
+            }
             if (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.ModelId, animation) is not > 0))
             {
                 return "Unsupported JOIN requires original idle/walk/run IDs and complete model animation metadata";
@@ -141,7 +166,7 @@ public sealed partial class EventEngine
             List<PartyJoinTarget> targets = [];
             for (int slot = 1; slot < 3; slot++)
             {
-                if (ResolvePartyActor(slot) is not ActorState target)
+                if (ResolveJoinPartyActor(slot) is not ActorState target)
                 {
                     continue;
                 }
@@ -189,6 +214,10 @@ public sealed partial class EventEngine
         {
             ActorState actor = actors[target.ObjectId];
             actor.MovementStopDistance = 0;
+            if (partyJoin.UsesNativeMovement && NativeRuntimeProfile is { IsVerified: true })
+            {
+                actor.NativeJoinedPosition = new NativeJoinedPosition(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, Frame, target.FixedX, target.FixedY, target.FixedZ, actor.WalkmeshTriangle, actor.NativeMotionAuthority!);
+            }
         }
         partyJoin = null;
     }
@@ -350,6 +379,7 @@ public sealed partial class EventEngine
         {
             ActorState actor = actors[next[index].ObjectId];
             bool cavernJoin = IsCavernNativeMoveJoin;
+            NativeMotionAuthority? authority = actor.NativeMotionAuthority;
             actor.InvalidateNativeMotionAuthority();
             actor.X = next[index].FixedX / 4096f;
             actor.Y = next[index].FixedY / 4096f;
@@ -357,9 +387,13 @@ public sealed partial class EventEngine
             if (positions[index] is WalkmeshPosition position)
             {
                 actor.WalkmeshTriangle = position.Triangle;
-                actor.Direction = directions[index];
+                actor.Direction = partyJoin.UsesNativeMovement && authority?.FacingHold == 1 ? actor.Direction : directions[index];
             }
-            if (cavernJoin)
+            if (partyJoin.UsesNativeMovement && authority is { Version: 1 })
+            {
+                actor.NativeMotionAuthority = authority with { MovementDirection = positions[index] is null ? authority.MovementDirection : (byte)directions[index] };
+            }
+            else if (cavernJoin)
             {
                 actor.NativeMotionAuthority = new NativeMotionAuthority(1, (byte)actor.Direction, 0);
             }
@@ -375,14 +409,27 @@ public sealed partial class EventEngine
         return new EventScriptException(message);
     }
 
+    private void ValidateNativeJoinedPositions(Checkpoint saved)
+    {
+        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeJoinedPosition is not null))
+        {
+            NativeJoinedPosition joined = actor.NativeJoinedPosition!;
+            EventScript? script = (uint)joined.CallerObjectId < program!.Objects.Count ? program.Objects[joined.CallerObjectId].Scripts.FirstOrDefault(script => script.Id == joined.ScriptId) : null;
+            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || joined.Operation < script.Start || joined.Operation >= script.End || program.Operations[joined.Operation].Opcode != Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1, FacingHold: <= 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
+            {
+                throw new InvalidDataException("Saved completed JOIN body lost its original instruction, raw position or physical motion authority.");
+            }
+        }
+    }
+
     private void BuildJoinedPartyTrace()
     {
         PartyTraceSample?[] first = ResetTraceFlags(Scene.PartyTrace?.FirstTrail);
         PartyTraceSample?[] second = ResetTraceFlags(Scene.PartyTrace?.SecondTrail);
-        BuildJoinedTrail(first, ResolvePartyActor(1));
-        BuildJoinedTrail(second, ResolvePartyActor(2));
+        BuildJoinedTrail(first, ResolveJoinPartyActor(1));
+        BuildJoinedTrail(second, ResolveJoinPartyActor(2));
         Scene.PartyTrace = new PartyTraceState(0, 15, 30, first, second);
-        ActorState leader = ResolvePartyActor(0)!;
+        ActorState leader = ResolveJoinPartyActor(0)!;
         Scene.NativePlayerPosition = ReadNativeJoinLeaderPosition(leader) ?? throw FreezeJoin("Native JOIN leader lost its preserved raw position");
         Scene.NativePartyTraceVersion = 1;
     }
@@ -401,7 +448,7 @@ public sealed partial class EventEngine
             Array.Clear(trail);
             return;
         }
-        ActorState leader = ResolvePartyActor(0)!;
+        ActorState leader = ResolveJoinPartyActor(0)!;
         FieldFixedPosition leaderPosition = ReadNativeJoinLeaderPosition(leader) ?? throw FreezeJoin("Native JOIN trace leader lost its preserved raw position");
         PartyJoinTarget fixedFollower = partyJoin!.Targets.Single(target => target.ObjectId == follower.ObjectId);
         int followerX = fixedFollower.FixedX / 4096;

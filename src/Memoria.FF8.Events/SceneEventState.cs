@@ -170,8 +170,8 @@ public sealed class SceneEventState
     public Vector3 SubtractiveColor { get; internal set; }
     [JsonInclude]
     public float FadeOpacity { get; internal set; }
-    public HashSet<int> LockedTriangles { get; } = [];
-    public HashSet<int> Members { get; } = [];
+    public SortedSet<int> LockedTriangles { get; } = [];
+    public SortedSet<int> Members { get; } = [];
     public List<int> Party { get; } = [];
     public List<int> FieldPartyNativeActorIds { get; } = [];
     [JsonInclude]
@@ -182,8 +182,8 @@ public sealed class SceneEventState
     [JsonInclude]
     public int NativePlayerMovementVersion { get; internal set; }
     public List<int> NativeActorObjectIds { get; } = [];
-    public HashSet<int> UnlockedTutorials { get; } = [];
-    public HashSet<int> AcquiredGuardianForces { get; } = [];
+    public SortedSet<int> UnlockedTutorials { get; } = [];
+    public SortedSet<int> AcquiredGuardianForces { get; } = [];
     public List<MinimalMenuCompletion> MinimalMenuCompletions { get; } = [];
     public Dictionary<long, int> MinimalMenuWaits { get; } = [];
     [JsonInclude]

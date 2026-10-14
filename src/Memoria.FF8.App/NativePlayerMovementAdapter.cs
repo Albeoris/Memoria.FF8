@@ -7,12 +7,12 @@ public static class NativePlayerMovementAdapter
 {
     public static bool Supports(FieldAssets field, SceneEventState scene, ActorState actor)
     {
-        return field.Id >= 72 && SupportsBinding(scene, actor.ObjectId) && (uint)actor.ModelId < field.Models.Count && actor.CharacterId == 0 && actor.PushRadius == 48;
+        return field.Id >= 72 && SupportsBinding(scene, actor.ObjectId) && (uint)actor.ModelId < field.Models.Count && actor.CharacterId == 0 && actor.PushRadius is >= 0 and <= ushort.MaxValue;
     }
 
     public static NativePlayerMovementResult? Resolve(FieldAssets field, SceneEventState scene, NativePlayerMovementQuery query)
     {
-        if (field.Id < 72 || !SupportsBinding(scene, query.ObjectId) || query.Direction is < 0 or > byte.MaxValue || query.EarlyRetryState is > 1 || query.EarlyRetryState != scene.NativePlayerEarlyRetryState || query.Radius != 48 || query.Speed is not (2696 or 7929))
+        if (field.Id < 72 || !SupportsBinding(scene, query.ObjectId) || query.Direction is < 0 or > byte.MaxValue || query.EarlyRetryState is > 1 || query.EarlyRetryState != scene.NativePlayerEarlyRetryState || query.Radius is < 0 or > ushort.MaxValue || query.Speed is not (2696 or 7929))
         {
             return null;
         }

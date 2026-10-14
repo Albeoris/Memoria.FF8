@@ -58,7 +58,7 @@ public sealed partial class EventEngine
         {
             bool actorTargetIssued = program.Operations[issued].Opcode == Jsm.Opcode.MOVEA;
             NativeScriptMovementState? physical = actor.NativeScriptMovement;
-            if (issued != fiber.Position || physical is null || physical.Suspended || physical.Asynchronous || !physical.Active && physical.Completion != 2 || CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || ReadNativeScriptPosition(actor) is null || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || actorTargetIssued && (fiber.Stack.Count == 0 || fiber.NativeMoveTarget != (int)fiber.Stack.Peek() || ReadNativeActorMoveTarget(fiber.Stack.Peek()) is null))
+            if (issued != fiber.Position || physical is null || physical.Suspended || physical.Asynchronous || !physical.Active && !physical.Cancelled && physical.Completion != 2 || CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || ReadNativeScriptPosition(actor) is null || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || actorTargetIssued && (fiber.Stack.Count == 0 || fiber.NativeMoveTarget != (int)fiber.Stack.Peek() || ReadNativeActorMoveTarget(fiber.Stack.Peek()) is null))
             {
                 return "Issued native MOVE requires its held instruction, actual shared mode1 body and remaining target operand";
             }
@@ -79,7 +79,7 @@ public sealed partial class EventEngine
         {
             return $"Native MOVE requires its certified retained actor, original body direction, completed prior motion and signed speed (certified={CanUseNativeScriptMove?.Invoke(actor)}, retained={Scene.NativeActorObjectIds.Contains(actor.ObjectId)}, direction={actor.Direction}, speed={actor.MovementSpeed}, radius={actor.PushRadius}, target={actor.MovementTarget}, followTarget={actor.MovementActorId}, rotation={actor.RotationTarget}, operands={fiber.Stack.Count}, replacement={replacingAsync})";
         }
-        if (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.ModelId, animation) is not > 0))
+        if (!HasNativeEmptyAnimationModel(actor) && (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.ModelId, animation) is not > 0)))
         {
             return "Native MOVE requires original full idle/walk/run animation metadata";
         }
@@ -116,6 +116,14 @@ public sealed partial class EventEngine
         if (actor.NativeScriptMovement is NativeScriptMovementState raw && actor.X == raw.FixedX / 4096f && actor.Y == raw.FixedY / 4096f && actor.Z == raw.FixedZ / 4096f)
         {
             return new FieldFixedPosition(raw.FixedX, raw.FixedY, raw.FixedZ);
+        }
+        if (partyJoin?.Targets.FirstOrDefault(target => target.ObjectId == actor.ObjectId) is { } join && actor.X == join.FixedX / 4096f && actor.Y == join.FixedY / 4096f && actor.Z == join.FixedZ / 4096f)
+        {
+            return new FieldFixedPosition(join.FixedX, join.FixedY, join.FixedZ);
+        }
+        if (actor.NativeJoinedPosition is { } joined && actor.X == joined.FixedX / 4096f && actor.Y == joined.FixedY / 4096f && actor.Z == joined.FixedZ / 4096f && actor.WalkmeshTriangle == joined.Triangle)
+        {
+            return new FieldFixedPosition(joined.FixedX, joined.FixedY, joined.FixedZ);
         }
         if (!float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || actor.X != MathF.Truncate(actor.X) || actor.Y != MathF.Truncate(actor.Y) || actor.Z != MathF.Truncate(actor.Z) || actor.X is < short.MinValue or > short.MaxValue || actor.Y is < short.MinValue or > short.MaxValue || actor.Z is < short.MinValue or > short.MaxValue)
         {
@@ -172,6 +180,7 @@ public sealed partial class EventEngine
         if (fiber.NativeMoveOperation is null)
         {
             actor.NativeScriptMovement = CreateNativeScriptMove(fiber, true);
+            actor.NativeJoinedPosition = null;
             actor.NativeJump = null;
             if (actor.NativeScriptMovement.HoldsFacing)
             {
@@ -210,7 +219,7 @@ public sealed partial class EventEngine
             {
                 Pop(fiber, 1);
             }
-            actor.NativeScriptMovement = actor.NativeScriptMovement with { Active = false, AnimationFlag40000 = false };
+            actor.NativeScriptMovement = actor.NativeScriptMovement with { Active = false, Cancelled = false, AnimationFlag40000 = false };
             fiber.NativeMoveOperation = null;
             fiber.NativeMoveTarget = null;
             actor.NativeMotionAuthority = new NativeMotionAuthority(1, actor.NativeScriptMovement.MovementDirection, 0);
@@ -221,7 +230,7 @@ public sealed partial class EventEngine
         {
             FieldFixedPosition target = ReadNativeActorMoveTarget(targetId) ?? throw new NotSupportedException("Native MOVEA target lost its preserved raw placement.");
             actor.NativeScriptMovement = actor.NativeScriptMovement with { TargetX = target.X, TargetY = target.Y, TargetZ = target.Z };
-            actor.MovementTarget = new Vector3(target.X / 4096f, target.Y / 4096f, target.Z / 4096f);
+            actor.MovementTarget = actor.NativeScriptMovement.Cancelled ? null : new Vector3(target.X / 4096f, target.Y / 4096f, target.Z / 4096f);
         }
         fiber.Position--;
         fiber.NativeMoveOperation = fiber.Position;
@@ -235,13 +244,13 @@ public sealed partial class EventEngine
         CompleteNativeJumpAsyncMovement(actor);
         // Native529FF0 consumes flag20000/completion542 after this actor's VM.
         // RFMOVE preserves animation; RMOVE additionally carries flag40000.
-        if (actor.NativeScriptMovement is { Active: true, Asynchronous: true, Completion: 2 } completed)
+        if (actor.NativeScriptMovement is { Asynchronous: true, Completion: 2 } completed && (completed.Active || completed.Cancelled))
         {
             if (completed.AnimationFlag40000 ?? completed.ResetAnimationOnCompletion ?? completed.AutomaticAnimation)
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
             }
-            actor.NativeScriptMovement = completed with { Active = false };
+            actor.NativeScriptMovement = completed with { Active = false, Cancelled = false, AnimationFlag40000 = false };
             actor.NativeMotionAuthority = new NativeMotionAuthority(1, completed.MovementDirection, 0);
         }
     }

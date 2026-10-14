@@ -89,6 +89,9 @@ public sealed class ActorState
     [JsonInclude]
     public NativeMotionAuthority? NativeMotionAuthority { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeJoinedPosition? NativeJoinedPosition { get; internal set; }
+    [JsonInclude]
     public int MovementFlags { get; internal set; }
     [JsonInclude]
     public bool MovementIgnoresWalkmesh { get; internal set; }
@@ -284,6 +287,7 @@ public sealed class ActorState
         NativeMotionAuthority = null;
         NativeScriptMovement = null;
         NativeJump = null;
+        NativeJoinedPosition = null;
     }
 
     internal void SetBaseAnimation()

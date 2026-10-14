@@ -288,9 +288,9 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeScriptMove(fiber);
         }
-        if (operation.Opcode == Jsm.Opcode.MOVECANCEL && fiber.Stack.Count != 0 && program is not null && (uint)fiber.Stack.Peek() < program.NativeObjects.Count && actors[program.NativeObjects[fiber.Stack.Peek()]].NativeScriptMovement is { Active: true, Asynchronous: false })
+        if (operation.Opcode == Jsm.Opcode.MOVECANCEL)
         {
-            return "Cancellation of an active native MOVE requires its original completion/owner consumer; operand and movement preserved";
+            return UnsupportedNativeMovementCancellation(fiber);
         }
         if (caller.MovementDirectionLimit != 0 && operation.Opcode is Jsm.Opcode.MOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.MOVEA)
         {

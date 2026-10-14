@@ -59,7 +59,9 @@ public sealed class NativePlayerBindingTests
             Assert.False(NativePlayerMovementAdapter.Supports(world.Field, world.Events.Scene, ChangeActor(player, "ModelId", model)));
         }
         Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, world.Events.Scene, ChangeActor(player, "CharacterId", 5)));
-        Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, world.Events.Scene, ChangeActor(player, "PushRadius", 49)));
+        Assert.True(NativePlayerMovementAdapter.Supports(world.Field!, world.Events.Scene, ChangeActor(player, "PushRadius", 49)));
+        Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, world.Events.Scene, ChangeActor(player, "PushRadius", -1)));
+        Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, world.Events.Scene, ChangeActor(player, "PushRadius", 65536)));
         SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(world.Events.Scene))!;
         scene.NativeActorObjectIds[0] = 0;
         Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, scene, player));

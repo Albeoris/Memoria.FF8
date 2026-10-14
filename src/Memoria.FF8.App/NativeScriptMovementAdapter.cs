@@ -109,8 +109,12 @@ public static class NativeScriptMovementAdapter
 
     private static bool SupportsGenericBinding(FieldAssets field, SceneEventState scene, ActorState actor)
     {
-        bool initialized = scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.FieldId == field.Id && initialization.ProgramHash == Convert.ToHexString(SHA256.HashData(field.Jsm));
-        return field.Id >= 72 && (scene.NativeFieldLoadVersion == 1 || initialized) && scene.NativeActorLayoutVersion == 1 && scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 } && actor.ModelId >= 0 && actor.ModelId < field.Models.Count && actor.PushRadius is >= 0 and <= ushort.MaxValue && actor.MovementSpeed is > 0 and <= short.MaxValue;
+        string hash = Convert.ToHexString(SHA256.HashData(field.Jsm));
+        bool initialized = scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.FieldId == field.Id && initialization.ProgramHash == hash;
+        // Native4789A0 drives every retained mode1 body, including536=FFFF.
+        // Empty resource532890 and actor-contact47A720 have their own guards.
+        bool emptyModel = actor.ModelId is -1 or ushort.MaxValue && actor.NativeMovementBaseSpeed is not null && scene.NativeFieldInitialization?.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, hash) == true;
+        return field.Id >= 72 && (scene.NativeFieldLoadVersion == 1 || initialized) && scene.NativeActorLayoutVersion == 1 && scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 } && (actor.ModelId >= 0 && actor.ModelId < field.Models.Count || emptyModel) && actor.PushRadius is >= 0 and <= ushort.MaxValue && actor.MovementSpeed is > 0 and <= short.MaxValue;
     }
 
     internal static bool SupportsCavernPartyBinding(FieldAssets field, SceneEventState scene, ActorState actor, bool joining = false)

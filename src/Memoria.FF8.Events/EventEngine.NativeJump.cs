@@ -64,6 +64,7 @@ public sealed partial class EventEngine
             bool? asyncFlag = previous is null ? actor.NativeJump?.AsyncFlag20000 : previous.Active && previous.Asynchronous;
             bool? animationFlag = previous is null ? actor.NativeJump?.AnimationFlag40000 : previous.AnimationFlag40000 ?? (previous.Suspended ? previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation : previous.Active && (previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation));
             actor.NativeScriptMovement = null;
+            actor.NativeJoinedPosition = null;
             actor.MovementTarget = null;
             // JUMP3's supplied target444 is overwritten by the same mode2 plane evaluation before velocity is calculated.
             actor.NativeJump = new NativeJumpState(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw.X, raw.Y, raw.Z, unchecked(operands[0] << 12), unchecked(operands[1] << 12), includesZ ? unchecked(operands[2] << 12) : 0, unchecked((ushort)triangle), unchecked((short)operands[^1]), 0, 0, 0, asyncFlag, animationFlag);

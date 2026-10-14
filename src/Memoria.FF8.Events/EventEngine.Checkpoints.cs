@@ -282,12 +282,13 @@ public sealed partial class EventEngine
         ValidateNativeJumps(saved, restored);
         ValidateNativeActorContactCheckpoint(saved);
         ValidateNativeMovementRequests(saved, restored);
+        ValidateNativeJoinedPositions(saved);
         ValidateWorldTransitionCheckpoint(saved, bySequence);
         ValidateMinimalMenuCheckpoint(saved, bySequence);
         ValidateNativeBattleCheckpoint(saved, bySequence);
         foreach (ActorState actor in saved.Actors)
         {
-            if (actor.NativeMotionAuthority is NativeMotionAuthority authority && (authority.Version != 1 || actor.NativeScriptMovement is { Active: true } activeMotion && (authority.FacingHold != (NativeMoveFacingHold(activeMotion)) || authority.MovementDirection != activeMotion.MovementDirection)))
+            if (actor.NativeMotionAuthority is NativeMotionAuthority authority && (authority.Version != 1 || actor.NativeScriptMovement is { } activeMotion && (activeMotion.Active || activeMotion.Cancelled) && (authority.FacingHold != (NativeMoveFacingHold(activeMotion)) || authority.MovementDirection != activeMotion.MovementDirection)))
             {
                 throw new InvalidDataException("Saved native motion authority has an unsupported schema or differs from its active scripted movement scalars.");
             }
@@ -307,7 +308,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved forced-animation movement has invalid inherited native animation flags.");
             }
-            if (motion.Cancelled && (motion.Active || !motion.Asynchronous || actor.MovementTarget is not null))
+            if (motion.Cancelled && (motion.Active || motion.Suspended || motion.AnimationFlag40000 is null || actor.MovementTarget is not null))
             {
                 throw new InvalidDataException("Saved cancelled native movement has invalid mode0 or original asynchronous ownership.");
             }
@@ -315,7 +316,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native MOVEA has invalid original target identity or remaining operand.");
             }
-            if (motion.FacingHold576 > 1 || motion.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || (uint)motion.Operation >= program.Operations.Count || program.Operations[motion.Operation].Opcode.ToString() != movementOpcode || motion.Asynchronous && (issuingScript is null || motion.Operation < issuingScript.Start || motion.Operation >= issuingScript.End || ownerExists && !validOwner || validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || (actor.NativeMotionAuthority is not { Version: 1 } || actor.NativeMotionAuthority.FacingHold != (motion.Active || motion.Cancelled ? NativeMoveFacingHold(motion) : 0))) || motion.Completion > 2 || !motion.Active && !motion.Cancelled && motion.Completion != 2 || motion.Speed <= 0 || motion.Active && (motion.DirectionLimit != actor.MovementDirectionLimit || motion.Speed != actor.MovementSpeed) || motion.Triangle != actor.WalkmeshTriangle || motion.Triangle is < 0 or > short.MaxValue || actor.X != motion.FixedX / 4096f || actor.Y != motion.FixedY / 4096f || actor.Z != motion.FixedZ / 4096f || motion.Active && actor.Direction != motion.FacingDirection || (motion.FixedZ & 4095) != 0 || new[] { motion.FixedX, motion.FixedY, motion.FixedZ, motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || motion.TargetNativeObjectId is null && new[] { motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value & 4095) != 0) || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Complete || owner.Position != motion.Operation || owner.WaitReason != WaitReason.NativeScriptMovement) || !motion.Active && validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || motion.Active && motion.Completion != 2 && actor.MovementTarget != new Vector3(motion.TargetX / 4096f, motion.TargetY / 4096f, motion.TargetZ / 4096f) || motion.Completion == 2 && actor.MovementTarget is not null)
+            if (motion.FacingHold576 > 1 || motion.Version != 1 || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || (uint)motion.Operation >= program.Operations.Count || program.Operations[motion.Operation].Opcode.ToString() != movementOpcode || motion.Asynchronous && (issuingScript is null || motion.Operation < issuingScript.Start || motion.Operation >= issuingScript.End || ownerExists && !validOwner || validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || (actor.NativeMotionAuthority is not { Version: 1 } || actor.NativeMotionAuthority.FacingHold != (motion.Active || motion.Cancelled ? NativeMoveFacingHold(motion) : 0))) || motion.Completion > 2 || !motion.Active && !motion.Cancelled && motion.Completion != 2 || motion.Speed <= 0 || motion.Active && (motion.DirectionLimit != actor.MovementDirectionLimit || motion.Speed != actor.MovementSpeed) || motion.Triangle != actor.WalkmeshTriangle || motion.Triangle is < 0 or > short.MaxValue || actor.X != motion.FixedX / 4096f || actor.Y != motion.FixedY / 4096f || actor.Z != motion.FixedZ / 4096f || motion.Active && actor.Direction != motion.FacingDirection || (motion.FixedZ & 4095) != 0 || new[] { motion.FixedX, motion.FixedY, motion.FixedZ, motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || motion.TargetNativeObjectId is null && new[] { motion.TargetX, motion.TargetY, motion.TargetZ }.Any(value => (value & 4095) != 0) || motion.Active && !motion.Asynchronous && (!validOwner || owner!.Complete || owner.Position != motion.Operation || owner.WaitReason != WaitReason.NativeScriptMovement) || !motion.Active && !motion.Cancelled && validOwner && owner!.WaitReason == WaitReason.NativeScriptMovement || motion.Active && motion.Completion != 2 && actor.MovementTarget != new Vector3(motion.TargetX / 4096f, motion.TargetY / 4096f, motion.TargetZ / 4096f) || motion.Completion == 2 && actor.MovementTarget is not null)
             {
                 throw new InvalidDataException("Saved native scripted MOVE has invalid raw placement, owner, instruction wait or completion state.");
             }
@@ -331,6 +332,15 @@ public sealed partial class EventEngine
         if (saved.PartyJoin is { UsesNativeMovement: true } nativeJoin && (nativeJoin.Targets.Length == 0 || nativeJoin.Targets.Any(target => (target.FixedX >> 12) is < short.MinValue or > short.MaxValue || (target.FixedY >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ & 4095) != 0 || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
         {
             throw new InvalidDataException("Saved native JOIN movement does not match its exact preserved raw companion coordinates.");
+        }
+        if (saved.PartyJoin is { } boundJoin && NativeRuntimeProfile is { IsVerified: true })
+        {
+            NativePartyBindingMemory memory = saved.Scene.PartyBindingMemory ?? throw new InvalidDataException("Saved native JOIN lacks its original saved party body pointers.");
+            int[] bindings = Enumerable.Range(0, 3).Select(slot => (int)memory.At(slot)).ToArray();
+            if (memory.Version != 1 || bindings.Any(binding => binding != byte.MaxValue && (uint)binding >= saved.Scene.NativeActorObjectIds.Count) || bindings[0] == byte.MaxValue || saved.Scene.NativeActorObjectIds[bindings[0]] != boundJoin.CallerObjectId || !bindings.Skip(1).Where(binding => binding != byte.MaxValue).Select(binding => saved.Scene.NativeActorObjectIds[binding]).SequenceEqual(boundJoin.Targets.Select(target => target.ObjectId)))
+            {
+                throw new InvalidDataException("Saved native JOIN targets differ from the original saved party bodies; runtime follow slots are not substitutes.");
+            }
         }
         if (saved.PartyJoin is null && restored.Any(fiber => fiber.WaitReason == WaitReason.PartyJoin))
         {

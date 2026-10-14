@@ -36,7 +36,7 @@ public static class NativeJoinMovementAdapter
 
     private static bool IsFreshPartyBinding(FieldAssets field, SceneEventState scene, int objectId)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.FieldId == field.Id && initialization.ProgramHash == Convert.ToHexString(SHA256.HashData(field.Jsm)) && scene.NativeFieldLoadVersion == 1 && scene.NativePartyTraceVersion == 1 && scene.NativeActorLayoutVersion == 1 && scene.FieldPartyNativeActorIds.Count == 3 && scene.FieldPartyNativeActorIds.Any(index => index != byte.MaxValue && index >= 0 && index < scene.NativeActorObjectIds.Count && scene.NativeActorObjectIds[index] == objectId);
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativePartyTraceVersion == 1 && scene.NativeActorLayoutVersion == 1 && scene.PartyBindingMemory is { Version: 1 } memory && Enumerable.Range(0, 3).Select(memory.At).Any(index => index != byte.MaxValue && index < scene.NativeActorObjectIds.Count && scene.NativeActorObjectIds[index] == objectId);
     }
 
     private static bool IsReachedFollower(FieldAssets field, SceneEventState scene, int objectId)

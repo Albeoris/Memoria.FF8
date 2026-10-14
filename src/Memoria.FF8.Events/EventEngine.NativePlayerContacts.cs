@@ -74,7 +74,7 @@ public sealed partial class EventEngine
             {
                 throw new NotSupportedException("Native player peer distance needs an unproved wrapped comparison; original state preserved.");
             }
-            if (squared >= (long)radius * radius)
+            if (squared >= unchecked(radius * radius))
             {
                 continue;
             }
@@ -121,7 +121,7 @@ public sealed partial class EventEngine
         }
         long closestX = minX <= 0 && maxX >= 0 ? 0 : Math.Min(Math.Abs(minX), Math.Abs(maxX));
         long closestY = minY <= 0 && maxY >= 0 ? 0 : Math.Min(Math.Abs(minY), Math.Abs(maxY));
-        return closestX * closestX + closestY * closestY >= (long)radius * radius;
+        return closestX * closestX + closestY * closestY >= unchecked(radius * radius);
     }
 
     private static (long Min, long Max) NativePlayerPeerDifferenceInterval(float coordinate, int probe)

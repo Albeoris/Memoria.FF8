@@ -43,6 +43,7 @@ public sealed partial class EventEngine
         int[] args = Pop(fiber, 2);
         int x = unchecked(args[0] << 12);
         int y = unchecked(args[1] << 12);
+        actor.NativeJoinedPosition = null;
         actor.X = x / 4096f;
         actor.Y = y / 4096f;
         actor.WalkmeshTriangle = unchecked((short)parameter);
