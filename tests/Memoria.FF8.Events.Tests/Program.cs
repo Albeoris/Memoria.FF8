@@ -19,6 +19,8 @@ internal static partial class Program
                 {
                     ["causal-replay"] = CausalReplayContract,
                     ["message-variable"] = NativeMessageVariableContract,
+                    ["native-base-animation"] = NativeBaseAnimationContract,
+                    ["native-maccel"] = NativeMovementAccelerationContract,
                     ["native-jump-budget"] = NativeJumpBudgetContract,
                     ["map-jump-origin"] = NativeMapJumpOriginContract,
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
@@ -106,6 +108,7 @@ internal static partial class Program
                     ["push-contact"] = () => GardenNativePushContactBoundary(selectedGameDirectory),
                     ["follow-on"] = NativeFollowOnContract,
                     ["music-fade"] = NativeMusicFadeContract,
+                    ["music-volume-sync"] = NativeMusicVolumeSyncContract,
                     ["all-sound-volume"] = NativeAllSoundVolumeContract,
                     ["sound-volume"] = NativeSoundVolumeContract,
                     ["battle-mode"] = NativeBattleModeContract,

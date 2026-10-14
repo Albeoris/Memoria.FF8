@@ -497,6 +497,7 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 actor.MovementDirectionLimit = (byte)args[0];
                 break;
+            case Jsm.Opcode.MACCEL:
             case Jsm.Opcode.MOVE:
             case Jsm.Opcode.RMOVE:
             case Jsm.Opcode.FMOVE:
@@ -556,8 +557,6 @@ public sealed partial class EventEngine
                 actor.WalkAnimationId = (byte)args[1];
                 actor.RunAnimationId = (byte)args[0];
                 actor.NativeBaseAnimationVersion = 1;
-                actor.BaseFirstFrame = 0;
-                actor.BaseLastFrame = Math.Max(0, (AnimationFrameCount?.Invoke(actor.ModelId, actor.BaseAnimationId) ?? 1) - 1);
                 break;
             case Jsm.Opcode.ANIME:
             case Jsm.Opcode.ANIMEKEEP:
@@ -1071,6 +1070,11 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MUSICVOLTRANS:
             case Jsm.Opcode.MUSICVOLFADE:
                 args = ExecuteMusicVolume(fiber, opcode);
+                break;
+            case Jsm.Opcode.MUSICVOLSYNC:
+                // Native51FDC0 calls46C040(1); the installed helper is xor eax,eax/ret.
+                // Return2 continues immediately without touching operands, registers or audio ramps.
+                
                 break;
             case Jsm.Opcode.ALLSEVOLTRANS:
                 args = ExecuteAllSoundVolumeTransition(fiber);

@@ -76,6 +76,10 @@ public sealed class ActorState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public short? NativeMovementBaseSpeed { get; internal set; }
+    /// <summary>Shared native actor WORD516; unknown until an executed writer supplies it.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public short? NativeMovementAccelerationTarget { get; internal set; }
     [JsonInclude]
     public byte MovementDirectionLimit { get; internal set; }
     [JsonInclude]

@@ -22,13 +22,14 @@ internal static class FieldModelReader
             uint flag = reader.ReadUInt32();
             List<int> textures = [];
             int modelOffset = -1;
-            if ((flag >> 24) == 0xD0)
+            if ((flag >> 28) == 0xD)
             {
                 reader.ReadUInt32();
             }
-            else if ((flag >> 24) == 0xA0)
+            else if ((flag >> 28) == 0xA)
             {
-                reader.ReadUInt64();
+                reader.ReadUInt32();
+                modelOffset = checked((int)reader.ReadUInt32());
             }
             else
             {
@@ -52,10 +53,22 @@ internal static class FieldModelReader
             }
             headers.Add(new Header(offset, size, flag, modelOffset, textures.ToArray(), name));
         }
-        List<FieldModel> models = [];
-        foreach (Header header in headers)
+        FieldModel?[] models = new FieldModel?[headers.Count];
+        HashSet<int> resolving = [];
+        FieldModel Resolve(int index)
         {
-            if ((header.Flag >> 24) == 0xD0)
+            if ((uint)index >= headers.Count || !resolving.Add(index))
+            {
+                throw new InvalidDataException("ONE texture alias references an absent model or a cycle.");
+            }
+            if (models[index] is FieldModel cached)
+            {
+                resolving.Remove(index);
+                return cached;
+            }
+            Header header = headers[index];
+            FieldModel result;
+            if ((header.Flag >> 28) == 0xD)
             {
                 string referenceName = header.Name[..4];
                 byte[] main = mainCharacter(referenceName);
@@ -71,21 +84,34 @@ internal static class FieldModelReader
                     }
                 }
                 int modelOffset = checked((int)global.ReadUInt32());
-                models.Add(ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset));
+                result = ReadModel(header.Name, main, modelOffset, textures, 0, one, header.Offset);
+            }
+            else if ((header.Flag >> 28) == 0xA)
+            {
+                // Native 0x532A40 keeps this model's geometry/animation and aliases texture slot0.
+                FieldModel source = Resolve((byte)(header.Flag >> 20));
+                if (source.Textures.Count == 0)
+                {
+                    throw new InvalidDataException($"ONE model {header.Name} aliases an absent texture slot0.");
+                }
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]]);
             }
             else if (header.ModelOffset >= 0)
             {
-                models.Add(ReadModel(header.Name, one, header.Offset + header.ModelOffset, header.Textures, header.Offset, null, 0));
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, header.Textures, header.Offset, null, 0);
             }
             else
             {
-                models.Add(new FieldModel(header.Name, [], [], [], [], []));
+                throw new InvalidDataException($"ONE model {header.Name} has no supported geometry binding.");
             }
+            models[index] = result;
+            resolving.Remove(index);
+            return result;
         }
-        return models;
+        return Enumerable.Range(0, headers.Count).Select(Resolve).ToArray();
     }
 
-    internal static FieldModel ReadModel(string name, byte[] content, int modelOffset, IEnumerable<int> textureOffsets, int textureBase, byte[]? animationContent, int animationOffset, IReadOnlyList<ModelAnimation>? animations = null)
+    internal static FieldModel ReadModel(string name, byte[] content, int modelOffset, IEnumerable<int> textureOffsets, int textureBase, byte[]? animationContent, int animationOffset, IReadOnlyList<ModelAnimation>? animations = null, IReadOnlyList<PixelImage>? decodedTextures = null)
     {
         using BinaryReader reader = Reader(content);
         reader.BaseStream.Position = modelOffset;
@@ -163,8 +189,8 @@ internal static class FieldModelReader
             }
             faces[i] = new ModelFace(indices, uv, texture, quad);
         }
-        PixelImage[] textures = textureOffsets.Select(offset => DecodeTim(content, textureBase + offset)).ToArray();
-        if (faces.Any(face => face.Texture >= textures.Length))
+        IReadOnlyList<PixelImage> textures = decodedTextures ?? textureOffsets.Select(offset => DecodeTim(content, textureBase + offset)).ToArray();
+        if (faces.Any(face => face.Texture >= textures.Count))
         {
             throw new InvalidDataException($"{name}: face references an absent texture.");
         }

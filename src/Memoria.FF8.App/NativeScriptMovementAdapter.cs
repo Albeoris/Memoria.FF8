@@ -14,7 +14,7 @@ public static class NativeScriptMovementAdapter
 
     public static NativeScriptDirectionResult? ResolveDirection(FieldAssets field, SceneEventState scene, NativeScriptDirectionQuery query, ActorState? actor = null)
     {
-        bool generic = actor is not null && actor.ObjectId == query.ObjectId && SupportsGenericBinding(field, scene, actor) && actor.MovementSpeed == query.Speed && (actor.MovementDirectionLimit == query.DirectionLimit || query.HoldsFacing && query.DirectionLimit == 0);
+        bool generic = actor is not null && actor.ObjectId == query.ObjectId && SupportsGenericBinding(field, scene, actor) && query.Speed > 0 && (actor.MovementDirectionLimit == query.DirectionLimit || query.HoldsFacing && query.DirectionLimit == 0);
         if (!generic || query.Radius != actor!.PushRadius || (query.TargetX >> 12) is < short.MinValue or > short.MaxValue || (query.TargetY >> 12) is < short.MinValue or > short.MaxValue)
         {
             return null;
@@ -33,7 +33,7 @@ public static class NativeScriptMovementAdapter
 
     public static NativeScriptMovementResult? ResolveGeometry(FieldAssets field, SceneEventState scene, NativeScriptMovementQuery query, ActorState? actor = null)
     {
-        if (actor is null || actor.ObjectId != query.ObjectId || !SupportsGenericBinding(field, scene, actor) || actor.MovementSpeed != query.Speed || query.Radius != actor.PushRadius || query.HasActorCollision is null)
+        if (actor is null || actor.ObjectId != query.ObjectId || !SupportsGenericBinding(field, scene, actor) || query.Speed <= 0 || query.Radius != actor.PushRadius || query.HasActorCollision is null)
         {
             return null;
         }

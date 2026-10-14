@@ -60,8 +60,8 @@ internal static partial class Program
     private static void NativeBaseAnimationContract()
     {
         GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 11 };
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.BASEANIME, 6), (Jsm.Opcode.RET, 0));
+        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => throw new InvalidOperationException("BASEANIME must not read model metadata.") };
+        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 264), (Jsm.Opcode.PSHN_L, 263), (Jsm.Opcode.BASEANIME, 262), (Jsm.Opcode.RET, 0));
         engine.LoadField(100, program, []);
         Require(engine.Actors[0].BaseAnimationId == 42 && engine.Actors[0].WalkAnimationId == 42 && engine.Actors[0].RunAnimationId == 42, "Native base animation defaults differ from actor bytes591..593.");
         Require(engine.Actors[0].WalkmeshTriangle == 0 && engine.Actors[0].ShadeLevel == 96, "Fresh native actor zeroed triangle506 or shadow-level609 default differs from the original loader.");
@@ -69,6 +69,7 @@ internal static partial class Program
         ActorState actor = engine.Actors[0];
         Require(actor.BaseAnimationId == 6 && actor.WalkAnimationId == 7 && actor.RunAnimationId == 8 && actor.NativeBaseAnimationVersion == 1, "BASEANIME lost the native immediate/first-pop/second-pop idle/walk/run order.");
         Require(actor.AnimationId == 0 && !actor.AnimationPlaying, "BASEANIME immediately selected an animation instead of only registering the three IDs.");
+        Require(actor.BaseFirstFrame == 0 && actor.BaseLastFrame == 0 && engine.Frame == 1, "BASEANIME changed a retained animation range or failed to complete in the current callback.");
         var saved = engine.Capture();
         engine.Restore(saved);
         Require(saved.GetRawText() == engine.Capture().GetRawText(), "Native base animation registration failed exact restoration.");
