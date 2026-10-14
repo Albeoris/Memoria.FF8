@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,8 +9,9 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeMusicVolumeContract()
+    private static void NativeMusicVolumeContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
         NativeRetainedPartyByteAuthorityContract();
         NativeMusicVolumeTransitionContract();
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.PSHM_B, 197), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
@@ -55,6 +57,9 @@ internal static partial class Program
             steps.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.RET, 0)]);
             GameSession takenOverSession = GameSession.CreateColdProcess();
             takenOverSession.StartNewGame();
+            takenOverSession.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+            takenOverSession.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+            takenOverSession.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             EventEngine takenOver = new(takenOverSession, takenOverSession.State.Variables);
             takenOver.LoadField(74, SyntheticProgram(steps.ToArray()), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             takenOver.Step();

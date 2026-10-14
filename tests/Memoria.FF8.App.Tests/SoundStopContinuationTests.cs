@@ -25,7 +25,7 @@ public sealed class SoundStopContinuationTests
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal((129, 0L), (world.Events.FieldId, world.Events.Frame));
-        GlobalSoundRequest priorVoice = world.Events.Scene.GlobalSoundVoices[1];
+        GlobalSoundRequest priorVoice = world.Events.Scene.GlobalSoundLatestAttempts[1];
         int priorRequests = world.Events.Scene.GlobalSoundRequests.Count;
         var wait = new PlayerAction(PlayerActionKind.Wait);
         Assert.True(world.Apply(wait).Accepted);
@@ -34,7 +34,7 @@ public sealed class SoundStopContinuationTests
         Assert.Equal((1, 129, 11, 62, 460, 1L), (stopped.Version, stopped.FieldId, stopped.ObjectId, stopped.ScriptId, stopped.Operation, stopped.Frame));
         Assert.Equal((1u, 1u, 0, 0u, GlobalSoundBackendStatus.Muted), (stopped.RawChannelMask, stopped.ChannelMask, stopped.StopMode, stopped.PollResult, stopped.BackendStatus));
         Assert.Equal(new[] { 1 }, stopped.Voices);
-        Assert.Equal(priorVoice, world.Events.Scene.GlobalSoundVoices[1]);
+        Assert.Equal(priorVoice, world.Events.Scene.GlobalSoundLatestAttempts[1]);
         Assert.Equal(priorRequests, world.Events.Scene.GlobalSoundRequests.Count);
         JsonElement stoppedState = world.Events.Capture();
         JsonElement fiber = Assert.Single(stoppedState.GetProperty("Fibers").EnumerateArray(), fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 62);

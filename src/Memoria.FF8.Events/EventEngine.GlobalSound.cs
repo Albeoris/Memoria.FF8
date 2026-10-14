@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
@@ -10,11 +11,12 @@ public enum GlobalSoundBackendStatus
 
 public sealed record GlobalSoundLoopPolicy(uint PlaybackFlags, uint LoopStartPcmByte, uint LoopEndPcmByte, uint SampleRate, int DecodedBitsPerSample, int Channels, int? LoopTransitionDelayMilliseconds);
 public sealed record GlobalSoundResource(int SampleIndex, GlobalSoundBackendStatus BackendStatus, GlobalSoundLoopPolicy LoopPolicy);
-public sealed record GlobalSoundRequest(uint OriginalEffectId, uint RawChannelMask, uint ChannelMask, int Voice, uint RawPan, uint EffectivePan, uint Volume, int PitchPercent, GlobalSoundResource Resource);
+public sealed record GlobalSoundRequest(uint OriginalEffectId, uint RawChannelMask, uint ChannelMask, int Voice, uint RawPan, uint EffectivePan, uint Volume, int PitchPercent, GlobalSoundResource Resource, [property: System.Text.Json.Serialization.JsonRequired] NativeGlobalSoundAllocation? Allocation = null);
+public sealed record PreparedGlobalSoundEmission(GlobalSoundRequest Request, NativeGlobalSoundProcess Process);
 
 public sealed partial class EventEngine
 {
-    private readonly Dictionary<long, GlobalSoundRequest> preparedGlobalSounds = [];
+    private readonly Dictionary<long, PreparedGlobalSoundEmission> preparedGlobalSounds = [];
 
     /// <summary>Resolves the mapped global sample descriptor and an explicit muted/failed backend, independently of the field-local EFFECTLOAD bank.</summary>
     public Func<int, GlobalSoundResource?>? ResolveGlobalSoundResource { get; set; }
@@ -55,50 +57,64 @@ public sealed partial class EventEngine
         {
             return "Unsupported EFFECTPLAY requires its four original operands and an explicit global audio backend";
         }
-        int[] arguments = fiber.Stack.Take(4).Reverse().ToArray();
-        uint effect = unchecked((uint)arguments[0]);
-        uint rawMask = unchecked((uint)arguments[1]);
-        uint mask = rawMask & 0xFFFFFF;
-        if (mask == 0)
+        if (services.GlobalSoundProcess is not NativeGlobalSoundProcess process || !services.CanStoreGlobalSoundProcess)
         {
-            return "Unsupported EFFECTPLAY automatic voice pool requires native availability and rotating-allocation state";
+            return "EFFECTPLAY requires its explicit current global backend and persistent native allocator";
         }
-        int sample = MapGlobalSoundSample(effect);
-        GlobalSoundResource? resource;
+        int[] arguments = fiber.Stack.Take(4).Reverse().ToArray();
         try
         {
-            resource = ResolveGlobalSoundResource(sample);
+            preparedGlobalSounds[fiber.Sequence] = PrepareGlobalSound(unchecked((uint)arguments[0]), unchecked((uint)arguments[1]), unchecked((uint)arguments[2]), unchecked((uint)arguments[3]), process);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or ArithmeticException or NotSupportedException)
         {
             return $"Unsupported EFFECTPLAY global audio descriptor: {exception.Message}";
         }
+        return null;
+    }
+
+    public PreparedGlobalSoundEmission PrepareGlobalSound(uint effect, uint rawMask, uint rawPan, uint volume, NativeGlobalSoundProcess process)
+    {
+        process.Validate();
+        if (ResolveGlobalSoundResource is null)
+        {
+            throw new NotSupportedException("Global sound requires its installed descriptor resolver.");
+        }
+        int sample = MapGlobalSoundSample(effect);
+        GlobalSoundResource? resource = ResolveGlobalSoundResource(sample);
         if (resource is null || !ValidGlobalSoundResource(resource, sample))
         {
-            return "Unsupported EFFECTPLAY requires a valid original global sample descriptor and explicit muted/failed backend";
+            throw new NotSupportedException("Global sound requires a valid original sample descriptor and explicit muted/failed output.");
         }
-        uint rawPan = unchecked((uint)arguments[2]);
-        uint volume = unchecked((uint)arguments[3]);
         // Native4699A0 rejects invalid unsigned pan/volume but51FEA0 still
         // consumes and advances. The effect ID was already stored on the voice.
         if (volume > 127 || (rawPan >> 1) > 127)
         {
             resource = resource with { BackendStatus = GlobalSoundBackendStatus.Failed };
         }
-        int voice = System.Numerics.BitOperations.TrailingZeroCount(mask) + 1;
-        preparedGlobalSounds[fiber.Sequence] = new GlobalSoundRequest(effect, rawMask, mask, voice, rawPan, rawPan >> 1, volume, 100, resource);
-        return null;
+        NativeGlobalSoundProcess next = process.RecordEffect(effect, rawMask, out NativeGlobalSoundAllocation allocation);
+        return new PreparedGlobalSoundEmission(new GlobalSoundRequest(effect, rawMask, rawMask & 0xFFFFFF, allocation.Voice, rawPan, rawPan >> 1, volume, 100, resource, allocation), next);
     }
 
     private void ExecuteGlobalSound(Fiber fiber, out int[] arguments)
     {
-        GlobalSoundRequest request = preparedGlobalSounds[fiber.Sequence];
+        PreparedGlobalSoundEmission prepared = preparedGlobalSounds[fiber.Sequence];
+        PublishGlobalSoundProcess(fiber, prepared.Process);
         preparedGlobalSounds.Remove(fiber.Sequence);
         arguments = Pop(fiber, 4);
-        Scene.GlobalSoundRequests.Add(request);
-        // This is the latest attempt/original effect ID, not a claim that an
-        // audible voice or the requested sample is active after backend failure.
-        Scene.GlobalSoundVoices[request.Voice] = request;
-        AudioCommandExecuted?.Invoke(request);
+        Scene.GlobalSoundRequests.Add(prepared.Request);
+        AudioCommandExecuted?.Invoke(prepared.Request);
+    }
+
+    private void PublishGlobalSoundProcess(Fiber fiber, NativeGlobalSoundProcess process)
+    {
+        try
+        {
+            services.SetGlobalSoundProcess(process);
+        }
+        catch (NotSupportedException exception)
+        {
+            throw NativeOwnerPublicationFault(fiber, exception);
+        }
     }
 }

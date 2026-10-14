@@ -9,7 +9,7 @@ public sealed partial class EventEngine
     {
         bool command = operation.Opcode is Jsm.Opcode.ADDSEEDLEVEL or Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF;
         int width = NativeMemoryWidth(operation.Opcode);
-        bool rankMemory = width != 0 && operation.Parameter < 18 && (long)operation.Parameter + width > 16;
+        bool rankMemory = width != 0 && (operation.Parameter < 12 && (long)operation.Parameter + width > 8 || operation.Parameter < 20 && (long)operation.Parameter + width > 16 || operation.Parameter < 188 && (long)operation.Parameter + width > 184);
         bool flagsMemory = width != 0 && (operation.Parameter < 108 && (long)operation.Parameter + width > 104 || operation.Parameter <= 207 && (long)operation.Parameter + width > 207);
         bool salary = operation.Opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF;
         if (!command && !rankMemory && !flagsMemory)
@@ -49,7 +49,7 @@ public sealed partial class EventEngine
         {
             return "Native salary requires atomic DWORD104/process UI publication";
         }
-        if (rankMemory && (variables.Keys.Any(address => address is >= 13 and <= 17) || services.NativeVariableValues?.Any(pair => pair.Key < 18 && (long)pair.Key + pair.Value.Width > 16) == true))
+        if (rankMemory && (variables.Keys.Any(address => address < 12 && (long)address + 4 > 8 || address < 20 && (long)address + 4 > 16 || address < 188 && (long)address + 4 > 184) || services.NativeVariableValues?.Any(pair => pair.Key < 12 && (long)pair.Key + pair.Value.Width > 8 || pair.Key < 20 && (long)pair.Key + pair.Value.Width > 16 || pair.Key < 188 && (long)pair.Key + pair.Value.Width > 184) == true))
         {
             return "Native SeeD WORD16 overlaps an unproved VM memory alias; recreate the authentic journal";
         }
@@ -58,9 +58,9 @@ public sealed partial class EventEngine
         {
             return "Native SeeD update requires its exact original DWORD operand before mutation";
         }
-        if (rankMemory && !(width == 1 && operation.Parameter is 16 or 17 || width == 2 && operation.Parameter == 16))
+        if (rankMemory && !(operation.Parameter >= 8 && (long)operation.Parameter + width <= 12 || operation.Parameter >= 16 && (long)operation.Parameter + width <= 20 || operation.Parameter >= 184 && (long)operation.Parameter + width <= 188))
         {
-            return "Native SeeD memory projection supports its owned BYTE16/17 or WORD16; surrounding memory is unproved";
+            return "Native SeeD projection supports counter8..11, rank/kill-baseline16..19 or display/previous-rank184..187; surrounding memory is unproved";
         }
         return null;
     }
@@ -84,14 +84,9 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        if (operation.Opcode is Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W && operation.Parameter == 16)
+        if (width != 0 && (operation.Parameter >= 8 && (long)operation.Parameter + width <= 12 || operation.Parameter >= 16 && (long)operation.Parameter + width <= 20 || operation.Parameter >= 184 && (long)operation.Parameter + width <= 188))
         {
-            value = state.RankPoints;
-            return true;
-        }
-        if (operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B && operation.Parameter is 16 or 17)
-        {
-            value = operation.Parameter == 16 ? state.RankPoints & 255 : state.RankPoints >> 8;
+            value = state.ReadEventWords(operation.Parameter, width);
             return true;
         }
         return false;
@@ -117,13 +112,12 @@ public sealed partial class EventEngine
             operands = Pop(fiber, 1);
             return true;
         }
-        if (services.SeeD is not NativeSeeDState state || operation.Opcode == Jsm.Opcode.POPM_W && operation.Parameter != 16 || operation.Opcode == Jsm.Opcode.POPM_B && operation.Parameter is not (16 or 17) || operation.Opcode is not (Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W))
+        if (services.SeeD is not NativeSeeDState state || !write || !(operation.Parameter >= 8 && (long)operation.Parameter + width <= 12 || operation.Parameter >= 16 && (long)operation.Parameter + width <= 20 || operation.Parameter >= 184 && (long)operation.Parameter + width <= 188))
         {
             return false;
         }
         int raw = fiber.Stack.Peek();
-        ushort word = operation.Opcode == Jsm.Opcode.POPM_W ? unchecked((ushort)raw) : operation.Parameter == 16 ? (ushort)((state.RankPoints & 0xFF00) | (byte)raw) : (ushort)((state.RankPoints & 0xFF) | (byte)raw << 8);
-        PublishNativeSeeD(fiber, state with { RankPoints = word });
+        PublishNativeSeeD(fiber, state.WriteEventWords(operation.Parameter, width, raw));
         operands = Pop(fiber, 1);
         return true;
     }
@@ -161,11 +155,11 @@ public sealed partial class EventEngine
         }
     }
 
-    private void PublishNativeEventOwners(Fiber fiber, NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null)
+    private void PublishNativeEventOwners(Fiber fiber, NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null)
     {
         try
         {
-            services.SetNativeEventOwners(controls, seeD, timer, characterVitals);
+            services.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation);
         }
         catch (NotSupportedException exception)
         {

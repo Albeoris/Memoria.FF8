@@ -27,13 +27,20 @@ internal sealed partial class GameWorld
             session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld);
             worldScene = ticket.Adopt(session);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+            ConfigureWorldSalaryEffects(worldScene);
             committed = true;
             preparedWorldEntry = null;
             ticket.Dispose();
         };
     }
 
-    private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId, uint salaryMovementUnits)
+    private void ConfigureWorldSalaryEffects(WorldMapScene scene)
+    {
+        scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
+        scene.PublishSalaryEffects = Events.PublishSalaryEffects;
+    }
+
+    private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId, NativeWorldSalaryState salary)
     {
         GameState departure = session.State;
         if (departure.Scene != SceneKind.WorldMap || worldScene is null || departure.World is null || departure.WorldControls is null || departure.SavedWorld is null)
@@ -59,15 +66,15 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidDataException("Prepared boat arrival differs from its original terminal row or endpoint map metadata.");
             }
-            return () => session.CommitPreparedBoatFieldEntry(departure, finalWorld, transition, candidate => ValidatePreparedField(candidate));
+            return () => session.CommitPreparedBoatFieldEntry(departure, finalWorld, transition, salary, candidate => ValidatePreparedField(candidate));
         }
         if (finalWorld.NativeCarRuntime is not null)
         {
             NativeSavedWorldCarReturn carReceipt = NativeSavedWorldCarReturn.Create(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
-            return () => session.CommitPreparedCarFieldEntry(departure, finalWorld, transition, carReceipt, salaryMovementUnits, candidate => ValidatePreparedField(candidate));
+            return () => session.CommitPreparedCarFieldEntry(departure, finalWorld, transition, carReceipt, salary, candidate => ValidatePreparedField(candidate));
         }
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
-        return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, salaryMovementUnits, candidate =>
+        return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, salary, candidate =>
         {
             ValidatePreparedField(candidate);
         });

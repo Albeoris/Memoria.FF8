@@ -40,9 +40,10 @@ public sealed class NativeBoatWorldStateTests
         boat = boat with { Return = receipt };
         WorldState endpoint = boat.ToWorldState() with { Actions = [new(1, 230, "Wait", 0, 0, 230, 230, path.EntityPosition.X, -path.EntityPosition.Z, path.EntityPosition.Y)] };
         GameState beforeEndpoint = session.State;
-        Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(endpoint with { NativeBoatRuntime = boat with { Return = receipt with { LastFieldId = 120 } } }, 0));
+        NativeWorldSalaryState endpointSalary = SalaryBatch(session.State, endpoint);
+        Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(endpoint with { NativeBoatRuntime = boat with { Return = receipt with { LastFieldId = 120 } } }, endpointSalary));
         Assert.Same(beforeEndpoint, session.State);
-        session.CommitWorldAction(endpoint, 0);
+        session.CommitWorldAction(endpoint, endpointSalary);
         Assert.Equal(receipt, session.State.SavedWorld!.BoatReturn);
         Assert.Equal(230, receipt.SourceWorldFrame);
         Assert.Equal(230, session.State.WorldConfiguration!.SourceWorldFrame);
@@ -60,11 +61,12 @@ public sealed class NativeBoatWorldStateTests
         boat = boat with { Path = path };
         WorldState final = boat.ToWorldState(endpoint) with { Actions = [.. endpoint.Actions, new(2, 246, "Wait", 0, 0, 16, 16, path.EntityPosition.X, -path.EntityPosition.Z, path.EntityPosition.Y)] };
         GameState departure = session.State;
-        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedBoatFieldEntry(departure, final, transition with { FieldId = 123 }, _ => { }));
+        NativeWorldSalaryState fadeSalary = SalaryBatch(departure, final);
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedBoatFieldEntry(departure, final, transition with { FieldId = 123 }, fadeSalary, _ => { }));
         Assert.Same(departure, session.State);
-        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedBoatFieldEntry(departure, final, transition, _ => throw new InvalidOperationException("Rejected destination.")));
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedBoatFieldEntry(departure, final, transition, fadeSalary, _ => throw new InvalidOperationException("Rejected destination.")));
         Assert.Same(departure, session.State);
-        session.CommitPreparedBoatFieldEntry(departure, final, transition, _ => { });
+        session.CommitPreparedBoatFieldEntry(departure, final, transition, fadeSalary, _ => { });
         Assert.Equal(SceneKind.Field, session.State.Scene);
         Assert.Equal(transition, session.State.FieldArrival);
         Assert.Equal(246, session.State.DepartingWorldState!.Frame);
@@ -73,5 +75,17 @@ public sealed class NativeBoatWorldStateTests
         Assert.Equal((byte)66, session.State.WorldConfiguration!.EntityByte);
         Assert.Equal(230, session.State.WorldConfiguration.SourceWorldFrame);
         session.State.WorldConfiguration.Validate();
+    }
+
+    private static NativeWorldSalaryState SalaryBatch(GameState before, WorldState final)
+    {
+        // Declared saved-boat component has no SeeD owner; the sixteen endpoint
+        // fade callbacks carry unchanged UI owners and zero native movement units.
+        NativeWorldSalaryState batch = NativeWorldSalaryState.Begin(before);
+        for (long callback = before.World!.Frame; callback < final.Frame; callback++)
+        {
+            batch = batch.Advance(null, batch.Presentation, batch.SoundProcess, 0);
+        }
+        return batch;
     }
 }

@@ -10,8 +10,8 @@ public sealed class NativeFootWorldReturnTests
     {
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay();
         var session = Session();
-        session.SetEventState(JsonSerializer.SerializeToElement(new { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1), WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables }));
-        session.SetDepartingFieldState(JsonSerializer.SerializeToElement(new { ExamTimer = timer, WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables }));
+        session.SetEventState(JsonSerializer.SerializeToElement(new { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1), WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables, Economy = session.State.Economy, SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess }));
+        session.SetDepartingFieldState(JsonSerializer.SerializeToElement(new { ExamTimer = timer, WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables, Economy = session.State.Economy, SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess }));
         session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3));
         string path = Path.Combine(Path.GetTempPath(), "ff8-frozen-world-timer-" + Guid.NewGuid().ToString("N") + ".json");
         try
@@ -47,14 +47,14 @@ public sealed class NativeFootWorldReturnTests
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(final, 159, 17, 1);
         NativeExamTimerState expected = timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 30);
         FieldTransition transition = new(136, 175, -2269, 12, 128);
-        Assert.Throws<NotSupportedException>(() => session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, 0, candidate =>
+        Assert.Throws<NotSupportedException>(() => session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, SalaryBatch(before, final), candidate =>
         {
             Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(candidate.ExamTimer));
             Assert.Same(before, session.State);
             throw new NotSupportedException("Bounded destination refusal.");
         }));
         Assert.Same(before, session.State);
-        session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, 0, Accept);
+        session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, SalaryBatch(before, final), Accept);
         Assert.Equal(60, session.ExamTimer!.ClockCalls);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
         Assert.False(session.ExamTimer.DisplayEnabled);
@@ -127,7 +127,7 @@ public sealed class NativeFootWorldReturnTests
         FieldTransition arrival = new(136, 175, -2269, 12, 128);
         int published = 0;
         session.StateChanged += _ => published++;
-        session.CommitPreparedWorldFieldEntry(before, final, arrival, receipt, 0, candidate =>
+        session.CommitPreparedWorldFieldEntry(before, final, arrival, receipt, SalaryBatch(before, final), candidate =>
         {
             Assert.Same(before, session.State);
             Assert.Equal(0, published);
@@ -164,7 +164,7 @@ public sealed class NativeFootWorldReturnTests
         GameState before = session.State;
         WorldState final = Final(before.World!, 1);
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(final, 159, 17, 1);
-        Assert.Throws<NotSupportedException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, 0, _ => throw new NotSupportedException("Unsupported destination asset boundary")));
+        Assert.Throws<NotSupportedException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, SalaryBatch(before, final), _ => throw new NotSupportedException("Unsupported destination asset boundary")));
         Assert.Same(before, session.State);
         Assert.Equal("Retained", session.Dialog);
         Assert.Null(session.State.SavedWorld!.FootReturn);
@@ -210,7 +210,7 @@ public sealed class NativeFootWorldReturnTests
             receipt = receipt with { LastFieldId = 160 };
         }
         final = final with { Actions = actions };
-        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, 0, _ => Assert.Fail("Altered preparation must refuse before the callback.")));
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, SalaryBatch(before, final), _ => Assert.Fail("Altered preparation must refuse before the callback.")));
         Assert.Same(before, session.State);
     }
 
@@ -222,11 +222,11 @@ public sealed class NativeFootWorldReturnTests
         WorldState final = Final(before.World!, 1);
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(final, 159, 17, 1);
         session.SetMoviePosition(1);
-        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, 0, _ => Assert.Fail("Stale source must refuse before validation.")));
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, SalaryBatch(before, final), _ => Assert.Fail("Stale source must refuse before validation.")));
         session.Restore(before);
-        Assert.Throws<InvalidDataException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, float.NaN, 0, 12, 128), receipt, 0, _ => Assert.Fail("Malformed arrival must refuse before validation.")));
+        Assert.Throws<InvalidDataException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, float.NaN, 0, 12, 128), receipt, SalaryBatch(before, final), _ => Assert.Fail("Malformed arrival must refuse before validation.")));
         Assert.Same(before, session.State);
-        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, 0, _ => session.SetMoviePosition(2)));
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, SalaryBatch(before, final), _ => session.SetMoviePosition(2)));
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
         Assert.Null(session.State.SavedWorld!.FootReturn);
     }
@@ -237,7 +237,7 @@ public sealed class NativeFootWorldReturnTests
         var session = Session();
         GameState before = session.State;
         WorldState final = Final(before.World!, 30);
-        session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), NativeSavedWorldFootReturn.Create(final, 159, 17, 1), 0, Accept);
+        session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), NativeSavedWorldFootReturn.Create(final, 159, 17, 1), SalaryBatch(before, final), Accept);
         string path = Path.Combine(Path.GetTempPath(), "ff8-foot-return-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
@@ -265,9 +265,9 @@ public sealed class NativeFootWorldReturnTests
         WorldState final = Final(before.World!, 1);
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(final, 159, 17, 1);
         FieldTransition transition = new(136, 175, -2269, 12, 128);
-        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, transition, receipt with { EntityType105 = 0 }, 0, Accept));
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, transition, receipt with { EntityType105 = 0 }, SalaryBatch(before, final), Accept));
         Assert.Same(before, session.State);
-        session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, 0, Accept);
+        session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, SalaryBatch(before, final), Accept);
         Assert.Equal((byte)1, session.State.SavedWorld!.FootReturn!.EntityType105);
         Assert.Equal((byte)1, session.State.DepartingWorldState!.NativeFootRuntime!.EntityType);
         Assert.Equal((byte)1, session.State.WorldConfiguration!.EntityByte);
@@ -313,6 +313,18 @@ public sealed class NativeFootWorldReturnTests
         });
         session.ShowDialog("Retained");
         return session;
+    }
+
+    private static NativeWorldSalaryState SalaryBatch(GameState before, WorldState final)
+    {
+        // Declared foot-return component has no salary owner or movement producer.
+        // These explicit callback receipts test publication, not a fabricated route.
+        NativeWorldSalaryState batch = NativeWorldSalaryState.Begin(before);
+        for (long callback = before.World!.Frame; callback < final.Frame; callback++)
+        {
+            batch = batch.Advance(null, batch.Presentation, batch.SoundProcess, 0);
+        }
+        return batch;
     }
 
     private static void Accept(GameState state)

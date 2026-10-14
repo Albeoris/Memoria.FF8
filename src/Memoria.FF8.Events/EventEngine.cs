@@ -180,10 +180,7 @@ public sealed partial class EventEngine
         Scene.NativeBattleResult = previousScene.NativeBattleResult;
         CopyNativeBattleMode(previousScene);
         Scene.GlobalSoundRequests.AddRange(previousScene.GlobalSoundRequests);
-        foreach ((int voice, GlobalSoundRequest request) in previousScene.GlobalSoundVoices)
-        {
-            Scene.GlobalSoundVoices.Add(voice, request);
-        }
+
         Scene.FieldLoadFirstRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.FirstTrail[0] : null;
         Scene.FieldLoadSecondRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.SecondTrail[0] : null;
         foreach ((int id, string name) in previousScene.Names)
@@ -243,18 +240,23 @@ public sealed partial class EventEngine
         {
             return;
         }
-        NativeEconomy? economySample = PrepareNativeGilBeforeVm();
+        NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
+        NativeEconomy? economySample = PrepareNativeGilBeforeVm(salarySample?.Economy ?? services.Economy);
+        NativeSalaryEffects? salaryEffects = salarySample is null ? null : PrepareSalaryEffects(salarySample, services.SalaryPresentation, services.GlobalSoundProcess);
         Action? nativePlayerInput = pendingNativePlayerInput;
-        NativeSeeDState? salarySample = PrepareNativeFieldSalarySample();
         ValidatePendingNativePushContacts();
         ValidatePendingNativeLineCrossings();
-        if (salarySample is not null && salarySample != services.SeeD)
+        if (salarySample is not null && (salarySample.SeeD != services.SeeD || economySample != services.Economy || salaryEffects!.Presentation != services.SalaryPresentation || salaryEffects.SoundProcess != services.GlobalSoundProcess))
         {
-            services.SetSeeD(salarySample);
+            services.SetNativeEventOwners(services.WorldControls!, seeD: salarySample.SeeD, economy: economySample, salaryPresentation: salaryEffects!.Presentation, globalSoundProcess: salaryEffects.SoundProcess);
         }
-        if (economySample is not null && economySample != services.Economy)
+        else if (economySample is not null && economySample != services.Economy)
         {
             services.SetEconomy(economySample);
+        }
+        if (salaryEffects is not null)
+        {
+            PublishSalaryEffects(salaryEffects);
         }
         pendingNativePlayerInput = null;
         AdvanceNativeFieldCallbackClock();
@@ -344,6 +346,15 @@ public sealed partial class EventEngine
         }
         fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item));
         StepNativeNormalBackgroundScrollCenter();
+        if (services.SalaryPresentation is NativeSalaryPresentation salaryPresentation)
+        {
+            bool movie = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Salary presentation requires the actual movie callback flag.") : false);
+            NativeSalaryPresentation advanced = salaryPresentation.Advance(movie ? 4 : 2);
+            if (advanced != salaryPresentation)
+            {
+                services.SetSalaryPresentation(advanced);
+            }
+        }
         ValidateNativeTimerExpiryAfterVm();
     }
 

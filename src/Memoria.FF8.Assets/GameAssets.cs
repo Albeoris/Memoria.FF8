@@ -74,6 +74,25 @@ public sealed class GameAssets : IDisposable
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeEconomyInitialization.Read(Read(main, "init.out"));
     }
+    public NativeSalaryTable ReadNativeSalaryTable()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Salary lookup requires the authenticated original executable.");
+        }
+        using FileStream stream = File.OpenRead(Path.Combine(GameDirectory, "FF8_EN.exe"));
+        byte[] raw = new byte[64];
+        stream.Position = 0x78E474;
+        stream.ReadExactly(raw);
+        ushort[] entries = new ushort[32];
+        for (int index = 0; index < entries.Length; index++)
+        {
+            entries[index] = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(raw.AsSpan(index * 2));
+        }
+        NativeSalaryTable table = new(NativeExecutableHash!, System.Collections.Immutable.ImmutableArray.CreateRange(entries));
+        table.Validate();
+        return table;
+    }
     public NativeFieldRuntimeProfile? NativeRuntimeProfile => NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash ? NativeFieldRuntimeProfile.FF8En : null;
 
     public NativeCharacterAppearance ReadNewGameCharacterAppearance()

@@ -11,28 +11,11 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(state);
         state.Validate();
+        ValidateSeeDAliases(State.Variables, State.NativeVariableValues);
         State = State with { SeeD = state };
     }
 
-    private static NativeSeeDState? AdvanceWorldSeeD(GameState departure, WorldState finalWorld, uint salaryMovementUnits)
-    {
-        long callbacks = finalWorld.Frame - departure.World!.Frame;
-        if (callbacks < 0 || salaryMovementUnits > (ulong)callbacks * 5792 || finalWorld.NativeBoatRuntime is not null && salaryMovementUnits != 0)
-        {
-            throw new InvalidDataException("World salary units exceed the executed native callbacks or scripted boat caller contract.");
-        }
-        if (departure.SeeD is null || callbacks == 0 || finalWorld.NativeBoatRuntime is not null)
-        {
-            return departure.SeeD;
-        }
-        if (finalWorld.NativeFootRuntime is null && finalWorld.NativeCarRuntime is null)
-        {
-            throw new NotSupportedException("World salary requires its current eligible native body producer.");
-        }
-        return SampleWorldSeeD(departure, departure.SeeD, salaryMovementUnits);
-    }
-
-    public static NativeSeeDState? SampleWorldSeeD(GameState source, NativeSeeDState? current, uint units)
+    public static NativeSalaryResult? SampleWorldSalary(GameState source, NativeSeeDState? current, NativeEconomy? economy, uint units)
     {
         if (current is null)
         {
@@ -42,29 +25,51 @@ public sealed partial class GameSession
         {
             throw new NotSupportedException("World salary requires the executed event DWORD104 owner.");
         }
-        if (controls.SalarySuppressed)
-        {
-            return current;
-        }
-        if (source.CharacterVitals is not NativeCharacterVitals vitals)
-        {
-            throw new NotSupportedException("World salary requires the actual saved dream flag.");
-        }
-        return current.WithMovementUnits(units, controls.EventFlags104, vitals.DreamEnabled);
+        return NativeSalaryCalculator.Sample(current, economy, source.CharacterVitals, units, controls.EventFlags104);
     }
 
     private static void ValidateSeeDCheckpoint(GameState state, JsonElement? vm)
     {
         state.SeeD?.Validate();
+        if (state.SeeD is not null)
+        {
+            ValidateSeeDAliases(state.Variables, state.NativeVariableValues);
+        }
         if (vm is not JsonElement saved)
         {
             return;
         }
         NativeSeeDState? captured = saved.TryGetProperty("SeeD", out JsonElement value) && value.ValueKind != JsonValueKind.Null ? value.Deserialize<NativeSeeDState>(JsonOptions) : null;
         captured?.Validate();
+        if (captured is not null && saved.TryGetProperty("NativeVariableValues", out JsonElement memory) && memory.ValueKind != JsonValueKind.Null)
+        {
+            Dictionary<int, NativeMemoryValue> aliases = memory.Deserialize<Dictionary<int, NativeMemoryValue>>(JsonOptions) ?? throw new InvalidDataException("Empty typed event-memory metadata.");
+            if (aliases.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
+            {
+                throw new InvalidDataException("Canonical SeeD words overlap a typed VM alias; recreate authentic inputs.");
+            }
+        }
         if (captured != state.SeeD)
         {
             throw new InvalidDataException("Root and event SeeD rank/salary checkpoints disagree; recreate the authentic journal.");
         }
+    }
+
+    private static void ValidateSeeDAliases(IReadOnlyDictionary<int, int> variables, IReadOnlyDictionary<int, NativeMemoryValue>? memory)
+    {
+        if (variables.Keys.Any(address => OverlapsSeeDMemory(address, 4)))
+        {
+            throw new InvalidDataException("Canonical SeeD event words overlap an untyped root variable alias; recreate authentic inputs.");
+        }
+        if (memory is not null && memory.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
+        {
+            throw new InvalidDataException("Canonical SeeD event words overlap a typed root variable alias; recreate authentic inputs.");
+        }
+    }
+
+    private static bool OverlapsSeeDMemory(int address, int width)
+    {
+        long end = (long)address + width;
+        return address < 12 && end > 8 || address < 20 && end > 16 || address < 188 && end > 184;
     }
 }

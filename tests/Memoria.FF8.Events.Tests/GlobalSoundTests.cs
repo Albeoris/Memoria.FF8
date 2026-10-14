@@ -15,7 +15,7 @@ internal static partial class Program
     private static void NativeGlobalSoundContract()
     {
         byte[] ProgramFor(int effect = 69, int mask = 4, int pan = 100, int volume = 20) => SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, effect), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.PSHN_L, pan), (Jsm.Opcode.PSHN_L, volume), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 999), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
         engine.LoadField(100, ProgramFor(), []);
         engine.Step();
@@ -26,13 +26,13 @@ internal static partial class Program
         engine.Restore(saved);
         Require(saved.GetRawText() == engine.Capture().GetRawText(), "Global voice/request/loop metadata failed exact restore.");
         engine.LoadField(101, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
-        Require(engine.Scene.GlobalSoundVoices[3] == request && engine.Scene.GlobalSoundRequests.Single() == request, "Field reload discarded native global voice IDs or request history.");
+        Require(engine.Scene.GlobalSoundLatestAttempts[3] == request && engine.Scene.GlobalSoundRequests.Single() == request, "Field reload discarded native global voice IDs or request history.");
 
         foreach ((int effect, int sample) in new[] { (10089, 2239), (210005, 155), (220005, 185), (240005, 375), (300005, 715), (350005, 985), (400005, 1235), (410005, 1515), (420005, 1925), (500005, 2789), (690000, 2060), (690001, 1961), (700005, 5) })
         {
             engine.LoadField(100, ProgramFor(effect), []);
             engine.Step();
-            Require(engine.Scene.GlobalSoundVoices[3].Resource.SampleIndex == sample && engine.Scene.GlobalSoundVoices[3].OriginalEffectId == effect, "Native46B120 sound-ID switch lost an original mapping branch.");
+            Require(engine.Scene.GlobalSoundLatestAttempts[3].Resource.SampleIndex == sample && engine.Scene.GlobalSoundLatestAttempts[3].OriginalEffectId == effect, "Native46B120 sound-ID switch lost an original mapping branch.");
         }
 
         foreach (bool invalidParameters in new[] { false, true })
@@ -40,7 +40,7 @@ internal static partial class Program
             engine.ResolveGlobalSoundResource = sample => MutedGlobalSample(sample) with { BackendStatus = invalidParameters ? GlobalSoundBackendStatus.Muted : GlobalSoundBackendStatus.Failed };
             engine.LoadField(100, ProgramFor(volume: invalidParameters ? 128 : 20), []);
             engine.Step();
-            Require(engine.Scene.GlobalSoundVoices[3].Resource.BackendStatus == GlobalSoundBackendStatus.Failed && session.State.Variables[800] == 999, "Native audio failure stopped VM execution or failed to store the original voice effect ID.");
+            Require(engine.Scene.GlobalSoundLatestAttempts[3].Resource.BackendStatus == GlobalSoundBackendStatus.Failed && session.State.Variables[800] == 999, "Native audio failure stopped VM execution or failed to store the original voice effect ID.");
         }
 
         foreach (bool automaticVoice in new[] { false, true })
@@ -93,7 +93,7 @@ internal static partial class Program
         resumed.Apply(wait);
         Require(first.Capture().GetRawText() == resumed.Capture().GetRawText() && first.Frame == 7 && first.LastFault is null, "Actual original EFFECTPLAY did not advance immediately with exact replay.");
         GlobalSoundRequest request = first.Scene.GlobalSoundRequests.Single();
-        Require(request == new GlobalSoundRequest(69, 1, 1, 1, 127, 63, 127, 100, resource) && first.Scene.GlobalSoundVoices[1] == request && first.Scene.SoundRequests.Count == 0, "Reached69/voice1 global request lost its original arguments, loop policy or explicit muted backend.");
+        Require(request == new GlobalSoundRequest(69, 1, 1, 1, 127, 63, 127, 100, resource, request.Allocation) && first.Scene.GlobalSoundLatestAttempts[1] == request && first.Scene.SoundRequests.Count == 0, "Reached69/voice1 global request lost its original arguments, loop policy or explicit muted backend.");
         var advanced = first.Capture();
         first.Restore(advanced);
         Require(advanced.GetRawText() == first.Capture().GetRawText(), "Actual global ambient request did not survive exact checkpoint restore.");

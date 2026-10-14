@@ -672,7 +672,7 @@ internal sealed class RecreateGame : Game
             Names = events?.Scene.Names,
             Party = events?.Scene.Party,
             Music = new { Loaded = events?.Scene.LoadedMusic, Playing = events?.Scene.MusicPlaying, Volume = events?.Scene.MusicVolume },
-            FieldAudio = new { Effects = options.AudioEnabled ? "DirectSound" : "Muted", Music = options.AudioEnabled ? "DirectMusic/PCM" : "Muted", Error = fieldAudio?.Error, Resources = events?.Scene.LoadedSoundEffects, Requests = events?.Scene.SoundRequests, GlobalRequests = events?.Scene.GlobalSoundRequests, GlobalVoiceAttempts = events?.Scene.GlobalSoundVoices },
+            FieldAudio = new { Effects = options.AudioEnabled ? "DirectSound" : "Muted", Music = options.AudioEnabled ? "DirectMusic/PCM" : "Muted", Error = fieldAudio?.Error, Resources = events?.Scene.LoadedSoundEffects, Requests = events?.Scene.SoundRequests, GlobalRequests = events?.Scene.GlobalSoundRequests, GlobalVoiceAttempts = events?.Scene.GlobalSoundLatestAttempts },
             Coverage = compact ? null : events?.Coverage,
             Decisions = compact ? null : events?.Decisions,
             DialogueOutcomes = compact ? null : events?.DialogueOutcomes,
@@ -797,6 +797,23 @@ internal sealed class RecreateGame : Game
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
             float timerScale = viewport.Width / 320f;
             text.Draw(batch, timer.FieldDisplayText(), 10 * timerScale, new Vector2(viewport.X + timer.DisplayX * timerScale, viewport.Y + timer.DisplayY * timerScale), Color.White);
+        }
+        // TODO(TD-003): replace this managed notice with original salary UI rasterization
+        if (session.State.Scene != SceneKind.Title && session.State.SalaryPresentation is { Scale9A: > 0 } salary)
+        {
+            PixelBounds viewport = ViewportLayout.Fit(320, 224, bounds.Width, bounds.Height);
+            float scale = viewport.Width / 320f;
+            float progress = salary.Scale9A / 4096f;
+            float blend = salary.RankBlend98 / 4096f;
+            Vector2 origin = new(viewport.X + 176 * scale, viewport.Y + (16 - 50 * (1 - progress)) * scale);
+            Rectangle panel = new((int)origin.X, (int)origin.Y, (int)(140 * scale), (int)(44 * scale));
+            DrawPanel(panel);
+            string GlyphText(System.Collections.Immutable.ImmutableArray<byte> glyphs) => string.Concat(glyphs.TakeWhile(glyph => glyph != 0).Select(glyph => glyph == 7 ? ' ' : glyph == 178 ? 'A' : glyph is >= 96 and <= 105 ? (char)('0' + glyph - 96) : throw new NotSupportedException("Salary GUI encountered an unsupported original formatted glyph."))).Trim();
+            Color oldColor = Color.White * (progress * (1 - blend));
+            Color newColor = Color.White * (progress * blend);
+            text.Draw(batch, "SeeD salary", 8 * scale, origin + new Vector2(8, 4) * scale, Color.White * progress);
+            text.Draw(batch, $"Rank {GlyphText(salary.OldRankGlyphs)}   {GlyphText(salary.OldPayGlyphs)} gil", 8 * scale, origin + new Vector2(8, 22) * scale, oldColor);
+            text.Draw(batch, $"Rank {GlyphText(salary.NewRankGlyphs)}   {GlyphText(salary.NewPayGlyphs)} gil", 8 * scale, origin + new Vector2(8, 22) * scale, newColor);
         }
         if (error is not null)
         {

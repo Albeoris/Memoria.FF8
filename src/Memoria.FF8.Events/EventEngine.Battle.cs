@@ -42,6 +42,17 @@ public sealed partial class EventEngine
         {
             return "BATTLE with a competing pending scene request requires its original transition arbitration; PC and operands preserved";
         }
+        if (!services.WorldControls.ScriptBattleDisabled20)
+        {
+            try
+            {
+                _ = NeedsNativeSalaryTransitionReset();
+            }
+            catch (NotSupportedException exception)
+            {
+                return exception.Message;
+            }
+        }
         return null;
     }
 
@@ -49,6 +60,11 @@ public sealed partial class EventEngine
     {
         int[] operands = fiber.Stack.Take(2).Reverse().ToArray();
         bool suppressed = services.WorldControls!.ScriptBattleDisabled20;
+        if (!suppressed)
+        {
+            // Accepted native battle-scene entry5225A0 resets a live salary UI;523270's suppressed branch does not enter it.
+            ResetNativeSalaryForTransition(fiber);
+        }
         if (!suppressed && services.ExamTimer is Memoria.FF8.Runtime.NativeExamTimerState timer)
         {
             try

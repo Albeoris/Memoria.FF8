@@ -19,7 +19,9 @@ internal sealed partial class WorldMapScene : IDisposable
     private WorldTerrainRenderer? renderer;
     private bool disposed;
     private bool rebound;
-    public Func<WorldFieldSelection, WorldState, short, uint, Action>? PrepareFieldEntry { get; set; }
+    public Func<WorldFieldSelection, WorldState, short, NativeWorldSalaryState, Action>? PrepareFieldEntry { get; set; }
+    public Func<NativeSalaryResult, NativeSalaryPresentation?, NativeGlobalSoundProcess?, NativeSalaryEffects>? PrepareSalaryEffects { get; set; }
+    public Action<NativeSalaryEffects>? PublishSalaryEffects { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
     public WorldMapScene(GameSession session, string gameDirectory)
@@ -233,19 +235,37 @@ internal sealed partial class WorldMapScene : IDisposable
         long sourceFrame = State.Frame;
         List<ReplayWorldNavigationStimulus> navigation = [];
         WorldState candidate = State;
-        uint salaryMovementUnits = 0;
-        NativeSeeDState? candidateSeeD = session.SeeD;
+        NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
+        List<GlobalSoundRequest> salaryRequests = [];
         WorldFieldSelection? fieldEntry = null;
         if (accepted)
         {
             for (int index = 0; index < action.Frames; index++)
             {
+                bool advanceUi = candidate.NativeBoatRuntime?.Path.EndpointRequested != true;
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits);
-                salaryMovementUnits = checked(salaryMovementUnits + movementUnits);
-                if (candidate.NativeBoatRuntime is null)
+                NativeSalaryResult? salaryResult = candidate.NativeBoatRuntime is null ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
+                NativeSalaryEffects effects;
+                if (salaryResult?.Payment is not null)
                 {
-                    candidateSeeD = GameSession.SampleWorldSeeD(session.State, candidateSeeD, movementUnits);
+                    if (PrepareSalaryEffects is null || PublishSalaryEffects is null)
+                    {
+                        throw new NotSupportedException("Native world salary requires its original UI and global sound producer before commit.");
+                    }
+                    effects = PrepareSalaryEffects(salaryResult, salary.Presentation, salary.SoundProcess);
                 }
+                else
+                {
+                    NativeSalaryPresentation? presentation = salary.Presentation;
+                    if (salaryResult?.CloseDisplay == true)
+                    {
+                        presentation = presentation?.Close() ?? throw new NotSupportedException("Native world salary closure requires its actual retained UI process.");
+                    }
+                    effects = new NativeSalaryEffects(presentation, salary.SoundProcess, []);
+                }
+                //53FAC0 calls49A970 after ordinary body update; its already-requested departure fade returns before that call.
+                salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits);
+                salaryRequests.AddRange(effects.Requests);
                 navigation.Add(proposal);
                 advanced++;
                 if (fieldEntry is not null)
@@ -262,8 +282,9 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 throw new NotSupportedException($"Original world field entry {fieldEntry.Entry.Index}/field{fieldEntry.Entry.FieldId} has no prepared field backend.");
             }
-            Action commit = PrepareFieldEntry(fieldEntry, candidate, assets.GetNativeMapLocationId(candidate.X, candidate.Z), salaryMovementUnits);
+            Action commit = PrepareFieldEntry(fieldEntry, candidate, assets.GetNativeMapLocationId(candidate.X, candidate.Z), salary);
             commit();
+            PublishSalaryEffects?.Invoke(new NativeSalaryEffects(salary.Presentation, salary.SoundProcess, salaryRequests));
             LastDeparture = candidate;
             PlayerActionResult departed = new(true, new PlayerTrigger(PlayerTriggerKind.FieldTransition, fieldEntry.Entry.FieldId, candidate.Frame, null, null), advanced);
             RecordReplay(departed);
@@ -271,7 +292,8 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (accepted)
         {
-            session.CommitWorldAction(candidate, salaryMovementUnits);
+            session.CommitWorldAction(candidate, salary);
+            PublishSalaryEffects?.Invoke(new NativeSalaryEffects(salary.Presentation, salary.SoundProcess, salaryRequests));
         }
         else
         {

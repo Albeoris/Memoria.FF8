@@ -36,6 +36,7 @@ public sealed partial class EventEngine
         try
         {
             _ = PrepareMovieActorWords(start: true);
+            _ = NeedsNativeSalaryTransitionReset();
             return null;
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException)
@@ -85,9 +86,10 @@ public sealed partial class EventEngine
         }
     }
 
-    private void StartNativeMovieActors()
+    private void StartNativeMovieActors(Fiber fiber)
     {
         var writes = PrepareMovieActorWords(start: true);
+        ResetNativeSalaryForTransition(fiber);
         services.RequestMovie(preparedMovie);
         CommitMovieActorWords(writes);
         Scene.MovieActors = Scene.MovieActors! with { StartFrame = Frame };

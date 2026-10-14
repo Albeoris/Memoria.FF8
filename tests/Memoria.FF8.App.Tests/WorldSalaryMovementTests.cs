@@ -60,18 +60,98 @@ public sealed class WorldSalaryMovementTests
     }
 
     [Fact]
-    public void A_later_payment_boundary_refuses_the_entire_world_batch()
+    public void A_later_payment_without_its_output_producer_refuses_the_entire_world_batch()
     {
         GameSession session = CreateNativeSession();
         session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 0x6000 - 7 });
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         using WorldMapScene scene = new(session, GameDirectory());
         GameState before = session.State;
-        Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3)));
+        NotSupportedException refusal = Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3)));
+        Assert.Contains("UI and global sound producer", refusal.Message);
         Assert.Same(before, session.State);
         Assert.Equal(0, scene.State.Frame);
         Assert.Empty(scene.State.Actions);
         Assert.Equal(0, session.ExamTimer!.ClockCalls);
+    }
+
+    [Fact]
+    public void One_world_action_pays_then_uses_the_new_owners_on_later_callbacks_and_matches_single_inputs()
+    {
+        GameSession session = CreateNativeSession();
+        session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true).WithSalaryDisplayEnabled(true), session.SeeD!.WithSalaryUiEnabled(true) with { RankPoints = 650, SalaryMovementCounter = 0x6000 - 3 });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
+        EventEngine output = CreateSalaryEngine(session);
+        using WorldMapScene scene = new(session, GameDirectory()) { PrepareSalaryEffects = output.PrepareSalaryEffects };
+        GameState before = session.State;
+        int publications = 0;
+        scene.PublishSalaryEffects = effects =>
+        {
+            Assert.NotSame(before, session.State);
+            Assert.Equal(3, session.State.World!.Frame);
+            Assert.Equal(6u, session.SeeD!.SalaryMovementCounter);
+            publications++;
+            output.PublishSalaryEffects(effects);
+        };
+        scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3));
+        Assert.Equal(1, publications);
+        Assert.Equal((ushort)640, session.SeeD!.RankPoints);
+        Assert.Equal((ushort)650, session.SeeD.PreviousRank186);
+        Assert.Equal(6u, session.SeeD.SalaryMovementCounter);
+        Assert.Equal((ushort)147, session.SeeD.SalaryDisplayCountdown184);
+        Assert.Equal(9000u, session.State.Economy!.Gil);
+        Assert.Equal(3000u, session.State.Economy.PastGil);
+        Assert.Equal(0u, session.State.Economy.EventBankGil72);
+        Assert.Equal((short)1792, session.SalaryPresentation!.Scale9A);
+        Assert.Equal(3, output.Scene.GlobalSoundRequests.Count);
+
+        var independent = new GameSession(before);
+        EventEngine otherOutput = CreateSalaryEngine(independent);
+        using WorldMapScene other = new(independent, GameDirectory()) { PrepareSalaryEffects = otherOutput.PrepareSalaryEffects, PublishSalaryEffects = otherOutput.PublishSalaryEffects };
+        for (int callback = 0; callback < 3; callback++)
+        {
+            other.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));
+        }
+        Assert.Equal(session.SeeD, independent.SeeD);
+        Assert.Equal(JsonSerializer.Serialize(session.State.Economy), JsonSerializer.Serialize(independent.State.Economy));
+        Assert.Equal(JsonSerializer.Serialize(session.SalaryPresentation), JsonSerializer.Serialize(independent.SalaryPresentation));
+        Assert.Equal(JsonSerializer.Serialize(session.GlobalSoundProcess), JsonSerializer.Serialize(independent.GlobalSoundProcess));
+        Assert.Equal(JsonSerializer.Serialize(scene.State with { Actions = [] }), JsonSerializer.Serialize(other.State with { Actions = [] }));
+    }
+
+    [Fact]
+    public void Declared_world_callback_batch_commits_two_payments_and_refuses_an_incomplete_transport()
+    {
+        // This explicit callback-scalar component does not claim a motor path or
+        // authentic journey. It exercises multiple native payouts in one transport.
+        GameSession session = CreateNativeSession();
+        session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true).WithSalaryDisplayEnabled(true), session.SeeD!.WithSalaryUiEnabled(true) with { RankPoints = 650, SalaryMovementCounter = 0x6000 - 1 });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
+        EventEngine output = CreateSalaryEngine(session);
+        using WorldMapScene scene = new(session, GameDirectory());
+        GameState before = session.State;
+        NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(before);
+        int payments = 0;
+        for (int callback = 0; callback < 6; callback++)
+        {
+            NativeSalaryResult result = GameSession.SampleWorldSalary(before, salary.SeeD, salary.Economy, 5792)!;
+            NativeSalaryEffects effects = output.PrepareSalaryEffects(result, salary.Presentation, salary.SoundProcess);
+            payments += result.Payment is null ? 0 : 1;
+            salary = salary.Advance(result, effects.Presentation!.Advance(2), effects.SoundProcess, 5792);
+            Assert.Same(before, session.State);
+        }
+        WorldState final = before.World! with { Frame = 6, Actions = [new(1, 6, "Wait", 0, 0, 6, 6, before.World.X, before.World.Z, before.World.NativeHeight)] };
+        Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(final, NativeWorldSalaryState.Begin(before)));
+        Assert.Same(before, session.State);
+        session.CommitWorldAction(final, salary);
+        Assert.Equal(2, payments);
+        Assert.Equal((ushort)630, session.SeeD!.RankPoints);
+        Assert.Equal((ushort)640, session.SeeD.PreviousRank186);
+        Assert.Equal(0u, session.SeeD.SalaryMovementCounter);
+        Assert.Equal((ushort)149, session.SeeD.SalaryDisplayCountdown184);
+        Assert.Equal(13000u, session.State.Economy!.Gil);
+        Assert.Equal((byte)1, session.GlobalSoundProcess!.Rotation);
+        Assert.Equal((short)768, session.SalaryPresentation!.Scale9A);
     }
 
     [Fact]
@@ -113,6 +193,9 @@ public sealed class WorldSalaryMovementTests
             var captured = System.Text.Json.Nodes.JsonNode.Parse(vm.Capture().GetRawText())!.AsObject();
             captured.Remove("ExamTimer");
             captured.Remove("SeeD");
+            captured.Remove("Economy");
+            captured.Remove("SalaryPresentation");
+            captured.Remove("GlobalSoundProcess");
             return captured.ToJsonString();
         }
         string frozen = LocalVm(engine);
@@ -151,7 +234,32 @@ public sealed class WorldSalaryMovementTests
         session.StartNewGame();
         using GameAssets assets = new(GameDirectory());
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
         return session;
+    }
+
+    private static EventEngine CreateSalaryEngine(GameSession session)
+    {
+        // Declared empty field component supplies the verified native output handler;
+        // it does not execute an original route or supply any saved process defaults.
+        var engine = new EventEngine(session, session.State.Variables)
+        {
+            ResolveGlobalSoundResource = sample =>
+            {
+                GlobalAudioSampleDescriptor descriptor = GlobalAudioFormat.Read(GameDirectory(), sample);
+                return new GlobalSoundResource(sample, GlobalSoundBackendStatus.Muted, new GlobalSoundLoopPolicy(descriptor.PlaybackFlags, descriptor.LoopStartPcmByte, descriptor.LoopEndPcmByte, descriptor.WaveFormat.SampleRate, 16, descriptor.WaveFormat.Channels, null));
+            }
+        };
+        byte[] bytes = new byte[24];
+        bytes[3] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), 16);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), 2);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), (int)Jsm.Opcode.LBL);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(20), (int)Jsm.Opcode.RET);
+        engine.LoadField(600, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        return engine;
     }
 
     private static string GameDirectory()

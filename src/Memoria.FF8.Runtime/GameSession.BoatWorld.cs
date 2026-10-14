@@ -2,14 +2,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
-    public void CommitPreparedBoatFieldEntry(GameState expectedDeparture, WorldState finalWorld, FieldTransition transition, Action<GameState> validatePrepared)
+    public void CommitPreparedBoatFieldEntry(GameState expectedDeparture, WorldState finalWorld, FieldTransition transition, NativeWorldSalaryState salary, Action<GameState> validatePrepared)
     {
         ArgumentNullException.ThrowIfNull(expectedDeparture);
         ArgumentNullException.ThrowIfNull(finalWorld);
         ArgumentNullException.ThrowIfNull(transition);
         ArgumentNullException.ThrowIfNull(validatePrepared);
         GameState departure = State;
-        if (!ReferenceEquals(departure, expectedDeparture) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || departure.WorldArrival is not WorldTransition arrival || departure.SavedWorld is null || departure.WorldControls is null || finalWorld.NativeBoatRuntime is not NativeBoatWorldRuntimeState boat || arrival != boat.Path.Packet)
+        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || departure.WorldArrival is not WorldTransition arrival || departure.SavedWorld is null || departure.WorldControls is null || finalWorld.NativeBoatRuntime is not NativeBoatWorldRuntimeState boat || arrival != boat.Path.Packet)
         {
             throw new NotSupportedException("Native boat-to-field entry requires its unchanged original scripted departure.");
         }
@@ -22,7 +22,7 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("Prepared boat field entry differs from its endpoint save and completed native fade.");
         }
-        GameState candidate = departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, PreviousFieldId = receipt.LastFieldId, FieldName = $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = saved, WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) };
+        GameState candidate = salary.ApplyTo(departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, PreviousFieldId = receipt.LastFieldId, FieldName = $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = saved, WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) }, finalWorld);
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))

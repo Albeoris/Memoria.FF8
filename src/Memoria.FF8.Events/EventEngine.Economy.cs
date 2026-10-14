@@ -88,9 +88,9 @@ public sealed partial class EventEngine
         }
     }
 
-    private NativeEconomy? PrepareNativeGilBeforeVm()
+    private NativeEconomy? PrepareNativeGilBeforeVm(NativeEconomy? prospective)
     {
-        if (services.Economy is not NativeEconomy economy)
+        if (prospective is not NativeEconomy economy)
         {
             return null;
         }

@@ -17,7 +17,9 @@ internal static partial class Program
         {
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            session.SetCharacterVitals(initial.DeepCopy());
+            session.InitializeNewGameCharacterVitals(initial.DeepCopy());
+            session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+            session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), seeD: session.SeeD!.WithSalaryUiEnabled(true));
             List<int> speeds = [];
             EventEngine engine = new(session, session.State.Variables)
@@ -25,7 +27,12 @@ internal static partial class Program
                 AnimationFrameCount = (_, _) => 4,
                 ResolveWalkmesh = (x, y) => new(new(x, y, 0), 0),
                 ResolvePartyTraceTriangle = (_, _, _) => 0,
-                CanUseNativePlayerMovement = _ => true
+                CanUseNativePlayerMovement = _ => true,
+                ResolveGlobalSoundResource = sample =>
+                {
+                    GlobalAudioSampleDescriptor descriptor = GlobalAudioFormat.Read(gameDirectory, sample);
+                    return new GlobalSoundResource(sample, GlobalSoundBackendStatus.Muted, new GlobalSoundLoopPolicy(descriptor.PlaybackFlags, descriptor.LoopStartPcmByte, descriptor.LoopEndPcmByte, descriptor.WaveFormat.SampleRate, 16, descriptor.WaveFormat.Channels, null));
+                }
             };
             engine.ResolveNativePlayerMovement = query =>
             {
@@ -71,15 +78,21 @@ internal static partial class Program
         payout.Engine.Apply(move);
         payout.Session.SetSeeD(payout.Session.SeeD! with { SalaryMovementCounter = 0x5FFF });
         JsonElement before = payout.Engine.Capture();
+        payout.Engine.Apply(move);
+        Require(payout.Engine.Frame == before.GetProperty("Frame").GetInt64() + 1 && payout.Session.SeeD is { RankPoints: 490, SalaryMovementCounter: 0, PreviousRank186: 500, SalaryDisplayCountdown184: 149 } && payout.Session.Economy is { Gil: 7000, EventBankGil72: 7000 } && payout.Engine.Scene.NativeSalaryMovementUnits == 5 && payout.Speeds.Count == 2 && payout.Engine.Scene.GlobalSoundRequests.TakeLast(3).Select(request => request.OriginalEffectId).SequenceEqual(new uint[] { 91, 92, 93 }), "Field payout did not consume the genuine previous run, publish post-payout bank gil or preserve the current motor/sound order.");
+        var unknownPayout = Create();
+        unknownPayout.Engine.Apply(move);
+        unknownPayout.Session.SetSeeD(unknownPayout.Session.SeeD! with { SalaryMovementCounter = 0x5FFF, SalaryTable = null });
+        JsonElement unknownPaymentBefore = unknownPayout.Engine.Capture();
         try
         {
-            payout.Engine.Apply(move);
-            throw new InvalidOperationException("Unproved native salary payment was accepted.");
+            unknownPayout.Engine.Apply(move);
+            throw new InvalidOperationException("Unproved native salary table was guessed at payment.");
         }
         catch (NotSupportedException)
         {
         }
-        Require(JsonElement.DeepEquals(before, payout.Engine.Capture()) && payout.Speeds.Count == 1, "Payment refusal advanced the clock, VM or physical motor before its preflight.");
+        Require(JsonElement.DeepEquals(unknownPaymentBefore, unknownPayout.Engine.Capture()) && unknownPayout.Speeds.Count == 1, "Missing-table payout refusal advanced the clock, VM or physical motor before its preflight.");
         foreach (bool missing in new[] { false, true })
         {
             JsonNode malformed = JsonNode.Parse(walk.Engine.Capture().GetRawText())!;
@@ -124,6 +137,6 @@ internal static partial class Program
         {
         }
         Require(unknown.Scene.NativeSalaryMovementUnits is null && obsoleteResolverCalls == 0 && JsonElement.DeepEquals(unknownBefore, unknown.Capture()), "Unknown field inferred salary0, invoked a fallback motor or advanced before native admission.");
-        Console.WriteLine("Field salary: previous-callback3/5/0, VM-before-body forced walk, held walk, rejected movement, independent pending restore and atomic payout/metadata refusal passed.");
+        Console.WriteLine("Field salary: previous-callback3/5/0, VM-before-body walk, held walk, rejected movement, independent restore, actual payout/new bank gil and atomic missing-input/metadata refusal passed.");
     }
 }

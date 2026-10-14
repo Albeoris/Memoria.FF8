@@ -25,7 +25,7 @@ public sealed class NativeStatDefinitionTests
         NativeMagicStock[] inventory = Enumerable.Range(0, 32).Select(_ => new NativeMagicStock(0, 0)).ToArray();
         inventory[0] = new NativeMagicStock(1, 25);
         inventory[1] = new NativeMagicStock(1, 100);
-        return new NativeCharacterVital(8, new NativeHpWord(10, 20), 0, new NativeCharacterJunction(0, 0, 39u | 40u << 8, junctions), 6500, 10, 30, new byte[6], inventory, 1);
+        return new NativeCharacterVital(8, new NativeHpWord(10, 20), 0, new NativeCharacterJunction(0, 0, 39u | 40u << 8, junctions), 6500, 10, 30, new byte[6], inventory, 1, 0);
     }
 
     [Fact]

@@ -217,7 +217,7 @@ internal static partial class Program
         public void SetSeeD(NativeSeeDState state) => session.SetSeeD(state);
         public void SetMessageVariables(NativeMessageVariables state) => session.SetMessageVariables(state);
         public void SetCardInventory(NativeCardInventory state) => session.SetCardInventory(state);
-        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals);
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation);
 
         public void SetWorldControls(NativeWorldControlState controls)
         {

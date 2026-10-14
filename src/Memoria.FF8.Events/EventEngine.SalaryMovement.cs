@@ -10,7 +10,7 @@ public sealed partial class EventEngine
 
     private bool NativePlayerHasScriptedMode(ActorState actor) => actor.NativeMovementCompletion542 < 2 && actor.NativeScriptMovement is { Active: true, Suspended: false } || actor.NativeJump is { Active: true } || partyJoin?.Targets.Any(target => target.ObjectId == actor.ObjectId && actors[target.ObjectId].NativeMovementCompletion542 < 2) == true || partySplit?.Targets.Any(target => target.ObjectId == actor.ObjectId && actors[target.ObjectId].NativeMovementCompletion542 < 2) == true;
 
-    private NativeSeeDState? PrepareNativeFieldSalarySample()
+    private NativeSalaryResult? PrepareNativeFieldSalarySample()
     {
         if (services.SeeD is not NativeSeeDState state)
         {
@@ -21,25 +21,13 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native salary sampling requires the executed DWORD104 owner.");
         }
-        if (controls.SalarySuppressed)
-        {
-            return state;
-        }
-        if (services.CharacterVitals is not NativeCharacterVitals vitals)
-        {
-            throw new NotSupportedException("Native salary sampling requires the actual saved dream flag.");
-        }
-        if (vitals.DreamEnabled)
-        {
-            return state;
-        }
-        if (NativeRuntimeProfile is not { IsVerified: true } || !services.CanStoreSeeD || Scene.NativeSalaryMovementUnits is not (0 or 3 or 5))
+        if (NativeRuntimeProfile is not { IsVerified: true } || !services.CanStoreNativeEventOwners || Scene.NativeSalaryMovementUnits is not (0 or 3 or 5))
         {
             throw new NotSupportedException("Native salary sampling requires the retained previous4789A0 result and a persistent current native field state.");
         }
         // Native529FF0 consumes the PREVIOUS body callback's scalar before VM.
-        // Refuse an unproved payment before changing the clock, PC or body.
-        return state.WithMovementUnits(Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104, vitals.DreamEnabled);
+        // Prepare the entire payout before changing the clock, PC or body.
+        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
     }
 
     private void ValidateNativePlayerInput(ActorState player)

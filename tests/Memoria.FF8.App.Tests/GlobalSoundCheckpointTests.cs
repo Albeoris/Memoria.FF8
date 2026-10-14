@@ -21,6 +21,44 @@ public sealed class GlobalSoundCheckpointTests
     }
 
     [Fact]
+    public void GenuineNewGameFieldSaveLoadsStringEnumProcessOwnersAndReproducesNextCallback()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed New Game field assets are required.");
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using GameWorld first = new(session, directory);
+        first.EnsureField();
+        session.SetEventState(first.Events.Capture());
+        Assert.Equal(74, first.Events.FieldId);
+        Assert.NotNull(session.State.CharacterVitals);
+        Assert.True(session.State.ReplayJournal!.IsComplete);
+        string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-newgame-presentation-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            session.Save(path);
+            using JsonDocument saved = JsonDocument.Parse(File.ReadAllText(path));
+            Assert.Equal("Bufferless", saved.RootElement.GetProperty("GlobalSoundProcess").GetProperty("Backend").GetString());
+            Assert.Equal("Bufferless", saved.RootElement.GetProperty("EventState").GetProperty("GlobalSoundProcess").GetProperty("Backend").GetString());
+            GameSession resumedSession = new(GameSession.Load(path));
+            using GameWorld resumed = new(resumedSession, directory);
+            resumed.EnsureField();
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(resumedSession.State)));
+            Assert.True(JsonElement.DeepEquals(first.Events.Capture(), resumed.Events.Capture()));
+            PlayerAction input = new(PlayerActionKind.Wait);
+            Assert.Equal(first.Apply(input), resumed.Apply(input));
+            Assert.Null(first.Events.LastFault);
+            Assert.Null(resumed.Events.LastFault);
+            Assert.True(JsonElement.DeepEquals(first.Events.Capture(), resumed.Events.Capture()));
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(resumedSession.State)));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void ReachedAmbientRequestUsesOriginalGlobalDescriptorAndRestoresItsMutedLoopPolicy()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
@@ -48,7 +86,7 @@ public sealed class GlobalSoundCheckpointTests
         Assert.Equal(69, request.Resource.SampleIndex);
         Assert.Equal(GlobalSoundBackendStatus.Muted, request.Resource.BackendStatus);
         Assert.Equal(new GlobalSoundLoopPolicy(1, 47844, 130622, 22050, 16, 1, 1087), request.Resource.LoopPolicy);
-        Assert.Equal(request, first.Events.Scene.GlobalSoundVoices[1]);
+        Assert.Equal(request, first.Events.Scene.GlobalSoundLatestAttempts[1]);
         session.SetEventState(first.Events.Capture());
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-global-sound-" + Guid.NewGuid().ToString("N") + ".json");
         try
@@ -59,7 +97,7 @@ public sealed class GlobalSoundCheckpointTests
             resumed.EnsureField();
             Assert.True(JsonElement.DeepEquals(first.Events.Capture(), resumed.Events.Capture()));
             Assert.Equal(request, Assert.Single(resumed.Events.Scene.GlobalSoundRequests));
-            Assert.Equal(request, resumed.Events.Scene.GlobalSoundVoices[1]);
+            Assert.Equal(request, resumed.Events.Scene.GlobalSoundLatestAttempts[1]);
         }
         finally
         {

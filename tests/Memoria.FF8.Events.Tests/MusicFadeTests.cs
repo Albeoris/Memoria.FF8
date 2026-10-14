@@ -23,7 +23,7 @@ internal static partial class Program
                 byte[] content = SyntheticProgram(operations.ToArray());
                 EventEngine Create()
                 {
-                    GameSession session = new(new GameState());
+                    GameSession session = GameSession.CreateColdProcess();
                     session.State.Variables[640] = duration;
                     session.State.Variables[644] = int.MinValue;
                     session.State.Variables[648] = 511;
@@ -40,7 +40,7 @@ internal static partial class Program
                 Require(first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 255 && first.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 255, "MUSICVOLFADE failed immediate B198 readback or changed the other slot.");
                 NativeAllSoundVolumeTransition all = first.Scene.AllSoundVolumeTransition!;
                 int milliseconds = 10 * unchecked((byte)duration);
-                Require(all.RawDuration == duration && all.RawVolume == int.MaxValue && all.DurationByte == unchecked((byte)duration) && all.DurationMilliseconds == (milliseconds < 50 ? 0 : milliseconds) && all.DoubledVolume == -2 && all.Volume == 126 && all.FirstVoice == 1 && all.VoiceCount == 29 && all.BackendStatus == GlobalSoundBackendStatus.Muted && first.Scene.GlobalSoundVoices.Count == 0 && first.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 123, "ALLSEVOLTRANS swapped operands, reused doubled music time, invented voices or yielded instead of returning2.");
+                Require(all.RawDuration == duration && all.RawVolume == int.MaxValue && all.DurationByte == unchecked((byte)duration) && all.DurationMilliseconds == (milliseconds < 50 ? 0 : milliseconds) && all.DoubledVolume == -2 && all.Volume == 126 && all.FirstVoice == 1 && all.VoiceCount == 29 && all.BackendStatus == GlobalSoundBackendStatus.Muted && first.Scene.GlobalSoundLatestAttempts.Count == 0 && first.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 123, "ALLSEVOLTRANS swapped operands, reused doubled music time, invented voices or yielded instead of returning2.");
                 EventEngine restored = Create();
                 restored.Restore(first.Capture());
                 first.Step();
@@ -67,7 +67,7 @@ internal static partial class Program
         }
         foreach (int volume in new[] { -1, 0, 1, 63, 64, 127, 128, 255, 256, int.MinValue, int.MaxValue })
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             session.State.Variables[640] = volume;
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.PSHM_L, 640), (Jsm.Opcode.ALLSEVOLTRANS, 0), (Jsm.Opcode.RET, 0)), []);

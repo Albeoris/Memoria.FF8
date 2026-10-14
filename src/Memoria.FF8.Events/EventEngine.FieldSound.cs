@@ -8,7 +8,7 @@ public sealed record NativeMediaHistoryBoundary(int FieldSounds, int ParticleReq
 
 public sealed partial class EventEngine
 {
-    private readonly Dictionary<long, NativeFieldSoundRequest> preparedFieldSounds = [];
+    private readonly Dictionary<long, (NativeFieldSoundRequest Request, Memoria.FF8.Runtime.NativeGlobalSoundProcess? Process)> preparedFieldSounds = [];
 
     public Func<NativeFieldSoundTable?>? ResolveFieldSoundEffectTable { get; set; }
 
@@ -47,38 +47,41 @@ public sealed partial class EventEngine
         uint pan = unchecked((uint)arguments[1]);
         uint rawMask = unchecked((uint)arguments[2]);
         GlobalSoundRequest? sound = null;
+        PreparedGlobalSoundEmission? emission = null;
         if (effectIndex >= 0 && effectIndex < table.EffectIds.Length)
         {
-            uint mask = rawMask & 0xFFFFFF;
-            if (mask == 0 || ResolveGlobalSoundResource is null)
+            if (services.GlobalSoundProcess is not Memoria.FF8.Runtime.NativeGlobalSoundProcess process || !services.CanStoreGlobalSoundProcess)
             {
-                return "EFFECTPLAY2 requires an explicit global backend and proved voice allocation; rotating automatic voices remain unknown";
+                return "EFFECTPLAY2 requires the current persistent global sound allocator";
             }
-            uint effectId = table.EffectIds[effectIndex];
-            int sample = MapGlobalSoundSample(effectId);
-            GlobalSoundResource? resource;
             try
             {
-                resource = ResolveGlobalSoundResource(sample);
+                emission = PrepareGlobalSound(table.EffectIds[effectIndex], rawMask, unchecked((byte)pan), volume & 127, process);
+                sound = emission.Request;
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException or ArithmeticException or NotSupportedException)
             {
                 return $"EFFECTPLAY2 global descriptor: {exception.Message}";
             }
-            if (resource is null || !ValidGlobalSoundResource(resource, sample))
-            {
-                return "EFFECTPLAY2 requires a valid original global sound descriptor";
-            }
-            uint nativePan = unchecked((byte)pan);
-            sound = new GlobalSoundRequest(effectId, rawMask, mask, System.Numerics.BitOperations.TrailingZeroCount(mask) + 1, nativePan, nativePan >> 1, volume & 127, 100, resource);
         }
-        preparedFieldSounds[fiber.Sequence] = new NativeFieldSoundRequest(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position, Frame, effectIndex, table.MemberName, table.Sha256, table.EffectIds.Length, volume, pan, rawMask, sound);
+        preparedFieldSounds[fiber.Sequence] = (new NativeFieldSoundRequest(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position, Frame, effectIndex, table.MemberName, table.Sha256, table.EffectIds.Length, volume, pan, rawMask, sound), emission?.Process);
         return null;
     }
 
     private int[] ExecuteFieldSound(Fiber fiber, int effectIndex)
     {
-        NativeFieldSoundRequest request = preparedFieldSounds[fiber.Sequence];
+        (NativeFieldSoundRequest request, Memoria.FF8.Runtime.NativeGlobalSoundProcess? process) = preparedFieldSounds[fiber.Sequence];
+        if (process is not null)
+        {
+            try
+            {
+                services.SetGlobalSoundProcess(process);
+            }
+            catch (NotSupportedException exception)
+            {
+                throw NativeOwnerPublicationFault(fiber, exception);
+            }
+        }
         preparedFieldSounds.Remove(fiber.Sequence);
         int[] arguments = Pop(fiber, 3);
         EnsureNativeMediaHistoryBoundary();
@@ -86,7 +89,6 @@ public sealed partial class EventEngine
         if (request.Sound is GlobalSoundRequest sound)
         {
             Scene.GlobalSoundRequests.Add(sound);
-            Scene.GlobalSoundVoices[sound.Voice] = sound;
             AudioCommandExecuted?.Invoke(sound);
         }
         return [effectIndex, .. arguments];

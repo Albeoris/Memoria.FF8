@@ -21,7 +21,7 @@ public sealed class NativeBoatWorldTests
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameAssets initializationAssets = new(directory);
-        departure = departure with { ReplayJournal = session.State.ReplayJournal, WorldControls = departure.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 }, CharacterVitals = initializationAssets.ReadNewGameCharacterVitals() };
+        departure = departure with { ReplayJournal = session.State.ReplayJournal, WorldControls = departure.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 }, CharacterVitals = initializationAssets.ReadNewGameCharacterVitals(), SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess };
         session.Restore(departure);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(departure, directory, packet);
         Assert.Same(departure, session.State);
@@ -70,17 +70,25 @@ public sealed class NativeBoatWorldTests
         GameState unchanged = alteredSession.State;
         Assert.Throws<InvalidDataException>(() => new WorldMapScene(alteredSession, directory));
         Assert.Same(unchanged, alteredSession.State);
-        scene.PrepareFieldEntry = (selection, final, location, salaryUnits) =>
+        scene.PrepareFieldEntry = (selection, final, location, salary) =>
         {
             NativeSavedWorldBoatReturn receipt = final.NativeBoatRuntime!.Return!;
             Assert.Equal(61, selection.Entry.Index);
             Assert.Equal(260, selection.Entry.FieldId);
             Assert.Equal(receipt.MapLocationId, location);
+            Assert.Equal(0u, salary.MovementUnits);
             GameState current = session.State;
-            return () => session.CommitPreparedBoatFieldEntry(current, final, receipt.FieldEntry, _ => { });
+            return () => session.CommitPreparedBoatFieldEntry(current, final, receipt.FieldEntry, salary, _ => { });
         };
-        PlayerActionResult completed = scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 300));
-        Assert.Equal(245, completed.FramesAdvanced);
+        Assert.Equal(229, scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 229)).FramesAdvanced);
+        Assert.True(scene.State.NativeBoatRuntime!.Path.EndpointRequested);
+        // Declared retained UI process: native formatting starts a live phase just
+        // before the already-requested departure fade; no payout history is claimed.
+        NativeSalaryPresentation beforeFade = session.SalaryPresentation!.StartPayment(6, 5, 4000, 3000);
+        session.SetSalaryPresentation(beforeFade);
+        PlayerActionResult completed = scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 16));
+        Assert.Equal(16, completed.FramesAdvanced);
+        Assert.Equal(beforeFade, session.SalaryPresentation);
         Assert.Equal(PlayerTriggerKind.FieldTransition, completed.Trigger.Kind);
         Assert.Equal(260, session.State.FieldId);
         Assert.Equal(230, session.State.SavedWorld!.BoatReturn!.SourceWorldFrame);
@@ -103,12 +111,13 @@ public sealed class NativeBoatWorldTests
         session.CommitPreparedWorldEntry(returnPacket, returnTicket.InitialState, session.WorldControls!, returnTicket.ValidateAdoption, returnTicket.InitialSavedWorld);
         using WorldMapScene returning = returnTicket.Adopt(session);
         Assert.True(returning.IsPresentationDeferred);
-        returning.PrepareFieldEntry = (selection, final, location, salaryUnits) =>
+        returning.PrepareFieldEntry = (selection, final, location, salary) =>
         {
             Assert.Equal(60, selection.Entry.Index);
             Assert.Equal(new FieldTransition(123, 881, 937, 25, 180), final.NativeBoatRuntime!.Return!.FieldEntry);
+            Assert.Equal(0u, salary.MovementUnits);
             GameState current = session.State;
-            return () => session.CommitPreparedBoatFieldEntry(current, final, final.NativeBoatRuntime.Return.FieldEntry, _ => { });
+            return () => session.CommitPreparedBoatFieldEntry(current, final, final.NativeBoatRuntime.Return.FieldEntry, salary, _ => { });
         };
         Assert.Equal(1, returning.Apply(new PlayerAction(PlayerActionKind.Wait)).FramesAdvanced);
         Assert.Equal(outboundReturn, session.State.SavedWorld!.BoatReturn);

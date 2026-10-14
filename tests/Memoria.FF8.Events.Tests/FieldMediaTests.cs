@@ -29,7 +29,7 @@ internal static partial class Program
 
     private static EventEngine CreateFieldMedia(byte[] program, bool native = true, int fieldId = 101)
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         EventEngine engine = new(session, session.State.Variables)
         {
             ResolveGlobalSoundResource = MutedGlobalSample,
@@ -56,7 +56,7 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(sound.Capture(), restored.Capture()), "Field SFX/particle complete VM differs after independent restoration.");
         }
-        Require(sound.Scene.NativeParticleSlots[0] == 0 && sound.Scene.NativeParticleRequests.Count == 2 && sound.Scene.GlobalSoundRequests.Single().OriginalEffectId == 10228 && sound.Scene.GlobalSoundVoices[1].OriginalEffectId == 10228 && sound.Scene.SoundStop?.Voices.SequenceEqual(new[] { 1 }) == true, "Particle OFF or exact voice stop discarded original effect authority/history.");
+        Require(sound.Scene.NativeParticleSlots[0] == 0 && sound.Scene.NativeParticleRequests.Count == 2 && sound.Scene.GlobalSoundRequests.Single().OriginalEffectId == 10228 && sound.Scene.GlobalSoundLatestAttempts[1].OriginalEffectId == 10228 && sound.Scene.SoundStop?.Voices.SequenceEqual(new[] { 1 }) == true, "Particle OFF or exact voice stop discarded original effect authority/history.");
         JsonElement mediaSaved = sound.Capture();
         foreach (Action<JsonNode> corrupt in new Action<JsonNode>[]
         {

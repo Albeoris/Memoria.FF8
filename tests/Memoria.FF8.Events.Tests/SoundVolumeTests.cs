@@ -17,7 +17,7 @@ internal static partial class Program
                 byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.INITSOUND, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PSHM_L, 516), (Jsm.Opcode.SEVOL, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
                 EventEngine Create()
                 {
-                    GameSession session = new(new GameState());
+                    GameSession session = GameSession.CreateColdProcess();
                     session.State.Variables[512] = unchecked((int)rawMask);
                     session.State.Variables[516] = rawVolume;
                     EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
@@ -32,7 +32,7 @@ internal static partial class Program
                 Require(first.LastFault is null && request.RawMask == rawMask && request.RawVolume == rawVolume && request.Mask == mask && request.Voice == voice && request.Volume == (rawVolume & 127) && request.DurationMilliseconds == 0 && request.BackendStatus == GlobalSoundBackendStatus.Muted, "SEVOL lost native mask/volume DWORD order, low24 selection, least voice, low-seven-bit volume or immediate duration.");
                 JsonElement state = first.Capture();
                 Require(state.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "Frames" && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 127, "SEVOL consumed an extra operand, introduced a sound wait or rewrote music bytes.");
-                Require(first.Scene.GlobalSoundVoices.Count == 1 && first.Scene.GlobalSoundRequests.Count == 1 && first.Scene.GlobalSoundVoices[3].Volume == 20 && first.Scene.GlobalSoundVoices[3].OriginalEffectId == 69, "SEVOL invented buffers or altered original effect-ID/attempt history.");
+                Require(first.Scene.GlobalSoundLatestAttempts.Count == 1 && first.Scene.GlobalSoundRequests.Count == 1 && first.Scene.GlobalSoundLatestAttempts[3].Volume == 20 && first.Scene.GlobalSoundLatestAttempts[3].OriginalEffectId == 69, "SEVOL invented buffers or altered original effect-ID/attempt history.");
                 EventEngine restored = Create();
                 restored.Restore(state);
                 first.Step();

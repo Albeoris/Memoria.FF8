@@ -220,8 +220,9 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeMediaHistoryBoundary? NativeMediaHistoryBoundary { get; internal set; }
-    /// <summary>Latest direct global request per native voice; Failed does not imply successful playback or overwrite of an earlier audible buffer.</summary>
-    public Dictionary<int, GlobalSoundRequest> GlobalSoundVoices { get; } = [];
+    /// <summary>Derived historical attempts only; current physical effect IDs belong to the persistent GlobalSoundProcess.</summary>
+    [JsonIgnore]
+    public IReadOnlyDictionary<int, GlobalSoundRequest> GlobalSoundLatestAttempts => GlobalSoundRequests.GroupBy(request => request.Voice).ToDictionary(group => group.Key, group => group.Last());
     /// <summary>Native byte1CE490A; only value1 requests a color-buffer clear. Fresh normal field loads reset it to0.</summary>
     [JsonInclude]
     public byte BackgroundClearValue { get; internal set; }

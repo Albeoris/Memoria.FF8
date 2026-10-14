@@ -74,7 +74,7 @@ public static class NativeCharacterInitialization
             }
             ushort hp = BinaryPrimitives.ReadUInt16LittleEndian(row);
             NativeCharacterJunction junction = new(BinaryPrimitives.ReadUInt16LittleEndian(row[88..]), BinaryPrimitives.ReadUInt32LittleEndian(row[80..]), BinaryPrimitives.ReadUInt32LittleEndian(row[84..]), row.Slice(92, 20).ToArray());
-            records[index] = new NativeCharacterVital(character, new NativeHpWord(hp, hp), BinaryPrimitives.ReadUInt16LittleEndian(row[150..]), junction, BinaryPrimitives.ReadUInt32LittleEndian(row[4..]), BinaryPrimitives.ReadUInt16LittleEndian(row[2..]), row[9], row.Slice(10, 6).ToArray(), inventory, BinaryPrimitives.ReadUInt16LittleEndian(row[148..]));
+            records[index] = new NativeCharacterVital(character, new NativeHpWord(hp, hp), BinaryPrimitives.ReadUInt16LittleEndian(row[150..]), junction, BinaryPrimitives.ReadUInt32LittleEndian(row[4..]), BinaryPrimitives.ReadUInt16LittleEndian(row[2..]), row[9], row.Slice(10, 6).ToArray(), inventory, BinaryPrimitives.ReadUInt16LittleEndian(row[148..]), BinaryPrimitives.ReadUInt16LittleEndian(row[144..]));
         }
         NativeGuardianForceVital[] savedGuardianForces = new NativeGuardianForceVital[16];
         for (int id = 0; id < savedGuardianForces.Length; id++)

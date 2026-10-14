@@ -23,7 +23,7 @@ internal static partial class Program
                 byte[] content = SyntheticProgram(operations.ToArray());
                 EventEngine Create()
                 {
-                    GameSession session = new(new GameState());
+                    GameSession session = GameSession.CreateColdProcess();
                     session.State.Variables[512] = rawVolume;
                     EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
                     engine.LoadField(100, content, []);
@@ -35,7 +35,7 @@ internal static partial class Program
                 Require(first.LastFault is null && request.RawVolume == rawVolume && request.Volume == (rawVolume & 127) && request.DurationMilliseconds == 0 && request.FirstVoice == 0 && request.VoiceCount == 32 && request.BackendStatus == GlobalSoundBackendStatus.Muted, "ALLSEVOL lost its DWORD width, low-seven-bit input, immediate duration or original all32 voice range.");
                 JsonElement state = first.Capture();
                 Require(state.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "Frames" && first.Scene.SoundMusicVolume197 == 127 && first.Scene.SoundMusicVolume198 == 127, "ALLSEVOL consumed an extra operand, introduced an audio wait or overwrote music volume bytes.");
-                Require(first.Scene.GlobalSoundVoices.Count == (previousVoice ? 1 : 0) && first.Scene.GlobalSoundRequests.Count == (previousVoice ? 1 : 0) && (!previousVoice || first.Scene.GlobalSoundVoices[3].Volume == 20), "ALLSEVOL invented active voices or rewrote original sound attempt history.");
+                Require(first.Scene.GlobalSoundLatestAttempts.Count == (previousVoice ? 1 : 0) && first.Scene.GlobalSoundRequests.Count == (previousVoice ? 1 : 0) && (!previousVoice || first.Scene.GlobalSoundLatestAttempts[3].Volume == 20), "ALLSEVOL invented active voices or rewrote original sound attempt history.");
                 EventEngine restored = Create();
                 restored.Restore(state);
                 first.Step();

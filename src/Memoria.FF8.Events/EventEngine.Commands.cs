@@ -640,7 +640,7 @@ public sealed partial class EventEngine
                     throw Fault(fiber, "MOVIE has no preceding MOVIEREADY.");
                 }
                 movieProgressExpected = true;
-                StartNativeMovieActors();
+                StartNativeMovieActors(fiber);
                 break;
             case Jsm.Opcode.MOVIESYNC:
                 fiber.WaitReason = WaitReason.Movie;

@@ -18,7 +18,7 @@ public sealed partial class GameSession : IEventServices
 
     public static GameSession CreateColdProcess()
     {
-        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess() });
+        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess() });
     }
 
     public GameState State { get; private set; }
@@ -61,15 +61,15 @@ public sealed partial class GameSession : IEventServices
         {
             journal = journal.MarkUnavailable("Warm New Game preserves the native process clock and UI; the journal does not contain its earlier process history.");
         }
-        if (State.SeeD?.SalaryUiEnabled is not null)
-        {
-            journal = journal.MarkUnavailable("Warm New Game preserves the salary process UI; the journal does not contain its earlier setter history.");
-        }
         if (State.MessageVariables?.IsColdProcessBank != true)
         {
             journal = journal.MarkUnavailable("Warm New Game preserves the process message-variable bank; the journal lacks its preceding history.");
         }
-        Change(new GameState { MessageVariables = State.MessageVariables, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
+        if (State.GlobalSoundProcess?.IsColdProcess != true || State.SalaryPresentation?.IsColdProcess != true)
+        {
+            journal = journal.MarkUnavailable("Warm New Game preserves sound allocation and salary UI process history; the journal lacks its preceding producers.");
+        }
+        Change(new GameState { MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -183,7 +183,7 @@ public sealed partial class GameSession : IEventServices
         Change(State with { X = transition.X, Y = transition.Y, FieldArrival = transition });
     }
 
-    public void CommitPreparedWorldFieldEntry(GameState expectedDeparture, WorldState finalWorldState, FieldTransition transition, NativeSavedWorldFootReturn receipt, uint salaryMovementUnits, Action<GameState> validatePrepared)
+    public void CommitPreparedWorldFieldEntry(GameState expectedDeparture, WorldState finalWorldState, FieldTransition transition, NativeSavedWorldFootReturn receipt, NativeWorldSalaryState salary, Action<GameState> validatePrepared)
     {
         ArgumentNullException.ThrowIfNull(expectedDeparture);
         ArgumentNullException.ThrowIfNull(finalWorldState);
@@ -192,7 +192,7 @@ public sealed partial class GameSession : IEventServices
         ArgumentNullException.ThrowIfNull(validatePrepared);
         receipt.Validate();
         GameState departure = State;
-        if (!ReferenceEquals(departure, expectedDeparture))
+        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure))
         {
             throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
         }
@@ -232,8 +232,9 @@ public sealed partial class GameSession : IEventServices
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorldState),
-            SeeD = AdvanceWorldSeeD(departure, finalWorldState, salaryMovementUnits)
+            SeeD = salary.SeeD
         };
+        candidate = salary.ApplyTo(candidate, finalWorldState);
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))
@@ -292,16 +293,16 @@ public sealed partial class GameSession : IEventServices
         State = State with { World = state };
     }
 
-    public void CommitWorldAction(WorldState state, uint salaryMovementUnits)
+    public void CommitWorldAction(WorldState state, NativeWorldSalaryState salary)
     {
         ArgumentNullException.ThrowIfNull(state);
         GameState departure = State;
-        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld)
+        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || !ReferenceEquals(departure, salary.Departure))
         {
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         ValidatePreparedWorldActions(liveWorld, state);
-        GameState candidate = departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), WorldConfiguration = PrepareBoatWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state), SeeD = AdvanceWorldSeeD(departure, state, salaryMovementUnits) };
+        GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), WorldConfiguration = PrepareBoatWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) }, state);
         Validate(candidate);
         State = candidate;
     }
@@ -325,15 +326,27 @@ public sealed partial class GameSession : IEventServices
         State = State with { WorldControls = controls };
     }
 
-    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null)
+    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null)
     {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
         seeD?.Validate();
         timer?.Validate();
         characterVitals?.Validate();
+        economy?.Validate();
+        globalSoundProcess?.Validate();
+        salaryPresentation?.Validate();
+        if (seeD is not null || State.SeeD is not null)
+        {
+            ValidateSeeDAliases(State.Variables, State.NativeVariableValues);
+        }
         NativeCharacterVitals? nextVitals = characterVitals is null ? State.CharacterVitals : characterVitals.DeepCopy();
-        State = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals };
+        NativeEconomy? nextEconomy = economy is null ? State.Economy : economy.DeepCopy();
+        if (nextEconomy is not null && nextVitals is not null && nextEconomy.InitOutSha256 != nextVitals.InitOutSha256)
+        {
+            throw new InvalidDataException("Native economy and character owners have different initialization provenance.");
+        }
+        State = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation };
     }
 
     public void SetExamTimer(NativeExamTimerState timer)
@@ -474,6 +487,7 @@ public sealed partial class GameSession : IEventServices
         ValidateAllocatedWorldEntityCheckpoint(state, currentVm);
         ValidateCardInventoryCheckpoint(state, currentVm);
         ValidateEconomyCheckpoint(state, currentVm);
+        ValidatePresentationProcessCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -586,10 +600,16 @@ public sealed partial class GameSession : IEventServices
         state.WorldConfiguration?.Validate();
         state.ExamTimer?.Validate();
         state.SeeD?.Validate();
+        if (state.SeeD is not null)
+        {
+            ValidateSeeDAliases(state.Variables, state.NativeVariableValues);
+        }
         state.CharacterVitals?.Validate();
         state.CharacterAppearance?.Validate();
         state.CardInventory?.Validate();
         state.Economy?.Validate();
+        state.GlobalSoundProcess?.Validate();
+        state.SalaryPresentation?.Validate();
         if (state.Economy is not null)
         {
             ValidateEconomyAliases(state.Variables, state.NativeVariableValues);

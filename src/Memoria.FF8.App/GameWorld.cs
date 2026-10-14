@@ -21,6 +21,10 @@ internal sealed partial class GameWorld : IDisposable
         this.session = session;
         assets = new GameAssets(gameDirectory);
         bool initializedNativeParty = false;
+        if (session.State.SeeD is { SalaryTable: null } && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
+        }
         if (session.State.Economy is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
@@ -86,6 +90,7 @@ internal sealed partial class GameWorld : IDisposable
             }
             worldScene = new WorldMapScene(session, assets.GameDirectory);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
+            ConfigureWorldSalaryEffects(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)
             {
                 session.SetEventState(frozenDeparture);
@@ -171,6 +176,11 @@ internal sealed partial class GameWorld : IDisposable
         };
         Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
         NativeWorldControlState? sceneControls = restoreDeparting ? session.WorldControls : null;
+        NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
+        NativeSeeDState? sceneSeeD = restoreDeparting ? session.SeeD : null;
+        NativeEconomy? sceneEconomy = restoreDeparting ? session.Economy : null;
+        NativeGlobalSoundProcess? sceneSoundProcess = restoreDeparting ? session.GlobalSoundProcess : null;
+        NativeSalaryPresentation? sceneSalaryPresentation = restoreDeparting ? session.SalaryPresentation : null;
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
         if (next.Information is FieldInformation information)
         {
@@ -179,8 +189,6 @@ internal sealed partial class GameWorld : IDisposable
         }
         if (snapshot is System.Text.Json.JsonElement saved)
         {
-            NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
-            NativeSeeDState? sceneSeeD = restoreDeparting ? session.SeeD : null;
             Events.Restore(saved);
             if (sceneControls is not null)
             {
@@ -195,6 +203,18 @@ internal sealed partial class GameWorld : IDisposable
             if (sceneSeeD is not null)
             {
                 session.SetSeeD(sceneSeeD);
+            }
+            if (sceneEconomy is not null)
+            {
+                session.SetEconomy(sceneEconomy);
+            }
+            if (sceneSoundProcess is not null)
+            {
+                session.SetGlobalSoundProcess(sceneSoundProcess);
+            }
+            if (sceneSalaryPresentation is not null)
+            {
+                session.SetSalaryPresentation(sceneSalaryPresentation);
             }
         }
         Field = next;

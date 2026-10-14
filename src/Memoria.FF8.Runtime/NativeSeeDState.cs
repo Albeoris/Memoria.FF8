@@ -17,21 +17,30 @@ public sealed record NativeSeeDState
     public required bool? SalaryUiEnabled { get; init; }
     [JsonRequired]
     public required uint SalaryMovementCounter { get; init; }
+    [JsonRequired]
+    public required ushort KillBaseline18 { get; init; }
+    [JsonRequired]
+    public required ushort SalaryDisplayCountdown184 { get; init; }
+    [JsonRequired]
+    public required ushort PreviousRank186 { get; init; }
+    [JsonRequired]
+    public required NativeSalaryTable? SalaryTable { get; init; }
 
     public static NativeSeeDState CreateNewGame(NativeSeeDState? previousProcessState = null)
     {
         previousProcessState?.Validate();
         // 52CA90(1) clears248 event bytes, ORs DWORD104 with18 and writes WORD16=500.
-        // Its saved-state initialization does not call the process UI setter4B86C0.
-        return new NativeSeeDState { Version = 1, Rule = InitializationRule, RankPoints = 500, SalaryUiEnabled = previousProcessState?.SalaryUiEnabled, SalaryMovementCounter = 0 };
+        // Its final4B86C0((~DWORD104>>3)&1) writes process UIfalse for actual new flags18.
+        return new NativeSeeDState { Version = 1, Rule = InitializationRule, RankPoints = 500, SalaryUiEnabled = false, SalaryMovementCounter = 0, KillBaseline18 = 0, SalaryDisplayCountdown184 = 0, PreviousRank186 = 0, SalaryTable = previousProcessState?.SalaryTable };
     }
 
     public void Validate()
     {
-        if (Version != 1 || Rule != InitializationRule || SalaryMovementCounter >= 0x6000)
+        if (Version != 1 || Rule != InitializationRule)
         {
-            throw new InvalidDataException("Native SeeD state lacks its executed initialization or crosses the unsupported salary payment boundary.");
+            throw new InvalidDataException("Native SeeD state lacks its executed current initialization.");
         }
+        SalaryTable?.Validate();
     }
 
     public NativeSeeDState AddRankPoints(int rawOperand)
@@ -48,18 +57,33 @@ public sealed record NativeSeeDState
         return this with { SalaryUiEnabled = enabled };
     }
 
-    public NativeSeeDState WithMovementUnits(uint units, uint eventFlags104, bool dreamEnabled)
+    public int ReadEventWords(int address, int width)
+    {
+        ValidateEventWordRange(address, width);
+        uint words = address < 12 ? SalaryMovementCounter : address < 20 ? RankPoints | (uint)KillBaseline18 << 16 : SalaryDisplayCountdown184 | (uint)PreviousRank186 << 16;
+        int start = address < 12 ? 8 : address < 20 ? 16 : 184;
+        uint mask = width == 4 ? uint.MaxValue : (1u << (8 * width)) - 1;
+        return unchecked((int)((words >> (8 * (address - start))) & mask));
+    }
+
+    public NativeSeeDState WriteEventWords(int address, int width, int value)
+    {
+        ValidateEventWordRange(address, width);
+        int start = address < 12 ? 8 : address < 20 ? 16 : 184;
+        int shift = 8 * (address - start);
+        uint mask = width == 4 ? uint.MaxValue : ((1u << (8 * width)) - 1) << shift;
+        uint words = start == 8 ? SalaryMovementCounter : start == 16 ? RankPoints | (uint)KillBaseline18 << 16 : SalaryDisplayCountdown184 | (uint)PreviousRank186 << 16;
+        words = (words & ~mask) | ((unchecked((uint)value) << shift) & mask);
+        return start == 8 ? this with { SalaryMovementCounter = words } : start == 16 ? this with { RankPoints = unchecked((ushort)words), KillBaseline18 = (ushort)(words >> 16) } : this with { SalaryDisplayCountdown184 = unchecked((ushort)words), PreviousRank186 = (ushort)(words >> 16) };
+    }
+
+    private void ValidateEventWordRange(int address, int width)
     {
         Validate();
-        if ((eventFlags104 & 8) != 0 || dreamEnabled)
+        if (width is not (1 or 2 or 4) || !(address >= 8 && (long)address + width <= 12 || address >= 16 && (long)address + width <= 20 || address >= 184 && (long)address + width <= 188))
         {
-            return this;
+            throw new NotSupportedException("SeeD projection cannot consume surrounding unknown native event-bank bytes.");
         }
-        uint counter = unchecked(SalaryMovementCounter + units);
-        if (counter >= 0x6000)
-        {
-            throw new NotSupportedException("Native salary movement counter reached52B140: payment requires actual character kill totals, baseline WORD18, gil and salary UI history.");
-        }
-        return this with { SalaryMovementCounter = counter, RankPoints = (ushort)Math.Clamp((int)unchecked((short)RankPoints), 100, 3100) };
     }
+
 }

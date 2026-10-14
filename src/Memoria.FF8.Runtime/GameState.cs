@@ -44,6 +44,10 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCardInventory? CardInventory { get; init; }
     public NativeEconomy? Economy { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeGlobalSoundProcess? GlobalSoundProcess { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeSalaryPresentation? SalaryPresentation { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeSeeDState? SeeD { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
@@ -96,6 +100,18 @@ public interface IEventServices
     NativeCharacterAppearance? CharacterAppearance => null;
     NativeCardInventory? CardInventory => null;
     NativeEconomy? Economy => null;
+    NativeGlobalSoundProcess? GlobalSoundProcess => null;
+    bool CanStoreGlobalSoundProcess => false;
+    void SetGlobalSoundProcess(NativeGlobalSoundProcess state)
+    {
+        throw new NotSupportedException("Native global sound process ownership is not implemented by this event service.");
+    }
+    NativeSalaryPresentation? SalaryPresentation => null;
+    bool CanStoreSalaryPresentation => false;
+    void SetSalaryPresentation(NativeSalaryPresentation state)
+    {
+        throw new NotSupportedException("Native salary presentation process ownership is not implemented by this event service.");
+    }
     bool CanStoreEconomy => false;
     void SetEconomy(NativeEconomy economy)
     {
@@ -132,7 +148,7 @@ public interface IEventServices
     }
     NativeWorldControlState? WorldControls => null;
     bool CanStoreNativeEventOwners => false;
-    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null)
+    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null)
     {
         throw new NotSupportedException("Atomic native event-owner publication is not implemented by this service.");
     }

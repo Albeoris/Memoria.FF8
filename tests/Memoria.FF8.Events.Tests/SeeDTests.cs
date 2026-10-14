@@ -10,10 +10,19 @@ internal static partial class Program
 {
     private static void NativeSeeDContract(string gameDirectory)
     {
-        using (GameAssets assets = new(gameDirectory))
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy initialEconomy = assets.ReadNewGameEconomy();
+        NativeSalaryTable table = assets.ReadNativeSalaryTable();
         {
             JsmProgram original = JsmProgram.Read(assets.LoadField(223).Jsm);
             Require(original.Operations[400].Opcode == Jsm.Opcode.PSHSM_B && original.Operations[400].Parameter == 1024 && original.Operations[401].Opcode == Jsm.Opcode.ADDSEEDLEVEL && original.Operations[431].Opcode == Jsm.Opcode.PSHSM_W && original.Operations[431].Parameter == 16 && original.Operations[507].Opcode == Jsm.Opcode.SARALYON, "Original223 rank, signedWORD projection or salary enable instruction changed.");
+        }
+        void Initialize(GameSession session)
+        {
+            session.InitializeNewGameCharacterVitals(initialVitals.DeepCopy());
+            session.InitializeNewGameEconomy(initialEconomy.DeepCopy());
+            session.InitializeNewGameSalaryTable(table);
         }
         (GameSession Session, EventEngine Engine) Create(ushort initial, int operand, bool nativeState = true)
         {
@@ -21,6 +30,7 @@ internal static partial class Program
             if (nativeState)
             {
                 session.StartNewGame();
+                Initialize(session);
             }
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, initial), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.PSHM_W, 16), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -47,7 +57,8 @@ internal static partial class Program
         }
         GameSession flags = GameSession.CreateColdProcess();
         flags.StartNewGame();
-        Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: null, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true } && flags.ReplayJournal!.IsComplete, "Executed New Game did not establish native500/mask18/zero movement without inferring process salary UI.");
+        Initialize(flags);
+        Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true } && flags.ReplayJournal!.IsComplete, "Executed New Game did not establish native500/mask18/zero movement and actual52CA90 process UIfalse.");
         Require(flags.SeeD!.AddRankPoints(int.MaxValue).RankPoints == 499 && flags.SeeD.AddRankPoints(int.MinValue).RankPoints == 500, "SeeD full DWORD arithmetic narrowed or overflowed before the native WORD destination.");
         EventEngine projected = new(flags, flags.State.Variables);
         projected.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65530), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHSM_W, 16), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHM_B, 16), (Jsm.Opcode.POPM_W, 5002), (Jsm.Opcode.PSHSM_B, 16), (Jsm.Opcode.POPM_L, 5003), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.POPM_B, 17), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 16), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -67,30 +78,23 @@ internal static partial class Program
         GameState beforeAtomic = flags.State;
         try
         {
-            flags.SetNativeEventOwners(flags.WorldControls!.WithSalaryEnabled(true), flags.SeeD! with { SalaryMovementCounter = 0x6000 });
+            flags.SetNativeEventOwners(flags.WorldControls!.WithSalaryEnabled(true), flags.SeeD! with { Version = -1 });
             throw new InvalidOperationException("Invalid composite event owners silently committed.");
         }
         catch (InvalidDataException)
         {
             Require(ReferenceEquals(beforeAtomic, flags.State), "Composite event owner validation partially wrote DWORD104 before rejecting the salary state.");
         }
-        NativeSeeDState moving = flags.SeeD!.WithMovementUnits(0x5FFF, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104, false);
-        Require(moving.SalaryMovementCounter == 0x5FFF && moving.WithMovementUnits(5, flags.WorldControls!.EventFlags104, false).SalaryMovementCounter == 0x5FFF, "Salary movement counter lost its exact native DWORD or disabled hold.");
-        Require(ReferenceEquals(moving, moving.WithMovementUnits(5, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104, true)), "Dream callbacks changed normal salary rank or movement counter.");
-        try
-        {
-            _ = moving.WithMovementUnits(1, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104, false);
-            throw new InvalidOperationException("Salary payment silently passed its native unsupported boundary.");
-        }
-        catch (NotSupportedException)
-        {
-            Require(moving.SalaryMovementCounter == 0x5FFF, "Unsupported salary payment modified its source counter.");
-        }
+        NativeSalaryResult moving = NativeSalaryCalculator.Sample(flags.SeeD!, flags.Economy, flags.CharacterVitals, 0x5FFF, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104);
+        Require(moving.SeeD.SalaryMovementCounter == 0x5FFF && NativeSalaryCalculator.Sample(moving.SeeD, moving.Economy, flags.CharacterVitals, 5, flags.WorldControls.EventFlags104).SeeD.SalaryMovementCounter == 0x5FFF, "Salary movement counter lost its exact native DWORD or disabled hold.");
+        Require(NativeSalaryCalculator.Sample(moving.SeeD, moving.Economy, flags.CharacterVitals! with { DreamEnabled = true }, 5, flags.WorldControls.WithSalaryEnabled(true).EventFlags104).SeeD == moving.SeeD, "Dream callbacks changed normal salary rank or movement counter.");
+        NativeSalaryResult payment = NativeSalaryCalculator.Sample(moving.SeeD, moving.Economy, flags.CharacterVitals, 1, flags.WorldControls.WithSalaryEnabled(true).EventFlags104);
+        Require(payment.SeeD.SalaryMovementCounter == 0 && payment.Economy!.Gil > moving.Economy!.Gil && moving.SeeD.SalaryMovementCounter == 0x5FFF, "Salary payout did not replace the obsolete refusal or changed its prospective source.");
         GameSession warm = GameSession.CreateColdProcess();
         warm.StartNewGame();
         warm.SetNativeEventOwners(warm.WorldControls!.WithSalaryEnabled(true), warm.SeeD!.WithSalaryUiEnabled(true));
         warm.StartNewGame();
-        Require(warm.SeeD is { RankPoints: 500, SalaryUiEnabled: true, SalaryMovementCounter: 0 } && warm.WorldControls!.SalarySuppressed && warm.ExamTimer!.ClockCalls == 0 && !warm.ReplayJournal!.IsComplete, "Warm New Game reset process salary UI or published an unsupported fresh journal root.");
+        Require(warm.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && warm.WorldControls!.SalarySuppressed && warm.ExamTimer!.ClockCalls == 0 && !warm.ReplayJournal!.IsComplete, "Warm New Game omitted52CA90 UIfalse or published a root without earlier process history.");
         var missing = Create(500, 80, false);
         try
         {
