@@ -130,6 +130,10 @@ internal sealed partial class RecreateGame
             }
             if (drainUiButtons && (keyboard.HeldFieldButtons & 0xF0) != 0)
             {
+                if (events?.PartyMenu is not null)
+                {
+                    UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene), default);
+                }
                 return true;
             }
             drainUiButtons = false;

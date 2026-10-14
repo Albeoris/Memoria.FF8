@@ -36,11 +36,21 @@ internal sealed class ControlQueue
         string output = Path.Combine(root, "responses", name);
         if (!File.Exists(output))
         {
+            string payload;
+            try
+            {
+                payload = File.ReadAllText(path);
+            }
+            catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
+            {
+                // The published request remains pending; nothing has been dispatched.
+                return;
+            }
             string id = Path.GetFileNameWithoutExtension(path);
             object response;
             try
             {
-                ControlRequest request = JsonSerializer.Deserialize<ControlRequest>(File.ReadAllText(path), Options) ?? throw new InvalidDataException("Empty command request.");
+                ControlRequest request = JsonSerializer.Deserialize<ControlRequest>(payload, Options) ?? throw new InvalidDataException("Empty command request.");
                 id = request.Id;
                 response = new { Id = id, Ok = true, Result = dispatch(request) };
             }

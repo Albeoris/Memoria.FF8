@@ -5,6 +5,36 @@ namespace Memoria.FF8.App.Tests;
 public sealed class ControlQueueTests
 {
     [Fact]
+    public void Locked_published_request_stays_pending_and_dispatches_once_after_release()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "memoria-queue-lock-" + Guid.NewGuid().ToString("N"));
+        int calls = 0;
+        var queue = new ControlQueue(root, request => ++calls);
+        string published = Path.Combine(root, "requests", "locked.json");
+        string response = Path.Combine(root, "responses", "locked.json");
+        try
+        {
+            File.WriteAllText(published, "{\"Id\":\"locked\",\"Command\":\"status\"}");
+            using (FileStream locked = new(published, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                queue.Poll();
+                Assert.Equal(0, calls);
+                Assert.True(File.Exists(published));
+                Assert.False(File.Exists(response));
+            }
+            queue.Poll();
+            queue.Poll();
+            Assert.Equal(1, calls);
+            Assert.True(File.Exists(response));
+            Assert.False(File.Exists(published));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void Queue_waits_for_atomic_publication_returns_errors_and_preserves_idempotent_responses()
     {
         string root = Path.Combine(Path.GetTempPath(), "memoria-queue-" + Guid.NewGuid().ToString("N"));

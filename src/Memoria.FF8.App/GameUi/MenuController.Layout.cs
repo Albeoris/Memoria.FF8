@@ -77,6 +77,8 @@ public sealed partial class MenuController
         foreach (MenuCharacter character in reserves)
         {
             var row = Grid([1, 1], [1], 2);
+            row.Height = 54 * TextScale;
+            row.VerticalAlignment = UiAlignment.Start;
             Place(row, Label(character.Name, 21), 0);
             Place(row, Label($"Lv {Number(character.Level)}  HP {Hp(character)}", 17), 1);
             reserveGrid.Children.Add(row);
