@@ -13,7 +13,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
-        Require(initial.Records.All(record => record.Junction.GuardianForces == 0 && record.Junction.MagicJunctions.All(value => value == 0) && record.Junction.UnjunctionedMaximumHitPoints > 0), "Authentic New Game did not initialize each saved character's original junction/maximum HP fields.");
+        Require(initial.Records.All(record => record.Junction.GuardianForces == 0 && record.Junction.MagicJunctions.All(value => value == 0) && initial.Definitions.CharacterMaximum(record) > 0), "Authentic New Game did not initialize each saved character's original junction/maximum HP fields.");
         NativeCharacterVital[] records = initial.Records.ToArray();
         records[6] = records[6] with { HitPoints = new NativeHpWord(0, 0), Status = 0xFFFF, Junction = records[6].Junction with { GuardianForces = 0x8003, Commands = 0x12345678, Abilities = 0x87654321, MagicJunctions = Enumerable.Range(1, 20).Select(value => (byte)value).ToArray() } };
         NativeCharacterVitals source = initial with { Records = records, CombatParty = [0, 6, 3] };
@@ -28,7 +28,7 @@ internal static partial class Program
         }
         (GameSession session, EventEngine engine) = Create(source);
         engine.Step();
-        Require(engine.Scene.AcquiredGuardianForces.SetEquals([0]), "Native naming did not establish the separate positive GF acquisition before reset.");
+        Require(engine.AcquiredGuardianForces!.SetEquals([0]), "Native naming did not establish the separate positive GF acquisition before reset.");
         int executions = 0;
         engine.CommandExecuted += command =>
         {
@@ -41,9 +41,9 @@ internal static partial class Program
         engine.Step();
         NativeCharacterVitals reset = session.CharacterVitals!;
         NativeCharacterVital selected = reset.Records[6];
-        ushort maximum = source.Records[6].Junction.UnjunctionedMaximumHitPoints;
+        ushort maximum = source.Definitions.CharacterMaximum(source.Records[6] with { Junction = source.Records[6].Junction.Reset() });
         Require(executions == 1 && selected.HitPoints == new NativeHpWord(maximum, maximum) && selected.Status == 0x0080 && selected.Junction.GuardianForces == 0 && selected.Junction.Commands == 0 && selected.Junction.Abilities == 0 && selected.Junction.MagicJunctions.All(value => value == 0) && !selected.Junction.GuardianForceAssignments.Any(), "RESETGF did not clear GF/command/passive/magic junctions, heal to the native unjunctioned maximum and retain only status bit0080.");
-        Require(reset.CombatParty.SequenceEqual(source.CombatParty) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(reset.Records[7]), JsonSerializer.SerializeToElement(source.Records[7])) && source.Records[6].Junction.GuardianForces == 0x8003 && source.Records[6].Junction.MagicJunctions[0] == 1 && engine.Scene.AcquiredGuardianForces.SetEquals([0]) && session.State.Variables[1100] == 57, "Reset lost original combat slots/acquisition, mutated its source or failed to continue through DYING and the successor in the same VM callback.");
+        Require(reset.CombatParty.SequenceEqual(source.CombatParty) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(reset.Records[7]), JsonSerializer.SerializeToElement(source.Records[7])) && source.Records[6].Junction.GuardianForces == 0x8003 && source.Records[6].Junction.MagicJunctions[0] == 1 && engine.AcquiredGuardianForces!.SetEquals([0]) && session.State.Variables[1100] == 57, "Reset lost original combat slots/acquisition, mutated its source or failed to continue through DYING and the successor in the same VM callback.");
         JsonElement checkpoint = engine.Capture();
         (GameSession copySession, EventEngine copy) = Create(initial);
         copy.Restore(checkpoint);
@@ -76,12 +76,12 @@ internal static partial class Program
         copy.Step();
         Require(JsonElement.DeepEquals(engine.Capture(), copy.Capture()), "Ordinary successor wait diverged after RESETGF restore.");
         engine.LoadField(324, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
-        Require(engine.Scene.AcquiredGuardianForces.SetEquals([0]) && session.CharacterVitals!.Records[6].Junction.GuardianForces == 0 && session.CharacterVitals.Records[6].HitPoints == new NativeHpWord(maximum, maximum), "Field loading lost persistent GF acquisition or reset junction/HP state.");
+        Require(engine.AcquiredGuardianForces!.SetEquals([0]) && session.CharacterVitals!.Records[6].Junction.GuardianForces == 0 && session.CharacterVitals.Records[6].HitPoints == new NativeHpWord(maximum, maximum), "Field loading lost persistent GF acquisition or reset junction/HP state.");
 
         foreach (int raw in new[] { -1, 8, 255, 264 })
         {
             NativeCharacterVitals unmapped = source.ResetGuardianForces(raw);
-            Require(unmapped.Records[7].HitPoints == new NativeHpWord(source.Records[7].Junction.UnjunctionedMaximumHitPoints, source.Records[7].Junction.UnjunctionedMaximumHitPoints) && unmapped.Records[6].Junction.GuardianForces == 0x8003 && unmapped.CombatParty.SequenceEqual(source.CombatParty), "Native unmapped low-BYTE identity did not returnFF, zero-extend and clamp to record7.");
+            Require(unmapped.Records[7].HitPoints == new NativeHpWord(source.Definitions.CharacterMaximum(source.Records[7] with { Junction = source.Records[7].Junction.Reset() }), source.Definitions.CharacterMaximum(source.Records[7] with { Junction = source.Records[7].Junction.Reset() })) && unmapped.Records[6].Junction.GuardianForces == 0x8003 && unmapped.CombatParty.SequenceEqual(source.CombatParty), "Native unmapped low-BYTE identity did not returnFF, zero-extend and clamp to record7.");
         }
         NativeCharacterVitals lowByte = source.ResetGuardianForces(256 + 6);
         Require(lowByte.Records[6].Junction.GuardianForces == 0 && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(lowByte.Records[7]), JsonSerializer.SerializeToElement(source.Records[7])), "RESETGF did not use the native low-BYTE identity lookup.");

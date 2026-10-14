@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-/// <summary>Native event WORD16 and salary masks, created only by the executed New Game initialization.</summary>
+/// <summary>Native rank WORD16, salary counter and process salary UI; event flags live in the single DWORD104 owner.</summary>
 public sealed record NativeSeeDState
 {
     public const string InitializationRule = "ff8-en-newgame-52ca90-seed-word16-500-salary18-v1";
@@ -14,10 +14,6 @@ public sealed record NativeSeeDState
     [JsonRequired]
     public required ushort RankPoints { get; init; }
     [JsonRequired]
-    public required bool SalarySuppressed { get; init; }
-    [JsonRequired]
-    public required bool SalaryDisplaySuppressed { get; init; }
-    [JsonRequired]
     public required bool? SalaryUiEnabled { get; init; }
     [JsonRequired]
     public required uint SalaryMovementCounter { get; init; }
@@ -27,7 +23,7 @@ public sealed record NativeSeeDState
         previousProcessState?.Validate();
         // 52CA90(1) clears248 event bytes, ORs DWORD104 with18 and writes WORD16=500.
         // Its saved-state initialization does not call the process UI setter4B86C0.
-        return new NativeSeeDState { Version = 1, Rule = InitializationRule, RankPoints = 500, SalarySuppressed = true, SalaryDisplaySuppressed = true, SalaryUiEnabled = previousProcessState?.SalaryUiEnabled, SalaryMovementCounter = 0 };
+        return new NativeSeeDState { Version = 1, Rule = InitializationRule, RankPoints = 500, SalaryUiEnabled = previousProcessState?.SalaryUiEnabled, SalaryMovementCounter = 0 };
     }
 
     public void Validate()
@@ -45,24 +41,17 @@ public sealed record NativeSeeDState
         return this with { RankPoints = (ushort)Math.Clamp((int)wrapped, 100, 3100) };
     }
 
-    public NativeSeeDState WithSalaryEnabled(bool enabled)
+    public NativeSeeDState WithSalaryUiEnabled(bool enabled)
     {
         Validate();
-        // 51DB90/51DBC0 write both mask8 and mask10, then4B86C0 writes the UI BYTE.
-        return this with { SalarySuppressed = !enabled, SalaryDisplaySuppressed = !enabled, SalaryUiEnabled = enabled };
+        // Native4B86C0 writes the process UI BYTE; DWORD104 has a separate canonical owner.
+        return this with { SalaryUiEnabled = enabled };
     }
 
-    public NativeSeeDState WithSalaryDisplayEnabled(bool enabled)
+    public NativeSeeDState WithMovementUnits(uint units, uint eventFlags104, bool dreamEnabled)
     {
         Validate();
-        // 51DBF0/51DC10 alter mask10 only; they do not invoke4B86C0.
-        return this with { SalaryDisplaySuppressed = !enabled };
-    }
-
-    public NativeSeeDState WithMovementUnits(uint units)
-    {
-        Validate();
-        if (SalarySuppressed)
+        if ((eventFlags104 & 8) != 0 || dreamEnabled)
         {
             return this;
         }

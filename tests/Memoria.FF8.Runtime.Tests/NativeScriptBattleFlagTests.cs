@@ -15,13 +15,11 @@ public sealed class NativeScriptBattleFlagTests
     }
 
     [Fact]
-    public void Omitted_historical_bit_requires_recreation()
+    public void Missing_current_event_word_requires_recreation()
     {
         JsonNode original = JsonNode.Parse(JsonSerializer.Serialize(NativeWorldControlState.CreateNewGame()))!;
-        original.AsObject().Remove(nameof(NativeWorldControlState.ScriptBattleDisabled20));
+        original.AsObject().Remove(nameof(NativeWorldControlState.EventFlags104));
         Assert.Throws<JsonException>(() => original.Deserialize<NativeWorldControlState>());
-        NativeWorldControlState unknown = NativeWorldControlState.CreateNewGame() with { ScriptBattleDisabled20 = null };
-        Assert.Throws<InvalidDataException>(unknown.Validate);
-        Assert.Throws<InvalidDataException>(() => unknown.WithNormalFieldLoad());
+        Assert.DoesNotContain(nameof(NativeWorldControlState.ScriptBattleDisabled20), JsonSerializer.Serialize(NativeWorldControlState.CreateNewGame()));
     }
 }

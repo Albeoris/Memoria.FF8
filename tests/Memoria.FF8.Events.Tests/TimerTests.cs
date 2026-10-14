@@ -10,11 +10,13 @@ internal static partial class Program
     private static void NativeExamTimerContract()
     {
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
+        const uint unrelatedFlags = 0xA500023F;
+        GameSession session = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = unrelatedFlags }, ExamTimer = NativeExamTimerState.FromReachedSet(0) });
         EventEngine first = new(session, session.State.Variables);
         first.LoadField(100, content, []);
         first.Step();
         Require(first.ExamTimer is { ClockCalls: 2, DisplayX: 250, DisplayY: 10, DisplayEnabled: true } && first.ExamTimer.RequireRemaining() == 600, "SET/DISP reset unknown phase, lost unsigned screen coordinates or discarded a pre-SET clock.");
+        Require(session.WorldControls!.EventFlags104 == (unrelatedFlags | 0x40u), "DISPTIMER overwrote unrelated guest, salary, battle or source bits.");
         first.Step();
         Require(first.ExamTimer!.ClockCalls == 4 && first.ExamTimer.Alternatives.Any(item => item.Remaining == 599) && first.ExamTimer.Alternatives.Any(item => item.Remaining == 600), "Field clock did not preserve correlated remaining alternatives after two pre-VM native calls.");
         GameSession independentSession = new(new GameState());
@@ -27,14 +29,15 @@ internal static partial class Program
             resumed.Step();
             Require(JsonElement.DeepEquals(first.Capture(), resumed.Capture()), "Timer interval correlations diverged after independent VM-only restore.");
         }
-        Require(first.ExamTimer is { DisplayEnabled: false, Event104Mask40: false, Event182Mask4: false, SaveGlobalMask4: false } && first.ExamTimer.Alternatives.All(item => item.Remaining > 0), "KILLTIMER erased the remaining clock or failed to clear only timer display masks.");
+        Require(first.ExamTimer is { DisplayEnabled: false, Event182Mask4: false, SaveGlobalMask4: false } && (session.WorldControls!.EventFlags104 & 0x40) == 0 && first.ExamTimer.Alternatives.All(item => item.Remaining > 0), "KILLTIMER erased the remaining clock or failed to clear only timer display masks.");
+        Require(session.WorldControls!.EventFlags104 == unrelatedFlags, "KILLTIMER did not preserve every other DWORD104 bit.");
         long beforeLoadCalls = first.ExamTimer.ClockCalls;
         first.LoadField(101, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
         first.Step();
         Require(first.ExamTimer.ClockCalls == beforeLoadCalls + 2 && !first.ExamTimer.DisplayEnabled, "Normal field load reset native timer phase or display state.");
 
         byte[] ambiguousGet = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession uncertainSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
+        GameSession uncertainSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromReachedSet(0) });
         EventEngine uncertain = new(uncertainSession, uncertainSession.State.Variables);
         uncertain.LoadField(100, ambiguousGet, []);
         uncertain.Step();
@@ -43,20 +46,20 @@ internal static partial class Program
         Require(completedRead.GetProperty("Complete").GetBoolean() && completedRead.GetProperty("Results").GetProperty("0").GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([599, 600]), "GETTIMER did not retain both native results from its unknown historical phase.");
 
         NativeExamTimerState exact = NativeExamTimerState.FromReachedSet(5) with { Alternatives = [new NativeTimerAlternative(131071, 131071, 5)] };
-        GameSession exactSession = new(new GameState { ExamTimer = exact });
+        GameSession exactSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = exact });
         EventEngine exactEngine = new(exactSession, exactSession.State.Variables);
         exactEngine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.RET, 0)), []);
         exactEngine.Step();
         Require(exactEngine.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 4, "GETTIMER did not observe clock calls before VM dispatch.");
 
         NativeExamTimerState expired = NativeExamTimerState.FromReachedSet(0).Display(250, 10) with { Event183Mask1 = false };
-        GameSession killSession = new(new GameState { ExamTimer = expired });
+        GameSession killSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x58 }, ExamTimer = expired });
         EventEngine kill = new(killSession, killSession.State.Variables);
         kill.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0)), []);
         kill.Step();
-        Require(kill.ExamTimer is { Event104Mask40: false } && killSession.State.FieldId == 74, "Expiry ran before same-frame native KILLTIMER.");
+        Require((killSession.WorldControls!.EventFlags104 & 0x40) == 0 && killSession.State.FieldId == 74, "Expiry ran before same-frame native KILLTIMER.");
 
-        GameSession boundarySession = new(new GameState { ExamTimer = expired });
+        GameSession boundarySession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x58 }, ExamTimer = expired });
         EventEngine boundary = new(boundarySession, boundarySession.State.Variables);
         boundary.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
         try
@@ -69,7 +72,7 @@ internal static partial class Program
         }
         Require(boundarySession.State.FieldArrival is null, "Unsupported timer expiry published a guessed arrival.");
 
-        GameSession aliasSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10) });
+        GameSession aliasSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10) });
         EventEngine alias = new(aliasSession, aliasSession.State.Variables);
         alias.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 205), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.RET, 0)), []);
         try
@@ -81,7 +84,7 @@ internal static partial class Program
         {
         }
         Require(alias.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1, "Unproved timer memory alias advanced its issuing PC.");
-        GameSession movieSession = new(new GameState { Scene = SceneKind.Field, ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay() });
+        GameSession movieSession = new(new GameState { Scene = SceneKind.Field, WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay() });
         EventEngine movie = new(movieSession, movieSession.State.Variables);
         movie.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         movie.Step();

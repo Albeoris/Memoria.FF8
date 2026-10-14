@@ -17,24 +17,29 @@ public sealed partial class EventEngine
             state.Validate();
             return state.CombatParty.Where(slot => slot != 255).Any(slot => !state.Records[slot].HitPoints.IsZero && !state.Records[slot].HitPoints.IsPositive) ? "DYING has both zero and positive HP alternatives; native branch cannot be selected" : null;
         }
-        if (state is null || operation.Opcode is not (Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY))
+        if (operation.Opcode is not (Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY))
         {
             return null;
         }
+        if (state is null)
+        {
+            return "Native party changes require authentic saved character rows and combat slots";
+        }
         state.Validate();
-        if (state.JunctionResetEnabled)
+        if (state.DreamEnabled)
         {
             return "Native party changes with junction-reset flag1CFE978 mask10000 require the actual junction/stat contract";
+        }
+        int count = operation.Opcode == Jsm.Opcode.SETPARTY ? 3 : 1;
+        if (fiber.Stack.Count < count || fiber.Stack.Capture().Take(count).Any(value => !value.IsExact))
+        {
+            return "Native party changes require their complete exact DWORD operands";
         }
         if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && (fiber.Stack.Peek() is < 0 or >= 8 || !state.Records.Any(record => record.CharacterId == fiber.Stack.Peek())))
         {
             return "ADDPARTY has no proved native saved character mapping for its original operand";
         }
-        if (state.Records.Any(record => !record.HitPoints.IsZero && !record.HitPoints.IsPositive))
-        {
-            return "Native party stat/HP repair contains zero and positive alternatives; original branch is unresolved";
-        }
-        if (operation.Opcode == Jsm.Opcode.SETPARTY && fiber.Stack.Count >= 3 && fiber.Stack.Take(3).Any(character => character != 255 && character is < 0 or >= 8))
+        if (operation.Opcode == Jsm.Opcode.SETPARTY && fiber.Stack.Take(3).Any(character => unchecked((byte)character) != 255 && unchecked((byte)character) >= 8))
         {
             return "SETPARTY guest-character combat mapping requires its original saved-record identity contract";
         }
@@ -42,40 +47,97 @@ public sealed partial class EventEngine
         {
             return "ADDPARTY has no original empty combat slot; native overflow branch is unsupported";
         }
+        if (operation.Opcode == Jsm.Opcode.ADDPARTY)
+        {
+            if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact)
+            {
+                return "ADDPARTY requires its exact original character DWORD";
+            }
+            if (!Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())))
+            {
+                try
+                {
+                    _ = PrepareAddedPartyCharacter(fiber.Stack.Peek(), Scene.Party.Contains(255));
+                }
+                catch (NotSupportedException exception)
+                {
+                    return exception.Message;
+                }
+            }
+        }
+        else
+        {
+            try
+            {
+                _ = operation.Opcode == Jsm.Opcode.SETPARTY ? PrepareSetCombatParty(fiber.Stack.Take(3).Reverse().ToArray()) : PrepareRemovedCombatCharacter(unchecked((byte)fiber.Stack.Peek()));
+            }
+            catch (NotSupportedException exception)
+            {
+                return exception.Message;
+            }
+        }
         return null;
     }
 
-    private void AddCombatPartyCharacter(int character)
+    private NativeCharacterVitals PrepareAddedPartyCharacter(int character, bool insert)
     {
-        if (services.CharacterVitals is not NativeCharacterVitals state)
-        {
-            return;
-        }
+        NativeCharacterVitals state = services.CharacterVitals!;
         byte[] slots = state.CombatParty.ToArray();
-        slots[Array.IndexOf(slots, (byte)255)] = checked((byte)Array.FindIndex(state.Records, record => record.CharacterId == character));
-        services.SetCharacterVitals((state with { CombatParty = slots }).RebuildParty());
-    }
-
-    private void SetCombatParty(int[] fieldParty)
-    {
-        if (services.CharacterVitals is NativeCharacterVitals state)
+        if (insert)
         {
-            // Original51E400 writes combat slots in field order1,0,2.
-            services.SetCharacterVitals((state with { CombatParty = [(byte)fieldParty[1], (byte)fieldParty[0], (byte)fieldParty[2]] }).RebuildParty().RepairDyingParty());
-        }
-    }
-
-    private void RemoveCombatPartyCharacter(byte character)
-    {
-        if (services.CharacterVitals is NativeCharacterVitals state)
-        {
-            byte[] slots = state.CombatParty.ToArray();
-            int slot = Array.FindIndex(slots, index => index != 255 && state.Records[index].CharacterId == character);
-            if (slot >= 0)
+            int empty = Array.IndexOf(slots, (byte)255);
+            int row = Array.FindIndex(state.Records, record => record.CharacterId == unchecked((byte)character));
+            if (empty < 0 || row < 0)
             {
-                slots[slot] = 255;
+                throw new NotSupportedException("ADDPARTY insertion requires its native empty combat slot and actual identity lookup.");
             }
-            services.SetCharacterVitals((state with { CombatParty = slots }).RebuildParty().RepairDyingParty());
+            slots[empty] = (byte)row;
         }
+        // Native51E160 performs membership and rebuild even with a full field
+        // party, provided the requested character was not already present.
+        return (state.WithPartyMemberFlags(character) with { CombatParty = slots }).RebuildParty();
+    }
+
+    private int[] ExecuteAddPartyCharacter(Fiber fiber)
+    {
+        int character = fiber.Stack.Peek();
+        if (!Scene.Party.Contains(unchecked((byte)character)))
+        {
+            int empty = Scene.Party.IndexOf(255);
+            CommitSavedCharacters(fiber, PrepareAddedPartyCharacter(character, empty >= 0), Jsm.Opcode.ADDPARTY);
+            if (empty >= 0)
+            {
+                Scene.Party[empty] = unchecked((byte)character);
+            }
+        }
+        return Pop(fiber, 1);
+    }
+
+    private NativeCharacterVitals PrepareSetCombatParty(int[] fieldParty)
+    {
+        NativeCharacterVitals state = services.CharacterVitals!;
+        // Original51E400 writes combat slots in field order1,0,2, using BYTEs.
+        return (state with { CombatParty = [unchecked((byte)fieldParty[1]), unchecked((byte)fieldParty[0]), unchecked((byte)fieldParty[2])] }).RebuildParty().RepairDyingParty();
+    }
+
+    private int[] ExecuteSetParty(Fiber fiber)
+    {
+        int[] operands = fiber.Stack.Take(3).Reverse().ToArray();
+        CommitSavedCharacters(fiber, PrepareSetCombatParty(operands), Jsm.Opcode.SETPARTY);
+        Scene.Party.Clear();
+        Scene.Party.AddRange(operands.Select(character => (int)unchecked((byte)character)));
+        return Pop(fiber, 3);
+    }
+
+    private NativeCharacterVitals PrepareRemovedCombatCharacter(byte character)
+    {
+        NativeCharacterVitals state = services.CharacterVitals!;
+        byte[] slots = state.CombatParty.ToArray();
+        int slot = Array.FindIndex(slots, index => index != 255 && state.Records[index].CharacterId == character);
+        if (slot >= 0)
+        {
+            slots[slot] = 255;
+        }
+        return (state with { CombatParty = slots }).RebuildParty().RepairDyingParty();
     }
 }

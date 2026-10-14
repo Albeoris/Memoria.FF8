@@ -244,7 +244,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 salaryMovementUnits = checked(salaryMovementUnits + movementUnits);
                 if (candidate.NativeBoatRuntime is null)
                 {
-                    candidateSeeD = candidateSeeD?.WithMovementUnits(movementUnits);
+                    candidateSeeD = GameSession.SampleWorldSeeD(session.State, candidateSeeD, movementUnits);
                 }
                 navigation.Add(proposal);
                 advanced++;

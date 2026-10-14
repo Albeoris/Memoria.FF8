@@ -46,7 +46,9 @@ public sealed class NativeFootGroundTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        session.SetSeeD(session.SeeD!.WithSalaryEnabled(true));
+        using GameAssets assets = new(GameDirectory());
+        session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), session.SeeD!.WithSalaryUiEnabled(true));
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         using WorldMapScene scene = new(session, GameDirectory());
         Assert.All(scene.State.NativeFootRuntime!.GroundCache!.Alternatives, alternative => Assert.Empty(alternative.Entries));

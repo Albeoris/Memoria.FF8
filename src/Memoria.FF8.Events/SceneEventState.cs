@@ -170,7 +170,6 @@ public sealed class SceneEventState
     [JsonInclude]
     public float FadeOpacity { get; internal set; }
     public SortedSet<int> LockedTriangles { get; } = [];
-    public SortedSet<int> Members { get; } = [];
     [JsonRequired]
     [JsonInclude]
     [JsonObjectCreationHandling(JsonObjectCreationHandling.Replace)]
@@ -187,7 +186,6 @@ public sealed class SceneEventState
     public int NativePlayerMovementVersion { get; internal set; }
     public List<int> NativeActorObjectIds { get; } = [];
     public SortedSet<int> UnlockedTutorials { get; } = [];
-    public SortedSet<int> AcquiredGuardianForces { get; } = [];
     public List<MinimalMenuCompletion> MinimalMenuCompletions { get; } = [];
     public Dictionary<long, int> MinimalMenuWaits { get; } = [];
     [JsonInclude]

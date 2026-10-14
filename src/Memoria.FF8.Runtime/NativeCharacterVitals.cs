@@ -16,12 +16,40 @@ public sealed record NativeHpWord([property: JsonRequired] ushort Minimum, [prop
     }
 }
 
-public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status, [property: JsonRequired] NativeCharacterJunction Junction);
+public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status, [property: JsonRequired] NativeCharacterJunction Junction, [property: JsonRequired] uint Experience, [property: JsonRequired] ushort HitPointBonus, [property: JsonRequired] byte Weapon, [property: JsonRequired] byte[] StatBonuses, [property: JsonRequired] NativeMagicStock[] MagicInventory, [property: JsonRequired] ushort MemberFlags)
+{
+    public bool Equals(NativeCharacterVital? other)
+    {
+        return other is not null && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory);
+    }
+
+    public override int GetHashCode()
+    {
+        HashCode hash = new();
+        hash.Add(CharacterId);
+        hash.Add(HitPoints);
+        hash.Add(Status);
+        hash.Add(Junction);
+        hash.Add(Experience);
+        hash.Add(HitPointBonus);
+        hash.Add(Weapon);
+        hash.Add(MemberFlags);
+        foreach (byte bonus in StatBonuses)
+        {
+            hash.Add(bonus);
+        }
+        foreach (NativeMagicStock stock in MagicInventory)
+        {
+            hash.Add(stock);
+        }
+        return hash.ToHashCode();
+    }
+}
 
 /// <summary>Eight original save records and three raw combat slots, initialized only by authentic New Game resources.</summary>
-public sealed record NativeCharacterVitals
+public sealed partial record NativeCharacterVitals
 {
-    public const string InitializationRule = "ff8-en-init-out-56da10-positive-hp-495960-v1";
+    public const string InitializationRule = "ff8-en-init-out-56da10-saved-stat-inputs-495ef0-v1";
     [JsonRequired]
     public required int Version { get; init; }
     [JsonRequired]
@@ -35,15 +63,26 @@ public sealed record NativeCharacterVitals
     [JsonRequired]
     public required byte[] CombatParty { get; init; }
     [JsonRequired]
-    public required bool JunctionResetEnabled { get; init; }
+    public required bool DreamEnabled { get; init; }
+    [JsonRequired]
+    public required NativeGuardianForceVital[] GuardianForces { get; init; }
+    [JsonRequired]
+    public required NativeStatDefinitions Definitions { get; init; }
+    [JsonRequired]
+    public required byte[] DreamWeapons { get; init; }
 
     public void Validate()
     {
         static bool Hash(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is not { Length: 8 } || CombatParty is not { Length: 3 } || Records.Where((record, index) => record is null || record.HitPoints is null || record.CharacterId != index).Any() || CombatParty.Any(slot => slot != 255 && slot >= 8))
+        if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is not { Length: 8 } || CombatParty is not { Length: 3 } || Records.Where((record, index) => record is null || record.HitPoints is null || record.CharacterId > 10 || record.StatBonuses is not { Length: 6 } || record.MagicInventory is not { Length: 32 } || record.MagicInventory.Any(stock => stock is null)).Any() || CombatParty.Any(slot => slot != 255 && slot >= 8))
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, eight records or raw combat slots.");
         }
+        if (Definitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null) || DreamWeapons is not { Length: 3 })
+        {
+            throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
+        }
+        Definitions.Validate();
         foreach (NativeCharacterVital record in Records)
         {
             record.HitPoints.Validate();
@@ -57,7 +96,7 @@ public sealed record NativeCharacterVitals
 
     public NativeCharacterVitals DeepCopy()
     {
-        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() } }).ToArray(), CombatParty = CombatParty.ToArray() };
+        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray() };
     }
 
     /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>
@@ -92,15 +131,18 @@ public sealed record NativeCharacterVitals
         byte[] temporaryParty = CombatParty.ToArray();
         temporaryParty[0] = (byte)index;
         NativeCharacterVitals temporary = (this with { Records = records, CombatParty = temporaryParty }).RebuildParty();
-        ushort maximum = selected.Junction.UnjunctionedMaximumHitPoints;
+        ushort maximum = temporary.Definitions.CharacterMaximum(temporary.Records[index]);
         records = temporary.Records.ToArray();
         records[index] = records[index] with { HitPoints = new NativeHpWord(maximum, maximum), Status = (ushort)(selected.Status & 0x0080) };
         NativeCharacterVitals restored = (temporary with { Records = records, CombatParty = CombatParty.ToArray() }).RebuildParty();
-        // The reset establishes an exact maximum. The deferred rebuild's positive
-        // HP abstraction must retain that proved value when this record is active.
-        records = restored.Records.ToArray();
-        records[index] = records[index] with { HitPoints = new NativeHpWord(maximum, maximum) };
-        return (restored with { Records = records }).DeepCopy();
+        return restored.DeepCopy();
+    }
+
+    private static NativeHpWord ClampHitPoints(NativeHpWord current, ushort maximum)
+    {
+        // Native495960 compares the signed maximum WORD against unsigned saved HP.
+        int signedMaximum = unchecked((short)maximum);
+        return new NativeHpWord(signedMaximum < current.Minimum ? maximum : current.Minimum, signedMaximum < current.Maximum ? maximum : current.Maximum);
     }
 
     public NativeCharacterVitals RebuildParty()
@@ -110,13 +152,61 @@ public sealed record NativeCharacterVitals
         foreach (byte slot in CombatParty.Where(slot => slot != 255))
         {
             NativeCharacterVital current = records[slot];
-            // TODO(TD-009): full junction/stat rebuilding is deferred; the authentic unjunctioned initial maximum is proved positive, but its exact value is not substituted
-            if (current.HitPoints.IsPositive)
+            ushort maximum = Definitions.CharacterMaximum(current);
+            records[slot] = current with { HitPoints = ClampHitPoints(current.HitPoints, maximum) };
+        }
+        NativeGuardianForceVital[] guardianForces = GuardianForces.ToArray();
+        for (int id = 0; id < guardianForces.Length; id++)
+        {
+            NativeGuardianForceVital current = guardianForces[id];
+            if ((current.Flags & 1) != 0)
             {
-                records[slot] = current with { HitPoints = new NativeHpWord(1, Math.Min(current.HitPoints.Maximum, (ushort)9999)) };
+                ushort maximum = Definitions.GuardianForceMaximum(id, current);
+                guardianForces[id] = current with { MaximumHitPoints = maximum, HitPoints = unchecked((short)maximum) < current.HitPoints ? maximum : current.HitPoints };
             }
         }
-        return this with { Records = records, CombatParty = CombatParty.ToArray() };
+        return (this with { Records = records, GuardianForces = guardianForces }).DeepCopy();
+    }
+
+    public NativeCharacterVitals AcquireGuardianForce(int id)
+    {
+        Validate();
+        if ((uint)id >= GuardianForces.Length)
+        {
+            throw new NotSupportedException("Native GF acquisition requires an owned saved GF row.");
+        }
+        NativeGuardianForceVital[] rows = GuardianForces.ToArray();
+        rows[id] = rows[id] with { Flags = (byte)(rows[id].Flags | 1) };
+        return (this with { GuardianForces = rows }).DeepCopy();
+    }
+
+    public NativeCharacterVitals Rest()
+    {
+        Validate();
+        NativeCharacterVitals next = DeepCopy();
+        for (int row = 0; row < Records.Length; row++)
+        {
+            if ((next.Records[row].MemberFlags & 1) == 0 || DreamEnabled && !CombatParty.Contains((byte)row))
+            {
+                continue;
+            }
+            next = (next with { CombatParty = [(byte)row, 255, 255] }).RebuildParty();
+            ushort maximum = next.Definitions.CharacterMaximum(next.Records[row]);
+            NativeCharacterVital[] records = next.Records.ToArray();
+            records[row] = records[row] with { HitPoints = new NativeHpWord(maximum, maximum), Status = (ushort)(records[row].Status & 0x80) };
+            next = (next with { Records = records, CombatParty = CombatParty.ToArray() }).RebuildParty();
+        }
+        NativeGuardianForceVital[] guardianForces = next.GuardianForces.ToArray();
+        for (int id = 0; id < guardianForces.Length; id++)
+        {
+            NativeGuardianForceVital row = guardianForces[id];
+            if ((row.Flags & 1) != 0)
+            {
+                ushort maximum = row.MaximumHitPoints ?? throw new NotSupportedException("REST requires the actual earlier495D80 producer of the acquired GF maximum.");
+                guardianForces[id] = row with { HitPoints = maximum };
+            }
+        }
+        return (next with { GuardianForces = guardianForces }).DeepCopy();
     }
 
     public NativeCharacterVitals RepairDyingParty()

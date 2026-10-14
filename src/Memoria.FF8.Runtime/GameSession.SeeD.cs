@@ -29,7 +29,28 @@ public sealed partial class GameSession
         {
             throw new NotSupportedException("World salary requires its current eligible native body producer.");
         }
-        return departure.SeeD?.WithMovementUnits(salaryMovementUnits);
+        return SampleWorldSeeD(departure, departure.SeeD, salaryMovementUnits);
+    }
+
+    public static NativeSeeDState? SampleWorldSeeD(GameState source, NativeSeeDState? current, uint units)
+    {
+        if (current is null)
+        {
+            return null;
+        }
+        if (source.WorldControls is not NativeWorldControlState controls)
+        {
+            throw new NotSupportedException("World salary requires the executed event DWORD104 owner.");
+        }
+        if (controls.SalarySuppressed)
+        {
+            return current;
+        }
+        if (source.CharacterVitals is not NativeCharacterVitals vitals)
+        {
+            throw new NotSupportedException("World salary requires the actual saved dream flag.");
+        }
+        return current.WithMovementUnits(units, controls.EventFlags104, vitals.DreamEnabled);
     }
 
     private static void ValidateSeeDCheckpoint(GameState state, JsonElement? vm)

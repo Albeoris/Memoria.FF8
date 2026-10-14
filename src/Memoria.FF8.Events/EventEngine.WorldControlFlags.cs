@@ -11,7 +11,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        return variables.Keys.Any(address => address is >= 102 and <= 105 or >= 206 and <= 209) ? "Native world controls overlap a legacy variable with unknown byte width; original aliases require byte-addressed memory evidence" : null;
+        return variables.Keys.Any(address => address is >= 101 and <= 107 or >= 206 and <= 209) || services.NativeVariableValues?.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 104 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209) == true ? "Native world controls overlap an unproved memory alias; canonical byte-addressed owners are required" : null;
     }
 
     private string? UnsupportedWorldControlAccess(JsmOperation operation)
@@ -32,11 +32,19 @@ public sealed partial class EventEngine
             _ => 0
         };
         long last = (long)operation.Parameter + width - 1;
-        if (width == 0 || !(operation.Parameter <= 105 && last >= 104 || operation.Parameter <= 209 && last >= 209))
+        if (width == 0 || !(operation.Parameter <= 107 && last >= 104 || operation.Parameter <= 209 && last >= 209))
         {
             return null;
         }
         if (operation.Parameter == 209 && width == 1)
+        {
+            return UnsupportedWorldControlAliases();
+        }
+        if (operation.Parameter == 207 && width == 1)
+        {
+            return UnsupportedWorldControlAliases();
+        }
+        if (operation.Parameter >= 104 && last <= 107)
         {
             return UnsupportedWorldControlAliases();
         }

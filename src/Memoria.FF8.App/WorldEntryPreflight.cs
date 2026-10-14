@@ -71,7 +71,7 @@ public static class WorldEntryPreflight
             throw new NotSupportedException("Native world-entry control flags have unknown provenance.");
         }
         departure.WorldControls.Validate();
-        if (departure.Variables.Keys.Any(address => address is >= 102 and <= 105 or >= 206 and <= 209))
+        if (departure.Variables.Keys.Any(address => address is >= 101 and <= 107 or >= 206 and <= 209) || departure.NativeVariableValues?.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 104 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209) == true)
         {
             throw new NotSupportedException("Native world-entry controls overlap an unproved legacy variable alias.");
         }

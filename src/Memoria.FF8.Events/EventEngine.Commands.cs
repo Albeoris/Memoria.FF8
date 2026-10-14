@@ -47,7 +47,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (TryReadNativeSeeDRank(operation, out int nativeRank))
+                if (TryReadNativeOwnedEventMemory(operation, out int nativeRank))
                 {
                     fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeRank) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeRank) : nativeRank);
                     fiber.StackExpressions.Push($"native[{parameter}]");
@@ -91,7 +91,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteNativeSeeDRank(fiber, operation, out args))
+                if (TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -756,12 +756,14 @@ public sealed partial class EventEngine
                 fiber.WaitReason = WaitReason.Dialogue;
                 break;
             case Jsm.Opcode.MENUNAME:
-                args = Pop(fiber, 1);
-                if (TryNativeGuardianForceName(args[0], out _, out _))
+                int nativeNameArgument = fiber.Stack.Peek();
+                if (TryNativeGuardianForceName(nativeNameArgument, out _, out _))
                 {
-                    CompleteMinimalMenu(fiber, opcode, args[0]);
+                    CompleteMinimalMenu(fiber, opcode, nativeNameArgument);
+                    args = Pop(fiber, 1);
                     break;
                 }
+                args = Pop(fiber, 1);
                 nameEntity = args[0];
                 string defaultName = Scene.Names.GetValueOrDefault(nameEntity, nameEntity == 0 ? "Squall" : $"Character {nameEntity}");
                 ShowDialogue(fiber, new DialogueState(0, -1, $"Name: {defaultName}", 0, 0, IsNamePrompt: true), true);
@@ -967,10 +969,13 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SARALYON:
             case Jsm.Opcode.SARALYDISPOFF:
             case Jsm.Opcode.SARALYDISPON:
-                ExecuteNativeSalary(opcode);
+                ExecuteNativeSalary(fiber, opcode);
                 break;
             case Jsm.Opcode.ADDSEEDLEVEL:
                 args = ExecuteAddSeeDLevel(fiber);
+                break;
+            case Jsm.Opcode.REST:
+                ExecuteRest(fiber);
                 break;
             case Jsm.Opcode.SETPLACE:
                 args = Pop(fiber, 1);
@@ -978,39 +983,20 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.ADDMEMBER:
             case Jsm.Opcode.SUBMEMBER:
-                args = Pop(fiber, 1);
-                if (opcode == Jsm.Opcode.ADDMEMBER)
-                {
-                    Scene.Members.Add(args[0]);
-                }
-                else
-                {
-                    Scene.Members.Remove(args[0]);
-                }
+            case Jsm.Opcode.ISMEMBER:
+                args = ExecuteMembership(fiber, opcode);
                 break;
             case Jsm.Opcode.ADDPARTY:
-                args = Pop(fiber, 1);
-                if (!Scene.Party.Contains(unchecked((byte)args[0])))
-                {
-                    int emptySlot = Scene.Party.IndexOf(255);
-                    if (emptySlot >= 0)
-                    {
-                        AddCombatPartyCharacter(args[0]);
-                        Scene.Party[emptySlot] = unchecked((byte)args[0]);
-                    }
-                }
+                args = ExecuteAddPartyCharacter(fiber);
                 break;
             case Jsm.Opcode.SUBPARTY:
                 args = ExecutePartyRemoval(fiber);
                 break;
             case Jsm.Opcode.SETPARTY:
-                args = Pop(fiber, 3);
-                SetCombatParty(args);
-                Scene.Party.Clear();
-                Scene.Party.AddRange(args);
+                args = ExecuteSetParty(fiber);
                 break;
             case Jsm.Opcode.DYING:
-                services.SetCharacterVitals(services.CharacterVitals!.RepairDyingParty());
+                CommitSavedCharacters(fiber, services.CharacterVitals!.RepairDyingParty(), opcode);
                 break;
             case Jsm.Opcode.SETHP:
                 args = ExecuteSetHitPoints(fiber);

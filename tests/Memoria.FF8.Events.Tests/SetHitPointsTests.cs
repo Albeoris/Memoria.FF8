@@ -22,7 +22,7 @@ internal static partial class Program
             Require(changed.Records[3].HitPoints == new NativeHpWord(expected, expected) && changed.Records[3].Status == 0xFFFF && changed.Records[3].Junction == source.Records[3].Junction && changed.CombatParty.SequenceEqual(source.CombatParty), "SETHP did not preserve every native HP WORD bit or altered status/junction/combat slots.");
             Require(changed.Records.Where((_, row) => row != 3).SequenceEqual(source.Records.Where((_, row) => row != 3)) && source.Records[3].HitPoints == new NativeHpWord(0, ushort.MaxValue), "SETHP changed unrelated saved records or its immutable source.");
         }
-        Require(source.WithSavedHitPoints(3, 9999).Records[3].HitPoints.Minimum > source.Records[3].Junction.UnjunctionedMaximumHitPoints, "SETHP silently rebuilt or clamped HP to a cached maximum.");
+        Require(source.WithSavedHitPoints(3, 9999).Records[3].HitPoints.Minimum > source.Definitions.CharacterMaximum(source.Records[3]), "SETHP silently rebuilt or clamped HP to a cached maximum.");
         const int wrappedRow = 0x20000003;
         Require(source.WithSavedHitPoints(wrappedRow, 321).Records[3].HitPoints == new NativeHpWord(321, 321), "Native full-DWORD address arithmetic lost an actual wrapped owned HP WORD.");
         foreach (int rawRow in new[] { -1, 8, 255, 259, int.MaxValue })

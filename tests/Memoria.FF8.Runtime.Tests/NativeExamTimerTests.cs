@@ -29,7 +29,7 @@ public sealed class NativeExamTimerTests
         Assert.Equal((ushort)250, session.ExamTimer.DisplayX);
         Assert.Equal((byte)10, session.ExamTimer.DisplayY);
         Assert.False(session.ExamTimer.TimerMemoryActivated);
-        Assert.Null(session.ExamTimer.Event104Mask40);
+        Assert.Equal(0x18u, session.WorldControls!.EventFlags104);
         Assert.False(session.ReplayJournal!.IsComplete);
         Assert.Contains("earlier process history", session.ReplayJournal.UnavailableReason);
     }

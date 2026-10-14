@@ -84,13 +84,14 @@ public sealed class JsmProgram
             }
             objects.Add(new EventObject(objects.Count, label, scripts, moduleIndex < 0 ? null : moduleIndex, areaGroups.Contains(group), doorGroups.Contains(group)));
         }
-        // Parse only after all unsafe-reader ranges and jump targets have been bounded.
-        JsmDocument document = Jsm.File.ReadDocument(content);
-        if (document.Operations.Count != operationCount)
+        // Native interpretation uses the existing lossless operation reader;
+        // presentation AST factories do not govern executable opcode admission.
+        IReadOnlyList<JsmOperation> operations = JsmDocument.ReadOperations(content);
+        if (operations.Count != operationCount)
         {
             throw new InvalidDataException("Albeoris JSM operation count does not match the validated source.");
         }
-        return new JsmProgram(objects, document.Operations, nativeGroups.Select(group => objects.Single(obj => obj.Label == group >> 7).Index).ToArray(), content[3]);
+        return new JsmProgram(objects, operations, nativeGroups.Select(group => objects.Single(obj => obj.Label == group >> 7).Index).ToArray(), content[3]);
     }
 
     private static void ValidateScript(byte[] content, int operationsOffset, int label, int start, int end)

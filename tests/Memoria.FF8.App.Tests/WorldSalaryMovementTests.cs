@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
@@ -11,9 +12,8 @@ public sealed class WorldSalaryMovementTests
     [Fact]
     public void Car_accepted_raw_velocity_supplies_units_with_current_terrain_and_saved_vehicle_state()
     {
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        session.SetSeeD(session.SeeD!.WithSalaryEnabled(true));
+        GameSession session = CreateNativeSession();
+        session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), session.SeeD!.WithSalaryUiEnabled(true));
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new() { [256] = 40, [265] = 128 } });
         using WorldMapScene scene = new(session, GameDirectory());
         session.SetWorldState(scene.State with { NativeCarRuntime = scene.State.NativeCarRuntime! with { Speed = 24 } });
@@ -30,9 +30,8 @@ public sealed class WorldSalaryMovementTests
     [Fact]
     public void Raw_accepted_velocity_counts_before_ground_height_changes_and_matches_restored_batches()
     {
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        session.SetSeeD(session.SeeD!.WithSalaryEnabled(true));
+        GameSession session = CreateNativeSession();
+        session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), session.SeeD!.WithSalaryUiEnabled(true));
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         using WorldMapScene scene = new(session, GameDirectory());
         session.SetWorldState(scene.State with { CameraYaw = 0, BodyYaw = 1024 });
@@ -63,9 +62,8 @@ public sealed class WorldSalaryMovementTests
     [Fact]
     public void A_later_payment_boundary_refuses_the_entire_world_batch()
     {
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        session.SetSeeD(session.SeeD!.WithSalaryEnabled(true) with { SalaryMovementCounter = 0x6000 - 7 });
+        GameSession session = CreateNativeSession();
+        session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 0x6000 - 7 });
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         using WorldMapScene scene = new(session, GameDirectory());
         GameState before = session.State;
@@ -93,8 +91,7 @@ public sealed class WorldSalaryMovementTests
             int encoded = opcode == Jsm.Opcode.PSHN_L ? (int)opcode << 24 | operand & 0xFFFFFF : (int)opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16 + index * 4), encoded);
         }
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
+        GameSession session = CreateNativeSession();
         EventEngine engine = new(session, session.State.Variables);
         WorldMapScene? world = null;
         engine.PrepareWorldTransition = request =>
@@ -146,6 +143,15 @@ public sealed class WorldSalaryMovementTests
         {
             File.Delete(path);
         }
+    }
+
+    private static GameSession CreateNativeSession()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using GameAssets assets = new(GameDirectory());
+        session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        return session;
     }
 
     private static string GameDirectory()

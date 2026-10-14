@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,11 +9,13 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void MinimalMenuCompletionContract()
+    private static void MinimalMenuCompletionContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         EventEngine Create(byte[] program)
         {
-            GameSession session = new(new GameState());
+            GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(159, program, []);
             return engine;
@@ -40,7 +43,7 @@ internal static partial class Program
         gf.Scene.Names.Add(0, "Leon");
         gf.Scene.Names.Add(3, "Legacy name value");
         gf.Apply(new PlayerAction(PlayerActionKind.Wait));
-        Require(gf.Scene.AcquiredGuardianForces.SetEquals([0]) && gf.Scene.MinimalMenuCompletions.Single() is { Kind: MinimalMenuKind.GuardianForceName, RawArgument: 3, MenuId: 5, Selection: 1, GuardianForceId: 0 } && !gf.IsDialogueOpen && gf.Scene.Names.Count == 2 && gf.Scene.Names[0] == "Leon" && gf.Scene.Names[3] == "Legacy name value", "MENUNAME3 did not acquire GF0 positively or changed existing character/default names.");
+        Require(gf.AcquiredGuardianForces!.SetEquals([0]) && gf.Scene.MinimalMenuCompletions.Single() is { Kind: MinimalMenuKind.GuardianForceName, RawArgument: 3, MenuId: 5, Selection: 1, GuardianForceId: 0 } && !gf.IsDialogueOpen && gf.Scene.Names.Count == 2 && gf.Scene.Names[0] == "Leon" && gf.Scene.Names[3] == "Legacy name value", "MENUNAME3 did not acquire GF0 positively or changed existing character/default names.");
         EventEngine restoredGf = Create(naming);
         restoredGf.Restore(gf.Capture());
         for (int tick = 0; tick < 2; tick++)
@@ -49,11 +52,11 @@ internal static partial class Program
             restoredGf.Apply(new PlayerAction(PlayerActionKind.Wait));
             Require(JsonElement.DeepEquals(gf.Capture(), restoredGf.Capture()), "Independent GF naming-yield restore changed acquisition, request provenance or native script continuation.");
         }
-        Require(gf.Frame == 3 && gf.Scene.AcquiredGuardianForces.SetEquals([0, 1]) && gf.Scene.MinimalMenuCompletions[1] is { RawArgument: 4, MenuId: 6, GuardianForceId: 1 } && gf.Capture().GetProperty("Variables").GetProperty("384").GetInt32() == 777 && !gf.Scene.Names.ContainsKey(4), "MENUNAME4 did not acquire GF1 before the original successor write or invented a name.");
+        Require(gf.Frame == 3 && gf.AcquiredGuardianForces!.SetEquals([0, 1]) && gf.Scene.MinimalMenuCompletions[1] is { RawArgument: 4, MenuId: 6, GuardianForceId: 1 } && gf.Capture().GetProperty("Variables").GetProperty("384").GetInt32() == 777 && !gf.Scene.Names.ContainsKey(4), "MENUNAME4 did not acquire GF1 before the original successor write or invented a name.");
         MinimalMenuCompletion[] history = gf.Scene.MinimalMenuCompletions.ToArray();
         byte[] next = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0));
         gf.LoadField(160, next, []);
-        Require(gf.Scene.AcquiredGuardianForces.SetEquals([0, 1]) && gf.Scene.MinimalMenuCompletions.SequenceEqual(history) && gf.Scene.MinimalMenuWaits.Count == 0 && gf.Scene.Names[0] == "Leon", "Field load lost known GF acquisitions/request history or carried an old field's pending yield.");
+        Require(gf.AcquiredGuardianForces!.SetEquals([0, 1]) && gf.Scene.MinimalMenuCompletions.SequenceEqual(history) && gf.Scene.MinimalMenuWaits.Count == 0 && gf.Scene.Names[0] == "Leon", "Field load lost known GF acquisitions/request history or carried an old field's pending yield.");
         EventEngine nextRestore = Create(naming);
         nextRestore.LoadField(160, next, []);
         nextRestore.Restore(gf.Capture());
@@ -64,12 +67,12 @@ internal static partial class Program
             byte[] character = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, characterId), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.RET, 0));
             EventEngine named = Create(character);
             named.Step();
-            Require(named.CurrentDialogue is { IsNamePrompt: true } && named.Scene.AcquiredGuardianForces.Count == 0 && named.Scene.MinimalMenuCompletions.Count == 0, "Existing character naming was replaced by automatic GF completion.");
+            Require(named.CurrentDialogue is { IsNamePrompt: true } && named.AcquiredGuardianForces!.Count == 0 && named.Scene.MinimalMenuCompletions.Count == 0, "Existing character naming was replaced by automatic GF completion.");
             named.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: "Chosen name"));
             Require(named.Scene.Names[characterId] == "Chosen name" && !named.IsDialogueOpen, "Existing ordinary character naming stopped accepting its normal action.");
         }
 
-        foreach (int argument in new[] { -1, 5, 259 })
+        foreach (int argument in new[] { -1, 259 })
         {
             EventEngine refused = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, argument), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.RET, 0)));
             try
@@ -81,7 +84,7 @@ internal static partial class Program
             {
             }
             JsonElement fiber = refused.Capture().GetProperty("Fibers")[0];
-            Require(refused.LastFault is { Opcode: "MENUNAME", Operation: 2 } && fiber.GetProperty("Position").GetInt32() == 2 && fiber.GetProperty("Stack")[0].GetInt32() == argument && refused.Scene.AcquiredGuardianForces.Count == 0 && refused.Scene.MinimalMenuCompletions.Count == 0 && !refused.IsDialogueOpen, "Unsupported naming consumed its original operand/PC or acquired a GF.");
+            Require(refused.LastFault is { Opcode: "MENUNAME", Operation: 2 } && fiber.GetProperty("Position").GetInt32() == 2 && fiber.GetProperty("Stack")[0].GetInt32() == argument && refused.AcquiredGuardianForces!.Count == 0 && refused.Scene.MinimalMenuCompletions.Count == 0 && !refused.IsDialogueOpen, "Unsupported naming consumed its original operand/PC or acquired a GF.");
         }
         EventEngine inventory = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ADDITEM, 0), (Jsm.Opcode.RET, 0)));
         try
@@ -112,12 +115,7 @@ internal static partial class Program
             }
             Require(JsonElement.DeepEquals(valid, validation.Capture()), "Invalid minimal menu restore partially changed the VM.");
         }
-        JsonNode legacy = JsonNode.Parse(nextRestore.Capture().GetRawText())!;
-        legacy["Scene"]!.AsObject().Remove("AcquiredGuardianForces");
-        legacy["Scene"]!.AsObject().Remove("MinimalMenuCompletions");
-        legacy["Scene"]!.AsObject().Remove("MinimalMenuWaits");
-        nextRestore.Restore(JsonSerializer.SerializeToElement(legacy));
-        Require(nextRestore.Scene.AcquiredGuardianForces.Count == 0 && nextRestore.Scene.MinimalMenuCompletions.Count == 0, "Missing legacy UI metadata manufactured positive GF state or completed requests.");
+        Require(!nextRestore.Capture().GetProperty("Scene").TryGetProperty("AcquiredGuardianForces", out _) && nextRestore.AcquiredGuardianForces!.SetEquals([0, 1]), "GF acquisition retained a duplicate serialized Scene authority.");
         Console.WriteLine("Minimal menus: tutorial byte IDs and GF3/4 acquisition complete automatically with exactly one advanced-PC yield; original tips/story writes and character0 naming retained, history/positive-known GF state restored, malformed requests and inventory grants refused.");
     }
 }

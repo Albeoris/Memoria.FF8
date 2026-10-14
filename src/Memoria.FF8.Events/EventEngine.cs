@@ -170,12 +170,10 @@ public sealed partial class EventEngine
         Scene.FadeNone = previousScene.FadeNone;
         Scene.MusicChannel112 = previousScene.MusicChannel112;
         Scene.MusicStop = previousScene.MusicStop;
-        Scene.Members.UnionWith(previousScene.Members);
         Scene.Party.Clear();
         Scene.Party.AddRange(previousScene.Party);
         Scene.PartyBindingMemory = previousScene.PartyBindingMemory;
         Scene.UnlockedTutorials.UnionWith(previousScene.UnlockedTutorials);
-        Scene.AcquiredGuardianForces.UnionWith(previousScene.AcquiredGuardianForces);
         Scene.MinimalMenuCompletions.AddRange(previousScene.MinimalMenuCompletions);
         Scene.NativeBattleCompletions = previousScene.NativeBattleCompletions is null ? null : [.. previousScene.NativeBattleCompletions];
         Scene.NativeBattleWaits = Scene.NativeBattleCompletions is null ? null : [];

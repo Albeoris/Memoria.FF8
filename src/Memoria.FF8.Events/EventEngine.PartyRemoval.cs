@@ -4,7 +4,7 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedPartyRemoval(Fiber fiber)
     {
-        if (fiber.Stack.Count == 0)
+        if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact)
         {
             return "SUBPARTY requires its original character operand";
         }
@@ -23,17 +23,15 @@ public sealed partial class EventEngine
 
     private int[] ExecutePartyRemoval(Fiber fiber)
     {
-        int[] operands = Pop(fiber, 1);
-        int character = unchecked((byte)operands[0]);
-        RemoveCombatPartyCharacter((byte)character);
+        int character = unchecked((byte)fiber.Stack.Peek());
+        CommitSavedCharacters(fiber, PrepareRemovedCombatCharacter((byte)character), Albeoris.Games.FF8.Jsm.Jsm.Opcode.SUBPARTY);
         int slot = Scene.Party.IndexOf(character);
         if (slot >= 0)
         {
             // 51E270 writes FF only to the matched field-party byte.
             Scene.Party[slot] = 255;
         }
-        // Native bindings, actor activity and Members remain unchanged until their own executed commands.
-        // TODO(TD-009): exact junction/stat rebuilding remains deferred; authenticated combat slots and zero-HP/status repair are shared with DYING
-        return operands;
+        // Native bindings, actor activity and membership remain unchanged until their own writers.
+        return Pop(fiber, 1);
     }
 }

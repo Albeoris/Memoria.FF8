@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,13 +9,16 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeSalaryFieldMovementContract()
+    private static void NativeSalaryFieldMovementContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         (GameSession Session, EventEngine Engine, List<int> Speeds) Create(bool forcedWalk = false, bool blocked = false)
         {
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            session.SetSeeD(session.SeeD!.WithSalaryEnabled(true));
+            session.SetCharacterVitals(initial.DeepCopy());
+            session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), seeD: session.SeeD!.WithSalaryUiEnabled(true));
             List<int> speeds = [];
             EventEngine engine = new(session, session.State.Variables)
             {

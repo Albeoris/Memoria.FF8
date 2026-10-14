@@ -47,23 +47,39 @@ internal static partial class Program
         }
         GameSession flags = GameSession.CreateColdProcess();
         flags.StartNewGame();
-        Require(flags.SeeD is { RankPoints: 500, SalarySuppressed: true, SalaryDisplaySuppressed: true, SalaryUiEnabled: null, SalaryMovementCounter: 0 } && flags.ReplayJournal!.IsComplete, "Executed New Game did not establish native500/mask18/zero movement without inferring process salary UI.");
+        Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: null, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true } && flags.ReplayJournal!.IsComplete, "Executed New Game did not establish native500/mask18/zero movement without inferring process salary UI.");
         Require(flags.SeeD!.AddRankPoints(int.MaxValue).RankPoints == 499 && flags.SeeD.AddRankPoints(int.MinValue).RankPoints == 500, "SeeD full DWORD arithmetic narrowed or overflowed before the native WORD destination.");
         EventEngine projected = new(flags, flags.State.Variables);
         projected.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65530), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHSM_W, 16), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHM_B, 16), (Jsm.Opcode.POPM_W, 5002), (Jsm.Opcode.PSHSM_B, 16), (Jsm.Opcode.POPM_L, 5003), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.POPM_B, 17), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 16), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         projected.Step();
         Require(flags.State.Variables[5001] == -6 && flags.State.Variables[5002] == 250 && flags.State.Variables[5003] == -6 && flags.SeeD!.RankPoints == 0x12FF && !flags.State.Variables.ContainsKey(16) && !flags.State.Variables.ContainsKey(17), "Native SeeD signed/unsigned BYTE/WORD projections or partial BYTE writes lost their owned WORD.");
+        const uint unrelated = 0xA5000267;
+        flags.SetNativeEventOwners(flags.WorldControls! with { EventFlags104 = unrelated | 0x18 });
         EventEngine salary = new(flags, flags.State.Variables);
         salary.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SARALYON, 0), (Jsm.Opcode.SARALYDISPOFF, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         salary.Step();
-        Require(flags.SeeD is { SalarySuppressed: false, SalaryDisplaySuppressed: true, SalaryUiEnabled: true }, "SARALYON/DISPOFF failed mask8/mask10 separation or process UI enable.");
-        flags.SetSeeD(flags.SeeD!.WithSalaryDisplayEnabled(true).WithSalaryEnabled(false));
-        Require(flags.SeeD is { SalarySuppressed: true, SalaryDisplaySuppressed: true, SalaryUiEnabled: false }, "SARALYOFF failed its two saved masks and process UI write.");
-        NativeSeeDState moving = flags.SeeD!.WithSalaryEnabled(true).WithMovementUnits(0x5FFF);
-        Require(moving.SalaryMovementCounter == 0x5FFF && moving.WithSalaryEnabled(false).WithMovementUnits(5).SalaryMovementCounter == 0x5FFF, "Salary movement counter lost its exact native DWORD or disabled hold.");
+        Require(flags.WorldControls is { SalarySuppressed: false, SalaryDisplaySuppressed: true } && flags.SeeD is { SalaryUiEnabled: true }, "SARALYON/DISPOFF failed mask8/mask10 separation or process UI enable.");
+        Require(flags.WorldControls!.EventFlags104 == (unrelated | 0x10), "Salary flags overwrote guest, timer, battle, source or unrelated DWORD104 bits.");
+        NativeWorldControlState guest = flags.WorldControls!.WithGuestMember(8, false).WithGuestMember(9, false).WithGuestMember(10, false);
+        Require(guest.EventFlags104 == ((unrelated | 0x10) & ~7u), "Guest member bits changed salary, timer, battle or source flags.");
+        flags.SetNativeEventOwners(flags.WorldControls!.WithSalaryDisplayEnabled(true).WithSalaryEnabled(false), flags.SeeD!.WithSalaryUiEnabled(false));
+        Require(flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true } && flags.SeeD is { SalaryUiEnabled: false }, "SARALYOFF failed its two saved masks and process UI write.");
+        GameState beforeAtomic = flags.State;
         try
         {
-            _ = moving.WithMovementUnits(1);
+            flags.SetNativeEventOwners(flags.WorldControls!.WithSalaryEnabled(true), flags.SeeD! with { SalaryMovementCounter = 0x6000 });
+            throw new InvalidOperationException("Invalid composite event owners silently committed.");
+        }
+        catch (InvalidDataException)
+        {
+            Require(ReferenceEquals(beforeAtomic, flags.State), "Composite event owner validation partially wrote DWORD104 before rejecting the salary state.");
+        }
+        NativeSeeDState moving = flags.SeeD!.WithMovementUnits(0x5FFF, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104, false);
+        Require(moving.SalaryMovementCounter == 0x5FFF && moving.WithMovementUnits(5, flags.WorldControls!.EventFlags104, false).SalaryMovementCounter == 0x5FFF, "Salary movement counter lost its exact native DWORD or disabled hold.");
+        Require(ReferenceEquals(moving, moving.WithMovementUnits(5, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104, true)), "Dream callbacks changed normal salary rank or movement counter.");
+        try
+        {
+            _ = moving.WithMovementUnits(1, flags.WorldControls!.WithSalaryEnabled(true).EventFlags104, false);
             throw new InvalidOperationException("Salary payment silently passed its native unsupported boundary.");
         }
         catch (NotSupportedException)
@@ -72,9 +88,9 @@ internal static partial class Program
         }
         GameSession warm = GameSession.CreateColdProcess();
         warm.StartNewGame();
-        warm.SetSeeD(warm.SeeD!.WithSalaryEnabled(true));
+        warm.SetNativeEventOwners(warm.WorldControls!.WithSalaryEnabled(true), warm.SeeD!.WithSalaryUiEnabled(true));
         warm.StartNewGame();
-        Require(warm.SeeD is { RankPoints: 500, SalarySuppressed: true, SalaryUiEnabled: true, SalaryMovementCounter: 0 } && warm.ExamTimer!.ClockCalls == 0 && !warm.ReplayJournal!.IsComplete, "Warm New Game reset process salary UI or published an unsupported fresh journal root.");
+        Require(warm.SeeD is { RankPoints: 500, SalaryUiEnabled: true, SalaryMovementCounter: 0 } && warm.WorldControls!.SalarySuppressed && warm.ExamTimer!.ClockCalls == 0 && !warm.ReplayJournal!.IsComplete, "Warm New Game reset process salary UI or published an unsupported fresh journal root.");
         var missing = Create(500, 80, false);
         try
         {

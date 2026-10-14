@@ -36,17 +36,17 @@ public sealed partial class EventEngine
 
     private static string? UnsupportedCanonicalPartyWrite(Fiber fiber)
     {
-        if (fiber.Stack.Count < 3)
+        if (fiber.Stack.Count < 3 || fiber.Stack.Capture().Take(3).Any(value => !value.IsExact))
         {
             return "SETPARTY requires its original three character operands";
         }
-        int[] party = fiber.Stack.Take(3).Reverse().ToArray();
+        int[] party = fiber.Stack.Take(3).Select(character => (int)unchecked((byte)character)).Reverse().ToArray();
         HashSet<int> present = [];
         foreach (int character in party)
         {
-            if (character is < 0 or > 255 || character != 255 && !present.Add(character))
+            if (character != 255 && !present.Add(character))
             {
-                return "SETPARTY requires three bounded native character bytes without duplicate active characters";
+                return "SETPARTY low-BYTE slots require distinct active characters; duplicate body-slot ownership is unsupported";
             }
         }
         return null;

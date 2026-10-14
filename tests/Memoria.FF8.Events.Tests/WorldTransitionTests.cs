@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -10,12 +11,14 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeWorldTransitionTransaction()
+    private static void NativeWorldTransitionTransaction(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         NativeWorldControlState known = NativeWorldControlState.CreateNewGame() with { Menu209 = 0xA5 };
         (EventEngine Engine, GameSession Session) Create(byte[] program, NativeWorldControlState? controls = null, bool bind = true)
         {
-            GameSession session = new(new GameState { FieldId = 100, WorldControls = controls });
+            GameSession session = new(new GameState { FieldId = 100, WorldControls = controls, CharacterVitals = initial.DeepCopy() });
             EventEngine engine = new(session, session.State.Variables);
             if (bind)
             {
@@ -44,7 +47,7 @@ internal static partial class Program
         }
         foreach (bool disabledSource in new[] { false, true })
         {
-            NativeWorldControlState controls = known with { SourceDisabled = disabledSource, Menu209 = disabledSource ? (byte)0xA7 : known.Menu209 };
+            NativeWorldControlState controls = known.WithPartyPower(disabledSource ? 0 : 1) with { Menu209 = disabledSource ? (byte)0xA7 : known.Menu209 };
             (EventEngine engine, GameSession session) = Create(jump, controls);
             int prepares = 0;
             Func<NativeWorldTransitionRequest, Action?> original = engine.PrepareWorldTransition!;

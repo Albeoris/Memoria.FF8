@@ -73,10 +73,10 @@ public sealed class IfritCausalRecreationTests
                     WalkGateway(world, session, destination);
                 }
                 DriveUntil(world, session, () => world.Events.FieldId == 159 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable);
-                WalkDirectToInteraction(world, session, 6, () => world.Events.Scene.AcquiredGuardianForces.Contains(0) && world.Events.Scene.AcquiredGuardianForces.Contains(1));
+                WalkDirectToInteraction(world, session, 6, () => world.Events.AcquiredGuardianForces!.Contains(0) && world.Events.AcquiredGuardianForces!.Contains(1));
                 DriveUntil(world, session, () => world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable);
-                Assert.Contains(0, world.Events.Scene.AcquiredGuardianForces);
-                Assert.Contains(1, world.Events.Scene.AcquiredGuardianForces);
+                Assert.Contains(0, world.Events.AcquiredGuardianForces!);
+                Assert.Contains(1, world.Events.AcquiredGuardianForces!);
                 WalkGateway(world, session, 0, worldExit: true);
                 Assert.Equal(SceneKind.WorldMap, session.State.Scene);
                 ApplyWorldRecipe(world, repository, "player-dollet-native-foot-cavern-arrival-checkpoint.json");
@@ -105,7 +105,7 @@ public sealed class IfritCausalRecreationTests
             world.EnsureField();
             Assert.Equal(129, world.Events.FieldId);
             Assert.Equal(30, session.State.Variables[256]);
-            Assert.Contains(2, world.Events.Scene.AcquiredGuardianForces);
+            Assert.Contains(2, world.Events.AcquiredGuardianForces!);
             Assert.True(world.Events.IsUserControlEnabled);
             Assert.Null(world.Events.LastFault);
             session.SetEventState(world.Events.Capture());

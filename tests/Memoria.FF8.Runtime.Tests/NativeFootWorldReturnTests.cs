@@ -10,8 +10,8 @@ public sealed class NativeFootWorldReturnTests
     {
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay();
         var session = Session();
-        session.SetEventState(JsonSerializer.SerializeToElement(new { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1), MessageVariables = session.State.MessageVariables }));
-        session.SetDepartingFieldState(JsonSerializer.SerializeToElement(new { ExamTimer = timer, MessageVariables = session.State.MessageVariables }));
+        session.SetEventState(JsonSerializer.SerializeToElement(new { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1), WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables }));
+        session.SetDepartingFieldState(JsonSerializer.SerializeToElement(new { ExamTimer = timer, WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables }));
         session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3));
         string path = Path.Combine(Path.GetTempPath(), "ff8-frozen-world-timer-" + Guid.NewGuid().ToString("N") + ".json");
         try
@@ -20,7 +20,7 @@ public sealed class NativeFootWorldReturnTests
             GameState restored = GameSession.Load(path);
             Assert.Equal(JsonSerializer.Serialize(session.ExamTimer), JsonSerializer.Serialize(restored.ExamTimer));
             Assert.True(JsonElement.DeepEquals(session.State.DepartingFieldState!.Value, restored.DepartingFieldState!.Value));
-            session.SetExamTimer(session.ExamTimer! with { DisplayEnabled = true, Event104Mask40 = true, Event182Mask4 = true, SaveGlobalMask4 = true });
+            session.SetNativeEventOwners(session.WorldControls! with { EventFlags104 = session.WorldControls.EventFlags104 | 0x40u }, timer: session.ExamTimer! with { DisplayEnabled = true, Event182Mask4 = true, SaveGlobalMask4 = true });
             session.Save(path);
             Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
             session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.Menu, 7));

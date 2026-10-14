@@ -124,6 +124,11 @@ public interface IEventServices
         throw new NotSupportedException("Native exam timer state is not implemented by this event service.");
     }
     NativeWorldControlState? WorldControls => null;
+    bool CanStoreNativeEventOwners => false;
+    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null)
+    {
+        throw new NotSupportedException("Atomic native event-owner publication is not implemented by this service.");
+    }
     NativeWorldConfiguration? WorldConfiguration => null;
     void SetWorldControls(NativeWorldControlState controls)
     {

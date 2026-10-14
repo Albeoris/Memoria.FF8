@@ -48,7 +48,7 @@ public sealed partial class EventEngine
     private int[] ExecuteMinimalBattle(Fiber fiber)
     {
         int[] operands = fiber.Stack.Take(2).Reverse().ToArray();
-        bool suppressed = services.WorldControls!.ScriptBattleDisabled20!.Value;
+        bool suppressed = services.WorldControls!.ScriptBattleDisabled20;
         if (!suppressed && services.ExamTimer is Memoria.FF8.Runtime.NativeExamTimerState timer)
         {
             try

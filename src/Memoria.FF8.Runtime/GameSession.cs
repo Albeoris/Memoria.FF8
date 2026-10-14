@@ -38,6 +38,7 @@ public sealed partial class GameSession : IEventServices
     public bool IsReplayCaptureActive => replayCaptureDepth != 0;
     public MoviePlaybackState? ReplayMoviePlayback => State.MoviePlayback;
     public NativeWorldControlState? WorldControls => State.WorldControls;
+    public bool CanStoreNativeEventOwners => true;
     public NativeWorldConfiguration? WorldConfiguration => State.WorldConfiguration;
     public NativeExamTimerState? ExamTimer => State.ExamTimer;
     public NativeCharacterVitals? CharacterVitals => State.CharacterVitals;
@@ -322,6 +323,17 @@ public sealed partial class GameSession : IEventServices
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
         State = State with { WorldControls = controls };
+    }
+
+    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null)
+    {
+        ArgumentNullException.ThrowIfNull(controls);
+        controls.Validate();
+        seeD?.Validate();
+        timer?.Validate();
+        characterVitals?.Validate();
+        NativeCharacterVitals? nextVitals = characterVitals is null ? State.CharacterVitals : characterVitals.DeepCopy();
+        State = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals };
     }
 
     public void SetExamTimer(NativeExamTimerState timer)

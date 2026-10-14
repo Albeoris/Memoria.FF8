@@ -20,7 +20,8 @@ public sealed class NativeBoatWorldTests
         var packet = new WorldTransition(11, 66, 61);
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        departure = departure with { ReplayJournal = session.State.ReplayJournal, SeeD = session.SeeD!.WithSalaryEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 } };
+        using GameAssets initializationAssets = new(directory);
+        departure = departure with { ReplayJournal = session.State.ReplayJournal, WorldControls = departure.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 }, CharacterVitals = initializationAssets.ReadNewGameCharacterVitals() };
         session.Restore(departure);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(departure, directory, packet);
         Assert.Same(departure, session.State);

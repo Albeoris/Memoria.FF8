@@ -17,7 +17,19 @@ public sealed partial class EventEngine
             return null;
         }
         state.Validate();
-        if (state.SalarySuppressed)
+        if (services.WorldControls is not NativeWorldControlState controls)
+        {
+            throw new NotSupportedException("Native salary sampling requires the executed DWORD104 owner.");
+        }
+        if (controls.SalarySuppressed)
+        {
+            return state;
+        }
+        if (services.CharacterVitals is not NativeCharacterVitals vitals)
+        {
+            throw new NotSupportedException("Native salary sampling requires the actual saved dream flag.");
+        }
+        if (vitals.DreamEnabled)
         {
             return state;
         }
@@ -27,7 +39,7 @@ public sealed partial class EventEngine
         }
         // Native529FF0 consumes the PREVIOUS body callback's scalar before VM.
         // Refuse an unproved payment before changing the clock, PC or body.
-        return state.WithMovementUnits(Scene.NativeSalaryMovementUnits.Value);
+        return state.WithMovementUnits(Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104, vitals.DreamEnabled);
     }
 
     private void ValidateNativePlayerInput(ActorState player)

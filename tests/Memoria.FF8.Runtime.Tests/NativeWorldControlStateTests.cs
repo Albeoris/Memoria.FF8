@@ -50,7 +50,7 @@ public sealed class NativeWorldControlStateTests
         {
             for (int menu = 0; menu <= byte.MaxValue; menu++)
             {
-                NativeWorldControlState state = NativeWorldControlState.CreateNewGame() with { SourceDisabled = disabled, Menu209 = (byte)menu };
+                NativeWorldControlState state = NativeWorldControlState.CreateNewGame().WithPartyPower(disabled ? 0 : 1) with { Menu209 = (byte)menu };
                 NativeWorldControlState updated = state.WithWorldEntryMenuFlag();
                 Assert.Equal(disabled, updated.SourceDisabled);
                 Assert.Equal(!disabled, (updated.Menu209 & 2) != 0);
@@ -67,7 +67,7 @@ public sealed class NativeWorldControlStateTests
         {
             for (int menu = 0; menu <= byte.MaxValue; menu++)
             {
-                NativeWorldControlState state = NativeWorldControlState.CreateNewGame() with { SourceDisabled = disabled, Menu209 = (byte)menu };
+                NativeWorldControlState state = NativeWorldControlState.CreateNewGame().WithPartyPower(disabled ? 0 : 1) with { Menu209 = (byte)menu };
                 NativeWorldControlState updated = state.WithNormalFieldLoad();
                 Assert.Equal(disabled, updated.SourceDisabled);
                 Assert.Equal((byte)(menu & 0xFC), updated.Menu209);
@@ -79,7 +79,7 @@ public sealed class NativeWorldControlStateTests
     [Fact]
     public void UpdatedFlagsAndProvenanceRoundTripWithoutReinitialization()
     {
-        NativeWorldControlState state = NativeWorldControlState.CreateNewGame() with { SourceDisabled = false, Menu209 = 0xE7 };
+        NativeWorldControlState state = NativeWorldControlState.CreateNewGame() with { Menu209 = 0xE7 };
         NativeWorldControlState restored = JsonSerializer.Deserialize<NativeWorldControlState>(JsonSerializer.Serialize(state))!;
         restored.Validate();
         Assert.Equal(state, restored);
@@ -98,8 +98,7 @@ public sealed class NativeWorldControlStateTests
             valid with { Origin = valid.Origin with { ProofVersion = 0 } },
             valid with { Origin = valid.Origin with { Kind = (NativeWorldControlOriginKind)99 } },
             valid with { Origin = valid.Origin with { InitializationRule = "unknown" } },
-            valid with { Origin = valid.Origin with { Kind = (NativeWorldControlOriginKind)1 } },
-            valid with { ScriptBattleDisabled20 = null }
+            valid with { Origin = valid.Origin with { Kind = (NativeWorldControlOriginKind)1 } }
         ];
 
         foreach (NativeWorldControlState state in invalid)
@@ -117,7 +116,7 @@ public sealed class NativeWorldControlStateTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeWorldControlState>("{}"));
         string complete = JsonSerializer.Serialize(NativeWorldControlState.CreateNewGame());
 
-        foreach (string member in new[] { "SchemaVersion", "Origin", "SourceDisabled", "Menu209", "ScriptBattleDisabled20" })
+        foreach (string member in new[] { "SchemaVersion", "Origin", "EventFlags104", "Menu209", "MusicKeep207" })
         {
             Dictionary<string, JsonElement> properties = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(complete)!;
             properties.Remove(member);

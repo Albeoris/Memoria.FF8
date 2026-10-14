@@ -4,11 +4,18 @@ using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.App.Tests;
 
 public sealed class MinimalBattleAndGuardianForceTests
 {
+    private static readonly Lazy<NativeCharacterVitals> InitialVitals = new(() =>
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        using GameAssets assets = new(directory);
+        return assets.ReadNewGameCharacterVitals();
+    });
     [Fact]
     public void Reached_battle_yields_returns_to_same_vm_and_names_original_gf2_after_restore()
     {
@@ -23,7 +30,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.Equal(0, request.EmulatedCombatCallbacks);
         Assert.Null(request.Result);
         Assert.Null(original.Scene.NativeBattleResult);
-        Assert.Empty(original.Scene.AcquiredGuardianForces);
+        Assert.Empty(original.AcquiredGuardianForces!);
         JsonElement before = original.Capture();
         EventEngine restored = Engine(source, NativeWorldControlState.CreateNewGame());
         restored.Restore(before);
@@ -35,7 +42,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.Equal((byte)0, original.Scene.NativeBattleCompletions![0].Result);
         Assert.Equal(2, original.Scene.NativeBattleCompletions![0].ReturnFrame);
         Assert.Equal(0, original.Capture().GetProperty("Variables").GetProperty("800").GetInt32());
-        Assert.Equal(new[] { 2 }, original.Scene.AcquiredGuardianForces);
+        Assert.Equal(new[] { 2 }, original.AcquiredGuardianForces!);
         MinimalMenuCompletion naming = Assert.Single(original.Scene.MinimalMenuCompletions);
         Assert.Equal((5, 7, 2), (naming.RawArgument, naming.MenuId, naming.GuardianForceId));
         Assert.False(original.IsDialogueOpen);
@@ -52,13 +59,13 @@ public sealed class MinimalBattleAndGuardianForceTests
     public void Suppressed_battle_consumes_and_yields_without_winning_or_acquiring_any_gf()
     {
         byte[] source = Program((Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.POPM_W, 900));
-        EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame() with { ScriptBattleDisabled20 = true });
+        EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x38 });
         engine.Step();
         NativeBattleCompletion request = Assert.Single(engine.Scene.NativeBattleCompletions!);
         Assert.True(request.Suppressed);
         Assert.Null(request.Backend);
         Assert.Null(engine.Scene.NativeBattleResult);
-        Assert.Empty(engine.Scene.AcquiredGuardianForces);
+        Assert.Empty(engine.AcquiredGuardianForces!);
         engine.Step();
         Assert.Equal(123, engine.Capture().GetProperty("Variables").GetProperty("900").GetInt32());
         Assert.Null(engine.Scene.NativeBattleResult);
@@ -74,7 +81,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         JsonElement snapshot = engine.Capture();
         Assert.Equal(2, snapshot.GetProperty("Fibers")[0].GetProperty("Position").GetInt32());
         Assert.Equal(new[] { 13 }, snapshot.GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()));
-        Assert.False(snapshot.GetProperty("WorldControls").GetProperty("ScriptBattleDisabled20").GetBoolean());
+        Assert.Equal(0x18u, snapshot.GetProperty("WorldControls").GetProperty("EventFlags104").GetUInt32());
         Assert.Equal(party, engine.Scene.Party);
     }
 
@@ -82,12 +89,12 @@ public sealed class MinimalBattleAndGuardianForceTests
     public void Unknown_battle_flag_faults_before_consuming_original_operands()
     {
         byte[] source = Program((Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0));
-        EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame() with { ScriptBattleDisabled20 = null });
+        EventEngine engine = Engine(source, null);
         Assert.Throws<EventScriptException>(() => engine.Step());
         JsonElement snapshot = engine.Capture();
         Assert.Equal(3, snapshot.GetProperty("Fibers")[0].GetProperty("Position").GetInt32());
         Assert.Equal(new[] { 4, 94 }, snapshot.GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()));
-        Assert.Contains("mask20", engine.LastFault!.Message);
+        Assert.Contains("104", engine.LastFault!.Message);
         Assert.Null(engine.Scene.NativeBattleCompletions);
     }
 
@@ -113,7 +120,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         byte[] source = Program((Jsm.Opcode.PSHN_L, argument), (Jsm.Opcode.MENUNAME, 0));
         EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame());
         engine.Step();
-        Assert.Equal(new[] { guardianForce }, engine.Scene.AcquiredGuardianForces);
+        Assert.Equal(new[] { guardianForce }, engine.AcquiredGuardianForces!);
         MinimalMenuCompletion completion = Assert.Single(engine.Scene.MinimalMenuCompletions);
         Assert.Equal(menuId, completion.MenuId);
         EventEngine restored = Engine(source, NativeWorldControlState.CreateNewGame());
@@ -133,7 +140,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         EventEngine engine = Engine(Program((Jsm.Opcode.PSHN_L, argument), (Jsm.Opcode.MENUNAME, 0)), NativeWorldControlState.CreateNewGame());
         engine.Step();
         Assert.True(engine.CurrentDialogue!.IsNamePrompt);
-        Assert.Empty(engine.Scene.AcquiredGuardianForces);
+        Assert.Empty(engine.AcquiredGuardianForces!);
         Assert.Empty(engine.Scene.MinimalMenuCompletions);
     }
 
@@ -153,9 +160,9 @@ public sealed class MinimalBattleAndGuardianForceTests
         }
     }
 
-    private static EventEngine Engine(byte[] source, NativeWorldControlState controls)
+    private static EventEngine Engine(byte[] source, NativeWorldControlState? controls)
     {
-        var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 999, WorldControls = controls });
+        var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 999, WorldControls = controls, CharacterVitals = InitialVitals.Value.DeepCopy() });
         var engine = new EventEngine(session, session.State.Variables);
         engine.LoadField(999, source, []);
         return engine;

@@ -69,8 +69,8 @@ public sealed class TerminalInputTests
         Apply(world, new PlayerAction(PlayerActionKind.FieldButtons));
         Apply(world, new PlayerAction(PlayerActionKind.Confirm));
         DriveUntil(world, () => world.Events.CurrentDialogue?.MessageId == 2);
-        Assert.Contains(0, world.Events.Scene.AcquiredGuardianForces);
-        Assert.Contains(1, world.Events.Scene.AcquiredGuardianForces);
+        Assert.Contains(0, world.Events.AcquiredGuardianForces!);
+        Assert.Contains(1, world.Events.AcquiredGuardianForces!);
         Assert.Equal(2, session.State.Variables[384] & 2);
         Apply(world, new PlayerAction(PlayerActionKind.Confirm));
         DriveUntil(world, () => world.Events.Scene.MinimalMenuCompletions.Any(completion => completion.MenuId == 26));
@@ -152,20 +152,10 @@ public sealed class TerminalInputTests
 
     private static GameState RecreateClassroom(string directory)
     {
-        ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(Repository(), "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = GameSession.CreateColdProcess();
-        seed.StartNewGame();
-        ReplayJournal prefix = seed.State.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in source.Entries)
-        {
-            prefix = prefix.Append(entry);
-            if (entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 232)
-            {
-                break;
-            }
-        }
-        ReplayJournalEntry endpoint = prefix.Endpoint!;
-        var session = new GameSession(GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, directory));
+        string sourcePath = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        ReplayJournalEntry[] entries = GameSession.LoadReplaySource(sourcePath).ReplayJournal!.Entries.ToArray();
+        int selectedCount = Array.FindIndex(entries, entry => entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 232) + 1;
+        var session = new GameSession(ExamTimerContinuationTests.RecreateRecordedPrefix(sourcePath, directory, selectedCount));
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         world.EnsureField();
         for (int tick = 0; tick < 3000 && world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable; tick++)

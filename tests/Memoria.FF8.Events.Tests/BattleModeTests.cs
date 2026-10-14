@@ -14,6 +14,7 @@ internal static partial class Program
         {
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
             session.State.Variables[512] = raw;
             EventEngine first = new(session, session.State.Variables);
             first.LoadField(999, content, []);
@@ -93,13 +94,14 @@ internal static partial class Program
         revisited.Restore(loading.Capture());
         Require(JsonElement.DeepEquals(loading.Capture(), revisited.Capture()), "Battle-mode history treated an earlier visit's frame as a current field operation.");
 
-        GameSession suppressedSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { ScriptBattleDisabled20 = true } });
+        GameSession suppressedSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x38 } });
         EventEngine suppressed = new(suppressedSession, suppressedSession.State.Variables);
         suppressed.LoadField(994, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x123), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.RET, 0)), []);
         suppressed.Step();
         Require(suppressed.Scene.NativeBattleFlagWrites is { Count: 1 } && suppressed.Scene.NativeBattleFlagWrites[0].ActiveFlags == 0x123 && suppressed.Scene.NativeBattleCompletions![0].FlagConsumer is null, "Suppressed BATTLE changed active flags or invented a battle consumer.");
 
         GameSession uiSession = GameSession.CreateColdProcess();
+        uiSession.StartNewGame();
         EventEngine ui = new(uiSession, uiSession.State.Variables);
         ui.LoadField(995, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.RET, 0)), []);
         ui.Step();

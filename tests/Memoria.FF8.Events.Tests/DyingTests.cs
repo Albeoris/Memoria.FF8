@@ -12,7 +12,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
-        Require(initial.CombatParty.SequenceEqual(new byte[] { 255, 0, 255 }) && initial.Records.All(record => record.Status == 0 && record.HitPoints.IsPositive) && initial.Records[0].HitPoints == new NativeHpWord(1, 9999) && initial.Records[3].HitPoints == new NativeHpWord(9999, 9999), "Authentic template/menu initialization did not preserve raw combat slots, zero status and unknown exact clamped HP.");
+        Require(initial.CombatParty.SequenceEqual(new byte[] { 255, 0, 255 }) && initial.Records.All(record => record.Status == 0 && record.HitPoints.IsPositive) && initial.Records[0].HitPoints == new NativeHpWord(486, 486) && initial.Records[3].HitPoints == new NativeHpWord(9999, 9999), "Authentic template/menu initialization did not preserve raw combat slots, zero status and exact native clamped HP.");
         Require(initial.InitOutSha256 == "4D0D23473AB54AC078B0C77A1672D970BF51E7824BAC1724027B5766B706C9EA", "Selected init.out provenance changed.");
         NativeCharacterVital[] records = initial.Records.ToArray();
         records[0] = records[0] with { HitPoints = new NativeHpWord(0, 0), Status = 0xA5A5 };
@@ -62,12 +62,12 @@ internal static partial class Program
             JsonElement failed = invalid.Capture();
             Require(invalid.LastFault?.Opcode == "DYING" && failed.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 2 && failed.GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 77 && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(invalidState), JsonSerializer.SerializeToElement(invalidSession.CharacterVitals)), "DYING refusal changed the PC, stack or HP/status state.");
         }
-        NativeCharacterVital[] permuted = initial.Records.ToArray();
-        (permuted[0], permuted[1]) = (permuted[1], permuted[0]);
+        NativeCharacterVital[] malformed = initial.Records.ToArray();
+        malformed[0] = malformed[0] with { CharacterId = 255 };
         try
         {
-            (initial with { Records = permuted }).Validate();
-            throw new InvalidOperationException("Permuted native character records were accepted.");
+            (initial with { Records = malformed }).Validate();
+            throw new InvalidOperationException("Unsupported native kernel identity was accepted.");
         }
         catch (InvalidDataException)
         {
@@ -91,10 +91,9 @@ internal static partial class Program
         EventEngine clear = new(clearSession, clearSession.State.Variables);
         clear.Scene.Party.Clear();
         clear.Scene.Party.AddRange([0, 255, 255]);
-        clear.Scene.Members.Add(0);
         clear.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), []);
         clear.Step();
-        Require(clearSession.State.Variables.Count == 2 && clearSession.State.Variables[255] == 5 && clearSession.State.Variables[1280] == 8 && clear.Scene.Party.SequenceEqual([0, 255, 255]) && clear.Scene.Members.SetEquals([0]) && clearSession.CharacterVitals == initial, "Native CLEAR exceeded its256..1279 range or changed party, membership or character vitals.");
+        Require(clearSession.State.Variables.Count == 2 && clearSession.State.Variables[255] == 5 && clearSession.State.Variables[1280] == 8 && clear.Scene.Party.SequenceEqual([0, 255, 255]) && clear.NormalMembers!.SetEquals([0]) && clearSession.CharacterVitals == initial, "Native CLEAR exceeded its256..1279 range or changed party, membership or character vitals.");
         foreach (int character in new[] { 8, 259 })
         {
             GameSession invalidPartySession = new(new GameState { CharacterVitals = initial });

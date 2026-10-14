@@ -9,7 +9,7 @@ public sealed class WorldControlSessionTests
     [InlineData(true, 255, 253)]
     public void PreparedWorldEntryPublishesStateAndLoaderFlagsTogether(bool disabled, byte menuBefore, byte menuAfter)
     {
-        NativeWorldControlState controls = NativeWorldControlState.CreateNewGame() with { SourceDisabled = disabled, Menu209 = menuBefore };
+        NativeWorldControlState controls = NativeWorldControlState.CreateNewGame().WithPartyPower(disabled ? 0 : 1) with { Menu209 = menuBefore };
         var departure = new GameState { Scene = SceneKind.Field, FieldId = 159, WorldControls = controls, SavedWorld = NativeSavedWorldState.CreateNewGame() };
         var session = new GameSession(departure);
         var transition = new WorldTransition(0, 0, 0);
@@ -57,13 +57,15 @@ public sealed class WorldControlSessionTests
     public void FullCheckpointLoadRejectsConflictingNonNullControlCopies()
     {
         NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();
-        var session = new GameSession(new GameState { WorldControls = controls, EventState = System.Text.Json.JsonSerializer.SerializeToElement(new { WorldControls = controls.WithPartyPower(0) }) });
+        // A narrow root/VM owner consistency fixture; process message data is
+        // genuinely unknown here and recorded explicitly, without a cold seed.
+        var session = new GameSession(new GameState { WorldControls = controls, EventState = System.Text.Json.JsonSerializer.SerializeToElement(new { WorldControls = controls.WithPartyPower(0), MessageVariables = (NativeMessageVariables?)null }) });
         string path = Path.Combine(Path.GetTempPath(), "ff8-conflicting-flags-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
             session.Save(path);
             Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
-            session.SetEventState(System.Text.Json.JsonSerializer.SerializeToElement(new { WorldControls = controls }));
+            session.SetEventState(System.Text.Json.JsonSerializer.SerializeToElement(new { WorldControls = controls, MessageVariables = session.State.MessageVariables }));
             session.Save(path);
             Assert.Equal(controls, GameSession.Load(path).WorldControls);
         }
@@ -80,7 +82,7 @@ public sealed class WorldControlSessionTests
         Assert.Null(session.WorldControls);
         session.StartNewGame();
         Assert.Equal(NativeWorldControlState.CreateNewGame(), session.WorldControls);
-        session.SetWorldControls(session.WorldControls! with { SourceDisabled = true, Menu209 = 255 });
+        session.SetWorldControls(session.WorldControls!.WithPartyPower(0) with { Menu209 = 255 });
         session.RequestField(232, 0);
         Assert.True(session.WorldControls!.SourceDisabled);
         Assert.Equal((byte)252, session.WorldControls.Menu209);

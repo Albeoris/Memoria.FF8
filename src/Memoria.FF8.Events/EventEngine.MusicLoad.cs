@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Events;
 
 public sealed record NativeMusicBootstrap(int Version, string Rule, string ExecutableHash);
-public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? Requested213, byte? Complete214, byte? Bank201, byte? Keep207, bool? KeepBit400, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeMusicBootstrap? Bootstrap = null);
+public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? Requested213, byte? Complete214, byte? Bank201, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeMusicBootstrap? Bootstrap = null);
 public sealed record NativeMusicLoadRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawMusic, byte Music, int PriorSecondChannel, byte? PriorKeep207, bool Loaded, GlobalSoundBackendStatus BackendStatus);
 public sealed record NativeMusicPlayRequest(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, string Opcode, bool ConsumedPending, byte? Music, byte? PriorBank, byte? Bank, bool? PriorKeepBit400, int? Volume, int? Duration, int? Channel, GlobalSoundBackendStatus BackendStatus, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SkipPosition = null);
 
@@ -23,7 +23,7 @@ public sealed partial class EventEngine
         }
         // 470560 executes52CA90(1): B201=0, B199/200=FF, DWORD108/112=-1;
         // the preceding248-byte clear proves B207/213/214 and bit400 zero.
-        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, 0, false, new NativeMusicBootstrap(1, "ff8-en-music-new-game-470560-52ca90-v1", profile.ExecutableHash));
+        Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, new NativeMusicBootstrap(1, "ff8-en-music-new-game-470560-52ca90-v1", profile.ExecutableHash));
         Scene.MusicChannel108 = new NativeMusicChannelState(-1, 255);
         Scene.MusicChannel112 = new NativeMusicChannelState(-1, 255);
         variables[108] = -1;
@@ -36,26 +36,22 @@ public sealed partial class EventEngine
 
     private void CopyNativeMusicLoad(SceneEventState previous, NativeFieldRuntimeProfile? profile)
     {
-        NativeMusicProcessState? process = previous.MusicProcess;
-        if (profile is { IsVerified: true })
+        if (profile is { IsVerified: true } && services.WorldControls is NativeWorldControlState controls)
         {
-            // Native52BC00's normal field branch resets only these field controls.
-            process = (process ?? new NativeMusicProcessState(1, null, null, null, null, null, null)) with { Keep207 = 0, KeepBit400 = false };
-            if (variables.ContainsKey(207))
-            {
-                variables[207] = 0;
-            }
+            // Normal52BC00 resets B207 and DWORD104 mask400 without resetting
+            // pending, requested/completion bytes, buffers or channel identities.
+            services.SetWorldControls(controls.WithNormalFieldLoad());
         }
-        Scene.MusicProcess = process;
+        Scene.MusicProcess = previous.MusicProcess;
         Scene.MusicLoadRequest = previous.MusicLoadRequest;
         Scene.MusicPlayRequest = previous.MusicPlayRequest;
     }
 
     private void ValidateNativeMusicFieldLoad(NativeFieldRuntimeProfile? profile)
     {
-        if (profile is { IsVerified: true } && variables.TryGetValue(207, out int alias) && Scene.MusicProcess?.Keep207 != alias)
+        if (profile is { IsVerified: true } && variables.ContainsKey(207))
         {
-            throw new NotSupportedException("Native music field reset intersects an unproved B207 memory width.");
+            throw new NotSupportedException("Native music field reset intersects a separate B207 memory alias; canonical event ownership is required.");
         }
     }
 
@@ -64,7 +60,7 @@ public sealed partial class EventEngine
         byte? known = address switch
         {
             201 => Scene.MusicProcess?.Bank201,
-            207 => Scene.MusicProcess?.Keep207,
+            207 => services.WorldControls?.MusicKeep207,
             213 => Scene.MusicProcess?.Requested213,
             214 => Scene.MusicProcess?.Complete214,
             _ => null
@@ -90,6 +86,23 @@ public sealed partial class EventEngine
             {
                 return "Native music play requires its executed pending-load flag";
             }
+            bool writesControls = operation.Opcode == Jsm.Opcode.MUSICLOAD ? Scene.MusicChannel112?.ChannelId == -1 : Scene.MusicProcess?.Pending == true;
+            if (operation.Opcode != Jsm.Opcode.MUSICLOAD && Scene.MusicProcess is { Pending: true, Requested213: null })
+            {
+                return "Native pending music requires its executed requested BYTE213";
+            }
+            if (writesControls)
+            {
+                if (services.WorldControls is not NativeWorldControlState controls)
+                {
+                    return "Native music keep writes require the current event DWORD104 and BYTE207 owner";
+                }
+                controls.Validate();
+                if (UnsupportedWorldControlAliases() is string aliases)
+                {
+                    return aliases;
+                }
+            }
             if (services.NativeVariableValues?.Any(pair => new[] { 108, 109, 110, 111, 112, 113, 114, 115, 199, 200, 201, 207, 213, 214 }.Any(address => pair.Key <= address && pair.Key + pair.Value.Width > address)) == true)
             {
                 return "Native music load/play overlaps uncertain memory without an exact owned-byte projection";
@@ -108,7 +121,7 @@ public sealed partial class EventEngine
             return null;
         }
         int width = NativeMemoryWidth(operation.Opcode);
-        if (width == 0 || !new[] { 201, 207, 213, 214 }.Any(address => operation.Parameter <= address && (long)operation.Parameter + width > address))
+        if (width == 0 || !new[] { 201, 213, 214 }.Any(address => operation.Parameter <= address && (long)operation.Parameter + width > address))
         {
             return null;
         }
@@ -117,15 +130,22 @@ public sealed partial class EventEngine
 
     private int[] ExecuteNativeMusicLoad(Fiber fiber)
     {
-        int[] args = Pop(fiber, 1);
-        byte music = unchecked((byte)args[0]);
+        byte music = unchecked((byte)fiber.Stack.Peek());
         int channel = Scene.MusicChannel112!.ChannelId;
         bool load = channel == -1;
-        NativeMusicProcessState prior = Scene.MusicProcess ?? new NativeMusicProcessState(1, null, null, null, null, null, null);
-        Scene.MusicProcess = prior with { Pending = load, Requested213 = music, Complete214 = load ? (byte)1 : prior.Complete214, Keep207 = load ? (byte)1 : prior.Keep207, KeepBit400 = load ? prior.Keep207 is byte keep ? keep == 0 : null : prior.KeepBit400 };
+        NativeMusicProcessState prior = Scene.MusicProcess ?? new NativeMusicProcessState(1, null, null, null, null);
+        byte? priorKeep = services.WorldControls?.MusicKeep207;
+        if (load)
+        {
+            NativeWorldControlState controls = services.WorldControls!;
+            NativeWorldControlState next = controls with { EventFlags104 = controls.MusicKeep207 == 0 ? controls.EventFlags104 | 0x400u : controls.EventFlags104 & ~0x400u, MusicKeep207 = 1 };
+            SetNativeWorldControls(fiber, next);
+        }
+        int[] args = Pop(fiber, 1);
+        Scene.MusicProcess = prior with { Pending = load, Requested213 = music, Complete214 = load ? (byte)1 : prior.Complete214 };
         variables[213] = music;
         Scene.LoadedMusic = music;
-        Scene.MusicLoadRequest = new NativeMusicLoadRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], music, channel, prior.Keep207, load, GlobalSoundBackendStatus.Muted);
+        Scene.MusicLoadRequest = new NativeMusicLoadRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], music, channel, priorKeep, load, GlobalSoundBackendStatus.Muted);
         // Native52CD10 is synchronous in this executable and writes completion1.
         // MUSICLOAD never replaces either native channel DWORD or its music BYTE.
         return args;
@@ -135,18 +155,25 @@ public sealed partial class EventEngine
     {
         bool secondary = opcode == Jsm.Opcode.DUALMUSIC;
         bool skip = opcode == Jsm.Opcode.MUSICSKIP;
-        int[] args = opcode == Jsm.Opcode.CROSSMUSIC ? Pop(fiber, 2) : secondary || skip ? Pop(fiber, 1) : [];
+        int count = opcode == Jsm.Opcode.CROSSMUSIC ? 2 : secondary || skip ? 1 : 0;
+        int[] args = fiber.Stack.Take(count).Reverse().ToArray();
         NativeMusicProcessState prior = Scene.MusicProcess!;
         bool consumed = prior.Pending == true;
         byte? bank = consumed && !secondary && prior.Bank201 is byte knownBank ? unchecked((byte)(knownBank ^ 1)) : prior.Bank201;
         int? volume = opcode == Jsm.Opcode.CROSSMUSIC || secondary ? args[0] & 127 : Scene.SoundMusicVolume197;
         int? duration = opcode == Jsm.Opcode.CROSSMUSIC ? unchecked(2 * args[1]) : null;
+        bool? priorKeepBit = services.WorldControls is NativeWorldControlState knownControls ? (knownControls.EventFlags104 & 0x400) != 0 : null;
+        if (consumed)
+        {
+            NativeWorldControlState controls = services.WorldControls!;
+            NativeWorldControlState next = controls with { MusicKeep207 = (byte)((controls.EventFlags104 & 0x400) == 0 ? 1 : 0), EventFlags104 = controls.EventFlags104 & ~0x400u };
+            SetNativeWorldControls(fiber, next);
+        }
+        Pop(fiber, count);
         if (consumed)
         {
             byte music = prior.Requested213 ?? throw new InvalidDataException("Native pending music has no executed requested byte.");
-            // Music owns only DWORD104 mask400. The separate world-control
-            // ledger retains mask200, mask20 and B209; no full DWORD is inferred.
-            Scene.MusicProcess = prior with { Pending = false, Bank201 = bank, Keep207 = prior.KeepBit400 is bool keepBit ? (byte)(keepBit ? 0 : 1) : null, KeepBit400 = false };
+            Scene.MusicProcess = prior with { Pending = false, Bank201 = bank };
             if (secondary)
             {
                 // 51FB00 selects the opposite buffer without52CCE0's bank toggle;
@@ -171,7 +198,7 @@ public sealed partial class EventEngine
         }
         // Native51F900 consumes a full DWORD even without pending music. With
         // pending music46B890 retains that position and returns primary channel0.
-        Scene.MusicPlayRequest = new NativeMusicPlayRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, opcode.ToString(), consumed, consumed ? prior.Requested213 : null, prior.Bank201, bank, prior.KeepBit400, volume, duration, consumed ? secondary ? 1 : 0 : null, GlobalSoundBackendStatus.Muted, skip ? args[0] : null);
+        Scene.MusicPlayRequest = new NativeMusicPlayRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, opcode.ToString(), consumed, consumed ? prior.Requested213 : null, prior.Bank201, bank, priorKeepBit, volume, duration, consumed ? secondary ? 1 : 0 : null, GlobalSoundBackendStatus.Muted, skip ? args[0] : null);
         AudioCommandExecuted?.Invoke(Scene.MusicPlayRequest);
         return args;
     }
@@ -191,9 +218,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }
-        foreach (int address in new[] { 201, 207, 213, 214 })
+        foreach (int address in new[] { 201, 213, 214 })
         {
-            byte? known = address == 201 ? process?.Bank201 : address == 207 ? process?.Keep207 : address == 213 ? process?.Requested213 : process?.Complete214;
+            byte? known = address == 201 ? process?.Bank201 : address == 213 ? process?.Requested213 : process?.Complete214;
             if (saved.Variables.TryGetValue(address, out int alias) && known is byte value && alias != value)
             {
                 throw new InvalidDataException("Saved native music byte disagrees with its exact alias.");

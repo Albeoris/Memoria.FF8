@@ -66,7 +66,7 @@ internal static partial class Program
 
         foreach (int argument in new[] { 0, 1, 256, -1, int.MinValue })
         {
-            NativeWorldControlState controls = NativeWorldControlState.CreateNewGame() with { Menu209 = 0xAA, SourceDisabled = true };
+            NativeWorldControlState controls = NativeWorldControlState.CreateNewGame().WithPartyPower(0) with { Menu209 = 0xAA };
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 76), (Jsm.Opcode.GETCARD, 0), (Jsm.Opcode.PSHN_L, 91), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.SAVEENABLE, 0), (Jsm.Opcode.PSHI_L, 3), (Jsm.Opcode.POPM_L, 1000), (Jsm.Opcode.POPM_L, 1004), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 1008), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             (GameSession session, EventEngine engine) = CreateCardEngine(capped, controls, content);
             session.State.Variables[512] = argument;

@@ -22,6 +22,7 @@ internal static partial class Program
                     ["native-base-animation"] = NativeBaseAnimationContract,
                     ["native-maccel"] = NativeMovementAccelerationContract,
                     ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
+                    ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
                     ["native-jump-budget"] = NativeJumpBudgetContract,
                     ["map-jump-origin"] = NativeMapJumpOriginContract,
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
@@ -49,8 +50,8 @@ internal static partial class Program
                         NativeScriptMovementAndBoundary(selectedGameDirectory);
                     },
                     ["native-player-contacts"] = () => NativePlayerGroundContactContract(selectedGameDirectory),
-                    ["world-transition"] = NativeWorldTransitionTransaction,
-                    ["minimal-menu"] = MinimalMenuCompletionContract,
+                    ["world-transition"] = () => NativeWorldTransitionTransaction(selectedGameDirectory),
+                    ["minimal-menu"] = () => MinimalMenuCompletionContract(selectedGameDirectory),
                     ["party-query"] = () => NativePartyQueryContract(selectedGameDirectory),
                     ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
                     ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
@@ -86,10 +87,10 @@ internal static partial class Program
                     ["native-rmovea"] = NativeRmMoveActorContract,
                     ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
                     ["negative-cosine-turn"] = NativeNegativeCosineTurnContract,
-                    ["salary-field-movement"] = NativeSalaryFieldMovementContract,
+                    ["salary-field-movement"] = () => NativeSalaryFieldMovementContract(selectedGameDirectory),
                     ["seed-rank"] = () => NativeSeeDContract(selectedGameDirectory),
                     ["party-actor-direction"] = NativePartyActorDirectionContract,
-                    ["player-script-handoff"] = NativePlayerScriptHandoffContract,
+                    ["player-script-handoff"] = () => NativePlayerScriptHandoffContract(selectedGameDirectory),
                     ["empty-party-model"] = NativeEmptyPartyModelContract,
                     ["vibration"] = NativeVibrationContract,
                     ["actor-shadow"] = NativeActorShadowContract,
@@ -155,8 +156,8 @@ internal static partial class Program
             NativeScriptMovementAndBoundary(gameDirectory);
             NativeAsyncRfmMoveContract(gameDirectory);
             NativePlayerGroundContactContract(gameDirectory);
-            NativeWorldTransitionTransaction();
-            MinimalMenuCompletionContract();
+            NativeWorldTransitionTransaction(gameDirectory);
+            MinimalMenuCompletionContract(gameDirectory);
             NativePartyQueryContract(gameDirectory);
             NativeRootTranslationAndBoundary(gameDirectory);
             NativePlayerAcceptedRetryContract(gameDirectory);
@@ -177,7 +178,7 @@ internal static partial class Program
             NativeSeeDContract(gameDirectory);
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
-            NativePlayerScriptHandoffContract();
+            NativePlayerScriptHandoffContract(gameDirectory);
             NativeEmptyPartyModelContract();
             NativeVibrationContract();
             NativeActorShadowContract();

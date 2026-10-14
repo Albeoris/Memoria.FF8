@@ -28,9 +28,21 @@ public sealed partial class EventEngine
         {
             return "Native menu request requires its original operand";
         }
+        if (!fiber.Stack.PeekValue().IsExact)
+        {
+            return "Native menu request requires its exact original DWORD operand";
+        }
         if (operation.Opcode == Jsm.Opcode.MENUNAME && fiber.Stack.Peek() is not (0 or 1 or 2) && !TryNativeGuardianForceName(fiber.Stack.Peek(), out _, out _))
         {
             return "MENUNAME argument requires its original character0..2 or Guardian Force3..18 naming request; other menu subsystems remain unsupported";
+        }
+        if (operation.Opcode == Jsm.Opcode.MENUNAME && TryNativeGuardianForceName(fiber.Stack.Peek(), out _, out int id))
+        {
+            if (services.CharacterVitals is not Memoria.FF8.Runtime.NativeCharacterVitals state)
+            {
+                return "MENUNAME GF acquisition requires its authentic saved GF flags and inputs; no GF record is constructed from a naming receipt";
+            }
+            _ = state.AcquireGuardianForce(id);
         }
         return null;
     }
@@ -53,9 +65,9 @@ public sealed partial class EventEngine
         MinimalMenuCompletion completion = new(1, browser ? MinimalMenuKind.TutorialBrowser : tutorial ? MinimalMenuKind.Tutorial : MinimalMenuKind.GuardianForceName, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, argument, menuId, browser ? (byte)1 : tutorial ? (byte)argument : (byte)1, guardianForce);
         if (guardianForce is int id)
         {
-            // Native47E480 ORs mask1 into this GF's status. Retain the positive
-            // known acquisition bit without constructing its other status bits.
-            Scene.AcquiredGuardianForces.Add(id);
+            // Native47E480 ORs mask1 only, preserving every other saved GF input
+            // and its last produced maximum. Acquisition does not rebuild stats.
+            CommitSavedCharacters(fiber, services.CharacterVitals!.AcquireGuardianForce(id), opcode);
         }
         Scene.MinimalMenuWaits.Add(fiber.Sequence, Scene.MinimalMenuCompletions.Count);
         Scene.MinimalMenuCompletions.Add(completion);
@@ -82,14 +94,10 @@ public sealed partial class EventEngine
                 }
                 continue;
             }
-            if (tutorial ? completion.MenuId != 29 || completion.Selection != (byte)completion.RawArgument || completion.GuardianForceId is not null : !TryNativeGuardianForceName(completion.RawArgument, out int menuId, out int guardianForceId) || completion.MenuId != menuId || completion.Selection != 1 || completion.GuardianForceId != guardianForceId || !saved.Scene.AcquiredGuardianForces.Contains(guardianForceId))
+            if (tutorial ? completion.MenuId != 29 || completion.Selection != (byte)completion.RawArgument || completion.GuardianForceId is not null : !TryNativeGuardianForceName(completion.RawArgument, out int menuId, out int guardianForceId) || completion.MenuId != menuId || completion.Selection != 1 || completion.GuardianForceId != guardianForceId || saved.CharacterVitals is null || (saved.CharacterVitals.GuardianForces[guardianForceId].Flags & 1) == 0)
             {
                 throw new InvalidDataException("Saved minimal menu completion changed its original tutorial byte or GF acquisition request.");
             }
-        }
-        if (saved.Scene.AcquiredGuardianForces.Any(id => (uint)id >= 16 || !saved.Scene.MinimalMenuCompletions.Any(completion => completion.Kind == MinimalMenuKind.GuardianForceName && completion.GuardianForceId == id)))
-        {
-            throw new InvalidDataException("Saved known GF acquisition lacks its proved completed naming request.");
         }
         foreach ((long sequence, int index) in saved.Scene.MinimalMenuWaits)
         {

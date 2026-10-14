@@ -10,7 +10,7 @@ public enum NativeWorldControlOriginKind
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record NativeWorldControlOrigin([property: JsonRequired] int ProofVersion, [property: JsonRequired] NativeWorldControlOriginKind Kind, [property: JsonRequired] string InitializationRule);
 
-/// <summary>Known source/menu flags and optional script-battle mask20; this does not establish the complete DWORD104.</summary>
+/// <summary>The single event DWORD104 and menu BYTE209, produced by executed native New Game initialization.</summary>
 public sealed record NativeWorldControlState
 {
     public const int CurrentSchemaVersion = 1;
@@ -21,15 +21,21 @@ public sealed record NativeWorldControlState
     public required int SchemaVersion { get; init; }
     [JsonRequired]
     public required NativeWorldControlOrigin Origin { get; init; }
-    /// <summary>Event byte 105 bit value 2, equivalently native DWORD 104 mask 0x200.</summary>
     [JsonRequired]
-    public required bool SourceDisabled { get; init; }
+    public required uint EventFlags104 { get; init; }
+    [JsonIgnore]
+    public bool SourceDisabled => (EventFlags104 & 0x200) != 0;
+    [JsonIgnore]
+    public bool ScriptBattleDisabled20 => (EventFlags104 & 0x20) != 0;
+    [JsonIgnore]
+    public bool SalarySuppressed => (EventFlags104 & 8) != 0;
+    [JsonIgnore]
+    public bool SalaryDisplaySuppressed => (EventFlags104 & 0x10) != 0;
     /// <summary>The complete known event byte 209, with unrelated bits preserved by updates.</summary>
     [JsonRequired]
     public required byte Menu209 { get; init; }
-
     [JsonRequired]
-    public bool? ScriptBattleDisabled20 { get; init; }
+    public required byte MusicKeep207 { get; init; }
 
     public static NativeWorldControlState CreateNewGame()
     {
@@ -43,10 +49,6 @@ public sealed record NativeWorldControlState
         {
             throw new InvalidDataException("Unsupported or invalid native world-control provenance.");
         }
-        if (ScriptBattleDisabled20 is null)
-        {
-            throw new InvalidDataException("Native world-control state requires its recorded script-battle flag.");
-        }
     }
 
     /// <summary>Native PHSPOWER at 522230 updates source mask 0x200; operand zero also clears byte 209 mask 2.</summary>
@@ -55,7 +57,7 @@ public sealed record NativeWorldControlState
         Validate();
         return this with
         {
-            SourceDisabled = argument == 0,
+            EventFlags104 = argument == 0 ? EventFlags104 | 0x200u : EventFlags104 & ~0x200u,
             Menu209 = argument == 0 ? (byte)(Menu209 & 0xFD) : Menu209
         };
     }
@@ -78,7 +80,30 @@ public sealed record NativeWorldControlState
     public NativeWorldControlState WithNormalFieldLoad()
     {
         Validate();
-        return this with { Menu209 = (byte)(Menu209 & 0xFC) };
+        return this with { Menu209 = (byte)(Menu209 & 0xFC), EventFlags104 = EventFlags104 & ~0x400u, MusicKeep207 = 0 };
+    }
+
+    public NativeWorldControlState WithSalaryEnabled(bool enabled)
+    {
+        Validate();
+        return this with { EventFlags104 = enabled ? EventFlags104 & ~0x18u : EventFlags104 | 0x18u };
+    }
+
+    public NativeWorldControlState WithSalaryDisplayEnabled(bool enabled)
+    {
+        Validate();
+        return this with { EventFlags104 = enabled ? EventFlags104 & ~0x10u : EventFlags104 | 0x10u };
+    }
+
+    public NativeWorldControlState WithGuestMember(int guestIdentity, bool enabled)
+    {
+        Validate();
+        if (guestIdentity is < 8 or > 10)
+        {
+            throw new NotSupportedException("Native guest acquisition requires identity8..10.");
+        }
+        uint mask = 1u << (guestIdentity - 8);
+        return this with { EventFlags104 = enabled ? EventFlags104 | mask : EventFlags104 & ~mask };
     }
 
     private static NativeWorldControlState CreateInitial(NativeWorldControlOrigin origin)
@@ -87,9 +112,9 @@ public sealed record NativeWorldControlState
         {
             SchemaVersion = CurrentSchemaVersion,
             Origin = origin,
-            SourceDisabled = false,
+            EventFlags104 = 0x18,
             Menu209 = 0,
-            ScriptBattleDisabled20 = false
+            MusicKeep207 = 0,
         };
     }
 }

@@ -9,14 +9,16 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativePlayerScriptHandoffContract()
+    private static void NativePlayerScriptHandoffContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 212), (Jsm.Opcode.PSHN_L, 554), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 133), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 0)];
         (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 216), (Jsm.Opcode.PSHN_L, 553), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.RET, 0)];
         byte[] content = SyntheticObjects([1], [init, main]);
         EventEngine Create(bool moving = false)
         {
-            GameSession session = new(new GameState());
+            GameSession session = new(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
             EventEngine engine = new(session, session.State.Variables)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -106,7 +108,7 @@ internal static partial class Program
         Require(moving.Apply(input) is { Accepted: true, FramesAdvanced: 1 } && movingRestored.Apply(input) is { Accepted: true, FramesAdvanced: 1 }, "Active native movement input did not advance its ordinary callback.");
         Require(moving.Actors[0].NativeMovementCompletion542 == 1 && moving.Actors[0].NativeScriptMovement is { Active: true } next && next.FiberSequence == owner.FiberSequence && next.FixedX == owner.FixedX + 4096 && moving.Scene.NativePlayerPosition == new FieldFixedPosition(next.FixedX, next.FixedY, next.FixedZ) && JsonElement.DeepEquals(moving.Capture(), movingRestored.Capture()), "Ordinary player input replaced active native MOVE ownership, ran legacy locomotion or diverged after restore.");
         GameSession movingSession = (GameSession)typeof(EventEngine).GetField("services", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(moving)!;
-        movingSession.SetSeeD(NativeSeeDState.CreateNewGame().WithSalaryEnabled(true));
+        movingSession.SetNativeEventOwners(movingSession.WorldControls!.WithSalaryEnabled(true), seeD: NativeSeeDState.CreateNewGame().WithSalaryUiEnabled(true));
         Set(moving.Scene, nameof(SceneEventState.NativeSalaryMovementUnits), (byte)5);
         moving.Apply(input);
         Require(movingSession.SeeD!.SalaryMovementCounter == 5 && moving.Scene.NativeSalaryMovementUnits == 5, "Native mode572=1 incorrectly reset the retained previous-run salary scalar.");

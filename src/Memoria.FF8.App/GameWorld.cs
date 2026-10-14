@@ -41,7 +41,6 @@ internal sealed partial class GameWorld : IDisposable
             // Native470560 writes field-party DWORD1CFE990=FFFFFF00 after actual New Game.
             Events.Scene.Party.Clear();
             Events.Scene.Party.AddRange([0, 255, 255]);
-            Events.Scene.Members.Add(0);
         }
         Events.MoviePlayback = () => clock.State;
         Events.MovieSkipRequested += clock.Skip;
@@ -167,6 +166,7 @@ internal sealed partial class GameWorld : IDisposable
             return next.Walkmesh.TryPosition(arrival.X, arrival.Y, out Vector3 position, out int triangle, locked) ? new WalkmeshPosition(position, triangle) : null;
         };
         Events.InitInputAxisDirection = next.Information?.ControlDirection ?? 0;
+        NativeWorldControlState? sceneControls = restoreDeparting ? session.WorldControls : null;
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
         if (next.Information is FieldInformation information)
         {
@@ -178,6 +178,11 @@ internal sealed partial class GameWorld : IDisposable
             NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
             NativeSeeDState? sceneSeeD = restoreDeparting ? session.SeeD : null;
             Events.Restore(saved);
+            if (sceneControls is not null)
+            {
+                // The departing VM precedes world flags/menu changes; the current session owns DWORD104 and BYTE207/209.
+                session.SetWorldControls(sceneControls);
+            }
             if (sceneTimer is not null)
             {
                 // The frozen departing VM precedes world callbacks; the session owns the shared native clock.

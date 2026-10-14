@@ -33,6 +33,10 @@ public sealed partial class EventEngine
             {
                 return "Native exam timer has no preserved process clock or remaining DWORD provenance";
             }
+            if (operation.Opcode is Jsm.Opcode.DISPTIMER or Jsm.Opcode.KILLTIMER && (services.WorldControls is null || !services.CanStoreNativeEventOwners))
+            {
+                return "Native timer display requires its DWORD104 owner and atomic flag/timer publication";
+            }
             if (variables.Keys.Any(address => address is >= 101 and <= 107 or >= 179 and <= 183))
             {
                 return "Native exam timer flags overlap legacy memory aliases with unknown width; original PC and operands retained";
@@ -51,7 +55,7 @@ public sealed partial class EventEngine
             _ => 0
         };
         long last = (long)operation.Parameter + width - 1;
-        if (width != 0 && (operation.Parameter <= 104 && last >= 104 || operation.Parameter <= 183 && last >= 182 || operation.Parameter <= 206 && last >= 205))
+        if (width != 0 && (operation.Parameter <= 183 && last >= 182 || operation.Parameter <= 206 && last >= 205))
         {
             return "Native timer memory access requires unproved surrounding flag bits; typed timer masks cannot supply an entire byte/word/DWORD";
         }
@@ -80,7 +84,16 @@ public sealed partial class EventEngine
         }
         try
         {
-            services.SetExamTimer(next);
+            if (opcode is Jsm.Opcode.DISPTIMER or Jsm.Opcode.KILLTIMER)
+            {
+                NativeWorldControlState controls = services.WorldControls!;
+                uint flags = opcode == Jsm.Opcode.DISPTIMER ? controls.EventFlags104 | 0x40u : controls.EventFlags104 & ~0x40u;
+                services.SetNativeEventOwners(controls with { EventFlags104 = flags }, timer: next);
+            }
+            else
+            {
+                services.SetExamTimer(next);
+            }
         }
         catch (NotSupportedException exception)
         {
@@ -95,7 +108,7 @@ public sealed partial class EventEngine
 
     private void ValidateNativeTimerExpiryAfterVm()
     {
-        if (services.ExamTimer is not { TimerMemoryActivated: true } timer || timer.Event104Mask40 == false || timer.Event183Mask1 == true || timer.Alternatives.All(item => item.Remaining != 0))
+        if (services.ExamTimer is not { TimerMemoryActivated: true } timer || services.WorldControls is { } controls && (controls.EventFlags104 & 0x40) == 0 || timer.Event183Mask1 == true || timer.Alternatives.All(item => item.Remaining != 0))
         {
             return;
         }
@@ -104,7 +117,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native timer expiry is ambiguous between zero and nonzero remaining DWORDs; no field transition published.");
         }
-        if (timer.Event104Mask40 is null || timer.Event183Mask1 is null)
+        if (services.WorldControls is null || timer.Event183Mask1 is null)
         {
             throw new NotSupportedException("Native timer expiry requires proved DWORD104 mask40 and byte183 mask1; no field transition published.");
         }

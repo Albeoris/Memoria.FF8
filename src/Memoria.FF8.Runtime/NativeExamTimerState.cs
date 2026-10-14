@@ -34,8 +34,6 @@ public sealed record NativeExamTimerState
     [JsonRequired]
     public required byte DisplayY { get; init; }
     [JsonRequired]
-    public required bool? Event104Mask40 { get; init; }
-    [JsonRequired]
     public required bool? Event182Mask4 { get; init; }
     [JsonRequired]
     public required bool? SaveGlobalMask4 { get; init; }
@@ -53,7 +51,6 @@ public sealed record NativeExamTimerState
             DisplayEnabled = false,
             DisplayX = 0,
             DisplayY = 0,
-            Event104Mask40 = null,
             Event182Mask4 = null,
             SaveGlobalMask4 = null,
             Event183Mask1 = null
@@ -97,7 +94,6 @@ public sealed record NativeExamTimerState
         {
             Alternatives = Normalize(Alternatives.Select(item => item with { Remaining = 0 })),
             TimerMemoryActivated = false,
-            Event104Mask40 = null,
             Event182Mask4 = null,
             SaveGlobalMask4 = null,
             Event183Mask1 = null
@@ -107,13 +103,13 @@ public sealed record NativeExamTimerState
     public NativeExamTimerState Display(byte x, byte y)
     {
         Validate();
-        return this with { TimerMemoryActivated = true, DisplayEnabled = true, DisplayX = x, DisplayY = y, Event104Mask40 = true, Event182Mask4 = true, SaveGlobalMask4 = true };
+        return this with { TimerMemoryActivated = true, DisplayEnabled = true, DisplayX = x, DisplayY = y, Event182Mask4 = true, SaveGlobalMask4 = true };
     }
 
     public NativeExamTimerState KillDisplay()
     {
         Validate();
-        return this with { TimerMemoryActivated = true, DisplayEnabled = false, Event104Mask40 = false, Event182Mask4 = false, SaveGlobalMask4 = false };
+        return this with { TimerMemoryActivated = true, DisplayEnabled = false, Event182Mask4 = false, SaveGlobalMask4 = false };
     }
 
     public int RequireRemaining()

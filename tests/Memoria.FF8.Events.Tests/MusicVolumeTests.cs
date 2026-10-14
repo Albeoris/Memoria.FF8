@@ -96,7 +96,8 @@ internal static partial class Program
         GameSession session = new(new GameState());
         EventEngine first = new(session, session.State.Variables);
         first.LoadField(100, firstField, []);
-        first.Scene.Party.AddRange([0, 3]);
+        first.Scene.Party.Clear();
+        first.Scene.Party.AddRange([0, 3, 255]);
         first.Step();
         first.Step();
         Require(first.Scene.PartyBindingMemory == new NativePartyBindingMemory(1, 0, 1, 255), "Original REFRESHPARTY did not record independently typed save BYTE194..196 authority.");

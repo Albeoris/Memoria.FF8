@@ -10,16 +10,46 @@ public sealed partial class EventEngine
         bool command = operation.Opcode is Jsm.Opcode.ADDSEEDLEVEL or Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF;
         int width = NativeMemoryWidth(operation.Opcode);
         bool rankMemory = width != 0 && operation.Parameter < 18 && (long)operation.Parameter + width > 16;
-        if (!command && !rankMemory)
+        bool flagsMemory = width != 0 && (operation.Parameter < 108 && (long)operation.Parameter + width > 104 || operation.Parameter <= 207 && (long)operation.Parameter + width > 207);
+        bool salary = operation.Opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF;
+        if (!command && !rankMemory && !flagsMemory)
         {
             return null;
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || services.SeeD is not NativeSeeDState state || !services.CanStoreSeeD)
+        if (NativeRuntimeProfile is not { IsVerified: true })
         {
-            return "Native SeeD rank and salary require the executed New Game52CA90 state and a persistent service; no rank is inferred";
+            return "Native rank/event flags require the verified original runtime profile";
         }
-        state.Validate();
-        if (variables.Keys.Any(address => address is >= 13 and <= 17) || services.NativeVariableValues?.Any(pair => pair.Key < 18 && (long)pair.Key + pair.Value.Width > 16) == true)
+        if (salary || flagsMemory)
+        {
+            if (services.WorldControls is not NativeWorldControlState controls)
+            {
+                return "Native DWORD104 requires its executed New Game52CA90 owner; no flags are inferred";
+            }
+            controls.Validate();
+            string? aliases = UnsupportedWorldControlAliases();
+            if (aliases is not null)
+            {
+                return aliases;
+            }
+            if (flagsMemory && !(operation.Parameter >= 104 && (long)operation.Parameter + width <= 108 || operation.Parameter == 207 && width == 1))
+            {
+                return "Native DWORD104 projection cannot consume unknown surrounding bytes";
+            }
+        }
+        if (!salary && !flagsMemory || operation.Opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF)
+        {
+            if (services.SeeD is not NativeSeeDState state || !services.CanStoreSeeD)
+            {
+                return "Native SeeD rank/process UI requires executed initialization and a persistent service";
+            }
+            state.Validate();
+        }
+        if (operation.Opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF && !services.CanStoreNativeEventOwners)
+        {
+            return "Native salary requires atomic DWORD104/process UI publication";
+        }
+        if (rankMemory && (variables.Keys.Any(address => address is >= 13 and <= 17) || services.NativeVariableValues?.Any(pair => pair.Key < 18 && (long)pair.Key + pair.Value.Width > 16) == true))
         {
             return "Native SeeD WORD16 overlaps an unproved VM memory alias; recreate the authentic journal";
         }
@@ -35,9 +65,21 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private bool TryReadNativeSeeDRank(JsmOperation operation, out int value)
+    private bool TryReadNativeOwnedEventMemory(JsmOperation operation, out int value)
     {
         value = 0;
+        int width = NativeMemoryWidth(operation.Opcode);
+        if (services.WorldControls is NativeWorldControlState musicControls && operation.Parameter == 207 && width == 1)
+        {
+            value = musicControls.MusicKeep207;
+            return true;
+        }
+        if (services.WorldControls is NativeWorldControlState controls && width != 0 && operation.Parameter >= 104 && (long)operation.Parameter + width <= 108)
+        {
+            uint mask = width == 4 ? uint.MaxValue : (1u << (width * 8)) - 1;
+            value = unchecked((int)((controls.EventFlags104 >> ((operation.Parameter - 104) * 8)) & mask));
+            return true;
+        }
         if (services.SeeD is not NativeSeeDState state)
         {
             return false;
@@ -55,16 +97,33 @@ public sealed partial class EventEngine
         return false;
     }
 
-    private bool TryWriteNativeSeeDRank(Fiber fiber, JsmOperation operation, out int[] operands)
+    private bool TryWriteNativeOwnedEventMemory(Fiber fiber, JsmOperation operation, out int[] operands)
     {
         operands = [];
+        bool write = operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L;
+        int width = NativeMemoryWidth(operation.Opcode);
+        if (write && services.WorldControls is NativeWorldControlState musicControls && operation.Parameter == 207 && width == 1)
+        {
+            SetNativeWorldControls(fiber, musicControls with { MusicKeep207 = unchecked((byte)fiber.Stack.Peek()) });
+            operands = Pop(fiber, 1);
+            return true;
+        }
+        if (write && services.WorldControls is NativeWorldControlState controls && operation.Parameter >= 104 && (long)operation.Parameter + width <= 108)
+        {
+            int shift = (operation.Parameter - 104) * 8;
+            uint mask = width == 4 ? uint.MaxValue : ((1u << (width * 8)) - 1) << shift;
+            uint flags = (controls.EventFlags104 & ~mask) | ((unchecked((uint)fiber.Stack.Peek()) << shift) & mask);
+            SetNativeWorldControls(fiber, controls with { EventFlags104 = flags });
+            operands = Pop(fiber, 1);
+            return true;
+        }
         if (services.SeeD is not NativeSeeDState state || operation.Opcode == Jsm.Opcode.POPM_W && operation.Parameter != 16 || operation.Opcode == Jsm.Opcode.POPM_B && operation.Parameter is not (16 or 17) || operation.Opcode is not (Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W))
         {
             return false;
         }
         int raw = fiber.Stack.Peek();
         ushort word = operation.Opcode == Jsm.Opcode.POPM_W ? unchecked((ushort)raw) : operation.Parameter == 16 ? (ushort)((state.RankPoints & 0xFF00) | (byte)raw) : (ushort)((state.RankPoints & 0xFF) | (byte)raw << 8);
-        services.SetSeeD(state with { RankPoints = word });
+        PublishNativeSeeD(fiber, state with { RankPoints = word });
         operands = Pop(fiber, 1);
         return true;
     }
@@ -72,14 +131,54 @@ public sealed partial class EventEngine
     private int[] ExecuteAddSeeDLevel(Fiber fiber)
     {
         NativeSeeDState next = services.SeeD!.AddRankPoints(fiber.Stack.Peek());
-        services.SetSeeD(next);
+        PublishNativeSeeD(fiber, next);
         return Pop(fiber, 1);
     }
 
-    private void ExecuteNativeSalary(Jsm.Opcode opcode)
+    private void ExecuteNativeSalary(Fiber fiber, Jsm.Opcode opcode)
     {
-        NativeSeeDState state = services.SeeD!;
-        NativeSeeDState next = opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF ? state.WithSalaryEnabled(opcode == Jsm.Opcode.SARALYON) : state.WithSalaryDisplayEnabled(opcode == Jsm.Opcode.SARALYDISPON);
-        services.SetSeeD(next);
+        NativeWorldControlState controls = services.WorldControls!;
+        if (opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF)
+        {
+            bool enabled = opcode == Jsm.Opcode.SARALYON;
+            PublishNativeEventOwners(fiber, controls.WithSalaryEnabled(enabled), seeD: services.SeeD!.WithSalaryUiEnabled(enabled));
+        }
+        else
+        {
+            SetNativeWorldControls(fiber, controls.WithSalaryDisplayEnabled(opcode == Jsm.Opcode.SARALYDISPON));
+        }
+    }
+
+    private void PublishNativeSeeD(Fiber fiber, NativeSeeDState state)
+    {
+        try
+        {
+            services.SetSeeD(state);
+        }
+        catch (NotSupportedException exception)
+        {
+            throw NativeOwnerPublicationFault(fiber, exception);
+        }
+    }
+
+    private void PublishNativeEventOwners(Fiber fiber, NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null)
+    {
+        try
+        {
+            services.SetNativeEventOwners(controls, seeD, timer, characterVitals);
+        }
+        catch (NotSupportedException exception)
+        {
+            throw NativeOwnerPublicationFault(fiber, exception);
+        }
+    }
+
+    private EventScriptException NativeOwnerPublicationFault(Fiber fiber, NotSupportedException exception)
+    {
+        fiber.Position--;
+        string opcode = program!.Operations[fiber.Position].Opcode.ToString();
+        string message = $"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {fiber.Position}: native owner service rejected publication; PC and operands preserved.";
+        LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, opcode, message);
+        return new EventScriptException(message, exception);
     }
 }

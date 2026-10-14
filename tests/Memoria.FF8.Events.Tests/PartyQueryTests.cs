@@ -47,10 +47,9 @@ internal static partial class Program
             Require(written.Scene.Party.SequenceEqual(packet) && sessions[written].CharacterVitals!.CombatParty.Select(value => (int)value).SequenceEqual(new[] { packet[1], packet[0], packet[2] }), "SETPARTY lost FF bytes or native combat order1,0,2.");
         }
         byte[] remove = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.RET, 8));
-        EventEngine removed = Create(remove, [0, 1, 5], initial with { CombatParty = [1, 0, 5] });
-        removed.Scene.Members.UnionWith([0, 1, 5]);
+        EventEngine removed = Create(remove, [0, 1, 5], initial.WithMemberFlags(1, true).WithMemberFlags(5, true) with { CombatParty = [1, 0, 5] });
         removed.Step();
-        Require(removed.Scene.Party.SequenceEqual([0, 255, 5]) && removed.Scene.FieldPartyNativeActorIds.Count == 0 && removed.Scene.Members.SetEquals([0, 1, 5]) && sessions[removed].CharacterVitals!.CombatParty.Select(value => (int)value).SequenceEqual(new[] { 255, 0, 5 }), "SUBPARTY did not remove only its lowBYTE-matched field/combat slot or implicitly changed bindings/membership.");
+        Require(removed.Scene.Party.SequenceEqual([0, 255, 5]) && removed.Scene.FieldPartyNativeActorIds.Count == 0 && removed.NormalMembers!.SetEquals([0, 1, 5]) && sessions[removed].CharacterVitals!.CombatParty.Select(value => (int)value).SequenceEqual(new[] { 255, 0, 5 }), "SUBPARTY did not remove only its lowBYTE-matched field/combat slot or implicitly changed bindings/membership.");
         EventEngine resumed = Create(remove, [255, 255, 255]);
         resumed.Restore(removed.Capture());
         for (int tick = 0; tick < 6; tick++)
@@ -99,12 +98,12 @@ internal static partial class Program
             }
             Require(refused.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == slot && refused.Scene.Party.SequenceEqual([0, 255, 5]), "Rejected GETPARTY consumed operands or compressed slots.");
         }
-        NativeSparsePartyRequestContract();
-        NativePartyRequestPreemptionContract();
+        NativeSparsePartyRequestContract(initial);
+        NativePartyRequestPreemptionContract(initial);
         Console.WriteLine("Native raw3 party: sparse GET/ISPARTY, allFF/leadingFF SETPARTY, combat1,0,2, lowBYTE SUBPARTY, firstFF ADDPARTY, independent restore/field persistence and malformed snapshot atomic refusal passed.");
     }
 
-    private static void NativeSparsePartyRequestContract()
+    private static void NativeSparsePartyRequestContract(NativeCharacterVitals initial)
     {
         Dictionary<EventEngine, GameSession> sessions = [];
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.PREQ, Jsm.Opcode.PREQSW, Jsm.Opcode.PREQEW })
@@ -113,7 +112,7 @@ internal static partial class Program
             byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 2], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], caller, [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 702), (Jsm.Opcode.RET, 8)]]);
             EventEngine Create()
             {
-                GameSession session = new(new GameState());
+                GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
                 EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1 };
                 engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 sessions[engine] = session;
@@ -146,7 +145,7 @@ internal static partial class Program
         }
     }
 
-    private static void NativePartyRequestPreemptionContract()
+    private static void NativePartyRequestPreemptionContract(NativeCharacterVitals initial)
     {
         foreach (bool moving in new[] { true, false })
         {
@@ -166,7 +165,7 @@ internal static partial class Program
             byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 4], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], controller.ToArray(), [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], lower.ToArray(), [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)], upper.ToArray()]);
             EventEngine Create()
             {
-                GameSession session = new(new GameState());
+                GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
                 EventEngine engine = new(session, session.State.Variables)
                 {
                     AnimationFrameCount = (_, _) => 30,
