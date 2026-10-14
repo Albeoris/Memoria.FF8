@@ -27,9 +27,13 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native menu field reentry requires its executed request, confirmation and470250 capture.");
         }
         location.Validate();
-        if (nativeInfFlag8 != 0)
+        if (menu.NativeReturnResult != 1)
         {
-            throw new NotSupportedException("Menu reentry requires the original INF[8]==0 fresh52BC00 branch; retained byte4905 and alternate allocation are unproved.");
+            throw new NotSupportedException("Unchanged native normal menu returns kind6/52B4F0(2); retained animation/fade restoration must execute before its old VM resumes.");
+        }
+        if (nativeInfFlag8 != 0 && services.FieldFade?.MapFadeDisabled != 1)
+        {
+            throw new NotSupportedException("Menu reentry requires actual byte4905!=0 or INF[8]==0 for fresh52BC00; the alternate retained allocation is unproved.");
         }
         if (location.IncomingEntryWords is null)
         {
@@ -69,6 +73,12 @@ public sealed partial class EventEngine
         {
             return;
         }
+        CompleteNativeMenuFieldTail(true);
+        initializingMenuFieldReentry = null;
+    }
+
+    private void CompleteNativeMenuFieldTail(bool fresh, NativeFieldFadeState? fieldFade = null)
+    {
         NativeWorldControlState controls = services.WorldControls ?? throw new NotSupportedException("Menu52B4F0(3) requires its complete eventDWORD104 owner.");
         NativeCharacterVitals vitals = services.CharacterVitals ?? throw new NotSupportedException("Menu52B4F0(3) requires actual495EF0 ability inputs.");
         NativeSeeDState seeD = services.SeeD ?? throw new NotSupportedException("Menu52B4F0(3) requires actual salary WORDs.");
@@ -95,17 +105,54 @@ public sealed partial class EventEngine
             salary = salary.StartPayment(oldRank, newRank, table.Pay(oldRank), table.Pay(newRank));
             seeD = seeD with { SalaryDisplayCountdown184 = 90 };
         }
-        services.SetNativeEventOwners(controls, seeD: seeD, timer: timer, salaryPresentation: salary);
+        services.SetNativeEventOwners(controls, seeD: seeD, timer: timer, salaryPresentation: salary, fieldFade: fieldFade);
         Scene.MusicProcess = Scene.MusicProcess with { Complete214 = 1 };
-        //52B4F0(3) resets every background record after init and binding placement.
-        Scene.BackgroundScrollLayers.Clear();
-        InitializeNativeBackgroundScrollSettings();
-        Scene.BackgroundScrollPositions.Clear();
+        if (fresh)
+        {
+            //52B4F0(3) resets every background record after init and binding placement.
+            Scene.BackgroundScrollLayers.Clear();
+            InitializeNativeBackgroundScrollSettings();
+            Scene.BackgroundScrollPositions.Clear();
+        }
+        else
+        {
+            //52B9F0 writes only primary mode/leader/flags; ratios/offsets and other seven records remain.
+            Scene.BackgroundScrollPositions.Remove(0);
+        }
         Scene.ActorBackgroundScroll = null;
         Scene.NormalBackgroundScrollCenter = null;
         //495EF0 cleared1CFF6D8; none of the actual equipped bytes enters495530's78..82 OR branch.
         variables[88] = 0;
-        initializingMenuFieldReentry = null;
+    }
+
+    private void StepUnchangedNormalMenuFieldReturn(NativePartyMenuState current)
+    {
+        NativeFieldCallbackClock clock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Native kind6 requires its current callback ledger.");
+        clock.Validate(Frame);
+        if (current.Phase == NativePartyMenuPhase.FieldReentry)
+        {
+            NativeExamTimerState timer = (services.ExamTimer ?? throw new NotSupportedException("Native kind6 requires its retained process clock.")).AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1);
+            NativeWorldProcess process = (services.WorldProcess ?? throw new NotSupportedException("Native kind6 requires its actual outer4022B0 process.")).AdvanceMainLoopCallbacks(1);
+            NativeVibrationProcessState vibration = (services.VibrationProcess ?? throw new NotSupportedException("Native kind6 requires its actual queue.")).StopAll().ClearControllerRequests();
+            NativeFieldFadeState fade = (services.FieldFade ?? throw new NotSupportedException("Native kind6 requires its actual physical fade registers.")).ResetPhysicalForLoader();
+            services.SetNativePartyMenuOwners(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!, timer, vibrationProcess: vibration, worldProcess: process, fieldFade: fade);
+            //471F70 kind6 first callback returns before4767B0. VM/animation Frame does not advance.
+            Scene.FieldCallbackClock = clock with { FieldLoaderCallbacks = checked(clock.FieldLoaderCallbacks + 1) };
+            partyMenu = current with { Phase = NativePartyMenuPhase.FieldResumeInitialization };
+            return;
+        }
+        NativeFieldActorAnimation[] animations = PrepareNativeFieldAnimations(Scene.NativeActorObjectIds.Where(objectId => (actors[objectId].NativePartyFlags ?? throw new NotSupportedException("Kind6 animation restore requires executed actor DWORD352 mask4.")).AutoAnimation4).ToArray());
+        NativeFieldFadeState restoredFade = (services.FieldFade ?? throw new NotSupportedException("Native52B9F0 requires saved/physical fade words.")).ResumeKind6();
+        CompleteNativeMenuFieldTail(false, restoredFade);
+        foreach (NativeFieldActorAnimation animation in animations)
+        {
+            SelectFullNativeAnimation(actors[animation.ObjectId], animation.Idle, true);
+        }
+        Fiber owner = fibers.Single(fiber => fiber.Sequence == current.OwnerSequence);
+        owner.WaitReason = WaitReason.None;
+        partyMenu = null;
+        //52B9F0 does not reallocate or reset JSM slots. This next real4767B0 resumes the advanced issuing PC.
+        StepCore();
     }
 
     private static void RequireKnownZeroMenuPartyAbilityFlags(NativeCharacterVitals vitals)

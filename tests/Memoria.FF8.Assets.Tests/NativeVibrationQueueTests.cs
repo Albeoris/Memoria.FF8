@@ -11,6 +11,43 @@ public sealed class NativeVibrationQueueTests
     private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
     private static NativeVibrationBank Bank() => NativeVibrationBankReader.ReadExecutable(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
 
+    private static NativeVibrationProcessState Callbacks(NativeVibrationProcessState state, int count)
+    {
+        for (int callback = 0; callback < count; callback++)
+        {
+            state = state.Advance(4);
+        }
+        return state;
+    }
+
+    [Fact]
+    public void CallbackCadenceRejectsUnsupportedTicksAndRemaindersBeforeAdvancing()
+    {
+        NativeVibrationProcessState state = NativeVibrationProcessState.FromColdProcess().Enqueue(Bank(), 6, 1).State;
+        string original = JsonSerializer.Serialize(state);
+        foreach (int ticks in new[] { -1, int.MinValue, 5, int.MaxValue })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => state.Advance(ticks));
+            Assert.Equal(original, JsonSerializer.Serialize(state));
+        }
+        foreach (int remainder in new[] { -1, 4, int.MaxValue })
+        {
+            NativeVibrationProcessState malformed = state with { QuarterClockRemainder = remainder };
+            Assert.Throws<InvalidDataException>(() => malformed.Validate());
+            Assert.Throws<InvalidDataException>(() => malformed.Advance(1));
+        }
+        foreach (int ticks in new[] { 0, 1, 2, 3, 4 })
+        {
+            NativeVibrationProcessState advanced = state.Advance(ticks);
+            Assert.Equal(ticks % 4, advanced.QuarterClockRemainder);
+            Assert.Equal((short)(ticks == 4 ? 0 : -1), advanced.Slots[0].A.Counter);
+            Assert.Equal((byte)(ticks == 4 ? 128 : 0), advanced.Ports[0].RequestedA);
+            Assert.Equal(original, JsonSerializer.Serialize(state));
+        }
+        Assert.Equal(JsonSerializer.Serialize(state.Advance(4)), JsonSerializer.Serialize(state.Advance(1).Advance(1).Advance(2)));
+        Assert.Equal(JsonSerializer.Serialize(state.Advance(4)), JsonSerializer.Serialize(state.Advance(3).Advance(1)));
+    }
+
     [Fact]
     public void OriginalEmbeddedPatternsAndColdAllocationHaveExactNativeWords()
     {
@@ -53,10 +90,10 @@ public sealed class NativeVibrationQueueTests
         Assert.Equal((byte)102, sampled.MarkControllerPending(0).Ports[0].RequestedA);
         Assert.Throws<ArgumentOutOfRangeException>(() => sampled.MarkControllerPending(2));
         Assert.Equal((short)0, sampled.Slots[0].A.Counter);
-        sampled = sampled.Advance(4 * 4);
+        sampled = Callbacks(sampled, 4);
         Assert.Equal(2, sampled.Slots[0].A.Cursor);
         Assert.Equal((byte)98, sampled.Ports[0].RequestedA);
-        sampled = sampled.Advance(4 * 32);
+        sampled = Callbacks(sampled, 32);
         Assert.Equal((byte)0, sampled.Slots[0].Priority);
         Assert.Equal((byte)1, sampled.Slots[0].A.Active);
         Assert.Equal((byte)0, sampled.Ports[0].RequestedA);
@@ -79,14 +116,14 @@ public sealed class NativeVibrationQueueTests
         state = state.Advance(4);
         Assert.Equal((byte)128, state.Ports[0].RequestedA);
         Assert.Equal((byte)128, state.Ports[0].RequestedB);
-        state = state.Advance(4 * 3);
+        state = Callbacks(state, 3);
         Assert.Equal((byte)128, state.Ports[0].RequestedA);
         Assert.Equal((byte)0, state.Ports[0].RequestedB);
         Assert.Equal(4, state.Slots[0].B.Cursor);
         state = state.Advance(4);
         Assert.Equal((byte)128, state.Ports[0].RequestedA);
         Assert.Equal((byte)0, state.Ports[0].RequestedB);
-        state = state.Advance(4 * 40);
+        state = Callbacks(state, 40);
         Assert.Equal((byte)0, state.Slots[0].Priority);
         Assert.Equal((byte)1, state.Slots[0].A.Active);
         Assert.Equal((byte)1, state.Slots[0].B.Active);

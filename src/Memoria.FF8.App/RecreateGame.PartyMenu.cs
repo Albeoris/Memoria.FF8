@@ -12,12 +12,18 @@ internal sealed partial class RecreateGame
     {
         if (events!.PartyMenu!.Phase == NativePartyMenuPhase.Active)
         {
+            if (events.PartyMenu.Kind == NativeFieldMenuKind.Normal && input.Cancel)
+            {
+                world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
+                fieldSeconds = 0;
+                return;
+            }
             IReadOnlyList<byte> candidates = events.PartyMenuCandidates;
             if (candidates.Count > 0)
             {
                 partyMenuCandidate = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, candidates.Count - 1);
             }
-            if (input.Confirm)
+            if (input.Confirm && events.PartyMenu.Kind == NativeFieldMenuKind.PartySelection)
             {
                 bool full = events.PartyMenu.TemporaryCombatParty!.All(row => row != 255);
                 world!.Apply(full ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.SelectPartyMember, candidates.Count > 0 ? candidates[partyMenuCandidate] : -1));
@@ -59,13 +65,13 @@ internal sealed partial class RecreateGame
             _ => throw new NotSupportedException("Party menu labels require native normal character identities.")
         };
         string party = menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
-        text.Draw(batch, "Party", 22 * scale, new Vector2(panel.X + 16 * scale, panel.Y + 12 * scale), Color.White);
+        text.Draw(batch, menu.Kind == NativeFieldMenuKind.Normal ? "Menu" : "Party", 22 * scale, new Vector2(panel.X + 16 * scale, panel.Y + 12 * scale), Color.White);
         text.Draw(batch, party, 16 * scale, new Vector2(panel.X + 16 * scale, panel.Y + 46 * scale), Color.White);
         IReadOnlyList<byte> candidates = events.PartyMenuCandidates;
         for (int index = 0; index < candidates.Count; index++)
         {
             text.Draw(batch, (index == partyMenuCandidate ? "> " : "  ") + Name(candidates[index]), 16 * scale, new Vector2(panel.X + 16 * scale, panel.Y + (82 + index * 24) * scale), index == partyMenuCandidate ? Color.White : Color.Gray);
         }
-        text.Draw(batch, menu.Phase == NativePartyMenuPhase.FieldReentry ? "Returning to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member", 14 * scale, new Vector2(panel.X + 16 * scale, panel.Bottom - 32 * scale), Color.White);
+        text.Draw(batch, menu.Phase == NativePartyMenuPhase.FieldReentry ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Normal ? "Esc: return to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member", 14 * scale, new Vector2(panel.X + 16 * scale, panel.Bottom - 32 * scale), Color.White);
     }
 }

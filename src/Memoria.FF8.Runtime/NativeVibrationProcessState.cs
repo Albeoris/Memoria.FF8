@@ -114,7 +114,7 @@ public sealed record NativeVibrationProcessState
 
     public void Validate()
     {
-        if (Rule != CurrentRule || Slots.IsDefault || Slots.Length != 4 || Ports.IsDefault || Ports.Length != 2 || GraphicsSpeed20409F0 < 0 || PreviousCarSpeed2045C84 < 0)
+        if (Rule != CurrentRule || Slots.IsDefault || Slots.Length != 4 || Ports.IsDefault || Ports.Length != 2 || QuarterClockRemainder is < 0 or > 3 || GraphicsSpeed20409F0 < 0 || PreviousCarSpeed2045C84 < 0)
         {
             throw new InvalidDataException("Vibration process requires its four physical slots, two controller ports and retained world words.");
         }
@@ -212,8 +212,13 @@ public sealed record NativeVibrationProcessState
 
     public NativeVibrationProcessState Advance(int ticks)
     {
+        //One actual49A970 callback: menu1, field/world2, world559240
+        //entity50 cadence3, movie4;0 represents a skipped UI callback.
+        //Batched histories must execute the same callback repeatedly.
+        ArgumentOutOfRangeException.ThrowIfNegative(ticks);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(ticks, 4);
         Validate();
-        int remaining = unchecked(QuarterClockRemainder + ticks);
+        int remaining = checked(QuarterClockRemainder + ticks);
         NativeVibrationProcessState result = this;
         while (remaining >= 4)
         {

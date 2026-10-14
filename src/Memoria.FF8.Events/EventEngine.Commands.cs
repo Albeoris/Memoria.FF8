@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -47,7 +47,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (TryReadNativeDrawPointMemory(operation, out int nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
+                if (TryReadNativeFadeMemory(operation, out int nativeEconomy) || TryReadNativeDrawPointMemory(operation, out nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
                 {
                     fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
                     fiber.StackExpressions.Push($"native[{parameter}]");
@@ -81,17 +81,13 @@ public sealed partial class EventEngine
                 {
                     value = previousFieldWord;
                 }
-                if (parameter == 216 && opcode is Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W && Scene.FadeMode216 is ushort fadeMode)
-                {
-                    value = fadeMode;
-                }
                 fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)value) : opcode == Jsm.Opcode.PSHSM_W ? (short)value : value);
                 fiber.StackExpressions.Push($"{(opcode == Jsm.Opcode.PSHM_B ? "B" : opcode == Jsm.Opcode.PSHSM_B ? "SB" : opcode == Jsm.Opcode.PSHM_W ? "W" : opcode == Jsm.Opcode.PSHSM_W ? "SW" : "L")}[{parameter}]");
                 return;
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
+                if (TryWriteNativeFadeMemory(fiber, operation, out args) || TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -615,7 +611,7 @@ public sealed partial class EventEngine
                 ExecuteNativeUserControlOff();
                 break;
             case Jsm.Opcode.UCON:
-                IsUserControlEnabled = true;
+                ExecuteNativeUserControlOn();
                 break;
             case Jsm.Opcode.MENUENABLE:
             case Jsm.Opcode.MENUDISABLE:
@@ -631,7 +627,8 @@ public sealed partial class EventEngine
                 CompleteMinimalMenu(fiber, opcode, args[0]);
                 break;
             case Jsm.Opcode.MENUPHS:
-                RequestPartyMenu(fiber);
+            case Jsm.Opcode.MENUNORMAL:
+                RequestPartyMenu(fiber, opcode);
                 break;
             case Jsm.Opcode.MENUTUTO:
                 CompleteMinimalMenu(fiber, opcode, 0);
@@ -864,53 +861,35 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.DCOLADD:
             case Jsm.Opcode.DCOLSUB:
-                args = Pop(fiber, 3);
-                if (opcode == Jsm.Opcode.DCOLADD)
-                {
-                    Scene.AdditiveColor = new Vector3(args[0], args[1], args[2]);
-                }
-                else
-                {
-                    Scene.SubtractiveColor = new Vector3(args[0], args[1], args[2]);
-                }
-                break;
+            case Jsm.Opcode.TCOLADD:
+            case Jsm.Opcode.TCOLSUB:
             case Jsm.Opcode.FCOLADD:
             case Jsm.Opcode.FCOLSUB:
-                args = Pop(fiber, 7);
-                colorStart = new Vector3(args[0], args[1], args[2]);
-                colorEnd = new Vector3(args[3], args[4], args[5]);
-                colorStartFrame = Frame;
-                colorEndFrame = Frame + Math.Max(1, args[6]);
-                subtractColor = opcode == Jsm.Opcode.FCOLSUB;
-                StepVisualTransitions();
+                args = ExecuteNativeFieldColor(fiber, opcode);
                 break;
             case Jsm.Opcode.COLSYNC:
-                fiber.WaitReason = WaitReason.Color;
+                ExecuteNativeFadeSync(fiber, true);
                 break;
             case Jsm.Opcode.FADEIN:
+                services.SetFieldFade(FieldFade!.IssueFadeIn());
+                break;
             case Jsm.Opcode.FADEOUT:
-                InvalidateFadeModeAuthority();
-                fadeStart = opcode == Jsm.Opcode.FADEIN ? 1 : 0;
-                fadeEnd = 1 - fadeStart;
-                fadeStartFrame = Frame;
-                fadeEndFrame = Frame + SimulationFps;
-                Scene.FadeOpacity = fadeStart;
+                services.SetFieldFade(FieldFade!.IssueFadeOut());
                 break;
             case Jsm.Opcode.FADEBLACK:
-                InvalidateFadeModeAuthority();
-                Scene.FadeOpacity = 1;
+                services.SetFieldFade(FieldFade!.IssueBlack());
                 break;
             case Jsm.Opcode.FADENONE:
-                ExecuteFadeNone(fiber);
+                services.SetFieldFade(FieldFade!.IssueNone());
                 break;
             case Jsm.Opcode.FADESYNC:
-                fiber.WaitReason = WaitReason.Fade;
+                ExecuteNativeFadeSync(fiber, false);
                 break;
             case Jsm.Opcode.MAPFADEOFF:
-                Scene.MapFadeEnabled = false;
+                services.SetFieldFade(FieldFade!.SetMapFadeDisabled(true));
                 break;
             case Jsm.Opcode.MAPFADEON:
-                Scene.MapFadeEnabled = true;
+                services.SetFieldFade(FieldFade!.SetMapFadeDisabled(false));
                 break;
             case Jsm.Opcode.TALKON:
             case Jsm.Opcode.TALKOFF:

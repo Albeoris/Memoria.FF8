@@ -19,7 +19,7 @@ public sealed partial class GameSession
         State = State with { ShotAvailability = shots };
     }
 
-    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null)
+    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null)
     {
         characterVitals.Validate();
         economy.Validate();
@@ -28,6 +28,8 @@ public sealed partial class GameSession
         timer?.Validate();
         fieldLocation?.Validate();
         vibrationProcess?.Validate();
+        worldProcess?.Validate();
+        fieldFade?.Validate();
         ValidateJunctionPartyBackupAliases(State.Variables, State.NativeVariableValues);
         ValidateEconomyAliases(State.Variables, State.NativeVariableValues);
         if (characterVitals.InitOutSha256 != economy.InitOutSha256 || shots.InitOutSha256 != economy.InitOutSha256 || shots.KernelSha256 != characterVitals.KernelSha256)
@@ -40,7 +42,7 @@ public sealed partial class GameSession
         {
             MarkReplayUnavailable("Party menu owners changed outside a recorded engine transaction.");
         }
-        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess };
+        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade };
     }
 
     private static void ValidatePartyMenuOwnersCheckpoint(GameState state, JsonElement? vm)

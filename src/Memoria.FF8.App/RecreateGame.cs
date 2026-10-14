@@ -766,10 +766,6 @@ internal sealed partial class RecreateGame : Game
         {
             PixelBounds fit = ViewportLayout.Fit(fieldTexture.Width, fieldTexture.Height, bounds.Width, bounds.Height);
             batch.Draw(fieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
-            if (session.State.Scene != SceneKind.WorldMap && events?.Scene.FadeOpacity > 0)
-            {
-                batch.Draw(pixel, bounds, Color.Black * events.Scene.FadeOpacity);
-            }
         }
         if (events is not null && field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.DebugView?.DialogueVisible != false)
         {

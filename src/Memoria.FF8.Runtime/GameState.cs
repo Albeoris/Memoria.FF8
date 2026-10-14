@@ -42,6 +42,8 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonRequired]
     public NativeVibrationProcessState? VibrationProcess { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
+    public NativeFieldFadeState? FieldFade { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
     public NativeInputConfiguration? InputConfiguration { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldButtonInput? FieldButtonInput { get; init; }
@@ -92,6 +94,13 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    NativeFieldFadeState? FieldFade => null;
+    bool CanStoreFieldFade => false;
+    void SetFieldFade(NativeFieldFadeState fade)
+    {
+        throw new NotSupportedException("Native field fade ownership is not implemented by this service.");
+    }
+
     NativeVibrationProcessState? VibrationProcess => null;
     bool CanStoreVibrationProcess => false;
     void SetVibrationProcess(NativeVibrationProcessState vibration)
@@ -147,7 +156,7 @@ public interface IEventServices
     NativeFieldLocation? NativeFieldLocation => null;
     FieldTransition? NativeIncomingFieldEntryWords => null;
     bool CanStoreNativePartyMenuOwners => false;
-    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null)
+    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null)
     {
         throw new NotSupportedException("Atomic party menu entry ownership is not implemented by this event service.");
     }
@@ -218,7 +227,7 @@ public interface IEventServices
     }
     NativeWorldControlState? WorldControls => null;
     bool CanStoreNativeEventOwners => false;
-    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null)
+    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null)
     {
         throw new NotSupportedException("Atomic native event-owner publication is not implemented by this service.");
     }

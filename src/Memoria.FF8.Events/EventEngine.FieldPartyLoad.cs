@@ -296,6 +296,12 @@ public sealed partial class EventEngine
         }
         Scene.FieldPartyNativeActorIds.Clear();
         Scene.FieldPartyNativeActorIds.AddRange(load.Bindings);
+        foreach (int binding in load.Bindings.Where(binding => binding != byte.MaxValue).Distinct())
+        {
+            ActorState member = actors[Scene.NativeActorObjectIds[binding]];
+            NativeActorPartyFlags flags = member.NativePartyFlags ?? throw new NotSupportedException("Native52BC00 party binding requires allocated actor DWORD352 mask ownership.");
+            member.NativePartyFlags = flags with { AutoAnimation4 = true };
+        }
         for (int slot = 0; slot < 3; slot++)
         {
             variables[194 + slot] = load.Bindings[slot];

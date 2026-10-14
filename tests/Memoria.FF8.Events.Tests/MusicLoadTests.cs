@@ -25,7 +25,7 @@ internal static partial class Program
         first.Step();
         Require(first.Scene.MusicLoadRequest is { RawMusic: 300, Music: 44, PriorSecondChannel: -1, Loaded: true } && first.Scene.MusicPlayRequest is { ConsumedPending: true, Music: 44, PriorBank: 0, Bank: 1, PriorKeepBit400: true, Channel: 0 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && first.Scene.MusicProcess is { Pending: false, Requested213: 44, Complete214: 1, Bank201: 1 } && first.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 44 } && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255 }, "Native pending load, byte narrowing, primary play or independent second-channel state changed.");
         Require(!session.State.Variables.ContainsKey(500), "Native MUSICCHANGE return3 failed to yield the caller.");
-        Require(first.Scene.FadeMode216 == 0 && first.Scene.FadeNone is not null, "Proved music BYTE213 was mistaken for an overlapping fade WORD alias.");
+        Require(first.FieldFade is { Physical.Mode: 0, Saved.Mode: 0 }, "Proved music BYTE213 was mistaken for an overlapping fade WORD alias.");
         JsonElement snapshot = first.Capture();
         (GameSession resumedSession, EventEngine resumed) = Fresh();
         resumed.Restore(snapshot);
@@ -101,7 +101,7 @@ internal static partial class Program
         catch (EventScriptException) when (ambiguousFade.LastFault?.Opcode == "FADENONE")
         {
         }
-        Require(ambiguousFade.Scene.FadeMode216 is null && ambiguousFadeSession.State.Variables[213] == 26, "Ambiguous fade alias refusal changed memory.");
+        Require(ambiguousFade.FieldFade is null && ambiguousFadeSession.State.Variables[213] == 26, "Unknown fade refusal changed memory.");
 
         byte[] dual = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PHSPOWER, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 44), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 501), (Jsm.Opcode.RET, 0));
         (GameSession dualSession, EventEngine dualEngine) = Fresh(dual);
@@ -217,7 +217,7 @@ internal static partial class Program
         public void SetSeeD(NativeSeeDState state) => session.SetSeeD(state);
         public void SetMessageVariables(NativeMessageVariables state) => session.SetMessageVariables(state);
         public void SetCardInventory(NativeCardInventory state) => session.SetCardInventory(state);
-        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess);
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade);
 
         public void SetWorldControls(NativeWorldControlState controls)
         {

@@ -81,7 +81,8 @@ public sealed class WorldTests
             {
                 world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: world.Field!.Id == 181 ? 1 : 900));
             }
-            Vector3 color = world.Events.Scene.SubtractiveColor;
+            NativeFadeDraw draw = world.Events.FieldFade!.Draw;
+            Vector3 color = draw.Mode == NativeFadeDrawMode.Subtract ? new(draw.Red, draw.Green, draw.Blue) : Vector3.Zero;
             if (!capturedSide && world.Field!.Id == 181 && color.X == 0 && world.Events.Actors.Any(actor => actor.Active && actor.Visible))
             {
                 session.SetEventState(world.Events.Capture());
@@ -119,8 +120,8 @@ public sealed class WorldTests
     public void Rgb_addition_subtraction_and_movie_tail_completion_preserve_their_contracts()
     {
         byte[] rgba = [180, 20, 120, 255, 40, 80, 160, 255];
-        FieldColorComposite.Apply(rgba, new Vector3(10, 0, 250), new Vector3(100, 10, 30));
-        Assert.Equal(new byte[] { 90, 10, 255, 255, 0, 70, 255, 255 }, rgba);
+        FieldColorComposite.Apply(rgba, new NativeFadeDraw(NativeFadeDrawMode.Subtract, 100, 10, 30));
+        Assert.Equal(new byte[] { 80, 10, 90, 255, 0, 70, 130, 255 }, rgba);
         Assert.False(MoviePresentation.IsComplete(13.6, 13.667, true, true, 0));
         Assert.False(MoviePresentation.IsComplete(13.667, 13.667, true, true, 1));
         Assert.False(MoviePresentation.IsComplete(13.667, 13.667, true, false, 0));
@@ -128,22 +129,22 @@ public sealed class WorldTests
     }
 
     [Theory]
-    [InlineData(0, 0, 0, 0, 0, 0)]
-    [InlineData(12.5f, 255.25f, 0.25f, 44.25f, 17.5f, 127.75f)]
-    [InlineData(255, 0, 128, 0, 255, 128)]
-    public void Color_lookup_preserves_every_channel_value_and_alpha(float addRed, float addGreen, float addBlue, float subRed, float subGreen, float subBlue)
+    [InlineData(NativeFadeDrawMode.None, 0, 0, 0)]
+    [InlineData(NativeFadeDrawMode.Add, 12, 255, 0)]
+    [InlineData(NativeFadeDrawMode.Subtract, 44, 17, 127)]
+    [InlineData(NativeFadeDrawMode.Black, 0, 0, 0)]
+    public void Color_lookup_preserves_every_channel_value_and_alpha(NativeFadeDrawMode mode, byte red, byte green, byte blue)
     {
-        Vector3 additive = new(addRed, addGreen, addBlue);
-        Vector3 subtractive = new(subRed, subGreen, subBlue);
+        int sign = mode == NativeFadeDrawMode.Add ? 1 : mode == NativeFadeDrawMode.Subtract ? -1 : 0;
         byte[] pixels = Enumerable.Range(0, 256).SelectMany(value => new byte[] { (byte)value, (byte)(255 - value), (byte)(value ^ 127), (byte)value }).ToArray();
         byte[] expected = pixels.ToArray();
         for (int offset = 0; offset < expected.Length; offset += 4)
         {
-            expected[offset] = (byte)Math.Clamp(MathF.Round(expected[offset] + additive.X - subtractive.X), 0, 255);
-            expected[offset + 1] = (byte)Math.Clamp(MathF.Round(expected[offset + 1] + additive.Y - subtractive.Y), 0, 255);
-            expected[offset + 2] = (byte)Math.Clamp(MathF.Round(expected[offset + 2] + additive.Z - subtractive.Z), 0, 255);
+            expected[offset] = mode == NativeFadeDrawMode.Black ? (byte)0 : (byte)Math.Clamp(expected[offset] + sign * red, 0, 255);
+            expected[offset + 1] = mode == NativeFadeDrawMode.Black ? (byte)0 : (byte)Math.Clamp(expected[offset + 1] + sign * green, 0, 255);
+            expected[offset + 2] = mode == NativeFadeDrawMode.Black ? (byte)0 : (byte)Math.Clamp(expected[offset + 2] + sign * blue, 0, 255);
         }
-        FieldColorComposite.Apply(pixels, additive, subtractive);
+        FieldColorComposite.Apply(pixels, new NativeFadeDraw(mode, red, green, blue));
         Assert.Equal(expected, pixels);
     }
 

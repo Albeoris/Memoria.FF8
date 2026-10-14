@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -24,15 +24,6 @@ public sealed partial class EventEngine
     private long sequence;
     private bool defaultsStarted;
     private bool transitionRequested;
-    private long colorEndFrame;
-    private long colorStartFrame;
-    private Vector3 colorStart;
-    private Vector3 colorEnd;
-    private bool subtractColor;
-    private long fadeEndFrame;
-    private long fadeStartFrame;
-    private float fadeStart;
-    private float fadeEnd;
     private int backgroundFps = 8;
     private int nameEntity;
 
@@ -91,6 +82,10 @@ public sealed partial class EventEngine
         JsmProgram next = JsmProgram.Read(jsm);
         string nextHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
         ValidateMenuFieldReentry(menuReentry, fieldId, nextHash, arrival, previousFieldId);
+        if (nativeRuntimeProfile is { IsVerified: true } && services.FieldFade is NativeFieldFadeState fieldFade)
+        {
+            services.SetFieldFade(fieldFade.ResetPhysicalForLoader().InitializeFreshActors());
+        }
         if (menuReentry is null)
         {
             ResetNativeShakeForLoad(nativeRuntimeProfile);
@@ -152,13 +147,11 @@ public sealed partial class EventEngine
         {
             variables.Remove(address);
         }
-        colorEndFrame = 0;
-        fadeEndFrame = 0;
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         InitializeNativeBackgroundScrollSettings();
-        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0);
+        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0);
         //471F70 kind10 skips the <=2 run/axis/shake/previous movement resets.
         Scene.NativeSalaryMovementUnits = menuReentry is not null ? previousScene.NativeSalaryMovementUnits : nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
         if (menuReentry is not null)
@@ -187,8 +180,6 @@ public sealed partial class EventEngine
         Scene.SoundMusicVolume198 = previousScene.SoundMusicVolume198;
         Scene.MusicChannel108 = previousScene.MusicChannel108;
         Scene.MusicVolumeRequest = previousScene.MusicVolumeRequest;
-        Scene.FadeMode216 = previousScene.FadeMode216;
-        Scene.FadeNone = previousScene.FadeNone;
         Scene.MusicChannel112 = previousScene.MusicChannel112;
         Scene.MusicStop = previousScene.MusicStop;
         Scene.Party.Clear();
@@ -215,6 +206,7 @@ public sealed partial class EventEngine
             actors.Add(new ActorState(obj.Index, obj.Label) { MovementSpeed = nativeRuntimeProfile?.AllocatedActorSpeed ?? 1000, NativeMovementBaseSpeed = nativeRuntimeProfile is not null ? checked((short)nativeRuntimeProfile.AllocatedActorSpeed) : null, LineEnabled = nativeRuntimeProfile is null || !obj.IsDoor, NativeMotionAuthority = new NativeMotionAuthority(1, 0, 0), NativeTurnAccumulator474 = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? (short?)0 : null, NativeMovementCompletion542 = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? (ushort?)0 : null, NativeLandingTriangle508 = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? (ushort?)0 : null, NativeDisplayOffset = nativeRuntimeProfile is not null && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index) ? NativeDisplayOffsetState.AllocatedZero : null });
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
+                actors[^1].NativePartyFlags = new NativeActorPartyFlags(false, false);
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
                 actors[^1].PolygonColor = new Vector3(128);
@@ -300,7 +292,6 @@ public sealed partial class EventEngine
         {
             actor.StepRotation();
         }
-        StepVisualTransitions();
         StepBackgroundShadeLoops();
         int currentGeneration = generation;
         foreach (ActorState actor in NativeCallbackActors())
@@ -383,18 +374,20 @@ public sealed partial class EventEngine
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
         NativeSalaryPresentation? salaryUi = services.SalaryPresentation?.Advance(movieUi ? 4 : 2);
         NativeVibrationProcessState? vibrationUi = services.VibrationProcess?.Advance(movieUi ? 4 : 2);
+        //4767B0 calls47B980 once after physical/model drawing; movie callbacks skip it.
+        NativeFieldFadeState? fadeUi = movieUi ? services.FieldFade : services.FieldFade?.AdvanceCallback();
         if (vibrationUi is not null && Scene.NativeFieldInitialization is not null)
         {
             //471F70 state4 remains active: every4767B0 callback ends with4A2940(-1)/49E8E0.
             vibrationUi = vibrationUi.EndFieldCallback();
         }
-        if (vibrationUi is not null)
+        if (vibrationUi is not null || fadeUi is not null)
         {
             if (!services.CanStoreNativeEventOwners || services.WorldControls is not NativeWorldControlState uiControls)
             {
                 throw new NotSupportedException("Native UI callback requires atomic current salary/vibration owners.");
             }
-            services.SetNativeEventOwners(uiControls, salaryPresentation: salaryUi, vibrationProcess: vibrationUi);
+            services.SetNativeEventOwners(uiControls, salaryPresentation: salaryUi, vibrationProcess: vibrationUi, fieldFade: fadeUi);
         }
         else if (salaryUi is not null && salaryUi != services.SalaryPresentation)
         {
@@ -726,28 +719,6 @@ public sealed partial class EventEngine
         }
     }
 
-    private void StepVisualTransitions()
-    {
-        if (colorEndFrame > 0)
-        {
-            float amount = Math.Clamp((Frame - colorStartFrame) / (float)Math.Max(1, colorEndFrame - colorStartFrame), 0, 1);
-            Vector3 color = Vector3.Lerp(colorStart, colorEnd, amount);
-            if (subtractColor)
-            {
-                Scene.SubtractiveColor = color;
-            }
-            else
-            {
-                Scene.AdditiveColor = color;
-            }
-        }
-        if (fadeEndFrame > 0 && Scene.FadeMode216 != 0)
-        {
-            float amount = Math.Clamp((Frame - fadeStartFrame) / (float)Math.Max(1, fadeEndFrame - fadeStartFrame), 0, 1);
-            Scene.FadeOpacity = fadeStart + (fadeEnd - fadeStart) * amount;
-        }
-    }
-
     private sealed class Fiber(int objectId, EventScript script, int priority, long sequenceNumber, bool initialization)
     {
         public int ObjectId { get; } = objectId;
@@ -799,8 +770,8 @@ public sealed partial class EventEngine
             WaitReason.Rotation => actor.RotationTarget is null,
             WaitReason.Dialogue => !dialogues.ContainsKey(fiber.DialogueChannel),
             WaitReason.Movie => !services.IsMoviePlaying,
-            WaitReason.Color => Frame >= colorEndFrame,
-            WaitReason.Fade => Frame >= fadeEndFrame,
+            WaitReason.Color => true,
+            WaitReason.Fade => true,
             WaitReason.BackgroundAnimation => !backgroundAnimations.TryGetValue(fiber.BackgroundId, out BackgroundAnimation? animation) || animation.Complete,
             WaitReason.BackgroundScroll => BackgroundScrollWaitReady(fiber),
             WaitReason.RequestStart => fiber.Request?.Started == true,
