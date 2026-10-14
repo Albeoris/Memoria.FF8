@@ -245,6 +245,11 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 bool advanceUi = candidate.NativeScriptedRuntime?.Path.EndpointRequested != true;
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits);
+                if (candidate.NativeScriptedRuntime is null)
+                {
+                    //53FAC0 calls6519D0 with the same accepted-vector /8 units before salary, regardless of its suppression flag.
+                    salary = salary.PrepareDrawPointAging(movementUnits);
+                }
                 NativeSalaryResult? salaryResult = candidate.NativeScriptedRuntime is null ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
                 NativeSalaryEffects effects;
                 if (salaryResult?.Payment is not null)

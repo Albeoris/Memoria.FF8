@@ -55,9 +55,6 @@ public sealed class SceneEventState
     public NativeFieldCallbackClock? FieldCallbackClock { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeFieldButtonInput? ButtonInput { get; internal set; }
-    [JsonInclude]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeActorBackgroundScroll? ActorBackgroundScroll { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -205,7 +202,6 @@ public sealed class SceneEventState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<NativeBattleFlagWrite>? NativeBattleFlagWrites { get; internal set; }
     public Dictionary<int, string> Names { get; } = [];
-    public Dictionary<int, int[]> Holds { get; } = [];
     [JsonInclude]
     public int PartyPower { get; internal set; }
     [JsonInclude]

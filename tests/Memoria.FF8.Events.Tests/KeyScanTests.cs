@@ -1,21 +1,27 @@
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeKeyScanContract()
+    private static void NativeKeyScanContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeInputConfiguration configuration = assets.ReadNewGameInputConfiguration();
+        NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         (GameSession Session, EventEngine Engine) Create(int mask)
         {
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
+            session.InitializeNewGameInputConfiguration(configuration);
+            session.InitializeNewGameCharacterVitals(initial.DeepCopy());
             EventEngine engine = new(session, session.State.Variables);
             byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.KEYSCAN, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 0)]]);
-            engine.LoadField(74, content, []);
+            engine.LoadField(74, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             engine.Step();
             engine.Step();
             return (session, engine);
@@ -31,13 +37,13 @@ internal static partial class Program
                 Require(input.Accepted && input.FramesAdvanced == 0, "A physical button change invented a field callback.");
                 current.Engine.Step();
                 int expected = (mask & held) != 0 ? 1 : 0;
-                Require(current.Session.State.Variables[5000] == expected && current.Engine.Scene.ButtonInput!.Held == held, "KEYSCAN lost its full DWORD mask or mapped held word.");
+                Require(current.Session.State.Variables[5000] == expected && current.Engine.ButtonInput!.Held == held, "KEYSCAN lost its full DWORD mask or mapped held word.");
                 JsonElement snapshot = current.Engine.Capture();
                 var restored = Create(mask);
                 restored.Engine.Restore(snapshot);
                 current.Engine.Step();
                 restored.Engine.Step();
-                Require(current.Engine.Scene.ButtonInput is { Pressed: 0 } && current.Session.State.Variables[5000] == expected && JsonElement.DeepEquals(current.Engine.Capture(), restored.Engine.Capture()), "Held input was confused with a rising edge or changed after independent restore.");
+                Require(current.Engine.ButtonInput is { Pressed: 0 } && current.Session.State.Variables[5000] == expected && JsonElement.DeepEquals(current.Engine.Capture(), restored.Engine.Capture()), "Held input was confused with a rising edge or changed after independent restore.");
                 current.Engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 0));
                 current.Engine.Step();
                 Require(current.Session.State.Variables[5000] == 0, "Released buttons stayed held.");
@@ -48,17 +54,17 @@ internal static partial class Program
         transient.Engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 0x40));
         transient.Engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 0));
         transient.Engine.Step();
-        Require(transient.Engine.Scene.ButtonInput is { Held: 0, Pressed: 0 } && transient.Session.State.Variables[5000] == 0, "A press released before sampling became a held button or edge.");
+        Require(transient.Engine.ButtonInput is { Held: 0, Pressed: 0 } && transient.Session.State.Variables[5000] == 0, "A press released before sampling became a held button or edge.");
         transient.Engine.Apply(new PlayerAction(PlayerActionKind.Cancel));
-        Require(transient.Engine.Scene.ButtonInput is { Held: 0x10, Pressed: 0x10 } && transient.Session.State.Variables[5000] == 1, "Ordinary Cancel failed to supply its one-callback held pulse.");
+        Require(transient.Engine.ButtonInput is { Held: 0x10, Pressed: 0x10 } && transient.Session.State.Variables[5000] == 1, "Ordinary Cancel failed to supply its one-callback held pulse.");
         transient.Engine.Step();
-        Require(transient.Engine.Scene.ButtonInput is { Held: 0, Pressed: 0 }, "A logical action pulse remained held.");
+        Require(transient.Engine.ButtonInput is { Held: 0, Pressed: 0 }, "A logical action pulse remained held.");
         JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(transient.Session.ReplayJournal))!.Validate();
-        foreach (NativeFieldButtonInput invalid in new[] { new NativeFieldButtonInput(2, 0, 0x40, 2, 0, 0, 0), new NativeFieldButtonInput(2, 0, 0, 1, 0, 0, 0), new NativeFieldButtonInput(2, 0x1000, 0, 2, 0, 0, 0) })
+        foreach (NativeFieldButtonInput invalid in new[] { new NativeFieldButtonInput(3, 0, 0x40, 2, 74, 0, 0, 0, 0x40), new NativeFieldButtonInput(3, 0, 0, 1, 74, 0, 0, 0, 0), new NativeFieldButtonInput(3, 0, 0, 2, 74, 0, 0, 0x1000, 0) })
         {
             try
             {
-                invalid.Validate(2);
+                invalid.ValidateSample(74, 2, configuration);
                 throw new InvalidOperationException("Impossible mapped button history was accepted.");
             }
             catch (InvalidDataException)
@@ -66,7 +72,7 @@ internal static partial class Program
             }
         }
         System.Text.Json.Nodes.JsonNode missing = System.Text.Json.Nodes.JsonNode.Parse(transient.Engine.Capture().GetRawText())!;
-        missing["Scene"]!["ButtonInput"] = null;
+        missing["FieldButtonInput"] = null;
         try
         {
             transient.Engine.Restore(JsonSerializer.SerializeToElement(missing));

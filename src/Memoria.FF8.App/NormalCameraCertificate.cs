@@ -25,9 +25,9 @@ public static class NormalCameraCertificate
         }
         FieldInformation? information = field.Information;
         FieldCamera camera = field.Camera;
-        bool genericLinear = NativeLinearBackgroundScrollCertificate.SupportsPhase(field, scene);
+        bool genericLayerScroll = NativeWrappedBackgroundScrollCertificate.SupportsPhase(field, scene);
         bool genericWrapping = information is { BackgroundWrapMask: > 0 };
-        bool baseline = scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && HasBaseline(field, scene.CameraIndex) && (!genericWrapping || genericLinear || NormalBackgroundWrapCertificate.Supports(field, scene)) && (scene.BackgroundScrollPositions.Count == 0 || genericLinear || NativeNonselectedBackgroundScrollCertificate.Supports(field, scene)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
+        bool baseline = scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && HasBaseline(field, scene.CameraIndex) && (!genericWrapping || genericLayerScroll || NormalBackgroundWrapCertificate.Supports(field, scene)) && (scene.BackgroundScrollPositions.Count == 0 || genericLayerScroll || NativeNonselectedBackgroundScrollCertificate.Supports(field, scene)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
         if (!baseline)
         {
             throw new NotSupportedException("Normal camera tracking requires the current native loader, supported camera metadata and supported scroll state.");
@@ -58,7 +58,12 @@ public static class NormalCameraCertificate
                     throw new NotSupportedException("Normal parallax translation would exceed the certified native signed-word eighth-pixel range.");
                 }
                 BackgroundScrollSettings settings = BackgroundScrollCertificate.ReadSettings(scene, layer);
-                if (!(genericLinear && genericWrapping ? BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, out layerOffset) : BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out layerOffset)))
+                if (genericLayerScroll && genericWrapping)
+                {
+                    // The native wrap-frame layer translation owns offset/ratio/current once, before this common -C.
+                    layerOffset = offset;
+                }
+                else if (!BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out layerOffset))
                 {
                     throw new NotSupportedException("Normal parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
                 }
@@ -71,7 +76,7 @@ public static class NormalCameraCertificate
                 layers[layer] = layerOffset;
             }
         }
-        FieldNativeBackgroundWrapFrame? wrap = genericLinear && genericWrapping ? NativeLinearBackgroundScrollCertificate.PrepareWrap(field, scene, center) : genericWrapping ? NormalBackgroundWrapCertificate.Prepare(field, scene, center) : null;
+        FieldNativeBackgroundWrapFrame? wrap = genericLayerScroll && genericWrapping ? NativeWrappedBackgroundScrollCertificate.PrepareWrap(field, scene, center) : genericWrapping ? NormalBackgroundWrapCertificate.Prepare(field, scene, center) : null;
         return new BackgroundScrollFrame(layers, offset) { NativeWrap = wrap };
     }
 

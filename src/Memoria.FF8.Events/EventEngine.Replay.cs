@@ -71,10 +71,11 @@ public sealed partial class EventEngine
         return new ReplayJournalEntry(kind, services.ReplayScene, FieldId, Frame)
         {
             Trigger = (int)NextTrigger.Kind,
-            MessageId = dialogue?.MessageId,
-            ObjectId = dialogue?.ObjectId,
-            ScriptId = dialogue?.ScriptId,
-            Operation = dialogue?.Operation,
+            MessageId = PartyMenu is not null ? null : dialogue?.MessageId,
+            NativeSourceHash = PartyMenu?.ProgramHash,
+            ObjectId = PartyMenu?.ObjectId ?? dialogue?.ObjectId,
+            ScriptId = PartyMenu?.ScriptId ?? dialogue?.ScriptId,
+            Operation = PartyMenu?.Operation ?? dialogue?.Operation,
             StartPose = ReplayPose()
         };
     }
@@ -109,10 +110,10 @@ public sealed partial class EventEngine
                 ResultFieldId = services.ReplayFieldId ?? NextTrigger.FieldId,
                 ResultFrame = Frame,
                 ResultTrigger = (int)NextTrigger.Kind,
-                ResultMessageId = resultDialogue?.MessageId,
-                ResultObjectId = resultDialogue?.ObjectId,
-                ResultScriptId = resultDialogue?.ScriptId,
-                ResultOperation = resultDialogue?.Operation,
+                ResultMessageId = PartyMenu is not null ? null : resultDialogue?.MessageId,
+                ResultObjectId = PartyMenu?.ObjectId ?? resultDialogue?.ObjectId,
+                ResultScriptId = PartyMenu?.ScriptId ?? resultDialogue?.ScriptId,
+                ResultOperation = PartyMenu?.Operation ?? resultDialogue?.Operation,
                 EndPose = ReplayPose(),
                 Navigation = capture.Navigation.ToArray(),
                 Receipts = capture.Receipts.ToArray(),

@@ -30,9 +30,9 @@ public sealed class FieldViewportTests
         FieldAssets field = new(0, "viewport", [], [], tiles, new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100), new FieldWalkmesh([]), [model]);
         FieldRenderer renderer = new(field, width, height);
         byte[] background = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
-        byte[] actor = renderer.Render(new Dictionary<int, int>(), [new ActorVisual(0, 0, 0, 0, 100, 192, 0, 0, true)], TimeSpan.Zero, backgroundVisible: false).ToArray();
+        byte[] actor = renderer.Render(new Dictionary<int, int>(), [new ActorVisual(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))], TimeSpan.Zero, backgroundVisible: false).ToArray();
         FieldAssets shadowField = field with { NativeExecutableHash = NativeFieldRuntimeProfile.FF8EnExecutableHash, Models = [model with { Bones = [] }] };
-        ActorVisual shadowActor = new(0, 0, 0, 0, 100, 192, 0, 0, true, GroundShadowRadius601To608: 255, GroundShadowLevel609: 128, GroundShadowCentre: new Vector3(0, 0, 100));
+        ActorVisual shadowActor = new(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128), GroundShadowRadius601To608: 255, GroundShadowLevel609: 128, GroundShadowCentre: new Vector3(0, 0, 100));
         byte[] shadow = new FieldRenderer(shadowField, width, height).Render(new Dictionary<int, int>(), [shadowActor], TimeSpan.Zero).ToArray();
         Assert.NotEqual(background, shadow);
         for (int y = 0; y < height; y++)
@@ -65,7 +65,7 @@ public sealed class FieldViewportTests
         Assert.Equal(new FieldBounds(0, 224, 320, 0), field.Information!.ScreenBounds[0]);
         FieldRenderer renderer = new(field, 960, 720);
         Dictionary<int, int> states = field.Background.Where(tile => tile.AnimationId != 255).Select(tile => tile.AnimationId).Distinct().ToDictionary(id => id, _ => 0);
-        ActorVisual[] actors = fieldId == 180 ? [new(1, 1, -141, 802, 0, 192, 3, 2, true), new(8, 8, -150, 650, 0, 64, 0, 1, true)] : [];
+        ActorVisual[] actors = fieldId == 180 ? [new(1, 1, -141, 802, 0, 192, 3, 2, true, PolygonColor: new Vector3(128)), new(8, 8, -150, 650, 0, 64, 0, 1, true, PolygonColor: new Vector3(128))] : [];
         byte[] pixels = renderer.Render(states, actors, TimeSpan.Zero).ToArray();
         foreach (int row in new[] { 0, 719 })
         {

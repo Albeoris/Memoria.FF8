@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
@@ -53,7 +53,7 @@ internal static partial class Program
             Require(engine.Scene.DrawPointFieldStateVersion == 1 && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 1 && engine.Scene.DrawPointIndex == expected && engine.Scene.DrawPointReset is { EffectiveDisplayMask: 1, ObjectId: 0, ScriptId: 0, Operation: 7 } reset && reset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && reset.Sparks.Count == 8 && reset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)), "Draw-point setup lost its low bytes, native anchor reset or immediate index continuation.");
             JsonElement saved = engine.Capture();
             Require(saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("5").GetInt32() == expected, "Exact native byte reads did not use the known typed setup/index.");
-            Require(saved.GetProperty("RandomState").GetUInt32() == before.GetProperty("RandomState").GetUInt32() && saved.GetProperty("Variables").EnumerateObject().All(pair => !int.TryParse(pair.Name, out int address) || address is < 116 or > 242) && engine.AcquiredGuardianForces is null, "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
+            Require(JsonElement.DeepEquals(saved.GetProperty("EventRandom"), before.GetProperty("EventRandom")) && saved.GetProperty("Variables").EnumerateObject().All(pair => !int.TryParse(pair.Name, out int address) || address is < 116 or > 242) && engine.AcquiredGuardianForces is null, "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
             Require(commands.Single(command => command.Name == "SETDRAWPOINT").Arguments.SequenceEqual([mask]) && commands.Single(command => command.Name == "Unknown16").Arguments.SequenceEqual([index]), "Draw-point setup discarded its original full operands.");
             EventEngine independent = Create(content);
             independent.Restore(saved);

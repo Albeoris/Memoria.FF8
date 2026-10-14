@@ -127,6 +127,7 @@ internal sealed partial class GameWorld
                         world.PublishReplayDeparture();
                         break;
                     case ReplayEntryKind.Action:
+                        ValidatePartyMenuDecisionSite(world.Events, entry);
                         AwaitRecordedDialogueSite(world.Events, entry, () =>
                         {
                             world.Events.Step();
@@ -274,6 +275,20 @@ internal sealed partial class GameWorld
             throw new InvalidDataException("The recorded dialogue decision matured in a different field.");
         }
         ValidateDialogueSite(engine, entry);
+    }
+
+    private static void ValidatePartyMenuDecisionSite(EventEngine engine, ReplayJournalEntry entry)
+    {
+        bool decision = entry.Code == (int)PlayerActionKind.SelectPartyMember || entry.Code == (int)PlayerActionKind.Confirm && entry.Trigger == (int)PlayerTriggerKind.PartyMenu;
+        if (!decision || entry.Trigger != (int)PlayerTriggerKind.PartyMenu && entry.Accepted == false)
+        {
+            return;
+        }
+        NativePartyMenuState? menu = engine.PartyMenu;
+        if (entry.MessageId is not null || menu is not { Phase: NativePartyMenuPhase.Active } || engine.FieldId != entry.FieldId || menu.ObjectId != entry.ObjectId || menu.ScriptId != entry.ScriptId || menu.Operation != entry.Operation || menu.ProgramHash != entry.NativeSourceHash)
+        {
+            throw new InvalidDataException("Recorded party selection no longer matches its actual MENUPHS issuing site and active menu.");
+        }
     }
 
     private static void ValidateDialogueSite(EventEngine engine, ReplayJournalEntry entry)

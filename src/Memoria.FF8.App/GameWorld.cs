@@ -21,6 +21,14 @@ internal sealed partial class GameWorld : IDisposable
         this.session = session;
         assets = new GameAssets(gameDirectory);
         bool initializedNativeParty = false;
+        if (session.State.ShotAvailability is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
+        }
+        if (session.State.InputConfiguration is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
+        }
         if (session.State.SeeD is { SalaryTable: null } && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
@@ -121,6 +129,10 @@ internal sealed partial class GameWorld : IDisposable
 
     private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
     {
+        if (restoreDeparting && session.EventRandom is null)
+        {
+            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world random process from its earlier snapshot.");
+        }
         using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
         FieldAssets next = assets.LoadField(fieldId);
         Events.ResolveFieldSoundEffectTable = () =>
@@ -146,7 +158,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
         Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSetForState(next, Events.Scene, Events.Actors, layer, settings);
         Events.CanSetBackgroundScrollRatio = (layer, settings) => BackgroundScrollCertificate.CanSetRatioForState(next, Events.Scene, Events.Actors, layer, settings);
-        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || NativeNonselectedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y);
+        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || NativeNonselectedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y) || NativeWrappedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y);
         Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
@@ -159,9 +171,9 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeTriangleCentroid = triangle => FieldPartyTraceGeometry.ResolveTriangleCentroid(next.Walkmesh, triangle);
         Events.CanUseNativeFieldEntryStack = arrival => NativeFieldEntryStackAdapter.Supports(next, arrival);
         Events.NativeFieldWalkmeshHash = next.WalkmeshHash;
-        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeLinearBackgroundScrollCertificate.CanSet(next, query) || NativeNonselectedBackgroundScrollCertificate.CanSetLinear(next, query);
-        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeNonselectedBackgroundScrollCertificate.SupportsLinearPhase(next, scene);
-        Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeNonselectedBackgroundScrollCertificate.CanBeginLinear(next, query, scene);
+        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeWrappedBackgroundScrollCertificate.CanSet(next, query) || NativeNonselectedBackgroundScrollCertificate.CanSetLinear(next, query);
+        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeWrappedBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeNonselectedBackgroundScrollCertificate.SupportsLinearPhase(next, scene);
+        Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeWrappedBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeNonselectedBackgroundScrollCertificate.CanBeginLinear(next, query, scene);
         Events.CanUseNativeJoinMovement = actor => NativeJoinMovementAdapter.Supports(next, Events.Scene, actor);
         Events.ResolveNativeJoinMovement = query => NativeJoinMovementAdapter.Resolve(next, Events.Scene, query);
         Events.CanUseNativePlayerMovement = actor => NativePlayerMovementAdapter.Supports(next, Events.Scene, actor);
@@ -182,6 +194,7 @@ internal sealed partial class GameWorld : IDisposable
         NativeEconomy? sceneEconomy = restoreDeparting ? session.Economy : null;
         NativeGlobalSoundProcess? sceneSoundProcess = restoreDeparting ? session.GlobalSoundProcess : null;
         NativeSalaryPresentation? sceneSalaryPresentation = restoreDeparting ? session.SalaryPresentation : null;
+        NativeEventRandomState? sceneEventRandom = restoreDeparting ? session.EventRandom : null;
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
         if (next.Information is FieldInformation information)
         {
@@ -217,6 +230,10 @@ internal sealed partial class GameWorld : IDisposable
             {
                 session.SetSalaryPresentation(sceneSalaryPresentation);
             }
+            if (sceneEventRandom is not null)
+            {
+                session.SetEventRandom(sceneEventRandom);
+            }
         }
         Field = next;
         renderer = new FieldRenderer(next, renderWidth, renderHeight);
@@ -248,7 +265,7 @@ internal sealed partial class GameWorld : IDisposable
             return worldScene!.Render(renderWidth, renderHeight);
         }
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
-        BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
+        BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeWrappedBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
         DebugSceneView? view = session.State.DebugView;
         NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; recreate the session journal.");
         shake.Validate();

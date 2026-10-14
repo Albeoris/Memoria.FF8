@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -30,7 +30,7 @@ internal static partial class Program
             int audioCount = 0;
             NativeMusicVolume? priorRequest = null;
             JsonElement? priorScene = null;
-            uint randomState = engine.Capture().GetProperty("RandomState").GetUInt32();
+            JsonElement randomState = engine.Capture().GetProperty("EventRandom");
             engine.AudioCommandExecuted += _ => audioCount++;
             engine.CommandExecuted += command =>
             {
@@ -54,7 +54,7 @@ internal static partial class Program
             };
             engine.Step();
             JsonElement checkpoint = engine.Capture();
-            Require(syncCount == 2 && audioCount == (transition ? 2 : 0) && engine.LastFault is null && checkpoint.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 123456 && checkpoint.GetProperty("RandomState").GetUInt32() == randomState, "MUSICVOLSYNC did not continue its successors in the issuing callback or changed unrelated audio/RNG state.");
+            Require(syncCount == 2 && audioCount == (transition ? 2 : 0) && engine.LastFault is null && checkpoint.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 123456 && JsonElement.DeepEquals(checkpoint.GetProperty("EventRandom"), randomState), "MUSICVOLSYNC did not continue its successors in the issuing callback or changed unrelated audio/RNG state.");
             if (transition)
             {
                 Require(engine.Scene.MusicVolumeRequest is { RequestedDuration: 180, EffectiveDuration: 180, RequestedVolume: 0, StoredVolume: 0 }, "MUSICVOLSYNC waited for or erased the still-independent180-duration music ramp.");

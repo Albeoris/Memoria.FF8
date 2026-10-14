@@ -73,7 +73,7 @@ public sealed class SelectedAssetTests
         PixelImage texture = new(16, 16, Enumerable.Repeat(new Rgba32(0, 0, 200), 256).ToArray());
         FieldModel model = new("camera-fixture", [new(-1, 0)], [new(new Vector3(0, -100, -100), 0), new(new Vector3(0, 100, -100), 0), new(new Vector3(0, 0, 100), 0)], [new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         FieldRenderer renderer = new(classroom with { Background = [], Models = [model] });
-        ActorVisual[] actors = [new(0, 0, point.X, point.Y, point.Z, 192, 0, 0, true)];
+        ActorVisual[] actors = [new(0, 0, point.X, point.Y, point.Z, 192, 0, 0, true, PolygonColor: new Vector3(128))];
         byte[] cameraZero = renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero).ToArray();
         byte[] cameraOne = renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero, cameraIndex: 1).ToArray();
         Assert.DoesNotContain(cameraZero.Where((_, index) => index % 4 != 3), value => value != 0);
@@ -146,14 +146,14 @@ public sealed class SelectedAssetTests
             Directory.CreateDirectory(evidence);
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-background-0.rgba"), first);
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-background-5.rgba"), curtain);
-            ActorVisual[] actors = [new(0, 0, -188, 738, 242, 64, 3, 31, true), new(8, 8, 60, 600, 0, 192, 0, 0, true)];
+            ActorVisual[] actors = [new(0, 0, -188, 738, 242, 64, 3, 31, true, PolygonColor: new Vector3(128)), new(8, 8, 60, 600, 0, 192, 0, 0, true, PolygonColor: new Vector3(128))];
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-models.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
             actors[0] = actors[0] with { AnimationId = 0, AnimationFrame = 0, X = 0, Y = 550, Z = 0 };
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-pose-0.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
             actors[0] = actors[0] with { AnimationId = 1, AnimationFrame = 0 };
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-pose-1.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
             // Installed initial JSM snapshot, including Squall's world-space DOFFSET(0,48,0).
-            ActorVisual[] initialActors = [new(1, 1, -141, 802, 0, 192, 3, 2, true), new(8, 8, -150, 650, 0, 64, 0, 1, true)];
+            ActorVisual[] initialActors = [new(1, 1, -141, 802, 0, 192, 3, 2, true, PolygonColor: new Vector3(128)), new(8, 8, -150, 650, 0, 64, 0, 1, true, PolygonColor: new Vector3(128))];
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-script-initial.rgba"), renderer.Render(new Dictionary<int, int>(), initialActors, TimeSpan.Zero));
             initialActors[0] = initialActors[0] with { AnimationId = 5, AnimationFrame = 33 };
             File.WriteAllBytes(Path.Combine(evidence, "infirmary-native-seated.rgba"), renderer.Render(new Dictionary<int, int>(), initialActors, TimeSpan.Zero));
@@ -213,7 +213,7 @@ public sealed class SelectedAssetTests
         {
             FieldRenderer renderer = new(classroom);
             Dictionary<int, int> states = new() { [0] = 1 };
-            ActorVisual actor = new(11, 10, 1432, -3080, 0, 142, 4, 0, true);
+            ActorVisual actor = new(11, 10, 1432, -3080, 0, 142, 4, 0, true, PolygonColor: new Vector3(128));
             File.WriteAllBytes(Path.Combine(evidence, "classroom-actor11-raw-geta.rgba"), renderer.Render(states, [actor with { RootTranslationZ = 242 }], TimeSpan.Zero, cameraIndex: 1));
             File.WriteAllBytes(Path.Combine(evidence, "classroom-actor11-native-elevation.rgba"), renderer.Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
             File.WriteAllBytes(Path.Combine(evidence, "classroom-actor3-isolated.rgba"), renderer.Render(states, [new(3, 2, 0, 0, 0, 0, 0, 2, true)], TimeSpan.Zero, cameraIndex: 1));
@@ -234,7 +234,7 @@ public sealed class SelectedAssetTests
         {
             Vector3 position = ReadVector(actor) + ReadVector(actor.GetProperty("DisplayOffset"));
             JsonElement control = actor.GetProperty("FirstControlRotation");
-            return new ActorVisual(actor.GetProperty("ObjectId").GetInt32(), actor.GetProperty("ModelId").GetInt32(), position.X, position.Y, position.Z, actor.GetProperty("Direction").GetSingle(), actor.GetProperty("AnimationId").GetInt32(), actor.GetProperty("AnimationFrame").GetSingle(), actor.GetProperty("Active").GetBoolean() && actor.GetProperty("Visible").GetBoolean(), actor.GetProperty("ShadeLevel").GetInt32(), control.ValueKind == JsonValueKind.Null ? null : ReadVector(control));
+            return new ActorVisual(actor.GetProperty("ObjectId").GetInt32(), actor.GetProperty("ModelId").GetInt32(), position.X, position.Y, position.Z, actor.GetProperty("Direction").GetSingle(), actor.GetProperty("AnimationId").GetInt32(), actor.GetProperty("AnimationFrame").GetSingle(), actor.GetProperty("Active").GetBoolean() && actor.GetProperty("Visible").GetBoolean(), FirstControlRotation: control.ValueKind == JsonValueKind.Null ? null : ReadVector(control), PolygonColor: ReadVector(actor.GetProperty("PolygonColor")));
         }).ToArray();
         Dictionary<int, int> states = events.GetProperty("BackgroundStates").EnumerateObject().ToDictionary(property => int.Parse(property.Name), property => property.Value.GetInt32());
         Dictionary<int, Vector3> shades = events.GetProperty("Scene").GetProperty("BackgroundShadeLoops").EnumerateObject().ToDictionary(property => int.Parse(property.Name), property => ReadVector(property.Value.GetProperty("CurrentColor")));
@@ -248,7 +248,7 @@ public sealed class SelectedAssetTests
         FieldModel model = new("sampling-fixture", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 1, 2], [Vector2.One, Vector2.One, Vector2.One], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         PixelImage background = new(16, 16, Enumerable.Repeat(new Rgba32(100, 0, 0), 256).ToArray());
         FieldAssets field = new(0, "sampling-fixture", [], [], [new(0, 0, 26, 255, 0, 0, MapBlendMode.None, false, true, background)], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100), new FieldWalkmesh([]), [model]);
-        ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true)];
+        ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))];
         Dictionary<int, int> states = [];
         int sample = (363 * 960 + 483) * 4;
         byte[] nearest = new FieldRenderer(field, 960, 720, ModelTextureSampling.Nearest).Render(states, actors, TimeSpan.Zero);
@@ -341,7 +341,7 @@ public sealed class SelectedAssetTests
         PixelImage texture = new(16, 16, Enumerable.Repeat(new Rgba32(0, 0, 200), 256).ToArray());
         FieldModel model = new("triangle", [new(-1, 0)], [new(new Vector3(0, -10, -10), 0), new(new Vector3(0, 10, -10), 0), new(new Vector3(0, 0, 10), 0)], [new([0, 1, 2], [Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, false)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
         FieldAssets field = new(0, "test", [], [], [new(0, 0, 26, 255, 0, 0, MapBlendMode.None, false, true, background)], new FieldCamera(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100), new FieldWalkmesh([]), [model]);
-        ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true)];
+        ActorVisual[] actors = [new(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))];
         int sample = (121 * 320 + 161) * 4;
         byte[] pixels = new FieldRenderer(field).Render(new Dictionary<int, int>(), actors, TimeSpan.Zero);
         Assert.Equal(200, pixels[sample + 2]);

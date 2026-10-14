@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -47,7 +47,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (TryReadJunctionBackupMemory(operation, out int nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
+                if (TryReadNativeDrawPointMemory(operation, out int nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
                 {
                     fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
                     fiber.StackExpressions.Push($"native[{parameter}]");
@@ -91,7 +91,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
+                if (TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -164,7 +164,7 @@ public sealed partial class EventEngine
                 }
                 return;
             case Jsm.Opcode.RND:
-                fiber.Results[0] = NextRandom();
+                ExecuteNativeRandom(fiber);
                 break;
             case Jsm.Opcode.SETTIMER:
             case Jsm.Opcode.DISPTIMER:
@@ -630,6 +630,9 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 CompleteMinimalMenu(fiber, opcode, args[0]);
                 break;
+            case Jsm.Opcode.MENUPHS:
+                RequestPartyMenu(fiber);
+                break;
             case Jsm.Opcode.MENUTUTO:
                 CompleteMinimalMenu(fiber, opcode, 0);
                 break;
@@ -667,13 +670,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.IDUNLOCK:
                 Scene.LockedTriangles.Remove(parameter);
                 break;
+            case Jsm.Opcode.POLYCOLOR:
             case Jsm.Opcode.POLYCOLORALL:
-                args = Pop(fiber, 3);
-                Vector3 polygonColor = new((byte)args[0], (byte)args[1], (byte)args[2]);
-                foreach (ActorState fieldActor in actors)
-                {
-                    fieldActor.PolygonColor = polygonColor;
-                }
+                args = ExecuteNativePolygonColor(fiber, opcode == Jsm.Opcode.POLYCOLORALL);
                 break;
             case Jsm.Opcode.PREMAPJUMP2:
                 args = Pop(fiber, 1);
@@ -775,9 +774,9 @@ public sealed partial class EventEngine
                     args = Pop(fiber, 1);
                     break;
                 }
+                string defaultName = NativeCharacterName(nativeNameArgument);
                 args = Pop(fiber, 1);
                 nameEntity = args[0];
-                string defaultName = Scene.Names.GetValueOrDefault(nameEntity, nameEntity == 0 ? "Squall" : $"Character {nameEntity}");
                 ShowDialogue(fiber, new DialogueState(0, -1, $"Name: {defaultName}", 0, 0, IsNamePrompt: true), true);
                 break;
             case Jsm.Opcode.MESVAR:
@@ -854,12 +853,11 @@ public sealed partial class EventEngine
                 Scene.BackgroundShades[fiber.BackgroundId] = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
                 break;
             case Jsm.Opcode.KEYSCAN:
-                args = Pop(fiber, 1);
-                fiber.Results[0] = (unchecked((uint)args[0]) & Scene.ButtonInput!.Held) != 0 ? 1 : 0;
-                break;
+            case Jsm.Opcode.KEYSCAN2:
             case Jsm.Opcode.KEYON:
+                ushort buttonWord = opcode == Jsm.Opcode.KEYSCAN2 ? ButtonInput!.RawHeld : (opcode == Jsm.Opcode.KEYON ? ButtonInput!.Pressed : ButtonInput!.Held) ?? throw new NotSupportedException("Mapped input configuration is unknown.");
                 args = Pop(fiber, 1);
-                fiber.Results[0] = (unchecked((uint)args[0]) & Scene.ButtonInput!.Pressed) != 0 ? 1 : 0;
+                fiber.Results[0] = (unchecked((uint)args[0]) & buttonWord) != 0 ? 1 : 0;
                 break;
             case Jsm.Opcode.SETVIBRATE:
                 args = ExecuteVibrationRequest(fiber);
@@ -1014,8 +1012,7 @@ public sealed partial class EventEngine
                 args = ExecuteSetHitPoints(fiber);
                 break;
             case Jsm.Opcode.HOLD:
-                args = Pop(fiber, 3);
-                Scene.Holds[args[0]] = [args[1], args[2]];
+                args = ExecuteNativeHold(fiber, out scalarArgs);
                 break;
             case Jsm.Opcode.PHSPOWER:
                 args = [ExecutePartyPower(fiber)];

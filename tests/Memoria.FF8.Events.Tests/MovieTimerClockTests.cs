@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -13,7 +14,21 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
         (GameSession Session, EventEngine Engine) Create(GameState? state = null)
         {
-            GameSession session = new(state ?? new GameState { Scene = SceneKind.Field, ExamTimer = NativeExamTimerState.FromReachedSet(600).KillDisplay() });
+            GameSession session;
+            if (state is null)
+            {
+                session = GameSession.CreateColdProcess();
+                session.StartNewGame();
+                using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+                session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+                // This explicit timer-domain diagnostic does not claim a cold timer phase or route history.
+                session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
+                session.MarkReplayUnavailable("Declared movie timer alternatives component has no original route history.");
+            }
+            else
+            {
+                session = new GameSession(state);
+            }
             EventEngine engine = new(session, session.State.Variables) { MoviePlayback = () => session.State.MoviePlayback };
             engine.MovieSkipRequested += () => session.CompleteMovie(true);
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

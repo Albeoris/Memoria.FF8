@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, int ModelShade = 128, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null);
 
 public enum ModelTextureSampling
 {
@@ -87,6 +87,14 @@ public sealed partial class FieldRenderer
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
     public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null)
     {
+        ActorVisual[] preparedActors = actors.ToArray();
+        foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
+        {
+            if (actor.PolygonColor is not Vector3 color || new[] { color.X, color.Y, color.Z }.Any(value => !float.IsFinite(value) || value < 0 || value > 255 || value != MathF.Truncate(value)))
+            {
+                throw new NotSupportedException("Model drawing requires explicit primitive RGB bytes; shadow level or neutral defaults cannot replace them.");
+            }
+        }
         IReadOnlyDictionary<int, Vector2> nextOffsets = backgroundScrollOffsets ?? EmptyScrollOffsets;
         ValidateNativeWrapFrame(nativeWrapFrame, cameraIndex, actorScrollOffset, nextOffsets);
         camera = field.GetCamera(cameraIndex);
@@ -118,7 +126,7 @@ public sealed partial class FieldRenderer
                 blendedBackground.Add(raster);
             }
         }
-        foreach (ActorVisual actor in actors)
+        foreach (ActorVisual actor in preparedActors)
         {
             if (actor.Visible && (uint)actor.ModelId < field.Models.Count)
             {
@@ -308,10 +316,10 @@ public sealed partial class FieldRenderer
         foreach (ModelFace face in model.Faces)
         {
             PixelImage texture = model.Textures[face.Texture];
-            Triangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor ?? new Vector3(actor.ModelShade));
+            Triangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value);
             if (face.Quad)
             {
-                Triangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor ?? new Vector3(actor.ModelShade));
+                Triangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value);
             }
         }
     }

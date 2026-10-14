@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
@@ -39,7 +39,7 @@ internal static partial class Program
                 initial["Fibers"]![0]!["Results"]!["1"] = second;
                 initial["Fibers"]![0]!["Results"]!["2"] = 789;
                 engine.Restore(JsonSerializer.SerializeToElement(initial));
-                uint randomState = engine.Capture().GetProperty("RandomState").GetUInt32();
+                JsonElement randomState = engine.Capture().GetProperty("EventRandom");
                 List<ScriptCommand> commands = [];
                 bool observed = false;
                 engine.CommandExecuted += command =>
@@ -58,7 +58,7 @@ internal static partial class Program
                 };
                 engine.Step();
                 JsonElement saved = engine.Capture();
-                Require(observed && engine.LastFault is null && engine.Frame == 1 && commands.Any(command => command.Name == "WAIT") && saved.GetProperty("RandomState").GetUInt32() == randomState, "Native music-position query yielded an extra update or changed EventRND.");
+                Require(observed && engine.LastFault is null && engine.Frame == 1 && commands.Any(command => command.Name == "WAIT") && JsonElement.DeepEquals(saved.GetProperty("EventRandom"), randomState), "Native music-position query yielded an extra update or changed EventRND.");
                 if (sentinel)
                 {
                     Require(saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 123456, "The immediate instruction following the query did not receive its preserved operand.");

@@ -1,0 +1,106 @@
+using System.Collections.Immutable;
+using System.Security.Cryptography;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8;
+
+internal static class NativeWrappedBackgroundScrollCertificate
+{
+    public static bool CanSetDirect(FieldAssets field, SceneEventState scene, int layer, short x, short y)
+    {
+        return HasNormalRuntime(field, scene) && layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == layer) && InRange(x) && InRange(y) && ValidPositions(field, scene) && BackgroundParallaxPlacement.SupportsCameraRange(field, BackgroundScrollCertificate.ReadSettings(scene, layer), x, y);
+    }
+
+    public static bool CanSetSettings(FieldAssets field, SceneEventState scene, int layer, BackgroundScrollSettings settings)
+    {
+        return HasNormalRuntime(field, scene) && BackgroundScrollCertificate.CanSetNormal(field, layer, settings, scene.CameraIndex) && ValidPositions(field, scene, layer, settings);
+    }
+
+    public static bool CanSet(FieldAssets field, NativeLinearScrollQuery query)
+    {
+        return FieldNativeNormalBackgroundWrap.SupportsLayerCurrentMetadata(field, 0) && query.Layer is >= 1 and <= 7 && field.Background.Any(tile => tile.Layer == query.Layer) && query.Duration >= 0 && InRange(query.StartX) && InRange(query.StartY) && InRange(query.TargetX) && InRange(query.TargetY);
+    }
+
+    public static bool CanBegin(FieldAssets field, NativeLinearScrollQuery query, SceneEventState scene)
+    {
+        return CanSet(field, query) && HasNormalRuntime(field, scene) && ValidPositions(field, scene) && FitsSettings(field, BackgroundScrollCertificate.ReadSettings(scene, query.Layer), query.StartX, query.StartY) && FitsSettings(field, BackgroundScrollCertificate.ReadSettings(scene, query.Layer), query.TargetX, query.TargetY);
+    }
+
+    public static bool SupportsPhase(FieldAssets field, SceneEventState scene)
+    {
+        return !scene.BackgroundScrollPositions.ContainsKey(0) && (scene.BackgroundScrollPositions.Count > 0 || !BackgroundScrollCertificate.HasDefaultSettings(scene)) && HasNormalRuntime(field, scene) && ValidPositions(field, scene) && scene.BackgroundScrollPositions.Values.All(position => InRange(position.X) && InRange(position.Y));
+    }
+
+    public static BackgroundScrollFrame? Prepare(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
+    {
+        return SupportsPhase(field, scene) ? NormalCameraCertificate.Prepare(field, scene, actors) : null;
+    }
+
+    public static FieldNativeBackgroundWrapFrame PrepareWrap(FieldAssets field, SceneEventState scene, FieldNativeCameraCenter center)
+    {
+        return TryPrepareWrap(field, scene, center) ?? throw new NotSupportedException("Native wrapped layer placement has unsupported signed-word offsets or camera bounds.");
+    }
+
+    public static FieldNativeBackgroundWrapFrame? TryPrepareWrap(FieldAssets field, SceneEventState scene, FieldNativeCameraCenter center)
+    {
+        ImmutableArray<FieldNativeBackgroundLayerCurrent>.Builder currents = ImmutableArray.CreateBuilder<FieldNativeBackgroundLayerCurrent>();
+        foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct().Where(layer => layer != 0).Order())
+        {
+            BackgroundScrollSettings settings = BackgroundScrollCertificate.ReadSettings(scene, layer);
+            if (scene.BackgroundScrollPositions.TryGetValue(layer, out BackgroundScrollPosition? position))
+            {
+                if (position.X is not short x || position.Y is not short y)
+                {
+                    return null;
+                }
+                currents.Add(new FieldNativeBackgroundLayerCurrent((byte)layer, x, y, settings.OffsetX, settings.OffsetY, settings.ScaleX, settings.ScaleY));
+            }
+            else if (settings != new BackgroundScrollSettings(0, 0, 256, 256))
+            {
+                // Existing normal475E60 mode0 producer writes zero current8/10, independently of retained ratio/offset words.
+                currents.Add(new FieldNativeBackgroundLayerCurrent((byte)layer, 0, 0, settings.OffsetX, settings.OffsetY, settings.ScaleX, settings.ScaleY));
+            }
+        }
+        return FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, center, currents.ToImmutable());
+    }
+
+    private static bool HasNormalRuntime(FieldAssets field, SceneEventState scene)
+    {
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && BackgroundScrollCertificate.HasSupportedSettings(field, scene) && FieldNativeNormalBackgroundWrap.SupportsLayerCurrentMetadata(field, scene.CameraIndex);
+    }
+
+    private static bool ValidPositions(FieldAssets field, SceneEventState scene, int? changedLayer = null, BackgroundScrollSettings? changedSettings = null)
+    {
+        return scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? DirectBackgroundScrollCertificate.ValidPosition(pair.Value) : ValidPosition(field, pair.Key, pair.Value, changedLayer == pair.Key ? changedSettings! : BackgroundScrollCertificate.ReadSettings(scene, pair.Key)));
+    }
+
+    public static bool SupportsRetainedPosition(FieldAssets field, SceneEventState scene, int layer, BackgroundScrollPosition position)
+    {
+        return ValidPosition(field, layer, position, BackgroundScrollCertificate.ReadSettings(scene, layer));
+    }
+
+    private static bool ValidPosition(FieldAssets field, int layer, BackgroundScrollPosition position, BackgroundScrollSettings settings)
+    {
+        if (layer is < 1 or > 7 || !field.Background.Any(tile => tile.Layer == layer))
+        {
+            return false;
+        }
+        if (position.Mode == 3)
+        {
+            return DirectBackgroundScrollCertificate.ValidPosition(position) && FitsSettings(field, settings, position.TargetX, position.TargetY) && (position.X is null || position.X is short x && position.Y is short y && FitsSettings(field, settings, x, y));
+        }
+        return NativeLinearScrollPhase.IsValid(position) && position.X is short currentX && position.Y is short currentY && FitsSettings(field, settings, currentX, currentY) && (position.Status == 0 ? position.X : position.PreviousX) is short startX && (position.Status == 0 ? position.Y : position.PreviousY) is short startY && FitsSettings(field, settings, startX, startY) && FitsSettings(field, settings, position.TargetX, position.TargetY) && position.Duration is short duration && CanSet(field, new NativeLinearScrollQuery(layer, startX, startY, position.TargetX, position.TargetY, duration));
+    }
+
+    private static bool FitsSettings(FieldAssets field, BackgroundScrollSettings settings, short x, short y)
+    {
+        return InRange(x) && InRange(y) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings, x, y);
+    }
+
+    private static bool InRange(short? value)
+    {
+        return value is >= -4095 and <= 4096;
+    }
+}

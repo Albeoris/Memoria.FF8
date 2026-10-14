@@ -138,7 +138,8 @@ public sealed class ActorState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeActorShadowAllocation? NativeShadowAllocation { get; internal set; }
     [JsonInclude]
-    public Vector3 PolygonColor { get; internal set; } = new(128, 128, 128);
+    [JsonRequired]
+    public Vector3? PolygonColor { get; internal set; }
     [JsonInclude]
     public int FaceFirstAngle { get; internal set; }
     [JsonInclude]

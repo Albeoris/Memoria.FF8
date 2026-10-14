@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8;
 
-internal sealed class RecreateGame : Game
+internal sealed partial class RecreateGame : Game
 {
     private readonly LaunchOptions options;
     private readonly GameSession session;
@@ -260,7 +260,12 @@ internal sealed class RecreateGame : Game
                 fieldRenderFaulted = false;
                 Console.WriteLine($"loaded={field!.Id}:{field.Name} models={field.Models.Count} tiles={field.Background.Count}");
             }
-            if (!options.ControlStep && (events!.Scene.ButtonInput?.PhysicalHeld ?? 0) != keyboard.HeldFieldButtons)
+            if (events!.PartyMenu is not null)
+            {
+                UpdatePartyMenu(elapsed, input);
+                return;
+            }
+            if (!options.ControlStep && (events!.ButtonInput?.PhysicalHeld ?? 0) != keyboard.HeldFieldButtons)
             {
                 world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, keyboard.HeldFieldButtons));
             }
@@ -677,6 +682,8 @@ internal sealed class RecreateGame : Game
             Decisions = compact ? null : events?.Decisions,
             DialogueOutcomes = compact ? null : events?.DialogueOutcomes,
             ActionLog = compact ? null : events?.ActionLog,
+            PartyMenu = events?.PartyMenu,
+            PartyMenuCandidates = events?.PartyMenuCandidates,
             TraceCounts = new { Coverage = events?.Coverage.Count ?? 0, Decisions = events?.Decisions.Count ?? 0, DialogueOutcomes = events?.DialogueOutcomes.Count ?? 0, Actions = events?.ActionLog.Count ?? 0 },
             Draft = new { SelectedChoice = selectedChoice, EnteredName = enteredName },
             CapturePath = pendingCapture,
@@ -686,6 +693,10 @@ internal sealed class RecreateGame : Game
 
     private void UploadField(TimeSpan elapsed)
     {
+        if (events?.PartyMenu is not null)
+        {
+            return;
+        }
         if (session.State.Scene != SceneKind.WorldMap && FieldPresentationReadiness.HasPendingInitialization(world!.Events.Scene.NativeFieldInitialization))
         {
             return;
@@ -808,6 +819,10 @@ internal sealed class RecreateGame : Game
             text.Draw(batch, "SeeD salary", 8 * scale, origin + new Vector2(8, 4) * scale, Color.White * progress);
             text.Draw(batch, $"Rank {GlyphText(salary.OldRankGlyphs)}   {GlyphText(salary.OldPayGlyphs)} gil", 8 * scale, origin + new Vector2(8, 22) * scale, oldColor);
             text.Draw(batch, $"Rank {GlyphText(salary.NewRankGlyphs)}   {GlyphText(salary.NewPayGlyphs)} gil", 8 * scale, origin + new Vector2(8, 22) * scale, newColor);
+        }
+        if (events?.PartyMenu is not null)
+        {
+            DrawPartyMenu(bounds);
         }
         if (error is not null)
         {

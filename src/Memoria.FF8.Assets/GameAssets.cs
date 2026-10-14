@@ -74,6 +74,25 @@ public sealed class GameAssets : IDisposable
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeEconomyInitialization.Read(Read(main, "init.out"));
     }
+
+    public NativeShotAvailabilityState ReadNewGameShotAvailability()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native shot availability initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeShotAvailabilityInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
+    }
+    public NativeInputConfiguration ReadNewGameInputConfiguration()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native input initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeInputInitialization.Read(Read(main, "init.out"));
+    }
     public NativeSalaryTable ReadNativeSalaryTable()
     {
         if (NativeRuntimeProfile is not { IsVerified: true })

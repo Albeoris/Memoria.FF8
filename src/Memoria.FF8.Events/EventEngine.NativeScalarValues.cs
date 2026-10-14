@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -24,6 +24,19 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (UnsupportedNativeEventRandom(fiber, operation) is string random)
+        {
+            return random;
+        }
+        if (operation.Opcode == Jsm.Opcode.MENUPHS)
+        {
+            // Native521D40 reads no operand stack slots.
+            return null;
+        }
+        if (operation.Opcode == Jsm.Opcode.HOLD)
+        {
+            return UnsupportedNativeHold(fiber);
+        }
         if (operation.Opcode == Jsm.Opcode.CAL)
         {
             try
@@ -78,7 +91,7 @@ public sealed partial class EventEngine
                 return "Uncertain native store overlaps a legacy untyped memory alias";
             }
         }
-        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.FACEDIRSYNC || writing)
+        if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.RND || writing)
         {
             return null;
         }

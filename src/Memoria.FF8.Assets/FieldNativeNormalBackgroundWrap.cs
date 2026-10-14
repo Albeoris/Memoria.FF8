@@ -34,7 +34,7 @@ public static class FieldNativeNormalBackgroundWrap
         return true;
     }
 
-    public static bool SupportsLinearMetadata(FieldAssets field, int cameraIndex)
+    public static bool SupportsLayerCurrentMetadata(FieldAssets field, int cameraIndex)
     {
         if (!SupportsMetadata(field, cameraIndex))
         {
@@ -53,8 +53,8 @@ public static class FieldNativeNormalBackgroundWrap
         {
             return null;
         }
-        bool linear = !currents.IsDefaultOrEmpty;
-        if (linear && (!SupportsLinearMetadata(field, cameraIndex) || currents.Select(current => current.Layer).Distinct().Count() != currents.Length || currents.Any(current => current.Layer is < 1 or > 7 || current.X is < -4095 or > 4096 || current.Y is < -4095 or > 4096 || !field.Background.Any(tile => tile.Layer == current.Layer))))
+        bool hasCurrents = !currents.IsDefaultOrEmpty;
+        if (hasCurrents && (!SupportsLayerCurrentMetadata(field, cameraIndex) || currents.Select(current => current.Layer).Distinct().Count() != currents.Length || currents.Any(current => current.Layer is < 1 or > 7 || current.X is < -4095 or > 4096 || current.Y is < -4095 or > 4096 || !field.Background.Any(tile => tile.Layer == current.Layer))))
         {
             return null;
         }
@@ -67,15 +67,21 @@ public static class FieldNativeNormalBackgroundWrap
         ImmutableArray<FieldNativeBackgroundWrapLayer>.Builder layers = ImmutableArray.CreateBuilder<FieldNativeBackgroundWrapLayer>();
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct().Order())
         {
-            FieldNativeBackgroundLayerCurrent? current = linear ? currents.Where(current => current.Layer == layer).Select(current => (FieldNativeBackgroundLayerCurrent?)current).FirstOrDefault() : null;
+            FieldNativeBackgroundLayerCurrent? current = hasCurrents ? currents.Where(current => current.Layer == layer).Select(current => (FieldNativeBackgroundLayerCurrent?)current).FirstOrDefault() : null;
             bool enabled = (information.BackgroundWrapMask & (1 << layer)) != 0;
             if (enabled || current is not null)
             {
+                int offsetX = 0;
+                int offsetY = 0;
+                if (current is FieldNativeBackgroundLayerCurrent state && (!NativeBackgroundLayerPlacement.TryTranslation(center.X, state.OffsetX, state.ScaleX, state.X, out offsetX) || !NativeBackgroundLayerPlacement.TryTranslation(center.Y, state.OffsetY, state.ScaleY, state.Y, out offsetY)))
+                {
+                    return null;
+                }
                 FieldBounds bounds = information.CameraBounds[layer];
-                layers.Add(new FieldNativeBackgroundWrapLayer((byte)layer, current is FieldNativeBackgroundLayerCurrent state ? checked((short)-state.X) : (short)0, current is FieldNativeBackgroundLayerCurrent stateY ? checked((short)-stateY.Y) : (short)0, enabled ? checked((short)(2 * bounds.Right)) : (short)0, enabled ? checked((short)(2 * bounds.Bottom)) : (short)0));
+                layers.Add(new FieldNativeBackgroundWrapLayer((byte)layer, (short)offsetX, (short)offsetY, enabled ? checked((short)(2 * bounds.Right)) : (short)0, enabled ? checked((short)(2 * bounds.Bottom)) : (short)0));
             }
         }
-        FieldNativeBackgroundWrapFrame frame = new(field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm)), checked((short)(center.X - 192)), checked((short)(center.X + 176)), checked((short)(center.Y - 144)), checked((short)(center.Y + 128)), layers.ToImmutable(), linear ? 2 : 1, linear ? currents : ImmutableArray<FieldNativeBackgroundLayerCurrent>.Empty);
+        FieldNativeBackgroundWrapFrame frame = new(field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm)), checked((short)(center.X - 192)), checked((short)(center.X + 176)), checked((short)(center.Y - 144)), checked((short)(center.Y + 128)), layers.ToImmutable(), hasCurrents ? 2 : 1, hasCurrents ? currents : ImmutableArray<FieldNativeBackgroundLayerCurrent>.Empty);
         foreach (BackgroundTile tile in field.Background)
         {
             FieldNativeBackgroundWrapLayer? wrapping = frame.Layers.Where(layer => layer.Layer == tile.Layer).Select(layer => (FieldNativeBackgroundWrapLayer?)layer).FirstOrDefault();

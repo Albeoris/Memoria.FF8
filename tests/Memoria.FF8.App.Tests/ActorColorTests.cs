@@ -31,13 +31,13 @@ public sealed class ActorColorTests
         {
             world.ApplyDebug(new DebugSceneCommand(DebugSceneTarget.Actor, ActorId: actor.ObjectId, Visible: false));
         }
-        var avatar = new ActorVisual(selphie.ObjectId, selphie.ModelId, selphie.X, selphie.Y, selphie.Z, selphie.Direction, selphie.AnimationId, selphie.AnimationFrame, true);
+        var avatar = new ActorVisual(selphie.ObjectId, selphie.ModelId, selphie.X, selphie.Y, selphie.Z, selphie.Direction, selphie.AnimationId, selphie.AnimationFrame, true, PolygonColor: selphie.PolygonColor);
         var renderer = new FieldRenderer(world.Field!);
         byte[] neutral = renderer.Render(world.Events.BackgroundStates, [avatar], TimeSpan.Zero, backgroundVisible: false).ToArray();
         byte[] rendered = world.Render(TimeSpan.Zero).ToArray();
         Assert.Equal(neutral, rendered);
         Assert.True(Enumerable.Range(0, rendered.Length / 4).Count(pixel => rendered[pixel * 4] > 32 || rendered[pixel * 4 + 1] > 32 || rendered[pixel * 4 + 2] > 32) > 50);
-        byte[] oldSilhouette = renderer.Render(world.Events.BackgroundStates, [avatar with { ModelShade = selphie.ShadeLevel }], TimeSpan.Zero, backgroundVisible: false).ToArray();
+        byte[] oldSilhouette = renderer.Render(world.Events.BackgroundStates, [avatar with { PolygonColor = new System.Numerics.Vector3(selphie.ShadeLevel) }], TimeSpan.Zero, backgroundVisible: false).ToArray();
         Assert.False(oldSilhouette.SequenceEqual(rendered));
         Assert.Equal(original, world.Events.Capture().GetRawText());
     }

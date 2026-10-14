@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -19,6 +19,9 @@ internal static partial class Program
                 {
                     ["causal-replay"] = CausalReplayContract,
                     ["message-variable"] = NativeMessageVariableContract,
+                    ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
+                    ["native-party-hold"] = () => NativePartyHoldContract(selectedGameDirectory),
+                    ["native-party-menu"] = () => NativePartyMenuContract(selectedGameDirectory),
                     ["native-base-animation"] = NativeBaseAnimationContract,
                     ["native-maccel"] = NativeMovementAccelerationContract,
                     ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),
@@ -70,8 +73,10 @@ internal static partial class Program
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
-                    ["key-on"] = NativeKeyOnContract,
-                    ["key-scan"] = NativeKeyScanContract,
+                    ["key-on"] = () => NativeKeyOnContract(selectedGameDirectory),
+                    ["key-scan"] = () => NativeKeyScanContract(selectedGameDirectory),
+                    ["key-scan2"] = () => NativeKeyScan2Contract(selectedGameDirectory),
+                    ["native-polygon-color"] = () => NativePolygonColorContract(selectedGameDirectory),
                     ["terminal-commands"] = NativeTerminalCommandsContract,
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
@@ -184,8 +189,8 @@ internal static partial class Program
             NativeBackgroundShadeOffContract(gameDirectory);
             NativeDyingContract(gameDirectory);
             NativeDressContract(gameDirectory);
-            NativeKeyOnContract();
-            NativeKeyScanContract();
+            NativeKeyOnContract(gameDirectory);
+            NativeKeyScanContract(gameDirectory);
             NativeTerminalCommandsContract();
             NativeMovieTimerClockContract();
             NativeCarCommandsContract(gameDirectory);
@@ -308,7 +313,7 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        EventEngine engine = new(session, session.State.Variables, 123);
+        EventEngine engine = new(session, session.State.Variables);
         List<int> visitedFields = [];
         List<int> movies = [];
         List<int> messages = [];
@@ -398,7 +403,7 @@ internal static partial class Program
     private static EventEngine RoundTrip(EventEngine original, GameSession session, FieldAssets field)
     {
         System.Text.Json.JsonElement checkpoint = original.Capture();
-        EventEngine restored = new(session, session.State.Variables, 999);
+        EventEngine restored = new(session, session.State.Variables);
         restored.AnimationFrameCount = field.GetAnimationFrameCount;
         restored.LoadField(field.Id, field.Jsm, field.Messages);
         restored.Restore(checkpoint);
@@ -436,7 +441,7 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        EventEngine engine = new(session, session.State.Variables, 123);
+        EventEngine engine = new(session, session.State.Variables);
         if (continueTo232)
         {
             engine.MoviePlayback = () => session.State.MoviePlayback;
@@ -1121,7 +1126,7 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         GameSession entrySession = GameSession.CreateColdProcess();
         entrySession.StartNewGame();
-        EventEngine entry = new(entrySession, entrySession.State.Variables, 123);
+        EventEngine entry = new(entrySession, entrySession.State.Variables);
         entry.MovieSkipRequested += entrySession.CompleteMovie;
         FieldAssets start = assets.LoadField(74);
         entry.AnimationFrameCount = start.GetAnimationFrameCount;
