@@ -8,7 +8,7 @@ public sealed partial class GameSession
         State = State with { SavedWorld = saved };
     }
 
-    public void CommitPreparedCarFieldEntry(GameState expectedDeparture, WorldState finalWorld, FieldTransition transition, NativeSavedWorldCarReturn receipt, Action<GameState> validatePrepared)
+    public void CommitPreparedCarFieldEntry(GameState expectedDeparture, WorldState finalWorld, FieldTransition transition, NativeSavedWorldCarReturn receipt, uint salaryMovementUnits, Action<GameState> validatePrepared)
     {
         ArgumentNullException.ThrowIfNull(expectedDeparture);
         ArgumentNullException.ThrowIfNull(finalWorld);
@@ -27,7 +27,7 @@ public sealed partial class GameSession
         {
             throw new InvalidOperationException("The prepared native car save differs from its current world action endpoint.");
         }
-        GameState candidate = departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, PreviousFieldId = receipt.LastFieldId, FieldName = transition.FieldId == 106 ? "bcgate_1" : $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = departure.SavedWorld.WithCarReturn(receipt), WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) };
+        GameState candidate = departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, PreviousFieldId = receipt.LastFieldId, FieldName = transition.FieldId == 106 ? "bcgate_1" : $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = departure.SavedWorld.WithCarReturn(receipt), WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), SeeD = AdvanceWorldSeeD(departure, finalWorld, salaryMovementUnits), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) };
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))

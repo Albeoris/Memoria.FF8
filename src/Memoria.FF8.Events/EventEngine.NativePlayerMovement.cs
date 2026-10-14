@@ -36,7 +36,7 @@ public sealed partial class EventEngine
         Scene.NativePlayerPosition = new FieldFixedPosition((int)actor.X * 4096, (int)actor.Y * 4096, (int)actor.Z * 4096);
     }
 
-    private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition) ResolveCertifiedNativePlayerStep(ActorState player, FieldFixedPosition current, int direction, int speed)
+    private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition, bool MovementSucceeded) ResolveCertifiedNativePlayerStep(ActorState player, FieldFixedPosition current, int direction, int speed)
     {
         if (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true)
         {
@@ -101,6 +101,6 @@ public sealed partial class EventEngine
         WalkmeshPosition position = new(new Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
         PreparePartyTraceFollowers(position, movement.Direction, movement.FixedX != current.X || movement.FixedY != current.Y);
         NativeJoinMovementProposal trigger = movement.Proposals[^1];
-        return (position, new FieldFixedPosition(movement.FixedX, movement.FixedY, movement.FixedZ), movement.Direction, pushContacts, true, new FieldFixedPosition(trigger.FixedX, trigger.FixedY, current.Z));
+        return (position, new FieldFixedPosition(movement.FixedX, movement.FixedY, movement.FixedZ), movement.Direction, pushContacts, true, new FieldFixedPosition(trigger.FixedX, trigger.FixedY, current.Z), movement.Accepted);
     }
 }

@@ -36,13 +36,18 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Equal(new NativeSavedWorldPose(30240, -29393, -691, 165), receipt.Pose0);
         Assert.Equal(199, receipt.CameraYaw96);
         Assert.Equal<byte?>(0, receipt.AnimationVariant108);
-        Assert.Equal<byte?>(0, receipt.MovementMode110);
+        Assert.Equal<byte?>(0, receipt.MapDisplayMode110);
+        string current = JsonSerializer.Serialize(receipt);
+        Assert.Contains("\"MapDisplayMode110\":0", current);
+        Assert.DoesNotContain("MovementMode110", current);
+        Assert.Equal(receipt, JsonSerializer.Deserialize<NativeSavedWorldFootReturn>(current));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeSavedWorldFootReturn>(current.Replace("MapDisplayMode110", "MovementMode110", StringComparison.Ordinal)));
         NativeFootWorldRuntimeState reload = NativeFootWorldRuntimeState.CreateSavedReload(receipt);
         Assert.Equal(NativeFootWorldRuntimeState.SavedReloadRule, reload.Rule);
         Assert.Equal(1650, reload.ReloadSourceWorldFrame);
         Assert.Equal(reload, JsonSerializer.Deserialize<NativeFootWorldRuntimeState>(JsonSerializer.Serialize(reload)));
         NativeSavedWorldFootReturn fullscreen = NativeSavedWorldFootReturn.RecordFootDeparture(world with { NativeFootRuntime = world.NativeFootRuntime with { MapDisplayMode = 3 } }, 159, 17, 1);
-        Assert.Equal<byte?>(0, fullscreen.MovementMode110);
+        Assert.Equal<byte?>(0, fullscreen.MapDisplayMode110);
     }
 
     [Fact]

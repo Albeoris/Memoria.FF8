@@ -25,6 +25,13 @@ public sealed record NativeFootWorldRuntimeState
     [JsonRequired]
     public required long? ReloadSourceWorldFrame { get; init; }
 
+    [JsonRequired]
+    public NativeWorldGroundCacheState? GroundCache { get; init; }
+    [JsonRequired]
+    public int? GroundYaw { get; init; }
+    [JsonRequired]
+    public int? PreviousHorizontalInput { get; init; }
+
     public static NativeFootWorldRuntimeState CreateFirstNormalLoad(NativeSavedWorldState savedWorld, byte entityType = 0)
     {
         ArgumentNullException.ThrowIfNull(savedWorld);
@@ -36,7 +43,10 @@ public sealed record NativeFootWorldRuntimeState
             EntityType = entityType,
             AnimationVariant = 0,
             MapDisplayMode = mapDisplayMode,
-            ReloadSourceWorldFrame = null
+            ReloadSourceWorldFrame = null,
+            GroundCache = null,
+            GroundYaw = 0,
+            PreviousHorizontalInput = null
         };
         state.Validate();
         return state;
@@ -52,8 +62,11 @@ public sealed record NativeFootWorldRuntimeState
             Rule = SavedReloadRule,
             EntityType = receipt.EntityType105,
             AnimationVariant = receipt.AnimationVariant108!.Value,
-            MapDisplayMode = receipt.MovementMode110!.Value,
-            ReloadSourceWorldFrame = receipt.SourceWorldFrame
+            MapDisplayMode = receipt.MapDisplayMode110!.Value,
+            ReloadSourceWorldFrame = receipt.SourceWorldFrame,
+            GroundCache = null,
+            GroundYaw = 0,
+            PreviousHorizontalInput = null
         };
         state.Validate();
         return state;
@@ -61,9 +74,23 @@ public sealed record NativeFootWorldRuntimeState
 
     public void Validate()
     {
+        GroundCache?.Validate();
+        if (PreviousHorizontalInput is < -1 or > 1 || GroundYaw is < -1120 or > 1120)
+        {
+            throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
+        }
         if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
+        }
+    }
+
+    public void RequireNativeGroundState()
+    {
+        Validate();
+        if (GroundCache is null || GroundYaw is null)
+        {
+            throw new NotSupportedException("Native foot movement requires executed53E200/53EB80 ground-cache and selected-yaw authority; recreate its authentic journal.");
         }
     }
 

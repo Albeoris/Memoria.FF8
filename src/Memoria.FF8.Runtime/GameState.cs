@@ -36,12 +36,15 @@ public sealed record GameState
     public NativeWorldConfiguration? WorldConfiguration { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeExamTimerState? ExamTimer { get; init; }
+    public NativeMessageVariables? MessageVariables { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCharacterVitals? CharacterVitals { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCharacterAppearance? CharacterAppearance { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCardInventory? CardInventory { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSeeDState? SeeD { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<int, NativeMemoryValue>? NativeVariableValues { get; init; }
@@ -92,6 +95,18 @@ public interface IEventServices
     NativeCharacterAppearance? CharacterAppearance => null;
     NativeCardInventory? CardInventory => null;
     bool CanStoreCardInventory => false;
+    NativeMessageVariables? MessageVariables => null;
+    bool CanStoreMessageVariables => false;
+    void SetMessageVariables(NativeMessageVariables bank)
+    {
+        throw new NotSupportedException("Native process message variables are not implemented by this service.");
+    }
+    NativeSeeDState? SeeD => null;
+    bool CanStoreSeeD => false;
+    void SetSeeD(NativeSeeDState state)
+    {
+        throw new NotSupportedException("Native SeeD rank and salary state is not implemented by this event service.");
+    }
     void SetCardInventory(NativeCardInventory inventory)
     {
         throw new NotSupportedException("Native card inventory is not implemented by this event service.");

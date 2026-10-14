@@ -18,6 +18,7 @@ internal static partial class Program
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["causal-replay"] = CausalReplayContract,
+                    ["message-variable"] = NativeMessageVariableContract,
                     ["native-jump-budget"] = NativeJumpBudgetContract,
                     ["map-jump-origin"] = NativeMapJumpOriginContract,
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
@@ -80,6 +81,8 @@ internal static partial class Program
                     ["native-rmovea"] = NativeRmMoveActorContract,
                     ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
                     ["negative-cosine-turn"] = NativeNegativeCosineTurnContract,
+                    ["salary-field-movement"] = NativeSalaryFieldMovementContract,
+                    ["seed-rank"] = () => NativeSeeDContract(selectedGameDirectory),
                     ["party-actor-direction"] = NativePartyActorDirectionContract,
                     ["player-script-handoff"] = NativePlayerScriptHandoffContract,
                     ["empty-party-model"] = NativeEmptyPartyModelContract,
@@ -164,6 +167,7 @@ internal static partial class Program
             NativeRcMoveContract();
             NativePositiveCosineTurnContract();
             NativeNegativeCosineTurnContract();
+            NativeSeeDContract(gameDirectory);
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
             NativePlayerScriptHandoffContract();
@@ -1657,6 +1661,19 @@ internal static partial class Program
         Console.WriteLine("Legacy REFRESHPARTY snapshots: original frame1832 stops at unchanged PC4384 until replay before field139 init; incorrect raw bindings in1833 are rejected without mutation.");
     }
 
+    private static void CommitComponentPlayer(EventEngine engine, float x, float y, float z, int triangle)
+    {
+        // Component-only INF/commit-boundary tests; no second production input API.
+        try
+        {
+            typeof(EventEngine).GetMethod("MovePlayerCore", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(engine, [x, y, z, triangle, null, null, false, null]);
+        }
+        catch (System.Reflection.TargetInvocationException error) when (error.InnerException is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error.InnerException).Throw();
+        }
+    }
+
     private static void InfMovementAndContactPersistence()
     {
         (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
@@ -1677,7 +1694,7 @@ internal static partial class Program
         EventEngine engine = Create();
         engine.Step();
         engine.InfAreaTriggers = [trigger];
-        engine.MovePlayer(-1, 0, 0, 0);
+        CommitComponentPlayer(engine, -1, 0, 0, 0);
         Require(engine.Actors[1].DoorLineContact && engine.Actors[1].DoorLineEntryPending && !session.State.Variables.ContainsKey(512), "INF entry failed to use current proximity/facing and defer its original script.");
         var pending = engine.Capture();
         EventEngine restored = Create();
@@ -1688,7 +1705,7 @@ internal static partial class Program
         restored.Step();
         Require(session.State.Variables[512] == 7 && !engine.Actors[1].DoorLineEntryPending && engine.Capture().GetRawText() == restored.Capture().GetRawText(), "INF entry failed to execute original local2 at native priority6 after restore.");
         long sequence = restored.Capture().GetProperty("Sequence").GetInt64();
-        restored.MovePlayer(0, 0, 0, 0);
+        CommitComponentPlayer(restored, 0, 0, 0, 0);
         restored.Step();
         Require(restored.Capture().GetProperty("Sequence").GetInt64() == sequence, "INF side0 contact incorrectly rearmed while already contacted.");
 
@@ -1697,10 +1714,10 @@ internal static partial class Program
             engine = Create();
             engine.Step();
             engine.InfAreaTriggers = [trigger];
-            engine.MovePlayer(-1, 0, 0, 0);
+            CommitComponentPlayer(engine, -1, 0, 0, 0);
             engine.Step();
             engine.InfAreaTriggers = [trigger with { Side = side }];
-            engine.MovePlayer(0, 0, 0, 0);
+            CommitComponentPlayer(engine, 0, 0, 0, 0);
             Require(engine.Actors[1].DoorLineContact == (side % 2 == 0), $"INF near mode{side} failed native even-entry/odd-clear contact semantics.");
         }
         foreach (byte side in new byte[] { 0, 1, 2, 3, 4, 5 })
@@ -1708,13 +1725,13 @@ internal static partial class Program
             engine = Create();
             engine.Step();
             engine.InfAreaTriggers = [trigger with { Start = new System.Numerics.Vector3(-200, -20, 0), End = new System.Numerics.Vector3(-200, 20, 0), Side = side }];
-            engine.MovePlayer(-1, 0, 0, 0);
+            CommitComponentPlayer(engine, -1, 0, 0, 0);
             Require(engine.Actors[1].DoorLineContact == (side is 3 or 5), $"INF far mode{side} failed native inverse/contact-side behavior.");
         }
         engine = Create();
         engine.Step();
         engine.InfAreaTriggers = [trigger with { Start = new System.Numerics.Vector3(200, -20, 0), End = new System.Numerics.Vector3(200, 20, 0), Side = 5 }];
-        engine.MovePlayer(-1, 0, 0, 0);
+        CommitComponentPlayer(engine, -1, 0, 0, 0);
         Require(!engine.Actors[1].DoorLineContact, "INF far mode5 ignored its signed-side condition.");
 
         FieldTransition packet = new(143, -2466, -5997, 37, 185);
@@ -1722,7 +1739,7 @@ internal static partial class Program
         engine = Create();
         engine.Step();
         engine.InfGateways = [gateway];
-        engine.MovePlayer(1, 0, 0, 0);
+        CommitComponentPlayer(engine, 1, 0, 0, 0);
         Require(session.State.FieldArrival == packet && engine.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "INF gateway failed to preserve its native field/XY/triangle/direction packet.");
         long departureFrame = engine.Frame;
         engine.Step();
@@ -1731,18 +1748,18 @@ internal static partial class Program
         engine = Create();
         engine.Step();
         engine.InfGateways = [gateway];
-        engine.MovePlayer(1, 0, 200, 0);
+        CommitComponentPlayer(engine, 1, 0, 200, 0);
         Require(engine.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "INF gateway used proposed walkmesh Z instead of native current actor Z.");
 
         engine = Create();
         engine.Step();
         engine.InfGateways = [gateway with { Start = new System.Numerics.Vector3(0, -20, 100), End = new System.Numerics.Vector3(0, 20, 100) }];
-        engine.MovePlayer(1, 0, 0, 0);
+        CommitComponentPlayer(engine, 1, 0, 0, 0);
         Require(engine.NextTrigger.Kind != PlayerTriggerKind.FieldTransition, "INF strict 3D distance accepted a gateway exactly one push radius away.");
         engine = Create();
         engine.Step();
         engine.InfGateways = [gateway with { Start = new System.Numerics.Vector3(0, 10, 0), End = new System.Numerics.Vector3(0, 20, 0) }];
-        engine.MovePlayer(1, 0, 0, 0);
+        CommitComponentPlayer(engine, 1, 0, 0, 0);
         Require(engine.NextTrigger.Kind != PlayerTriggerKind.FieldTransition, "INF line distance clamped an out-of-segment projection into a crossing.");
 
         foreach (int fieldId in new[] { 0, 71 })
@@ -1754,7 +1771,7 @@ internal static partial class Program
             FieldTransition? priorPacket = session.State.FieldArrival;
             try
             {
-                engine.MovePlayer(1, 0, 0, 0);
+                CommitComponentPlayer(engine, 1, 0, 0, 0);
                 throw new InvalidOperationException("INF world gateway used the field arrival service.");
             }
             catch (NotSupportedException)

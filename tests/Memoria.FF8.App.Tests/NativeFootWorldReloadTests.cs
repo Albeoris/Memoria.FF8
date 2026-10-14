@@ -45,7 +45,7 @@ public sealed class NativeFootWorldReloadTests
         Assert.Equal(new NativeSavedWorldPose(30181, -29222, -693, 165), receipt.Pose0);
         Assert.Equal(690, receipt.CameraYaw96);
         Assert.Equal<byte?>(0, receipt.AnimationVariant108);
-        Assert.Equal<byte?>(0, receipt.MovementMode110);
+        Assert.Equal<byte?>(0, receipt.MapDisplayMode110);
         Assert.True(world.EnsureField());
         Assert.True(replay.EnsureField());
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), replay.Apply(new PlayerAction(PlayerActionKind.Wait)));

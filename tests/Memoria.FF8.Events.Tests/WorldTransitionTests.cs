@@ -176,7 +176,7 @@ internal static partial class Program
             JsonElement before = gate.Capture();
             try
             {
-                gate.MovePlayer(1, 0, 0, 0);
+                CommitComponentPlayer(gate, 1, 0, 0, 0);
                 Require(!refuse, "Rejected gateway preparation committed movement.");
             }
             catch (NotSupportedException) when (refuse)
@@ -210,7 +210,7 @@ internal static partial class Program
         JsonElement negativeBefore = negativeGate.Capture();
         try
         {
-            negativeGate.MovePlayer(1, 0, 0, 0);
+            CommitComponentPlayer(negativeGate, 1, 0, 0, 0);
             throw new InvalidOperationException("Negative world mode skipped required backend preflight refusal.");
         }
         catch (NotSupportedException)
@@ -225,7 +225,7 @@ internal static partial class Program
         disabledGate.Step();
         disabledGate.InfGateways = [gateway with { NativeRecord = null, NativeIndex = -1 }, gateway with { Destination = new FieldTransition(143, 0, 0, 0, 0) }];
         disabledGate.InfAreaTriggers = [trigger];
-        disabledGate.MovePlayer(1, 0, 0, 0);
+        CommitComponentPlayer(disabledGate, 1, 0, 0, 0);
         Require(disabledGate.Scene.MapJumpDisabled && disabledGateSession.State.WorldArrival is null && disabledGateSession.State.FieldArrival is null && disabledGate.Actors[1].DoorLineEntryPending, "MAPJUMPOFF failed to suppress the entire world/field gateway scan while preserving areas.");
         Console.WriteLine("Native world transitions: enabled low-WORD script packet with atomic preflight and two flag stages; disabled sticky issuing-PC wait survives later enable/restore; full indexed INF record, gateway refusal and disabled scan preserve area/field transaction boundaries.");
     }

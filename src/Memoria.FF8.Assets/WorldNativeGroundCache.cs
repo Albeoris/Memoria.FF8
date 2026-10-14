@@ -3,12 +3,12 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Assets;
 
 public sealed record WorldGroundSelection(NativeWorldGroundIdentity Identity, WorldGround Ground);
-public sealed record WorldCarGroundResult(WorldGroundSelection? Center, NativeCarGroundCacheState Cache, int X, int Z, int GroundYaw, bool Blocked);
+public sealed record WorldNativeGroundResult(WorldGroundSelection? Center, NativeWorldGroundCacheState Cache, int X, int Z, int GroundYaw, bool Blocked);
 
 public sealed partial class WorldAssets
 {
-    private readonly Dictionary<NativeWorldGroundIdentity, WorldTriangle> carGroundPolygons = [];
-    private sealed class CarProbe(int x, int z)
+    private readonly Dictionary<NativeWorldGroundIdentity, WorldTriangle> nativeGroundPolygons = [];
+    private sealed class NativeGroundProbe(int x, int z)
     {
         public int X { get; } = (int)Wrap(x, 262144);
         public int Z { get; } = (int)Wrap(z, 196608);
@@ -17,7 +17,7 @@ public sealed partial class WorldAssets
         public WorldGroundSelection? Selected { get; set; }
     }
 
-    public WorldGroundSelection? LookupCarGround(int x, int z, IReadOnlyDictionary<int, int> replacements, IReadOnlyList<NativeWorldGroundIdentity> cache)
+    public WorldGroundSelection? LookupNativeGround(int x, int z, IReadOnlyDictionary<int, int> replacements, IReadOnlyList<NativeWorldGroundIdentity> cache)
     {
         x = (int)Wrap(x, 262144);
         z = (int)Wrap(z, 196608);
@@ -29,7 +29,7 @@ public sealed partial class WorldAssets
                 return selected;
             }
         }
-        foreach (WorldGroundSelection selected in ContainingCarGround(cell, x, z, replacements))
+        foreach (WorldGroundSelection selected in ContainingNativeGround(cell, x, z, replacements))
         {
             // Native53EB80 is a lookup, not a cache insertion or permission/nearest-height search.
             return selected;
@@ -37,7 +37,7 @@ public sealed partial class WorldAssets
         return null;
     }
 
-    public WorldTriangle ResolveCarGroundIdentity(NativeWorldGroundIdentity identity, IReadOnlyDictionary<int, int> replacements)
+    public WorldTriangle ResolveNativeGroundIdentity(NativeWorldGroundIdentity identity, IReadOnlyDictionary<int, int> replacements)
     {
         identity.Validate();
         int expectedSource = replacements.TryGetValue(identity.MapId, out int replacement) ? replacement : identity.MapId;
@@ -45,7 +45,7 @@ public sealed partial class WorldAssets
         {
             throw new InvalidDataException("Native cached ground source differs from the current original replacement selection.");
         }
-        if (carGroundPolygons.TryGetValue(identity, out WorldTriangle? cached))
+        if (nativeGroundPolygons.TryGetValue(identity, out WorldTriangle? cached))
         {
             return cached;
         }
@@ -55,57 +55,65 @@ public sealed partial class WorldAssets
             throw new InvalidDataException("Native cached ground source differs from the current original replacement selection.");
         }
         WorldTriangle triangle = segment.Triangles.SingleOrDefault(triangle => triangle.NativeBlockIndex == identity.BlockIndex && triangle.NativePolygonIndex == identity.PolygonIndex) ?? throw new InvalidDataException("Native cached original polygon is absent.");
-        carGroundPolygons.Add(identity, triangle);
+        nativeGroundPolygons.Add(identity, triangle);
         return triangle;
     }
 
-    public void ValidateCarGroundCache(NativeCarGroundCacheState state, IReadOnlyDictionary<int, int> replacements)
+    public void ValidateNativeGroundCache(NativeWorldGroundCacheState state, IReadOnlyDictionary<int, int> replacements)
     {
         state.Validate();
-        foreach (NativeCarGroundAlternative alternative in state.Alternatives)
+        foreach (NativeWorldGroundAlternative alternative in state.Alternatives)
         {
-            _ = ResolveCarGroundIdentity(alternative.CurrentGround, replacements);
-            _ = ResolveCarGroundIdentity(alternative.PreviousGround, replacements);
+            _ = ResolveNativeGroundIdentity(alternative.CurrentGround, replacements);
+            _ = ResolveNativeGroundIdentity(alternative.PreviousGround, replacements);
             foreach (NativeWorldGroundIdentity entry in alternative.Entries)
             {
-                _ = ResolveCarGroundIdentity(entry, replacements);
+                _ = ResolveNativeGroundIdentity(entry, replacements);
             }
         }
     }
 
-    public WorldCarGroundResult ResolveCarGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeCarGroundCacheState prior, IReadOnlyDictionary<int, int> replacements)
+    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false)
     {
-        ValidateCarGroundCache(prior, replacements);
-        List<NativeCarGroundAlternative> alternatives = [];
+        bool foot = entityType < 10 || entityType == 128;
+        bool car = entityType is >= 32 and <= 40 or 132;
+        if (!foot && !car || selectedGroup is < 0 or > 1 || moveX is < short.MinValue or > short.MaxValue || graphicsMoveZ is < short.MinValue or > short.MaxValue)
+        {
+            throw new NotSupportedException("Native ground query requires the supported normal foot/car entity and exact signed-WORD velocity.");
+        }
+        int radius = foot ? 32 : 64;
+        byte permission = foot ? (byte)0x80 : (byte)0x40;
+        ValidateNativeGroundCache(prior, replacements);
+        List<NativeWorldGroundAlternative> alternatives = [];
         WorldGroundSelection? center = null;
         (int X, int Z, int Yaw, bool Blocked)? physical = null;
-        foreach (NativeCarGroundAlternative alternative in prior.Alternatives)
+        foreach (NativeWorldGroundAlternative alternative in prior.Alternatives)
         {
             List<NativeWorldGroundIdentity> cache = [.. alternative.Entries];
-            CarProbe[][][] groups = new CarProbe[2][][];
+            NativeGroundProbe[][][] groups = new NativeGroundProbe[2][][];
             for (int group = 0; group < 2; group++)
             {
-                groups[group] = new CarProbe[8][];
+                groups[group] = new NativeGroundProbe[8][];
                 for (int candidate = 0; candidate < 8; candidate++)
                 {
-                    (int dx, int dz) = RotateCarProbe(moveX, graphicsMoveZ, candidate * (group == 0 ? -160 : 160));
+                    (int dx, int dz) = RotateNativeGroundProbe(moveX, graphicsMoveZ, candidate * (group == 0 ? -160 : 160));
                     int x = beforeX + dx;
                     int z = beforeZ - dz;
-                    groups[group][candidate] = [new(x, z), new(x - 64, z), new(x, z - 64), new(x + 64, z), new(x, z + 64)];
+                    groups[group][candidate] = [new(x, z), new(x - radius, z), new(x, z - radius), new(x + radius, z), new(x, z + radius)];
                 }
             }
             Queue<int> cells = new();
             HashSet<int> queued = [];
             Enqueue(groups[0][0][0].Cell);
-            byte oldType = ResolveCarGroundIdentity(alternative.CurrentGround, replacements).GroundType;
+            byte oldType = ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).GroundType;
             while (cells.TryDequeue(out int cell))
             {
                 foreach (int group in new[] { alternative.PreferredGroup, 1 - alternative.PreferredGroup })
                 {
                     int? unmatched = null;
-                    foreach (CarProbe[] candidate in groups[group])
+                    foreach (NativeGroundProbe[] candidate in groups[group])
                     {
-                        foreach (CarProbe probe in candidate)
+                        foreach (NativeGroundProbe probe in candidate)
                         {
                             if (probe.Status != 2)
                             {
@@ -116,8 +124,8 @@ public sealed partial class WorldAssets
                                 unmatched ??= probe.Cell;
                                 continue;
                             }
-                            probe.Selected = ResolveCarProbe(probe, previousGroundHeight, oldType, cache, replacements);
-                            probe.Status = probe.Selected is not null && (probe.Selected.Ground.Triangle.VertexFlags & 0x40) != 0 ? 0 : 1;
+                            probe.Selected = ResolveNativeGroundProbe(probe, previousGroundHeight, oldType, cache, replacements);
+                            probe.Status = probe.Selected is not null && (probe.Selected.Ground.Triangle.VertexFlags & permission) != 0 ? 0 : 1;
                         }
                         if (candidate.All(probe => probe.Status == 0))
                         {
@@ -131,7 +139,7 @@ public sealed partial class WorldAssets
                 }
                 // Native53BB90 marks unprocessed probes in a completed block3;
                 // they cannot acquire later cache writes from an omitted candidate.
-                foreach (CarProbe probe in groups.SelectMany(group => group).SelectMany(candidate => candidate))
+                foreach (NativeGroundProbe probe in groups.SelectMany(group => group).SelectMany(candidate => candidate))
                 {
                     if (probe.Status == 2 && probe.Cell == cell)
                     {
@@ -139,34 +147,46 @@ public sealed partial class WorldAssets
                     }
                 }
             }
-            int chosen = selectedGroup ?? alternative.PreferredGroup;
-            int acceptedIndex = Array.FindIndex(groups[chosen], candidate => candidate.All(probe => probe.Status == 0));
-            if (acceptedIndex < 0)
+            int[] selections = selectedGroup is int explicitGroup ? selectionMayRetainGroup && explicitGroup != alternative.PreferredGroup ? [explicitGroup, alternative.PreferredGroup] : [explicitGroup] : [alternative.PreferredGroup];
+            foreach (int selection in selections)
             {
-                if (alternative.FailedSelections is null)
+                int acceptedIndex = Array.FindIndex(groups[selection], candidate => candidate.All(probe => probe.Status == 0));
+                List<int> outcomes = [selection];
+                if (acceptedIndex < 0)
                 {
-                    throw new NotSupportedException("Native car opposite-group selection requires an executed retained failure count.");
+                    if (alternative.FailedSelections is null)
+                    {
+                        // Unknown count retains both native branches, rather than zero.
+                        outcomes.Add(1 - selection);
+                    }
+                    else if (alternative.FailedSelections >= 4)
+                    {
+                        outcomes = [1 - selection];
+                    }
                 }
-                if (alternative.FailedSelections >= 4)
+                foreach (int chosen in outcomes)
                 {
-                    chosen = 1 - chosen;
                     acceptedIndex = Array.FindIndex(groups[chosen], candidate => candidate.All(probe => probe.Status == 0));
+                    bool blocked = acceptedIndex < 0;
+                    NativeGroundProbe? acceptedProbe = blocked ? null : groups[chosen][acceptedIndex][0];
+                    WorldGroundSelection? selected = acceptedProbe?.Selected;
+                    var outcome = (X: acceptedProbe?.X ?? beforeX, Z: acceptedProbe?.Z ?? beforeZ, Yaw: blocked ? 0 : acceptedIndex * (chosen == 0 ? -160 : 160), Blocked: blocked);
+                    if (physical is not null && physical.Value != outcome || center is not null && selected is not null && (center.Ground.Height != selected.Ground.Height || center.Ground.Triangle.GroundType != selected.Ground.Triangle.GroundType || center.Ground.Triangle.TextureFlags != selected.Ground.Triangle.TextureFlags))
+                    {
+                        throw new NotSupportedException("Retained native world cache/input alternatives disagree on the physical ground result.");
+                    }
+                    physical ??= outcome;
+                    center ??= selected;
+                    NativeWorldGroundAlternative nextAlternative = new(chosen, cache.ToArray(), selected?.Identity ?? alternative.CurrentGround, blocked ? alternative.PreviousGround : alternative.CurrentGround) { FailedSelections = blocked ? alternative.FailedSelections is int failures ? unchecked(failures + 1) : null : 0 };
+                    if (!alternatives.Any(existing => existing.PreferredGroup == nextAlternative.PreferredGroup && existing.FailedSelections == nextAlternative.FailedSelections && existing.CurrentGround == nextAlternative.CurrentGround && existing.PreviousGround == nextAlternative.PreviousGround && existing.Entries.SequenceEqual(nextAlternative.Entries)))
+                    {
+                        alternatives.Add(nextAlternative);
+                    }
                 }
             }
-            bool blocked = acceptedIndex < 0;
-            CarProbe? acceptedProbe = blocked ? null : groups[chosen][acceptedIndex][0];
-            WorldGroundSelection? selected = acceptedProbe?.Selected;
-            var outcome = (X: acceptedProbe?.X ?? beforeX, Z: acceptedProbe?.Z ?? beforeZ, Yaw: blocked ? 0 : acceptedIndex * (chosen == 0 ? -160 : 160), Blocked: blocked);
-            if (physical is not null && physical.Value != outcome || center is not null && selected is not null && (center.Ground.Height != selected.Ground.Height || center.Ground.Triangle.GroundType != selected.Ground.Triangle.GroundType || center.Ground.Triangle.TextureFlags != selected.Ground.Triangle.TextureFlags))
+            if (alternatives.Count > 64)
             {
-                throw new NotSupportedException("Retained native car cache alternatives disagree on the selected physical ground result.");
-            }
-            physical ??= outcome;
-            center ??= selected;
-            NativeCarGroundAlternative nextAlternative = new(chosen, cache.ToArray(), selected?.Identity ?? alternative.CurrentGround, blocked ? alternative.PreviousGround : alternative.CurrentGround) { FailedSelections = blocked ? checked(alternative.FailedSelections!.Value + 1) : 0 };
-            if (!alternatives.Any(existing => existing.PreferredGroup == nextAlternative.PreferredGroup && existing.FailedSelections == nextAlternative.FailedSelections && existing.CurrentGround == nextAlternative.CurrentGround && existing.PreviousGround == nextAlternative.PreviousGround && existing.Entries.SequenceEqual(nextAlternative.Entries)))
-            {
-                alternatives.Add(nextAlternative);
+                throw new NotSupportedException("Native retained world ground alternatives exceed the bounded current query representation.");
             }
 
             void Enqueue(int cell)
@@ -177,12 +197,12 @@ public sealed partial class WorldAssets
                 }
             }
         }
-        NativeCarGroundCacheState result = prior with { Alternatives = alternatives.ToArray() };
+        NativeWorldGroundCacheState result = prior with { Alternatives = alternatives.ToArray() };
         result.Validate();
-        return new WorldCarGroundResult(center, result, physical!.Value.X, physical.Value.Z, physical.Value.Yaw, physical.Value.Blocked);
+        return new WorldNativeGroundResult(center, result, physical!.Value.X, physical.Value.Z, physical.Value.Yaw, physical.Value.Blocked);
     }
 
-    private WorldGroundSelection? ResolveCarProbe(CarProbe probe, int previousHeight, byte oldType, List<NativeWorldGroundIdentity> cache, IReadOnlyDictionary<int, int> replacements)
+    private WorldGroundSelection? ResolveNativeGroundProbe(NativeGroundProbe probe, int previousHeight, byte oldType, List<NativeWorldGroundIdentity> cache, IReadOnlyDictionary<int, int> replacements)
     {
         foreach (NativeWorldGroundIdentity identity in cache)
         {
@@ -194,7 +214,7 @@ public sealed partial class WorldAssets
         }
         WorldGroundSelection? nearest = null;
         int distance = int.MaxValue;
-        foreach (WorldGroundSelection candidate in ContainingCarGround(probe.Cell, probe.X, probe.Z, replacements))
+        foreach (WorldGroundSelection candidate in ContainingNativeGround(probe.Cell, probe.X, probe.Z, replacements))
         {
             int delta = Math.Abs((int)candidate.Ground.Height - previousHeight);
             if ((oldType <= 5 || candidate.Ground.Triangle.GroundType <= 5 || delta < 200) && delta < distance)
@@ -215,7 +235,7 @@ public sealed partial class WorldAssets
         return nearest;
     }
 
-    private IEnumerable<WorldGroundSelection> ContainingCarGround(int cell, int x, int z, IReadOnlyDictionary<int, int> replacements)
+    private IEnumerable<WorldGroundSelection> ContainingNativeGround(int cell, int x, int z, IReadOnlyDictionary<int, int> replacements)
     {
         int map = cell / 128 / 4 * 32 + cell % 128 / 4;
         int block = cell / 128 % 4 * 4 + cell % 128 % 4;
@@ -231,7 +251,7 @@ public sealed partial class WorldAssets
 
     private bool TrySelected(NativeWorldGroundIdentity identity, int x, int z, IReadOnlyDictionary<int, int> replacements, out WorldGroundSelection? selected)
     {
-        WorldTriangle triangle = ResolveCarGroundIdentity(identity, replacements);
+        WorldTriangle triangle = ResolveNativeGroundIdentity(identity, replacements);
         if (WorldAssetReader.TryNativeHeight(triangle, x, z, out int height))
         {
             selected = new WorldGroundSelection(identity, new WorldGround(height, triangle, identity.MapId));
@@ -243,7 +263,7 @@ public sealed partial class WorldAssets
 
     private static int NativeCell(int x, int rawZ) => (rawZ + 294912) % 196608 / 2048 * 128 + (x + 393216) % 262144 / 2048;
 
-    private static (int X, int Z) RotateCarProbe(int x, int z, int yaw)
+    private static (int X, int Z) RotateNativeGroundProbe(int x, int z, int yaw)
     {
         int cosine = (int)Math.Round(Math.Cos(yaw * 0.0015339808305725455) * 4096);
         int sine = (int)Math.Round(Math.Sin(yaw * 0.0015339808305725455) * 4096);

@@ -41,7 +41,7 @@ public sealed class WorldFieldReentryTests
         Assert.Equal(new NativeSavedWorldPose(30181, -29222, -693, 165), session.State.SavedWorld!.FootReturn!.Pose0);
         Assert.Equal(1, session.State.SavedWorld.FootReturn.MapLocationId);
         Assert.Null(session.State.SavedWorld.FootReturn.AnimationVariant108);
-        Assert.Null(session.State.SavedWorld.FootReturn.MovementMode110);
+        Assert.Null(session.State.SavedWorld.FootReturn.MapDisplayMode110);
         Assert.True(world.EnsureField());
         Assert.True(replay.EnsureField());
         Assert.Equal(136, world.Events.FieldId);

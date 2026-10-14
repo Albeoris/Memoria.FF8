@@ -1,13 +1,14 @@
 using System.Text.RegularExpressions;
+using Memoria.FF8.Runtime;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 
 namespace Memoria.FF8;
 
 internal static partial class DialogueTextFormatter
 {
-    public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null)
+    public static string Format(string encoded, IReadOnlyDictionary<int, string>? names = null, NativeMessageVariables? messageVariables = null)
     {
-        return InlineTag().Replace(encoded, match =>
+        return InlineTag().Replace(NativeMessageVariables.Expand(encoded, messageVariables), match =>
         {
             string kind = match.Groups[1].Value;
             string parameter = match.Groups[2].Value;

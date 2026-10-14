@@ -47,6 +47,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
+                if (TryReadNativeSeeDRank(operation, out int nativeRank))
+                {
+                    fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeRank) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeRank) : nativeRank);
+                    fiber.StackExpressions.Push($"native[{parameter}]");
+                    return;
+                }
                 if (TryReadNativeScalar(operation, out NativeScalarValue nativeRead))
                 {
                     fiber.Stack.Push(nativeRead);
@@ -85,6 +91,10 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
+                if (TryWriteNativeSeeDRank(fiber, operation, out args))
+                {
+                    break;
+                }
                 if (fiber.Stack.Count > 0 && (!fiber.Stack.PeekValue().IsExact || services.NativeVariableValues?.ContainsKey(parameter) == true))
                 {
                     NativeScalarValue nativeStored = StoreNativeScalar(fiber, operation);
@@ -749,6 +759,9 @@ public sealed partial class EventEngine
                 string defaultName = Scene.Names.GetValueOrDefault(nameEntity, nameEntity == 0 ? "Squall" : $"Character {nameEntity}");
                 ShowDialogue(fiber, new DialogueState(0, -1, $"Name: {defaultName}", 0, 0, IsNamePrompt: true), true);
                 break;
+            case Jsm.Opcode.MESVAR:
+                args = SetMessageVariable(fiber);
+                break;
             case Jsm.Opcode.MESMODE:
                 args = Pop(fiber, 3);
                 Scene.MessageMode = args[2];
@@ -945,7 +958,12 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SARALYOFF:
             case Jsm.Opcode.SARALYON:
-                Scene.SalaryEnabled = opcode == Jsm.Opcode.SARALYON;
+            case Jsm.Opcode.SARALYDISPOFF:
+            case Jsm.Opcode.SARALYDISPON:
+                ExecuteNativeSalary(opcode);
+                break;
+            case Jsm.Opcode.ADDSEEDLEVEL:
+                args = ExecuteAddSeeDLevel(fiber);
                 break;
             case Jsm.Opcode.SETPLACE:
                 args = Pop(fiber, 1);

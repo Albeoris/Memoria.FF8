@@ -175,11 +175,16 @@ internal sealed partial class GameWorld : IDisposable
         if (snapshot is System.Text.Json.JsonElement saved)
         {
             NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
+            NativeSeeDState? sceneSeeD = restoreDeparting ? session.SeeD : null;
             Events.Restore(saved);
             if (sceneTimer is not null)
             {
                 // The frozen departing VM precedes world callbacks; the session owns the shared native clock.
                 session.SetExamTimer(sceneTimer);
+            }
+            if (sceneSeeD is not null)
+            {
+                session.SetSeeD(sceneSeeD);
             }
         }
         Field = next;
@@ -236,7 +241,20 @@ internal sealed partial class GameWorld : IDisposable
         EnsureField();
         if (session.State.Scene == SceneKind.WorldMap)
         {
-            return worldScene!.Apply(action);
+            PlayerActionResult worldResult = worldScene!.Apply(action);
+            if (Field is not null)
+            {
+                // The field VM is dormant; Capture reads the current process-owned globals.
+                if (session.State.Scene == SceneKind.WorldMap)
+                {
+                    session.SetEventState(Events.Capture());
+                }
+                else
+                {
+                    session.SetDepartingFieldState(Events.Capture());
+                }
+            }
+            return worldResult;
         }
         PlayerActionResult result = Events.Apply(action);
         return PublishFieldAction(result);

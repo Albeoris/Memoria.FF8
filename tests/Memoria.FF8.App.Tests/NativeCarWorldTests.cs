@@ -16,30 +16,40 @@ public sealed class NativeCarWorldTests
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         // Installed edge geometry fixture; this cache is deliberately local and does
         // not stand in for the authentic route47 callback history.
-        NativeWorldGroundIdentity initial = assets.LookupCarGround(12910, -27143, replacements, [])!.Identity;
-        NativeCarGroundCacheState cache = NativeCarGroundCacheState.CreateFresh(initial) with { Alternatives = [new(0, [], initial, initial) { FailedSelections = 0 }] };
-        WorldCarGroundResult selected = assets.ResolveCarGround(12910, -27143, -6, -8, 304, 0, cache, replacements);
+        NativeWorldGroundIdentity initial = assets.LookupNativeGround(12910, -27143, replacements, [])!.Identity;
+        NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(initial) with { Alternatives = [new(0, [], initial, initial) { FailedSelections = 0 }] };
+        WorldNativeGroundResult selected = assets.ResolveNativeGround(12910, -27143, -6, -8, 304, 0, cache, replacements);
         Assert.False(selected.Blocked);
         Assert.InRange(selected.GroundYaw, -1120, -160);
         Assert.NotEqual((12904, -27135), (selected.X, selected.Z));
-        NativeCarGroundAlternative next = Assert.Single(selected.Cache.Alternatives);
+        NativeWorldGroundAlternative next = Assert.Single(selected.Cache.Alternatives);
         Assert.Equal(0, next.FailedSelections);
         Assert.Equal(selected.Center!.Identity, next.CurrentGround);
         Assert.Equal(initial, next.PreviousGround);
         Assert.NotEmpty(next.Entries);
         Assert.Empty(cache.Alternatives[0].Entries);
-        NativeWorldGroundIdentity edge = assets.LookupCarGround(12904, -27135, replacements, [])!.Identity;
-        NativeCarGroundCacheState stoppedCache = NativeCarGroundCacheState.CreateFresh(edge) with { Alternatives = [new(0, [], edge, edge) { FailedSelections = 0 }] };
-        WorldCarGroundResult blocked = assets.ResolveCarGround(12904, -27135, 0, 0, 304, 0, stoppedCache, replacements);
+        NativeWorldGroundIdentity edge = assets.LookupNativeGround(12904, -27135, replacements, [])!.Identity;
+        NativeWorldGroundCacheState stoppedCache = NativeWorldGroundCacheState.CreateFresh(edge) with { Alternatives = [new(0, [], edge, edge) { FailedSelections = 0 }] };
+        WorldNativeGroundResult blocked = assets.ResolveNativeGround(12904, -27135, 0, 0, 304, 0, stoppedCache, replacements);
         Assert.True(blocked.Blocked);
         Assert.Equal((12904, -27135, 0), (blocked.X, blocked.Z, blocked.GroundYaw));
         Assert.Equal(1, Assert.Single(blocked.Cache.Alternatives).FailedSelections);
+        NativeWorldGroundCacheState unknownFailure = stoppedCache with { Alternatives = [stoppedCache.Alternatives[0] with { FailedSelections = null }] };
+        WorldNativeGroundResult unanimousBlocked = assets.ResolveNativeGround(12904, -27135, 0, 0, 304, 0, unknownFailure, replacements);
+        Assert.True(unanimousBlocked.Blocked);
+        Assert.Equal((12904, -27135), (unanimousBlocked.X, unanimousBlocked.Z));
+        Assert.Equal(2, unanimousBlocked.Cache.Alternatives.Length);
+        Assert.All(unanimousBlocked.Cache.Alternatives, alternative => Assert.Null(alternative.FailedSelections));
+        NativeWorldGroundCacheState wrappingFailure = stoppedCache with { Alternatives = [stoppedCache.Alternatives[0] with { FailedSelections = int.MaxValue }] };
+        WorldNativeGroundResult wrappedBlocked = assets.ResolveNativeGround(12904, -27135, 0, 0, 304, 0, wrappingFailure, replacements);
+        Assert.Equal(int.MinValue, Assert.Single(wrappedBlocked.Cache.Alternatives).FailedSelections);
+
         Assert.Equal(edge, blocked.Cache.Alternatives[0].CurrentGround);
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
         using var scene = new WorldMapScene(session, directory);
-        session.SetWorldState(scene.State with { X = 12904, Z = -27135, NativeHeight = -304, CameraTargetX = 12904, CameraTargetZ = -27135, CameraTargetNativeHeight = -560, GroundType = assets.ResolveCarGroundIdentity(edge, replacements).GroundType, NativeCarRuntime = scene.State.NativeCarRuntime! with { GroundCache = stoppedCache, Speed = 2 } });
+        session.SetWorldState(scene.State with { X = 12904, Z = -27135, NativeHeight = -304, CameraTargetX = 12904, CameraTargetZ = -27135, CameraTargetNativeHeight = -560, GroundType = assets.ResolveNativeGroundIdentity(edge, replacements).GroundType, NativeCarRuntime = scene.State.NativeCarRuntime! with { GroundCache = stoppedCache, Speed = 2 } });
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
         GameState before = session.State;
         Assert.Equal(1, scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).FramesAdvanced);
@@ -70,7 +80,7 @@ public sealed class NativeCarWorldTests
         foreach ((int x, int z) in original.Triangles.Where(triangle => (triangle.VertexFlags & 0x40) != 0).SelectMany(triangle => new[] { triangle.A, triangle.B, triangle.C }).Select(vertex => ((int)vertex.X, (int)vertex.Z)).Distinct())
         {
             WorldSegment segment = assets.GetSegment(WorldAssets.SegmentAt(x, z), replacements);
-            WorldGroundSelection[] containing = segment.Triangles.Select(triangle => new NativeWorldGroundIdentity(segment.MapId, segment.SourceId, triangle.NativeBlockIndex, triangle.NativePolygonIndex)).Select(identity => assets.LookupCarGround(x, z, replacements, [identity])).Where(selected => selected is not null).Select(selected => selected!).DistinctBy(selected => selected.Identity).Where(selected => (selected.Ground.Triangle.VertexFlags & 0x40) != 0).ToArray();
+            WorldGroundSelection[] containing = segment.Triangles.Select(triangle => new NativeWorldGroundIdentity(segment.MapId, segment.SourceId, triangle.NativeBlockIndex, triangle.NativePolygonIndex)).Select(identity => assets.LookupNativeGround(x, z, replacements, [identity])).Where(selected => selected is not null).Select(selected => selected!).DistinctBy(selected => selected.Identity).Where(selected => (selected.Ground.Triangle.VertexFlags & 0x40) != 0).ToArray();
             if (containing.Length > 1)
             {
                 overlap = containing;
@@ -81,9 +91,9 @@ public sealed class NativeCarWorldTests
         }
         Assert.NotNull(overlap);
         NativeWorldGroundIdentity[] cache = overlap.Select(selected => selected.Identity).ToArray();
-        Assert.Equal(cache[0], assets.LookupCarGround(selectedX, selectedZ, replacements, cache)!.Identity);
+        Assert.Equal(cache[0], assets.LookupNativeGround(selectedX, selectedZ, replacements, cache)!.Identity);
         NativeWorldGroundIdentity[] reversed = cache.Reverse().ToArray();
-        Assert.Equal(reversed[0], assets.LookupCarGround(selectedX, selectedZ, replacements, reversed)!.Identity);
+        Assert.Equal(reversed[0], assets.LookupNativeGround(selectedX, selectedZ, replacements, reversed)!.Identity);
         Assert.Equal(overlap.Select(selected => selected.Identity), cache);
         Assert.Equal(overlap.Reverse().Select(selected => selected.Identity), reversed);
     }
@@ -124,7 +134,7 @@ public sealed class NativeCarWorldTests
         Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1)).Accepted);
         Assert.Equal(2, scene.State.NativeCarRuntime!.Speed);
         Assert.Equal(2287, scene.State.BodyYaw);
-        NativeCarGroundAlternative cache = Assert.Single(scene.State.NativeCarRuntime.GroundCache!.Alternatives);
+        NativeWorldGroundAlternative cache = Assert.Single(scene.State.NativeCarRuntime.GroundCache!.Alternatives);
         Assert.Equal(1, cache.PreferredGroup);
         Assert.NotEmpty(cache.Entries);
         Assert.InRange(cache.Entries.Length, 1, 12);
@@ -157,8 +167,8 @@ public sealed class NativeCarWorldTests
             // Isolated component contact fixture at an installed entrance-polygon centroid;
             // this neither records a causal route nor establishes ordinary player coverage.
             using var assets = new WorldAssets(directory);
-            NativeWorldGroundIdentity ground = assets.LookupCarGround(12390, -26709, WorldTerrainSelection.Replacements(entry.State.ReplacementMask), [])!.Identity;
-            session.SetWorldState(entry.State with { X = 12390, Z = -26709, NativeHeight = -301, CameraTargetX = 12390, CameraTargetZ = -26709, CameraTargetNativeHeight = -557, NativeCarRuntime = entry.State.NativeCarRuntime! with { GroundCache = NativeCarGroundCacheState.CreateFresh(ground) } });
+            NativeWorldGroundIdentity ground = assets.LookupNativeGround(12390, -26709, WorldTerrainSelection.Replacements(entry.State.ReplacementMask), [])!.Identity;
+            session.SetWorldState(entry.State with { X = 12390, Z = -26709, NativeHeight = -301, CameraTargetX = 12390, CameraTargetZ = -26709, CameraTargetNativeHeight = -557, NativeCarRuntime = entry.State.NativeCarRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(ground) } });
         }
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         world.EnsureField();
@@ -202,7 +212,7 @@ public sealed class NativeCarWorldTests
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = -5000, CameraTargetX = -1476, CameraYaw = 0 });
         GameState before = session.State;
-        Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 2)));
+        Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 20)));
         Assert.Same(before, session.State);
         Assert.Equal(0, session.ExamTimer!.ClockCalls);
     }

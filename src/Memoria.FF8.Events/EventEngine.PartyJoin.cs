@@ -420,11 +420,11 @@ public sealed partial class EventEngine
         }
     }
 
-    private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition) ResolveNativePartyPlayerStep(ActorState player, Vector2 axes)
+    private (WalkmeshPosition Position, FieldFixedPosition FixedPosition, int Direction, int[] PushContacts, bool NativeMovement, FieldFixedPosition? TriggerPosition, bool MovementSucceeded) ResolveNativePartyPlayerStep(ActorState player, Vector2 axes)
     {
         FieldFixedPosition current = ReadNativePartyPlayerPosition(player);
         int direction = axes == Vector2.Zero ? (byte)player.Direction : (byte)(NativePartyDirection(0, 0, (int)(axes.X * 4096), (int)(axes.Y * 4096)) + InputAxisDirection);
-        int speed = (Scene.RunEnabled ? 203000 : 69020) * 20 >> 9;
+        int speed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
         if (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true)
         {
             throw new NotSupportedException("Native party player movement requires the certified native adapter; flat fallback is unsupported.");
@@ -436,7 +436,7 @@ public sealed partial class EventEngine
         ValidatePendingNativePushContacts();
         WalkmeshPosition stationary = new(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle);
         PreparePartyTraceFollowers(stationary, direction, false);
-        return (stationary, current, direction, [], false, null);
+        return (stationary, current, direction, [], false, null, false);
     }
 
     private FieldFixedPosition ReadNativePartyPlayerPosition(ActorState player)
@@ -453,7 +453,7 @@ public sealed partial class EventEngine
     {
         PartyTraceState trace = Scene.PartyTrace ?? throw new NotSupportedException("Native party trace is unavailable.");
         ActorState player = ResolvePartyActor(0) ?? throw new NotSupportedException("Native party trace has no leader binding.");
-        int playerAnimation = moved ? Scene.RunEnabled ? player.RunAnimationId : player.WalkAnimationId : player.BaseAnimationId;
+        int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
         if (!HasNativeEmptyAnimationModel(player) && AnimationFrameCount?.Invoke(player.ModelId, playerAnimation) is not > 0)
         {
             throw new NotSupportedException("Native player trace requires complete animation metadata before movement.");
@@ -484,7 +484,7 @@ public sealed partial class EventEngine
         PartyTraceState trace = Scene.PartyTrace!;
         WalkmeshPosition display = new(new Vector3(position.X / 4096f, position.Y / 4096f, position.Z / 4096f), player.WalkmeshTriangle);
         var followers = PreparePartyTraceFollowers(display, direction, moved);
-        int animationMode = moved ? Scene.RunEnabled ? 1 : 0 : trace.FirstTrail[trace.Cursor]?.Animation ?? -1;
+        int animationMode = moved ? NativePlayerWalking ? 0 : 1 : trace.FirstTrail[trace.Cursor]?.Animation ?? -1;
         int recordedDirection = moved ? direction : trace.FirstTrail[trace.Cursor]?.Direction ?? -1;
         PartyTraceSample sample = new((short)(position.X / 4096), (short)(position.Y / 4096), (short)(position.Z / 4096), player.WalkmeshTriangle, recordedDirection, animationMode);
         PartyTraceSample?[] first = (PartyTraceSample?[])trace.FirstTrail.Clone();
@@ -495,9 +495,9 @@ public sealed partial class EventEngine
         Scene.NativePlayerPosition = position;
         if (moved)
         {
-            player.MovementSpeed = (Scene.RunEnabled ? 203000 : 69020) * 20 >> 9;
+            player.MovementSpeed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
         }
-        int playerAnimation = moved ? Scene.RunEnabled ? player.RunAnimationId : player.WalkAnimationId : player.BaseAnimationId;
+        int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
         if (player.AnimationId != playerAnimation || !player.AnimationPlaying || !player.AnimationLoop)
         {
             SelectFullNativeAnimation(player, playerAnimation, true);
@@ -528,17 +528,12 @@ public sealed partial class EventEngine
 
     private void StepStationaryPartyTrace()
     {
-        if (Scene.PartyTraceMovementPending)
-        {
-            Scene.PartyTraceMovementPending = false;
-            return;
-        }
         if (Scene.NativePartyTraceVersion != 1 || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || partyJoin is not null)
         {
             return;
         }
         ActorState player = ResolvePartyActor(0)!;
-        if (player.NativeJump is { Active: true } || player.NativeScriptMovement is { Active: true })
+        if (NativePlayerHasScriptedMode(player))
         {
             return;
         }

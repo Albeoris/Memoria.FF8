@@ -26,7 +26,7 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal)
+    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits)
     {
         NativeCarWorldRuntimeState car = before.NativeCarRuntime!;
         car.Validate();
@@ -59,7 +59,7 @@ internal sealed partial class WorldMapScene
         int proposedMoveX = NearWrapped(x, before.X, 262144) - before.X;
         int proposedGraphicsZ = before.Z - NearWrapped(z, before.Z, 196608);
         int? selectedGroup = horizontal > 0 ? 1 : horizontal < 0 ? 0 : null;
-        WorldCarGroundResult ground = assets.ResolveCarGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements);
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, proposedMoveX, proposedGraphicsZ, previousHeight, selectedGroup, car.GroundCache!, replacements);
         candidate = candidate with { X = ground.X, Z = ground.Z };
         EnsureCarContactCertificate(candidate);
         WorldGround? accepted = ground.Center?.Ground;
@@ -68,7 +68,9 @@ internal sealed partial class WorldMapScene
             WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
             fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(candidate.X, candidate.Z, inputs.StoryWord, 33), entrance.Triangle.TextureFlags);
         }
-        int height = accepted is WorldGround selected ? -(int)selected.Height + (selected.Triangle.GroundType <= 5 ? 320 : 0) : before.NativeHeight;
+        int height = accepted is WorldGround selected ? unchecked((short)(-(int)selected.Height + (selected.Triangle.GroundType <= 5 ? 320 : 0))) : before.NativeHeight;
+        // Accepted53BB90 retains the unrotated raw velocity, even when a sliding candidate wins.
+        salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsZ);
         return candidate with { NativeHeight = height, GroundType = accepted?.Triangle.GroundType ?? before.GroundType, NativeCarRuntime = car with { Speed = speed, CameraFollowSpeed = follow, TerrainTiltBlend = tiltBlend, ModelTilt = tilt + tiltBlend, GroundCache = ground.Cache, GroundYaw = ground.GroundYaw } };
     }
 
@@ -76,12 +78,12 @@ internal sealed partial class WorldMapScene
     {
         (int aheadX, int aheadGraphicsZ) = Rotate(200, 0, bodyYaw - 1024);
         (int Tilt, int Blend)? result = null;
-        foreach (NativeCarGroundAlternative alternative in car.GroundCache!.Alternatives)
+        foreach (NativeWorldGroundAlternative alternative in car.GroundCache!.Alternatives)
         {
-            byte currentType = assets.ResolveCarGroundIdentity(alternative.CurrentGround, replacements).GroundType;
-            byte previousType = assets.ResolveCarGroundIdentity(alternative.PreviousGround, replacements).GroundType;
+            byte currentType = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).GroundType;
+            byte previousType = assets.ResolveNativeGroundIdentity(alternative.PreviousGround, replacements).GroundType;
             int blend = Math.Max(0, (currentType == previousType ? car.TerrainTiltBlend : 64) - 16);
-            WorldGroundSelection? ahead = assets.LookupCarGround(before.X + aheadX, before.Z - aheadGraphicsZ, replacements, alternative.Entries);
+            WorldGroundSelection? ahead = assets.LookupNativeGround(before.X + aheadX, before.Z - aheadGraphicsZ, replacements, alternative.Entries);
             int tilt = ahead is not null && (ahead.Ground.Triangle.VertexFlags & 0x40) != 0 && Math.Abs(before.NativeHeight + ahead.Ground.Height) < 200 ? Math.Clamp(NativeRound(Math.Atan2(-before.NativeHeight - ahead.Ground.Height, 200) * NativeAtanScale) >> 1, -128, 128) : 0;
             if (result is not null && result.Value != (tilt, blend))
             {

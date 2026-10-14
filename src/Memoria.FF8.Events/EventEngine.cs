@@ -62,9 +62,14 @@ public sealed partial class EventEngine
     // Native4767B0 forwards held directional input to4789A0 independently of
     // plain-text window masks. Choices/naming retain their host input ownership.
     public bool IsMovementBlockedByDialogue => dialogues.Values.Any(dialogue => dialogue.FirstChoice is not null || dialogue.IsNamePrompt);
-    public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values;
+    public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values.Select(ExpandMessageVariables).ToArray();
     public bool CanConfirmDialogue => dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
-    public DialogueState? CurrentDialogue { get; private set; }
+    private DialogueState? currentDialogue;
+    public DialogueState? CurrentDialogue
+    {
+        get => currentDialogue is null ? null : ExpandMessageVariables(currentDialogue);
+        private set => currentDialogue = value;
+    }
     public IReadOnlyList<ActorState> Actors => actors;
     public IReadOnlyDictionary<int, int> BackgroundStates => backgroundStates;
     public SceneEventState Scene { get; private set; } = new();
@@ -135,9 +140,12 @@ public sealed partial class EventEngine
         colorEndFrame = 0;
         fadeEndFrame = 0;
         SceneEventState previousScene = Scene;
-        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, SalaryEnabled = previousScene.SalaryEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
+        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
+        // This loader executes normal471F70 entry kinds0..2, which clear1CE477C.
+        Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
+        pendingNativePlayerInput = null;
         Scene.Shake = nativeRuntimeProfile is { IsVerified: true } ? (previousScene.Shake ?? NativeFieldShake.UnknownProcessHistory()).ResetForLoad() : null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
@@ -236,8 +244,15 @@ public sealed partial class EventEngine
         {
             return;
         }
+        Action? nativePlayerInput = pendingNativePlayerInput;
+        pendingNativePlayerInput = null;
+        NativeSeeDState? salarySample = PrepareNativeFieldSalarySample();
         ValidatePendingNativePushContacts();
         ValidatePendingNativeLineCrossings();
+        if (salarySample is not null && salarySample != services.SeeD)
+        {
+            services.SetSeeD(salarySample);
+        }
         AdvanceNativeFieldCallbackClock();
         Frame++;
         SampleFieldButtons();
@@ -246,7 +261,6 @@ public sealed partial class EventEngine
         {
             Scene.NativeFieldInitialization = initialization with { Stage = NativeFieldInitializationStage.Initializing };
         }
-        StepStationaryPartyTrace();
         SampleMoviePlayback();
         StepInputAxis();
         foreach (ActorState actor in actors)
@@ -291,6 +305,7 @@ public sealed partial class EventEngine
         {
             StepCosineRotation(actor);
         }
+        StepNativePlayerInput(nativePlayerInput);
         StepNativeScriptMovement();
         StepNativeJump();
         SampleNativeDoorActionEdges();
@@ -415,15 +430,6 @@ public sealed partial class EventEngine
         return true;
     }
 
-    public void MovePlayer(float x, float y, float z, int walkmeshTriangle)
-    {
-        if (replayCapture is null)
-        {
-            services.MarkReplayUnavailable("A direct player placement bypassed the engine navigation journal.");
-        }
-        MovePlayerCore(x, y, z, walkmeshTriangle);
-    }
-
     private IReadOnlyList<NativeLineContactChange> MovePlayerCore(float x, float y, float z, int walkmeshTriangle, FieldFixedPosition? nativePosition = null, int? nativeDirection = null, bool nativeMovement = false, FieldFixedPosition? nativeTriggerPosition = null)
     {
         if (program is null || transitionRequested || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying)
@@ -435,7 +441,7 @@ public sealed partial class EventEngine
         {
             return [];
         }
-        if (player.NativeScriptMovement is { Active: true })
+        if (NativePlayerHasScriptedMode(player))
         {
             // 4789A0 skips ordinary input when this body's movement mode572
             // is nonzero; the post-VM scripted driver retains ownership.
@@ -481,7 +487,6 @@ public sealed partial class EventEngine
         if (nativePosition is not null)
         {
             ApplyPartyTraceMovement(player, nativePosition, direction, deltaX != 0 || deltaY != 0);
-            Scene.PartyTraceMovementPending = true;
         }
         if (!nativeLines)
         {

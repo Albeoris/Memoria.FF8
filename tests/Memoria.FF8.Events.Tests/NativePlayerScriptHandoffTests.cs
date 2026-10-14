@@ -105,6 +105,13 @@ internal static partial class Program
         PlayerAction input = new(PlayerActionKind.Move, Horizontal: 1);
         Require(moving.Apply(input) is { Accepted: true, FramesAdvanced: 1 } && movingRestored.Apply(input) is { Accepted: true, FramesAdvanced: 1 }, "Active native movement input did not advance its ordinary callback.");
         Require(moving.Actors[0].NativeScriptMovement is { Active: true, Completion: 1 } next && next.FiberSequence == owner.FiberSequence && next.FixedX == owner.FixedX + 4096 && moving.Scene.NativePlayerPosition == new FieldFixedPosition(next.FixedX, next.FixedY, next.FixedZ) && JsonElement.DeepEquals(moving.Capture(), movingRestored.Capture()), "Ordinary player input replaced active native MOVE ownership, ran legacy locomotion or diverged after restore.");
+        GameSession movingSession = (GameSession)typeof(EventEngine).GetField("services", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(moving)!;
+        movingSession.SetSeeD(NativeSeeDState.CreateNewGame().WithSalaryEnabled(true));
+        Set(moving.Scene, nameof(SceneEventState.NativeSalaryMovementUnits), (byte)5);
+        moving.Apply(input);
+        Require(movingSession.SeeD!.SalaryMovementCounter == 5 && moving.Scene.NativeSalaryMovementUnits == 5, "Native mode572=1 incorrectly reset the retained previous-run salary scalar.");
+        moving.Apply(input);
+        Require(movingSession.SeeD!.SalaryMovementCounter == 10 && moving.Scene.NativeSalaryMovementUnits == 5, "Repeated native scripted body callback lost the held previous salary scalar.");
         Console.WriteLine("Player/script handoff: certified575/576 retention, fractional saved-leader origin, FOLLOWOFF, original479970 snap/triangle retention, held577 and ordinary input suppression/continued native motion with independent restore passed.");
     }
 }

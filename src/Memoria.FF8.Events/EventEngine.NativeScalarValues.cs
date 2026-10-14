@@ -36,6 +36,10 @@ public sealed partial class EventEngine
                 return exception.Message;
             }
         }
+        if (operation.Opcode == Jsm.Opcode.MESVAR)
+        {
+            return UnsupportedMessageVariable(fiber, operation);
+        }
         int width = NativeMemoryWidth(operation.Opcode);
         bool writing = operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L;
         if (width > 0 && services.NativeVariableValues is { Count: > 0 } memory && memory.Any(pair => pair.Key < (long)operation.Parameter + width && pair.Key + pair.Value.Width > operation.Parameter && (pair.Key != operation.Parameter || pair.Value.Width != width)))

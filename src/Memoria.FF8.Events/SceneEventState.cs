@@ -82,8 +82,6 @@ public sealed class SceneEventState
     [JsonInclude]
     public bool RandomBattlesEnabled { get; internal set; } = true;
     [JsonInclude]
-    public bool SalaryEnabled { get; internal set; } = true;
-    [JsonInclude]
     public bool MapFadeEnabled { get; internal set; } = true;
     [JsonInclude]
     public bool MapJumpDisabled { get; internal set; }
@@ -94,6 +92,9 @@ public sealed class SceneEventState
     public bool MenuEnabled { get; internal set; } = true;
     [JsonInclude]
     public bool RunEnabled { get; internal set; } = true;
+    [JsonInclude]
+    [JsonRequired]
+    public byte? NativeSalaryMovementUnits { get; internal set; }
     [JsonInclude]
     public int PlaceId { get; internal set; }
     [JsonInclude]
@@ -107,8 +108,6 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativePlayerEarlyRetryState { get; internal set; }
-    [JsonInclude]
-    public bool PartyTraceMovementPending { get; internal set; }
     [JsonInclude]
     public int NativeFieldLoadVersion { get; internal set; }
     [JsonInclude]

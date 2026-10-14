@@ -25,10 +25,10 @@ public sealed record NativeCarWorldRuntimeState
     [JsonRequired]
     public required byte MapDisplayMode { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NativeCarGroundCacheState? GroundCache { get; init; }
+    public NativeWorldGroundCacheState? GroundCache { get; init; }
     public int? GroundYaw { get; init; }
 
-    public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved, NativeCarGroundCacheState cache)
+    public static NativeCarWorldRuntimeState Create(NativeSavedWorldState saved, NativeWorldGroundCacheState cache)
     {
         saved.Validate();
         cache.Validate();

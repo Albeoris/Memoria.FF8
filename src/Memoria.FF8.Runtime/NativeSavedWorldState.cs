@@ -50,14 +50,14 @@ public sealed record NativeSavedWorldFootReturn
     /// <summary>Saved-world +108 BYTE from 20409E4; null is unproved, not zero.</summary>
     [JsonRequired]
     public required byte? AnimationVariant108 { get; init; }
-    /// <summary>Saved-world +110 BYTE map-display mode from C75CF8, with native 3 normalized to 0; the serialized MovementMode110 name is retained for compatibility.</summary>
+    /// <summary>Saved-world +110 BYTE map-display mode from C75CF8, with native 3 normalized to 0.</summary>
     [JsonRequired]
-    public required byte? MovementMode110 { get; init; }
+    public required byte? MapDisplayMode110 { get; init; }
     /// <summary>Save-header +4 WORD: sign-extended original WMSET zero-based section18 byte, indexed by native553910.</summary>
     [JsonRequired]
     public required short MapLocationId { get; init; }
 
-    public static NativeSavedWorldFootReturn Create(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId, byte? animationVariant108 = null, byte? movementMode110 = null, byte entityType105 = 0)
+    public static NativeSavedWorldFootReturn Create(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId, byte? animationVariant108 = null, byte? mapDisplayMode110 = null, byte entityType105 = 0)
     {
         ArgumentNullException.ThrowIfNull(world);
         if (world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.CameraYaw is < 0 or >= 4096)
@@ -78,7 +78,7 @@ public sealed record NativeSavedWorldFootReturn
             Channel106 = 255,
             Channel107 = 255,
             AnimationVariant108 = animationVariant108,
-            MovementMode110 = movementMode110 == 3 ? (byte)0 : movementMode110,
+            MapDisplayMode110 = mapDisplayMode110 == 3 ? (byte)0 : mapDisplayMode110,
             MapLocationId = mapLocationId
         };
         receipt.Validate();
@@ -98,7 +98,7 @@ public sealed record NativeSavedWorldFootReturn
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }
-        if (Pose0 is null || Pose0.X is < -131072 or >= 131072 || Pose0.RawZ is < -98304 or >= 98304 || Pose0.Yaw >= 4096 || CameraYaw96 >= 4096 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue || MovementMode110 == 3)
+        if (Pose0 is null || Pose0.X is < -131072 or >= 131072 || Pose0.RawZ is < -98304 or >= 98304 || Pose0.Yaw >= 4096 || CameraYaw96 >= 4096 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue || MapDisplayMode110 == 3)
         {
             throw new InvalidDataException("Invalid native foot-return pose or auxiliary metadata.");
         }
@@ -107,7 +107,7 @@ public sealed record NativeSavedWorldFootReturn
     public void RequireCompleteFootReload()
     {
         Validate();
-        if (AnimationVariant108 is null || MovementMode110 is null)
+        if (AnimationVariant108 is null || MapDisplayMode110 is null)
         {
             throw new NotSupportedException("Native saved foot reload additionally reads unproved saved-world bytes +108/+110.");
         }
@@ -152,7 +152,7 @@ public sealed record NativeSavedWorldState
         if (FootReturn is NativeSavedWorldFootReturn receipt)
         {
             receipt.RequireCompleteFootReload();
-            return receipt.MovementMode110!.Value;
+            return receipt.MapDisplayMode110!.Value;
         }
         return InitialMapDisplayMode110!.Value;
     }

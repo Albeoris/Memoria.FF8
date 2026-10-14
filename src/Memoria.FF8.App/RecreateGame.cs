@@ -309,7 +309,7 @@ internal sealed class RecreateGame : Game
             while (fieldSeconds + 1e-9 >= 1d / EventEngine.SimulationFps)
             {
                 fieldSeconds -= 1d / EventEngine.SimulationFps;
-                if ((input.Horizontal != 0 || input.Vertical != 0) && events.IsUserControlEnabled && !events.IsDialogueBlocking)
+                if ((input.Horizontal != 0 || input.Vertical != 0) && events.IsUserControlEnabled && !events.IsMovementBlockedByDialogue)
                 {
                     metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -input.Horizontal, Vertical: input.Vertical)).FramesAdvanced);
                 }
@@ -660,9 +660,9 @@ internal sealed class RecreateGame : Game
             EventSpeedMultiplier = gameplayClock.SpeedMultiplier,
             DebugPresentation = session.State.DebugView,
             DebugActionLog = world?.DebugActions,
-            Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names) : null } : null,
-            Dialogue = events?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events.Scene.Names) } : null,
-            Dialogues = events?.Dialogues.OrderBy(dialogue => dialogue.Channel).Select(dialogue => dialogue with { Text = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names) }).ToArray(),
+            Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names, events.MessageVariables) : null } : null,
+            Dialogue = events?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events.Scene.Names, events.MessageVariables) } : null,
+            Dialogues = events?.Dialogues.OrderBy(dialogue => dialogue.Channel).Select(dialogue => dialogue with { Text = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables) }).ToArray(),
             RawDialogueText = events?.CurrentDialogue?.Text,
             IsUserControlEnabled = session.State.Scene == SceneKind.WorldMap || events?.IsUserControlEnabled == true,
             CameraIndex = events?.Scene.CameraIndex,
@@ -773,7 +773,7 @@ internal sealed class RecreateGame : Game
             float fontSize = 8 * dialogueScale;
             foreach (DialogueState dialogue in events.Dialogues.OrderBy(dialogue => dialogue.Channel))
             {
-                string displayed = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names);
+                string displayed = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables);
                 if (dialogue == events.CurrentDialogue && dialogue.IsNamePrompt)
                 {
                     displayed += "\n" + enteredName + "_  (Enter: accept)";

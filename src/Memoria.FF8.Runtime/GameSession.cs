@@ -18,7 +18,7 @@ public sealed partial class GameSession : IEventServices
 
     public static GameSession CreateColdProcess()
     {
-        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess() });
+        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess() });
     }
 
     public GameState State { get; private set; }
@@ -60,7 +60,15 @@ public sealed partial class GameSession : IEventServices
         {
             journal = journal.MarkUnavailable("Warm New Game preserves the native process clock and UI; the journal does not contain its earlier process history.");
         }
-        Change(new GameState { Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), ExamTimer = reset, ReplayJournal = journal });
+        if (State.SeeD?.SalaryUiEnabled is not null)
+        {
+            journal = journal.MarkUnavailable("Warm New Game preserves the salary process UI; the journal does not contain its earlier setter history.");
+        }
+        if (State.MessageVariables?.IsColdProcessBank != true)
+        {
+            journal = journal.MarkUnavailable("Warm New Game preserves the process message-variable bank; the journal lacks its preceding history.");
+        }
+        Change(new GameState { MessageVariables = State.MessageVariables, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -174,7 +182,7 @@ public sealed partial class GameSession : IEventServices
         Change(State with { X = transition.X, Y = transition.Y, FieldArrival = transition });
     }
 
-    public void CommitPreparedWorldFieldEntry(GameState expectedDeparture, WorldState finalWorldState, FieldTransition transition, NativeSavedWorldFootReturn receipt, Action<GameState> validatePrepared)
+    public void CommitPreparedWorldFieldEntry(GameState expectedDeparture, WorldState finalWorldState, FieldTransition transition, NativeSavedWorldFootReturn receipt, uint salaryMovementUnits, Action<GameState> validatePrepared)
     {
         ArgumentNullException.ThrowIfNull(expectedDeparture);
         ArgumentNullException.ThrowIfNull(finalWorldState);
@@ -222,7 +230,8 @@ public sealed partial class GameSession : IEventServices
             SavedWorld = departure.SavedWorld.WithFootReturn(receipt),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
-            ExamTimer = AdvanceWorldTimer(departure, finalWorldState)
+            ExamTimer = AdvanceWorldTimer(departure, finalWorldState),
+            SeeD = AdvanceWorldSeeD(departure, finalWorldState, salaryMovementUnits)
         };
         Validate(candidate);
         validatePrepared(candidate);
@@ -282,7 +291,7 @@ public sealed partial class GameSession : IEventServices
         State = State with { World = state };
     }
 
-    public void CommitWorldAction(WorldState state)
+    public void CommitWorldAction(WorldState state, uint salaryMovementUnits)
     {
         ArgumentNullException.ThrowIfNull(state);
         GameState departure = State;
@@ -291,7 +300,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
         ValidatePreparedWorldActions(liveWorld, state);
-        GameState candidate = departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), WorldConfiguration = PrepareBoatWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state) };
+        GameState candidate = departure with { World = state, SavedWorld = PrepareBoatWorldSave(departure, state), WorldConfiguration = PrepareBoatWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state), SeeD = AdvanceWorldSeeD(departure, state, salaryMovementUnits) };
         Validate(candidate);
         State = candidate;
     }
@@ -515,6 +524,8 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Root uncertain native memory is missing from the saved complete VM.");
         }
+        ValidateSeeDCheckpoint(state, currentVm);
+        ValidateMessageVariableCheckpoint(state, currentVm);
         return state;
     }
 
@@ -561,6 +572,7 @@ public sealed partial class GameSession : IEventServices
         state.WorldControls?.Validate();
         state.WorldConfiguration?.Validate();
         state.ExamTimer?.Validate();
+        state.SeeD?.Validate();
         state.CharacterVitals?.Validate();
         state.CharacterAppearance?.Validate();
         state.CardInventory?.Validate();

@@ -33,7 +33,7 @@ internal sealed partial class GameWorld
         };
     }
 
-    private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId)
+    private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId, uint salaryMovementUnits)
     {
         GameState departure = session.State;
         if (departure.Scene != SceneKind.WorldMap || worldScene is null || departure.World is null || departure.WorldControls is null || departure.SavedWorld is null)
@@ -64,10 +64,10 @@ internal sealed partial class GameWorld
         if (finalWorld.NativeCarRuntime is not null)
         {
             NativeSavedWorldCarReturn carReceipt = NativeSavedWorldCarReturn.Create(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
-            return () => session.CommitPreparedCarFieldEntry(departure, finalWorld, transition, carReceipt, candidate => ValidatePreparedField(candidate));
+            return () => session.CommitPreparedCarFieldEntry(departure, finalWorld, transition, carReceipt, salaryMovementUnits, candidate => ValidatePreparedField(candidate));
         }
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
-        return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, candidate =>
+        return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, salaryMovementUnits, candidate =>
         {
             ValidatePreparedField(candidate);
         });

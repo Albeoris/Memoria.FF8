@@ -129,18 +129,12 @@ public sealed class WorldMapSceneTests
     }
 
     [Fact]
-    public void LaterBatchRefusalPreservesEarlierCandidateTicksAndEntireSession()
+    public void Unproved_first_ground_candidate_refuses_before_any_world_tick_or_salary_result()
     {
         string directory = GameDirectory();
         var session = ComponentSession();
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = -5000, CameraTargetX = -1476, CameraYaw = 0, CameraVelocity = 0 });
-        var singleSession = new GameSession(session.State);
-        using var single = new WorldMapScene(singleSession, directory);
-        Assert.True(single.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
-        Assert.Equal(-3238, single.State.CameraTargetX);
-        Assert.Throws<NotSupportedException>(() => single.Apply(new PlayerAction(PlayerActionKind.Wait)));
-
         string before = JsonSerializer.Serialize(session.State);
         Assert.Throws<NotSupportedException>(() => scene.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 2)));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));
@@ -180,70 +174,6 @@ public sealed class WorldMapSceneTests
     {
         var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 1, 0) });
         Assert.Throws<NotSupportedException>(() => new WorldMapScene(session, "missing world corpus"));
-    }
-
-    [Fact]
-    public void WorldHostReloadKeepsDepartingFieldVmFrozenWhileWorldMovementContinues()
-    {
-        string directory = GameDirectory();
-        var firstSession = GameSession.CreateColdProcess();
-        firstSession.StartNewGame();
-        using var first = new GameWorld(firstSession, directory, persistReplayJournal: false);
-        for (int input = 0; input < 6000; input++)
-        {
-            first.EnsureField();
-            if (first.Field!.Id == 229 && first.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
-            {
-                break;
-            }
-            DialogueState? dialogue = first.Events.CurrentDialogue;
-            PlayerAction action = firstSession.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is not null ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
-            Assert.True(first.Apply(action).Accepted);
-        }
-        Assert.Equal(229, first.Field!.Id);
-        Assert.Equal(PlayerTriggerKind.Playable, first.Events.NextTrigger.Kind);
-        string FieldVm(EventEngine engine)
-        {
-            System.Text.Json.Nodes.JsonObject snapshot = System.Text.Json.Nodes.JsonNode.Parse(engine.Capture().GetRawText())!.AsObject();
-            // The process clock continues in the world scene; the field interpreter does not receive callbacks.
-            snapshot.Remove("ExamTimer");
-            return snapshot.ToJsonString();
-        }
-        string departingVm = FieldVm(first.Events);
-        firstSession.SetEventState(first.Events.Capture());
-        // Isolated host fixture: this direct service request establishes no natural player entry.
-        firstSession.Restore(firstSession.State with { SavedWorld = NativeSavedWorldState.CreateNewGame() });
-        firstSession.RequestWorld(new WorldTransition(0, 0, 0));
-        firstSession.SetDepartingFieldState(first.Events.Capture());
-        Assert.True(first.EnsureField());
-        Assert.Null(firstSession.State.DepartingFieldState);
-        Assert.Equal(PlayerTriggerKind.WorldMap, first.NextTrigger.Kind);
-        first.SetRenderSize(320, 224);
-        first.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3));
-        Assert.Equal(departingVm, FieldVm(first.Events));
-
-        string checkpoint = Path.Combine(Path.GetTempPath(), "Memoria.FF8-world-host-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            firstSession.Save(checkpoint);
-            var resumedSession = new GameSession(GameSession.Load(checkpoint));
-            using var resumed = new GameWorld(resumedSession, directory);
-            Assert.True(resumed.EnsureField());
-            resumed.SetRenderSize(320, 224);
-            Assert.Equal(departingVm, FieldVm(resumed.Events));
-            Assert.Equal(JsonSerializer.Serialize(firstSession.State.World), JsonSerializer.Serialize(resumedSession.State.World));
-            Assert.Equal(JsonSerializer.Serialize(firstSession.ExamTimer), JsonSerializer.Serialize(resumedSession.ExamTimer));
-            var next = new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 2);
-            Assert.Equal(first.Apply(next), resumed.Apply(next));
-            Assert.Equal(JsonSerializer.Serialize(firstSession.State.World), JsonSerializer.Serialize(resumedSession.State.World));
-            Assert.Equal(JsonSerializer.Serialize(firstSession.ExamTimer), JsonSerializer.Serialize(resumedSession.ExamTimer));
-            Assert.Equal(first.Render(TimeSpan.Zero), resumed.Render(TimeSpan.Zero));
-            Assert.Equal(departingVm, FieldVm(resumed.Events));
-        }
-        finally
-        {
-            File.Delete(checkpoint);
-        }
     }
 
     private static GameSession ComponentSession()

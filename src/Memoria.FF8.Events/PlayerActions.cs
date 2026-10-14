@@ -167,48 +167,23 @@ public sealed partial class EventEngine
                         }
                         for (int index = 0; index < action.Frames; index++)
                         {
-                            if (player!.NativeScriptMovement is { Active: true } || player.NativeJump is { Active: true })
-                            {
-                                FieldFixedPosition position = ReadNativeScriptPosition(player) ?? throw new NotSupportedException("Scripted player input suppression requires the actual retained raw body position.");
-                                RecordReplayNavigation(player, new WalkmeshPosition(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle), position, (int)player.Direction, false, null, []);
-                                Step();
-                                advanced++;
-                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested)
-                                {
-                                    break;
-                                }
-                                continue;
-                            }
+                            ValidateNativePlayerInput(player!);
                             int[] pushContacts = [];
                             IReadOnlyList<NativeLineContactChange> lineChanges = [];
-                            if (Scene.NativePartyTraceVersion == 1)
+                            pendingNativePlayerInput = () =>
                             {
                                 var native = ResolveNativePartyPlayerStep(player!, axes);
                                 pushContacts = native.PushContacts;
                                 RecordReplayNavigation(player!, native.Position, native.FixedPosition, native.Direction, native.NativeMovement, native.TriggerPosition, native.PushContacts);
                                 lineChanges = MovePlayerCore(native.Position.Position.X, native.Position.Position.Y, native.Position.Position.Z, native.Position.Triangle, native.FixedPosition, native.Direction, native.NativeMovement, native.TriggerPosition);
+                                PublishNativePlayerMovementResult(native.MovementSucceeded);
                                 if (native.NativeMovement)
                                 {
                                     Scene.NativePlayerMovementVersion = 1;
                                     // 47A2F6 clears 1CDBFED after the native field-line query.
                                     Scene.NativePlayerEarlyRetryState = 0;
                                 }
-                            }
-                            else
-                            {
-                                Vector2 rotatedAxes = Vector2.Transform(axes, Matrix3x2.CreateRotation(InputAxisDirection * MathF.Tau / 256f));
-                                float speed = Math.Max(1, player!.MovementSpeed) / 256f;
-                                WalkmeshPosition? position = ResolveWalkmesh!(player.X + rotatedAxes.X * speed, player.Y + rotatedAxes.Y * speed);
-                                if (position is not null)
-                                {
-                                    RecordReplayNavigation(player, position);
-                                    MovePlayer(position.Position.X, position.Position.Y, position.Position.Z, position.Triangle);
-                                }
-                                else
-                                {
-                                    RecordReplayNavigation(player, new WalkmeshPosition(new Vector3(player.X, player.Y, player.Z), player.WalkmeshTriangle));
-                                }
-                            }
+                            };
                             Step();
                             // Native4767B0 runs scripts before player movement.
                             // New byte584 writes belong to the next update,

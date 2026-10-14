@@ -14,7 +14,7 @@ public sealed class NativeBoatWorldStateTests
         Assert.Equal(new NativeSavedWorldPose(0, 0, 0, 0), foot.Pose);
         Assert.Throws<NotSupportedException>(() => assets.ReadScriptedBoatFootRecord(33));
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
-        var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeCarGroundCacheState.CreateFresh(new(0, 0, 0, 0))) };
+        var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0))) };
         NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
         NativeSavedWorldState saved = initial.WithOrdinaryCarEntry().WithCarReturn(car);
         NativeBoatWorldLoadReceipt load = NativeBoatWorldLoadReceipt.Create(saved, previous, foot);
@@ -40,9 +40,9 @@ public sealed class NativeBoatWorldStateTests
         boat = boat with { Return = receipt };
         WorldState endpoint = boat.ToWorldState() with { Actions = [new(1, 230, "Wait", 0, 0, 230, 230, path.EntityPosition.X, -path.EntityPosition.Z, path.EntityPosition.Y)] };
         GameState beforeEndpoint = session.State;
-        Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(endpoint with { NativeBoatRuntime = boat with { Return = receipt with { LastFieldId = 120 } } }));
+        Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(endpoint with { NativeBoatRuntime = boat with { Return = receipt with { LastFieldId = 120 } } }, 0));
         Assert.Same(beforeEndpoint, session.State);
-        session.CommitWorldAction(endpoint);
+        session.CommitWorldAction(endpoint, 0);
         Assert.Equal(receipt, session.State.SavedWorld!.BoatReturn);
         Assert.Equal(230, receipt.SourceWorldFrame);
         Assert.Equal(230, session.State.WorldConfiguration!.SourceWorldFrame);

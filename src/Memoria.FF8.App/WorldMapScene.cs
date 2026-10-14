@@ -19,7 +19,7 @@ internal sealed partial class WorldMapScene : IDisposable
     private WorldTerrainRenderer? renderer;
     private bool disposed;
     private bool rebound;
-    public Func<WorldFieldSelection, WorldState, short, Action>? PrepareFieldEntry { get; set; }
+    public Func<WorldFieldSelection, WorldState, short, uint, Action>? PrepareFieldEntry { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
     public WorldMapScene(GameSession session, string gameDirectory)
@@ -133,13 +133,16 @@ internal sealed partial class WorldMapScene : IDisposable
                 WorldGround? ground;
                 if (car)
                 {
-                    WorldGroundSelection initialGround = assets.LookupCarGround(x, z, replacements, []) ?? throw new NotSupportedException("Original car spawn has no native ground lookup result.");
-                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, NativeCarGroundCacheState.CreateFresh(initialGround.Identity));
+                    WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original car spawn has no native ground lookup result.");
+                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache));
                     ground = initialGround.Ground;
                 }
                 else
                 {
-                    ground = assets.FindNativeGround(x, z, replacements);
+                    WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original foot spawn has no native53EB80 ground lookup result.");
+                    NativeWorldGroundCacheState? retained = session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache;
+                    initialFootRuntime = initialFootRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, retained) };
+                    ground = initialGround.Ground;
                 }
                 WorldState initial = new()
                 {
@@ -162,10 +165,15 @@ internal sealed partial class WorldMapScene : IDisposable
             else
             {
                 replacements = WorldTerrainSelection.Replacements(State.ReplacementMask);
+                if (!car)
+                {
+                    State.NativeFootRuntime!.RequireNativeGroundState();
+                    assets.ValidateNativeGroundCache(State.NativeFootRuntime.GroundCache!, replacements);
+                }
                 if (car)
                 {
                     State.NativeCarRuntime!.Validate();
-                    assets.ValidateCarGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
+                    assets.ValidateNativeGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
                 }
                 EnsureContactCertificate(State);
             }
@@ -225,12 +233,19 @@ internal sealed partial class WorldMapScene : IDisposable
         long sourceFrame = State.Frame;
         List<ReplayWorldNavigationStimulus> navigation = [];
         WorldState candidate = State;
+        uint salaryMovementUnits = 0;
+        NativeSeeDState? candidateSeeD = session.SeeD;
         WorldFieldSelection? fieldEntry = null;
         if (accepted)
         {
             for (int index = 0; index < action.Frames; index++)
             {
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal);
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits);
+                salaryMovementUnits = checked(salaryMovementUnits + movementUnits);
+                if (candidate.NativeBoatRuntime is null)
+                {
+                    candidateSeeD = candidateSeeD?.WithMovementUnits(movementUnits);
+                }
                 navigation.Add(proposal);
                 advanced++;
                 if (fieldEntry is not null)
@@ -247,7 +262,7 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 throw new NotSupportedException($"Original world field entry {fieldEntry.Entry.Index}/field{fieldEntry.Entry.FieldId} has no prepared field backend.");
             }
-            Action commit = PrepareFieldEntry(fieldEntry, candidate, assets.GetNativeMapLocationId(candidate.X, candidate.Z));
+            Action commit = PrepareFieldEntry(fieldEntry, candidate, assets.GetNativeMapLocationId(candidate.X, candidate.Z), salaryMovementUnits);
             commit();
             LastDeparture = candidate;
             PlayerActionResult departed = new(true, new PlayerTrigger(PlayerTriggerKind.FieldTransition, fieldEntry.Entry.FieldId, candidate.Frame, null, null), advanced);
@@ -256,7 +271,7 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (accepted)
         {
-            session.CommitWorldAction(candidate);
+            session.CommitWorldAction(candidate, salaryMovementUnits);
         }
         else
         {
@@ -291,17 +306,21 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is not null || state.GroundType is null or > 5, state.NativeCarRuntime is null ? null : assets.ExamCar, state.NativeCarRuntime?.ModelTilt ?? 0, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal)
+    private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits)
     {
         if (before.NativeBoatRuntime is not null)
         {
+            // Native53FAC0 does not call6519D0 for scripted entities65/66.
+            salaryMovementUnits = 0;
             return StepBoat(before, out fieldEntry, out inputProposal, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeBoatRuntime.Path.EntityType).ProjectNode(node));
         }
         if (before.NativeCarRuntime is not null)
         {
-            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal);
+            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, out salaryMovementUnits);
         }
         fieldEntry = null;
+        NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
+        foot.RequireNativeGroundState();
         int inputX = Math.Sign(horizontal);
         int inputZ = -Math.Sign(vertical);
         int magnitude = inputX != 0 && inputZ != 0 ? 90 : 127;
@@ -313,7 +332,7 @@ internal sealed partial class WorldMapScene : IDisposable
         bool dampCamera = !moving;
         if (moving)
         {
-            int desired = WrapYaw(NativeRound(Math.Atan2(-graphicsMoveZ, moveX) * NativeAtanScale) + 1024);
+            int desired = WrapYaw(NativeRound(Math.Atan2(-graphicsMoveZ, moveX) * NativeAtanScale) + 1024 + (foot.GroundYaw!.Value >> 1));
             int delta = YawDelta(desired, bodyYaw);
             if (Math.Abs(delta) <= 256)
             {
@@ -337,25 +356,25 @@ internal sealed partial class WorldMapScene : IDisposable
         inputProposal = new ReplayWorldNavigationStimulus(x, z);
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight });
         int previousGroundHeight = -before.NativeHeight + (before.GroundType is <= 5 ? 320 : 0);
-        WorldGround? ground = ResolveGround(x, z, previousGroundHeight);
+        int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null);
+        x = ground.X;
+        z = ground.Z;
+        EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight });
+        WorldGround? center = ground.Center?.Ground;
         int nativeHeight = before.NativeHeight;
         byte? groundType = before.GroundType;
-        if (ground is WorldGround accepted)
+        if (center is WorldGround accepted)
         {
             if (accepted.Triangle.FieldEntrance)
             {
                 WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-                fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(x, z, inputs.StoryWord, before.NativeFootRuntime!.EntityType), accepted.Triangle.TextureFlags);
+                fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(x, z, inputs.StoryWord, foot.EntityType), accepted.Triangle.TextureFlags);
             }
-            nativeHeight = -(int)accepted.Height + (accepted.Triangle.GroundType <= 5 ? 320 : 0);
+            nativeHeight = unchecked((short)(-(int)accepted.Height + (accepted.Triangle.GroundType <= 5 ? 320 : 0)));
             groundType = accepted.Triangle.GroundType;
         }
-        else
-        {
-            // The bounded component stops at rejected probes; original candidate sliding/cache and objects need their own state.
-            x = before.X;
-            z = before.Z;
-        }
+        salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsMoveZ);
         return before with
         {
             Frame = before.Frame + 1,
@@ -370,7 +389,8 @@ internal sealed partial class WorldMapScene : IDisposable
             CameraTargetNativeHeight = targetHeight,
             AnimationId = animation,
             AnimationCounter = animationCounter,
-            GroundType = groundType
+            GroundType = groundType,
+            NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX }
         };
     }
 
@@ -399,24 +419,6 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new NotSupportedException($"Unsupported native world contact state: {result.Reason}");
         }
-    }
-
-    private WorldGround? ResolveGround(int x, int z, int previousHeight)
-    {
-        WorldGround? center = assets.FindNativeGround(x, z, replacements, previousHeight);
-        if (center is null)
-        {
-            return null;
-        }
-        (int X, int Z)[] offsets = [(-32, 0), (0, 32), (32, 0), (0, -32)];
-        foreach ((int dx, int dz) in offsets)
-        {
-            if (assets.FindNativeGround(x + dx, z + dz, replacements, previousHeight) is null)
-            {
-                return null;
-            }
-        }
-        return center;
     }
 
     private static int FollowCamera(int velocity, int delta, bool damping)
