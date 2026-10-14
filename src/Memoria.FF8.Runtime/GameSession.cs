@@ -175,7 +175,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
         }
-        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || departure.WorldArrival is not WorldTransition arrival || unchecked((sbyte)arrival.Mode) != 0 || departure.SavedWorld is null || departure.WorldControls is null)
+        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || departure.WorldArrival is not WorldTransition arrival || unchecked((sbyte)arrival.Mode) is not (0 or 1) || departure.SavedWorld is null || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
         }
@@ -185,7 +185,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new ArgumentOutOfRangeException(nameof(transition), "Native world-to-field destination must fit its unsigned WORD.");
         }
-        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256))
+        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.EntityType105 != unchecked((byte)arrival.Mode) || finalWorldState.NativeFootRuntime is NativeFootWorldRuntimeState foot && receipt.EntityType105 != foot.EntityType)
         {
             throw new InvalidOperationException("The prepared foot save no longer matches the current native world departure.");
         }
@@ -586,6 +586,10 @@ public sealed partial class GameSession : IEventServices
         if (state.World is WorldState world)
         {
             ValidateWorldState(world);
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != foot.EntityType))
+            {
+                throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
+            }
             if (world.NativeCarRuntime is not null && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((sbyte)state.WorldArrival.Mode) != 33 || state.SavedWorld?.Slot4.ShapeId != 73))
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");

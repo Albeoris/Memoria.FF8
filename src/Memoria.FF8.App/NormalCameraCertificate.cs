@@ -1,5 +1,4 @@
 using System.Numerics;
-using System.Security.Cryptography;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 
@@ -9,13 +8,12 @@ public static class NormalCameraCertificate
 {
     internal static bool HasBaseline(FieldAssets field, int cameraIndex)
     {
-        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count == 1 && BackgroundParallaxPlacement.SupportsPan(field) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || NativeField135ZeroCenterCertificate.Supports(field, cameraIndex) || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
+        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count == 1 && BackgroundParallaxPlacement.SupportsPan(field) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
     }
 
     public static BackgroundScrollFrame? Prepare(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
     {
-        // TODO(TD-003): replace retained165/172 legacy gates with native state contracts
-        if (field.Id < 72 || field.Id == 172 || scene.NativeFieldLoadVersion == 0)
+        if (field.Id < 72)
         {
             return null;
         }
@@ -26,23 +24,11 @@ public static class NormalCameraCertificate
         FieldInformation? information = field.Information;
         FieldCamera camera = field.Camera;
         bool genericLinear = NativeLinearBackgroundScrollCertificate.SupportsPhase(field, scene);
-        bool genericWrapping = information is { BackgroundWrapMask: > 0 } && !NativeField135ZeroCenterCertificate.Supports(field, scene.CameraIndex);
-        bool baseline = scene.NativeFieldLoadVersion == 1 && HasBaseline(field, scene.CameraIndex) && (!genericWrapping || genericLinear || NormalBackgroundWrapCertificate.Supports(field, scene)) && (field.Id != 165 || field.Background.All(tile => tile.Layer == 0)) && (scene.BackgroundScrollPositions.Count == 0 || genericLinear || NativeField135LinearScrollCertificate.SupportsPhase(field, scene)) && scene.BackgroundScrollLayers.All(pair => BackgroundScrollCertificate.CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex));
-        if (!baseline && field.Id != 165)
+        bool genericWrapping = information is { BackgroundWrapMask: > 0 };
+        bool baseline = scene.NativeFieldLoadVersion == 1 && HasBaseline(field, scene.CameraIndex) && (!genericWrapping || genericLinear || NormalBackgroundWrapCertificate.Supports(field, scene)) && (scene.BackgroundScrollPositions.Count == 0 || genericLinear) && scene.BackgroundScrollLayers.All(pair => BackgroundScrollCertificate.CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex));
+        if (!baseline)
         {
-            if (field.Id != 172 && field.Background.Any(tile => tile.Layer != 0))
-            {
-                throw new NotSupportedException("Normal multilayer tracking requires its original nonwrapping baseline without unsupported scroll state.");
-            }
-            return null;
-        }
-        if (!baseline || field.Id == 165 && (camera.FocalLength != 686 || information!.CameraHeight != 200 || information.CameraBounds.Any(bounds => bounds != new FieldBounds(-184, 184, 184, -184)) || Convert.ToHexString(SHA256.HashData(field.Jsm)) != "CF9C03471CD1935945606D9B12895F5789BB09755D6A80153A14007F3A1A0106"))
-        {
-            throw new NotSupportedException("Normal camera tracking requires its original single-layer baseline without scripted camera state.");
-        }
-        if (field.Id == 165 && (camera.AxisX != new Vector3(4058 / 4096f, 551 / 4096f, -1 / 4096f) || camera.AxisY != new Vector3(182 / 4096f, -1351 / 4096f, -3863 / 4096f) || camera.AxisZ != new Vector3(-521 / 4096f, 3827 / 4096f, -1363 / 4096f) || camera.Translation != new Vector3(883, -1917, 14813)))
-        {
-            throw new NotSupportedException("Normal Garden camera tracking requires the original165 matrix and translation.");
+            throw new NotSupportedException("Normal camera tracking requires the current native loader, supported camera metadata and supported scroll state.");
         }
         int[] partyActors = scene.FieldPartyNativeActorIds.TakeWhile(id => id != 255).ToArray();
         if (scene.NativeActorLayoutVersion != 1 || scene.FieldPartyNativeActorIds.Count != 3 || partyActors.Length == 0 || partyActors.Distinct().Count() != partyActors.Length || scene.FieldPartyNativeActorIds.Skip(partyActors.Length).Any(id => id != 255) || partyActors.Any(id => (uint)id >= scene.NativeActorObjectIds.Count) || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count)

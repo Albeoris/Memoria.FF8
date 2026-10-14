@@ -14,6 +14,7 @@ internal sealed class RecreateGame : Game
     private readonly GameSession session;
     private readonly GraphicsDeviceManager graphics;
     private readonly KeyboardInput keyboard = new();
+    private readonly GameplayClock gameplayClock = new();
     private readonly MovieClock movieClock;
     private FieldAudioPresentation? fieldAudio;
     private bool resumeFieldMusic;
@@ -85,11 +86,12 @@ internal sealed class RecreateGame : Game
     {
         long updateStarted = Stopwatch.GetTimestamp();
         InputFrame input = keyboard.Read(IsActive);
-        controls?.Poll();
-        if (!saveMenu.IsOpen)
+        if (keyboard.SpeedToggleRequested)
         {
-            world?.AdvanceDebug(gameTime.ElapsedGameTime);
+            gameplayClock.ToggleSpeed();
+            Window.Title = gameplayClock.SpeedMultiplier == 1 ? "Memoria - Final Fantasy VIII" : "Memoria - Final Fantasy VIII (events x3)";
         }
+        controls?.Poll();
         updateFrames++;
         if (options.ExitAfterFrames is int frames && updateFrames >= frames)
         {
@@ -107,6 +109,8 @@ internal sealed class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
+        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene);
+        world?.AdvanceDebug(gameplayElapsed);
         if (session.State.Scene == SceneKind.Title)
         {
             if (input.MenuVertical != 0)
@@ -135,11 +139,11 @@ internal sealed class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.WorldMap)
         {
-            UpdateWorldMap(gameTime, input);
+            UpdateWorldMap(gameplayElapsed, input);
         }
         else
         {
-            UpdateField(gameTime, input);
+            UpdateField(gameplayElapsed, input);
         }
         if (session.State.Scene != SceneKind.Movie && movie is not null)
         {
@@ -239,7 +243,7 @@ internal sealed class RecreateGame : Game
         }
     }
 
-    private void UpdateField(GameTime gameTime, InputFrame input)
+    private void UpdateField(TimeSpan elapsed, InputFrame input)
     {
         if (fieldFaulted && field?.Id == session.State.FieldId)
         {
@@ -301,7 +305,7 @@ internal sealed class RecreateGame : Game
                 fieldSeconds = 0;
                 return;
             }
-            fieldSeconds += options.ControlStep ? 0 : gameTime.ElapsedGameTime.TotalSeconds;
+            fieldSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;
             while (fieldSeconds + 1e-9 >= 1d / EventEngine.SimulationFps)
             {
                 fieldSeconds -= 1d / EventEngine.SimulationFps;
@@ -345,7 +349,7 @@ internal sealed class RecreateGame : Game
         }
     }
 
-    private void UpdateWorldMap(GameTime gameTime, InputFrame input)
+    private void UpdateWorldMap(TimeSpan elapsed, InputFrame input)
     {
         if (fieldFaulted)
         {
@@ -361,7 +365,7 @@ internal sealed class RecreateGame : Game
                 error = null;
                 Console.WriteLine($"loaded=world entry={session.State.WorldArrival}");
             }
-            fieldSeconds += options.ControlStep ? 0 : gameTime.ElapsedGameTime.TotalSeconds;
+            fieldSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;
             while (fieldSeconds + 1e-9 >= 1d / WorldMapScene.SimulationFps)
             {
                 fieldSeconds -= 1d / WorldMapScene.SimulationFps;
@@ -653,6 +657,7 @@ internal sealed class RecreateGame : Game
             FieldRenderFaulted = fieldRenderFaulted,
             LastFault = events?.LastFault,
             Performance = metrics.Latest,
+            EventSpeedMultiplier = gameplayClock.SpeedMultiplier,
             DebugPresentation = session.State.DebugView,
             DebugActionLog = world?.DebugActions,
             Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names) : null } : null,
@@ -713,7 +718,7 @@ internal sealed class RecreateGame : Game
         {
             try
             {
-                UploadField(gameTime.TotalGameTime);
+                UploadField(gameplayClock.Total);
                 if (shakeRenderDeferred)
                 {
                     shakeRenderDeferred = false;

@@ -110,9 +110,9 @@ public sealed partial class EventEngine
         {
             ActorState player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0) ?? throw new InvalidDataException("Recorded navigation requires the live current-code player actor.");
             bool completedNativePlacement = HasCompletedNativeNavigationOrigin(player);
-            if (!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested || FieldId != stimulus.Start.FieldId || player.X != stimulus.Start.X || player.Y != stimulus.Start.Y || player.Z != stimulus.Start.Z || player.WalkmeshTriangle != stimulus.Start.Triangle && !completedNativePlacement)
+            if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || FieldId != stimulus.Start.FieldId || player.X != stimulus.Start.X || player.Y != stimulus.Start.Y || player.Z != stimulus.Start.Z || player.WalkmeshTriangle != stimulus.Start.Triangle && !completedNativePlacement)
             {
-                throw new InvalidDataException($"Recorded navigation does not match the current causal starting pose or control boundary at field{FieldId}/frame{Frame}: control={IsUserControlEnabled}, dialogue={IsDialogueBlocking}, movie={services.IsMoviePlaying}, transition={transitionRequested}; expected({stimulus.Start.X},{stimulus.Start.Y},{stimulus.Start.Z},tri{stimulus.Start.Triangle}), actual({player.X},{player.Y},{player.Z},tri{player.WalkmeshTriangle}).");
+                throw new InvalidDataException($"Recorded navigation does not match the current causal starting pose or control boundary at field{FieldId}/frame{Frame}: control={IsUserControlEnabled}, dialogue={IsMovementBlockedByDialogue}, movie={services.IsMoviePlaying}, transition={transitionRequested}, currentDialogue={CurrentDialogue}, nativeMove={player.NativeScriptMovement}, split={partySplit}; expected({stimulus.Start.X},{stimulus.Start.Y},{stimulus.Start.Z},tri{stimulus.Start.Triangle}), actual({player.X},{player.Y},{player.Z},tri{player.WalkmeshTriangle}).");
             }
             ReplayPlayerPose end = stimulus.End;
             FieldFixedPosition? fixedPosition = end.FixedX is int fixedX ? new FieldFixedPosition(fixedX, end.FixedY!.Value, end.FixedZ!.Value) : null;
@@ -136,7 +136,7 @@ public sealed partial class EventEngine
             }
             CommitNativeLineMovement(lineChanges);
             advanced++;
-            if ((!IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying || transitionRequested) && advanced != entry.Navigation.Length)
+            if ((!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested) && advanced != entry.Navigation.Length)
             {
                 throw new InvalidDataException("Current scripts reached a causal trigger before the recorded navigation ended.");
             }

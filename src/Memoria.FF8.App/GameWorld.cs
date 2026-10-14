@@ -103,10 +103,6 @@ internal sealed partial class GameWorld : IDisposable
         {
             LoadField(departing.GetProperty("FieldId").GetInt32(), null, departing, restoreDeparting: true);
         }
-        if (NativeScriptBattleFlagMigration.UpgradeRetainedArrival(session.State, assets.NativeRuntimeProfile) is NativeWorldControlState migratedControls)
-        {
-            session.SetWorldControls(migratedControls);
-        }
         LoadField(session.State.FieldId, session.State.FieldArrival, session.State.EventState);
         session.SetDepartingFieldState(null);
         return true;
@@ -137,7 +133,7 @@ internal sealed partial class GameWorld : IDisposable
         };
         Events.ResolveWalkmesh = (x, y) => next.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, Events.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
         Events.CanSetBackgroundScroll = (layer, settings) => BackgroundScrollCertificate.CanSetForState(next, Events.Scene, Events.Actors, layer, settings);
-        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || BackgroundScrollCertificate.CanSetPosition(next, layer, x, y, Events.Scene.CameraIndex) && BackgroundScrollCertificate.Supports(next, Events.Scene);
+        Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y);
         Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
@@ -150,18 +146,9 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeTriangleCentroid = triangle => FieldPartyTraceGeometry.ResolveTriangleCentroid(next.Walkmesh, triangle);
         Events.CanUseNativeFieldEntryStack = arrival => NativeFieldEntryStackAdapter.Supports(next, arrival);
         Events.NativeFieldWalkmeshHash = next.WalkmeshHash;
-        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeLinearBackgroundScrollCertificate.CanSet(next, query) || NativeField135LinearScrollCertificate.CanSet(next, query);
-        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeField135LinearScrollCertificate.SupportsPhase(next, scene);
-        Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeField135LinearScrollCertificate.CanSet(next, query) && scene.BackgroundScrollLayers.Count == 0 && (scene.BackgroundScrollPositions.Count == 0 || NativeField135LinearScrollCertificate.SupportsPhase(next, scene));
-        Events.ResolvePartyJoinStep = query =>
-        {
-            FieldNativeWalkmeshPosition? resolved = FieldNativeWalkmeshProbe.ResolveFlatStep(next.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, Events.Scene.LockedTriangles);
-            if (resolved is not FieldNativeWalkmeshPosition point || point.NativeHeight * 4096 != query.FixedZ)
-            {
-                return null;
-            }
-            return new WalkmeshPosition(new Vector3(point.FixedX / 4096f, point.FixedY / 4096f, point.NativeHeight), point.Triangle);
-        };
+        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeLinearBackgroundScrollCertificate.CanSet(next, query);
+        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeLinearBackgroundScrollCertificate.SupportsPhase(next, scene);
+        Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeLinearBackgroundScrollCertificate.CanBegin(next, query, scene);
         Events.CanUseNativeJoinMovement = actor => NativeJoinMovementAdapter.Supports(next, Events.Scene, actor);
         Events.ResolveNativeJoinMovement = query => NativeJoinMovementAdapter.Resolve(next, Events.Scene, query);
         Events.CanUseNativePlayerMovement = actor => NativePlayerMovementAdapter.Supports(next, Events.Scene, actor);
@@ -222,7 +209,7 @@ internal sealed partial class GameWorld : IDisposable
             return worldScene!.Render(renderWidth, renderHeight);
         }
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
-        BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NativeField135LinearScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? BackgroundScrollCertificate.Prepare(Field!, Events.Scene);
+        BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeLinearBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
         DebugSceneView? view = session.State.DebugView;
         if (Events.Scene.Shake is NativeFieldShake shake)
         {

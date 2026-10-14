@@ -59,6 +59,9 @@ public sealed partial class EventEngine
     }
     public bool IsDialogueOpen => dialogues.Count != 0;
     public bool IsDialogueBlocking => dialogues.Values.Any(dialogue => dialogue.CanConfirm);
+    // Native4767B0 forwards held directional input to4789A0 independently of
+    // plain-text window masks. Choices/naming retain their host input ownership.
+    public bool IsMovementBlockedByDialogue => dialogues.Values.Any(dialogue => dialogue.FirstChoice is not null || dialogue.IsNamePrompt);
     public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values;
     public bool CanConfirmDialogue => dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
     public DialogueState? CurrentDialogue { get; private set; }
@@ -242,38 +245,21 @@ public sealed partial class EventEngine
         {
             Scene.NativeFieldInitialization = initialization with { Stage = NativeFieldInitializationStage.Initializing };
         }
-        StepJoinedCompanions();
         StepStationaryPartyTrace();
         SampleMoviePlayback();
         StepInputAxis();
         foreach (ActorState actor in actors)
         {
-            if (actor.MovementActorId is int targetId)
-            {
-                actor.InvalidateNativeMotionAuthority();
-                ActorState targetActor = actors[targetId];
-                Vector3 position = new(actor.X, actor.Y, actor.Z);
-                Vector3 target = new(targetActor.X, targetActor.Y, targetActor.Z);
-                Vector3 delta = target - position;
-                if (delta.Length() <= actor.MovementStopDistance)
-                {
-                    actor.MovementActorId = null;
-                    actor.MovementTarget = null;
-                }
-                else
-                {
-                    actor.MovementTarget = target - Vector3.Normalize(delta) * actor.MovementStopDistance;
-                }
-            }
-            actor.Step();
+            actor.StepRotation();
             StepFaceDirection(actor);
         }
-        StepLegacyBackgroundAnimations();
         StepVisualTransitions();
         StepBackgroundShadeLoops();
         int currentGeneration = generation;
         foreach (ActorState actor in NativeCallbackActors())
         {
+            // Native529FF0 advances animation on this actor's actual turn before its VM.
+            actor.StepAnimation();
             DispatchNativePushContact(actor);
             DispatchInfAreaEntry(actor);
             DispatchNativeLineCrossing(actor);
@@ -424,7 +410,7 @@ public sealed partial class EventEngine
         }
         else
         {
-            Queue(objectId, obj.Scripts[2].Id, 1, false);
+            throw new NotSupportedException("Talk requests require the shared native actor slot7 scheduler.");
         }
         return true;
     }
@@ -440,7 +426,7 @@ public sealed partial class EventEngine
 
     private IReadOnlyList<NativeLineContactChange> MovePlayerCore(float x, float y, float z, int walkmeshTriangle, FieldFixedPosition? nativePosition = null, int? nativeDirection = null, bool nativeMovement = false, FieldFixedPosition? nativeTriggerPosition = null)
     {
-        if (program is null || transitionRequested || !IsUserControlEnabled || IsDialogueBlocking || services.IsMoviePlaying)
+        if (program is null || transitionRequested || !IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying)
         {
             return [];
         }
@@ -529,6 +515,7 @@ public sealed partial class EventEngine
             {
                 return 0;
             }
+            bool nativeDialogueCompleted = fiber.WaitReason == WaitReason.Dialogue && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.AMESW or Jsm.Opcode.AASK;
             bool nativeRequestCompleted = NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && fiber.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
             if (fiber.WaitReason == WaitReason.MinimalMenu)
             {
@@ -540,7 +527,12 @@ public sealed partial class EventEngine
             }
             fiber.WaitReason = WaitReason.None;
             fiber.Request = null;
-            if (nativeRequestCompleted)
+            if (nativeDialogueCompleted)
+            {
+                // Native closing return3 consumes the held operation and yields.
+                fiber.DialogueChannel = -1;
+            }
+            if (nativeRequestCompleted || nativeDialogueCompleted)
             {
                 return 1;
             }
@@ -612,6 +604,24 @@ public sealed partial class EventEngine
     {
         fiber.WaitUntil = Frame + Math.Max(0, count);
         fiber.WaitReason = WaitReason.Frames;
+    }
+
+    private bool WaitForNativeDialogueChannel(Fiber fiber, int operandCount, bool choice)
+    {
+        if (fiber.Stack.Count < operandCount)
+        {
+            return false;
+        }
+        int channel = fiber.Stack.ElementAt(operandCount - 1);
+        if (!dialogues.TryGetValue(channel, out DialogueState? opened) || choice && opened.FirstChoice is null)
+        {
+            return false;
+        }
+        // Native occupied return5 retains PC/issued bit; these handlers have
+        // not reduced388. Keep every original operand while yielding one turn.
+        fiber.Position--;
+        WaitFrames(fiber, 1);
+        return true;
     }
 
     private void ShowDialogue(Fiber fiber, DialogueState dialogue, bool wait)

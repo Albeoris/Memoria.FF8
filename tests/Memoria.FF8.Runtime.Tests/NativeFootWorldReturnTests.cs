@@ -255,6 +255,24 @@ public sealed class NativeFootWorldReturnTests
         }
     }
 
+    [Fact]
+    public void Foot_type1_commit_retains_the_packet_type_and_refuses_a_type0_receipt()
+    {
+        GameState source = Session().State;
+        NativeFootWorldRuntimeState runtime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(source.SavedWorld!, 1);
+        var session = new GameSession(source with { WorldArrival = new WorldTransition(0, 1, 0), World = source.World! with { NativeFootRuntime = runtime } });
+        GameState before = session.State;
+        WorldState final = Final(before.World!, 1);
+        NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(final, 159, 17, 1);
+        FieldTransition transition = new(136, 175, -2269, 12, 128);
+        Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, transition, receipt with { EntityType105 = 0 }, Accept));
+        Assert.Same(before, session.State);
+        session.CommitPreparedWorldFieldEntry(before, final, transition, receipt, Accept);
+        Assert.Equal((byte)1, session.State.SavedWorld!.FootReturn!.EntityType105);
+        Assert.Equal((byte)1, session.State.DepartingWorldState!.NativeFootRuntime!.EntityType);
+        Assert.Equal((byte)1, session.State.WorldConfiguration!.EntityByte);
+    }
+
     private static WorldState World()
     {
         return new WorldState
@@ -265,6 +283,7 @@ public sealed class NativeFootWorldReturnTests
             NativeHeight = -691,
             BodyYaw = 3840,
             CameraYaw = 2048,
+            NativeFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame()),
             GroundType = 6,
             Actions = [new WorldActionRecord(1, 100, "Move", 1, 0, 100, 100, 30240, -29393, -691)]
         };

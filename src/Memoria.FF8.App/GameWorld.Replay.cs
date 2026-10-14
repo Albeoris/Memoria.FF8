@@ -291,7 +291,7 @@ internal sealed partial class GameWorld
         }
         // A recorded decision owns its visible script site, not the old interpreter's callback latency.
         // Only real autonomous callbacks run here; no input, answer or snapshot value is injected.
-        for (int callback = 0; engine.CurrentDialogue is null; callback++)
+        for (int callback = 0; engine.CurrentDialogue is null || !engine.CurrentDialogue.CanConfirm; callback++)
         {
             if (callback == 30000 || engine.FieldId != entry.FieldId || engine.LastFault is not null || engine.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Movie)
             {
@@ -315,7 +315,7 @@ internal sealed partial class GameWorld
         DialogueState? dialogue = engine.CurrentDialogue;
         if (dialogue is null || dialogue.MessageId != entry.MessageId || dialogue.ObjectId != entry.ObjectId || dialogue.ScriptId != entry.ScriptId || dialogue.Operation != entry.Operation)
         {
-            throw new InvalidDataException($"Replay decision no longer matches its original dialogue/script site: expected {entry.MessageId}/{entry.ObjectId}/{entry.ScriptId}/{entry.Operation}, actual {dialogue?.MessageId}/{dialogue?.ObjectId}/{dialogue?.ScriptId}/{dialogue?.Operation} at field{engine.FieldId}/frame{engine.Frame}.");
+            throw new InvalidDataException($"Replay decision no longer matches its original dialogue/script site: expected {entry.MessageId}/{entry.ObjectId}/{entry.ScriptId}/{entry.Operation}, actual {dialogue?.MessageId}/{dialogue?.ObjectId}/{dialogue?.ScriptId}/{dialogue?.Operation} at field{engine.FieldId}/frame{engine.Frame}, open[{string.Join("; ", engine.Dialogues.Select(window => $"channel{window.Channel}/{window.MessageId}/{window.ObjectId}/{window.ScriptId}/{window.Operation}/confirm{window.CanConfirm}"))}].");
         }
     }
 

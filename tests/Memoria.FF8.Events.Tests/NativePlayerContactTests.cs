@@ -32,7 +32,7 @@ internal static partial class Program
                     return null;
                 }
                 FieldNativeMovementProposal proposal = result.Proposals[0];
-                return new NativePlayerMovementResult(result.FixedX, result.FixedY, result.FixedZ, result.Triangle, result.Direction, new[] { new NativeJoinMovementProposal(proposal.FixedX, proposal.FixedY, proposal.Direction) }, proposal.FanProbes.Select(probe => new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight!.Value)).ToArray());
+                return new NativePlayerMovementResult(result.FixedX, result.FixedY, result.FixedZ, result.Triangle, result.Direction, new[] { new NativeJoinMovementProposal(proposal.FixedX, proposal.FixedY, proposal.Direction) }, [proposal.FanProbes.Select(probe => new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight!.Value)).ToArray()]);
             };
             engine.LoadField(172, field.Jsm, field.Messages, session.State.FieldArrival);
             JsonNode saved = JsonNode.Parse(session.State.EventState!.Value.GetRawText())!;
@@ -102,7 +102,7 @@ internal static partial class Program
         raisedPlane.ResolveNativePlayerMovement = query =>
         {
             NativePlayerMovementResult result = real(query)!;
-            return result with { GroundProbes = result.GroundProbes!.Select(probe => probe with { NativeHeight = 1000 }).ToArray() };
+            return result with { ProposalGroundProbes = [result.ProposalGroundProbes![0].Select(probe => probe with { NativeHeight = 1000 }).ToArray()] };
         };
         raisedPlane.Apply(north);
         Require(!raisedPlane.Actors[6].NativePushContactPending, "Player contact used source/centre height instead of each supplied native fan plane.");
@@ -114,10 +114,10 @@ internal static partial class Program
             invalid.ResolveNativePlayerMovement = query =>
             {
                 NativePlayerMovementResult result = resolver(query)!;
-                NativePlayerGroundProbe[] probes = result.GroundProbes!.ToArray();
+                NativePlayerGroundProbe[] probes = result.ProposalGroundProbes![0].ToArray();
                 if (malformed == 0)
                 {
-                    return result with { GroundProbes = probes.Take(2).ToArray() };
+                    return result with { ProposalGroundProbes = [probes.Take(2).ToArray()] };
                 }
                 if (malformed == 1)
                 {
@@ -131,7 +131,7 @@ internal static partial class Program
                 {
                     probes[0] = probes[0] with { NativeHeight = short.MaxValue + 1 };
                 }
-                return result with { GroundProbes = probes };
+                return result with { ProposalGroundProbes = [probes] };
             };
             RefusesWithoutMutation(invalid, "Malformed native fan count/order/coordinate/height was accepted.");
         }

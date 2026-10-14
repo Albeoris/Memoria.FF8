@@ -84,13 +84,36 @@ public sealed class ClassroomCameraTransitionTests
         Assert.True(returnSeen);
         Assert.Null(world.Events.LastFault);
         GameState source = session.State with { EventState = world.Events.Capture() };
-        GameState recreated = GameWorld.RecreateSave(source, directory);
-        using GameWorld replay = new(new GameSession(recreated), directory, persistReplayJournal: false);
+        session.SetEventState(source.EventState!.Value);
+        string savePath = Path.Combine(Path.GetTempPath(), "Memoria.FF8-compact-classroom-" + Guid.NewGuid().ToString("N") + ".json");
+        GameState portable;
+        try
+        {
+            session.Save(savePath);
+            portable = GameSession.LoadReplaySource(savePath);
+        }
+        finally
+        {
+            File.Delete(savePath);
+        }
+        Assert.True(source.ReplayJournal!.Entries.Count(entry => entry.Kind == ReplayEntryKind.FieldLoad) >= 3);
+        Assert.All(source.ReplayJournal.Entries.TakeWhile(entry => entry.FieldId != 232), entry =>
+        {
+            Assert.Null(entry.StartPose);
+            Assert.Null(entry.EndPose);
+            Assert.DoesNotContain(entry.Receipts, receipt => receipt.Kind == ReplayReceiptKind.Branch);
+        });
+        Assert.Contains(source.ReplayJournal.Entries.Where(entry => entry.FieldId == 232), entry => entry.StartPose is not null);
+        GameState recreated = GameWorld.RecreateSave(portable, directory);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })), "Completed-visit compaction must reproduce the complete current GameState.");
+        var replaySession = new GameSession(recreated);
+        using GameWorld replay = new(replaySession, directory, persistReplayJournal: false);
         replay.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), replay.Apply(new PlayerAction(PlayerActionKind.Wait)));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { ReplayJournal = null, EventState = world.Events.Capture() }), JsonSerializer.SerializeToElement(replaySession.State with { ReplayJournal = null, EventState = replay.Events.Capture() })), "The next ordinary input must retain the complete reconstructed GameState.");
     }
 }

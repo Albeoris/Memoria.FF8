@@ -51,7 +51,7 @@ public sealed partial class EventEngine
             1, FieldId, programHash, Frame, accumulatedSeconds, randomState, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,
             colorStartFrame, colorEndFrame, colorStart, colorEnd, subtractColor, fadeStartFrame, fadeEndFrame, fadeStart, fadeEnd, backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget)).ToArray(),
-            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.LegacyProgress, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), new Dictionary<int, int>(variables), Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.NativeVariableValues is { Count: > 0 } nativeMemory ? new Dictionary<int, NativeMemoryValue>(nativeMemory) : null, services.CharacterVitals, services.CharacterAppearance);
+            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), new Dictionary<int, int>(variables), Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.NativeVariableValues is { Count: > 0 } nativeMemory ? new Dictionary<int, NativeMemoryValue>(nativeMemory) : null, services.CharacterVitals, services.CharacterAppearance);
         return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
     }
 
@@ -63,6 +63,11 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Event checkpoint does not match the loaded field/program or has invalid timing.");
         }
+        if (!snapshot.TryGetProperty("WorldControls", out _) || saved.WorldControls is null && services.WorldControls is not null)
+        {
+            throw new InvalidDataException("Saved VM must preserve its canonical world-control state; missing or unknown snapshot state cannot retain a different known service state.");
+        }
+        saved.WorldControls?.Validate();
         if (saved.Scene.MovieActors is NativeMovieActorLifecycle movieActors)
         {
             movieActors.Validate(saved.Frame);
@@ -95,6 +100,22 @@ public sealed partial class EventEngine
         if (saved.Scene.UnlockedTutorials.Any(id => (uint)id >= 128))
         {
             throw new InvalidDataException("Saved tutorial unlock ID is outside the native bitmap.");
+        }
+        JsonElement savedActorJson = snapshot.GetProperty("Actors");
+        for (int index = 0; index < saved.Actors.Length; index++)
+        {
+            if (!savedActorJson[index].TryGetProperty("FaceStateVersion", out _) || !savedActorJson[index].TryGetProperty("NativeBaseAnimationVersion", out _) || saved.Actors[index].FaceStateVersion != 1 || saved.Actors[index].NativeBaseAnimationVersion != 1)
+            {
+                throw new InvalidDataException("Saved actor lacks current native face or base animation provenance; recreate the authentic journal.");
+            }
+            if (saved.Frame == 0 && !saved.DefaultsStarted && saved.PendingArrival is not null && saved.Fibers.All(fiber => fiber.Initialization && !fiber.Started) && saved.Actors[index].WalkmeshTriangle == -1)
+            {
+                throw new InvalidDataException("Saved allocation contains the obsolete invented triangle sentinel; recreate the authentic journal.");
+            }
+        }
+        if (snapshot.GetProperty("Dialogues").EnumerateArray().Any(dialogue => !dialogue.TryGetProperty("CanConfirm", out _)))
+        {
+            throw new InvalidDataException("Saved dialogue lacks native confirmability; recreate the authentic journal.");
         }
         ValidatePreviousFieldCheckpoint(saved);
         ValidatePreviousWorldEntityCheckpoint(saved);
@@ -179,6 +200,14 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native push contact lacks its retained original actor/local script3.");
         }
+        if (saved.Actors.Any(actor => actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true }))
+        {
+            throw new InvalidDataException("Saved managed scripted movement is unsupported; recreate the authentic journal with native movement contracts.");
+        }
+        if (saved.PartyJoin is { UsesNativeMovement: false } || saved.PartySplit is { UsesNativeMovement: false })
+        {
+            throw new InvalidDataException("Saved flat-only party movement is unsupported; recreate the authentic journal with certified native geometry.");
+        }
         if (saved.Scene.FieldPartyNativeActorIds.Count != 0 && saved.Scene.NativeActorLayoutVersion != 1)
         {
             throw new InvalidDataException("Legacy refreshed party bindings predate native actor compaction. Replay player-performance-classroom-exit-preboundary-checkpoint.json before field139 loads; preserve this snapshot as diagnostic evidence.");
@@ -211,10 +240,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved global sound request does not match its original mapping, voice, pan or resource policy.");
         }
-        if (saved.BackgroundAnimations.Any(animation => animation.NativeVersion is < 0 or > 1 || FieldId is 180 or 181 && animation.Id == 0 && animation.NativeVersion == 0))
+        if (saved.BackgroundAnimations.Any(animation => animation.NativeVersion != 1))
         {
-            string replaySource = FieldId == 180 ? "field180-native-before-init.json" : "field181-side-start.json";
-            throw new InvalidDataException($"Legacy infirmary curtain state predates native arithmetic and timing. Replay ../fixtures{replaySource} from before its curtain animation.");
+            throw new InvalidDataException("Background animation requires the current native state contract; recreate this checkpoint from its authentic journal.");
         }
         if (saved.BackgroundAnimations.Any(animation => animation.NativeVersion == 1 && (animation.Speed is < short.MinValue or > short.MaxValue || animation.Counter is < short.MinValue or > short.MaxValue || animation.Position is < short.MinValue or > short.MaxValue)))
         {
@@ -333,7 +361,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native JOIN does not match its preserved caller, retained targets or movement state.");
         }
-        if (saved.PartyJoin is { UsesNativeMovement: true } nativeJoin && (nativeJoin.Targets.Length == 0 || nativeJoin.Targets.Any(target => (target.FixedX >> 12) is < short.MinValue or > short.MaxValue || (target.FixedY >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ & 4095) != 0 || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
+        if (saved.PartyJoin is { UsesNativeMovement: true } nativeJoin && (nativeJoin.Targets.Any(target => (target.FixedX >> 12) is < short.MinValue or > short.MaxValue || (target.FixedY >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ >> 12) is < short.MinValue or > short.MaxValue || (target.FixedZ & 4095) != 0 || saved.Actors[target.ObjectId].X != target.FixedX / 4096f || saved.Actors[target.ObjectId].Y != target.FixedY / 4096f || saved.Actors[target.ObjectId].Z != target.FixedZ / 4096f)))
         {
             throw new InvalidDataException("Saved native JOIN movement does not match its exact preserved raw companion coordinates.");
         }
@@ -354,7 +382,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native SPLIT does not match its preserved caller, raw party targets or reached movement context.");
         }
-        if (saved.PartySplit is { UsesNativeMovement: true } nativeSplit && (nativeSplit.Targets[0].ObjectId != nativeSplit.CallerObjectId || saved.Scene.NativeFieldInitialization is null && (nativeSplit.Targets.Length != 1 || saved.Scene.NativeActorObjectIds.Any(objectId => objectId != nativeSplit.CallerObjectId && saved.Actors[objectId].ModelId >= 0)) || saved.Scene.FieldPartyNativeActorIds.Count != 3 || saved.Scene.FieldPartyNativeActorIds[0] == byte.MaxValue || saved.Scene.FieldPartyNativeActorIds[0] >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[saved.Scene.FieldPartyNativeActorIds[0]] != nativeSplit.CallerObjectId || !saved.Scene.FieldPartyNativeActorIds.Where(index => index != byte.MaxValue).Select(index => index >= 0 && index < saved.Scene.NativeActorObjectIds.Count ? saved.Scene.NativeActorObjectIds[index] : -1).SequenceEqual(nativeSplit.Targets.Select(target => target.ObjectId)) || nativeSplit.Targets.Length > 1 && nativeSplit.Targets.Any(target => saved.Actors[target.ObjectId].CollisionEnabled) || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0)) || saved.Scene.NativePlayerPosition != new FieldFixedPosition(nativeSplit.Targets[0].FixedX, nativeSplit.Targets[0].FixedY, nativeSplit.Targets[0].FixedZ)))
+        if (saved.PartySplit is { UsesNativeMovement: true } nativeSplit && (nativeSplit.Targets[0].ObjectId != nativeSplit.CallerObjectId || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || saved.Scene.FieldPartyNativeActorIds.Count != 3 || saved.Scene.FieldPartyNativeActorIds[0] == byte.MaxValue || saved.Scene.FieldPartyNativeActorIds[0] >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[saved.Scene.FieldPartyNativeActorIds[0]] != nativeSplit.CallerObjectId || !saved.Scene.FieldPartyNativeActorIds.Where(index => index != byte.MaxValue).Select(index => index >= 0 && index < saved.Scene.NativeActorObjectIds.Count ? saved.Scene.NativeActorObjectIds[index] : -1).SequenceEqual(nativeSplit.Targets.Select(target => target.ObjectId)) || nativeSplit.Targets.Length > 1 && nativeSplit.Targets.Any(target => saved.Actors[target.ObjectId].CollisionEnabled) || nativeSplit.Targets.Any(target => new[] { target.FixedX, target.FixedY, target.FixedZ, target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (target.FixedZ & 4095) != 0 || new[] { target.TargetX, target.TargetY, target.TargetZ }.Any(value => (value & 4095) != 0)) || saved.Scene.NativePlayerPosition != new FieldFixedPosition(nativeSplit.Targets[0].FixedX, nativeSplit.Targets[0].FixedY, nativeSplit.Targets[0].FixedZ)))
         {
             throw new InvalidDataException("Saved native SPLIT requires its exact caller/party bindings, supported moving-peer flags and raw placement.");
         }
@@ -372,7 +400,7 @@ public sealed partial class EventEngine
         for (int index = 0; index < saved.Actors.Length; index++)
         {
             ActorState actor = saved.Actors[index];
-            if (actor.ObjectId != index || actor.Label != program.Objects[index].Label || !float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || !float.IsFinite(actor.AnimationFrame) || actor.NativeBaseAnimationVersion is < 0 or > 1 || actor.MovementActorId is int target && (uint)target >= actors.Count)
+            if (actor.ObjectId != index || actor.Label != program.Objects[index].Label || !float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || !float.IsFinite(actor.AnimationFrame) || actor.NativeBaseAnimationVersion != 1 || actor.MovementActorId is int target && (uint)target >= actors.Count)
             {
                 throw new InvalidDataException("Invalid saved actor state.");
             }
@@ -387,9 +415,7 @@ public sealed partial class EventEngine
         }
         if (saved.WorldControls is NativeWorldControlState savedControls)
         {
-            savedControls.Validate();
             // A complete VM snapshot restores this canonical service state too.
-            // Legacy missing/null metadata retains any separately proved upgrade.
             services.SetWorldControls(savedControls);
         }
         if (saved.NativeVariableValues is { Count: > 0 } || services.NativeVariableValues is { Count: > 0 })
@@ -465,29 +491,6 @@ public sealed partial class EventEngine
         fadeEnd = saved.FadeEnd;
         backgroundFps = saved.BackgroundFps;
         nameEntity = saved.NameEntity;
-        // Old snapshots did not distinguish the decoded animation baseline from
-        // a root0 approximation. Keep that fact explicit until a proved migration.
-        JsonElement savedActorJson = snapshot.GetProperty("Actors");
-        for (int index = 0; index < saved.Actors.Length; index++)
-        {
-            if (!savedActorJson[index].TryGetProperty("FaceStateVersion", out _))
-            {
-                saved.Actors[index].FaceStateVersion = 0;
-            }
-            if (!savedActorJson[index].TryGetProperty("NativeBaseAnimationVersion", out _))
-            {
-                // Legacy BASEANIME saved native walk/run IDs in these two fields.
-                // Keep the old phase explicit until an original command selects
-                // a complete native animation; no historical frame is invented.
-                saved.Actors[index].NativeBaseAnimationVersion = 0;
-            }
-            if (ResolveNativeTriangleHeight is not null && saved.Frame == 0 && !saved.DefaultsStarted && saved.PendingArrival is not null && saved.Fibers.All(fiber => fiber.Initialization && !fiber.Started) && saved.Actors[index].WalkmeshTriangle == -1)
-            {
-                // Original52BC00 calls530710 to zero fresh actor records before
-                // any init command. Old recreated frame0 used an invented -1.
-                saved.Actors[index].WalkmeshTriangle = 0;
-            }
-        }
         actors.Clear();
         preparedGlobalSounds.Clear();
         preparedFieldSounds.Clear();
@@ -501,14 +504,8 @@ public sealed partial class EventEngine
             variables.Add(key, value);
         }
         dialogues.Clear();
-        foreach (DialogueState originalDialogue in saved.Dialogues)
+        foreach (DialogueState dialogue in saved.Dialogues)
         {
-            DialogueState dialogue = originalDialogue;
-            JsonElement serializedDialogue = snapshot.GetProperty("Dialogues").EnumerateArray().Single(item => item.GetProperty("Channel").GetInt32() == dialogue.Channel);
-            if (!serializedDialogue.TryGetProperty("CanConfirm", out _) && (uint)dialogue.Operation < program.Operations.Count && program.Operations[dialogue.Operation].Opcode is Albeoris.Games.FF8.Jsm.Jsm.Opcode.AMES or Albeoris.Games.FF8.Jsm.Jsm.Opcode.MES)
-            {
-                dialogue = dialogue with { CanConfirm = saved.Fibers.Any(fiber => !fiber.Complete && fiber.WaitReason == WaitReason.Dialogue && fiber.DialogueChannel == dialogue.Channel) };
-            }
             dialogues.Add(dialogue.Channel, dialogue);
         }
         CurrentDialogue = saved.CurrentDialogueChannel is int channel ? dialogues.GetValueOrDefault(channel) : null;
@@ -520,7 +517,7 @@ public sealed partial class EventEngine
         backgroundAnimations.Clear();
         foreach (BackgroundCheckpoint animation in saved.BackgroundAnimations)
         {
-            backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, LegacyProgress = animation.Progress, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop });
+            backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop });
         }
         Scene = saved.Scene;
         partyJoin = saved.PartyJoin;
@@ -537,6 +534,6 @@ public sealed partial class EventEngine
     }
 
     private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveTarget = null);
-    private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, float Progress, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false);
+    private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false);
     private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, uint RandomState, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, long ColorStartFrame, long ColorEndFrame, Vector3 ColorStart, Vector3 ColorEnd, bool SubtractColor, long FadeStartFrame, long FadeEndFrame, float FadeStart, float FadeEnd, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, Dictionary<int, int> Variables, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<int, NativeMemoryValue>? NativeVariableValues = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterAppearance? CharacterAppearance = null);
 }

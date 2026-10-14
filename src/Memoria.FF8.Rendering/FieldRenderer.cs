@@ -24,7 +24,6 @@ public sealed partial class FieldRenderer
     public const int Height = 240;
     private const int NativeDrawingHeight = 224;
     private readonly FieldAssets field;
-    private readonly string programHash;
     private readonly byte[] pixels;
     private readonly float[] depth;
     private readonly bool[] actorWritten;
@@ -55,7 +54,6 @@ public sealed partial class FieldRenderer
             throw new ArgumentOutOfRangeException(nameof(outputWidth), "Render dimensions must be within 1..8192.");
         }
         this.field = field;
-        programHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(field.Jsm));
         if (!Enum.IsDefined(modelTextureSampling))
         {
             throw new ArgumentOutOfRangeException(nameof(modelTextureSampling));
@@ -144,24 +142,9 @@ public sealed partial class FieldRenderer
         {
             return;
         }
-        if (frame.NativeNormalVersion != 0)
+        if (frame.NativeNormalVersion is not (1 or 2) || !FieldNativeNormalBackgroundWrap.Validate(field, cameraIndex, actorOffset, offsets, frame))
         {
-            if (!FieldNativeNormalBackgroundWrap.Validate(field, cameraIndex, actorOffset, offsets, frame))
-            {
-                throw new NotSupportedException("Normal native tile wrapping requires its verified runtime, original normal periods, camera center and shared drawing offset.");
-            }
-            return;
-        }
-        // TODO(TD-003): replace this legacy scripted135 phase guard with the
-        // shared native linear-state contract
-        if (field.Id != 135 || frame.FieldId != field.Id || frame.ProgramHash != programHash || programHash != "4E838898400B0B44D1FFAD537A77FDD685111A7C25DF34366CD77CACE8A65344" || cameraIndex != 0 || actorOffset != Vector2.Zero || frame.Left != -192 || frame.Right != 176 || frame.Top != -144 || frame.Bottom != 128 || frame.Layers.IsDefault || frame.Layers.Length != 1)
-        {
-            throw new NotSupportedException("Native tile wrapping requires the proved original field135 zero-center source and origin window.");
-        }
-        FieldNativeBackgroundWrapLayer layer = frame.Layers[0];
-        if (layer.Layer != 1 || layer.OffsetX is < -351 or > 0 || layer.OffsetY != 0 || layer.PeriodX != 352 || layer.PeriodY != 96)
-        {
-            throw new NotSupportedException("Native field135 tile wrapping requires its original layer1 phase and signed periods.");
+            throw new NotSupportedException("Native tile wrapping requires the current normal or linear contract, original periods, camera center and shared drawing offset.");
         }
     }
 
@@ -190,7 +173,7 @@ public sealed partial class FieldRenderer
                 FieldNativeBackgroundTileOrigin? origin = FieldNativeBackgroundTileProbe.Relocate((short)tile.X, (short)tile.Y, layer, frame);
                 if (origin is FieldNativeBackgroundTileOrigin placed)
                 {
-                    Vector2 shared = frame.NativeNormalVersion is 1 or 2 ? offsets.GetValueOrDefault(tile.Layer) : Vector2.Zero;
+                    Vector2 shared = offsets.GetValueOrDefault(tile.Layer);
                     rasters.Add(CreateTileRaster(tile, new Vector2(placed.X - tile.X, placed.Y - tile.Y) + shared));
                 }
             }

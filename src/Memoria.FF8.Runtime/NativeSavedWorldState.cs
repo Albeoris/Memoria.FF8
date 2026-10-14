@@ -4,8 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public enum NativeSavedWorldOriginKind
 {
-    NativeNewGame,
-    VerifiedLegacyNewGame
+    NativeNewGame
 }
 
 /// <summary>The original twelve-byte saved pose, with raw Z and unmodified native integer widths.</summary>
@@ -14,7 +13,8 @@ public sealed record NativeSavedWorldPose([property: JsonRequired] int X, [prope
 /// <summary>The stored shape ID is converted by native 546F90 before world-type comparisons.</summary>
 public sealed record NativeSavedWorldVehicleSlot([property: JsonRequired] byte ShapeId, [property: JsonRequired] NativeSavedWorldPose Pose);
 
-public sealed record NativeSavedWorldOrigin([property: JsonRequired] int ProofVersion, [property: JsonRequired] NativeSavedWorldOriginKind Kind, [property: JsonRequired] string InitializationRule, string? LegacyCheckpointSha256 = null);
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record NativeSavedWorldOrigin([property: JsonRequired] int ProofVersion, [property: JsonRequired] NativeSavedWorldOriginKind Kind, [property: JsonRequired] string InitializationRule);
 
 /// <summary>Known native549E80 foot-slot writes, with explicit unknown auxiliary bytes rather than invented saved history.</summary>
 public sealed record NativeSavedWorldFootReturn
@@ -57,7 +57,7 @@ public sealed record NativeSavedWorldFootReturn
     [JsonRequired]
     public required short MapLocationId { get; init; }
 
-    public static NativeSavedWorldFootReturn Create(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId, byte? animationVariant108 = null, byte? movementMode110 = null)
+    public static NativeSavedWorldFootReturn Create(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId, byte? animationVariant108 = null, byte? movementMode110 = null, byte entityType105 = 0)
     {
         ArgumentNullException.ThrowIfNull(world);
         if (world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.CameraYaw is < 0 or >= 4096)
@@ -74,7 +74,7 @@ public sealed record NativeSavedWorldFootReturn
             WorldMode = 0,
             Pose0 = new NativeSavedWorldPose(world.X, world.Z, (short)world.NativeHeight, (ushort)world.BodyYaw),
             CameraYaw96 = (ushort)world.CameraYaw,
-            EntityType105 = 0,
+            EntityType105 = entityType105,
             Channel106 = 255,
             Channel107 = 255,
             AnimationVariant108 = animationVariant108,
@@ -89,12 +89,12 @@ public sealed record NativeSavedWorldFootReturn
     {
         ArgumentNullException.ThrowIfNull(world);
         world.NativeFootRuntime?.Validate();
-        return Create(world, lastFieldId, storyWord, mapLocationId, world.NativeFootRuntime?.AnimationVariant, world.NativeFootRuntime?.MapDisplayMode);
+        return Create(world, lastFieldId, storyWord, mapLocationId, world.NativeFootRuntime?.AnimationVariant, world.NativeFootRuntime?.MapDisplayMode, world.NativeFootRuntime?.EntityType ?? throw new NotSupportedException("Native foot departure requires its executed world-entry entity type."));
     }
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || Rule != SaveRule || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 != 0 || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || Rule != SaveRule || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 > 1 || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }
@@ -120,8 +120,6 @@ public sealed record NativeSavedWorldState
     public const int CurrentSchemaVersion = 1;
     public const int CurrentProofVersion = 1;
     public const string NewGameInitializationRule = "ff8-en-newgame-4e43fc-56d9f0-56da10-v1";
-    public const string LegacyCheckpoint265Sha256 = "3b78a5a2af71c9af981d71b713f504778ce06183f0ab6f7a8e3fc5aba1da0a92";
-    public const string LegacyCheckpoint300Sha256 = "6c56643212e0151bfcfb01b6471d7b347800786a90f43a8059a199d38506673c";
 
     public required int SchemaVersion { get; init; }
     public required NativeSavedWorldOrigin Origin { get; init; }
@@ -136,8 +134,8 @@ public sealed record NativeSavedWorldState
     public NativeSavedWorldCarReturn? CarReturn { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldBoatReturn? BoatReturn { get; init; }
-    /// <summary>Native New Game whole-save zeroing proves saved-world +110 initially0; missing historical serialization stays absent until an actual fresh loader consumes its original initialization proof.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    /// <summary>Saved-world +110 initialized by native New Game whole-save zeroing.</summary>
+    [JsonRequired]
     public byte? InitialMapDisplayMode110 { get; init; }
 
     public byte ReadMapDisplayModeForFreshFootLoader()
@@ -156,10 +154,7 @@ public sealed record NativeSavedWorldState
             receipt.RequireCompleteFootReload();
             return receipt.MovementMode110!.Value;
         }
-        // Both validated origin kinds prove the native whole-save zero/init.out
-        // chain before the first world visit. Only an executed fresh loader calls
-        // this method; deserialization and existing WorldState restore do not.
-        return InitialMapDisplayMode110 ?? 0;
+        return InitialMapDisplayMode110!.Value;
     }
 
     public NativeSavedWorldState WithFootReturn(NativeSavedWorldFootReturn receipt)
@@ -209,29 +204,11 @@ public sealed record NativeSavedWorldState
         return CreateInitial(new NativeSavedWorldOrigin(CurrentProofVersion, NativeSavedWorldOriginKind.NativeNewGame, NewGameInitializationRule));
     }
 
-    public static NativeSavedWorldState CreateVerifiedLegacyNewGame(string sha256)
-    {
-        if (!IsApprovedLegacyCheckpoint(sha256))
-        {
-            throw new InvalidDataException("The legacy checkpoint has no approved native New Game provenance.");
-        }
-        return CreateInitial(new NativeSavedWorldOrigin(CurrentProofVersion, NativeSavedWorldOriginKind.VerifiedLegacyNewGame, NewGameInitializationRule, sha256.ToLowerInvariant()));
-    }
-
-    public static bool IsApprovedLegacyCheckpoint(string? sha256)
-    {
-        return string.Equals(sha256, LegacyCheckpoint265Sha256, StringComparison.OrdinalIgnoreCase) || string.Equals(sha256, LegacyCheckpoint300Sha256, StringComparison.OrdinalIgnoreCase);
-    }
-
     public void Validate()
     {
         if (SchemaVersion != CurrentSchemaVersion || Origin is null || Origin.ProofVersion != CurrentProofVersion || !Enum.IsDefined(Origin.Kind) || Origin.InitializationRule != NewGameInitializationRule)
         {
             throw new InvalidDataException("Unsupported or invalid native saved-world provenance.");
-        }
-        if (Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame && Origin.LegacyCheckpointSha256 is not null || Origin.Kind == NativeSavedWorldOriginKind.VerifiedLegacyNewGame && !IsApprovedLegacyCheckpoint(Origin.LegacyCheckpointSha256))
-        {
-            throw new InvalidDataException("Invalid legacy checkpoint identity for native saved-world provenance.");
         }
         if (Slot4?.Pose is null || Slot5?.Pose is null)
         {
@@ -248,7 +225,7 @@ public sealed record NativeSavedWorldState
         {
             throw new InvalidDataException("Native car return disagrees with its retired vehicle slot.");
         }
-        if (InitialMapDisplayMode110 is not null and not 0)
+        if (InitialMapDisplayMode110 != 0)
         {
             throw new InvalidDataException("Native initial saved-world map-display authority differs from the New Game zeroing proof.");
         }

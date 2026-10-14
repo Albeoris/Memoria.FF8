@@ -18,6 +18,7 @@ internal static partial class Program
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["causal-replay"] = CausalReplayContract,
+                    ["native-jump-budget"] = NativeJumpBudgetContract,
                     ["map-jump-origin"] = NativeMapJumpOriginContract,
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
                     ["field-media"] = NativeFieldMediaContract,
@@ -68,6 +69,8 @@ internal static partial class Program
                     ["native-move-cancel"] = NativeMovementCancellationContract,
                     ["native-push-radius"] = NativePushRadiusContract,
                     ["native-empty-model-move"] = NativeEmptyModelMovementContract,
+                    ["native-dialogue-busy"] = NativeDialogueBusyContract,
+                    ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
                     ["native-meaningful-contact"] = NativeMeaningfulContactContract,
                     ["native-rmovea"] = NativeRmMoveActorContract,

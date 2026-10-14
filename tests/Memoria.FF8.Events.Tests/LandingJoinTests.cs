@@ -25,11 +25,6 @@ internal static partial class Program
                 ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z)
             };
             result.LoadField(137, field.Jsm, field.Messages);
-            result.ResolvePartyJoinStep = query =>
-            {
-                FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(field.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, result.Scene.LockedTriangles);
-                return point is FieldNativeWalkmeshPosition native && native.NativeHeight * 4096 == query.FixedZ ? new WalkmeshPosition(new Vector3(native.FixedX / 4096f, native.FixedY / 4096f, native.NativeHeight), native.Triangle) : null;
-            };
             result.Restore(session.State.EventState!.Value);
             return result;
         }

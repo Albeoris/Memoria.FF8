@@ -16,7 +16,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (Scene.NativeActorLayoutVersion != 1 || program.Objects.Where(obj => obj.IsDoor).Any(obj => !ValidNativeDoorState(actors[obj.Index], Frame, false)))
+        if (Scene.NativeActorLayoutVersion != 1 || program.Objects.Where(obj => obj.IsDoor).Any(obj => !ValidNativeDoorState(actors[obj.Index], Frame)))
         {
             throw new NotSupportedException($"Fresh field{FieldId} door initialization does not match its executed original SETLINE owners.");
         }
@@ -31,7 +31,7 @@ public sealed partial class EventEngine
         }
     }
 
-    private bool ValidNativeDoorState(ActorState line, long frame, bool allowLiteralLegacy)
+    private bool ValidNativeDoorState(ActorState line, long frame)
     {
         if (program is null || (uint)line.ObjectId >= program.Objects.Count || !program.Objects[line.ObjectId].IsDoor)
         {
@@ -41,7 +41,7 @@ public sealed partial class EventEngine
         {
             return !line.LineEnabled && !line.LineContact && !line.NativeLineCrossingPending && line.NativeLineContactVersion == 0;
         }
-        return ValidNativeSetLine(line, frame, allowLiteralLegacy);
+        return ValidNativeSetLine(line, frame);
     }
 
     private IReadOnlyList<NativeLineContactChange> PrepareNativeDoorMovement(ActorState player, FieldFixedPosition proposal, int direction)
@@ -58,7 +58,7 @@ public sealed partial class EventEngine
         List<NativeLineContactChange> changes = [];
         foreach (ActorState line in actors.Where(line => program!.Objects[line.ObjectId].IsDoor && line.LineEnabled))
         {
-            if (!ValidNativeDoorState(line, Frame, Scene.NativeFieldInitialization is null) || line.NativeLineContactVersion == 1)
+            if (!ValidNativeDoorState(line, Frame) || line.NativeLineContactVersion == 1)
             {
                 throw new NotSupportedException($"Native field{FieldId} door state lacks its fresh original endpoints and event schema; original movement preserved.");
             }
@@ -133,7 +133,7 @@ public sealed partial class EventEngine
     private void ValidateNativeDoorAdmission(int objectId, byte events, bool contact)
     {
         ActorState line = actors[objectId];
-        if (!ValidNativeDoorState(line, Frame, Scene.NativeFieldInitialization is null) || (events & ~31) != 0)
+        if (!ValidNativeDoorState(line, Frame) || (events & ~31) != 0)
         {
             throw new NotSupportedException("Native door V2 pending event lacks its original owner or byte flags; original state preserved.");
         }
@@ -319,7 +319,7 @@ public sealed partial class EventEngine
     {
         foreach (ActorState line in saved.Actors.Where(actor => actor.NativeSetLineReceipt is not null))
         {
-            if (!ValidNativeSetLine(line, saved.Frame, false))
+            if (!ValidNativeSetLine(line, saved.Frame))
             {
                 throw new InvalidDataException("Saved SETLINE execution receipt does not match its original owner, source, command or signed endpoints.");
             }
@@ -339,12 +339,12 @@ public sealed partial class EventEngine
         foreach (ActorState line in saved.Actors.Where(line => program!.Objects[line.ObjectId].IsDoor))
         {
             byte events = saved.Scene.NativeDoorPendingEvents.GetValueOrDefault(line.ObjectId);
-            if (!ValidNativeDoorState(line, saved.Frame, saved.Scene.NativeFieldInitialization is null) || line.NativeLineContactVersion == 1 || (events & ~31) != 0 || events != 0 && line.NativeLineContactVersion != 2 || line.NativeLineCrossingPending != ((events & NativeDoorCrossing) != 0) || line.NativeLineFacingContact == true && line.NativeLineFacingDirection is null)
+            if (!ValidNativeDoorState(line, saved.Frame) || line.NativeLineContactVersion == 1 || (events & ~31) != 0 || events != 0 && line.NativeLineContactVersion != 2 || line.NativeLineCrossingPending != ((events & NativeDoorCrossing) != 0) || line.NativeLineFacingContact == true && line.NativeLineFacingDirection is null)
             {
                 throw new InvalidDataException("Native door V2 saved owner, contact schema or crossing mirror does not match its pending flags.");
             }
         }
-        if (saved.Scene.NativeDoorPendingEvents.Any(pair => pair.Value == 0 || !saved.Actors.Any(line => line.ObjectId == pair.Key && ValidNativeDoorState(line, saved.Frame, saved.Scene.NativeFieldInitialization is null))))
+        if (saved.Scene.NativeDoorPendingEvents.Any(pair => pair.Value == 0 || !saved.Actors.Any(line => line.ObjectId == pair.Key && ValidNativeDoorState(line, saved.Frame))))
         {
             throw new InvalidDataException("Native door V2 pending event names an unknown original door.");
         }

@@ -73,11 +73,10 @@ public sealed partial class EventEngine
             return running.FiberSequence == fiber.Sequence && running.Operation == fiber.Position && CanUseNativeScriptMove?.Invoke(actor) == true && ResolveNativeScriptDirection is not null && ResolveNativeScriptMovement is not null && actor.X == running.FixedX / 4096f && actor.Y == running.FixedY / 4096f && actor.Z == running.FixedZ / 4096f && actor.WalkmeshTriangle == running.Triangle && actor.Direction == running.FacingDirection ? null : "Persisted native MOVE requires its original owner, raw placement and certified movement adapters";
         }
         bool replacingAsync = replacingRequest || actor.NativeScriptMovement is { Active: true, Asynchronous: true };
-        bool directCavernMove = FieldId == 129 && actor.ObjectId == 5 && actor.CharacterId == 3 && actor.MovementDirectionLimit == 0 && actor.NativeMotionAuthority is { Version: 1, FacingHold: 0 };
         bool actorTarget = program.Operations[fiber.Position].Opcode is Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA;
-        if (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || !replacingAsync && actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null && !actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed is <= 0 or > short.MaxValue || !directCavernMove && actor.Direction != MathF.Truncate(actor.Direction) || !float.IsFinite(actor.Direction) || actor.Direction is < 0 or > 255 || fiber.Stack.Count < (actorTarget ? 2 : 4))
+        if (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || !replacingAsync && actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null && !actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed is <= 0 or > short.MaxValue || actor.Direction != MathF.Truncate(actor.Direction) || !float.IsFinite(actor.Direction) || actor.Direction is < 0 or > 255 || fiber.Stack.Count < (actorTarget ? 2 : 4))
         {
-            return $"Native MOVE requires its certified retained actor, original body direction, completed prior motion and signed speed (certified={CanUseNativeScriptMove?.Invoke(actor)}, retained={Scene.NativeActorObjectIds.Contains(actor.ObjectId)}, direction={actor.Direction}, speed={actor.MovementSpeed}, radius={actor.PushRadius}, target={actor.MovementTarget}, followTarget={actor.MovementActorId}, rotation={actor.RotationTarget}, operands={fiber.Stack.Count}, replacement={replacingAsync})";
+            return $"Native MOVE requires its certified retained actor, original body direction, completed prior motion and signed speed (certified={CanUseNativeScriptMove?.Invoke(actor)}, retained={Scene.NativeActorObjectIds.Contains(actor.ObjectId)}, direction={actor.Direction}, speed={actor.MovementSpeed}, radius={actor.PushRadius}, model={actor.ModelId}, authority={actor.NativeMotionAuthority}, initialization={Scene.NativeFieldInitialization}, target={actor.MovementTarget}, followTarget={actor.MovementActorId}, rotation={actor.RotationTarget}, operands={fiber.Stack.Count}, replacement={replacingAsync})";
         }
         if (!HasNativeEmptyAnimationModel(actor) && (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.ModelId, animation) is not > 0)))
         {
@@ -90,11 +89,7 @@ public sealed partial class EventEngine
         }
         try
         {
-            NativeScriptMovementState first = PrepareNativeScriptStep(actor, CreateNativeScriptMove(fiber), issuing: true);
-            if (actor.Direction != MathF.Truncate(actor.Direction) && first.Completion != 1)
-            {
-                return "Fractional prior facing requires an executed direct-direction MOVE step that overwrites native body577";
-            }
+            PrepareNativeScriptStep(actor, CreateNativeScriptMove(fiber), issuing: true);
             return null;
         }
         catch (NotSupportedException exception)
@@ -124,6 +119,14 @@ public sealed partial class EventEngine
         if (actor.NativeJoinedPosition is { } joined && actor.X == joined.FixedX / 4096f && actor.Y == joined.FixedY / 4096f && actor.Z == joined.FixedZ / 4096f && actor.WalkmeshTriangle == joined.Triangle)
         {
             return new FieldFixedPosition(joined.FixedX, joined.FixedY, joined.FixedZ);
+        }
+        if (partySplit?.Targets.FirstOrDefault(target => target.ObjectId == actor.ObjectId) is { } split && actor.X == split.FixedX / 4096f && actor.Y == split.FixedY / 4096f && actor.Z == split.FixedZ / 4096f)
+        {
+            return new FieldFixedPosition(split.FixedX, split.FixedY, split.FixedZ);
+        }
+        if (actor.NativeSplitPosition is { } completedSplit && actor.X == completedSplit.FixedX / 4096f && actor.Y == completedSplit.FixedY / 4096f && actor.Z == completedSplit.FixedZ / 4096f && actor.WalkmeshTriangle == completedSplit.Triangle)
+        {
+            return new FieldFixedPosition(completedSplit.FixedX, completedSplit.FixedY, completedSplit.FixedZ);
         }
         if (!float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || actor.X != MathF.Truncate(actor.X) || actor.Y != MathF.Truncate(actor.Y) || actor.Z != MathF.Truncate(actor.Z) || actor.X is < short.MinValue or > short.MaxValue || actor.Y is < short.MinValue or > short.MaxValue || actor.Z is < short.MinValue or > short.MaxValue)
         {
@@ -181,6 +184,7 @@ public sealed partial class EventEngine
         {
             actor.NativeScriptMovement = CreateNativeScriptMove(fiber, true);
             actor.NativeJoinedPosition = null;
+            actor.NativeSplitPosition = null;
             actor.NativeJump = null;
             if (actor.NativeScriptMovement.HoldsFacing)
             {
@@ -191,7 +195,6 @@ public sealed partial class EventEngine
             operands = Pop(fiber, actor.NativeScriptMovement.TargetNativeObjectId is not null ? actor.NativeScriptMovement.Asynchronous ? 2 : 1 : 4);
             if (actor.NativeScriptMovement.AutomaticAnimation)
             {
-                RegisterLegacyBaseAnimations(actor);
                 int animation = actor.MovementSpeed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
                 if (actor.AnimationId != animation)
                 {
@@ -287,79 +290,14 @@ public sealed partial class EventEngine
             }
             foreach (NativeScriptGroundProbe probe in proposal.FanProbes)
             {
-                if (query.HasActorCollision is not null)
+                bool contact = EvaluateNativePlayerGroundContacts(actor, new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight)).Collision;
+                if (contact != probe.ActorCollision || movement.Status == NativeScriptMovementStatus.Accepted && ReferenceEquals(proposal, movement.Proposals[^1]) && contact)
                 {
-                    bool contact = EvaluateNativePlayerGroundContacts(actor, new NativePlayerGroundProbe(probe.FixedX, probe.FixedY, probe.NativeHeight)).Collision;
-                    if (contact != probe.ActorCollision || movement.Status == NativeScriptMovementStatus.Accepted && ReferenceEquals(proposal, movement.Proposals[^1]) && contact)
-                    {
-                        throw new NotSupportedException("Native cavern MOVE actor-contact certificate differs from its retained peers or accepted final fan.");
-                    }
-                }
-                else
-                {
-                    EnsureNativeScriptFanClear(actor, probe);
+                    throw new NotSupportedException("Native MOVE actor-contact certificate differs from its retained peers or accepted final fan.");
                 }
             }
         }
         return state with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Triangle = movement.Triangle, MovementDirection = movement.Direction, FacingDirection = held != 0 ? state.FacingDirection : movement.Direction, TurnAccumulator = direction.TurnAccumulator, Completion = 1 };
-    }
-
-    private void EnsureNativeScriptFanClear(ActorState moving, NativeScriptGroundProbe probe)
-    {
-        foreach (int objectId in Scene.NativeActorObjectIds)
-        {
-            ActorState peer = actors[objectId];
-            if (peer.ObjectId == moving.ObjectId || peer.ModelId < 0 || peer.ModelId == ushort.MaxValue || !peer.CollisionEnabled)
-            {
-                continue;
-            }
-            if (peer.PushRadius is < 0 or > ushort.MaxValue)
-            {
-                throw new NotSupportedException("Native scripted MOVE peer radius exceeds its unsigned word.");
-            }
-            int radius = (moving.PushRadius + peer.PushRadius) / 2;
-            FieldFixedPosition? raw = ReadNativeScriptPosition(peer);
-            if (raw is not null)
-            {
-                int dz = (raw.Z >> 12) - probe.NativeHeight;
-                if (dz <= -127 || dz >= 128)
-                {
-                    continue;
-                }
-                long dx = ((long)raw.X - probe.FixedX) >> 12;
-                long dy = ((long)raw.Y - probe.FixedY) >> 12;
-                long squared = dx * dx + dy * dy;
-                if (squared > int.MaxValue)
-                {
-                    throw new NotSupportedException("Native scripted MOVE peer distance overflow requires its original wrapped comparison.");
-                }
-                if (squared >= (long)radius * radius)
-                {
-                    continue;
-                }
-            }
-            else if (float.IsFinite(peer.X) && float.IsFinite(peer.Y) && peer.X is >= short.MinValue and <= short.MaxValue && peer.Y is >= short.MinValue and <= short.MaxValue)
-            {
-                // Historical managed motion has no native raw provenance. A
-                // conservative +/-one-unit interval can certify distant peers
-                // without inventing their fixed low bits or ground height.
-                long dx = MinimumNativeScriptDifference(peer.X, probe.FixedX);
-                long dy = MinimumNativeScriptDifference(peer.Y, probe.FixedY);
-                if (dx * dx + dy * dy >= (long)radius * radius)
-                {
-                    continue;
-                }
-            }
-            throw new NotSupportedException($"Native scripted MOVE fan contacts retained actor{peer.ObjectId}; original collision steering requires a wider certificate.");
-        }
-    }
-
-    private static long MinimumNativeScriptDifference(float coordinate, int probe)
-    {
-        double fixedCoordinate = coordinate * 4096d;
-        long low = (long)Math.Floor((fixedCoordinate - 4096 - probe) / 4096);
-        long high = (long)Math.Floor((fixedCoordinate + 4096 - probe) / 4096);
-        return low <= 0 && high >= 0 ? 0 : Math.Min(Math.Abs(low), Math.Abs(high));
     }
 
     private void StepNativeScriptMovement()
@@ -404,9 +342,8 @@ public sealed partial class EventEngine
                 actor.MovementTarget = null;
             }
         }
-        if (IsCavernNativeMoveJoin)
-        {
-            StepJoinedCompanions(true);
-        }
+        // 524F40 gives JOIN targets the same mode572=1 as scripted MOVE.
+        // 4789A0 advances every such body after VM dispatch, in every field.
+        StepJoinedCompanions();
     }
 }

@@ -144,12 +144,6 @@ public sealed partial class EventEngine
                 return;
             case Jsm.Opcode.JMP:
                 fiber.Position = operation.Index + parameter;
-                // TODO(TD-004): replace the artificial yield and scoped exception with the shared native scheduler budget
-                if (parameter < 0 && !IsNativeLinearScrollLoopJump(fiber, operation))
-                {
-                    // Field polling loops cooperate with the frame scheduler instead of spinning on one frame.
-                    WaitFrames(fiber, 1);
-                }
                 return;
             case Jsm.Opcode.JPF:
                 int condition = Pop(fiber, 1)[0];
@@ -277,16 +271,9 @@ public sealed partial class EventEngine
                 {
                     throw Fault(fiber, "Model face anchor height is not finite.");
                 }
-                // Legacy snapshots recorded FACEDIRINIT from root0. Derive the corrected
-                // declared-node baseline once before its first supported transition.
-                // TODO(TD-007): use canonical face
-                if (actor.FaceStateVersion == 0)
+                if (actor.FaceStateVersion != 1)
                 {
-                    if (FieldId != 232 || actor.ObjectId != 15 || actor.ModelId != 14 || actor.AnimationId != 0)
-                    {
-                        throw Fault(fiber, "Legacy face baseline cannot be reconstructed exactly for this actor; resume a checkpoint from before FACEDIRINIT.");
-                    }
-                    InitializeFaceDirection(actor, fiber);
+                    throw Fault(fiber, "FACEDIRA requires executed native face initialization; recreate the authentic journal.");
                 }
                 actor.FaceReturning = false;
                 actor.FaceDuration = (ushort)args[1];
@@ -397,6 +384,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SET3:
                 args = Pop(fiber, 3);
                 actor.NativeJoinedPosition = null;
+                actor.NativeSplitPosition = null;
                 actor.X = args[0];
                 actor.Y = args[1];
                 actor.Z = args[2];
@@ -500,21 +488,6 @@ public sealed partial class EventEngine
             case Jsm.Opcode.RMOVE:
             case Jsm.Opcode.FMOVE:
             case Jsm.Opcode.RFMOVE:
-                if (actor.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(actor) == true)
-                {
-                    ExecuteNativeScriptMove(fiber);
-                    break;
-                }
-                args = Pop(fiber, 4);
-                actor.InvalidateNativeMotionAuthority();
-                actor.MovementTarget = new Vector3(args[0], args[1], args[2]);
-                actor.MovementFlags = args[3];
-                actor.MovementIgnoresWalkmesh = opcode is Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE;
-                if (opcode is Jsm.Opcode.MOVE or Jsm.Opcode.FMOVE)
-                {
-                    fiber.WaitReason = WaitReason.Movement;
-                }
-                break;
             case Jsm.Opcode.RCMOVE:
                 ExecuteNativeScriptMove(fiber);
                 break;
@@ -528,47 +501,11 @@ public sealed partial class EventEngine
                     throw Fault(fiber, "MOVECANCEL targets an unknown native object ID.");
                 }
                 ActorState cancelledActor = actors[program.NativeObjects[args[0]]];
-                // Native 0x524620 acts only on a model entity in ordinary scripted movement.
-                // A stationary target retains its current animation and all other state.
-                if (!CancelNativeScriptMovement(cancelledActor) && cancelledActor.ModelId >= 0 && (cancelledActor.MovementTarget is not null || cancelledActor.MovementActorId is not null))
-                {
-                    int cancelledAnimationFrames = AnimationFrameCount?.Invoke(cancelledActor.ModelId, cancelledActor.BaseAnimationId) ?? throw Fault(fiber, "MOVECANCEL requires the target base animation's frame count.");
-                    if (cancelledAnimationFrames <= 0)
-                    {
-                        throw Fault(fiber, "MOVECANCEL target base animation has no frames.");
-                    }
-                    cancelledActor.MovementTarget = null;
-                    cancelledActor.MovementActorId = null;
-                    if (cancelledActor.NativeScriptMovement is { Active: true, Asynchronous: true } cancelledMovement)
-                    {
-                        // Native524620 stops mode572 without writing completion542.
-                        cancelledActor.NativeScriptMovement = cancelledMovement with { Active = false, Cancelled = true };
-                    }
-                    cancelledActor.AnimationId = cancelledActor.BaseAnimationId;
-                    cancelledActor.AnimationFrame = 0;
-                    cancelledActor.AnimationFirst = 0;
-                    cancelledActor.AnimationLast = cancelledAnimationFrames - 1;
-                    cancelledActor.AnimationKeep = false;
-                    cancelledActor.AnimationLoop = true;
-                    cancelledActor.AnimationPlaying = true;
-                }
+                CancelNativeScriptMovement(cancelledActor);
                 break;
             case Jsm.Opcode.MOVEA:
             case Jsm.Opcode.RMOVEA:
-                if (opcode == Jsm.Opcode.RMOVEA || actor.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(actor) == true)
-                {
-                    args = ExecuteNativeScriptMove(fiber);
-                    break;
-                }
-                args = Pop(fiber, 2);
-                if ((uint)args[0] >= actors.Count || args[1] < 0)
-                {
-                    throw Fault(fiber, "MOVEA target or stopping distance is invalid.");
-                }
-                actor.InvalidateNativeMotionAuthority();
-                actor.MovementActorId = args[0];
-                actor.MovementStopDistance = args[1];
-                fiber.WaitReason = WaitReason.MoveActor;
+                args = ExecuteNativeScriptMove(fiber);
                 break;
             case Jsm.Opcode.SETGETA:
                 args = Pop(fiber, 1);
@@ -743,15 +680,39 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.AMESW:
             case Jsm.Opcode.AMES:
-            case Jsm.Opcode.RAMESW:
+                if (WaitForNativeDialogueChannel(fiber, 4, false))
+                {
+                    break;
+                }
                 args = Pop(fiber, 4);
-                ShowDialogue(fiber, Message(args[0], args[1], args[2], args[3]) with { CanConfirm = opcode != Jsm.Opcode.AMES }, opcode == Jsm.Opcode.AMESW);
+                ShowDialogue(fiber, Message(args[0], args[1], args[2], args[3]) with { CanConfirm = opcode == Jsm.Opcode.AMESW }, opcode == Jsm.Opcode.AMESW);
+                if (opcode == Jsm.Opcode.AMES)
+                {
+                    // 5291E0 return3 advances the PC and yields this actor's VM turn.
+                    WaitFrames(fiber, 1);
+                }
+                break;
+            case Jsm.Opcode.RAMESW:
+                // 529380 consumes all four operands before its occupied-channel
+                // return5. The missing physical stack-residue retry is refused by preflight.
+                args = Pop(fiber, 4);
+                ShowDialogue(fiber, Message(args[0], args[1], args[2], args[3]), false);
                 break;
             case Jsm.Opcode.MES:
+                if (WaitForNativeDialogueChannel(fiber, 2, false))
+                {
+                    break;
+                }
                 args = Pop(fiber, 2);
                 ShowDialogue(fiber, Message(args[0], args[1], 0, 0) with { CanConfirm = false }, false);
+                // 528F20 return3 also yields after successful persistent opening.
+                WaitFrames(fiber, 1);
                 break;
             case Jsm.Opcode.AASK:
+                if (WaitForNativeDialogueChannel(fiber, 8, true))
+                {
+                    break;
+                }
                 args = Pop(fiber, 8);
                 ShowDialogue(fiber, Message(args[0], args[1], args[6], args[7]) with { FirstChoice = args[2], LastChoice = args[3], InitialChoice = args[4], CancelChoice = args[5] }, true);
                 break;
@@ -846,16 +807,14 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.BGSHADE:
                 args = Pop(fiber, 7);
-                Scene.BackgroundShade = new BackgroundShade((ushort)args[0], new Vector3((byte)args[1], (byte)args[2], (byte)args[3]), new Vector3((byte)args[4], (byte)args[5], (byte)args[6]), Frame, fiber.BackgroundId);
                 Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
-                Scene.BackgroundShades[fiber.BackgroundId] = Scene.BackgroundShade;
+                Scene.BackgroundShades[fiber.BackgroundId] = new BackgroundShade((ushort)args[0], new Vector3((byte)args[1], (byte)args[2], (byte)args[3]), new Vector3((byte)args[4], (byte)args[5], (byte)args[6]), Frame, fiber.BackgroundId);
                 break;
             case Jsm.Opcode.BGSHADEOFF:
                 // Native 0x520B00 clears shade flags, timing, holds and all RGB endpoints.
                 // Renderer 0x475480 reads the zero endpoint when duration and elapsed are zero.
                 Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
-                Scene.BackgroundShade = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
-                Scene.BackgroundShades[fiber.BackgroundId] = Scene.BackgroundShade;
+                Scene.BackgroundShades[fiber.BackgroundId] = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
                 break;
             case Jsm.Opcode.KEYSCAN:
                 args = Pop(fiber, 1);

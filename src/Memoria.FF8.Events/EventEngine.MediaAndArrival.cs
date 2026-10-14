@@ -57,6 +57,11 @@ public sealed partial class EventEngine
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        // TODO(TD-003): reconstruct occupied RAMESW physical-stack retries
+        if (operation.Opcode == Jsm.Opcode.RAMESW && fiber.Stack.Count >= 4 && dialogues.ContainsKey(fiber.Stack.ElementAt(3)))
+        {
+            return "Occupied native RAMESW consumes its operands before return5; its physical stack-residue retry requires a wider native VM contract";
+        }
         string? actorInfo = UnsupportedNativeActorInfo(fiber, operation);
         if (actorInfo is not null)
         {
@@ -284,7 +289,7 @@ public sealed partial class EventEngine
         {
             return UnsupportedWorldJump(fiber);
         }
-        if (operation.Opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA || operation.Opcode is Jsm.Opcode.MOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.MOVEA && (caller.NativeScriptMovement is { Active: true } || CanUseNativeScriptMove?.Invoke(caller) == true))
+        if (operation.Opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA or Jsm.Opcode.MOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.MOVEA)
         {
             return UnsupportedNativeScriptMove(fiber);
         }
@@ -520,13 +525,6 @@ public sealed partial class EventEngine
             int elapsed = (int)Math.Clamp(Frame - shade.StartFrame, 0, Math.Max(0, duration));
             float Channel(float first, float last) => duration == 0 ? last : (int)first + ((int)last - (int)first) * elapsed / duration;
             colors[module] = new System.Numerics.Vector3(Channel(shade.FirstColor.X, shade.SecondColor.X), Channel(shade.FirstColor.Y, shade.SecondColor.Y), Channel(shade.FirstColor.Z, shade.SecondColor.Z));
-        }
-        // Version1 snapshots predate scoped shade dictionaries; their sole shade was module0.
-        if (Scene.BackgroundShades.Count == 0 && Scene.BackgroundShade is BackgroundShade legacy && !colors.ContainsKey(legacy.ModuleIndex))
-        {
-            int elapsed = (int)Math.Clamp(Frame - legacy.StartFrame, 0, Math.Max(0, legacy.FadeFrames));
-            float Channel(float first, float last) => legacy.FadeFrames <= 0 ? last : (int)first + ((int)last - (int)first) * elapsed / legacy.FadeFrames;
-            colors[legacy.ModuleIndex] = new System.Numerics.Vector3(Channel(legacy.FirstColor.X, legacy.SecondColor.X), Channel(legacy.FirstColor.Y, legacy.SecondColor.Y), Channel(legacy.FirstColor.Z, legacy.SecondColor.Z));
         }
         return colors;
     }

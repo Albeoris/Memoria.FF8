@@ -25,11 +25,6 @@ internal static partial class Program
                 ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out Vector3 point, out int triangle) ? new WalkmeshPosition(point, triangle) : null
             };
             result.LoadField(137, field.Jsm, field.Messages);
-            result.ResolvePartyJoinStep = query =>
-            {
-                FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(field.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, result.Scene.LockedTriangles);
-                return point is FieldNativeWalkmeshPosition native && native.NativeHeight * 4096 == query.FixedZ ? new WalkmeshPosition(new Vector3(native.FixedX / 4096f, native.FixedY / 4096f, native.NativeHeight), native.Triangle) : null;
-            };
             result.Restore(session.State.EventState!.Value);
             return result;
         }
@@ -67,7 +62,6 @@ internal static partial class Program
         stationary.Apply(new PlayerAction(PlayerActionKind.Move));
         Require(!stationary.Actors[5].NativePushContactPending, "Zero-axis idle movement invented a native actor contact.");
         JsonElement beforeGeometry = refused.Capture();
-        refused.ResolvePartyJoinStep = _ => null;
         ExpectRefusedMove(refused, north, beforeGeometry, "Geometry refusal committed a staged push flag or moved the native party.");
         EventEngine wall = Create();
         JsonNode wallVariant = JsonNode.Parse(wall.Capture().GetRawText())!;

@@ -8,17 +8,7 @@ public sealed partial class EventEngine
 
     private FieldFixedPosition? ReadNativeSplitPosition(ActorState actor)
     {
-        if (ResolvePartyActor(0)?.ObjectId == actor.ObjectId)
-        {
-            return ReadNativeJoinLeaderPosition(actor);
-        }
-        // Below4096, single precision retains every fixed12 XY bit. Larger
-        // fractional displays may have lost original low bits and are refused.
-        if (!float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || Math.Abs(actor.X) >= 4096 || Math.Abs(actor.Y) >= 4096 || actor.X * 4096 != MathF.Truncate(actor.X * 4096) || actor.Y * 4096 != MathF.Truncate(actor.Y * 4096) || actor.Z != MathF.Truncate(actor.Z) || actor.Z is < short.MinValue or > short.MaxValue)
-        {
-            return null;
-        }
-        return new FieldFixedPosition((int)(actor.X * 4096), (int)(actor.Y * 4096), (int)actor.Z * 4096);
+        return ReadNativeScriptPosition(actor);
     }
 
     private bool CanUseNativeSplitMovement(int callerObjectId)
@@ -26,8 +16,7 @@ public sealed partial class EventEngine
         ActorState[] targets = Enumerable.Range(0, 3).Select(ResolvePartyActor).OfType<ActorState>().ToArray();
         bool solo = targets.Length == 1;
         bool fresh = Scene.NativeFieldInitialization?.IsFrom(NativeRuntimeProfile, FieldId, programHash) == true && Scene.NativeFieldInitialization.Stage == Memoria.FF8.Runtime.NativeFieldInitializationStage.Completed;
-        bool legacySolo = solo && Scene.NativeActorObjectIds.All(objectId => objectId == callerObjectId || actors[objectId].ModelId < 0);
-        return targets.Length != 0 && targets[0].ObjectId == callerObjectId && (fresh || legacySolo) && ResolveNativeJoinMovement is not null && targets.All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true && (solo || !actor.CollisionEnabled));
+        return targets.Length != 0 && targets[0].ObjectId == callerObjectId && fresh && ResolveNativeJoinMovement is not null && targets.All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true && (solo || !actor.CollisionEnabled));
     }
 
     private string? UnsupportedSplitContext(Fiber fiber)
@@ -38,7 +27,7 @@ public sealed partial class EventEngine
         }
         bool usesNativeMovement = CanUseNativeSplitMovement(fiber.ObjectId);
         bool solo = ResolvePartyActor(1) is null && ResolvePartyActor(2) is null;
-        if (partyJoin is not null || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolvePartyActor(0)?.ObjectId != fiber.ObjectId || IsUserControlEnabled || !usesNativeMovement && ResolvePartyJoinStep is null)
+        if (partyJoin is not null || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolvePartyActor(0)?.ObjectId != fiber.ObjectId || IsUserControlEnabled || !usesNativeMovement)
         {
             return "Native SPLIT requires the reached compact leader/disabled-control context and bounded flat movement service";
         }
@@ -53,7 +42,7 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if (ReadNativeSplitPosition(actor) is null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.PushRadius is < 0 or > 200 || !usesNativeMovement && actor.Z != args[6 - slot * 3])
+            if (actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || ReadNativeSplitPosition(actor) is null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.PushRadius is < 0 or > ushort.MaxValue)
             {
                 return "Native SPLIT requires proved fixed actor positions, completed prior motion and the reached flat target height";
             }
@@ -94,11 +83,9 @@ public sealed partial class EventEngine
                 int dy = unchecked(targetY - raw.Y) / 4096;
                 bool walk = unchecked(dx * dx + dy * dy) < 259200;
                 int speed = (short)((walk ? 69020 : 203000) * 20 >> 9);
-                RegisterLegacyBaseAnimations(actor);
                 actor.MovementSpeed = speed;
                 actor.MovementStopDistance = 8;
                 SelectFullNativeAnimation(actor, walk ? actor.WalkAnimationId : actor.RunAnimationId, true);
-                AdvanceLaterSplitActorAnimation(actor, fiber.ObjectId);
                 targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed, 0));
             }
             partySplit = new PartySplitState(fiber.Sequence, fiber.ObjectId, targets.ToArray(), usesNativeMovement);
@@ -109,7 +96,6 @@ public sealed partial class EventEngine
             if (target.Completion == 2 && actor.AnimationId != actor.BaseAnimationId)
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
-                AdvanceLaterSplitActorAnimation(actor, fiber.ObjectId);
             }
         }
         if (partySplit.Targets.Any(target => target.Completion != 2))
@@ -120,19 +106,12 @@ public sealed partial class EventEngine
         }
         // Native525090 clears movement/script blocks, but neither resets
         // stop538 nor rebuilds the existing party trace.
-        partySplit = null;
-    }
-
-    private void AdvanceLaterSplitActorAnimation(ActorState actor, int callerObjectId)
-    {
-        // TODO(TD-006): remove this compensation when animation and VM execute in native actor order
-        // Original529FF0 advances animation before executing each dense actor's
-        // VM. A later target advances the newly selected animation this update;
-        // the caller had already advanced before its SPLIT reset.
-        if (Scene.NativeActorObjectIds.IndexOf(actor.ObjectId) > Scene.NativeActorObjectIds.IndexOf(callerObjectId))
+        foreach (PartyJoinTarget target in partySplit.Targets)
         {
-            actor.StepAnimation();
+            ActorState actor = actors[target.ObjectId];
+            actor.NativeSplitPosition = new NativeJoinedPosition(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, Frame, target.FixedX, target.FixedY, target.FixedZ, actor.WalkmeshTriangle, actor.NativeMotionAuthority!);
         }
+        partySplit = null;
     }
 
     private void StepSplitParty()
@@ -175,71 +154,47 @@ public sealed partial class EventEngine
                 continue;
             }
             int direction = NativePartyDirection(x, y, target.TargetX >> 12, target.TargetY >> 12);
-            if (partySplit.UsesNativeMovement)
+            NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
+            NativeJoinMovementResult movement = ResolveNativeJoinMovement?.Invoke(nativeQuery) ?? throw FreezeSplit("Native SPLIT geometry callback refused the original scripted step");
+            if (movement.Proposals.Count is < 1 or > 16 || movement.Direction is < 0 or > 255 || movement.Triangle is < 0 or > short.MaxValue || movement.Proposals.Any(proposal => proposal.Direction is < 0 or > 255 || (proposal.FixedX >> 12) is < short.MinValue or > short.MaxValue || (proposal.FixedY >> 12) is < short.MinValue or > short.MaxValue) || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (movement.FixedZ & 4095) != 0 || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ))
             {
-                NativeJoinMovementQuery nativeQuery = new(actor.ObjectId, actor.WalkmeshTriangle, target.FixedX, target.FixedY, target.FixedZ, direction, (short)target.Speed, actor.PushRadius, probe => EvaluateNativePlayerGroundContacts(actor, probe).Collision);
-                NativeJoinMovementResult movement = ResolveNativeJoinMovement?.Invoke(nativeQuery) ?? throw FreezeSplit("Native SPLIT geometry callback refused the original scripted step");
-                if (movement.Proposals.Count is < 1 or > 16 || movement.Direction is < 0 or > 255 || movement.Triangle is < 0 or > short.MaxValue || movement.Proposals.Any(proposal => proposal.Direction is < 0 or > 255 || (proposal.FixedX >> 12) is < short.MinValue or > short.MaxValue || (proposal.FixedY >> 12) is < short.MinValue or > short.MaxValue) || new[] { movement.FixedX, movement.FixedY, movement.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || (movement.FixedZ & 4095) != 0 || movement.Accepted && (movement.FixedX != movement.Proposals[^1].FixedX || movement.FixedY != movement.Proposals[^1].FixedY) || !movement.Accepted && (movement.FixedX != target.FixedX || movement.FixedY != target.FixedY || movement.FixedZ != target.FixedZ))
-                {
-                    throw FreezeSplit("Native SPLIT geometry returned invalid fixed coordinates, proposal order or blocked placement");
-                }
-                try
-                {
-                    if (movement.ProposalGroundProbes is not null)
-                    {
-                        if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
-                        {
-                            throw new NotSupportedException("Native SPLIT ground/contact fans do not match all original retry proposals.");
-                        }
-                        for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
-                        {
-                            pushContacts.UnionWith(ValidateNativePlayerGroundContacts(actor, movement.Proposals[proposal], movement.ProposalGroundProbes[proposal]));
-                        }
-                        if (movement.Accepted && movement.ProposalGroundProbes[^1].Any(probe => probe.ActorCollision))
-                        {
-                            throw new NotSupportedException("Accepted native SPLIT result retains a blocking actor fan.");
-                        }
-                    }
-                    else
-                    {
-                        foreach (NativeJoinMovementProposal proposal in movement.Proposals)
-                        {
-                            pushContacts.UnionWith(EnsureNativeActorEnvelopeClear(actor, proposal.FixedX, proposal.FixedY, target.FixedZ, proposal.Direction, true));
-                        }
-                    }
-                }
-                catch (NotSupportedException exception)
-                {
-                    throw FreezeSplit(exception.Message);
-                }
-                positions[index] = new WalkmeshPosition(new System.Numerics.Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
-                directions[index] = movement.Direction;
-                next[index] = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
-                continue;
+                throw FreezeSplit("Native SPLIT geometry returned invalid fixed coordinates, proposal order or blocked placement");
             }
-            int proposalX = unchecked(target.FixedX + NativeSine(direction) * target.Speed / 256);
-            int proposalY = unchecked(target.FixedY - NativeCosine(direction) * target.Speed / 256);
             try
             {
-                pushContacts.UnionWith(EnsureNativeActorEnvelopeClear(actor, proposalX, proposalY, target.FixedZ, direction, actor.ObjectId == partySplit.CallerObjectId));
+                if (movement.ProposalGroundProbes is not null)
+                {
+                    if (movement.ProposalGroundProbes.Count != movement.Proposals.Count)
+                    {
+                        throw new NotSupportedException("Native SPLIT ground/contact fans do not match all original retry proposals.");
+                    }
+                    for (int proposal = 0; proposal < movement.Proposals.Count; proposal++)
+                    {
+                        pushContacts.UnionWith(ValidateNativePlayerGroundContacts(actor, movement.Proposals[proposal], movement.ProposalGroundProbes[proposal]));
+                    }
+                    if (movement.Accepted && movement.ProposalGroundProbes[^1].Any(probe => probe.ActorCollision))
+                    {
+                        throw new NotSupportedException("Accepted native SPLIT result retains a blocking actor fan.");
+                    }
+                }
+                else
+                {
+                    throw new NotSupportedException("Native party movement requires all ordered original fan ground heights.");
+                }
             }
             catch (NotSupportedException exception)
             {
                 throw FreezeSplit(exception.Message);
             }
-            PartyJoinStepQuery query = new(actor.WalkmeshTriangle, proposalX, proposalY, target.FixedZ, actor.PushRadius, direction);
-            WalkmeshPosition position = ResolvePartyJoinStep?.Invoke(query) ?? throw FreezeSplit("Native SPLIT step requires slope/wall or blocked geometry evidence; all current positions preserved");
-            if (position.Position.Z != target.FixedZ / 4096f || Math.Abs(position.Position.X - proposalX / 4096f) > 0.001f || Math.Abs(position.Position.Y - proposalY / 4096f) > 0.001f)
-            {
-                throw FreezeSplit("Native SPLIT geometry changed the fixed proposal or reached flat height");
-            }
-            positions[index] = position;
-            directions[index] = direction;
-            next[index] = target with { FixedX = proposalX, FixedY = proposalY, Completion = 1 };
+            positions[index] = new WalkmeshPosition(new System.Numerics.Vector3(movement.FixedX / 4096f, movement.FixedY / 4096f, movement.FixedZ / 4096f), movement.Triangle);
+            directions[index] = movement.Direction;
+            next[index] = target with { FixedX = movement.FixedX, FixedY = movement.FixedY, FixedZ = movement.FixedZ, Completion = 1 };
+            continue;
         }
         for (int index = 0; index < next.Length; index++)
         {
             ActorState actor = actors[next[index].ObjectId];
+            NativeMotionAuthority authority = actor.NativeMotionAuthority ?? throw FreezeSplit("SPLIT requires preserved native movement575 and facing hold576");
             actor.InvalidateNativeMotionAuthority();
             actor.X = next[index].FixedX / 4096f;
             actor.Y = next[index].FixedY / 4096f;
@@ -247,8 +202,10 @@ public sealed partial class EventEngine
             if (positions[index] is WalkmeshPosition position)
             {
                 actor.WalkmeshTriangle = position.Triangle;
-                actor.Direction = directions[index];
+                actor.Direction = authority.FacingHold == 1 ? actor.Direction : directions[index];
             }
+            // Native mode1 changes575 and changes577 only when576 is clear.
+            actor.NativeMotionAuthority = authority with { MovementDirection = positions[index] is null ? authority.MovementDirection : (byte)directions[index] };
             if (actor.ObjectId == partySplit.CallerObjectId)
             {
                 Scene.NativePlayerPosition = new FieldFixedPosition(next[index].FixedX, next[index].FixedY, next[index].FixedZ);

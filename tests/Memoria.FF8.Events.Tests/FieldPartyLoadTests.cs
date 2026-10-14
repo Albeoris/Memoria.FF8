@@ -104,11 +104,6 @@ internal static partial class Program
         };
         seam.LoadField(139, departing.Jsm, departing.Messages);
         seam.Restore(seamSession.State.EventState!.Value);
-        seam.ResolvePartyJoinStep = query =>
-        {
-            FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(departing.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, seam.Scene.LockedTriangles);
-            return point is FieldNativeWalkmeshPosition native ? new WalkmeshPosition(new Vector3(native.FixedX / 4096f, native.FixedY / 4096f, native.NativeHeight), native.Triangle) : null;
-        };
         seam.InfGateways = departing.Information!.Gateways.Where(gateway => gateway.Defined).Select(gateway => new InfGateway(gateway.Start, gateway.End, new FieldTransition(gateway.DestinationField, gateway.DestinationX, gateway.DestinationY, gateway.DestinationTriangle, gateway.Direction))).ToArray();
         seam.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: 1));
         Require(seamSession.State.FieldId == 137 && seamSession.State.FieldArrival == new FieldTransition(137, -14, -5203, 72, 140), "Genuine source139 gateway action did not request the original137 packet.");

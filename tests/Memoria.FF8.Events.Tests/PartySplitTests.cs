@@ -20,11 +20,6 @@ internal static partial class Program
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
             EventEngine result = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount, ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z) };
             result.LoadField(137, field.Jsm, field.Messages);
-            result.ResolvePartyJoinStep = query =>
-            {
-                FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(field.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, result.Scene.LockedTriangles);
-                return point is FieldNativeWalkmeshPosition native && native.NativeHeight * 4096 == query.FixedZ ? new WalkmeshPosition(new Vector3(native.FixedX / 4096f, native.FixedY / 4096f, native.NativeHeight), native.Triangle) : null;
-            };
             result.Restore(session.State.EventState!.Value);
             sessions[result] = session;
             return result;
@@ -58,11 +53,9 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(first.Capture(), resumed.Capture()) && sessions[first].State.SavedWorld == savedWorld && sessions[resumed].State.SavedWorld == savedWorld && JsonElement.DeepEquals(traceAtSplit!.Value, first.Capture().GetProperty("Scene").GetProperty("PartyTrace")), "SPLIT restore changed raw movement, trace, saved-world slots or native waits.");
         }
         Require(first.Capture().GetProperty("PartySplit").ValueKind == JsonValueKind.Null && first.LastFault is null && ticks < 100, "Reached native SPLIT did not complete bounded original movement.");
-        Console.WriteLine($"Original137 SPLIT: frame308→309 consumes9, leader/follower move sameupdate with animation0/1; exact raw midmovement restore, unchangedtrace/savedworld; completed frame{first.Frame}, next {first.NextTrigger.Kind}, leader({first.Actors[0].X},{first.Actors[0].Y}) follower({first.Actors[5].X},{first.Actors[5].Y}).");
+        Console.WriteLine($"Original137 SPLIT: frame308â†’309 consumes9, leader/follower move sameupdate with animation0/1; exact raw midmovement restore, unchangedtrace/savedworld; completed frame{first.Frame}, next {first.NextTrigger.Kind}, leader({first.Actors[0].X},{first.Actors[0].Y}) follower({first.Actors[5].X},{first.Actors[5].Y}).");
 
         EventEngine refused = Create();
-        int calls = 0;
-        refused.ResolvePartyJoinStep = query => ++calls == 1 ? new WalkmeshPosition(new Vector3(query.FixedX / 4096f, query.FixedY / 4096f, query.FixedZ / 4096f), 94) : null;
         JsonElement before = refused.Capture();
         try
         {

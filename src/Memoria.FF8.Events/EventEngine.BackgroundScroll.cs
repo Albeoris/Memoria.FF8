@@ -18,14 +18,6 @@ public sealed partial class EventEngine
     public Func<NativeLinearScrollQuery, SceneEventState, bool>? CanBeginLinearBackgroundScroll { get; set; }
     public Func<SceneEventState, bool>? CanRestoreLinearBackgroundScroll { get; set; }
 
-    private bool IsNativeLinearScrollLoopJump(Fiber fiber, JsmOperation operation)
-    {
-        // TODO(TD-004): replace this scoped loop correction with the shared native scheduler budget
-        // 51C4D0 returns4; native529FF0 continues within the same16-op
-        // budget. Admit only this proved completed135 lava-loop request.
-        return FieldId == 135 && programHash == "4E838898400B0B44D1FFAD537A77FDD685111A7C25DF34366CD77CACE8A65344" && fiber.ObjectId == 13 && fiber.Script.Id == 53 && operation.Index == 315 && operation.Parameter == -24 && Scene.NativeFieldLoadVersion == 1 && Scene.NativeActorLayoutVersion == 1 && Scene.BackgroundScrollPositions.TryGetValue(1, out BackgroundScrollPosition? state) && state is { Mode: 4, NativeLinearVersion: 1, Status: 2, PreviousX: 0, PreviousY: 0, TargetX: 351, TargetY: 0, Duration: 351 } && ValidBackgroundScrollPosition(1, state, Scene);
-    }
-
     private string? UnsupportedLinearBackgroundScroll(Fiber fiber)
     {
         int[] top = fiber.Stack.ToArray();

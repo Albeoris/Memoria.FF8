@@ -65,11 +65,6 @@ internal static partial class Program
                 CanSetCosineBackgroundScroll = (layer, x, y, duration) => layer == 0 && x == 0 && y == 0 && duration == 40
             };
             result.ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out Vector3 position, out int triangle, result.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
-            result.ResolvePartyJoinStep = query =>
-            {
-                FieldNativeWalkmeshPosition? point = FieldNativeWalkmeshProbe.ResolveFlatStep(field.Walkmesh, query.Triangle, query.FixedX, query.FixedY, query.Radius, query.Direction, result.Scene.LockedTriangles);
-                return point is FieldNativeWalkmeshPosition resolved && resolved.NativeHeight * 4096 == query.FixedZ ? new WalkmeshPosition(new Vector3(resolved.FixedX / 4096f, resolved.FixedY / 4096f, resolved.NativeHeight), resolved.Triangle) : null;
-            };
             result.LoadField(172, field.Jsm, field.Messages, session.State.FieldArrival);
             result.Restore(session.State.EventState!.Value);
             return result;

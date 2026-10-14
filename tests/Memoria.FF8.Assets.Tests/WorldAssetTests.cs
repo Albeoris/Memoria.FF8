@@ -62,6 +62,31 @@ public sealed class WorldAssetTests
     }
 
     [Fact]
+    public void UniformFootTypeUsesOriginalShapeFourGeometryTexturesAndAnimationTable()
+    {
+        using WorldAssets assets = new(GameDirectory);
+        FieldModel normal = assets.GetFootModel(0);
+        FieldModel uniform = assets.GetFootModel(1);
+        Assert.Same(assets.Squall, normal);
+        Assert.Same(uniform, assets.GetFootModel(1));
+        Assert.NotSame(normal, uniform);
+        Assert.Equal("World character shape 4", uniform.Name);
+        Assert.Equal(16, uniform.Bones.Count);
+        Assert.Equal(164, uniform.Vertices.Count);
+        Assert.Equal(166, uniform.Faces.Count);
+        Assert.Equal(new[] { 1, 20, 11, 12, 50, 1, 20, 30 }, uniform.Animations.Select(animation => animation.Frames.Count));
+        Assert.Equal(new[] { 20, 44 }, uniform.Textures.Select(texture => texture.Width));
+        Assert.Throws<NotSupportedException>(() => assets.GetFootModel(2));
+        WorldTerrainRenderer renderer = new(assets, 320, 224);
+        Vector3 position = new(24576, 658, -29406);
+        WorldCamera camera = WorldCamera.Foot(2048, 2048) with { TargetPosition = position + new Vector3(0, 256, 0) };
+        byte[] normalPixels = renderer.Render(position, MathF.PI, 0, 0, camera, StaticGarden, avatarModel: normal).ToArray();
+        byte[] uniformPixels = renderer.Render(position, MathF.PI, 0, 0, camera, StaticGarden, avatarModel: uniform).ToArray();
+        Assert.NotEqual(normalPixels, uniformPixels);
+        Assert.Equal(uniformPixels, renderer.Render(position, MathF.PI, 0, 0, camera, StaticGarden, avatarModel: uniform));
+    }
+
+    [Fact]
     public void SelectedWorldRasterIsDeterministicAndRespondsToOriginalTerrainPosition()
     {
         using WorldAssets assets = new(GameDirectory);

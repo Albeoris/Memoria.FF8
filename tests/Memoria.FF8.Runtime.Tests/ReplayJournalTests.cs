@@ -242,4 +242,93 @@ public sealed class ReplayJournalTests
     {
         Assert.Throws<InvalidDataException>(() => JsonSerializer.Deserialize<ReplayJournal>(json));
     }
+
+    [Fact]
+    public void Bounded_envelope_rejects_count_mismatch_and_overflow_without_changing_the_prefix()
+    {
+        GameSession session = new(new GameState());
+        session.StartNewGame();
+        using JsonDocument capsule = JsonDocument.Parse(JsonSerializer.Serialize(session.ReplayJournal));
+        Dictionary<string, JsonElement> members = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(capsule.RootElement.GetRawText())!;
+        members["EntryCount"] = JsonSerializer.SerializeToElement(262144);
+        InvalidDataException mismatched = Assert.Throws<InvalidDataException>(() => JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(members)));
+        Assert.Contains("count differs from its payload", mismatched.Message);
+        members["EntryCount"] = JsonSerializer.SerializeToElement(262145);
+        InvalidDataException oversized = Assert.Throws<InvalidDataException>(() => JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(members)));
+        Assert.Contains("exceeds its declared capacity", oversized.Message);
+        Assert.Empty(session.ReplayJournal!.Entries);
+        Assert.True(session.ReplayJournal.IsComplete);
+    }
+
+    [Fact]
+    public void Completed_visits_keep_inputs_decisions_and_timing_runs_without_mutating_earlier_fine_history()
+    {
+        // Storage-only transactions exercise representation; they are not published as a game recreation fixture.
+        GameSession session = new(new GameState());
+        session.StartNewGame();
+        for (int frame = 0; frame < 10; frame++)
+        {
+            ReplayPlayerPose pose = new(74, frame, 0, 0, 0, 0);
+            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 74, frame)
+            {
+                Code = 5,
+                Advanced = 1,
+                ResultScene = SceneKind.Field,
+                ResultFieldId = 74,
+                ResultFrame = frame + 1,
+                StartPose = pose,
+                EndPose = pose,
+                CommandCount = frame + 1,
+                CommandDigest = (ulong)frame + 1,
+                Receipts = [new ReplayReceipt(ReplayReceiptKind.Branch, 74, frame, 0, 1, 2, Value: frame)]
+            });
+        }
+        ReplayReceipt decision = new(ReplayReceiptKind.Dialogue, 74, 10, 0, 1, 3, 4, 2, Arguments: [2, 7]);
+        session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Dialogue, SceneKind.Field, 74, 10) { Code = 1, Value = 2, MessageId = 4, ObjectId = 0, ScriptId = 1, Operation = 3, Receipts = [decision] });
+        ReplayJournal fine = session.ReplayJournal!;
+        string original = JsonSerializer.Serialize(fine);
+        session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.FieldLoad, SceneKind.Field, 179, 0));
+        ReplayJournal compact = session.ReplayJournal!;
+        Assert.Equal(3, compact.EntryCount);
+        ReplayJournalEntry run = compact.Entries[0];
+        Assert.Equal(ReplayEntryKind.Action, run.Kind);
+        Assert.Equal(5, run.Code);
+        Assert.Equal(10, run.Repeat);
+        Assert.Equal(10, run.ResultFrame);
+        Assert.Empty(run.Receipts);
+        Assert.Null(run.StartPose);
+        Assert.Null(run.EndPose);
+        ReplayJournalEntry retainedDecision = compact.Entries[1];
+        Assert.Equal(2, retainedDecision.Value);
+        Assert.Equal(3, retainedDecision.Operation);
+        Assert.Equal(decision with { Arguments = null }, retainedDecision.Receipts[0] with { Arguments = null });
+        Assert.Equal(decision.Arguments, retainedDecision.Receipts[0].Arguments);
+        Assert.Equal(11, fine.EntryCount);
+        Assert.Equal(original, JsonSerializer.Serialize(fine));
+        Assert.NotNull(fine.Entries[0].StartPose);
+        ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(compact))!;
+        Assert.Equal(compact.EncodedByteCount, restored.EncodedByteCount);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(compact.Entries), JsonSerializer.SerializeToElement(restored.Entries)));
+        ReplayPlayerPose currentPose = new(179, 1, 2, 3, 4, 5);
+        ReplayJournal continued = restored.Append(new ReplayJournalEntry(ReplayEntryKind.Step, SceneKind.Field, 179, 0) { Advanced = 1, ResultFrame = 1, StartPose = currentPose, EndPose = currentPose, Receipts = [new ReplayReceipt(ReplayReceiptKind.Branch, 179, 1, 0, 1, 2)] });
+        Assert.Equal(currentPose, continued.Endpoint!.StartPose);
+        Assert.Single(continued.Endpoint.Receipts);
+        Assert.Equal(3, compact.EntryCount);
+    }
+
+    [Fact]
+    public void Sparse_storage_preserves_nondefault_values_and_requires_critical_input_identity()
+    {
+        GameSession session = new(new GameState());
+        session.StartNewGame();
+        ReplayJournalEntry entry = new(ReplayEntryKind.Action, SceneKind.Field, 74, 0) { Code = 8, Value = 0x40, Horizontal = -0.46f, Vertical = 0.88f, Frames = 7, Advanced = 0, Accepted = false, Repeat = 2, Text = "input", Skipped = true, MovieSeconds = 1.25, ElapsedTicks = 1234 };
+        session.AppendReplayEntry(entry);
+        ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(session.ReplayJournal))!;
+        Assert.Equal(entry, restored.Endpoint);
+        ReplayJournal signedZero = restored.Append(entry with { Frame = 1, Horizontal = -0f, MovieSeconds = -0d });
+        ReplayJournal decodedZero = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(signedZero))!;
+        Assert.Equal(BitConverter.SingleToInt32Bits(-0f), BitConverter.SingleToInt32Bits(decodedZero.Endpoint!.Horizontal));
+        Assert.Equal(BitConverter.DoubleToInt64Bits(-0d), BitConverter.DoubleToInt64Bits(decodedZero.Endpoint.MovieSeconds));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ReplayJournalEntry>("{\"Kind\":1,\"Scene\":1,\"FieldId\":74}"));
+    }
 }
