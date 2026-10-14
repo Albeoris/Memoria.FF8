@@ -804,6 +804,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SETDRAWPOINT:
                 args = SetNativeDrawPointDisplay(fiber);
                 break;
+            case Jsm.Opcode.DRAWPOINT:
+                args = ExecuteDrawPointInteraction(fiber);
+                break;
             case Jsm.Opcode.Unknown16:
                 args = SetNativeDrawPointIndex(fiber);
                 break;
@@ -1000,7 +1003,8 @@ public sealed partial class EventEngine
                 args = [ExecutePartyPower(fiber)];
                 break;
             case Jsm.Opcode.SAVEENABLE:
-                args = [ExecuteSaveEnable(fiber)];
+            case Jsm.Opcode.PHSENABLE:
+                args = [ExecuteMenuEnable(fiber, operation.Opcode)];
                 break;
             case Jsm.Opcode.GETCARD:
                 args = [ExecuteGetCard(fiber)];

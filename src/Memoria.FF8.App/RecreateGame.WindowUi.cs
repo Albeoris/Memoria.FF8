@@ -88,7 +88,7 @@ internal sealed partial class RecreateGame
     private void DrawNativePartyUi(Rectangle bounds)
     {
         NativePartyMenuState menu = events!.PartyMenu!;
-        string title = menu.Kind switch { NativeFieldMenuKind.Normal => "Menu", NativeFieldMenuKind.Shop => "Shop", _ => "Party" };
+        string title = menu.Kind switch { NativeFieldMenuKind.Normal => "Menu", NativeFieldMenuKind.Shop => "Shop", NativeFieldMenuKind.WeaponShop => "Junk Shop", _ => "Party" };
         string Name(byte row) => row switch
         {
             0 => events.Scene.Names.GetValueOrDefault(0, "Squall"),
@@ -101,9 +101,9 @@ internal sealed partial class RecreateGame
             7 => "Edea",
             _ => throw new NotSupportedException("Party menu labels require native normal character identities.")
         };
-        string party = menu.Kind == NativeFieldMenuKind.Shop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
+        string party = menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
         List<string> candidates = events.PartyMenuCandidates.Select(Name).ToList();
-        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Normal ? "Esc: return to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
+        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Esc: return to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
         string key = string.Join("|", title, party, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
         if (nativePartyWindowUi is null || nativePartyWindowKey != key)

@@ -548,6 +548,7 @@ public sealed partial class GameSession : IEventServices
         ValidateFieldFadeCheckpoint(state, currentVm);
         ValidateShopHistoryCheckpoint(state, currentVm);
         ValidateMenuRandomCheckpoint(state, currentVm);
+        ValidateWeaponRecipesCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -683,6 +684,7 @@ public sealed partial class GameSession : IEventServices
         state.FieldFade?.Validate();
         state.ShopHistory?.Validate();
         state.MenuRandom?.Validate();
+        state.WeaponRecipes?.Validate();
         if (state.EventRandom is not null)
         {
             ValidateEventRandomAliases(state.Variables, state.NativeVariableValues);

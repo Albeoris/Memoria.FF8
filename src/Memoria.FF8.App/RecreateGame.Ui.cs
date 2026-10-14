@@ -38,7 +38,11 @@ internal sealed partial class RecreateGame
     private MenuData ReadLiveMenuData()
     {
         MenuData data;
-        if (IsNativeShopActive)
+        if (IsNativeWeaponShopActive)
+        {
+            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!);
+        }
+        else if (IsNativeShopActive)
         {
             data = NativeShopMenuProjection.Build(events!.PartyMenu!.Shop!);
         }
@@ -102,7 +106,7 @@ internal sealed partial class RecreateGame
         GamePadState pad = GamePad.GetState(PlayerIndex.One);
         if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
         {
-            gameMenus.Open(IsNativeShopActive ? "shop-buy" : "main", false);
+            gameMenus.Open(IsNativeWeaponShopActive ? "shop-junk" : IsNativeShopActive ? "shop-buy" : "main", false);
         }
         bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         bool menuWasOpen = gameMenus.IsOpen;
@@ -224,7 +228,8 @@ internal sealed partial class RecreateGame
 
     private bool IsNativeNormalMenuActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
     private bool IsNativeShopActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.Shop, Phase: NativePartyMenuPhase.Active, Shop: not null };
-    private bool IsNativeGridMenuActive => IsNativeNormalMenuActive || IsNativeShopActive;
+    private bool IsNativeWeaponShopActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.WeaponShop, Phase: NativePartyMenuPhase.Active, WeaponShop: not null };
+    private bool IsNativeGridMenuActive => IsNativeNormalMenuActive || IsNativeShopActive || IsNativeWeaponShopActive;
 
     private bool CompleteNativeNormalMenu(bool wasPresented)
     {

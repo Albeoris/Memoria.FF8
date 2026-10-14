@@ -222,6 +222,9 @@ public sealed class SceneEventState
     [JsonInclude]
     public byte? DrawPointIndex { get; internal set; }
     [JsonInclude]
+    [JsonRequired]
+    public NativeDrawPointInteraction? DrawPointInteraction { get; internal set; }
+    [JsonInclude]
     public NativeDrawPointReset? DrawPointReset { get; internal set; }
     public Dictionary<int, BackgroundShade> BackgroundShades { get; } = [];
     public Dictionary<int, BackgroundShadeLoop> BackgroundShadeLoops { get; } = [];

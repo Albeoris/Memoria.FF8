@@ -20,7 +20,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (operation.Opcode is Jsm.Opcode.PHSPOWER or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
+        if (operation.Opcode is Jsm.Opcode.PHSPOWER or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.PHSENABLE or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
         {
             return UnsupportedWorldControlAliases();
         }
@@ -65,23 +65,32 @@ public sealed partial class EventEngine
         return Scene.PartyPower;
     }
 
-    private string? UnsupportedSaveEnable(Fiber fiber)
+    private string? UnsupportedMenuEnable(Fiber fiber, Jsm.Opcode opcode)
     {
-        if (fiber.Stack.Count == 0)
+        if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact)
         {
-            return "SAVEENABLE requires its original DWORD operand";
+            return $"{opcode} requires its exact original DWORD operand";
         }
         if (services.WorldControls is not NativeWorldControlState controls)
         {
-            return "SAVEENABLE requires the canonical native menu byte with authentic initialization; recreate the journal";
+            return $"{opcode} requires the canonical native menu byte and control word with authentic initialization; recreate the journal";
         }
         controls.Validate();
         return UnsupportedWorldControlAliases();
     }
 
-    private int ExecuteSaveEnable(Fiber fiber)
+    private int ExecuteMenuEnable(Fiber fiber, Jsm.Opcode opcode)
     {
-        SetNativeWorldControls(fiber, services.WorldControls!.WithSaveEnabled(fiber.Stack.Peek()));
+        NativeWorldControlState controls = services.WorldControls!;
+        int argument = fiber.Stack.Peek();
+        if (opcode == Jsm.Opcode.SAVEENABLE)
+        {
+            SetNativeWorldControls(fiber, controls.WithSaveEnabled(argument));
+        }
+        else if (!controls.SourceDisabled)
+        {
+            SetNativeWorldControls(fiber, controls.WithPartyMenuEnabled(argument));
+        }
         return Pop(fiber, 1)[0];
     }
 

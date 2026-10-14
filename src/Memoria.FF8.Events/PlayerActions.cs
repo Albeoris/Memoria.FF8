@@ -91,7 +91,7 @@ public sealed partial class EventEngine
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
                     PlayerActionKind.BuyShopItem => action.Quantity is int quantity && BuyNativeShopItem(action.Value, quantity),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
-                    PlayerActionKind.Cancel => PartyMenu.Kind == NativeFieldMenuKind.Shop ? CloseNativeShop() : CloseNormalMenu(),
+                    PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), _ => CloseNormalMenu() },
                     PlayerActionKind.Wait => true,
                     _ => false
                 };

@@ -69,6 +69,17 @@ public sealed record NativeWorldControlState
         return this with { Menu209 = argument == 0 ? (byte)(Menu209 & 0xFE) : (byte)(Menu209 | 1) };
     }
 
+    /// <summary>Native PHSENABLE at522280 updates byte209 mask2 only when DWORD104 mask200 is clear; it consumes a full DWORD in both branches.</summary>
+    public NativeWorldControlState WithPartyMenuEnabled(int argument)
+    {
+        Validate();
+        if (SourceDisabled)
+        {
+            return this;
+        }
+        return this with { Menu209 = argument == 0 ? (byte)(Menu209 & 0xFD) : (byte)(Menu209 | 2) };
+    }
+
     /// <summary>Native WORLDMAPJUMP at 521820 copies the inverse source mask into byte 209 mask 2.</summary>
     public NativeWorldControlState WithWorldEntryMenuFlag()
     {

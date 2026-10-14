@@ -62,9 +62,9 @@ public sealed partial class EventEngine
     public PlayerActionResult Apply(PlayerAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        if (action.Kind == PlayerActionKind.BuyShopItem && action.Quantity is null)
+        if (action.Kind == PlayerActionKind.BuyShopItem && (action.Value is < 0 or > byte.MaxValue || action.Quantity is null or < 1 or > byte.MaxValue))
         {
-            throw new ArgumentException("Shop purchase requires an explicit quantity.", nameof(action));
+            throw new ArgumentException("Shop purchase requires a BYTE item and an explicit positive BYTE quantity.", nameof(action));
         }
         return RunReplay(ReplayBoundary(ReplayEntryKind.Action) with { Code = (int)action.Kind, Value = action.Value, Quantity = action.Quantity, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames }, () => ApplyCore(action));
     }
