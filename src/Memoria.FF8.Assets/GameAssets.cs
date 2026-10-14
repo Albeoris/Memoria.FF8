@@ -20,6 +20,7 @@ public sealed class GameAssets : IDisposable
     private readonly IAssetOverrideSource? overrides;
     private IFlArchive? mainCharacters;
     private NativeVibrationBank? nativeVibrationBank;
+    private NativeShopDefinitions? nativeShopDefinitions;
 
     public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null)
     {
@@ -75,6 +76,27 @@ public sealed class GameAssets : IDisposable
         }
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeEconomyInitialization.Read(Read(main, "init.out"));
+    }
+
+    public NativeShopHistory ReadNewGameShopHistory()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native shop initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeShopDefinitionReader.ReadNewGameHistory(Read(main, "init.out"));
+    }
+
+    public NativeShopDefinitions ReadNativeShopDefinitions()
+    {
+        if (nativeShopDefinitions is not null)
+        {
+            return nativeShopDefinitions;
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        return nativeShopDefinitions = NativeShopDefinitionReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(menu, "shop.bin"), Read(menu, "price.bin"), Read(main, "kernel.bin"));
     }
 
     public NativeShotAvailabilityState ReadNewGameShotAvailability()

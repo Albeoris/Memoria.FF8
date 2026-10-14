@@ -35,6 +35,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
 {
     public int Code { get; init; }
     public int Value { get; init; }
+    public int? Quantity { get; init; }
     public string? Text { get; init; }
     public float Horizontal { get; init; }
     public float Vertical { get; init; }
@@ -81,7 +82,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
         {
             throw new InvalidDataException("Invalid engine replay transaction.");
         }
-        if (Kind == ReplayEntryKind.Action && (Code is < 0 or > 9 || Code == 8 && (Value < 0 || Value > ushort.MaxValue)) || Kind == ReplayEntryKind.WorldAction && Code is < 0 or > 6 || NativeSourceHash is not null && (NativeSourceHash.Length != 64 || NativeSourceHash.Any(character => !Uri.IsHexDigit(character))))
+        if (Kind == ReplayEntryKind.Action && (Code is < 0 or > 10 || Code == 8 && (Value < 0 || Value > ushort.MaxValue) || Code == 10 && (Value is < 0 or > byte.MaxValue || Quantity is null or < 1 or > byte.MaxValue)) || Kind == ReplayEntryKind.WorldAction && Code is < 0 or > 6 || NativeSourceHash is not null && (NativeSourceHash.Length != 64 || NativeSourceHash.Any(character => !Uri.IsHexDigit(character))))
         {
             throw new InvalidDataException("Unsupported replay action or native source hash.");
         }

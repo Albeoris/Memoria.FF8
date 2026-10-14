@@ -37,6 +37,11 @@ public sealed partial class EventEngine
             // Native521D10/521D40 read no operand stack slots.
             return null;
         }
+        if (operation.Opcode == Jsm.Opcode.MENUSHOP)
+        {
+            // Native521D60 pops one DWORD; the shop request preflight validates its exact value.
+            return null;
+        }
         if (operation.Opcode == Jsm.Opcode.HOLD)
         {
             return UnsupportedNativeHold(fiber);

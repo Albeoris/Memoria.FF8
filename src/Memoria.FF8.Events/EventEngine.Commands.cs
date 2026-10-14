@@ -630,6 +630,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MENUNORMAL:
                 RequestPartyMenu(fiber, opcode);
                 break;
+            case Jsm.Opcode.MENUSHOP:
+                args = RequestNativeShop(fiber);
+                break;
             case Jsm.Opcode.MENUTUTO:
                 CompleteMinimalMenu(fiber, opcode, 0);
                 break;

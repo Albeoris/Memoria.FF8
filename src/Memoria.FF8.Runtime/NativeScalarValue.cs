@@ -159,15 +159,15 @@ public sealed record NativeMemoryValue(int Width, NativeScalarValue Value)
     {
         foreach ((int address, NativeMemoryValue entry) in memory)
         {
-            if (address < 0 || address > ushort.MaxValue - 3 || entry is null || entry.Width is not (1 or 2 or 4) || entry.Value is null || entry.Value.IsExact || entry.Value.ActorInfoOrigin is not null)
+            if (address < 0 || address > ushort.MaxValue - 3 || entry is null || entry.Width is not (1 or 2 or 4) || entry.Value is null || entry.Value.ActorInfoOrigin is not null)
             {
-                throw new InvalidDataException("Invalid uncertain native memory entry.");
+                throw new InvalidDataException("Invalid typed native memory entry.");
             }
             entry.Value.Validate();
             NativeScalarValue projected = entry.Value.ToWidth(entry.Width);
             if (!entry.Value.Values.SequenceEqual(projected.Values) || knownVariables.Keys.Any(key => key >= address && key < address + entry.Width) || memory.Any(other => other.Key != address && other.Key < address + entry.Width && other.Key + other.Value.Width > address))
             {
-                throw new InvalidDataException("Uncertain native memory overlaps an alias or has an inconsistent width projection.");
+                throw new InvalidDataException("Typed native memory overlaps an alias or has an inconsistent width projection.");
             }
         }
     }

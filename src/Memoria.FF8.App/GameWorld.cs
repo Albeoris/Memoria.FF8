@@ -21,6 +21,10 @@ internal sealed partial class GameWorld : IDisposable
         this.session = session;
         assets = new GameAssets(gameDirectory);
         bool initializedNativeParty = false;
+        if (session.State.ShopHistory is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameShopHistory(assets.ReadNewGameShopHistory());
+        }
         if (session.State.ShotAvailability is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
@@ -65,6 +69,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveGlobalSoundResource = ResolveGlobalSound;
         Events.PrepareWorldTransition = PrepareNativeWorldEntry;
         Events.ReadNativeVibrationBank = assets.ReadNativeVibrationBank;
+        Events.ResolveNativeShopDefinitions = assets.ReadNativeShopDefinitions;
         if (persistReplayJournal)
         {
             journalArchive = new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory);
@@ -115,11 +120,6 @@ internal sealed partial class GameWorld : IDisposable
             worldScene!.Dispose();
             worldScene = null;
         }
-        if (Events.PartyMenu is { Phase: NativePartyMenuPhase.FieldReentry, NativeReturnResult: 1 })
-        {
-            LoadField(session.State.FieldId, session.State.FieldArrival, null, menuReentry: true);
-            return true;
-        }
         // A world arrival starts a new visit even when its packet names the frozen departing field.
         if (!returningFromWorld && Field?.Id == session.State.FieldId && Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
@@ -134,15 +134,14 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false, bool menuReentry = false)
+    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
     {
-        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null))
+        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null || session.ShopHistory is null || session.MenuRandom is null))
         {
-            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world random/vibration/fade process from its earlier snapshot.");
+            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world event/menu random, vibration, fade or shop owners from its earlier snapshot.");
         }
         using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
         FieldAssets next = assets.LoadField(fieldId);
-        NativeMenuFieldReentry? nativeMenuReentry = menuReentry ? Events.PreparePartyMenuFieldReentry(next.Information?.NativeRetainedAllocationFlag8 ?? throw new NotSupportedException("Menu reentry requires original field INF metadata.")) : null;
         Events.ResolveFieldSoundEffectTable = () =>
         {
             FieldSoundEffectTable table = assets.LoadFieldSoundEffects(next.Id);
@@ -205,7 +204,9 @@ internal sealed partial class GameWorld : IDisposable
         NativeEventRandomState? sceneEventRandom = restoreDeparting ? session.EventRandom : null;
         NativeVibrationProcessState? sceneVibration = restoreDeparting ? session.VibrationProcess : null;
         NativeFieldFadeState? sceneFade = restoreDeparting ? session.FieldFade : null;
-        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null && !menuReentry ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, menuReentry: nativeMenuReentry);
+        NativeShopHistory? sceneShopHistory = restoreDeparting ? session.ShopHistory : null;
+        NativeMenuRandomState? sceneMenuRandom = restoreDeparting ? session.MenuRandom : null;
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
@@ -243,6 +244,14 @@ internal sealed partial class GameWorld : IDisposable
             if (sceneEventRandom is not null)
             {
                 session.SetEventRandom(sceneEventRandom);
+            }
+            if (sceneMenuRandom is not null)
+            {
+                session.SetMenuRandom(sceneMenuRandom);
+            }
+            if (sceneShopHistory is not null)
+            {
+                session.SetShopHistory(sceneShopHistory);
             }
             if (sceneFade is not null)
             {

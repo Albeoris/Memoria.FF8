@@ -39,7 +39,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.SHADELEVEL or Jsm.Opcode.SHADEFORM or Jsm.Opcode.SHADESET or Jsm.Opcode.DOFFSET or Jsm.Opcode.BASEANIME or Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIME or
             Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or
             Jsm.Opcode.RCANIMELOOP or Jsm.Opcode.ANIMESPEED or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.ANIMESTOP or Jsm.Opcode.WAIT or Jsm.Opcode.LOADSYNC or
-            Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.MENUENABLE or Jsm.Opcode.MENUDISABLE or Jsm.Opcode.MENUTIPS or Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO or Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.RUNENABLE or Jsm.Opcode.RUNDISABLE or
+            Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.MENUENABLE or Jsm.Opcode.MENUDISABLE or Jsm.Opcode.MENUTIPS or Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO or Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.MENUSHOP or Jsm.Opcode.RUNENABLE or Jsm.Opcode.RUNDISABLE or
             Jsm.Opcode.MOVIEREADY or Jsm.Opcode.MOVIE or Jsm.Opcode.MOVIESYNC or Jsm.Opcode.PREMAPJUMP2 or Jsm.Opcode.MAPJUMPO or
             Jsm.Opcode.IDLOCK or Jsm.Opcode.IDUNLOCK or Jsm.Opcode.POLYCOLOR or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.AXIS or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or
             Jsm.Opcode.MESVAR or Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.WINSIZE or Jsm.Opcode.MESSYNC or Jsm.Opcode.MENUNAME or Jsm.Opcode.MESMODE or
@@ -346,6 +346,10 @@ public sealed partial class EventEngine
         if (operation.Opcode is Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL)
         {
             return UnsupportedPartyMenuRequest(operation.Opcode);
+        }
+        if (operation.Opcode == Jsm.Opcode.MENUSHOP)
+        {
+            return UnsupportedNativeShopRequest(fiber);
         }
         if (UnsupportedMinimalMenu(fiber, operation) is string unsupportedMenu)
         {

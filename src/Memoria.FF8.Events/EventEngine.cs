@@ -66,7 +66,7 @@ public sealed partial class EventEngine
     public NativeFieldRuntimeProfile? NativeRuntimeProfile { get; private set; }
     public event Action<ScriptCommand>? CommandExecuted;
 
-    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, NativeMenuFieldReentry? menuReentry = null)
+    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null)
     {
         if (nativeRuntimeProfile is not null && !nativeRuntimeProfile.IsVerified)
         {
@@ -81,20 +81,11 @@ public sealed partial class EventEngine
         ValidateNativeMusicFieldLoad(nativeRuntimeProfile);
         JsmProgram next = JsmProgram.Read(jsm);
         string nextHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
-        ValidateMenuFieldReentry(menuReentry, fieldId, nextHash, arrival, previousFieldId);
         if (nativeRuntimeProfile is { IsVerified: true } && services.FieldFade is NativeFieldFadeState fieldFade)
         {
             services.SetFieldFade(fieldFade.ResetPhysicalForLoader().InitializeFreshActors());
         }
-        if (menuReentry is null)
-        {
-            ResetNativeShakeForLoad(nativeRuntimeProfile);
-        }
-        else
-        {
-            //Returned4706B0 has no4701B0 clock call;52D110/52D050 precedes fresh471F70 allocation.
-            RefreshParty();
-        }
+        ResetNativeShakeForLoad(nativeRuntimeProfile);
         InitializeNewGameMusic(nativeRuntimeProfile, fieldId);
         if (program is null && fieldId == 74)
         {
@@ -109,17 +100,12 @@ public sealed partial class EventEngine
         program = next;
         pendingArrival = arrival;
         LastFault = null;
-        if (menuReentry is null)
-        {
-            axisStart = InitInputAxisDirection;
-            axisTarget = InitInputAxisDirection;
-            axisDuration = 0;
-            axisElapsed = 0;
-            InputAxisDirection = InitInputAxisDirection;
-        }
+        axisStart = InitInputAxisDirection;
+        axisTarget = InitInputAxisDirection;
+        axisDuration = 0;
+        axisElapsed = 0;
+        InputAxisDirection = InitInputAxisDirection;
         partyMenu = null;
-        issuedMenuFieldReentry = null;
-        initializingMenuFieldReentry = menuReentry;
         programHash = nextHash;
         NativeRuntimeProfile = nativeRuntimeProfile;
         messages = fieldMessages ?? throw new ArgumentNullException(nameof(fieldMessages));
@@ -152,14 +138,7 @@ public sealed partial class EventEngine
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         InitializeNativeBackgroundScrollSettings();
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0);
-        //471F70 kind10 skips the <=2 run/axis/shake/previous movement resets.
-        Scene.NativeSalaryMovementUnits = menuReentry is not null ? previousScene.NativeSalaryMovementUnits : nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
-        if (menuReentry is not null)
-        {
-            Scene.RunEnabled = previousScene.RunEnabled;
-            Scene.PreviousFieldWord84 = previousScene.PreviousFieldWord84;
-            variables[87] = 10;
-        }
+        Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
         pendingNativePlayerInput = null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
@@ -351,7 +330,6 @@ public sealed partial class EventEngine
             {
                 ApplyPendingArrival();
             }
-            CompleteMenuFieldInitialization();
             if (Scene.NativeFieldInitialization is NativeFieldInitializationProof proof)
             {
                 Scene.NativeFieldInitialization = proof with { Stage = NativeFieldInitializationStage.Completed };

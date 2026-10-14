@@ -80,7 +80,7 @@ public static class NativeCharacterInitialization
         for (int id = 0; id < savedGuardianForces.Length; id++)
         {
             ReadOnlySpan<byte> row = initial.AsSpan(id * 68, 68);
-            savedGuardianForces[id] = new NativeGuardianForceVital(BinaryPrimitives.ReadUInt32LittleEndian(row[12..]), row[17], BinaryPrimitives.ReadUInt16LittleEndian(row[18..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..]), null);
+            savedGuardianForces[id] = new NativeGuardianForceVital(BinaryPrimitives.ReadUInt32LittleEndian(row[12..]), row[17], BinaryPrimitives.ReadUInt16LittleEndian(row[18..]), new NativeGuardianForceLearnedBank(BinaryPrimitives.ReadUInt64LittleEndian(row[20..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..])), null);
         }
         NativeCharacterVitals state = new()
         {

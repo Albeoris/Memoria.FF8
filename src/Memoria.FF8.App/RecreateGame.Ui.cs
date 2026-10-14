@@ -38,12 +38,20 @@ internal sealed partial class RecreateGame
 
     private MenuData ReadLiveMenuData()
     {
-        if (liveMenuCatalog is null)
+        MenuData data;
+        if (IsNativeShopActive)
         {
-            using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory);
-            liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
+            data = NativeShopMenuProjection.Build(events!.PartyMenu!.Shop!);
         }
-        MenuData data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog);
+        else
+        {
+            if (liveMenuCatalog is null)
+            {
+                using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory);
+                liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
+            }
+            data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog);
+        }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
@@ -66,6 +74,16 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (action.Kind == "shop-buy" && IsNativeShopActive)
+        {
+            PlayerActionResult result = world!.Apply(NativeShopMenuProjection.PurchaseAction(action));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail);
+            }
+            fieldSeconds = 0;
+            return;
+        }
         if (action.Kind == "save")
         {
             gameMenus!.Close();
@@ -94,11 +112,11 @@ internal sealed partial class RecreateGame
             return false;
         }
         GamePadState pad = GamePad.GetState(PlayerIndex.One);
-        if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeNormalMenuActive)
+        if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
         {
-            gameMenus.Open("main", false);
+            gameMenus.Open(IsNativeShopActive ? "shop-buy" : "main", false);
         }
-        bool nativeMainWasOpen = IsNativeNormalMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
+        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         bool menuWasOpen = gameMenus.IsOpen;
         MouseState mouse = Mouse.GetState();
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
@@ -211,7 +229,7 @@ internal sealed partial class RecreateGame
             drainUiButtons = true;
             CompleteNativeNormalMenu(nativeMainWasOpen);
         }
-        else if (!gameMenus.IsDemo && IsNativeNormalMenuActive)
+        else if (!gameMenus.IsDemo && IsNativeGridMenuActive)
         {
             UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene), default);
         }
@@ -221,10 +239,12 @@ internal sealed partial class RecreateGame
     }
 
     private bool IsNativeNormalMenuActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+    private bool IsNativeShopActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.Shop, Phase: NativePartyMenuPhase.Active, Shop: not null };
+    private bool IsNativeGridMenuActive => IsNativeNormalMenuActive || IsNativeShopActive;
 
     private bool CompleteNativeNormalMenu(bool wasPresented)
     {
-        if (!wasPresented || gameMenus!.IsOpen || saveMenu.IsOpen || !IsNativeNormalMenuActive)
+        if (!wasPresented || gameMenus!.IsOpen || saveMenu.IsOpen || !IsNativeGridMenuActive)
         {
             return false;
         }
@@ -274,7 +294,7 @@ internal sealed partial class RecreateGame
             throw new InvalidOperationException("UI is not initialized.");
         }
         UiControlCommand command = request.Ui ?? new UiControlCommand();
-        bool nativeMainWasOpen = IsNativeNormalMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
+        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         if (request.Command.Equals("ui-close", StringComparison.OrdinalIgnoreCase))
         {
             gameMenus.Close();

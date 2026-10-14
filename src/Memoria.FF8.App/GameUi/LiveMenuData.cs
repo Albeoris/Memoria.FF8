@@ -113,11 +113,11 @@ public static class LiveMenuData
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null
                 };
-                for (int bit = 0; bit < 64; bit++)
+                for (int ability = 0; ability < 128; ability++)
                 {
-                    if ((native.LearnedAbilities & (1UL << bit)) != 0)
+                    if (native.LearnedBank.Has(ability))
                     {
-                        guardianForce.Abilities.Add(catalog?.AbilityName(64 + bit) ?? $"Learned ability {64 + bit}");
+                        guardianForce.Abilities.Add(catalog?.AbilityName(ability) ?? $"Learned ability {ability}");
                     }
                 }
                 result.GuardianForces.Add(guardianForce);

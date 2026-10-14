@@ -13,18 +13,35 @@ public sealed partial class EventEngine
 
     private bool RequestPriorityOccupied(int objectId, int priority) => fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete && (IsNativeActorRequest(objectId) ? NativeActorRequestSlot(fiber) : fiber.Priority) == priority);
 
+    private int CurrentNativeRequestSlot(ActorState actor, Fiber? incoming = null) => fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && fiber != incoming).Select(NativeActorRequestSlot).DefaultIfEmpty(0).Max();
+
     private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId)
     {
-        if (actor.NativeMovementRequest is { } existing && priority > existing.RequestSlot && !CanTransferNativeMovementBackup(actor, existing) && actor.NativeScriptMovement is not { Active: true, Suspended: false })
+        if (NativeRuntimeProfile is not { IsVerified: true } || priority <= CurrentNativeRequestSlot(actor))
         {
-            return "Native request requires its single original movement backup without unproved nested overwrite";
+            return null;
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeScriptMovement is not { Active: true } movement)
+        if (actor.NativeMovementRequest is { } existing)
+        {
+            if (CanTransferNativeMovementBackup(actor, existing))
+            {
+                return UnsupportedNativeRequestResumption(actor, scriptId);
+            }
+            if (actor.NativeScriptMovement is not { Active: true, Suspended: false })
+            {
+                return "Native request requires its actual physical mode0/1 body before changing the retained backup owner";
+            }
+        }
+        if (actor.NativeScriptMovement is not { Active: true } movement)
         {
             return null;
         }
         Fiber? owner = fibers.FirstOrDefault(fiber => fiber.Sequence == movement.FiberSequence && !fiber.Complete);
-        if (owner is null || priority <= NativeActorRequestSlot(owner))
+        if (owner is null)
+        {
+            return "Native mode1 request requires a physical-only movement backup for its completed VM owner; no omitted backup or invented fiber is permitted";
+        }
+        if (priority <= NativeActorRequestSlot(owner))
         {
             return null;
         }
@@ -32,6 +49,11 @@ public sealed partial class EventEngine
         {
             return "Native request requires its single original movement backup without unproved nested overwrite";
         }
+        return UnsupportedNativeRequestResumption(actor, scriptId);
+    }
+
+    private string? UnsupportedNativeRequestResumption(ActorState actor, int scriptId)
+    {
         EventScript requested = program!.Objects[actor.ObjectId].Scripts.Single(script => script.Id == scriptId);
         if (program.Operations.Skip(requested.Start).Take(requested.End - requested.Start).Any(operation => operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 8) || fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete).Sum(fiber => fiber.Stack.Count + 8) + 8 > 80)
         {
@@ -42,20 +64,29 @@ public sealed partial class EventEngine
 
     private void SuspendNativeMovementForRequest(ActorState actor, Fiber requested)
     {
-        if (actor.NativeMovementRequest is { } existing && requested.Priority > existing.RequestSlot && CanTransferNativeMovementBackup(actor, existing))
+        if (NativeRuntimeProfile is not { IsVerified: true } || requested.Priority <= CurrentNativeRequestSlot(actor, requested))
         {
-            // Mode572=0 leaves448..456/540/514 untouched. A higher request
-            // above HALT retains that physical backup until its own RET8.
+            return;
+        }
+        if (actor.NativeMovementRequest is { } existing && CanTransferNativeMovementBackup(actor, existing))
+        {
+            //Mode572=0 leaves448..456/540/514 untouched regardless of the
+            //current slot's VM wait. Animation/WAIT/MES/HALT do not own
+            //another backup; the next higher RET consumes this same one.
             actor.NativeMovementRequest = existing with { RequestSequence = requested.Sequence, RequestScriptId = requested.Script.Id, RequestSlot = (byte)requested.Priority };
             requested.NativeActorSlot = (byte)requested.Priority;
             return;
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeScriptMovement is not { Active: true } movement)
+        if (actor.NativeScriptMovement is not { Active: true } movement)
         {
             return;
         }
         Fiber? owner = fibers.FirstOrDefault(fiber => fiber.Sequence == movement.FiberSequence && !fiber.Complete);
-        if (owner is null || requested.Priority <= NativeActorRequestSlot(owner))
+        if (owner is null)
+        {
+            throw new NotSupportedException("Native mode1 request requires its physical-only backup contract before replacing a completed VM owner.");
+        }
+        if (requested.Priority <= NativeActorRequestSlot(owner))
         {
             return;
         }
@@ -68,7 +99,7 @@ public sealed partial class EventEngine
         requested.NativeActorSlot = (byte)requested.Priority;
     }
 
-    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request) => actor.NativeScriptMovement is { Active: false } or { Suspended: true } && fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.WaitReason == WaitReason.NativeHalt && !fiber.Complete);
+    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request) => actor.NativeScriptMovement is { Active: false } or { Suspended: true } && actor.NativeJump is not { Active: true } && fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.ObjectId == actor.ObjectId && NativeActorRequestSlot(fiber) == request.RequestSlot && !fiber.Complete);
 
     private static bool IsNativeMovementRequestIssue(ActorState actor, Fiber fiber) => actor.NativeMovementRequest is { } request && request.RequestSequence == fiber.Sequence && actor.NativeScriptMovement is { Suspended: true } movement && movement.FiberSequence == request.SavedMovement.FiberSequence;
 

@@ -82,7 +82,7 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, eight records or raw combat slots.");
         }
-        if (Definitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
+        if (Definitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null || row.LearnedBank is null) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
         {
             throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
         }

@@ -45,6 +45,10 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldFadeState? FieldFade { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
+    public NativeShopHistory? ShopHistory { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeMenuRandomState? MenuRandom { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
     public NativeInputConfiguration? InputConfiguration { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldButtonInput? FieldButtonInput { get; init; }
@@ -99,6 +103,20 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    NativeMenuRandomState? MenuRandom => null;
+    bool CanStoreMenuRandom => false;
+    void SetMenuRandom(NativeMenuRandomState random)
+    {
+        throw new NotSupportedException("Native menu random process ownership is not implemented by this service.");
+    }
+
+    NativeShopHistory? ShopHistory => null;
+    bool CanStoreShopHistory => false;
+    void SetShopHistory(NativeShopHistory history)
+    {
+        throw new NotSupportedException("Native saved shop history ownership is not implemented by this service.");
+    }
+
     NativeFieldFadeState? FieldFade => null;
     bool CanStoreFieldFade => false;
     void SetFieldFade(NativeFieldFadeState fade)
@@ -159,9 +177,8 @@ public interface IEventServices
     NativeEconomy? Economy => null;
     NativeShotAvailabilityState? ShotAvailability => null;
     NativeFieldLocation? NativeFieldLocation => null;
-    FieldTransition? NativeIncomingFieldEntryWords => null;
     bool CanStoreNativePartyMenuOwners => false;
-    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null)
+    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null)
     {
         throw new NotSupportedException("Atomic party menu entry ownership is not implemented by this event service.");
     }
@@ -232,7 +249,7 @@ public interface IEventServices
     }
     NativeWorldControlState? WorldControls => null;
     bool CanStoreNativeEventOwners => false;
-    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null)
+    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
     {
         throw new NotSupportedException("Atomic native event-owner publication is not implemented by this service.");
     }

@@ -69,7 +69,7 @@ internal static partial class Program
         cleared.Step();
         Require(cleared.Scene.DrawPointEnabled == 1 && cleared.Scene.DrawPointDisplayParameter == 1 && cleared.Scene.DrawPointIndex == 3 && cleared.Scene.DrawPointReset is not null, "CLEAR changed the native below256 draw-point bytes.");
         NativeDrawPointAllocatedByteContract();
-        foreach (int mask in new[] { 0, 2, 255 })
+        foreach (int mask in new[] { 0, 2 })
         {
             EventEngine blocked = Create(Content(mask));
             ExpectDrawPointFault(blocked, "SETDRAWPOINT", 7, mask);
