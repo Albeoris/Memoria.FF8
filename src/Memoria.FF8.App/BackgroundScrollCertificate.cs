@@ -36,7 +36,7 @@ public static class BackgroundScrollCertificate
 
     internal static bool CanSetNormal(FieldAssets field, int layer, BackgroundScrollSettings settings, int cameraIndex)
     {
-        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && layer is >= 0 and <= 7 && (layer == 0 || !field.Background.Any(tile => tile.Layer == layer) || BackgroundParallaxPlacement.SupportsCameraRange(field, settings));
+        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && layer is >= 0 and <= 7 && (layer == 0 || !field.Background.Any(tile => tile.Layer == layer) || BackgroundParallaxPlacement.SupportsCameraRange(field, settings, cameraIndex: cameraIndex));
     }
 
     public static bool CanSetForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)

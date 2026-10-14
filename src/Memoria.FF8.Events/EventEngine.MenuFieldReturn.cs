@@ -11,11 +11,12 @@ public sealed partial class EventEngine
         NativeSeeDState seeD = services.SeeD ?? throw new NotSupportedException("Menu52B4F0(2) requires actual salary WORDs.");
         NativeExamTimerState timer = services.ExamTimer ?? throw new NotSupportedException("Menu52B4F0(2) requires actual timer UI ownership.");
         NativeSalaryPresentation salary = services.SalaryPresentation ?? throw new NotSupportedException("Menu52B4F0(2) requires actual salary UI ownership.");
-        if (!services.CanStoreNativeEventOwners || !services.CanStoreNativeVariableValues || Scene.MusicProcess is null || Scene.DrawPointEnabled != 0 || variables.Keys.Any(address => address is 85 or 88) || services.NativeVariableValues?.Any(pair => pair.Key <= 88 && pair.Key + pair.Value.Width > 88 && (pair.Key != 88 || pair.Value.Width != 1)) == true)
+        if (!services.CanStoreNativeEventOwners || !services.CanStoreNativeVariableValues || Scene.MusicProcess is null || variables.Keys.Any(address => address is 85 or 88) || services.NativeVariableValues?.Any(pair => pair.Key <= 88 && pair.Key + pair.Value.Width > 88 && (pair.Key != 88 || pair.Value.Width != 1)) == true)
         {
-            throw new NotSupportedException("Menu52B4F0(2) requires owned music, inactive draw-point dispatch and unaliased entry/source BYTEs.");
+            throw new NotSupportedException("Menu52B4F0(2) requires owned music and unaliased entry/source BYTEs.");
         }
         RequireKnownZeroMenuPartyAbilityFlags(vitals);
+        ushort? drawPointMask = PrepareMenuDrawPointDisplayMask();
         Dictionary<int, NativeMemoryValue> nativeMemory = services.NativeVariableValues is { } retainedMemory ? new(retainedMemory) : [];
         nativeMemory[88] = new NativeMemoryValue(1, NativeScalarValue.Exact(0));
         NativeMemoryValue.Validate(nativeMemory, new Dictionary<int, int>(variables));
@@ -37,6 +38,9 @@ public sealed partial class EventEngine
         }
         services.SetNativeEventOwners(controls, seeD: seeD, timer: timer, salaryPresentation: salary, vibrationProcess: vibration, fieldFade: fieldFade, nativeVariableValues: nativeMemory);
         Scene.MusicProcess = Scene.MusicProcess with { Complete214 = 1 };
+        //52B4F0's common tail calls4747A0 only when B240 is nonzero;
+        //it preserves B240/241/242 and never calls the eight-anchor reset474750.
+        Scene.NativeDrawPointDisplayMask = drawPointMask;
         //52B9F0 writes only primary mode/leader/flags; ratios/offsets and other seven records remain.
         Scene.BackgroundScrollPositions.Remove(0);
         Scene.ActorBackgroundScroll = null;

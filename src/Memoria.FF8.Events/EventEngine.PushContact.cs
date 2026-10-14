@@ -65,7 +65,7 @@ public sealed partial class EventEngine
         int remaining = 16;
         while (remaining > 0)
         {
-            Fiber? fiber = fibers.Where(item => item.ObjectId == objectId && !item.Complete).OrderByDescending(item => item.NativeActorSlot ?? (item.Priority == 7 ? 0 : item.Priority)).ThenBy(item => item.Sequence).FirstOrDefault();
+            Fiber? fiber = SelectScheduledFiber(objectId);
             if (fiber is null)
             {
                 break;

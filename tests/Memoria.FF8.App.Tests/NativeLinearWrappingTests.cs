@@ -91,8 +91,8 @@ public sealed class NativeLinearWrappingTests
                 Assert.True(first!.Accepted);
             }
             JsonElement before = world.Events.Capture();
-            Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 20, 0, 20)));
-            Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 4097, 0, 20)));
+            Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 20, 0, 20), world.Events.Scene.CameraIndex));
+            Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 4097, 0, 20), world.Events.Scene.CameraIndex));
             world.Events.Scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(0, 0, 256, 256);
             Assert.False(world.Events.CanBeginLinearBackgroundScroll!(new NativeLinearScrollQuery(1, 0, 0, 20, 0, 20), world.Events.Scene));
             world.Events.Scene.BackgroundScrollLayers.Clear();

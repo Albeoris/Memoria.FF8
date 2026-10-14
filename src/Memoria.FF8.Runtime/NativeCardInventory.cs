@@ -38,6 +38,26 @@ public sealed record NativeCardInventory
         return this with { Cards = Cards.ToArray(), ObtainedRareCards = ObtainedRareCards.ToArray() };
     }
 
+    /// <summary>Native534950 distinguishes never acquired, common quantity and current rare-card location.</summary>
+    public int AvailableCount(int cardId)
+    {
+        Validate();
+        if ((uint)cardId >= CardCount)
+        {
+            throw new NotSupportedException("HOWMANYCARD ID has no original card record; native out-of-bounds memory is unsupported.");
+        }
+        if (cardId < CommonCardCount)
+        {
+            return (Cards[cardId] & 0x80) != 0 ? Cards[cardId] & 0x7F : -1;
+        }
+        int rareId = cardId - CommonCardCount;
+        if ((ObtainedRareCards[rareId / 8] & 1 << (rareId & 7)) == 0)
+        {
+            return -1;
+        }
+        return Cards[cardId] == 0xF0 ? 1 : 0;
+    }
+
     /// <summary>Native 534840 marks acquisition, grants a common card up to 100 or assigns rare location F0, and returns 0/-1.</summary>
     public NativeCardInventory Acquire(int cardId, out int result)
     {

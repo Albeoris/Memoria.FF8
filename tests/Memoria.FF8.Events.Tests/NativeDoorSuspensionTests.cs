@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -10,6 +11,7 @@ internal static partial class Program
 {
     private static void NativeDoorOperandSuspensionContract()
     {
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         (Jsm.Opcode, int)[] Empty(int label) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] Expression(int label, int result, int operand, int destination)
         {
@@ -24,7 +26,10 @@ internal static partial class Program
         content[3] = 1;
         EventEngine Create()
         {
-            var session = new GameSession(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
+            session.MarkReplayUnavailable("Declared native door scheduler component; requests are staged through the current Queue boundary.");
             var engine = new EventEngine(session, session.State.Variables);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;

@@ -153,6 +153,8 @@ public sealed partial class EventEngine
         // Native52BC00 clears B240/241 before normal init; B242 persists globally.
         Scene.DrawPointFieldStateVersion = fieldId >= 72 ? 1 : 0;
         Scene.DrawPointIndex = previousScene.DrawPointIndex;
+        //52BC00 clears dispatch bytes, not physical WORD1CDBFEA.
+        Scene.NativeDrawPointDisplayMask = previousScene.NativeDrawPointDisplayMask;
         Scene.SoundInitialization = previousScene.SoundInitialization;
         Scene.SoundStop = previousScene.SoundStop;
         Scene.SoundMusicVolume197 = previousScene.SoundMusicVolume197;
@@ -286,7 +288,7 @@ public sealed partial class EventEngine
             }
             if (!RunNativeDoorScheduler(actor.ObjectId) && !RunNativeActorContactScheduler(actor.ObjectId))
             {
-                Fiber? fiber = fibers.Where(item => item.ObjectId == actor.ObjectId && !item.Complete).OrderBy(item => item.Priority).ThenBy(item => item.Sequence).FirstOrDefault();
+                Fiber? fiber = SelectScheduledFiber(actor.ObjectId);
                 if (fiber is not null)
                 {
                     Run(fiber);

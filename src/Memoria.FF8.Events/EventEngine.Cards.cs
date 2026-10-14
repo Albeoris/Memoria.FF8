@@ -19,22 +19,35 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private string? UnsupportedGetCard(Fiber fiber)
+    private string? UnsupportedCardOperand(Fiber fiber, Jsm.Opcode opcode)
     {
         if (fiber.Stack.Count == 0)
         {
-            return "GETCARD requires its original DWORD card ID";
+            return $"{opcode} requires its original DWORD card ID";
         }
-        if (services.CardInventory is not NativeCardInventory cards || !services.CanStoreCardInventory)
+        if (services.CardInventory is not NativeCardInventory cards || opcode == Jsm.Opcode.GETCARD && !services.CanStoreCardInventory)
         {
-            return "GETCARD requires the authentic native card inventory and a persistent inventory service; recreate the journal";
+            return $"{opcode} requires the authentic native card inventory and its required service capability; recreate the journal";
         }
         cards.Validate();
         if (variables.Keys.Any(address => address is >= 1405 and <= 1522) || services.NativeVariableValues?.Any(pair => pair.Key <= 1522 && (long)pair.Key + pair.Value.Width > 1408) == true)
         {
-            return "GETCARD overlaps a separate VM memory record; card byte ownership must be established by the authentic journal";
+            return $"{opcode} overlaps a separate VM memory record; card byte ownership must be established by the authentic journal";
         }
-        return (uint)fiber.Stack.Peek() >= NativeCardInventory.CardCount ? "GETCARD ID is outside the original 110 card records; native out-of-bounds memory is unsupported" : null;
+        if (!fiber.Stack.PeekValue().IsExact)
+        {
+            return $"{opcode} requires its exact consumed DWORD card ID";
+        }
+        return (uint)fiber.Stack.Peek() >= NativeCardInventory.CardCount ? $"{opcode} ID is outside the original 110 card records; native out-of-bounds memory is unsupported" : null;
+    }
+
+    private int ExecuteHowManyCard(Fiber fiber)
+    {
+        int cardId = fiber.Stack.Peek();
+        int result = services.CardInventory!.AvailableCount(cardId);
+        Pop(fiber, 1);
+        fiber.Results[0] = result;
+        return cardId;
     }
 
     private int ExecuteGetCard(Fiber fiber)

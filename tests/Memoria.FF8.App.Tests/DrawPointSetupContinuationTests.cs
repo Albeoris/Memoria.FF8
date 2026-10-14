@@ -28,7 +28,7 @@ public sealed class DrawPointSetupContinuationTests
         Assert.Equal(105, reset.ScriptId);
         Assert.Equal(1961, reset.Operation);
         Assert.Equal(new FieldFixedPosition(-6119424, 2744320, 0), reset.RawPosition);
-        Assert.Equal(1, reset.EffectiveDisplayMask);
+        Assert.Equal(1, reset.SampledDisplayMask);
         Assert.Equal(8, reset.Sparks.Count);
         Assert.All(reset.Sparks, spark => Assert.Equal(new NativeDrawPointSparkAnchor(-1494, 670, 0, 1), spark));
         using var restored = new GameWorld(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
