@@ -31,7 +31,8 @@ public sealed class MenuViewTests
         menus.Open("gf", true);
         UiView first = menus.BuildView();
         first.Resize(960, 672);
-        first.Pointer(78, 200, true);
+        var tile = first.Root.Children.SelectMany(Descendants).OfType<UiButton>().First();
+        first.Pointer(tile.Bounds.X + tile.Bounds.Width / 2, tile.Bounds.Y + tile.Bounds.Height / 2, true);
         Assert.Equal("gf-detail", menus.ScreenId);
         menus.Open("gf", true);
         menus.Navigate(MenuInput.Right);
@@ -53,7 +54,7 @@ public sealed class MenuViewTests
             Title = "Mod settings",
             Help = "Custom controls",
             MainCommand = true,
-            BuildContent = (_, root) => root.Children.Add(new UiButton { Id = "mod-action", Bounds = new UiRect(30, 100, 300, 60), Text = "Apply", Click = () => invoked = true })
+            BuildContent = (_, root) => root.Children.Add(new UiButton { Id = "mod-action", Width = 300, Height = 60, HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center, Text = "Apply", Click = () => invoked = true })
         });
         menus.Open("debug-room", true);
         Assert.Contains(menus.Entries, entry => entry.Destination == "mod-settings");
@@ -63,6 +64,18 @@ public sealed class MenuViewTests
         menus.BuildView().Resize(960, 672);
         menus.Navigate(MenuInput.Confirm);
         Assert.True(invoked);
+    }
+
+    private static IEnumerable<UiElement> Descendants(UiElement root)
+    {
+        yield return root;
+        foreach (UiElement child in root.Children)
+        {
+            foreach (UiElement descendant in Descendants(child))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private sealed class ValidationCanvas : IUiCanvas

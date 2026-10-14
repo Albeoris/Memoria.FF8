@@ -19,6 +19,7 @@ internal sealed partial class RecreateGame
     private LiveMenuCatalog? liveMenuCatalog;
     private bool previousUiMousePressed;
     private bool uiControlPointerPressed;
+    private bool drainUiButtons;
     private string UiPreferencesPath => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "ui-settings.json");
 
     private void InitializeGameUi()
@@ -43,8 +44,10 @@ internal sealed partial class RecreateGame
         MenuData data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog);
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
+        data.Settings["Text scale"] = uiPreferences.TextScale + "%";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");
+        data.SupportedActions.Add("config:Text scale");
         data.SaveAvailable = session.State.Scene != SceneKind.Title && !fieldFaulted;
         if (data.SaveAvailable)
         {
@@ -78,6 +81,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         GamePadState pad = GamePad.GetState(PlayerIndex.One);
+        bool menuWasOpen = gameMenus.IsOpen;
         MouseState mouse = Mouse.GetState();
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         bool mousePressEdge = mousePressed && !previousUiMousePressed;
@@ -106,10 +110,20 @@ internal sealed partial class RecreateGame
                 gameMenus.Open("main", false);
             }
         }
+        if (menuWasOpen && !gameMenus.IsOpen)
+        {
+            drainUiButtons = true;
+        }
         SynchronizeUiMoviePause();
         if (!gameMenus.IsOpen)
         {
             previousUiPad = pad;
+            if (drainUiButtons && (keyboard.HeldFieldButtons & 0xF0) != 0)
+            {
+                return true;
+            }
+            drainUiButtons = false;
+            SynchronizeUiMoviePause();
             return false;
         }
         if (input.MenuVertical < 0 || PadPressed(Buttons.DPadUp))
@@ -128,11 +142,15 @@ internal sealed partial class RecreateGame
         {
             gameMenus.Navigate(MenuInput.Right);
         }
-        if (input.MenuPage < 0 || keyboard.UiCharacterPage < 0 || PadPressed(Buttons.LeftShoulder))
+        if (input.MenuPage != 0)
+        {
+            gameMenus.Navigate(input.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
+        }
+        if (keyboard.UiCharacterPage < 0 || PadPressed(Buttons.LeftShoulder))
         {
             gameMenus.Navigate(MenuInput.PageLeft);
         }
-        if (input.MenuPage > 0 || keyboard.UiCharacterPage > 0 || PadPressed(Buttons.RightShoulder))
+        if (keyboard.UiCharacterPage > 0 || PadPressed(Buttons.RightShoulder))
         {
             gameMenus.Navigate(MenuInput.PageRight);
         }
@@ -158,6 +176,10 @@ internal sealed partial class RecreateGame
             }
             view.Pointer(mouse.X, mouse.Y, mousePressEdge);
         }
+        if (!gameMenus.IsOpen)
+        {
+            drainUiButtons = true;
+        }
         SynchronizeUiMoviePause();
         previousUiPad = pad;
         return true;
@@ -165,7 +187,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = gameMenus?.IsOpen == true;
+        bool pause = gameMenus?.IsOpen == true || drainUiButtons;
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();
@@ -185,7 +207,7 @@ internal sealed partial class RecreateGame
             batch.Draw(pixel, bounds, Color.Black);
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);
-            view.Draw(uiCanvas, uiTheme);
+            view.Draw(uiCanvas, new UiTheme { FontSize = 16 * gameMenus.TextScale });
         }
     }
 

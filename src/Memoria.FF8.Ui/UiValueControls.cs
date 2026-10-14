@@ -191,7 +191,7 @@ public sealed class UiProgressBar : UiElement
         canvas.Fill(Bounds, theme.BorderDark);
         canvas.Fill(track, new UiColor(60, 60, 60));
         float ratio = float.IsFinite(Value) && float.IsFinite(Min) && float.IsFinite(Max) && Max > Min ? Math.Clamp((Value - Min) / (Max - Min), 0, 1) : 0;
-        canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), Enabled ? theme.Foreground : theme.Muted);
+        canvas.Fill(new UiRect(track.X, track.Y, track.Width * ratio, track.Height), Enabled ? theme.Highlight : theme.Muted);
         if (!string.IsNullOrEmpty(Text))
         {
             canvas.Text(Text, theme.FontSize, track, theme.Foreground);

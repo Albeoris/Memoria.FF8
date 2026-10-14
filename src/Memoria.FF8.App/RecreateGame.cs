@@ -352,7 +352,7 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
-        if (saveMenu.IsOpen || events?.CurrentDialogue?.IsNamePrompt != true)
+        if (gameMenus?.IsOpen == true || saveMenu.IsOpen || events?.CurrentDialogue?.IsNamePrompt != true)
         {
             return;
         }
@@ -789,7 +789,7 @@ internal sealed partial class RecreateGame : Game
         else if (session.State.Scene == SceneKind.Movie && movie?.HasFrame == true)
         {
             movie.Draw(batch, bounds);
-            text.Draw(batch, "Escape / Space: skip", 16 * uiScale, new Vector2(24 * uiScale, bounds.Height - 34 * uiScale), Color.White * 0.7f);
+            DrawMovieHintUi(bounds);
         }
         else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene is SceneKind.Field or SceneKind.Movie && world?.Field is not null)
         {
@@ -821,33 +821,16 @@ internal sealed partial class RecreateGame : Game
                 float maximumWidth = Math.Clamp((window?.Width ?? 304) - 2 * DialoguePresentation.Padding, 1, 288) * dialogueScale;
                 Vector2 measured = text.MeasureWrapped(displayed, fontSize, maximumWidth);
                 PixelBounds panelBounds = DialoguePresentation.Bounds(dialogue, window, viewport, measured.X, measured.Y);
-                Rectangle panel = new(panelBounds.X, panelBounds.Y, panelBounds.Width, panelBounds.Height);
-                DrawPanel(panel);
-                text.DrawWrapped(batch, displayed, fontSize, new Vector2(panel.X + DialoguePresentation.Padding * dialogueScale, panel.Y + (panel.Height - measured.Y) / 2), maximumWidth, Color.White);
+                DrawDialogueUi(bounds, viewport, panelBounds, dialogue.Channel, displayed, measured.Y);
             }
         }
         if (session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
         {
-            PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
-            float timerScale = viewport.Width / 320f;
-            text.Draw(batch, timer.FieldDisplayText(), 10 * timerScale, new Vector2(viewport.X + timer.DisplayX * timerScale, viewport.Y + timer.DisplayY * timerScale), Color.White);
+            DrawTimerUi(bounds, timer);
         }
-        // TODO(TD-003): replace this managed notice with original salary UI rasterization
         if (session.State.Scene != SceneKind.Title && session.State.SalaryPresentation is { Scale9A: > 0 } salary)
         {
-            PixelBounds viewport = ViewportLayout.Fit(320, 224, bounds.Width, bounds.Height);
-            float scale = viewport.Width / 320f;
-            float progress = salary.Scale9A / 4096f;
-            float blend = salary.RankBlend98 / 4096f;
-            Vector2 origin = new(viewport.X + 176 * scale, viewport.Y + (16 - 50 * (1 - progress)) * scale);
-            Rectangle panel = new((int)origin.X, (int)origin.Y, (int)(140 * scale), (int)(44 * scale));
-            DrawPanel(panel);
-            string GlyphText(System.Collections.Immutable.ImmutableArray<byte> glyphs) => string.Concat(glyphs.TakeWhile(glyph => glyph != 0).Select(glyph => glyph == 7 ? ' ' : glyph == 178 ? 'A' : glyph is >= 96 and <= 105 ? (char)('0' + glyph - 96) : throw new NotSupportedException("Salary GUI encountered an unsupported original formatted glyph."))).Trim();
-            Color oldColor = Color.White * (progress * (1 - blend));
-            Color newColor = Color.White * (progress * blend);
-            text.Draw(batch, "SeeD salary", 8 * scale, origin + new Vector2(8, 4) * scale, Color.White * progress);
-            text.Draw(batch, $"Rank {GlyphText(salary.OldRankGlyphs)}   {GlyphText(salary.OldPayGlyphs)} gil", 8 * scale, origin + new Vector2(8, 22) * scale, oldColor);
-            text.Draw(batch, $"Rank {GlyphText(salary.NewRankGlyphs)}   {GlyphText(salary.NewPayGlyphs)} gil", 8 * scale, origin + new Vector2(8, 22) * scale, newColor);
+            DrawSalaryUi(bounds, salary);
         }
         if (events?.PartyMenu is not null)
         {
@@ -855,9 +838,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (error is not null)
         {
-            Rectangle panel = DialogueBounds(bounds, uiScale);
-            DrawPanel(panel);
-            text.DrawWrapped(batch, error, 20 * uiScale, new Vector2(panel.X + 18 * uiScale, panel.Y + 18 * uiScale), panel.Width - 36 * uiScale, Color.White);
+            DrawNoticeUi(bounds, error, true);
         }
         if (saveMenu.IsOpen)
         {
@@ -865,9 +846,7 @@ internal sealed partial class RecreateGame : Game
         }
         else if (saveNoticeSeconds > 0 && saveNotice is not null)
         {
-            Rectangle panel = new((int)(24 * uiScale), (int)(24 * uiScale), Math.Max(1, bounds.Width - (int)(48 * uiScale)), (int)(100 * uiScale));
-            DrawPanel(panel);
-            text.DrawWrapped(batch, saveNotice, 19 * uiScale, new Vector2(panel.X + 16 * uiScale, panel.Y + 14 * uiScale), panel.Width - 32 * uiScale, Color.White);
+            DrawNoticeUi(bounds, saveNotice, false);
         }
         DrawGameUi(bounds);
         batch.End();
@@ -891,83 +870,12 @@ internal sealed partial class RecreateGame : Game
 
     private void DrawTitle(Rectangle bounds)
     {
-        float scale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
-        batch.Draw(pixel, bounds, new Color(12, 17, 25));
-        for (int index = 0; index < 12; index++)
-        {
-            batch.Draw(pixel, new Rectangle((int)(bounds.Width / 2f + (-240 + index * 42) * scale), (int)(bounds.Height * 0.18f + index * 7 * scale), Math.Max(1, (int)(4 * scale)), (int)(110 * scale)), new Color(115 + index * 8, 45 + index * 7, 40, 50));
-        }
-        text.DrawCentered(batch, "FINAL FANTASY VIII", 52 * scale, new Vector2(bounds.Width / 2f, bounds.Height * 0.245f), new Color(239, 232, 218));
-        text.DrawCentered(batch, "MEMORIA", 19 * scale, new Vector2(bounds.Width / 2f, bounds.Height * 0.343f), new Color(167, 167, 160));
-        Rectangle menu = new((int)(bounds.Width / 2f - 150 * scale), (int)(bounds.Height * 0.52f), (int)(300 * scale), (int)(144 * scale));
-        DrawPanel(menu);
-        text.Draw(batch, (titleSelection == 0 ? ">  " : "   ") + "New Game", 28 * scale, new Vector2(menu.X + 32 * scale, menu.Y + 22 * scale), titleSelection == 0 ? Color.White : Color.Gray);
-        text.Draw(batch, (titleSelection == 1 ? ">  " : "   ") + "Continue", 28 * scale, new Vector2(menu.X + 32 * scale, menu.Y + 78 * scale), titleSelection == 1 ? Color.White : Color.Gray);
-        text.DrawCentered(batch, "Arrows: select    Enter: confirm    F10: load", 16 * scale, new Vector2(bounds.Width / 2f, bounds.Height - 38 * scale), Color.Gray);
+        DrawTitleUi(bounds);
     }
 
     private void DrawPlayerSaveMenu(Rectangle bounds, float scale)
     {
-        batch.Draw(pixel, bounds, Color.Black * 0.6f);
-        Rectangle panel = new((int)(40 * scale), (int)(60 * scale), Math.Max(1, bounds.Width - (int)(80 * scale)), Math.Max(1, bounds.Height - (int)(120 * scale)));
-        DrawPanel(panel);
-        text.Draw(batch, saveMenu.Mode == PlayerSaveMenuMode.Save ? "Save Game" : "Load Game", 28 * scale, new Vector2(panel.X + 24 * scale, panel.Y + 18 * scale), Color.White);
-        text.Draw(batch, $"Bank {saveMenu.Bank + 1} / {PlayerSaveStore.BankCount}    Page {saveMenu.Page + 1} / {PlayerSaveMenu.PageCount}", 18 * scale, new Vector2(panel.X + 24 * scale, panel.Y + 56 * scale), Color.Gray);
-        if (saveMenu.QuickEntry is PlayerSaveEntry quick)
-        {
-            DrawPlayerSaveEntry(quick, panel, panel.Y + 86 * scale, scale);
-        }
-        IReadOnlyList<PlayerSaveEntry> visible = saveMenu.VisibleEntries;
-        float firstY = saveMenu.QuickEntry is null ? 104 : 144;
-        for (int index = 0; index < visible.Count; index++)
-        {
-            DrawPlayerSaveEntry(visible[index], panel, panel.Y + (firstY + index * 52) * scale, scale);
-        }
-        string instructions = "Up/Down: select   Left/Right: bank   PgUp/PgDn: page\nEnter: confirm   Escape: cancel\nF5: quick save   F9: quick load   F6: save   F10: load";
-        if (saveMenu.Mode == PlayerSaveMenuMode.Load)
-        {
-            Rectangle action = new((int)(panel.X + 24 * scale), (int)(panel.Bottom - 184 * scale), Math.Max(1, panel.Width - (int)(48 * scale)), Math.Max(1, (int)(38 * scale)));
-            DrawPanel(action);
-            text.Draw(batch, "R: Recreate selected save from start", 20 * scale, new Vector2(action.X + 12 * scale, action.Y + 7 * scale), saveMenu.CanRecreate ? Color.White : Color.Gray);
-            string detail = saveMenu.Message ?? saveMenu.RecreateUnavailableReason ?? "Rebuild saved progress with this engine, then replace and load this slot after success.";
-            string displayed = detail.Length > 160 ? detail[..157] + "..." : detail;
-            text.DrawWrapped(batch, displayed, 16 * scale, new Vector2(panel.X + 24 * scale, panel.Bottom - 138 * scale), panel.Width - 48 * scale, Color.White);
-            text.DrawWrapped(batch, instructions, 18 * scale, new Vector2(panel.X + 24 * scale, panel.Bottom - 90 * scale), panel.Width - 48 * scale, Color.White);
-        }
-        else
-        {
-            if (saveMenu.Message is string message)
-            {
-                string displayed = message.Length > 140 ? message[..137] + "..." : message;
-                instructions = displayed + "\n" + instructions;
-            }
-            text.DrawWrapped(batch, instructions, 18 * scale, new Vector2(panel.X + 24 * scale, panel.Bottom - 120 * scale), panel.Width - 48 * scale, Color.White);
-        }
-    }
-
-    private void DrawPlayerSaveEntry(PlayerSaveEntry entry, Rectangle panel, float y, float scale)
-    {
-        Color color = entry.Slot == saveMenu.SelectedSlot ? Color.White : Color.Gray;
-        string label = (entry.Slot == saveMenu.SelectedSlot ? ">  " : "   ") + entry.Label;
-        if (entry.SavedAt is DateTime savedAt)
-        {
-            label += "    " + savedAt.ToString("yyyy-MM-dd HH:mm:ss");
-        }
-        text.Draw(batch, label, 22 * scale, new Vector2(panel.X + 24 * scale, y), color);
-        string details = entry.Details.Length > 80 ? entry.Details[..77] + "..." : entry.Details;
-        text.Draw(batch, details, 17 * scale, new Vector2(panel.X + 52 * scale, y + 27 * scale), color);
-    }
-
-    private static Rectangle DialogueBounds(Rectangle bounds, float scale)
-    {
-        int margin = Math.Max(1, (int)(24 * scale));
-        int height = Math.Min(bounds.Height - 2 * margin, (int)(200 * scale));
-        return new Rectangle(margin, bounds.Height - height - margin, Math.Max(1, bounds.Width - 2 * margin), Math.Max(1, height));
-    }
-
-    private void DrawPanel(Rectangle rectangle)
-    {
-        uiTheme.Panel(uiCanvas!, new Memoria.FF8.Ui.UiRect(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height));
+        DrawPlayerSavesUi(bounds);
     }
 
     protected override void Dispose(bool disposing)

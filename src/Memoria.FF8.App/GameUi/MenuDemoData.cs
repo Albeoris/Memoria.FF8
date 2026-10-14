@@ -7,7 +7,7 @@ public static class MenuDemoData
     {
         var data = new MenuData
         {
-            Location = "DEBUG FIXTURE · Balamb Garden",
+            Location = "Balamb Garden",
             Currency = 24580,
             PlayTime = TimeSpan.FromHours(12) + TimeSpan.FromMinutes(34),
             SeeDRank = 7,
@@ -27,6 +27,7 @@ public static class MenuDemoData
                 character.Stats[stat] = 20 + i * 3;
             }
             character.Stats["HP"] = character.MaximumHp.Value;
+            character.AtbProgress = i < 3 ? 0.3f + i * 0.3f : null;
             character.Junctions["HP"] = "Cure";
             character.Junctions["Str"] = "Fire";
             character.GuardianForceIds.Add(i.ToString());
@@ -59,7 +60,7 @@ public static class MenuDemoData
         string[] cardNames = ["Geezard", "Funguar", "Bite Bug", "Red Bat", "Blobra", "Gayla", "Gesper", "Fastitocalon-F", "Blood Soul", "Caterchipillar", "Cockatrice", "Grat", "Buel", "Mesmerize", "Glacial Eye", "Belhelmel", "Thrustaevis", "Anacondaur", "Creeps", "Grendel", "Jelleye", "Grand Mantis", "Ifrit", "Shiva", "Quezacotl", "Diablos", "Laguna", "Rinoa", "Squall"];
         for (var i = 0; i < cardNames.Length; i++)
         {
-            data.Cards.Add(new MenuCard { Id = i.ToString(), Name = cardNames[i], Quantity = i < 22 ? 3 : 1, Level = 1 + i / 4, Ranks = $"{2 + i % 7} / {3 + i % 6} / {1 + i % 8} / {4 + i % 5}", Element = i % 4 == 0 ? "Thunder" : "None", Description = "Fixture card. Triple Triad rules are outside this menu demonstration." });
+            data.Cards.Add(new MenuCard { Id = i.ToString(), Name = cardNames[i], Quantity = i < 22 ? 3 : 1, Level = 1 + i / 4, Ranks = $"{2 + i % 7} / {3 + i % 6} / {1 + i % 8} / {4 + i % 5}", Element = i % 4 == 0 ? "Thunder" : "None", Description = "Fixture card. Triple Triad rules are outside this menu demonstration.", RefinementItemId = i % 2 == 0 ? "13" : "14", RefinementQuantity = 1 + i % 3 });
         }
         data.Recipes.Add(new MenuRecipe("fire", "F Mag-RF", "13", 1, "0", "Fire", 5));
         data.Recipes.Add(new MenuRecipe("blizzard", "I Mag-RF", "14", 1, "1", "Blizzard", 5));
@@ -73,7 +74,30 @@ public static class MenuDemoData
             data.Settings[setting.Id] = setting.Values[0];
         }
         AddLimits(data);
+        AddBattle(data);
         return data;
+    }
+
+    private static void AddBattle(MenuData data)
+    {
+        string[] names = ["Grat A", "Grat B", "T-Rexaur"];
+        for (var i = 0; i < names.Length; i++)
+        {
+            var target = new MenuBattleTarget { Id = $"enemy-{i}", Name = names[i], CurrentHp = 320 + i * 900, MaximumHp = 500 + i * 1000 };
+            foreach (var magic in data.Magic.Where(m => m.CharacterId == "0").Take(4))
+            {
+                target.DrawSpells.Add(new MenuMagic { Id = magic.Id, Name = magic.Name, Description = "Explicit fixture draw list; native enemy spell tables are not projected." });
+            }
+            data.BattleTargets.Add(target);
+        }
+        var rewards = new MenuBattleRewards { AbilityPoints = 8, Currency = 240 };
+        foreach (var character in data.Characters.Where(c => c.InParty))
+        {
+            rewards.CharacterExperience[character.Id] = 120 + int.Parse(character.Id) * 20;
+        }
+        rewards.Items.Add(new MenuItem { Id = "0", Name = "Potion", Quantity = 2 });
+        rewards.Items.Add(new MenuItem { Id = "13", Name = "M-Stone Piece", Quantity = 1 });
+        data.BattleRewards = rewards;
     }
 
     private static void AddLimits(MenuData data)

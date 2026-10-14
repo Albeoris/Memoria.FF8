@@ -19,14 +19,14 @@ public sealed class UiTests
     [Fact]
     public void FocusSkipsDisabledHiddenClippedAndDisabledDescendants()
     {
-        UiPanel root = new() { Bounds = new UiRect(0, 0, 100, 100) };
+        UiPanel root = At(new UiPanel(), new UiRect(0, 0, 100, 100));
         UiButton first = Button(0);
         UiButton disabled = Button(20);
         disabled.Enabled = false;
         UiButton hidden = Button(40);
         hidden.Visible = false;
         UiButton clipped = Button(200);
-        UiPanel disabledPanel = new() { Bounds = new UiRect(0, 0, 100, 100), Enabled = false };
+        UiPanel disabledPanel = At(new UiPanel { Enabled = false }, new UiRect(0, 0, 100, 100));
         disabledPanel.Children.Add(Button(60));
         UiButton last = Button(80);
         root.Children.Add(first);
@@ -49,7 +49,7 @@ public sealed class UiTests
     [Fact]
     public void KeyboardPagesScrollSelectedRowIntoViewAndClampsAtEnds()
     {
-        UiList list = new() { Bounds = new UiRect(0, 0, 100, 60), RowHeight = 20, Items = Enumerable.Range(0, 10).Select(index => index.ToString()).ToList() };
+        UiList list = At(new UiList { RowHeight = 20, Items = Enumerable.Range(0, 10).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 100, 60));
         List<int> changes = new();
         list.SelectionChanged = changes.Add;
         UiView view = new(list);
@@ -77,8 +77,8 @@ public sealed class UiTests
     public void PointerMapsLetterboxedDesignCoordinatesAndActivatesOncePerPress()
     {
         int count = 0;
-        UiPanel root = new() { Bounds = new UiRect(0, 0, 100, 100) };
-        UiButton button = new() { Bounds = new UiRect(10, 10, 30, 20), Click = () => count++ };
+        UiAnchorPanel root = new();
+        UiButton button = new() { Anchors = new UiAnchors(0.1f, 0.1f, 0.4f, 0.3f), Click = () => count++ };
         root.Children.Add(button);
         UiView view = new(root) { DesignWidth = 100, DesignHeight = 100 };
         view.Resize(400, 200);
@@ -94,14 +94,14 @@ public sealed class UiTests
         Assert.Equal(2, count);
         RecordingCanvas canvas = new();
         view.Draw(canvas, new UiTheme());
-        Assert.Contains(new UiRect(120, 20, 60, 40), canvas.Clips);
+        Assert.Contains(canvas.Clips, clip => clip.X == 120 && clip.Y == 20 && clip.Width == 60 && Math.Abs(clip.Height - 40) < 0.001f);
     }
 
     [Fact]
     public void RenderingBalancesIntersectingClipsAndProceduralThemeIsGrayscale()
     {
-        UiPanel root = new() { Bounds = new UiRect(0, 0, 100, 100), Caption = "Menu" };
-        root.Children.Add(new UiLabel { Bounds = new UiRect(80, 80, 100, 40), Text = "Clipped" });
+        UiPanel root = At(new UiPanel { Caption = "Menu" }, new UiRect(0, 0, 100, 100));
+        root.Children.Add(At(new UiLabel { Text = "Clipped" }, new UiRect(80, 80, 100, 40)));
         RecordingCanvas canvas = new();
         new UiView(root).Draw(canvas, new UiTheme());
 
@@ -121,8 +121,8 @@ public sealed class UiTests
     [Fact]
     public void ClippingIsRestoredWhenAChildRendererThrows()
     {
-        UiElement root = new() { Bounds = new UiRect(0, 0, 100, 100) };
-        root.Children.Add(new ThrowingElement { Bounds = root.Bounds });
+        UiElement root = At(new UiElement(), new UiRect(0, 0, 100, 100));
+        root.Children.Add(At(new ThrowingElement(), root.Bounds));
         RecordingCanvas canvas = new();
         Assert.Throws<InvalidOperationException>(() => root.Draw(canvas, new UiTheme()));
         Assert.Equal(0, canvas.ClipDepth);
@@ -131,9 +131,9 @@ public sealed class UiTests
     [Fact]
     public void HitTestingUsesTopmostChildAndParentClip()
     {
-        UiElement root = new() { Bounds = new UiRect(0, 0, 100, 100) };
-        UiButton lower = new() { Bounds = new UiRect(0, 0, 100, 100) };
-        UiButton upper = new() { Bounds = new UiRect(50, 50, 100, 100) };
+        UiElement root = At(new UiElement(), new UiRect(0, 0, 100, 100));
+        UiButton lower = At(new UiButton(), new UiRect(0, 0, 100, 100));
+        UiButton upper = At(new UiButton(), new UiRect(50, 50, 100, 100));
         root.Children.Add(lower);
         root.Children.Add(upper);
         Assert.Same(upper, root.HitTest(50, 50));
@@ -161,7 +161,7 @@ public sealed class UiTests
     [Fact]
     public void SliderAndToggleRouteKeyboardAndOnlyNotifyOnInputChanges()
     {
-        UiSlider slider = new() { Bounds = new UiRect(0, 0, 100, 40), Max = 100, Step = 25, Value = 50 };
+        UiSlider slider = At(new UiSlider { Max = 100, Step = 25, Value = 50 }, new UiRect(0, 0, 100, 40));
         List<float> values = new();
         slider.ValueChanged = values.Add;
         slider.Value = 75;
@@ -178,7 +178,7 @@ public sealed class UiTests
         Assert.Equal(0, slider.Value);
         Assert.Throws<ArgumentOutOfRangeException>(() => slider.Step = 0);
 
-        UiToggle toggle = new() { Bounds = new UiRect(0, 0, 100, 30) };
+        UiToggle toggle = At(new UiToggle(), new UiRect(0, 0, 100, 30));
         List<bool> toggles = new();
         toggle.ValueChanged = toggles.Add;
         toggle.Key(UiKey.Right);
@@ -191,7 +191,7 @@ public sealed class UiTests
     [Fact]
     public void ProgressBarClampsValuesAndDoesNotJoinFocusNavigation()
     {
-        UiProgressBar bar = new() { Bounds = new UiRect(0, 0, 100, 10), Max = 100, Value = 150 };
+        UiProgressBar bar = At(new UiProgressBar { Max = 100, Value = 150 }, new UiRect(0, 0, 100, 10));
         RecordingCanvas canvas = new();
         UiView view = new(bar);
         view.Draw(canvas, new UiTheme());
@@ -205,9 +205,130 @@ public sealed class UiTests
         Assert.Equal(0, canvas.Fills[^1].Bounds.Width);
     }
 
+    [Fact]
+    public void WeightedGridResizesWithoutTemplateCoordinatesAndRecursivelyArrangesPanelContent()
+    {
+        UiGrid root = new() { Gap = 0 };
+        root.ColumnDefinitions.Add(UiGridLength.Star(2));
+        root.ColumnDefinitions.Add(UiGridLength.Star());
+        root.RowDefinitions.Add(UiGridLength.Star());
+        root.RowDefinitions.Add(UiGridLength.Star(2));
+        UiPanel panel = new() { Caption = "Party", CaptionHeight = 20, Padding = 5, GridRowSpan = 2, Margin = new UiThickness(5, 10) };
+        UiLabel label = new() { Text = "Squall", Margin = 2 };
+        panel.Children.Add(label);
+        UiButton button = new() { GridColumn = 1, GridRow = 1 };
+        root.Children.Add(panel);
+        root.Children.Add(button);
+        UiView view = new(root);
+        view.Resize(300, 150);
+        Assert.Equal(new UiRect(5, 10, 190, 130), panel.Bounds);
+        Assert.Equal(new UiRect(12, 37, 176, 96), label.Bounds);
+        Assert.Equal(new UiRect(200, 50, 100, 100), button.Bounds);
+        view.Resize(600, 300);
+        Assert.Equal(new UiRect(5, 10, 390, 280), panel.Bounds);
+        Assert.Equal(new UiRect(400, 100, 200, 200), button.Bounds);
+        Assert.Same(button, root.HitTest(400, 100));
+        Assert.Null(root.HitTest(600, 100));
+    }
+
+    [Fact]
+    public void GridCombinesPixelsAutoAndStarWithSpanAndAlignedFixedDimensions()
+    {
+        UiGrid root = new() { Gap = 5 };
+        root.ColumnDefinitions.Add(UiGridLength.Pixel(40));
+        root.ColumnDefinitions.Add(UiGridLength.Auto);
+        root.ColumnDefinitions.Add(UiGridLength.Star());
+        root.RowDefinitions.Add(UiGridLength.Star());
+        UiElement auto = new() { GridColumn = 1, Width = 60, Height = 20, VerticalAlignment = UiAlignment.Center };
+        UiElement star = new() { GridColumn = 2, Width = 30, Height = 10, HorizontalAlignment = UiAlignment.End, VerticalAlignment = UiAlignment.End, Margin = 5 };
+        root.Children.Add(auto);
+        root.Children.Add(star);
+        root.Arrange(new UiRect(0, 0, 300, 100));
+        Assert.Equal(new UiRect(45, 40, 60, 20), auto.Bounds);
+        Assert.Equal(new UiRect(265, 85, 30, 10), star.Bounds);
+        UiElement span = new() { GridColumnSpan = 3, Height = 15 };
+        root.Children.Add(span);
+        root.Arrange(new UiRect(0, 0, 300, 100));
+        Assert.Equal(new UiRect(0, 0, 300, 15), span.Bounds);
+    }
+
+    [Fact]
+    public void NormalizedAnchorsResizeAndAlignOverlaysInsidePadding()
+    {
+        UiAnchorPanel root = new() { Padding = 10 };
+        UiElement overlay = new() { Anchors = new UiAnchors(0.5f, 0.5f, 1, 1), Width = 40, Height = 20, HorizontalAlignment = UiAlignment.End, VerticalAlignment = UiAlignment.Center, Margin = 5 };
+        root.Children.Add(overlay);
+        root.Arrange(new UiRect(0, 0, 220, 120));
+        Assert.Equal(new UiRect(165, 75, 40, 20), overlay.Bounds);
+        root.Arrange(new UiRect(0, 0, 420, 220));
+        Assert.Equal(new UiRect(365, 150, 40, 20), overlay.Bounds);
+        overlay.Anchors = new UiAnchors(0.8f, 0, 0.2f, 1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => root.Arrange(new UiRect(0, 0, 100, 100)));
+    }
+
+    [Fact]
+    public void ExplicitGridRejectsInvalidSpansAndSmallViewportsKeepTrackSizesNonnegative()
+    {
+        UiGrid grid = new() { Gap = 0 };
+        grid.ColumnDefinitions.Add(UiGridLength.Pixel(100));
+        grid.ColumnDefinitions.Add(UiGridLength.Auto);
+        grid.RowDefinitions.Add(UiGridLength.Star());
+        UiElement first = new();
+        UiElement second = new() { GridColumn = 1, Width = 100 };
+        grid.Children.Add(first);
+        grid.Children.Add(second);
+        grid.Arrange(new UiRect(0, 0, 50, 20));
+        Assert.True(first.Bounds.Width >= 0);
+        Assert.True(second.Bounds.Width >= 0);
+        Assert.True(second.Bounds.Right <= 50.001f);
+        second.GridColumnSpan = 2;
+        Assert.Throws<ArgumentOutOfRangeException>(() => grid.Arrange(new UiRect(0, 0, 100, 100)));
+    }
+
+    [Fact]
+    public void ReadOnlyListCanScrollWithoutDrawingSelectionHighlight()
+    {
+        UiList list = new() { ShowSelection = false, Items = Enumerable.Range(0, 10).Select(index => index.ToString()).ToList(), RowHeight = 20 };
+        UiView view = new(list);
+        view.Resize(100, 40);
+        view.Key(UiKey.PageDown);
+        Assert.Equal(1, list.ScrollOffset);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        Assert.Single(canvas.Fills);
+        Assert.Equal(2, canvas.Fills[0].Bounds.Width);
+        Assert.Equal(0, canvas.Lines);
+    }
+
+    [Fact]
+    public void ViewCachesLayoutUntilViewportChangesOrLayoutIsInvalidated()
+    {
+        CountingElement root = new();
+        UiView view = new(root);
+        view.Resize(100, 100);
+        view.Resize(100, 100);
+        view.Draw(new RecordingCanvas(), new UiTheme());
+        Assert.Equal(1, root.Arrangements);
+        view.InvalidateLayout();
+        view.Draw(new RecordingCanvas(), new UiTheme());
+        Assert.Equal(2, root.Arrangements);
+        view.Resize(200, 100);
+        Assert.Equal(3, root.Arrangements);
+        view.DesignWidth = 300;
+        view.Draw(new RecordingCanvas(), new UiTheme());
+        Assert.Equal(4, root.Arrangements);
+        Assert.Equal(300, root.Bounds.Width);
+    }
+
     private static UiButton Button(float y)
     {
-        return new UiButton { Bounds = new UiRect(0, y, 100, 20) };
+        return At(new UiButton(), new UiRect(0, y, 100, 20));
+    }
+
+    private static T At<T>(T element, UiRect bounds) where T : UiElement
+    {
+        element.Arrange(bounds);
+        return element;
     }
 
     private sealed class ThrowingElement : UiElement
@@ -215,6 +336,32 @@ public sealed class UiTests
         protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
         {
             throw new InvalidOperationException("Deliberate test failure.");
+        }
+    }
+
+    [Fact]
+    public void Offscreen_parent_relative_anchors_preserve_native_positions_and_parent_clipping()
+    {
+        var root = new UiAnchorPanel();
+        var child = new UiLabel { Text = "Timer", Anchors = new UiAnchors(0.25f, 1.05f, 0.75f, 1.2f) };
+        root.Children.Add(child);
+        root.Arrange(new UiRect(0, 0, 400, 200));
+        Assert.Equal(210f, child.Bounds.Y, 3);
+        Assert.Null(root.HitTest(110, 220));
+        var canvas = new RecordingCanvas();
+        root.Draw(canvas, new UiTheme());
+        Assert.Contains(canvas.Clips, clip => clip.IsEmpty);
+        Assert.Equal(0, canvas.ClipDepth);
+    }
+
+    private sealed class CountingElement : UiElement
+    {
+        public int Arrangements { get; private set; }
+
+        public override void Arrange(UiRect bounds)
+        {
+            Arrangements++;
+            base.Arrange(bounds);
         }
     }
 

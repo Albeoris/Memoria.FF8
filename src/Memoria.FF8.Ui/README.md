@@ -4,25 +4,47 @@
 
 Implement `IUiCanvas` to connect a renderer. `PushClip` intersects its rectangle with the current clip; `PopClip` restores the previous clip. Text uses a font size and rectangle in the same coordinate space as fills and lines. Font selection and text measurement belong to the adapter.
 
-Create a root `UiElement` or `UiPanel`, set its `Bounds`, and add children to `Children`. Child bounds are absolute design coordinates. `UiView.Draw(canvas, theme)` renders the tree in child order; hit testing searches children in reverse order. Rectangles include their left/top edges and exclude right/bottom. Ancestor visibility, enabled state and clipping determine whether descendants can receive focus or pointer input.
+Create a root layout container, add children to `Children`, and call `UiView.Resize` to arrange it. Templates declare grid cells, normalized anchors, margins and alignment; they never assign coordinates. `Bounds` has a protected setter and is produced by `Arrange`. `UiView.Draw(canvas, theme)` renders the tree in child order; hit testing searches children in reverse order. Rectangles include their left/top edges and exclude right/bottom. Ancestor visibility, enabled state and clipping determine whether descendants can receive focus or pointer input.
 
 `UiView.Key(UiKey)` routes keys to focus, then moves focus for unhandled arrows and Tab. Confirm activates buttons, confirms list rows or changes toggles. Cancel invokes `UiView.Cancel`. `Focus(element)` selects a visible enabled control in the tree. Removing or disabling the focused element moves focus to the first eligible control at the next input or draw.
 
 `Pointer(x, y, pressed)` activates on the press transition. Feed release events too. Lists select and confirm the clicked row; buttons activate; toggles change; sliders map the pointer to the nearest step. Programmatic selection/value assignment is silent; input changes invoke callbacks.
 
-Set both `DesignWidth` and `DesignHeight`, then call `Resize(viewportWidth, viewportHeight)` to fit and letterbox the design rectangle. The view maps drawing, clipping and pointer coordinates using the same scale. Without design dimensions, resize arranges the root to the viewport. `UiStack` and `UiGrid` arrange children into equal cells when their `Arrange` method runs; call it again after adding or removing children. Ordinary panels retain manually assigned child bounds.
+Set both `DesignWidth` and `DesignHeight`, then call `Resize(viewportWidth, viewportHeight)` to fit and letterbox the design rectangle. The view maps drawing, clipping and pointer coordinates using the same scale. Without design dimensions, resize arranges the root to the viewport. Repeated calls with unchanged dimensions reuse layout. Call `InvalidateLayout()` after modifying child collections, sizing, margins, captions or track definitions; the next resize, draw or input arranges the tree. Changing design dimensions invalidates automatically.
+
+`UiGrid.RowDefinitions` and `ColumnDefinitions` accept `UiGridLength.Star(weight)`, `Pixel(size)` and `Auto`. Pixels reserve a dimension, Auto requests intrinsic size, and Star divides remaining space proportionally. `GridRow`, `GridColumn`, `GridRowSpan` and `GridColumnSpan` place children; invalid spans fail immediately. With no definitions, rows or attached placements, `Columns` supplies equal tracks and children flow by row. `Rows` allows explicit equal row tracks. These options use the same track sizing and arrangement path. When committed sizes exceed available space they shrink proportionally; all child rendering remains clipped to ancestors.
+
+`UiAnchorPanel` interprets each child's `UiAnchors(left, top, right, bottom)` as parent-relative edges; the default is the full parent rectangle. Anchors must be finite and ordered. Values outside0..1 support offscreen scripted UI and are clipped by the parent. Both grids and anchors apply `Margin` (`UiThickness`), nullable fixed `Width`/`Height`, and `HorizontalAlignment`/`VerticalAlignment` (`Stretch`, `Start`, `Center`, `End`) to each cell before recursively arranging it. `UiThickness` accepts one value, horizontal/vertical values or four edges; a float implicitly means uniform thickness.
+
+`UiPanel` stretches children into its content rectangle, accounting for `Padding` and optional `CaptionHeight`. `UiElement` stretches children as overlays. `UiStack` divides available space equally between visible children with `Gap` and `Padding`, then applies their margins and alignment. Use a grid when rows need different weights or sizes. Intrinsic text measurement estimates character advance at 0.6 times the font size; adapters select the actual font, so exact text typography should use declared track dimensions. Pixel dimensions describe sizes and spacing, never template coordinates.
 
 Controls:
 
-- `UiPanel`: procedural panel with optional `Caption`.
+- `UiPanel`: procedural panel with optional `Caption`, `CaptionHeight`, `Padding`, `DrawBackground`.
 - `UiLabel`: `Text`, `FontSize`, optional `Muted`.
 - `UiButton`: `Text`, `Click` callback.
-- `UiList`: settable `Items`, `SelectedIndex`, `RowHeight`, `ScrollOffset`, `SelectionChanged` and `Confirmed` callbacks. Up/Down and PageUp/PageDown keep keyboard selection visible. Empty lists have selection -1.
+- `UiList`: settable `Items`, `SelectedIndex`, `RowHeight`, `ScrollOffset`, `SelectionChanged` and `Confirmed` callbacks. Up/Down and PageUp/PageDown keep keyboard selection visible. Empty lists have selection -1. `ShowSelection=false` suppresses the highlight and pointer for scrollable text panels.
 - `UiToggle`: `Text`, boolean `Value`, `ValueChanged`; Left sets Off and Right sets On.
 - `UiSlider`: `Text`, finite `Min`, `Max`, positive `Step`, clamped `Value`, `ValueChanged`; Left/Right change by one step. Set Max before Min when raising the range above its default 0..1.
 - `UiProgressBar`: `Min`, `Max`, `Value`, optional `Text`; clamps the displayed fraction and renders invalid/empty ranges as zero. Does not receive focus.
 - `UiPortrait`: integer `Seed`, string `Initials`; an original grayscale geometric identity placeholder, not a reproduction of game portrait assets.
 - `UiStack`: `Orientation`, `Gap`, `Padding`.
-- `UiGrid`: positive `Columns`, `Gap`, `Padding`.
+- `UiGrid`: `RowDefinitions`, `ColumnDefinitions`, positive `Columns`, optional `Rows`, `Gap`, `Padding`.
+- `UiAnchorPanel`: normalized child `Anchors`, `Padding`.
+
+Example template without absolute coordinates:
+
+```csharp
+UiGrid root = new() { Gap = 8, Padding = 12 };
+root.ColumnDefinitions.Add(UiGridLength.Star(3));
+root.ColumnDefinitions.Add(UiGridLength.Star());
+root.RowDefinitions.Add(UiGridLength.Star());
+UiPanel party = new() { Caption = "Party", Padding = 8 };
+party.Children.Add(new UiList { Items = new List<string> { "Squall", "Quistis" } });
+root.Children.Add(party);
+root.Children.Add(new UiButton { GridColumn = 1, Text = "Status", Height = 40, VerticalAlignment = UiAlignment.End });
+UiView view = new(root);
+view.Resize(viewportWidth, viewportHeight);
+```
 
 `dotnet run --project recreate/product/tests/Memoria.FF8.Ui.Tests` runs headless contract tests.

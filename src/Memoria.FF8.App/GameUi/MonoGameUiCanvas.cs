@@ -108,7 +108,7 @@ internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch,
         return new Rectangle(left, top, Math.Max(0, (int)MathF.Ceiling(bounds.X + bounds.Width) - left), Math.Max(0, (int)MathF.Ceiling(bounds.Y + bounds.Height) - top));
     }
 
-    private static Color ColorFor(UiColor color) => new Color(color.R, color.G, color.B, color.A);
+    internal static Color ColorFor(UiColor color) => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A);
 
     public void Dispose()
     {

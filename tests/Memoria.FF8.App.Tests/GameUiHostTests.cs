@@ -6,6 +6,12 @@ namespace Memoria.FF8.App.Tests;
 public sealed class GameUiHostTests
 {
     [Fact]
+    public void Transparent_ui_colors_do_not_leave_bright_glyphs_in_the_premultiplied_batch()
+    {
+        Assert.Equal(Microsoft.Xna.Framework.Color.Transparent, MonoGameUiCanvas.ColorFor(new Memoria.FF8.Ui.UiColor(255, 255, 255, 0)));
+        Assert.Equal(new Microsoft.Xna.Framework.Color(128, 128, 128, 128), MonoGameUiCanvas.ColorFor(new Memoria.FF8.Ui.UiColor(255, 255, 255, 128)));
+    }
+    [Fact]
     public void Debug_room_and_menu_keys_are_edges_and_do_not_invent_player_actions()
     {
         var keyboard = new KeyboardInput();
@@ -41,7 +47,7 @@ public sealed class GameUiHostTests
         string path = Path.Combine(directory, "ui-settings.json");
         try
         {
-            var preferences = UiPreferences.Load(path).WithSetting("Music volume", "25%").WithSetting("Effect volume", "50%");
+            var preferences = UiPreferences.Load(path).WithSetting("Music volume", "25%").WithSetting("Effect volume", "50%").WithSetting("Text scale", "125%");
             preferences.Save(path);
             Assert.Equal(preferences, UiPreferences.Load(path));
             Assert.Throws<NotSupportedException>(() => preferences.WithSetting("ATB", "50"));

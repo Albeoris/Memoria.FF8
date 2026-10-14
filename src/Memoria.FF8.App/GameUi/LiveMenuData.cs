@@ -52,7 +52,7 @@ public static class LiveMenuData
                 MenuCharacter character = new()
                 {
                     Id = $"character-{row}",
-                    Name = Nonempty(names?.GetValueOrDefault(native.CharacterId)) ?? SavedName(state, native.CharacterId) ?? Nonempty(catalog?.CharacterName(native.CharacterId)) ?? $"Character {native.CharacterId}",
+                    Name = CharacterName(state, native.CharacterId, names, catalog),
                     InParty = inParty,
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.Characters[native.CharacterId]),
                     CurrentHp = native.HitPoints.Minimum == native.HitPoints.Maximum ? native.HitPoints.Minimum : null,
@@ -168,6 +168,24 @@ public static class LiveMenuData
     }
 
     private static string? Nonempty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static string CharacterName(GameState state, byte identity, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog)
+    {
+        // EventEngine.CharacterNames owns naming subjects0/1; their combat identities are0/4.
+        int? subject = identity switch
+        {
+            0 => 0,
+            4 => 1,
+            _ => null
+        };
+        string? named = subject.HasValue ? Nonempty(names?.GetValueOrDefault(subject.Value)) ?? SavedName(state, subject.Value) : null;
+        return named ?? Nonempty(catalog?.CharacterName(identity)) ?? (identity switch
+        {
+            0 => "Squall",
+            4 => "Rinoa",
+            _ => $"Character {identity}"
+        });
+    }
 
     private static string? SavedName(GameState state, int identity)
     {

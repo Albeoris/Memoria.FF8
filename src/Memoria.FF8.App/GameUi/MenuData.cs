@@ -4,7 +4,7 @@ namespace Memoria.FF8.GameUi;
 
 public enum MenuInput
 {
-    Up, Down, Left, Right, Confirm, Cancel, PageLeft, PageRight, Alternate
+    Up, Down, Left, Right, Confirm, Cancel, PageLeft, PageRight, Alternate, Tab, PageUp, PageDown
 }
 
 public sealed record MenuAction(string Kind, string SubjectId = "", string TargetId = "", string Value = "");
@@ -18,6 +18,8 @@ public sealed class MenuData
     public List<MenuCard> Cards { get; } = [];
     public List<MenuRecipe> Recipes { get; } = [];
     public List<MenuSaveSlot> SaveSlots { get; } = [];
+    public List<MenuBattleTarget> BattleTargets { get; } = [];
+    public MenuBattleRewards? BattleRewards { get; set; }
     public Dictionary<string, string> Settings { get; } = new(StringComparer.Ordinal);
     public HashSet<string> SupportedActions { get; } = new(StringComparer.Ordinal);
     public string Location { get; set; } = "Unavailable";
@@ -42,6 +44,7 @@ public sealed class MenuCharacter
     public int? NextLevelExperience { get; set; }
     public string Weapon { get; set; } = "Unavailable";
     public string LimitBreak { get; set; } = "Unavailable";
+    public float? AtbProgress { get; set; }
     public List<string> Conditions { get; } = [];
     public List<string> Commands { get; } = [];
     public List<string> Abilities { get; } = [];
@@ -107,6 +110,25 @@ public sealed class MenuCard
     public string Ranks { get; set; } = "Unavailable";
     public string Element { get; set; } = "Unavailable";
     public string Description { get; set; } = "";
+    public string? RefinementItemId { get; set; }
+    public int? RefinementQuantity { get; set; }
+}
+
+public sealed class MenuBattleTarget
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int? CurrentHp { get; set; }
+    public int? MaximumHp { get; set; }
+    public List<MenuMagic> DrawSpells { get; } = [];
+}
+
+public sealed class MenuBattleRewards
+{
+    public Dictionary<string, int> CharacterExperience { get; } = new(StringComparer.Ordinal);
+    public int? AbilityPoints { get; set; }
+    public int? Currency { get; set; }
+    public List<MenuItem> Items { get; } = [];
 }
 
 public sealed record MenuRecipe(string Id, string Ability, string IngredientId, int IngredientQuantity, string ResultId, string ResultName, int ResultQuantity);
@@ -120,7 +142,7 @@ public sealed class MenuSaveSlot
 
 public enum MenuLayout
 {
-    Main, List, Character, Junction, GuardianForceGrid, CardGrid, Gallery
+    Main, List, Character, Junction, GuardianForceGrid, CardGrid, Gallery, BattleHud
 }
 
 public sealed record MenuEntry(string Id, string Label, string Help, string? Destination = null, MenuAction? Action = null, bool Enabled = true);

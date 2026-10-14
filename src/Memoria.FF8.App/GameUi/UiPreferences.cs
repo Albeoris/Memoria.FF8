@@ -7,6 +7,7 @@ internal sealed record UiPreferences
 {
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
+    public int TextScale { get; init; } = 100;
 
     public static UiPreferences Load(string path)
     {
@@ -21,14 +22,16 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
-        if (!int.TryParse(value.TrimEnd('%'), out int number) || number is < 0 or > 100)
+        if (!int.TryParse(value.TrimEnd('%'), out int number))
         {
-            throw new ArgumentException("Audio volume must be between 0 and 100 percent.");
+            throw new ArgumentException("A presentation preference requires a percentage.");
         }
         return key switch
         {
-            "Music volume" => this with { MusicVolume = number },
-            "Effect volume" or "Sound volume" => this with { SoundVolume = number },
+            "Music volume" when number is >= 0 and <= 100 => this with { MusicVolume = number },
+            "Effect volume" or "Sound volume" when number is >= 0 and <= 100 => this with { SoundVolume = number },
+            "Text scale" when number is 100 or 125 or 150 => this with { TextScale = number },
+            "Music volume" or "Effect volume" or "Sound volume" or "Text scale" => throw new ArgumentException("Presentation preference is outside its supported range."),
             _ => throw new NotSupportedException($"The host does not implement setting '{key}'.")
         };
     }
@@ -44,9 +47,9 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
-        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100)
+        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150))
         {
-            throw new InvalidDataException("UI audio preferences must be between 0 and 100 percent.");
+            throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }
     }
 }

@@ -6,6 +6,9 @@ public sealed class UiView
     private bool _pointerPressed;
     private float _viewportWidth;
     private float _viewportHeight;
+    private float _designWidth;
+    private float _designHeight;
+    private bool _layoutDirty = true;
     private UiElement? _focusedElement;
 
     public UiView(UiElement root)
@@ -14,13 +17,31 @@ public sealed class UiView
     }
 
     public UiElement Root { get; }
-    public float DesignWidth { get; set; }
-    public float DesignHeight { get; set; }
+    public float DesignWidth
+    {
+        get => _designWidth;
+        set
+        {
+            _designWidth = value;
+            InvalidateLayout();
+        }
+    }
+
+    public float DesignHeight
+    {
+        get => _designHeight;
+        set
+        {
+            _designHeight = value;
+            InvalidateLayout();
+        }
+    }
     public Action? Cancel { get; set; }
     public UiElement? FocusedElement
     {
         get
         {
+            EnsureLayout();
             EnsureFocus();
             return _focusedElement;
         }
@@ -33,13 +54,35 @@ public sealed class UiView
             throw new ArgumentOutOfRangeException(nameof(width), "Viewport dimensions must be finite and positive.");
         }
 
-        _viewportWidth = width;
-        _viewportHeight = height;
-        Root.Arrange(new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : width, DesignHeight > 0 ? DesignHeight : height));
+        if (_viewportWidth != width || _viewportHeight != height)
+        {
+            _viewportWidth = width;
+            _viewportHeight = height;
+            InvalidateLayout();
+        }
+
+        EnsureLayout();
+    }
+
+    public void InvalidateLayout()
+    {
+        _layoutDirty = true;
+    }
+
+    private void EnsureLayout()
+    {
+        if (!_layoutDirty || _viewportWidth <= 0 || _viewportHeight <= 0)
+        {
+            return;
+        }
+
+        Root.Arrange(new UiRect(0, 0, DesignWidth > 0 ? DesignWidth : _viewportWidth, DesignHeight > 0 ? DesignHeight : _viewportHeight));
+        _layoutDirty = false;
     }
 
     public void Draw(IUiCanvas canvas, UiTheme theme)
     {
+        EnsureLayout();
         EnsureFocus();
         GetTransform(out float scale, out float offsetX, out float offsetY);
         Root.Draw(scale == 1 && offsetX == 0 && offsetY == 0 ? canvas : new ScaledCanvas(canvas, scale, offsetX, offsetY), theme);
@@ -47,6 +90,7 @@ public sealed class UiView
 
     public bool Focus(UiElement? element)
     {
+        EnsureLayout();
         if (element != null && !FocusableElements().Contains(element))
         {
             return false;
@@ -58,6 +102,7 @@ public sealed class UiView
 
     public bool Key(UiKey key)
     {
+        EnsureLayout();
         EnsureFocus();
         if (key == UiKey.Cancel)
         {
@@ -96,6 +141,7 @@ public sealed class UiView
     /// <summary>A press transition activates once; holding the pointer does not repeat activation.</summary>
     public void Pointer(float x, float y, bool pressed)
     {
+        EnsureLayout();
         bool activate = pressed && !_pointerPressed;
         _pointerPressed = pressed;
         EnsureFocus();

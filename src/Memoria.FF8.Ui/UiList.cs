@@ -58,6 +58,13 @@ public sealed class UiList : UiElement
     public Action<int>? SelectionChanged { get; set; }
     public float FontSize { get; set; }
     public Action<int>? Confirmed { get; set; }
+    public bool ShowSelection { get; set; } = true;
+
+    public override UiSize Measure(UiSize available)
+    {
+        float width = Items.Select(item => item.Length * 10f + 27).DefaultIfEmpty(0).Max();
+        return ResolveDesiredSize(width, Items.Count * RowHeight, available);
+    }
 
     public override void Arrange(UiRect bounds)
     {
@@ -72,7 +79,7 @@ public sealed class UiList : UiElement
         for (int index = offset; index < offset + rows; index++)
         {
             UiRect row = new(Bounds.X, Bounds.Y + (index - offset) * RowHeight, Bounds.Width, RowHeight);
-            if (index == SelectedIndex)
+            if (ShowSelection && index == SelectedIndex)
             {
                 canvas.Fill(row.Inset(1), theme.Highlight);
                 if (IsFocused && Enabled)

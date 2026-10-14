@@ -50,7 +50,7 @@ public sealed class LiveMenuDataTests
         GameState state = new() { CharacterVitals = vitals, Economy = economy, EventState = JsonSerializer.SerializeToElement(new { Scene = new { Names = new Dictionary<int, string> { [0] = "Saved research name" } } }) };
         string original = JsonSerializer.Serialize(state);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
-        MenuData data = LiveMenuData.Build(state, new Dictionary<int, string> { [0] = "Research name" }, catalog);
+        MenuData data = LiveMenuData.Build(state, new Dictionary<int, string> { [0] = "Research name", [1] = "Renamed Rinoa", [2] = "Renamed Angelo" }, catalog);
         Assert.Equal(new[] { "character-1", "character-0" }, data.Characters.Where(character => character.InParty).Select(character => character.Id));
         MenuCharacter squall = data.Characters.Single(character => character.Id == "character-0");
         Assert.Equal("Research name", squall.Name);
@@ -59,6 +59,10 @@ public sealed class LiveMenuDataTests
         Assert.Equal(vitals.Definitions.CharacterMaximum(rows[0]), squall.MaximumHp);
         Assert.Empty(squall.Stats);
         Assert.Equal("Zell", data.Characters.Single(character => character.Id == "character-1").Name);
+        NativeCharacterVitals allMembers = vitals.WithMemberFlags(2, true).WithMemberFlags(4, true);
+        MenuData namedParty = LiveMenuData.Build(state with { CharacterVitals = allMembers }, new Dictionary<int, string> { [1] = "Renamed Rinoa", [2] = "Renamed Angelo" }, catalog);
+        Assert.Equal("Irvine", namedParty.Characters.Single(character => character.Id == "character-2").Name);
+        Assert.Equal("Renamed Rinoa", namedParty.Characters.Single(character => character.Id == "character-4").Name);
         Assert.Equal("Quezacotl", data.GuardianForces.Single().Name);
         Assert.Equal("Potion", data.Items.Single(item => item.Id == "item-1").Name);
         Assert.Equal("Tent", data.Items.Single(item => item.Id == "item-33").Name);

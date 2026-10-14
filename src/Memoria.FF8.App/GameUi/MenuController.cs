@@ -2,7 +2,7 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-public sealed class MenuController
+public sealed partial class MenuController
 {
     private readonly Func<MenuData>? _liveProvider;
     private readonly Action<MenuAction>? _liveAction;
@@ -20,6 +20,9 @@ public sealed class MenuController
     private string _exchangeId = "";
     private string _junctionSlot = "HP";
     private string _mappingId = "Confirm";
+    private string _saveSlotId = "";
+    private string _battleTargetId = "";
+    private string _battleCommand = "Attack";
     private int _commandSlot = 1;
     private int _abilitySlot;
     private UiView? _view;
@@ -50,6 +53,9 @@ public sealed class MenuController
     public MenuMagic? Magic => Data.Magic.FirstOrDefault(m => m.Id == _magicId && m.CharacterId == Character?.Id) ?? Data.Magic.FirstOrDefault(m => m.CharacterId == Character?.Id);
     public MenuCard? Card => Data.Cards.FirstOrDefault(c => c.Id == _cardId) ?? Data.Cards.FirstOrDefault();
     public MenuRecipe? Recipe => Data.Recipes.FirstOrDefault(r => r.Id == _recipeId) ?? Data.Recipes.FirstOrDefault();
+    public MenuSaveSlot? SaveSlot => Data.SaveSlots.FirstOrDefault(s => s.Id == _saveSlotId) ?? Data.SaveSlots.FirstOrDefault();
+    public MenuBattleTarget? BattleTarget => Data.BattleTargets.FirstOrDefault(t => t.Id == _battleTargetId) ?? Data.BattleTargets.FirstOrDefault();
+    public string BattleCommand => _battleCommand;
     public string JunctionSlot => _junctionSlot;
     public string MappingId => _mappingId;
     public int CommandSlot => _commandSlot;
@@ -89,6 +95,10 @@ public sealed class MenuController
         IsOpen = true;
         ScreenId = screenId;
         _history.Clear();
+        if (demo && CurrentScreen.Layout == MenuLayout.BattleHud && Character?.InParty != true)
+        {
+            _characterId = Data.Characters.FirstOrDefault(character => character.InParty)?.Id ?? "";
+        }
         Message = "";
         _view = null;
     }
@@ -107,9 +117,27 @@ public sealed class MenuController
             return;
         }
         var entries = Entries;
+        if (_view?.FocusedElement?.Id == "details" && input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown)
+        {
+            _view.Key(input switch
+            {
+                MenuInput.Up => UiKey.Up,
+                MenuInput.Down => UiKey.Down,
+                MenuInput.PageUp => UiKey.PageUp,
+                _ => UiKey.PageDown
+            });
+            return;
+        }
         var columns = Math.Max(1, CurrentScreen.Columns);
         switch (input)
         {
+            case MenuInput.Tab:
+                BuildView().Key(UiKey.Tab);
+                break;
+            case MenuInput.PageUp:
+            case MenuInput.PageDown:
+                BuildView().Key(input == MenuInput.PageUp ? UiKey.PageUp : UiKey.PageDown);
+                break;
             case MenuInput.Up:
                 Select(SelectedIndex - columns, entries.Count);
                 break;
@@ -248,6 +276,9 @@ public sealed class MenuController
         _view = null;
         switch (action.Kind)
         {
+            case "menu-back":
+                Back();
+                return;
             case "select-character":
                 _characterId = action.SubjectId;
                 return;
@@ -274,6 +305,19 @@ public sealed class MenuController
                 return;
             case "select-mapping":
                 _mappingId = action.SubjectId;
+                return;
+            case "select-save-slot":
+                _saveSlotId = action.SubjectId;
+                return;
+            case "select-battle-command":
+                _battleCommand = action.SubjectId;
+                return;
+            case "select-battle-gf":
+                _battleCommand = "GF";
+                _gfId = action.SubjectId;
+                return;
+            case "select-battle-target":
+                _battleTargetId = action.SubjectId;
                 return;
             case "select-command-slot":
                 _commandSlot = int.Parse(action.SubjectId);
@@ -330,6 +374,36 @@ public sealed class MenuController
         var target = data.Characters.FirstOrDefault(c => c.Id == targetId);
         switch (action.Kind)
         {
+            case "battle-preview":
+                Message = $"Fixture {action.Value} target preview: {data.BattleTargets.FirstOrDefault(t => t.Id == action.TargetId)?.Name ?? target?.Name ?? action.TargetId}. No combat effect was executed.";
+                break;
+            case "battle-draw":
+                if (action.Value == "Stock" && Magic is { } drawn)
+                {
+                    var quantity = Math.Min(3, 100 - drawn.Quantity);
+                    drawn.Quantity += quantity;
+                    Message = $"Fixture stocked {quantity} {drawn.Name}; native Draw formulas are unsupported.";
+                }
+                else
+                {
+                    Message = "Fixture Cast preview selected; no combat spell was executed.";
+                }
+                break;
+            case "card-mod":
+                if (Card is { Quantity: > 0, RefinementItemId: not null, RefinementQuantity: > 0 } card)
+                {
+                    var output = data.Items.FirstOrDefault(i => i.Id == card.RefinementItemId);
+                    if (output != null)
+                    {
+                        card.Quantity--;
+                        output.Quantity += card.RefinementQuantity.Value;
+                        Message = $"Fixture Card Mod produced {card.RefinementQuantity} {output.Name}; original card recipes are not inferred.";
+                    }
+                }
+                break;
+            case "load":
+                Message = "Fixture load confirmation accepted. No native save or game state was loaded.";
+                break;
             case "limit-setting":
                 var limitOwner = target ?? character;
                 if (limitOwner != null)
@@ -603,211 +677,4 @@ public sealed class MenuController
     public static string Number(int? value) => value?.ToString() ?? "?";
     public static string Hp(MenuCharacter character) => $"{character.HpDisplay ?? Number(character.CurrentHp)} / {Number(character.MaximumHp)}";
 
-    public UiView BuildView()
-    {
-        if (_view != null)
-        {
-            return _view;
-        }
-        var screen = CurrentScreen;
-        var root = new UiPanel { Id = "menu-root", Bounds = new UiRect(0, 0, 960, 672), DrawBackground = false };
-        if (ScreenId != "junction")
-        {
-            AddPanel(root, new UiRect(20, 18, screen.Layout == MenuLayout.Main ? 662 : 920, 68), "HELP", [Message.Length > 0 ? Message : SelectedEntry?.Help ?? screen.Help], 18);
-        }
-        if (screen.BuildContent is not null)
-        {
-            screen.BuildContent(this, root);
-        }
-        else if (screen.Layout == MenuLayout.Main)
-        {
-            BuildMain(root);
-        }
-        else if (ScreenId == "junction")
-        {
-            BuildJunction(root);
-        }
-        else if (screen.Layout is MenuLayout.GuardianForceGrid or MenuLayout.CardGrid)
-        {
-            BuildGrid(root);
-        }
-        else
-        {
-            BuildStandard(root);
-        }
-        var data = Data;
-        AddPanel(root, new UiRect(20, 610, 920, 44), null, [$"{(IsDemo ? "DEMO" : "")}  {data.Location}    H / G: character    X / Enter: confirm    C / Esc: back    F2: Debug Room"], 14);
-        _view = new UiView(root) { DesignWidth = 960, DesignHeight = 672, Cancel = Back };
-        var focusables = FocusableDescendants(root).ToArray();
-        _view.Focus(focusables.OfType<UiList>().FirstOrDefault() ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
-        return _view;
-    }
-
-    private static IEnumerable<UiElement> FocusableDescendants(UiElement element)
-    {
-        if (element.Focusable)
-        {
-            yield return element;
-        }
-        foreach (UiElement child in element.Children)
-        {
-            foreach (UiElement descendant in FocusableDescendants(child))
-            {
-                yield return descendant;
-            }
-        }
-    }
-
-    private void BuildMain(UiPanel root)
-    {
-        var party = Data.Characters.Where(c => c.InParty).ToArray();
-        for (var i = 0; i < 3; i++)
-        {
-            var character = i < party.Length ? party[i] : null;
-            var bounds = new UiRect(38, 104 + i * 106, 644, 94);
-            var panel = new UiPanel { Bounds = bounds, Caption = "STATUS" };
-            root.Children.Add(panel);
-            AddLabel(panel, new UiRect(bounds.X + 18, bounds.Y + 35, 240, 44), character?.Name ?? "--", 30);
-            AddLabel(panel, new UiRect(bounds.X + 262, bounds.Y + 40, 130, 36), $"Lv  {Number(character?.Level)}", 23);
-            AddLabel(panel, new UiRect(bounds.X + 390, bounds.Y + 40, 244, 36), "HP  " + (character is null ? "--" : Hp(character)), 23);
-        }
-        var reservePanel = new UiPanel { Bounds = new UiRect(38, 422, 644, 172) };
-        root.Children.Add(reservePanel);
-        var reserves = Data.Characters.Where(c => !c.InParty).ToArray();
-        for (int index = 0; index < reserves.Length; index++)
-        {
-            MenuCharacter reserve = reserves[index];
-            float x = 56 + index % 2 * 318;
-            float y = 436 + index / 2 * 51;
-            AddLabel(reservePanel, new UiRect(x, y, 298, 26), reserve.Name, 20);
-            AddLabel(reservePanel, new UiRect(x, y + 26, 298, 24), $"Lv {Number(reserve.Level)}  HP {Hp(reserve)}", 17);
-        }
-        var commands = new UiPanel { Bounds = new UiRect(706, 18, 234, 482) };
-        root.Children.Add(commands);
-        AddList(commands, new UiRect(714, 29, 218, 460), 41, 27);
-        var time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        AddPanel(root, new UiRect(706, 514, 234, 80), null, [$"Play     {time}", $"SeeD  {Number(Data.SeeDRank)}      {Number(Data.Currency)}G"], 19);
-    }
-
-    private void BuildJunction(UiPanel root)
-    {
-        var tabs = new UiPanel { Bounds = new UiRect(20, 18, 694, 56) };
-        root.Children.Add(tabs);
-        var entries = Entries;
-        for (int index = 0; index < entries.Count; index++)
-        {
-            int selected = index;
-            tabs.Children.Add(new UiButton { Id = entries[index].Id, Bounds = new UiRect(24 + index * 86, 26, 84, 40), Text = entries[index].Label, Click = () => Activate(selected) });
-        }
-        AddPanel(root, new UiRect(728, 18, 212, 56), null, ["Junction"], 28);
-        AddPanel(root, new UiRect(20, 90, 920, 66), "HELP", [Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help], 18);
-        var character = Character;
-        DrawPortrait(root, 32, 180, character?.Name ?? "?", 98, 144);
-        AddLabel(root, new UiRect(150, 181, 400, 46), character?.Name ?? "--", 34);
-        AddLabel(root, new UiRect(150, 239, 520, 34), $"Level                   {Number(character?.Level)}", 26);
-        AddLabel(root, new UiRect(150, 285, 520, 34), $"HP                  {(character is null ? "--" : Hp(character))}", 26);
-        AddLabel(root, new UiRect(32, 336, 640, 34), $"Current EXP  {Number(character?.Experience)}p     Next level  {Number(character?.NextLevelExperience)}p", 21);
-        AddPanel(root, new UiRect(728, 180, 212, 188), "COMMAND", character?.Commands.Take(4).ToArray() ?? ["--"], 26);
-        var stats = new UiPanel { Bounds = new UiRect(32, 390, 908, 204) };
-        root.Children.Add(stats);
-        string[] keys = ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"];
-        for (int index = 0; index < keys.Length; index++)
-        {
-            string key = keys[index];
-            float x = index < 5 ? 54 : 514;
-            float y = 406 + (index < 5 ? index : index - 4) * 35;
-            AddLabel(stats, new UiRect(x, y, 74, 32), key, 24);
-            AddLabel(stats, new UiRect(x + 84, y, 235, 32), character?.Junctions.GetValueOrDefault(key, "--") ?? "--", 24);
-            string value = key == "HP" ? Number(character?.MaximumHp) : Number(character?.Stats.GetValueOrDefault(key));
-            if (key != "HP" && character?.Stats.ContainsKey(key) != true)
-            {
-                value = "--";
-            }
-            AddLabel(stats, new UiRect(x + 325, y, 78, 32), value, 24);
-        }
-    }
-
-    private void BuildStandard(UiPanel root)
-    {
-        var character = Character;
-        if (CurrentScreen.Layout is MenuLayout.Character or MenuLayout.Junction)
-        {
-            AddPanel(root, new UiRect(20, 96, 920, 92), character?.Name ?? "Character unavailable", character == null ? [Data.UnavailableReason.Length == 0 ? "No character owner has been projected." : Data.UnavailableReason] : [$"Lv {Number(character.Level)}       HP {Hp(character)}       {character.Weapon}", $"Commands: {(character.Commands.Count == 0 ? "unavailable" : string.Join(" / ", character.Commands))}"], 17);
-        }
-        var top = CurrentScreen.Layout is MenuLayout.Character or MenuLayout.Junction ? 206 : 100;
-        AddList(root, new UiRect(20, top, 414, 592 - top), 30);
-        AddPanel(root, new UiRect(454, top, 486, 592 - top), ScreenId == "debug-room" ? "Selected preview" : "Details", CurrentScreen.Details(this), 17);
-    }
-
-    private void BuildGrid(UiPanel root)
-    {
-        var entries = Entries;
-        var columns = Math.Max(1, CurrentScreen.Columns);
-        var rows = Math.Max(1, (entries.Count + columns - 1) / columns);
-        var visibleRows = CurrentScreen.Layout == MenuLayout.GuardianForceGrid ? 2 : 4;
-        var page = SelectedIndex / (columns * visibleRows);
-        var first = page * columns * visibleRows;
-        var width = 904f / columns;
-        var height = 344f / visibleRows;
-        if (entries.Count == 0)
-        {
-            AddPanel(root, new UiRect(20, 100, 920, 344), "Unavailable", ["No authenticated collection data."], 18);
-        }
-        for (var i = first; i < Math.Min(entries.Count, first + columns * visibleRows); i++)
-        {
-            var index = i;
-            var local = i - first;
-            var x = 24 + local % columns * width;
-            var y = 100 + local / columns * height;
-            var entry = entries[i];
-            var button = new UiButton { Id = entry.Id, Bounds = new UiRect(x, y, width - 5, height - 6), Text = "", Click = () => Activate(index) };
-            root.Children.Add(button);
-            AddLabel(button, new UiRect(x + 8, y + 12, width - 16, 30), entry.Label, 14);
-            DrawPortrait(button, x + 12, y + 42, entry.Label, width - 30, height - 85);
-            if (CurrentScreen.Layout == MenuLayout.GuardianForceGrid)
-            {
-                var guardianForce = Data.GuardianForces.FirstOrDefault(force => force.Id == entry.Id);
-                AddLabel(button, new UiRect(x + 8, y + height - 33, width - 16, 27), "Lv  " + Number(guardianForce?.Level), 20);
-            }
-        }
-        AddPanel(root, new UiRect(20, 456, 920, 136), $"Page {page + 1} / {Math.Max(1, (rows + visibleRows - 1) / visibleRows)}", CurrentScreen.Details(this), 16);
-    }
-
-    private void AddList(UiPanel root, UiRect bounds, int rowHeight, int fontSize = 19)
-    {
-        var entries = Entries;
-        var list = new UiList { Id = "commands", Bounds = bounds, FontSize = fontSize, Items = entries.Select(e => e.Label).ToList(), SelectedIndex = Math.Clamp(SelectedIndex, 0, Math.Max(0, entries.Count - 1)), RowHeight = rowHeight, SelectionChanged = index => Select(index, Entries.Count), Confirmed = Activate };
-        root.Children.Add(list);
-        if (entries.Count == 0)
-        {
-            root.Children.Add(new UiLabel { Bounds = new UiRect(bounds.X + 16, bounds.Y + 20, bounds.Width - 32, 84), Text = "Unavailable\nNo authenticated entries", FontSize = 17 });
-        }
-    }
-
-    private static void AddLabel(UiElement root, UiRect bounds, string value, int fontSize)
-    {
-        root.Children.Add(new UiLabel { Bounds = bounds, Text = value, FontSize = fontSize });
-    }
-
-    private static void AddPanel(UiPanel root, UiRect bounds, string? caption, IReadOnlyList<string> lines, int fontSize)
-    {
-        var panel = new UiPanel { Bounds = bounds, Caption = caption ?? "" };
-        root.Children.Add(panel);
-        var y = bounds.Y + (string.IsNullOrEmpty(caption) ? 12 : 36);
-        foreach (var line in lines)
-        {
-            panel.Children.Add(new UiLabel { Bounds = new UiRect(bounds.X + 16, y, bounds.Width - 32, fontSize + 8), Text = line, FontSize = fontSize });
-            y += fontSize + 12;
-        }
-    }
-
-    private static void DrawPortrait(UiElement root, float x, float y, string seed, float width, float height)
-    {
-        var hash = 17;
-        foreach (var character in seed)
-        {
-            hash = unchecked(hash * 31 + character);
-        }
-        root.Children.Add(new UiPortrait { Id = $"portrait-{seed}", Bounds = new UiRect(x, y, width, height), Seed = hash, Initials = seed.Length == 0 ? "?" : seed[..1] });
-    }
 }

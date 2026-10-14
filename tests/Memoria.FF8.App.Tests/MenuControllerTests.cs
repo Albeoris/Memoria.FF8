@@ -156,11 +156,11 @@ public sealed class MenuControllerTests
     public void LimitFixturePagesHavePopulatedListsAndMutableSetup()
     {
         var controller = new MenuController();
-        foreach (var screen in new[] { "status-renzokuken", "status-angelo", "status-duel", "status-blue-magic", "status-shot", "status-slot" })
+        foreach (var (screen, family) in new[] { ("status-renzokuken", "Renzokuken"), ("status-angelo", "Combine"), ("status-angel-wing", "Combine"), ("status-duel", "Duel"), ("status-blue-magic", "Blue Magic"), ("status-shot", "Shot"), ("status-slot", "Slot") })
         {
             controller.Open(screen, demo: true);
             Assert.NotEmpty(controller.Entries);
-            Assert.Contains(controller.Character!.LimitBreak, new[] { "Renzokuken", "Combine", "Duel", "Blue Magic", "Shot", "Slot" });
+            Assert.Equal(family, controller.Character!.LimitBreak);
         }
         controller.Open("status-renzokuken", demo: true);
         var squall = controller.Data.Characters[0];
@@ -202,5 +202,56 @@ public sealed class MenuControllerTests
         controller.Execute(new MenuAction("refine", Value: "All"));
         Assert.Equal(99, result.Quantity);
         Assert.Equal(oldIngredients, ingredient.Quantity);
+    }
+
+    [Fact]
+    public void BattleDrawNavigationStocksOnlyFixtureMagicAndUsesBattleLayout()
+    {
+        var controller = new MenuController();
+        foreach (var id in controller.ScreenIds.Where(id => id.StartsWith("battle-", StringComparison.Ordinal)))
+        {
+            controller.Open(id, demo: true);
+            Assert.Equal(MenuLayout.BattleHud, controller.CurrentScreen.Layout);
+        }
+        controller.Open("battle-command", demo: true);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("battle-target", controller.ScreenId);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("battle-draw", controller.ScreenId);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("battle-draw-action", controller.ScreenId);
+        var oldStock = controller.Magic!.Quantity;
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(oldStock + 3, controller.Magic.Quantity);
+        Assert.NotNull(controller.Data.BattleRewards);
+        var live = new MenuCharacter();
+        Assert.Null(live.AtbProgress);
+    }
+
+    [Fact]
+    public void SaveCancellationReturnsAndCardModConsumesExplicitFixtureRecipe()
+    {
+        var controller = new MenuController();
+        controller.Open("save", demo: true);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("save-confirm", controller.ScreenId);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("save", controller.ScreenId);
+        Assert.Equal("Empty demo slot", controller.Data.SaveSlots[1].Summary);
+        controller.Open("ability-card-mod", demo: true);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("ability-card-result", controller.ScreenId);
+        var card = controller.Card!;
+        var result = controller.Data.Items.Single(i => i.Id == card.RefinementItemId);
+        var oldCards = card.Quantity;
+        var oldItems = result.Quantity;
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(oldCards - 1, card.Quantity);
+        Assert.Equal(oldItems + card.RefinementQuantity, result.Quantity);
     }
 }
