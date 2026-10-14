@@ -15,6 +15,9 @@ internal sealed class KeyboardInput
     public bool UiDetailRequested { get; private set; }
     public bool UiConfirmRequested { get; private set; }
     public bool UiCancelRequested { get; private set; }
+    public bool BattleDebugRequested { get; private set; }
+    public bool BattleInstantVictoryRequested { get; private set; }
+    public bool BattleAdvanceTurnRequested { get; private set; }
 
     public ushort HeldFieldButtons { get; private set; }
 
@@ -31,6 +34,9 @@ internal sealed class KeyboardInput
         }
         SpeedToggleRequested = Pressed(Keys.F1);
         DebugRoomRequested = Pressed(Keys.F2);
+        BattleDebugRequested = Pressed(Keys.F4);
+        BattleInstantVictoryRequested = Pressed(Keys.F3);
+        BattleAdvanceTurnRequested = Pressed(Keys.Space);
         GameMenuRequested = Pressed(Keys.V);
         UiTabRequested = Pressed(Keys.Tab);
         UiCharacterPage = (Pressed(Keys.H) ? 1 : 0) - (Pressed(Keys.G) ? 1 : 0);

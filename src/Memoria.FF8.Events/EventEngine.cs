@@ -252,6 +252,10 @@ public sealed partial class EventEngine
         {
             return;
         }
+        if (PendingInteractiveBattle is not null)
+        {
+            return;
+        }
         if (partyMenu is not null)
         {
             StepPartyMenu();
@@ -761,7 +765,7 @@ public sealed partial class EventEngine
             WaitReason.WorldJump => false,
             WaitReason.NativePartyMenu => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,
-            WaitReason.MinimalBattle => Frame >= fiber.WaitUntil,
+            WaitReason.MinimalBattle => Frame >= fiber.WaitUntil && Scene.NativeBattleCompletions![Scene.NativeBattleWaits![fiber.Sequence]].ReturnFrame is not null,
             WaitReason.None => true,
             WaitReason.Frames => Frame >= fiber.WaitUntil,
             WaitReason.Animation => !actor.AnimationPlaying || actor.AnimationLoop,

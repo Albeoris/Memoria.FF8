@@ -10,6 +10,7 @@
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Memoria.FF8.Battle.Tests/Memoria.FF8.Battle.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Ui.Tests/Memoria.FF8.Ui.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj" />
     <Project Path="tests/Memoria.FF8.Runtime.Tests/Memoria.FF8.Runtime.Tests.csproj" />

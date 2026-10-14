@@ -69,6 +69,7 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         }
         Number(writer, nameof(value.ElapsedTicks), value.ElapsedTicks);
         Optional(writer, nameof(value.NativeSourceHash), value.NativeSourceHash);
+        Optional(writer, nameof(value.BattleInput), value.BattleInput);
         writer.WriteEndObject();
     }
 

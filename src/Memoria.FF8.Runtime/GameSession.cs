@@ -641,6 +641,14 @@ public sealed partial class GameSession : IEventServices
     private static void Validate(GameState state)
     {
         state.ReplayJournal?.Validate();
+        if (state.Battle is not null)
+        {
+            _ = BattleSession.Restore(state.Battle);
+            if (state.Scene != SceneKind.Field || state.FullBattlePlaythrough != true)
+            {
+                throw new InvalidDataException("Saved interactive combat requires its full-combat field playthrough.");
+            }
+        }
         if (state.PreviousFieldId is < 0 or > ushort.MaxValue)
         {
             throw new InvalidDataException("Invalid native previous-field provenance.");

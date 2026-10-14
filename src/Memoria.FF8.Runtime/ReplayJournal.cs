@@ -13,7 +13,8 @@ public enum ReplayEntryKind
     Dialogue,
     WorldAction,
     MovieSample,
-    MovieComplete
+    MovieComplete,
+    BattleInput
 }
 
 public enum ReplayReceiptKind
@@ -67,9 +68,15 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
     public bool Skipped { get; init; }
     public long ElapsedTicks { get; init; }
     public string? NativeSourceHash { get; init; }
+    public BattleInput? BattleInput { get; init; }
 
     public void Validate()
     {
+        BattleInput?.Validate();
+        if (Kind == ReplayEntryKind.BattleInput ? BattleInput is null : BattleInput is not null)
+        {
+            throw new InvalidDataException("Battle replay input must belong to a battle transaction.");
+        }
         if (!Enum.IsDefined(Kind) || !Enum.IsDefined(Scene) || FieldId is < 0 or > ushort.MaxValue || Frame < 0 || Frames is < 1 or > 30000 || Advanced < 0 || Advanced > 30000 || Repeat is < 1 or > 30000 || Text?.Length > 1024 || !float.IsFinite(Horizontal) || !float.IsFinite(Vertical) || Math.Abs(Horizontal) > 1 || Math.Abs(Vertical) > 1 || !double.IsFinite(MovieSeconds) || MovieSeconds < 0 || ResultScene is SceneKind scene && !Enum.IsDefined(scene) || ResultFieldId is < 0 or > ushort.MaxValue || ResultFrame < 0 || CommandCount < 0 || ElapsedTicks < 0 || Navigation is null || Receipts is null || Navigation.Length > 30000 || Receipts.Length > 262144)
         {
             throw new InvalidDataException("Invalid engine replay transaction.");
@@ -78,7 +85,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
         {
             throw new InvalidDataException("Unsupported replay action or native source hash.");
         }
-        if (Trigger is < 0 or > 8 || ResultTrigger is < 0 or > 8 || MessageId < -1 || ObjectId < -1 || ScriptId < -1 || Operation < -1 || ResultMessageId < -1 || ResultObjectId < -1 || ResultScriptId < -1 || ResultOperation < -1)
+        if (Trigger is < 0 or > 9 || ResultTrigger is < 0 or > 9 || MessageId < -1 || ObjectId < -1 || ScriptId < -1 || Operation < -1 || ResultMessageId < -1 || ResultObjectId < -1 || ResultScriptId < -1 || ResultOperation < -1)
         {
             throw new InvalidDataException("Invalid replay causal trigger or dialogue site.");
         }

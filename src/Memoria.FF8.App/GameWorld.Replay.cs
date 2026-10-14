@@ -161,6 +161,9 @@ internal sealed partial class GameWorld
                         rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State.MovieIndex, gameDirectory));
                         rebuilt.CompleteMovie(entry.Skipped);
                         break;
+                    case ReplayEntryKind.BattleInput:
+                        world.ApplyBattleInput(entry.BattleInput!);
+                        break;
                     default:
                         throw new NotSupportedException($"Replay transaction {entry.Kind} is not implemented.");
                 }

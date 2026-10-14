@@ -46,9 +46,15 @@ internal sealed partial class RecreateGame
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
+        data.Settings["Battle ATB mode"] = uiPreferences.AtbMode.ToString();
+        data.Settings["Battle policy"] = uiPreferences.BattlePolicy;
+        data.Settings["Initiative bar"] = uiPreferences.ShowInitiative ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");
         data.SupportedActions.Add("config:Text scale");
+        data.SupportedActions.Add("config:Battle ATB mode");
+        data.SupportedActions.Add("config:Battle policy");
+        data.SupportedActions.Add("config:Initiative bar");
         data.SaveAvailable = session.State.Scene != SceneKind.Title && !fieldFaulted;
         if (data.SaveAvailable)
         {
@@ -70,6 +76,10 @@ internal sealed partial class RecreateGame
             uiPreferences = uiPreferences.WithSetting(action.SubjectId, action.Value);
             uiPreferences.Save(UiPreferencesPath);
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
+            if (ActiveBattle is not null && ActiveBattle.Mode != uiPreferences.AtbMode)
+            {
+                ApplyBattleCommand(new BattleInput(BattleInputKind.SetMode, Mode: uiPreferences.AtbMode));
+            }
             return;
         }
         throw new NotSupportedException($"Live menu action '{action.Kind}' requires a proved game-owned command and causal replay contract.");
@@ -111,7 +121,7 @@ internal sealed partial class RecreateGame
             {
                 gameMenus.Close();
             }
-            else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events is { IsUserControlEnabled: true, CurrentDialogue: null } && events.Scene.MenuEnabled)
+            else if (ActiveBattle is not null || session.State.Scene == SceneKind.Title || session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && events is { IsUserControlEnabled: true, CurrentDialogue: null } && events.Scene.MenuEnabled)
             {
                 gameMenus.Open("main", false);
             }
@@ -241,7 +251,10 @@ internal sealed partial class RecreateGame
     {
         if (gameMenus?.IsOpen == true && uiCanvas is not null)
         {
-            batch.Draw(pixel, bounds, Color.Black);
+            if (ActiveBattle is null)
+            {
+                batch.Draw(pixel, bounds, Color.Black);
+            }
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);
             view.Draw(uiCanvas, new UiTheme { FontSize = 16 * gameMenus.TextScale });

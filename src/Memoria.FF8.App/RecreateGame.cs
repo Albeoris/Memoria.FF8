@@ -107,6 +107,12 @@ internal sealed partial class RecreateGame : Game
             Exit();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        if (UpdateBattleDebugUi(input))
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (UpdateGameUi(gameTime.ElapsedGameTime, input))
         {
             fieldAudio?.Update();
@@ -123,6 +129,13 @@ internal sealed partial class RecreateGame : Game
         }
         TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene);
         world?.AdvanceDebug(gameplayElapsed);
+        if (UpdateBattle(gameplayElapsed, input))
+        {
+            fieldAudio?.Update();
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (session.State.Scene == SceneKind.Title)
         {
             if (input.MenuVertical != 0)
@@ -530,6 +543,7 @@ internal sealed partial class RecreateGame : Game
 
     private void RestorePlayerState(GameState state)
     {
+        ClearBattlePresentation();
         movie?.Dispose();
         movie = null;
         movieIndex = -1;
@@ -552,6 +566,7 @@ internal sealed partial class RecreateGame : Game
 
     private void StartNewGameSession()
     {
+        ClearBattlePresentation();
         gameMenus?.Close();
         SynchronizeUiMoviePause();
         movie?.Dispose();
@@ -561,6 +576,11 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
+        if (uiPreferences.BattlePolicy == "NewGameFullCombat")
+        {
+            world = CreateWorld();
+            world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
+        }
         presentedDialogue = null;
         fieldSeconds = 0;
         error = null;
@@ -570,6 +590,10 @@ internal sealed partial class RecreateGame : Game
 
     private object DispatchControl(ControlRequest request)
     {
+        if (request.Command.StartsWith("battle-", StringComparison.OrdinalIgnoreCase))
+        {
+            return DispatchBattleControl(request);
+        }
         if (request.Command.Equals("debug-room", StringComparison.OrdinalIgnoreCase) || request.Command.StartsWith("ui-", StringComparison.OrdinalIgnoreCase))
         {
             return DispatchUiControl(request);
@@ -692,6 +716,7 @@ internal sealed partial class RecreateGame : Game
             EventSpeedMultiplier = gameplayClock.SpeedMultiplier,
             DebugPresentation = session.State.DebugView,
             GameUi = GameUiStatus(),
+            Battle = BattleStatus(),
             DebugActionLog = world?.DebugActions,
             Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names, events.MessageVariables) : null } : null,
             Dialogue = events?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events.Scene.Names, events.MessageVariables) } : null,
@@ -753,7 +778,7 @@ internal sealed partial class RecreateGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (gameMenus?.IsOpen != true && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
+        if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
         {
             try
             {
@@ -782,7 +807,11 @@ internal sealed partial class RecreateGame : Game
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
         text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
-        if (session.State.Scene == SceneKind.Title)
+        if (ActiveBattle is not null)
+        {
+            DrawBattle(bounds);
+        }
+        else if (session.State.Scene == SceneKind.Title)
         {
             DrawTitle(bounds);
         }
@@ -845,6 +874,7 @@ internal sealed partial class RecreateGame : Game
             DrawNoticeUi(bounds, saveNotice, false);
         }
         DrawGameUi(bounds);
+        DrawBattleDebugUi(bounds);
         batch.End();
         string? capturePath = pendingCapture ?? (!frameCaptured && gameTime.TotalGameTime.TotalSeconds >= options.CaptureAfterSeconds ? options.CaptureFramePath : null);
         if (capturePath is not null)
@@ -881,6 +911,7 @@ internal sealed partial class RecreateGame : Game
             fieldAudio?.Dispose();
             movie?.Dispose();
             world?.Dispose();
+            DisposeBattlePresentation();
             fieldTexture?.Dispose();
             uiCanvas?.Dispose();
             pixel?.Dispose();

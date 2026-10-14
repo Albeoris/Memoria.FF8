@@ -4,13 +4,29 @@ namespace Memoria.FF8.Events;
 
 public enum NativeBattleBackend
 {
-    AutomaticVictory
+    AutomaticVictory,
+    Interactive
 }
 
 public sealed record NativeBattleCompletion(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, int RawEncounter, int RawFlags, ushort Encounter, ushort Flags, bool Suppressed, NativeBattleBackend? Backend, long? ReturnFrame, byte? Result, int EmulatedCombatCallbacks, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] NativeBattleFlagConsumerReceipt? FlagConsumer = null);
 
 public sealed partial class EventEngine
 {
+    public Func<ushort, ushort, bool>? UseInteractiveBattle { get; set; }
+    public Func<ushort, ushort, string?>? ValidateInteractiveBattle { get; set; }
+    public NativeBattleCompletion? PendingInteractiveBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => request.Backend == NativeBattleBackend.Interactive && request.ReturnFrame is null && request.Result is null);
+
+    public void ReturnFromInteractiveBattle(int combatCallbacks)
+    {
+        NativeBattleCompletion request = PendingInteractiveBattle ?? throw new InvalidOperationException("No interactive battle owns the suspended field VM.");
+        if (combatCallbacks < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(combatCallbacks));
+        }
+        int index = Scene.NativeBattleCompletions!.IndexOf(request);
+        Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
+        Step();
+    }
     private string? UnsupportedBattle(Fiber fiber, JsmOperation operation)
     {
         string? modeAccess = UnsupportedBattleMode(fiber, operation);
@@ -43,6 +59,11 @@ public sealed partial class EventEngine
             try
             {
                 _ = NeedsNativeSalaryTransitionReset();
+                int[] operands = fiber.Stack.Take(2).Reverse().ToArray();
+                if (UseInteractiveBattle?.Invoke(unchecked((ushort)operands[0]), unchecked((ushort)operands[1])) == true)
+                {
+                    return ValidateInteractiveBattle?.Invoke(unchecked((ushort)operands[0]), unchecked((ushort)operands[1]));
+                }
             }
             catch (NotSupportedException exception)
             {
@@ -75,9 +96,10 @@ public sealed partial class EventEngine
                 throw new EventScriptException(message, exception);
             }
         }
+        bool interactive = !suppressed && UseInteractiveBattle?.Invoke(unchecked((ushort)operands[0]), unchecked((ushort)operands[1])) == true;
         operands = Pop(fiber, 2);
         // TODO(TD-009): replace the authorized zero-duration automatic victory backend with native combat
-        NativeBattleCompletion completion = new(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, operands[0], operands[1], unchecked((ushort)operands[0]), unchecked((ushort)operands[1]), suppressed, suppressed ? null : NativeBattleBackend.AutomaticVictory, null, null, 0);
+        NativeBattleCompletion completion = new(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, operands[0], operands[1], unchecked((ushort)operands[0]), unchecked((ushort)operands[1]), suppressed, suppressed ? null : interactive ? NativeBattleBackend.Interactive : NativeBattleBackend.AutomaticVictory, null, null, 0);
         if (!suppressed)
         {
             ushort? persistentMode = Scene.NativeBattleFlagWrites is { Count: > 0 } history ? history[^1].PersistentFlags : null;
@@ -111,7 +133,11 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            byte? result = request.Suppressed ? null : (byte)0;
+            byte? result = request.Suppressed ? null : request.Backend == NativeBattleBackend.Interactive ? request.Result : (byte)0;
+            if (request.Backend == NativeBattleBackend.Interactive && result is null)
+            {
+                continue;
+            }
             Scene.NativeBattleCompletions[index] = request with { ReturnFrame = Frame, Result = result };
             if (result is byte outcome)
             {
@@ -137,7 +163,7 @@ public sealed partial class EventEngine
         }
         foreach (NativeBattleCompletion completion in saved.Scene.NativeBattleCompletions)
         {
-            if (completion is null || completion.Version != 1 || completion.FieldId is < 0 or > ushort.MaxValue || completion.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || completion.Frame <= 0 || completion.ObjectId < 0 || completion.ScriptId < 0 || completion.Operation < 0 || completion.Encounter != unchecked((ushort)completion.RawEncounter) || completion.Flags != unchecked((ushort)completion.RawFlags) || completion.EmulatedCombatCallbacks != 0 || completion.ReturnFrame is long returned && returned <= completion.Frame)
+            if (completion is null || completion.Version != 1 || completion.FieldId is < 0 or > ushort.MaxValue || completion.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || completion.Frame <= 0 || completion.ObjectId < 0 || completion.ScriptId < 0 || completion.Operation < 0 || completion.Encounter != unchecked((ushort)completion.RawEncounter) || completion.Flags != unchecked((ushort)completion.RawFlags) || completion.EmulatedCombatCallbacks < 0 || completion.Backend != NativeBattleBackend.Interactive && completion.EmulatedCombatCallbacks != 0 || completion.ReturnFrame is long returned && returned <= completion.Frame)
             {
                 throw new InvalidDataException("Saved minimal battle request changed its original source, WORD operands or declared zero combat callback policy.");
             }
@@ -149,7 +175,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
             }
-            if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend != NativeBattleBackend.AutomaticVictory || (completion.ReturnFrame is null ? completion.Result is not null : completion.Result != 0))
+            if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend is not (NativeBattleBackend.AutomaticVictory or NativeBattleBackend.Interactive) || (completion.ReturnFrame is null ? completion.Result is not null : completion.Result != 0))
             {
                 throw new InvalidDataException("Saved minimal battle request has an invalid suppression, backend or native result byte.");
             }

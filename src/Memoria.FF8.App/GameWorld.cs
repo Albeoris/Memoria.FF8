@@ -48,6 +48,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session, session.State.Variables);
+        ConfigureBattleHost();
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
@@ -340,6 +341,7 @@ internal sealed partial class GameWorld : IDisposable
             FlushReplayJournal(journal);
         }
         assets.Dispose();
+        battleAssets?.Dispose();
         preparedWorldEntry?.Dispose();
         worldScene?.Dispose();
     }

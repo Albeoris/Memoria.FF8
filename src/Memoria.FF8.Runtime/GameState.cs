@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -75,6 +76,10 @@ public sealed record GameState
     public JsonElement? DepartingFieldState { get; init; }
     public DialogueDraft? DialogueDraft { get; init; }
     public DebugSceneView? DebugView { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? FullBattlePlaythrough { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BattleSnapshot? Battle { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ReplayJournal? ReplayJournal { get; init; }
 }

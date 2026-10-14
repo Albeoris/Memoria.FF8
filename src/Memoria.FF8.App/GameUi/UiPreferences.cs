@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
@@ -8,6 +9,9 @@ internal sealed record UiPreferences
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
     public int TextScale { get; init; } = 100;
+    public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.Normal;
+    public string BattlePolicy { get; init; } = "ResearchInstantVictory";
+    public bool ShowInitiative { get; init; } = true;
 
     public static UiPreferences Load(string path)
     {
@@ -22,6 +26,28 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (key == "Battle ATB mode")
+        {
+            return value switch
+            {
+                "Normal" => this with { AtbMode = BattleAtbMode.Normal },
+                "TurnBased" => this with { AtbMode = BattleAtbMode.TurnBased },
+                _ => throw new ArgumentException("Unsupported battle ATB mode.")
+            };
+        }
+        if (key == "Battle policy")
+        {
+            return value is "ResearchInstantVictory" or "NewGameFullCombat" ? this with { BattlePolicy = value } : throw new ArgumentException("Unsupported battle policy.");
+        }
+        if (key == "Initiative bar")
+        {
+            return value switch
+            {
+                "On" => this with { ShowInitiative = true },
+                "Off" => this with { ShowInitiative = false },
+                _ => throw new ArgumentException("Initiative bar requires On or Off.")
+            };
+        }
         if (!int.TryParse(value.TrimEnd('%'), out int number))
         {
             throw new ArgumentException("A presentation preference requires a percentage.");
@@ -47,7 +73,7 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
-        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150))
+        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || !Enum.IsDefined(AtbMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

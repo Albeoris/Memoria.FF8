@@ -1,0 +1,377 @@
+using System.Numerics;
+using Albeoris.Games.FF8.Imaging;
+using Albeoris.Games.FF8.Imaging.Tim;
+
+namespace Memoria.FF8.Assets;
+
+/// <summary>Bounded original DAT skeleton, geometry, compressed animation and X static-stage decoder.</summary>
+internal static class BattleResourceReader
+{
+    private static BinaryReader Reader(byte[] bytes) => new(new MemoryStream(bytes, false));
+    private static int Count(int count, int maximum, string name)
+    {
+        if (count < 0 || count > maximum)
+        {
+            throw new InvalidDataException($"Battle {name} count {count} exceeds its supported bounds.");
+        }
+        return count;
+    }
+
+    private static int[] Directory(BinaryReader reader)
+    {
+        int count = Count(reader.ReadInt32(), 16, "sections");
+        int[] offsets = Enumerable.Range(0, count).Select(_ => reader.ReadInt32()).ToArray();
+        int length = reader.ReadInt32();
+        if (length != reader.BaseStream.Length || offsets.Where((offset, index) => offset < 8 + count * 4 || offset > length || (index > 0 && offset < offsets[index - 1])).Any())
+        {
+            throw new InvalidDataException("Battle DAT section directory is invalid.");
+        }
+        return offsets;
+    }
+
+    public static BattleModel ReadModel(string name, byte[] bytes, int? textureSectionOverride = null)
+    {
+        using BinaryReader reader = Reader(bytes);
+        int[] offsets = Directory(reader);
+        if (offsets.Length is not (7 or 8 or 9 or 11))
+        {
+            throw new NotSupportedException($"{name}: {offsets.Length}-section battle model has no supported skeleton contract.");
+        }
+        reader.BaseStream.Position = offsets[0];
+        int boneCount = Count(reader.ReadUInt16(), 128, "bones");
+        float scale = reader.ReadUInt16() / 2048f * 12;
+        BattleBone[] bones = new BattleBone[boneCount];
+        for (int index = 0; index < boneCount; index++)
+        {
+            reader.BaseStream.Position = offsets[0] + 16 + index * 48;
+            ushort parent = reader.ReadUInt16();
+            short length = reader.ReadInt16();
+            if (parent != ushort.MaxValue && parent >= index)
+            {
+                throw new InvalidDataException($"{name}: bone {index} references nonancestor {parent}.");
+            }
+            bones[index] = new BattleBone(parent == ushort.MaxValue ? -1 : parent, length / 2048f);
+        }
+        int textureSection = textureSectionOverride ?? (offsets.Length == 11 ? 10 : offsets.Length == 9 ? 8 : 5);
+        IReadOnlyList<PixelImage> textures = Textures(reader, bytes, offsets[textureSection]);
+        IReadOnlyList<BattleMesh> meshes = Geometry(reader, offsets[1], bones.Length, textures.Count);
+        IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
+        return new BattleModel(name, bones, meshes, textures, animations, scale);
+    }
+
+    public static BattleModel ReadWeapon(string name, byte[] bytes, BattleModel character)
+    {
+        using BinaryReader reader = Reader(bytes);
+        int[] offsets = Directory(reader);
+        if (offsets.Length is 7 or 8)
+        {
+            return ReadModel(name, bytes, 6);
+        }
+        if (offsets.Length != 5)
+        {
+            throw new NotSupportedException($"{name}: independent animated weapons require their own skeleton binding.");
+        }
+        IReadOnlyList<PixelImage> textures = Textures(reader, bytes, offsets[4]);
+        return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures.Count), textures, character.Animations, character.Scale);
+    }
+
+    private static IReadOnlyList<BattleMesh> Geometry(BinaryReader reader, int offset, int boneCount, int textureCount)
+    {
+        reader.BaseStream.Position = offset;
+        int count = Count(reader.ReadInt32(), 256, "objects");
+        int[] objects = Enumerable.Range(0, count).Select(_ => checked(offset + reader.ReadInt32())).ToArray();
+        List<BattleMesh> meshes = [];
+        foreach (int position in objects)
+        {
+            reader.BaseStream.Position = position;
+            int groups = Count(reader.ReadUInt16(), 1024, "vertex groups");
+            List<BattleVertex> vertices = [];
+            for (int group = 0; group < groups; group++)
+            {
+                int bone = reader.ReadUInt16();
+                int vertexCount = Count(reader.ReadUInt16(), 8192, "vertices");
+                if (bone >= boneCount)
+                {
+                    throw new InvalidDataException($"Battle geometry references bone {bone} outside {boneCount}.");
+                }
+                for (int index = 0; index < vertexCount; index++)
+                {
+                    short x = reader.ReadInt16();
+                    short y = reader.ReadInt16();
+                    short z = reader.ReadInt16();
+                    vertices.Add(new BattleVertex(new Vector3(-x, -y, z) / 2048f, bone));
+                }
+            }
+            reader.BaseStream.Position = (reader.BaseStream.Position + 3) & ~3L;
+            int triangles = Count(reader.ReadUInt16(), 16384, "triangles");
+            int quads = Count(reader.ReadUInt16(), 16384, "quads");
+            if (reader.ReadUInt64() != 0)
+            {
+                throw new NotSupportedException("Battle geometry polygon-header flags are outside the supported contract.");
+            }
+            List<BattleFace> faces = [];
+            for (int index = 0; index < triangles + quads; index++)
+            {
+                bool quad = index >= triangles;
+                int a = reader.ReadUInt16() & 4095;
+                int b = reader.ReadUInt16() & 4095;
+                int c = reader.ReadUInt16() & 4095;
+                int d = quad ? reader.ReadUInt16() & 4095 : 0;
+                Vector2 uv0 = Uv(reader);
+                Vector2 uv1 = quad ? default : Uv(reader);
+                int texture = (reader.ReadUInt16() >> 6) & 7;
+                if (quad)
+                {
+                    uv1 = Uv(reader);
+                }
+                Vector2 uv2 = default;
+                Vector2 uv3 = default;
+                if (!quad)
+                {
+                    uv2 = Uv(reader);
+                }
+                reader.ReadUInt16();
+                if (quad)
+                {
+                    uv2 = Uv(reader);
+                    uv3 = Uv(reader);
+                }
+                int[] indices = quad ? [a, b, c, d] : [c, a, b];
+                if (texture >= textureCount || indices.Any(vertex => vertex >= vertices.Count))
+                {
+                    throw new InvalidDataException("Battle polygon references an absent texture or vertex.");
+                }
+                faces.Add(new BattleFace(indices, quad ? [uv0, uv1, uv2, uv3] : [uv0, uv1, uv2], texture, new Rgba32(128, 128, 128, 255)));
+            }
+            meshes.Add(new BattleMesh(vertices, faces));
+        }
+        return meshes;
+    }
+
+    private static Vector2 Uv(BinaryReader reader) => new(reader.ReadByte(), reader.ReadByte());
+
+    private static IReadOnlyList<PixelImage> Textures(BinaryReader reader, byte[] bytes, int offset)
+    {
+        reader.BaseStream.Position = offset;
+        int count = Count(reader.ReadInt32(), 16, "textures");
+        int[] pointers = Enumerable.Range(0, count).Select(_ => checked(offset + reader.ReadInt32())).ToArray();
+        return pointers.Select(pointer => ReadTim(bytes, pointer).Images[0].Decode()).ToArray();
+    }
+
+    private static TimFile ReadTim(byte[] bytes, int offset)
+    {
+        using BinaryReader reader = Reader(bytes);
+        reader.BaseStream.Position = offset;
+        if (reader.ReadUInt32() != 16)
+        {
+            throw new InvalidDataException($"Original TIM magic is absent at 0x{offset:X}.");
+        }
+        uint flags = reader.ReadUInt32();
+        if ((flags & 8) != 0)
+        {
+            int paletteSize = reader.ReadInt32();
+            reader.BaseStream.Position += paletteSize - 4;
+        }
+        int imageSize = reader.ReadInt32();
+        reader.BaseStream.Position += imageSize - 4;
+        return TimFile.Read(bytes.AsSpan(offset, checked((int)reader.BaseStream.Position - offset)));
+    }
+
+    private sealed class Bits(BinaryReader reader)
+    {
+        private int remaining;
+        private int value;
+        public int Read(int length)
+        {
+            int result = 0;
+            for (int bit = 0; bit < length; bit++)
+            {
+                if (remaining == 0)
+                {
+                    value = reader.ReadByte();
+                    remaining = 8;
+                }
+                result |= (value & 1) << bit;
+                value >>= 1;
+                remaining--;
+            }
+            return result;
+        }
+        public int Signed(int length) => (Read(length) << (32 - length)) >> (32 - length);
+        public int Position() => Signed(new[] { 3, 6, 9, 16 }[Read(2)]);
+        public int Rotation() => Read(1) == 0 ? 0 : Signed(new[] { 3, 6, 8, 12 }[Read(2)]);
+    }
+
+    private static IReadOnlyList<BattleAnimation> Animations(BinaryReader reader, int offset, int bones)
+    {
+        reader.BaseStream.Position = offset;
+        int count = Count(reader.ReadInt32(), 256, "animations");
+        int[] pointers = Enumerable.Range(0, count).Select(_ => checked(offset + reader.ReadInt32())).ToArray();
+        List<BattleAnimation> animations = [];
+        foreach (int pointer in pointers)
+        {
+            reader.BaseStream.Position = pointer;
+            int frames = reader.ReadByte();
+            if (frames == 0)
+            {
+                throw new InvalidDataException("Battle animation has no frames.");
+            }
+            Bits bits = new(reader);
+            List<BattlePose> poses = [];
+            Vector3 position = Vector3.Zero;
+            Vector3[] previous = new Vector3[bones];
+            for (int frame = 0; frame < frames; frame++)
+            {
+                position += new Vector3(bits.Position(), bits.Position(), bits.Position()) / 100f;
+                bool scalePresent = bits.Read(1) != 0;
+                Vector3[] rotations = new Vector3[bones];
+                Vector3[] scales = Enumerable.Repeat(Vector3.One, bones).ToArray();
+                for (int bone = 0; bone < bones; bone++)
+                {
+                    rotations[bone] = previous[bone] + new Vector3(bits.Rotation(), bits.Rotation(), bits.Rotation()) * (MathF.Tau / 4096);
+                    if (scalePresent)
+                    {
+                        for (int axis = 0; axis < 3; axis++)
+                        {
+                            if (bits.Read(1) != 0)
+                            {
+                                float scale = (bits.Signed(16) + 1024) / 1024f;
+                                scales[bone] = axis switch
+                                {
+                                    0 => scales[bone] with { X = scale },
+                                    1 => scales[bone] with { Y = scale },
+                                    _ => scales[bone] with { Z = scale }
+                                };
+                            }
+                        }
+                    }
+                }
+                poses.Add(new BattlePose(position, rotations, scales));
+                previous = rotations;
+            }
+            animations.Add(new BattleAnimation(poses));
+        }
+        return animations;
+    }
+
+    public static BattleStage ReadStage(int stageId, byte[] bytes)
+    {
+        using BinaryReader reader = Reader(bytes);
+        int header = -1;
+        for (int offset = 0; offset <= bytes.Length - 32; offset += 4)
+        {
+            reader.BaseStream.Position = offset;
+            if (reader.ReadInt32() != 6)
+            {
+                continue;
+            }
+            int[] pointers = Enumerable.Range(0, 7).Select(_ => reader.ReadInt32()).ToArray();
+            if (pointers[6] != bytes.Length - offset || pointers.Any(pointer => pointer < 32 || pointer > pointers[6]) || pointers[5] > bytes.Length - offset - 4)
+            {
+                continue;
+            }
+            reader.BaseStream.Position = offset + pointers[5];
+            if (reader.ReadInt32() != 16)
+            {
+                continue;
+            }
+            if (header != -1)
+            {
+                throw new InvalidDataException("Battle stage has multiple valid geometry directories.");
+            }
+            header = offset;
+        }
+        if (header == -1)
+        {
+            throw new NotSupportedException($"Stage {stageId} has no bounded original geometry directory.");
+        }
+        reader.BaseStream.Position = header + 4;
+        int[] sections = Enumerable.Range(0, 6).Select(_ => header + reader.ReadInt32()).ToArray();
+        TimImage tim = ReadTim(bytes, sections[5]).Images[0];
+        List<PixelImage> textures = [];
+        Dictionary<int, int> palettes = [];
+        List<BattleMesh> meshes = [];
+        for (int group = 0; group < 4; group++)
+        {
+            reader.BaseStream.Position = sections[group];
+            if (reader.ReadInt32() != 3)
+            {
+                throw new NotSupportedException("Stage group requires an unsupported section contract.");
+            }
+            reader.ReadInt32();
+            int list = sections[group] + reader.ReadInt32();
+            reader.BaseStream.Position = list;
+            int count = Count(reader.ReadInt32(), 256, "stage objects");
+            int[] objects = Enumerable.Range(0, count).Select(_ => list + reader.ReadInt32()).ToArray();
+            foreach (int position in objects)
+            {
+                reader.BaseStream.Position = position;
+                uint objectHeader = reader.ReadUInt32();
+                if (objectHeader != 0x00010001)
+                {
+                    throw new NotSupportedException($"Stage {stageId} object header 0x{objectHeader:X8} is unsupported.");
+                }
+                int verticesCount = Count(reader.ReadUInt16(), 8192, "stage vertices");
+                BattleVertex[] vertices = new BattleVertex[verticesCount];
+                for (int vertex = 0; vertex < verticesCount; vertex++)
+                {
+                    vertices[vertex] = new BattleVertex(new Vector3(reader.ReadInt16(), reader.ReadInt16(), reader.ReadInt16()) / 100f, 0);
+                }
+                reader.BaseStream.Position += reader.BaseStream.Position % 4 + 4;
+                int triangles = reader.ReadUInt16();
+                int quads = reader.ReadUInt16();
+                reader.ReadUInt32();
+                List<BattleFace> faces = [];
+                for (int face = 0; face < triangles + quads; face++)
+                {
+                    bool quad = face >= triangles;
+                    int[] indices = new int[quad ? 4 : 3];
+                    for (int index = 0; index < indices.Length; index++)
+                    {
+                        indices[index] = reader.ReadUInt16();
+                    }
+                    Vector2 uv0 = Uv(reader);
+                    Vector2 uv1 = quad ? default : Uv(reader);
+                    ushort clut = reader.ReadUInt16();
+                    if (quad)
+                    {
+                        uv1 = Uv(reader);
+                    }
+                    Vector2 uv2 = quad ? default : Uv(reader);
+                    int page = reader.ReadByte() & 15;
+                    reader.ReadByte();
+                    Vector2 uv3 = default;
+                    if (quad)
+                    {
+                        uv2 = Uv(reader);
+                        uv3 = Uv(reader);
+                    }
+                    Rgba32 color = new(reader.ReadByte(), reader.ReadByte(), reader.ReadByte(), 255);
+                    reader.ReadByte();
+                    int palette = (clut >> 6) & 15;
+                    if (!palettes.TryGetValue(palette, out int texture))
+                    {
+                        texture = textures.Count;
+                        textures.Add(tim.Decode(palette));
+                        palettes.Add(palette, texture);
+                    }
+                    Vector2[] uv = quad ? [uv0, uv1, uv2, uv3] : [uv1, uv2, uv0];
+                    for (int index = 0; index < uv.Length; index++)
+                    {
+                        uv[index].X += page * 128;
+                    }
+                    if (indices.Any(index => index >= vertices.Length))
+                    {
+                        throw new InvalidDataException("Battle stage polygon references an absent vertex.");
+                    }
+                    faces.Add(new BattleFace(indices, uv, texture, color));
+                }
+                meshes.Add(new BattleMesh(vertices, faces));
+            }
+        }
+        return new BattleStage(stageId, meshes, textures);
+    }
+}
+
+
+

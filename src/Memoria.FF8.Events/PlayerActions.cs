@@ -27,7 +27,8 @@ public enum PlayerTriggerKind
     Playable,
     Faulted,
     WorldMap,
-    PartyMenu
+    PartyMenu,
+    Battle
 }
 
 public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1);
@@ -56,7 +57,7 @@ public sealed partial class EventEngine
     public event Action<DialogueOutcome>? DialogueCompleted;
 
     public PlayerTrigger NextTrigger => new(
-        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : IsUserControlEnabled && defaultsStarted && !fibers.Any(fiber => !fiber.Complete && !fiber.Started) ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
+        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : PendingInteractiveBattle is not null ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : IsUserControlEnabled && defaultsStarted && !fibers.Any(fiber => !fiber.Complete && !fiber.Started) ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
         FieldId, Frame, PartyMenu is not null ? null : CurrentDialogue?.MessageId, LastFault?.Message ?? (PartyMenu is not null ? null : CurrentDialogue?.Text));
 
     /// <summary>Applies an ordinary player action; no variable or script-PC mutation API is exposed.</summary>
@@ -83,7 +84,12 @@ public sealed partial class EventEngine
         activeActionIndex = actionLog.Count + 1;
         try
         {
-            if (PartyMenu is not null)
+            if (PendingInteractiveBattle is not null)
+            {
+                accepted = false;
+                detail = "The interactive battle suspends ordinary field input until its outcome returns.";
+            }
+            else if (PartyMenu is not null)
             {
                 accepted = action.Kind switch
                 {
@@ -235,7 +241,7 @@ public sealed partial class EventEngine
                                 }
                                 CommitNativeLineMovement(lineChanges);
                                 advanced++;
-                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested)
+                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || PendingInteractiveBattle is not null)
                                 {
                                     break;
                                 }
@@ -245,7 +251,7 @@ public sealed partial class EventEngine
                     case PlayerActionKind.Wait:
                         for (int index = 0; index < action.Frames; index++)
                         {
-                            if (NextTrigger.Kind is PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap)
+                            if (NextTrigger.Kind is PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle)
                             {
                                 break;
                             }
