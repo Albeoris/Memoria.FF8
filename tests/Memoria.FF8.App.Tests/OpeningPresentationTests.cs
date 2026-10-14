@@ -12,7 +12,7 @@ public sealed class OpeningPresentationTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         HashSet<int> renderedFields = [];

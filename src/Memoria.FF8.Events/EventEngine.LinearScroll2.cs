@@ -12,7 +12,7 @@ public sealed partial class EventEngine
         }
         if (Scene.BackgroundScrollPositions.TryGetValue(layer, out BackgroundScrollPosition? previous))
         {
-            return ValidBackgroundScrollPosition(layer, previous, Scene) ? (previous.X, previous.Y) : null;
+            return previous.X is short x && previous.Y is short y && ValidBackgroundScrollPosition(layer, previous, Scene) ? (x, y) : null;
         }
         // 52B4F0 initializes mode0; 475E60 writes zero current8/10 for
         // every nonselected mode0 layer after an ordinary camera0 callback.

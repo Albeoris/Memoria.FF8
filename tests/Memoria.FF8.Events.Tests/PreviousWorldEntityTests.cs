@@ -69,7 +69,7 @@ internal static partial class Program
             first.LoadField(102, content, [], previousFieldId: 106);
             Require(first.Scene.PreviousWorldEntityByte86 == unchecked((byte)mode), "Ordinary field reload lost the retained process world configuration.");
         }
-        GameSession unknownSession = new(new GameState());
+        GameSession unknownSession = GameSession.CreateColdProcess();
         unknownSession.StartNewGame();
         Require(unknownSession.WorldConfiguration is null, "New Game invented previous process world configuration.");
         EventEngine unknown = new(unknownSession, unknownSession.State.Variables);

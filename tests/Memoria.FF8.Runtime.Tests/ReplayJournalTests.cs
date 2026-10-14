@@ -9,7 +9,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Only_actual_new_game_roots_independent_save_bound_history()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Step, SceneKind.Field, 74, 0));
         Assert.Null(session.State.ReplayJournal);
         session.StartNewGame();
@@ -30,7 +30,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Portable_capsule_preserves_every_input_causal_receipt_and_route_stimulus()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         ReplayJournalEntry entry = new(ReplayEntryKind.Action, SceneKind.Field, 74, 3)
         {
@@ -61,7 +61,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Idle_scheduler_runs_remain_compact_without_losing_time_or_prior_snapshots()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Step, SceneKind.Field, 74, 0) { Advanced = 1, ResultFrame = 1 });
         GameState earlier = session.State;
@@ -85,7 +85,7 @@ public sealed class ReplayJournalTests
         string path = Path.Combine(Path.GetTempPath(), "FF8-causal-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             JsonObject save = JsonNode.Parse(JsonSerializer.Serialize(session.State))!.AsObject();
             save["SavedWorld"] = "obsolete native snapshot shape";
@@ -108,7 +108,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Repeating_vm_cadence_compacts_commands_and_keeps_every_branch_frame_and_decision_boundary()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         for (int frame = 0; frame < 1000; frame++)
         {
@@ -145,7 +145,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Movie_clocks_are_exogenous_transactions_and_nested_movie_completion_is_not_duplicated()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.RequestMovie(30);
         session.SetMoviePlayback(new MoviePlaybackState(2, 100, true, false, false));
@@ -164,7 +164,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Explicit_committed_prefix_omits_the_failed_suffix_without_rewriting_source_history()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Step, SceneKind.Field, 130, 375)
         {
@@ -205,7 +205,7 @@ public sealed class ReplayJournalTests
     {
         GameSession legacy = new(new GameState());
         Assert.Null(legacy.State.ReplayJournal);
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         ReplayJournal root = session.State.ReplayJournal!;
         Assert.Same(root, root.GetCommittedPrefix());
@@ -221,7 +221,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Result_dialogue_sites_split_scheduler_cadence_and_invalid_sites_are_refused()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         ReplayJournalEntry first = new(ReplayEntryKind.Step, SceneKind.Field, 74, 0) { Advanced = 1, ResultFrame = 1, ResultTrigger = 2, ResultMessageId = 1, ResultObjectId = 0, ResultScriptId = 1, ResultOperation = 5 };
         session.AppendReplayEntry(first);
@@ -246,7 +246,7 @@ public sealed class ReplayJournalTests
     [Fact]
     public void Bounded_envelope_rejects_count_mismatch_and_overflow_without_changing_the_prefix()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using JsonDocument capsule = JsonDocument.Parse(JsonSerializer.Serialize(session.ReplayJournal));
         Dictionary<string, JsonElement> members = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(capsule.RootElement.GetRawText())!;
@@ -264,7 +264,7 @@ public sealed class ReplayJournalTests
     public void Completed_visits_keep_inputs_decisions_and_timing_runs_without_mutating_earlier_fine_history()
     {
         // Storage-only transactions exercise representation; they are not published as a game recreation fixture.
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         for (int frame = 0; frame < 10; frame++)
         {
@@ -317,9 +317,67 @@ public sealed class ReplayJournalTests
     }
 
     [Fact]
+    public void Completed_moves_keep_every_input_callback_and_receipt_while_discarding_derived_geometry()
+    {
+        // Storage-only transactions are not an authentic gameplay fixture.
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        ReplayPlayerPose pose = new(74, 0, 0, 0, 0, 0);
+        ReplayJournalEntry move = new(ReplayEntryKind.Action, SceneKind.Field, 74, 0)
+        {
+            Code = 4,
+            Horizontal = 1,
+            Frames = 1,
+            Advanced = 1,
+            ResultFrame = 1,
+            Navigation = [new ReplayNavigationStimulus(pose, pose with { X = 1 }, true)]
+        };
+        for (int frame = 0; frame < 4; frame++)
+        {
+            session.AppendReplayEntry(move with { Frame = frame, ResultFrame = frame + 1 });
+        }
+        ReplayReceipt decision = new(ReplayReceiptKind.Dialogue, 74, 4, 0, 1, 8, 3, 2);
+        session.AppendReplayEntry(move with { Frame = 4, ResultFrame = 5, Receipts = [decision] });
+        ReplayJournal fine = session.ReplayJournal!;
+        string before = JsonSerializer.Serialize(fine);
+        for (int frame = 0; frame < 2; frame++)
+        {
+            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, 74, frame)
+            {
+                Code = 4,
+                Vertical = -1,
+                Advanced = 1,
+                ResultFrame = frame + 1,
+                WorldNavigation = [new ReplayWorldNavigationStimulus(100, -200)]
+            });
+        }
+        ReplayJournal completedField = session.ReplayJournal!;
+        Assert.Equal(4, completedField.Entries[0].Repeat);
+        Assert.Equal(1, completedField.Entries[0].Horizontal);
+        Assert.Equal(1, completedField.Entries[0].Frames);
+        Assert.Equal(4, completedField.Entries[0].ResultFrame);
+        Assert.All(completedField.Entries.Where(entry => entry.Scene == SceneKind.Field), entry => Assert.Empty(entry.Navigation));
+        Assert.Equal(decision, completedField.Entries[1].Receipts.Single());
+        Assert.Single(completedField.Endpoint!.WorldNavigation);
+        session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.FieldLoad, SceneKind.Field, 179, 0));
+        ReplayJournal compact = session.ReplayJournal!;
+        Assert.Empty(compact.Entries[2].WorldNavigation);
+        Assert.Equal(2, compact.Entries[2].Repeat);
+        Assert.Equal(2, compact.Entries[2].ResultFrame);
+        Assert.Equal(-1, compact.Entries[2].Vertical);
+        Assert.Equal(5, compact.Entries.Where(entry => entry.Scene == SceneKind.Field && entry.Kind == ReplayEntryKind.Action).Sum(entry => entry.Repeat));
+        Assert.Equal(before, JsonSerializer.Serialize(fine));
+        Assert.All(fine.Entries, entry => Assert.Single(entry.Navigation));
+        ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(compact))!;
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(compact.Entries), JsonSerializer.SerializeToElement(restored.Entries)));
+        session.AppendReplayEntry(move with { FieldId = 179, Frame = 0, ResultFrame = 1, Navigation = [new ReplayNavigationStimulus(pose with { FieldId = 179 }, pose with { FieldId = 179, X = 1 }, true)] });
+        Assert.Single(session.ReplayJournal!.Endpoint!.Navigation);
+    }
+
+    [Fact]
     public void Sparse_storage_preserves_nondefault_values_and_requires_critical_input_identity()
     {
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         ReplayJournalEntry entry = new(ReplayEntryKind.Action, SceneKind.Field, 74, 0) { Code = 8, Value = 0x40, Horizontal = -0.46f, Vertical = 0.88f, Frames = 7, Advanced = 0, Accepted = false, Repeat = 2, Text = "input", Skipped = true, MovieSeconds = 1.25, ElapsedTicks = 1234 };
         session.AppendReplayEntry(entry);

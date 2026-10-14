@@ -62,7 +62,7 @@ internal static partial class Program
         void CommitSyntheticNativeProposal(EventEngine engine, FieldFixedPosition position, int direction)
         {
             // Component test only: inject an already certified native proposal at
-            // the same commit boundary used by ordinary Move/ReplayNavigation.
+            // the same commit boundary used by ordinary Move.
             // No research checkpoint or journal is fabricated by this fixture.
             MethodInfo commit = typeof(EventEngine).GetMethod("MovePlayerCore", BindingFlags.Instance | BindingFlags.NonPublic)!;
             commit.Invoke(engine, [position.X / 4096f, position.Y / 4096f, position.Z / 4096f, 7, position, direction, true, null]);

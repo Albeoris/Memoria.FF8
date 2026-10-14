@@ -14,6 +14,7 @@ internal static partial class Program
         GameSession session = new(new GameState());
         EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true };
         engine.LoadField(100, commands, []);
+        engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
         bool pendingObserved = false;
         engine.CommandExecuted += command =>
         {

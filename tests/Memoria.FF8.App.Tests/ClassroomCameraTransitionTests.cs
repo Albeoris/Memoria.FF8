@@ -11,7 +11,7 @@ public sealed class ClassroomCameraTransitionTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameWorld world = new(session, directory, persistReplayJournal: false);
         int centeringMoves = 0;

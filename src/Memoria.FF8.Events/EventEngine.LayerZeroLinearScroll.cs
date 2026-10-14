@@ -8,9 +8,9 @@ public sealed partial class EventEngine
         {
             return (x, y);
         }
-        if (Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && ValidBackgroundScrollPosition(0, position, Scene))
+        if (Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? position) && position.X is short currentX && position.Y is short currentY && ValidBackgroundScrollPosition(0, position, Scene))
         {
-            return (position.X, position.Y);
+            return (currentX, currentY);
         }
         if (Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame > 0 && normal.Frame <= Frame)
         {

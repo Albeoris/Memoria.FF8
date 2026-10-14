@@ -7,7 +7,7 @@ public sealed class SessionTests
     [Fact]
     public void New_game_movie_completion_and_field_transition_preserve_story_variables()
     {
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         Assert.Equal(74, session.State.FieldId);
         session.State.Variables[256] = 7;

@@ -6,21 +6,6 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    public bool HasPendingPlayerPlacement
-    {
-        get
-        {
-            ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
-            if (player is null || program is null)
-            {
-                return false;
-            }
-            return player.NativeScriptMovement is { Active: true } || fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == player.ObjectId && program.Operations.Skip(fiber.Position).Take(fiber.Script.End - fiber.Position).Any(operation => operation.Opcode is Jsm.Opcode.SET or Jsm.Opcode.SET3));
-        }
-    }
-
-    public bool HasPendingPlayerControlRelease => program is not null && fibers.Any(fiber => !fiber.Complete && program.Operations.Skip(fiber.Position).Take(fiber.Script.End - fiber.Position).Any(operation => operation.Opcode == Jsm.Opcode.UCON));
-
     private ReplayCapture? replayCapture;
     private ulong? recordedMemoryDigest;
 
@@ -78,78 +63,6 @@ public sealed partial class EventEngine
     {
         ArgumentNullException.ThrowIfNull(action);
         return RunReplay(ReplayBoundary(ReplayEntryKind.Action) with { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames }, () => ApplyCore(action));
-    }
-
-    /// <summary>Replays recorded route stimuli through live contact, gateway and VM contracts without locomotion.</summary>
-    public PlayerActionResult ReplayNavigation(ReplayJournalEntry entry)
-    {
-        if (entry.Kind != ReplayEntryKind.Action || entry.Code != (int)PlayerActionKind.Move)
-        {
-            throw new ArgumentException("A recorded engine movement transaction is required.", nameof(entry));
-        }
-        entry.Validate();
-        return RunReplay(ReplayBoundary(ReplayEntryKind.Action) with { Code = entry.Code, Horizontal = entry.Horizontal, Vertical = entry.Vertical, Frames = entry.Frames }, () => ReplayNavigationCore(entry));
-    }
-
-    private PlayerActionResult ReplayNavigationCore(ReplayJournalEntry entry)
-    {
-        if (!entry.Accepted)
-        {
-            if (entry.Navigation.Length != 0)
-            {
-                throw new InvalidDataException("A refused movement cannot contain committed navigation stimuli.");
-            }
-            return new PlayerActionResult(false, NextTrigger, 0);
-        }
-        if (entry.Navigation.Length != entry.Advanced)
-        {
-            throw new NotSupportedException("This movement has no complete per-update causal navigation history.");
-        }
-        int advanced = 0;
-        foreach (ReplayNavigationStimulus stimulus in entry.Navigation)
-        {
-            ActorState player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0) ?? throw new InvalidDataException("Recorded navigation requires the live current-code player actor.");
-            bool completedNativePlacement = HasCompletedNativeNavigationOrigin(player);
-            if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || FieldId != stimulus.Start.FieldId || player.X != stimulus.Start.X || player.Y != stimulus.Start.Y || player.Z != stimulus.Start.Z || player.WalkmeshTriangle != stimulus.Start.Triangle && !completedNativePlacement)
-            {
-                throw new InvalidDataException($"Recorded navigation does not match the current causal starting pose or control boundary at field{FieldId}/frame{Frame}: control={IsUserControlEnabled}, dialogue={IsMovementBlockedByDialogue}, movie={services.IsMoviePlaying}, transition={transitionRequested}, currentDialogue={CurrentDialogue}, nativeMove={player.NativeScriptMovement}, split={partySplit}; expected({stimulus.Start.X},{stimulus.Start.Y},{stimulus.Start.Z},tri{stimulus.Start.Triangle}), actual({player.X},{player.Y},{player.Z},tri{player.WalkmeshTriangle}).");
-            }
-            ReplayPlayerPose end = stimulus.End;
-            FieldFixedPosition? fixedPosition = end.FixedX is int fixedX ? new FieldFixedPosition(fixedX, end.FixedY!.Value, end.FixedZ!.Value) : null;
-            FieldFixedPosition? triggerPosition = stimulus.TriggerFixedX is int triggerX ? new FieldFixedPosition(triggerX, stimulus.TriggerFixedY!.Value, stimulus.TriggerFixedZ!.Value) : null;
-            replayCapture?.Navigation.Add(stimulus with { Start = ReplayPose()! });
-            IReadOnlyList<NativeLineContactChange> lineChanges = MovePlayerCore(end.X, end.Y, end.Z, end.Triangle, fixedPosition, end.Direction, stimulus.NativeMovement, triggerPosition);
-            if (stimulus.NativeMovement)
-            {
-                Scene.NativePlayerMovementVersion = 1;
-                Scene.NativePlayerEarlyRetryState = 0;
-            }
-            Step();
-            foreach (int objectId in stimulus.PushContacts ?? [])
-            {
-                if ((uint)objectId >= actors.Count)
-                {
-                    throw new InvalidDataException("Recorded push contact refers to an unknown native actor.");
-                }
-                ValidateNativePushDispatch(actors[objectId]);
-                actors[objectId].NativePushContactPending = true;
-            }
-            CommitNativeLineMovement(lineChanges);
-            advanced++;
-            if ((!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested) && advanced != entry.Navigation.Length)
-            {
-                throw new InvalidDataException("Current scripts reached a causal trigger before the recorded navigation ended.");
-            }
-        }
-        return new PlayerActionResult(true, NextTrigger, advanced);
-    }
-
-    private bool HasCompletedNativeNavigationOrigin(ActorState player)
-    {
-        //479970's terminal snap writes400/404 but preserves506. A corrected native
-        //MOVE can retain a different last grounded triangle than the former managed
-        //driver at the identical target. The completed current-code receipt owns it.
-        return player.NativeScriptMovement is { Version: 1, Active: false, Completion: 2, Cancelled: false } movement && player.NativeMotionAuthority is { Version: 1 } && Scene.NativePlayerPosition is FieldFixedPosition raw && IsNativePartyPlayerBody(player) && raw.X == movement.FixedX && raw.Y == movement.FixedY && raw.Z == movement.FixedZ && player.X == raw.X / 4096f && player.Y == raw.Y / 4096f && player.Z == raw.Z / 4096f && player.WalkmeshTriangle == movement.Triangle && CanUseNativeScriptMove?.Invoke(player) == true;
     }
 
     private ReplayJournalEntry ReplayBoundary(ReplayEntryKind kind)

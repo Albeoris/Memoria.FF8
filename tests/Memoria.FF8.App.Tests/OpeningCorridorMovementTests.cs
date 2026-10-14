@@ -13,7 +13,7 @@ public sealed class OpeningCorridorMovementTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, directory);
         bool initialAnimationsVerified = false;

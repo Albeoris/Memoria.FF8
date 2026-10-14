@@ -33,9 +33,9 @@ public sealed class NativeLinearWrappingTests
         Assert.Equal(-367, world.Events.Scene.BackgroundScrollPositions[2].TargetX);
         Assert.All(world.Events.Scene.BackgroundScrollPositions.Values, phase =>
         {
-            Assert.Equal(367, phase.Duration);
-            Assert.Equal(1, phase.Counter);
-            Assert.Equal(0, phase.X);
+            Assert.Equal((short?)367, phase.Duration);
+            Assert.Equal((short?)1, phase.Counter);
+            Assert.Equal((short?)0, phase.X);
             Assert.True(NativeLinearScrollPhase.IsValid(phase));
         });
         JsonElement originalPhase = world.Events.Capture();

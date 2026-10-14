@@ -18,7 +18,7 @@ public sealed class NativeBoatWorldTests
         NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
         var departure = new GameState { Scene = SceneKind.Field, FieldId = 123, DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(car), WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new() { [256] = 40 }, ExamTimer = NativeExamTimerState.FromReachedSet(600) };
         var packet = new WorldTransition(11, 66, 61);
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         departure = departure with { ReplayJournal = session.State.ReplayJournal };
         session.Restore(departure);
@@ -44,7 +44,7 @@ public sealed class NativeBoatWorldTests
         byte[] pixels = scene.Render(320, 224);
         var replaySession = new GameSession(beforeCallback);
         using WorldMapScene replay = new(replaySession, directory);
-        Assert.Equal(1, replay.ReplayNavigation(session.ReplayJournal!.Endpoint!).FramesAdvanced);
+        Assert.Equal(1, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
         Assert.Equal(pixels, replay.Render(320, 224));
         // Only the just-executed action is replayed locally; this fixture is never

@@ -18,6 +18,7 @@ internal static partial class Program
                 CanSetCosineBackgroundScroll = (layer, x, y, duration) => certificate && layer == 0 && x == 12 && y == -24 && duration == (short)rawDuration
             };
             result.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PSHN_L, -80), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.CSCROLL, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)), []);
+            result.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             result.Step();
             return result;
         }

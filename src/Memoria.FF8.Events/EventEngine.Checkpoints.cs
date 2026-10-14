@@ -124,6 +124,10 @@ public sealed partial class EventEngine
         ValidatePreviousFieldCheckpoint(saved);
         ValidatePreviousWorldEntityCheckpoint(saved);
         saved.ExamTimer?.Validate();
+        if (services.ExamTimer is not null && saved.ExamTimer is null)
+        {
+            throw new InvalidDataException("Saved VM lacks the current process clock; recreate the authentic journal.");
+        }
         if (saved.Scene.AudioLoadEpoch <= 0)
         {
             throw new InvalidDataException("Saved process audio history requires its executed field-load identity; recreate the authentic journal.");

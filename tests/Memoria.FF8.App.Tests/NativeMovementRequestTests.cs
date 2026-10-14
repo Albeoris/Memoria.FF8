@@ -17,7 +17,7 @@ public sealed class NativeMovementRequestTests
             repository = repository.Parent;
         }
         ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(repository!.FullName, "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = new GameSession(new GameState());
+        var seed = GameSession.CreateColdProcess();
         seed.StartNewGame();
         ReplayJournal prefix = seed.State.ReplayJournal!;
         int endpointIndex = source.Entries.ToList().FindLastIndex(entry => entry.ResultFieldId == 327 && entry.ResultFrame == 36);

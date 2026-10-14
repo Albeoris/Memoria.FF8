@@ -35,7 +35,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal((12904, -27135, 0), (blocked.X, blocked.Z, blocked.GroundYaw));
         Assert.Equal(1, Assert.Single(blocked.Cache.Alternatives).FailedSelections);
         Assert.Equal(edge, blocked.Cache.Alternatives[0].CurrentGround);
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
         using var scene = new WorldMapScene(session, directory);
@@ -50,7 +50,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal(1, scene.State.Frame);
         var replaySession = new GameSession(before);
         using var replay = new WorldMapScene(replaySession, directory);
-        Assert.Equal(1, replay.ReplayNavigation(session.ReplayJournal!.Endpoint!).FramesAdvanced);
+        Assert.Equal(1, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
     }
 
@@ -94,7 +94,7 @@ public sealed class NativeCarWorldTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         // Isolated component fixture; actual gameplay acceptance belongs to the authentic New Game journal.
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
         using var scene = new WorldMapScene(session, directory);
@@ -131,7 +131,7 @@ public sealed class NativeCarWorldTests
         ReplayJournalEntry action = session.ReplayJournal!.Endpoint!;
         var replaySession = new GameSession(before);
         using var replay = new WorldMapScene(replaySession, directory);
-        Assert.Equal(1, replay.ReplayNavigation(action).FramesAdvanced);
+        Assert.Equal(1, replay.Apply(new PlayerAction((PlayerActionKind)action.Code, action.Value, action.Text, action.Horizontal, action.Vertical, action.Frames)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
         GameState endpoint = session.State;
         using var restored = new WorldMapScene(new GameSession(endpoint), directory);
@@ -149,7 +149,7 @@ public sealed class NativeCarWorldTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
         using (var entry = new WorldMapScene(session, directory))
@@ -195,7 +195,7 @@ public sealed class NativeCarWorldTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
@@ -212,7 +212,7 @@ public sealed class NativeCarWorldTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { FieldId = 262, Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
         var transition = new WorldTransition(63, 33, -1);

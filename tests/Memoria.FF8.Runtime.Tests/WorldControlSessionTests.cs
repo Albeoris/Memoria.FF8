@@ -76,7 +76,7 @@ public sealed class WorldControlSessionTests
     [Fact]
     public void ExplicitNewGameAndNormalFieldsPreserveThePartialControlContract()
     {
-        var session = new GameSession(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         Assert.Null(session.WorldControls);
         session.StartNewGame();
         Assert.Equal(NativeWorldControlState.CreateNewGame(), session.WorldControls);

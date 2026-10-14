@@ -6,6 +6,50 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeExamTimerTests
 {
     [Fact]
+    public void ExplicitColdProcessTracksPreSetCallbacksAndWarmNewGamePreservesItsClockAndUi()
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        Assert.Equal(new NativeTimerAlternative(0, 0, 0), Assert.Single(session.ExamTimer!.Alternatives));
+        session.StartNewGame();
+        Assert.True(session.ReplayJournal!.IsComplete);
+        NativeExamTimerState running = session.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 100).AdvanceCallbacks(NativeTimerCallbackKind.World, 3).AdvanceCallbacks(NativeTimerCallbackKind.MovieField, 2);
+        Assert.False(running.TimerMemoryActivated);
+        uint phase = unchecked(214u * 2191);
+        Assert.Equal(new NativeTimerAlternative(phase, phase, 0), Assert.Single(running.Alternatives));
+        NativeExamTimerState set = running.SetRemaining(60).Display(250, 10);
+        Assert.Equal(new NativeTimerAlternative(phase, phase, 60), Assert.Single(set.Alternatives));
+        NativeExamTimerState ticked = set.AdvanceCallbacks(NativeTimerCallbackKind.Menu, 1);
+        Assert.Equal(new NativeTimerAlternative(unchecked(phase + 2191) & 0xFFFF, unchecked(phase + 2191) & 0xFFFF, 59), Assert.Single(ticked.Alternatives));
+        session.SetExamTimer(ticked);
+        session.StartNewGame();
+        Assert.Equal(ticked.ClockCalls, session.ExamTimer!.ClockCalls);
+        Assert.Equal(ticked.Alternatives[0].FirstPhase, Assert.Single(session.ExamTimer.Alternatives).FirstPhase);
+        Assert.Equal(0, session.ExamTimer.RequireRemaining());
+        Assert.True(session.ExamTimer.DisplayEnabled);
+        Assert.Equal((ushort)250, session.ExamTimer.DisplayX);
+        Assert.Equal((byte)10, session.ExamTimer.DisplayY);
+        Assert.False(session.ExamTimer.TimerMemoryActivated);
+        Assert.Null(session.ExamTimer.Event104Mask40);
+        Assert.False(session.ReplayJournal!.IsComplete);
+        Assert.Contains("earlier process history", session.ReplayJournal.UnavailableReason);
+    }
+
+    [Fact]
+    public void GenericCheckpointConstructionNeverCreatesAProcessClockAndUnknownNewGameIsAtomic()
+    {
+        GameState state = new();
+        GameSession session = new(state);
+        Assert.Null(session.ExamTimer);
+        Assert.Throws<NotSupportedException>(session.StartNewGame);
+        Assert.Same(state, session.State);
+        NativeExamTimerState clock = NativeExamTimerState.FromColdProcess();
+        string json = JsonSerializer.Serialize(clock);
+        var missing = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        missing.AsObject().Remove("TimerMemoryActivated");
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeExamTimerState>(missing.ToJsonString()));
+    }
+
+    [Fact]
     public void ReachedSetRetainsAllPossiblePriorPhasesAndDisplayDoesNotResetThem()
     {
         NativeExamTimerState initial = NativeExamTimerState.FromReachedSet(600);

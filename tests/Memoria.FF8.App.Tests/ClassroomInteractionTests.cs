@@ -105,7 +105,7 @@ public sealed class ClassroomInteractionTests
             repository = repository.Parent;
         }
         ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(repository!.FullName, "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = new GameSession(new GameState());
+        var seed = GameSession.CreateColdProcess();
         seed.StartNewGame();
         ReplayJournal prefix = seed.State.ReplayJournal!;
         foreach (ReplayJournalEntry entry in source.Entries)

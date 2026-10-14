@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeCardAndSaveEnableContract(string gameDirectory)
     {
-        GameSession fresh = new(new GameState());
+        GameSession fresh = GameSession.CreateColdProcess();
         fresh.StartNewGame();
         NativeCardInventory initial = fresh.CardInventory!;
         Require(initial.Cards.Length == 110 && initial.Cards.All(value => value == 0) && initial.ObtainedRareCards.Length == 5 && initial.ObtainedRareCards.All(value => value == 0), "Native New Game did not retain the authentic card-region clear.");

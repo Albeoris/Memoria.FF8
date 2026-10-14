@@ -10,9 +10,9 @@ public sealed class WorldMapSceneTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void World_callbacks_preserve_hidden_or_displayed_timer_and_replay_the_same_proposals(bool displayed)
+    public void World_callbacks_preserve_hidden_or_displayed_timer_and_recompute_the_same_native_motion(bool displayed)
     {
-        var session = ComponentSession();
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10);
@@ -30,7 +30,7 @@ public sealed class WorldMapSceneTests
         ReplayJournalEntry entry = session.ReplayJournal!.Endpoint!;
         var replaySession = new GameSession(initial);
         using var replay = new WorldMapScene(replaySession, GameDirectory());
-        Assert.Equal(3, replay.ReplayNavigation(entry).FramesAdvanced);
+        Assert.Equal(3, replay.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
         Assert.False(scene.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
@@ -186,16 +186,30 @@ public sealed class WorldMapSceneTests
     public void WorldHostReloadKeepsDepartingFieldVmFrozenWhileWorldMovementContinues()
     {
         string directory = GameDirectory();
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
+        var firstSession = GameSession.CreateColdProcess();
+        firstSession.StartNewGame();
+        using var first = new GameWorld(firstSession, directory, persistReplayJournal: false);
+        for (int input = 0; input < 6000; input++)
         {
-            repository = repository.Parent;
+            first.EnsureField();
+            if (first.Field!.Id == 229 && first.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
+            {
+                break;
+            }
+            DialogueState? dialogue = first.Events.CurrentDialogue;
+            PlayerAction action = firstSession.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue?.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : dialogue is not null ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
+            Assert.True(first.Apply(action).Accepted);
         }
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        var firstSession = new GameSession(GameSession.Load(source));
-        using var first = new GameWorld(firstSession, directory);
-        first.EnsureField();
-        string departingVm = first.Events.Capture().GetRawText();
+        Assert.Equal(229, first.Field!.Id);
+        Assert.Equal(PlayerTriggerKind.Playable, first.Events.NextTrigger.Kind);
+        string FieldVm(EventEngine engine)
+        {
+            System.Text.Json.Nodes.JsonObject snapshot = System.Text.Json.Nodes.JsonNode.Parse(engine.Capture().GetRawText())!.AsObject();
+            // The process clock continues in the world scene; the field interpreter does not receive callbacks.
+            snapshot.Remove("ExamTimer");
+            return snapshot.ToJsonString();
+        }
+        string departingVm = FieldVm(first.Events);
         firstSession.SetEventState(first.Events.Capture());
         // Isolated host fixture: this direct service request establishes no natural player entry.
         firstSession.Restore(firstSession.State with { SavedWorld = NativeSavedWorldState.CreateNewGame() });
@@ -206,7 +220,7 @@ public sealed class WorldMapSceneTests
         Assert.Equal(PlayerTriggerKind.WorldMap, first.NextTrigger.Kind);
         first.SetRenderSize(320, 224);
         first.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3));
-        Assert.Equal(departingVm, first.Events.Capture().GetRawText());
+        Assert.Equal(departingVm, FieldVm(first.Events));
 
         string checkpoint = Path.Combine(Path.GetTempPath(), "Memoria.FF8-world-host-" + Guid.NewGuid().ToString("N") + ".json");
         try
@@ -216,13 +230,15 @@ public sealed class WorldMapSceneTests
             using var resumed = new GameWorld(resumedSession, directory);
             Assert.True(resumed.EnsureField());
             resumed.SetRenderSize(320, 224);
-            Assert.Equal(departingVm, resumed.Events.Capture().GetRawText());
+            Assert.Equal(departingVm, FieldVm(resumed.Events));
             Assert.Equal(JsonSerializer.Serialize(firstSession.State.World), JsonSerializer.Serialize(resumedSession.State.World));
+            Assert.Equal(JsonSerializer.Serialize(firstSession.ExamTimer), JsonSerializer.Serialize(resumedSession.ExamTimer));
             var next = new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 2);
             Assert.Equal(first.Apply(next), resumed.Apply(next));
             Assert.Equal(JsonSerializer.Serialize(firstSession.State.World), JsonSerializer.Serialize(resumedSession.State.World));
+            Assert.Equal(JsonSerializer.Serialize(firstSession.ExamTimer), JsonSerializer.Serialize(resumedSession.ExamTimer));
             Assert.Equal(first.Render(TimeSpan.Zero), resumed.Render(TimeSpan.Zero));
-            Assert.Equal(departingVm, resumed.Events.Capture().GetRawText());
+            Assert.Equal(departingVm, FieldVm(resumed.Events));
         }
         finally
         {

@@ -14,6 +14,7 @@ internal static partial class Program
             GameSession session = new(new GameState());
             EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.RET, 0)), []);
+            engine.Scene.BackgroundScrollPositions[1] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             if (layer == 0)
             {
                 engine.ResolveNativeNormalBackgroundScrollCenter = () => ((short)40, (short)-80);

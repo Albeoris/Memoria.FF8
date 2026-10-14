@@ -24,6 +24,18 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.CAL)
+        {
+            try
+            {
+                _ = PrepareNativeCalculation(fiber, operation.Parameter);
+                return null;
+            }
+            catch (Exception exception) when (exception is NotSupportedException or ArithmeticException or InvalidDataException)
+            {
+                return exception.Message;
+            }
+        }
         int width = NativeMemoryWidth(operation.Opcode);
         bool writing = operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L;
         if (width > 0 && services.NativeVariableValues is { Count: > 0 } memory && memory.Any(pair => pair.Key < (long)operation.Parameter + width && pair.Key + pair.Value.Width > operation.Parameter && (pair.Key != operation.Parameter || pair.Value.Width != width)))
@@ -47,6 +59,17 @@ public sealed partial class EventEngine
             return null;
         }
         return "This command requires an exact native integer; uncertain operands are preserved without choosing a representative";
+    }
+
+    private NativeScalarValue PrepareNativeCalculation(Fiber fiber, int kind)
+    {
+        int count = NativeScalarCalculation.OperandCount(kind);
+        if (fiber.Stack.Count < count)
+        {
+            throw new NotSupportedException($"Native CAL requires {count} original operands; its stack is preserved.");
+        }
+        NativeScalarValue[] operands = fiber.Stack.Capture();
+        return NativeScalarCalculation.Resolve(kind, count == 2 ? operands[1] : null, operands[0]);
     }
 
     private bool TryReadNativeScalar(JsmOperation operation, out NativeScalarValue value)

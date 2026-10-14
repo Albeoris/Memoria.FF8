@@ -413,6 +413,9 @@ public sealed partial class EventEngine
                     actor.NativeScriptMovement = previousMovement with { FacingDirection = (byte)actor.Direction };
                 }
                 break;
+            case Jsm.Opcode.Unknown8:
+                args = ExecuteNegativeCosineTurn(fiber);
+                break;
             case Jsm.Opcode.Unknown9:
                 args = ExecutePositiveCosineTurn(fiber);
                 break;
@@ -1083,36 +1086,19 @@ public sealed partial class EventEngine
 
     private void Calculate(Fiber fiber, int kind)
     {
-        int right = Pop(fiber, 1)[0];
+        NativeScalarValue result = PrepareNativeCalculation(fiber, kind);
+        PopNativeScalar(fiber);
         string rightExpression = fiber.LastExpressions[0];
-        if (kind == 5 || kind == 15)
+        if (NativeScalarCalculation.OperandCount(kind) == 1)
         {
-            fiber.Stack.Push(kind == 5 ? -right : ~right);
+            fiber.Stack.Push(result);
             fiber.StackExpressions.Push($"{(kind == 5 ? "-" : "~")}({rightExpression})");
             return;
         }
-        int left = Pop(fiber, 1)[0];
+        PopNativeScalar(fiber);
         string leftExpression = fiber.LastExpressions[0];
-        int result = kind switch
-        {
-            0 => unchecked(left + right),
-            1 => unchecked(left - right),
-            2 => unchecked(left * right),
-            3 => left / right,
-            4 => left % right,
-            6 => left == right ? 1 : 0,
-            7 => left > right ? 1 : 0,
-            8 => left >= right ? 1 : 0,
-            9 => left < right ? 1 : 0,
-            10 => left <= right ? 1 : 0,
-            11 => left != right ? 1 : 0,
-            12 => left & right,
-            13 => left | right,
-            14 => left ^ right,
-            _ => throw Fault(fiber, $"Unsupported calculation operator {kind}.")
-        };
         fiber.Stack.Push(result);
-        string symbol = kind switch { 0 => "+", 1 => "-", 2 => "*", 3 => "/", 4 => "%", 6 => "==", 7 => ">", 8 => ">=", 9 => "<", 10 => "<=", 11 => "!=", 12 => "&", 13 => "|", 14 => "^", _ => "?" };
+        string symbol = kind switch { 0 => "+", 1 => "-", 2 => "*", 3 => "/", 4 => "%", 6 => "==", 7 => ">", 8 => ">=", 9 => "<", 10 => "<=", 11 => "!=", 12 => "&", 13 => "|", 14 => "^", 16 => ">>", 17 => "<<", _ => "?" };
         fiber.StackExpressions.Push($"({leftExpression} {symbol} {rightExpression})");
     }
 

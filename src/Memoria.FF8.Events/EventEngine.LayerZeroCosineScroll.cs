@@ -9,7 +9,7 @@ public sealed partial class EventEngine
         {
             return "Native CSCROLL requires its three original operands and a supported signed-word duration";
         }
-        if (!CanReplaceActorBackgroundScroll(0))
+        if (!CanReplaceActorBackgroundScroll(0) || KnownNativeLayerZeroScrollCenter() is null)
         {
             return "Native CSCROLL cannot replace unknown actor-scroll center history";
         }

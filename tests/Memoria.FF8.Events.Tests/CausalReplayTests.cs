@@ -16,7 +16,7 @@ internal static partial class Program
         }
         (GameSession Session, EventEngine Engine) Create(int speed, int value)
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             EventEngine engine = new(session, session.State.Variables)
             {
@@ -35,28 +35,20 @@ internal static partial class Program
         ReplayJournalEntry movement = first.Session.State.ReplayJournal!.Entries[^1];
         Require(movement.Navigation.Length == 3 && movement.Navigation[0].Start.X == 0 && movement.Navigation[^1].End.X == 3, "The engine failed to retain ordered causal navigation inputs.");
         var current = Create(1024, 99);
-        current.Engine.ResolveWalkmesh = (_, _) => throw new InvalidOperationException("Reconstruction walked the route instead of executing its recorded stimuli.");
-        PlayerActionResult rebuilt = current.Engine.ReplayNavigation(movement);
-        Require(rebuilt.Accepted && rebuilt.FramesAdvanced == 3 && current.Engine.Actors[0].X == 3 && current.Engine.Actors[0].MovementSpeed == 1024, "Changed MSPEED initialization altered semantic navigation or got overwritten by old state.");
-        Require(current.Session.State.Variables[512] == 99, "Reconstruction restored stale variable mutations instead of current initialization.");
-        Require(current.Session.State.ReplayJournal is { IsComplete: true } && current.Session.State.ReplayJournal.Entries[^1].Navigation.Length == 3, "Rebuilt engine history cannot be reconstructed again.");
-
-        var invalidPush = Create(256, 41);
-        ReplayNavigationStimulus firstProposal = movement.Navigation[0] with { PushContacts = [0] };
-        ReplayJournalEntry unprovedContact = movement with { Frames = 1, Advanced = 1, Navigation = [firstProposal] };
-        try
+        int groundQueries = 0;
+        current.Engine.ResolveWalkmesh = (x, y) =>
         {
-            invalidPush.Engine.ReplayNavigation(unprovedContact);
-            throw new InvalidOperationException("Replay staged an unproved native push contact.");
-        }
-        catch (NotSupportedException)
-        {
-        }
-        Require(!invalidPush.Engine.Actors[0].NativePushContactPending && invalidPush.Session.ReplayJournal is { IsComplete: false }, "Invalid native contact was staged or published as a complete transaction.");
-
+            groundQueries++;
+            return new WalkmeshPosition(new Vector3(x, y, 0), 0);
+        };
+        PlayerAction action = new((PlayerActionKind)movement.Code, movement.Value, movement.Text, movement.Horizontal, movement.Vertical, movement.Frames);
+        PlayerActionResult rebuilt = current.Engine.Apply(action);
+        Require(rebuilt.Accepted && rebuilt.FramesAdvanced == 3 && groundQueries > 0 && current.Engine.Actors[0].X == 12 && current.Engine.Actors[0].MovementSpeed == 1024, "Ordinary input reproduction did not recompute geometry and current MSPEED.");
+        Require(current.Session.State.Variables[512] == 99, "Current initialization lost its freshly executed variable write.");
+        Require(current.Session.State.ReplayJournal is { IsComplete: true } && current.Session.State.ReplayJournal.Entries[^1].Navigation.Length == 3, "Current movement did not record its own diagnostics.");
         var exact = Create(256, 41);
-        exact.Engine.ReplayNavigation(movement);
-        Require(JsonElement.DeepEquals(first.Engine.Capture(), exact.Engine.Capture()), "Direct semantic navigation changed complete VM state relative to uninterrupted play.");
+        exact.Engine.Apply(action);
+        Require(JsonElement.DeepEquals(first.Engine.Capture(), exact.Engine.Capture()), "Identical ordinary inputs changed complete VM state relative to uninterrupted play.");
         GameState saved = first.Session.State with { EventState = first.Engine.Capture() };
         GameSession restoredSession = new(saved);
         EventEngine restored = new(restoredSession, restoredSession.State.Variables);
@@ -73,10 +65,11 @@ internal static partial class Program
         Require(first.Session.State.ReplayJournal is { IsComplete: false }, "Unjournaled script memory mutation left a false complete history.");
 
         byte[] dialogueProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 700), (Jsm.Opcode.RET, 0));
-        GameSession dialogueSession = new(new GameState());
+        GameSession dialogueSession = GameSession.CreateColdProcess();
         dialogueSession.StartNewGame();
         EventEngine dialogueEngine = new(dialogueSession, dialogueSession.State.Variables);
         dialogueEngine.LoadField(74, dialogueProgram, ["Continue"]);
+        dialogueEngine.Step();
         dialogueEngine.Step();
         ReplayJournalEntry pendingDialogue = dialogueSession.ReplayJournal!.Endpoint!;
         DialogueState pending = dialogueEngine.CurrentDialogue!;
@@ -97,9 +90,8 @@ internal static partial class Program
         Require(gatewaySource.Session.State.FieldId == 179, "Synthetic ordinary movement did not execute its gateway contact.");
         ReplayJournalEntry gatewayInput = gatewaySource.Session.State.ReplayJournal!.Entries[^1];
         var gatewayCurrent = Create(1024, 99);
-        gatewayCurrent.Engine.ResolveWalkmesh = (_, _) => throw new InvalidOperationException("Gateway reconstruction invoked locomotion.");
         gatewayCurrent.Engine.InfGateways = gatewaySource.Engine.InfGateways;
-        gatewayCurrent.Engine.ReplayNavigation(gatewayInput);
+        gatewayCurrent.Engine.Apply(new PlayerAction((PlayerActionKind)gatewayInput.Code, gatewayInput.Value, gatewayInput.Text, gatewayInput.Horizontal, gatewayInput.Vertical, gatewayInput.Frames));
         Require(gatewayCurrent.Session.State.FieldId == 179 && gatewayCurrent.Session.State.FieldArrival == gatewaySource.Session.State.FieldArrival && gatewayCurrent.Session.State.Variables[512] == 99, "Causal navigation forced an old transition or lost the freshly executed gateway/init state.");
     }
 }

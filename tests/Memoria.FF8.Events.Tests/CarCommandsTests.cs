@@ -56,6 +56,7 @@ internal static partial class Program
             GameSession session = new(new GameState());
             EventEngine engine = new(session, session.State.Variables) { ShakeTables = tables, AnimationFrameCount = (_, _) => 5, CanSetBackgroundScrollPosition = (layer, x, y) => layer == 0 && x == -3 && y == 4 };
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.ResolveNativeNormalBackgroundScrollCenter = () => ((short)0, (short)0);
             return (session, engine);
         }
         var live = Create();

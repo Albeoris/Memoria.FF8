@@ -72,7 +72,7 @@ internal sealed partial class WorldMapScene
         return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, projection.Visible, assets.ReadScriptedStaticModel(path.ShapeId), staticModelPose: pose);
     }
 
-    private WorldState StepBoat(WorldState before, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, ReplayWorldNavigationStimulus? proposal, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
+    private WorldState StepBoat(WorldState before, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
     {
         ValidateBoatState(before);
         NativeBoatWorldRuntimeState boat = before.NativeBoatRuntime!;
@@ -94,10 +94,6 @@ internal sealed partial class WorldMapScene
         }
         WorldState candidate = next.ToWorldState(before);
         inputProposal = new ReplayWorldNavigationStimulus(candidate.X, candidate.Z);
-        if (proposal is not null && proposal != inputProposal)
-        {
-            throw new InvalidDataException("Recorded boat callback proposal differs from the executed original rail; player movement cannot override scripted coordinates.");
-        }
         fieldEntry = null;
         if (path.CompletedFieldRow is byte row)
         {

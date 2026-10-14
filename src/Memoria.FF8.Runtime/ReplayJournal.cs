@@ -234,13 +234,16 @@ public sealed class ReplayJournal
         for (int index = visit.Count - 1; index >= 0; index--)
         {
             ReplayJournalEntry entry = visit[index];
-            // Completed visits retain actual inputs, movement stimuli, callback
+            // Completed visits retain actual inputs, callback
             // cadence, allocation barriers, memory writes, progress and decisions.
+            // Movement outcomes are recomputed by the current live providers; only the active visit keeps these diagnostics.
             // Branch audits and duplicate top-level poses never drive reconstruction.
             compact = compact.AppendCore(entry with
             {
                 StartPose = null,
                 EndPose = null,
+                Navigation = [],
+                WorldNavigation = [],
                 CommandCount = 0,
                 CommandDigest = 0,
                 Receipts = entry.Receipts.Where(receipt => receipt.Kind != ReplayReceiptKind.Branch).ToArray()
@@ -289,8 +292,8 @@ public sealed class ReplayJournal
 
     private static bool CanRepeat(ReplayJournalEntry previous, ReplayJournalEntry next)
     {
-        // Action code5 is the shared causal input contract for one ordinary Wait.
-        bool cadence = previous.Kind == ReplayEntryKind.Step || previous.Kind == ReplayEntryKind.Action && previous.Code == 5 && previous.Frames == 1;
+        // Codes4/5 are ordinary Move/Wait inputs. Each repetition still executes one complete callback.
+        bool cadence = previous.Kind == ReplayEntryKind.Step || (previous.Kind is ReplayEntryKind.Action or ReplayEntryKind.WorldAction && previous.Code is 4 or 5 && previous.Frames == 1);
         if (!cadence || next.Kind != previous.Kind || next.Repeat != 1 || previous.Repeat >= 30000 || previous.Advanced != 1 || next.Advanced != 1 || previous.Frame > long.MaxValue - previous.Repeat || previous.Frame + previous.Repeat != next.Frame || previous.Navigation.Length != 0 || next.Navigation.Length != 0 || previous.WorldNavigation.Length != 0 || next.WorldNavigation.Length != 0 || previous.Receipts.Length != next.Receipts.Length || previous.ResultFrame.HasValue != next.ResultFrame.HasValue || next.ResultFrame.HasValue && (previous.ResultFrame != next.Frame || next.Frame == long.MaxValue || next.ResultFrame != next.Frame + 1))
         {
             return false;

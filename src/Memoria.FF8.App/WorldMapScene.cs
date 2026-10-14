@@ -209,21 +209,6 @@ internal sealed partial class WorldMapScene : IDisposable
 
     public PlayerActionResult Apply(PlayerAction action)
     {
-        return ApplyCore(action, null);
-    }
-
-    public PlayerActionResult ReplayNavigation(ReplayJournalEntry entry)
-    {
-        entry.Validate();
-        if (entry.Kind != ReplayEntryKind.WorldAction || entry.FieldId != session.State.FieldId || entry.Scene != SceneKind.WorldMap || entry.WorldNavigation.Length != entry.Advanced)
-        {
-            throw new InvalidDataException("World replay requires its complete causal proposal sequence.");
-        }
-        return ApplyCore(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames), entry.WorldNavigation);
-    }
-
-    private PlayerActionResult ApplyCore(PlayerAction action, ReplayWorldNavigationStimulus[]? replayNavigation)
-    {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(action);
         if (action.Frames is < 1 or > 30000)
@@ -245,11 +230,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             for (int index = 0; index < action.Frames; index++)
             {
-                if (replayNavigation is not null && index == replayNavigation.Length)
-                {
-                    break;
-                }
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal, replayNavigation?[index]);
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, out fieldEntry, out ReplayWorldNavigationStimulus proposal);
                 navigation.Add(proposal);
                 advanced++;
                 if (fieldEntry is not null)
@@ -310,15 +291,15 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is not null || state.GroundType is null or > 5, state.NativeCarRuntime is null ? null : assets.ExamCar, state.NativeCarRuntime?.ModelTilt ?? 0, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, ReplayWorldNavigationStimulus? proposal = null)
+    private WorldState Step(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal)
     {
         if (before.NativeBoatRuntime is not null)
         {
-            return StepBoat(before, out fieldEntry, out inputProposal, proposal, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeBoatRuntime.Path.EntityType).ProjectNode(node));
+            return StepBoat(before, out fieldEntry, out inputProposal, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeBoatRuntime.Path.EntityType).ProjectNode(node));
         }
         if (before.NativeCarRuntime is not null)
         {
-            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, proposal);
+            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal);
         }
         fieldEntry = null;
         int inputX = Math.Sign(horizontal);
@@ -351,10 +332,8 @@ internal sealed partial class WorldMapScene : IDisposable
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
         int animation = moving ? 1 : 0;
         int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;
-        // During reconstruction these are game-recorded exogenous travel proposals.
-        // Current terrain, story selection and native field-entry contracts still execute below.
-        int x = proposal?.X ?? WrapCoordinate(before.X + moveX, 262144);
-        int z = proposal?.Z ?? WrapCoordinate(before.Z - graphicsMoveZ, 196608);
+        int x = WrapCoordinate(before.X + moveX, 262144);
+        int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
         inputProposal = new ReplayWorldNavigationStimulus(x, z);
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight });
         int previousGroundHeight = -before.NativeHeight + (before.GroundType is <= 5 ? 320 : 0);

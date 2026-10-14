@@ -53,7 +53,7 @@ internal static partial class Program
                 steps.Add((Jsm.Opcode.INITSOUND, 0));
             }
             steps.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICSTOP, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.RET, 0)]);
-            GameSession takenOverSession = new(new GameState());
+            GameSession takenOverSession = GameSession.CreateColdProcess();
             takenOverSession.StartNewGame();
             EventEngine takenOver = new(takenOverSession, takenOverSession.State.Variables);
             takenOver.LoadField(74, SyntheticProgram(steps.ToArray()), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

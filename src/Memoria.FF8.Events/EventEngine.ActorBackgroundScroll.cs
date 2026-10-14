@@ -19,19 +19,24 @@ public sealed partial class EventEngine
     {
         if (layer == 0 && Scene.ActorBackgroundScroll is NativeActorBackgroundScroll actor)
         {
-            if (actor.X is not short x || actor.Y is not short y)
-            {
-                throw new NotSupportedException("A replacement cannot infer unknown native actor-scroll center words.");
-            }
             Scene.ActorBackgroundScroll = null;
             // 475DF0 overwrites the previous words/counter before the new mode consumes them.
-            return new BackgroundScrollPosition(x, y, x, y, x, y, actor.Counter, 0, actor.Status, actor.Duration, actor.NativeActorId);
+            return new BackgroundScrollPosition(actor.X, actor.Y, 0, 0, actor.PreviousX, actor.PreviousY, actor.Counter, 0, actor.Status, actor.Duration, actor.NativeActorId);
         }
         if (layer == 0 && !Scene.BackgroundScrollPositions.ContainsKey(0) && Scene.NormalBackgroundScrollCenter is NativeNormalBackgroundScrollCenter normal && normal.Version == 1 && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame <= Frame)
         {
             return new BackgroundScrollPosition(normal.X, normal.Y, normal.X, normal.Y, normal.X, normal.Y, 0, 0, 1);
         }
-        return Scene.BackgroundScrollPositions.GetValueOrDefault(layer) ?? new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 0, 1);
+        if (Scene.BackgroundScrollPositions.TryGetValue(layer, out BackgroundScrollPosition? current))
+        {
+            return current;
+        }
+        if (KnownNativeLinearScrollStart(layer) is { } known)
+        {
+            // 475E60 has actually established this selected/nonselected mode0 center.
+            return new BackgroundScrollPosition(known.X, known.Y, known.X, known.Y, known.X, known.Y, 0, 0, 1);
+        }
+        return new BackgroundScrollPosition(null, null, 0, 0, null, null, null, 0, 1);
     }
 
     private byte? BackgroundScrollStatus(int layer)
@@ -74,7 +79,10 @@ public sealed partial class EventEngine
         {
             x = prior.X;
             y = prior.Y;
-            counter = prior.Counter;
+            if (prior.Counter is short previousCounter)
+            {
+                counter = previousCounter;
+            }
             Scene.BackgroundScrollPositions.Remove(0);
         }
         else if (Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex)

@@ -19,7 +19,7 @@ public sealed class NativeCardSaveCausalTests
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original game corpus is required.");
         string repository = Repository();
         GameState source = GameSession.LoadReplaySource(Path.Combine(repository, "../fixtures/external-fixture.json"));
-        var root = new GameSession(new GameState());
+        var root = GameSession.CreateColdProcess();
         root.StartNewGame();
         ReplayJournal prefix = root.ReplayJournal!;
         foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)

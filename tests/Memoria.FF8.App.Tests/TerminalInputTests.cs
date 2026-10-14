@@ -153,7 +153,7 @@ public sealed class TerminalInputTests
     private static GameState RecreateClassroom(string directory)
     {
         ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(Repository(), "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = new GameSession(new GameState());
+        var seed = GameSession.CreateColdProcess();
         seed.StartNewGame();
         ReplayJournal prefix = seed.State.ReplayJournal!;
         foreach (ReplayJournalEntry entry in source.Entries)

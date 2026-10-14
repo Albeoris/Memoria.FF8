@@ -23,7 +23,7 @@ public sealed class IfritCausalRecreationTests
         string output = Path.Combine(repository, "../fixtures");
         Directory.CreateDirectory(output);
         string? prefixPath = Environment.GetEnvironmentVariable("MEMORIA_FF8_IFRIT_PREFIX");
-        var session = prefixPath is null ? new GameSession(new GameState()) : new GameSession(GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(prefixPath), gameDirectory));
+        var session = prefixPath is null ? GameSession.CreateColdProcess() : new GameSession(GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(prefixPath), gameDirectory));
         if (prefixPath is null)
         {
             session.StartNewGame();

@@ -16,6 +16,11 @@ public sealed partial class GameSession : IEventServices
         movieReturnScene = SceneKind.Field;
     }
 
+    public static GameSession CreateColdProcess()
+    {
+        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess() });
+    }
+
     public GameState State { get; private set; }
     public ReplayJournal? ReplayJournal => State.ReplayJournal;
     public string? ReplayMovieSourceHash { get; private set; }
@@ -48,7 +53,14 @@ public sealed partial class GameSession : IEventServices
 
     public void StartNewGame()
     {
-        Change(new GameState { Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), ReplayJournal = ReplayJournal.StartNewGame() });
+        NativeExamTimerState clock = State.ExamTimer ?? throw new NotSupportedException("New Game requires the existing native process clock; create a cold process explicitly or restore its current clock.");
+        NativeExamTimerState reset = clock.ClearSavedStateForNewGame();
+        ReplayJournal journal = ReplayJournal.StartNewGame();
+        if (reset.ClockCalls != 0 || reset.Alternatives.Length != 1 || reset.Alternatives[0].FirstPhase != 0 || reset.Alternatives[0].LastPhase != 0 || reset.DisplayEnabled || reset.DisplayX != 0 || reset.DisplayY != 0)
+        {
+            journal = journal.MarkUnavailable("Warm New Game preserves the native process clock and UI; the journal does not contain its earlier process history.");
+        }
+        Change(new GameState { Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 

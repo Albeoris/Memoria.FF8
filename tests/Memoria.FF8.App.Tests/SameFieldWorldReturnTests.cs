@@ -21,7 +21,7 @@ public sealed class SameFieldWorldReturnTests
         GameState source = GameSession.LoadReplaySource(Path.Combine(repository, "../fixtures/external-fixture.json"));
         if (!afterIfrit)
         {
-            var root = new GameSession(new GameState());
+            var root = GameSession.CreateColdProcess();
             root.StartNewGame();
             ReplayJournal prefix = root.ReplayJournal!;
             foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)

@@ -409,7 +409,7 @@ public sealed class PlayerSaveTests : IDisposable
 
     private static GameSession NewRecordedGame()
     {
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         return session;
     }
@@ -448,7 +448,7 @@ public sealed class PlayerSaveTests : IDisposable
         var archive = new ReplayJournalArchive(Path.Combine(blocked, "archive"));
         var store = new PlayerSaveStore(Path.Combine(directory, "research.json"), Path.Combine(directory, "player-saves"), archive);
         Assert.Equal(61, store.ReadEntries(true).Count);
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         Assert.ThrowsAny<IOException>(() => store.Save(1, session));
         Assert.False(File.Exists(store.GetPath(1)));

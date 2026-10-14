@@ -26,6 +26,8 @@ public sealed record NativeExamTimerState
     [JsonRequired]
     public required long ClockCalls { get; init; }
     [JsonRequired]
+    public required bool TimerMemoryActivated { get; init; }
+    [JsonRequired]
     public required bool DisplayEnabled { get; init; }
     [JsonRequired]
     public required ushort DisplayX { get; init; }
@@ -47,6 +49,7 @@ public sealed record NativeExamTimerState
             Version = 1,
             Alternatives = [new NativeTimerAlternative(0, uint.MaxValue, remaining)],
             ClockCalls = 0,
+            TimerMemoryActivated = true,
             DisplayEnabled = false,
             DisplayX = 0,
             DisplayY = 0,
@@ -57,11 +60,18 @@ public sealed record NativeExamTimerState
         };
     }
 
+    public static NativeExamTimerState FromColdProcess()
+    {
+        // The executable's zero-filled process data establishes phase0 once.
+        // Title menu25 does not call4701B0. Timer memory claims begin at a command.
+        return FromReachedSet(0) with { Alternatives = [new NativeTimerAlternative(0, 0, 0)], TimerMemoryActivated = false };
+    }
+
     public void Validate()
     {
         // Native523230 can replace WORD182/1CFF6E2 without calling the timer UI.
         // DisplayEnabled records that UI call independently of these mutable mask4 bits.
-        if (Version != 1 || ClockCalls < 0 || Alternatives is null || Alternatives.Length == 0 || Alternatives.Any(item => item is null || item.FirstPhase > item.LastPhase) || DisplayEnabled && Event104Mask40 != true)
+        if (Version != 1 || ClockCalls < 0 || Alternatives is null || Alternatives.Length == 0 || Alternatives.Any(item => item is null || item.FirstPhase > item.LastPhase) || !TimerMemoryActivated && Alternatives.Any(item => item.Remaining != 0))
         {
             throw new InvalidDataException("Invalid native exam timer interval state.");
         }
@@ -75,19 +85,35 @@ public sealed record NativeExamTimerState
     public NativeExamTimerState SetRemaining(int remaining)
     {
         Validate();
-        return this with { Alternatives = Normalize(Alternatives.Select(item => item with { Remaining = remaining })) };
+        return this with { Alternatives = Normalize(Alternatives.Select(item => item with { Remaining = remaining })), TimerMemoryActivated = true };
+    }
+
+    public NativeExamTimerState ClearSavedStateForNewGame()
+    {
+        Validate();
+        // 56D9F0->47E410 clears saved remaining, never the process fraction or UI.
+        // init.out and later field commands own their event flags independently.
+        return this with
+        {
+            Alternatives = Normalize(Alternatives.Select(item => item with { Remaining = 0 })),
+            TimerMemoryActivated = false,
+            Event104Mask40 = null,
+            Event182Mask4 = null,
+            SaveGlobalMask4 = null,
+            Event183Mask1 = null
+        };
     }
 
     public NativeExamTimerState Display(byte x, byte y)
     {
         Validate();
-        return this with { DisplayEnabled = true, DisplayX = x, DisplayY = y, Event104Mask40 = true, Event182Mask4 = true, SaveGlobalMask4 = true };
+        return this with { TimerMemoryActivated = true, DisplayEnabled = true, DisplayX = x, DisplayY = y, Event104Mask40 = true, Event182Mask4 = true, SaveGlobalMask4 = true };
     }
 
     public NativeExamTimerState KillDisplay()
     {
         Validate();
-        return this with { DisplayEnabled = false, Event104Mask40 = false, Event182Mask4 = false, SaveGlobalMask4 = false };
+        return this with { TimerMemoryActivated = true, DisplayEnabled = false, Event104Mask40 = false, Event182Mask4 = false, SaveGlobalMask4 = false };
     }
 
     public int RequireRemaining()

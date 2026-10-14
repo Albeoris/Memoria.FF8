@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Events;
 
 public sealed record BackgroundScrollSettings(short OffsetX, short OffsetY, short ScaleX, short ScaleY);
-public sealed record BackgroundScrollPosition(short X, short Y, short TargetX, short TargetY, short PreviousX, short PreviousY, short Counter, byte Mode, byte Status, short Duration = 0, byte? NativeActorId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int NativeLinearVersion = 0);
+public sealed record BackgroundScrollPosition([property: JsonRequired] short? X, [property: JsonRequired] short? Y, short TargetX, short TargetY, [property: JsonRequired] short? PreviousX, [property: JsonRequired] short? PreviousY, [property: JsonRequired] short? Counter, byte Mode, byte Status, [property: JsonRequired] short? Duration = null, byte? NativeActorId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int NativeLinearVersion = 0);
 public sealed record NativeLinearScrollQuery(int Layer, short StartX, short StartY, short TargetX, short TargetY, short Duration);
 
 public sealed partial class EventEngine
@@ -87,7 +87,7 @@ public sealed partial class EventEngine
         {
             return "Native CSCROLL2 needs its four original operands, one of eight layers and a supported signed-word duration";
         }
-        if (!CanReplaceActorBackgroundScroll(top[3]))
+        if (!CanReplaceActorBackgroundScroll(top[3]) || KnownNativeLinearScrollStart(top[3]) is null)
         {
             return "Native CSCROLL2 cannot replace unknown actor-scroll center history";
         }
@@ -157,10 +157,6 @@ public sealed partial class EventEngine
             return "Native direct scroll requires its original operands and one of eight scroll records";
         }
         int layer = layerZero ? 0 : top[2];
-        if (!CanReplaceActorBackgroundScroll(layer))
-        {
-            return "Native direct scroll cannot replace unknown actor-scroll center history";
-        }
         return CanSetBackgroundScrollPosition?.Invoke(layer, (short)top[1], (short)top[0]) == true ? null : "Native direct scroll needs proved current scroll state and renderer offsets before mutation";
     }
 
@@ -192,22 +188,30 @@ public sealed partial class EventEngine
                 {
                     state = state with { PreviousX = state.X, PreviousY = state.Y, Counter = 0, Status = 1 };
                 }
-                short x = NativeLinearScrollPhase.Interpolate(state.PreviousX, state.TargetX, state.Duration, state.Counter);
-                short y = NativeLinearScrollPhase.Interpolate(state.PreviousY, state.TargetY, state.Duration, state.Counter);
-                Scene.BackgroundScrollPositions[layer] = state with { X = x, Y = y, Counter = state.Counter == state.Duration ? state.Counter : (short)(state.Counter + 1), Status = state.Counter == state.Duration ? (byte)2 : (byte)1 };
+                short duration = state.Duration!.Value;
+                short counter = state.Counter!.Value;
+                short x = NativeLinearScrollPhase.Interpolate(state.PreviousX!.Value, state.TargetX, duration, counter);
+                short y = NativeLinearScrollPhase.Interpolate(state.PreviousY!.Value, state.TargetY, duration, counter);
+                Scene.BackgroundScrollPositions[layer] = state with { X = x, Y = y, Counter = counter == duration ? counter : (short)(counter + 1), Status = counter == duration ? (byte)2 : (byte)1 };
                 continue;
             }
             if (state.Mode == 5 && state.Status is 0 or 1)
             {
+                if (!ValidBackgroundScrollPosition(layer, state, Scene))
+                {
+                    throw new NotSupportedException("Native cosine layer scroll requires its consumed current, duration and phase words.");
+                }
                 if (state.Status == 0)
                 {
                     state = state with { PreviousX = state.X, PreviousY = state.Y, Counter = 0, Status = 1 };
                 }
                 int targetX = state.TargetX;
                 int targetY = state.TargetY;
-                short x = (short)FaceCosineInterpolate(state.PreviousX, targetX, state.Duration, state.Counter);
-                short y = (short)FaceCosineInterpolate(state.PreviousY, targetY, state.Duration, state.Counter);
-                Scene.BackgroundScrollPositions[layer] = state with { X = x, Y = y, Counter = state.Counter == state.Duration ? state.Counter : (short)(state.Counter + 1), Status = state.Counter == state.Duration ? (byte)2 : (byte)1 };
+                short duration = state.Duration!.Value;
+                short counter = state.Counter!.Value;
+                short x = (short)FaceCosineInterpolate(state.PreviousX!.Value, targetX, duration, counter);
+                short y = (short)FaceCosineInterpolate(state.PreviousY!.Value, targetY, duration, counter);
+                Scene.BackgroundScrollPositions[layer] = state with { X = x, Y = y, Counter = counter == duration ? counter : (short)(counter + 1), Status = counter == duration ? (byte)2 : (byte)1 };
                 continue;
             }
             if (state.Mode == 3 && state.Status == 0)
@@ -221,15 +225,15 @@ public sealed partial class EventEngine
 
     private bool ValidBackgroundScrollPosition(int layer, BackgroundScrollPosition state, SceneEventState scene)
     {
-        if ((uint)layer >= 8)
+        if ((uint)layer >= 8 || state.X.HasValue != state.Y.HasValue || state.PreviousX.HasValue != state.PreviousY.HasValue)
         {
             return false;
         }
         if (state.Mode == 4)
         {
-            short startX = state.Status == 0 ? state.X : state.PreviousX;
-            short startY = state.Status == 0 ? state.Y : state.PreviousY;
-            return NativeLinearScrollPhase.IsValid(state) && CanSetLinearBackgroundScroll?.Invoke(new NativeLinearScrollQuery(layer, startX, startY, state.TargetX, state.TargetY, state.Duration)) == true;
+            short? startX = state.Status == 0 ? state.X : state.PreviousX;
+            short? startY = state.Status == 0 ? state.Y : state.PreviousY;
+            return NativeLinearScrollPhase.IsValid(state) && startX is short x && startY is short y && state.Duration is short duration && CanSetLinearBackgroundScroll?.Invoke(new NativeLinearScrollQuery(layer, x, y, state.TargetX, state.TargetY, duration)) == true;
         }
         if (state.NativeLinearVersion != 0)
         {
@@ -239,7 +243,7 @@ public sealed partial class EventEngine
         {
             return state.Status is 0 or 2 && (state.Status == 0 || state.X == state.TargetX && state.Y == state.TargetY && state.Counter == 0);
         }
-        if (state.Mode != 5 || state.Status is not (0 or 1 or 2) || state.Duration < 0)
+        if (state.Mode != 5 || state.Status is not (0 or 1 or 2) || state.Duration is not short cosineDuration || cosineDuration < 0 || state.X is null || state.Y is null)
         {
             return false;
         }
@@ -247,14 +251,14 @@ public sealed partial class EventEngine
         {
             return true;
         }
-        if (state.Counter < 0 || state.Counter > state.Duration || state.Status == 2 && state.Counter != state.Duration || state.Status == 1 && state.Counter == 0)
+        if (state.Counter is not short cosineCounter || state.PreviousX is not short previousX || state.PreviousY is not short previousY || cosineCounter < 0 || cosineCounter > cosineDuration || state.Status == 2 && cosineCounter != cosineDuration || state.Status == 1 && cosineCounter == 0)
         {
             return false;
         }
-        int elapsed = state.Status == 2 ? state.Counter : state.Counter - 1;
+        int elapsed = state.Status == 2 ? cosineCounter : cosineCounter - 1;
         int targetX = state.TargetX;
         int targetY = state.TargetY;
-        return state.X == (short)FaceCosineInterpolate(state.PreviousX, targetX, state.Duration, elapsed) && state.Y == (short)FaceCosineInterpolate(state.PreviousY, targetY, state.Duration, elapsed);
+        return state.X == (short)FaceCosineInterpolate(previousX, targetX, cosineDuration, elapsed) && state.Y == (short)FaceCosineInterpolate(previousY, targetY, cosineDuration, elapsed);
     }
 
     private string? UnsupportedBackgroundScroll(Fiber fiber)

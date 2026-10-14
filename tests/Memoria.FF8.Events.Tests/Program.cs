@@ -23,7 +23,10 @@ internal static partial class Program
                     ["linear-offset-start"] = NativeLinearOffsetExplicitStartContract,
                     ["field-media"] = NativeFieldMediaContract,
                     ["exam-timer"] = NativeExamTimerContract,
+                    ["native-process-clock"] = NativeProcessClockContract,
+                    ["native-direct-scroll"] = NativeCurrentDirectScrollContract,
                     ["native-scalar-memory"] = NativeScalarMemoryContract,
+                    ["native-scalar-calculation"] = NativeScalarCalculationContract,
                     ["linear-scroll"] = () => NativeLinearScrollAndSyncContract(selectedGameDirectory),
                     ["linear-scroll-zero"] = NativeLayerZeroLinearScrollContract,
                     ["scroll-related"] = () =>
@@ -76,6 +79,7 @@ internal static partial class Program
                     ["native-meaningful-contact"] = NativeMeaningfulContactContract,
                     ["native-rmovea"] = NativeRmMoveActorContract,
                     ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
+                    ["negative-cosine-turn"] = NativeNegativeCosineTurnContract,
                     ["party-actor-direction"] = NativePartyActorDirectionContract,
                     ["player-script-handoff"] = NativePlayerScriptHandoffContract,
                     ["empty-party-model"] = NativeEmptyPartyModelContract,
@@ -159,6 +163,7 @@ internal static partial class Program
             NativeSetPlacementContract();
             NativeRcMoveContract();
             NativePositiveCosineTurnContract();
+            NativeNegativeCosineTurnContract();
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
             NativePlayerScriptHandoffContract();
@@ -270,7 +275,7 @@ internal static partial class Program
     private static string RunInstalledCorpus(string gameDirectory, bool testRestore)
     {
         using GameAssets assets = new(gameDirectory);
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         EventEngine engine = new(session, session.State.Variables, 123);
         List<int> visitedFields = [];
@@ -398,7 +403,7 @@ internal static partial class Program
     private static ActionCorpus RunActionChain(string gameDirectory, bool alternateChoice, IReadOnlyList<PlayerActionObservation>? replay = null, bool continueCorridor = false, bool continueTo232 = false)
     {
         using GameAssets assets = new(gameDirectory);
-        GameSession session = new(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         EventEngine engine = new(session, session.State.Variables, 123);
         if (continueTo232)
@@ -1080,7 +1085,7 @@ internal static partial class Program
     private static void FrontInfirmaryCurtainCycles(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        GameSession entrySession = new(new GameState());
+        GameSession entrySession = GameSession.CreateColdProcess();
         entrySession.StartNewGame();
         EventEngine entry = new(entrySession, entrySession.State.Variables, 123);
         entry.MovieSkipRequested += entrySession.CompleteMovie;

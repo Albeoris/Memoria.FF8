@@ -36,7 +36,7 @@ public sealed class NativeField135LinearScrollTests
                 byte[]? pixels = inspectPixels ? world.Render(TimeSpan.Zero) : null;
                 if (world.Events.Frame == 3)
                 {
-                    Assert.Equal((0, 1, 1), ((int)phase.X, (int)phase.Counter, (int)phase.Status));
+                    Assert.Equal((0, 1, 1), ((int)Assert.IsType<short>(phase.X), (int)Assert.IsType<short>(phase.Counter), (int)phase.Status));
                     firstLavaPixels = pixels!.ToArray();
                 }
                 if (restored is not null)
@@ -61,12 +61,12 @@ public sealed class NativeField135LinearScrollTests
                 }
                 if (phase.Status == 2)
                 {
-                    Assert.Equal((351, 351, 2), ((int)phase.X, (int)phase.Counter, (int)phase.Status));
+                    Assert.Equal((351, 351, 2), ((int)Assert.IsType<short>(phase.X), (int)Assert.IsType<short>(phase.Counter), (int)phase.Status));
                     completed = true;
                 }
                 if (completed && phase.Counter == 1)
                 {
-                    Assert.Equal((0, 1, 1), ((int)phase.X, (int)phase.Counter, (int)phase.Status));
+                    Assert.Equal((0, 1, 1), ((int)Assert.IsType<short>(phase.X), (int)Assert.IsType<short>(phase.Counter), (int)phase.Status));
                     restarted = true;
                 }
             }
@@ -119,7 +119,7 @@ public sealed class NativeField135LinearScrollTests
         ReplayJournalEntry[] entries = journal.Entries.ToArray();
         int endpointIndex = Array.FindIndex(entries, entry => entry.ResultScene == SceneKind.Field && entry.ResultFieldId == fieldId && entry.ResultFrame == frame);
         Assert.True(endpointIndex >= 0, $"The authentic route must retain field{fieldId}/frame{frame}.");
-        var seed = new GameSession(new GameState());
+        var seed = GameSession.CreateColdProcess();
         seed.StartNewGame();
         ReplayJournal prefix = seed.ReplayJournal!;
         foreach (ReplayJournalEntry entry in entries.Take(endpointIndex + 1))

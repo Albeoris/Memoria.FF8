@@ -11,7 +11,7 @@ internal static partial class Program
     private static void NativeScalarMemoryContract()
     {
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState());
+        GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
         EventEngine engine = new(session, session.State.Variables);
         engine.LoadField(999, content, []);
         engine.Step();
@@ -32,7 +32,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(held, resumed.Capture()), "Typed stack/result restore changed its native alternatives.");
 
         byte[] storeContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession storeSession = new(new GameState());
+        GameSession storeSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
         EventEngine stored = new(storeSession, storeSession.State.Variables);
         ScriptCommand? write = null;
         stored.CommandExecuted += command =>
@@ -67,7 +67,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(saved, restored.Capture()), "Invalid native scalar restore mutated the original VM.");
         restored.LoadField(999, storeContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement reentered = restored.Capture();
-        Require(restored.Frame == 0 && restored.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation == 2, "Same-field reentry did not retain its global allocation clock.");
+        Require(restored.Frame == 0 && restored.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation == 4, "Same-field reentry did not retain its global allocation clock.");
         GameSession reentrySession = new(new GameState());
         EventEngine reentry = new(reentrySession, reentrySession.State.Variables);
         reentry.LoadField(999, storeContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

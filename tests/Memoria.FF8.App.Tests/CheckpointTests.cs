@@ -17,7 +17,7 @@ public sealed class CheckpointTests
         {
             using var assets = new GameAssets(directory);
             FieldAssets field = assets.LoadField(74);
-            var original = new GameSession(new GameState());
+            var original = GameSession.CreateColdProcess();
             original.StartNewGame();
             var engine = new EventEngine(original, original.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
             engine.LoadField(field.Id, field.Jsm, field.Messages);

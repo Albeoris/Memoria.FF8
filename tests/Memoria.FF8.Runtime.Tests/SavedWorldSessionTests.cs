@@ -7,7 +7,7 @@ public sealed class SavedWorldSessionTests
     [Fact]
     public void OnlyExplicitNewGameInitializesSavedWorld()
     {
-        var session = new GameSession(new GameState());
+        GameSession session = GameSession.CreateColdProcess();
         Assert.Null(session.State.SavedWorld);
         session.StartNewGame();
         Assert.Equal(NativeSavedWorldState.CreateNewGame(), session.State.SavedWorld);

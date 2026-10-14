@@ -26,7 +26,7 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, ReplayWorldNavigationStimulus? proposal)
+    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal)
     {
         NativeCarWorldRuntimeState car = before.NativeCarRuntime!;
         car.Validate();
@@ -41,8 +41,8 @@ internal sealed partial class WorldMapScene
         (int moveX, int graphicsZ) = Rotate(0, speed, bodyYaw);
         // 557A90 computes this callback's motion before applying the prior selected terrain yaw.
         bodyYaw = WrapYaw(bodyYaw + (car.GroundYaw!.Value >> 3));
-        int x = proposal?.X ?? WrapCoordinate(before.X + moveX, 262144);
-        int z = proposal?.Z ?? WrapCoordinate(before.Z - graphicsZ, 196608);
+        int x = WrapCoordinate(before.X + moveX, 262144);
+        int z = WrapCoordinate(before.Z - graphicsZ, 196608);
         inputProposal = new ReplayWorldNavigationStimulus(x, z);
         int delta = YawDelta(bodyYaw, before.CameraYaw);
         int followLimit = Math.Min(128, Math.Abs(delta >> 1));

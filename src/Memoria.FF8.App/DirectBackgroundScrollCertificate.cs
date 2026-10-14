@@ -6,21 +6,29 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-/// <summary>Shared native layer0 direct/interpolated camera center for ordinary nonwrapping field resources.</summary>
+/// <summary>Shared native layer0 direct/interpolated camera center and supported native tile wrapping.</summary>
 internal static class DirectBackgroundScrollCertificate
 {
     public static bool CanSet(FieldAssets field, SceneEventState scene, int layer, short x, short y)
     {
-        return layer == 0 && x is >= -4095 and <= 4096 && y is >= -4095 and <= 4096 && HasBaseline(field, scene) && ValidPositions(scene) && BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.Camera.Pan);
+        return layer == 0 && InRange(x) && InRange(y) && HasBaseline(field, scene) && ValidPositions(scene) && SupportsCenter(field, scene, x, y);
     }
 
     public static bool CanSetCosine(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
     {
-        if (layer != 0 || duration < 0 || !InRange(x) || !InRange(y) || !HasBaseline(field, scene) || !ValidPositions(scene) || !BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.Camera.Pan))
+        if (layer != 0 || duration < 0 || !InRange(x) || !InRange(y) || !HasBaseline(field, scene) || !ValidPositions(scene) || !SupportsCenter(field, scene, x, y))
         {
             return false;
         }
-        return scene.BackgroundScrollPositions.ContainsKey(0) || scene.ActorBackgroundScroll is { X: short actorX, Y: short actorY } && InRange(actorX) && InRange(actorY) || scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks && InRange(normal.X) && InRange(normal.Y);
+        if (scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? current))
+        {
+            return current.X is short currentX && current.Y is short currentY && SupportsCenter(field, scene, currentX, currentY);
+        }
+        if (scene.ActorBackgroundScroll is { X: short actorX, Y: short actorY })
+        {
+            return InRange(actorX) && InRange(actorY) && SupportsCenter(field, scene, actorX, actorY);
+        }
+        return scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks && InRange(normal.X) && InRange(normal.Y) && SupportsCenter(field, scene, normal.X, normal.Y);
     }
 
     public static bool CanSetLinear(FieldAssets field, NativeLinearScrollQuery query)
@@ -66,7 +74,7 @@ internal static class DirectBackgroundScrollCertificate
             return null;
         }
         BackgroundScrollPosition position = scene.BackgroundScrollPositions[0];
-        return PrepareCenter(field, scene, position.X, position.Y);
+        return position.X is short x && position.Y is short y ? PrepareCenter(field, scene, x, y) : null;
     }
 
     internal static BackgroundScrollFrame PrepareCenter(FieldAssets field, SceneEventState scene, short x, short y)
@@ -95,12 +103,18 @@ internal static class DirectBackgroundScrollCertificate
                 layers[layer] = offset;
             }
         }
-        return new BackgroundScrollFrame(layers, -center);
+        FieldNativeBackgroundWrapFrame? wrap = field.Information!.BackgroundWrapMask == 0 ? null : FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, new FieldNativeCameraCenter(x, y)) ?? throw new NotSupportedException("Scripted camera wrapping exceeds the shared native tile-placement contract.");
+        return new BackgroundScrollFrame(layers, -center) { NativeWrap = wrap };
     }
 
-    private static bool HasBaseline(FieldAssets field, SceneEventState scene)
+    internal static bool HasBaseline(FieldAssets field, SceneEventState scene)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && field.Information!.BackgroundWrapMask == 0 && scene.BackgroundScrollLayers.All(pair => BackgroundScrollCertificate.CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex));
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || scene.BackgroundScrollLayers.Count == 0 && FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && scene.BackgroundScrollLayers.All(pair => BackgroundScrollCertificate.CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex));
+    }
+
+    internal static bool SupportsCenter(FieldAssets field, SceneEventState scene, short x, short y)
+    {
+        return BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.GetCamera(scene.CameraIndex).Pan) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, new FieldNativeCameraCenter(x, y)) is not null);
     }
 
     private static bool ValidPositions(SceneEventState scene)
@@ -110,7 +124,15 @@ internal static class DirectBackgroundScrollCertificate
 
     private static bool ValidPosition(BackgroundScrollPosition state)
     {
-        if (!InRange(state.X) || !InRange(state.Y) || !InRange(state.TargetX) || !InRange(state.TargetY))
+        if (state.X.HasValue != state.Y.HasValue || state.PreviousX.HasValue != state.PreviousY.HasValue || !InRange(state.TargetX) || !InRange(state.TargetY))
+        {
+            return false;
+        }
+        if (state.Mode == 3)
+        {
+            return state.NativeLinearVersion == 0 && state.Status is 0 or 2 && (state.Status == 0 || state.Counter == 0 && state.X == state.TargetX && state.Y == state.TargetY);
+        }
+        if (!InRange(state.X) || !InRange(state.Y))
         {
             return false;
         }
@@ -122,11 +144,7 @@ internal static class DirectBackgroundScrollCertificate
         {
             return false;
         }
-        if (state.Mode == 3)
-        {
-            return state.Status is 0 or 2 && (state.Status == 0 || state.Counter == 0 && state.X == state.TargetX && state.Y == state.TargetY);
-        }
-        if (state.Mode != 5 || state.Duration < 0 || state.Status is not (0 or 1 or 2))
+        if (state.Mode != 5 || state.Duration is not short duration || duration < 0 || state.Status is not (0 or 1 or 2))
         {
             return false;
         }
@@ -134,12 +152,12 @@ internal static class DirectBackgroundScrollCertificate
         {
             return true;
         }
-        if (!InRange(state.PreviousX) || !InRange(state.PreviousY) || state.Counter < 0 || state.Counter > state.Duration || state.Status == 1 && state.Counter == 0 || state.Status == 2 && state.Counter != state.Duration)
+        if (state.PreviousX is not short previousX || state.PreviousY is not short previousY || state.Counter is not short counter || !InRange(previousX) || !InRange(previousY) || counter < 0 || counter > duration || state.Status == 1 && counter == 0 || state.Status == 2 && counter != duration)
         {
             return false;
         }
-        int elapsed = state.Status == 2 ? state.Counter : state.Counter - 1;
-        return state.X == NativeCosineInterpolation.Interpolate(state.PreviousX, state.TargetX, state.Duration, elapsed) && state.Y == NativeCosineInterpolation.Interpolate(state.PreviousY, state.TargetY, state.Duration, elapsed);
+        int elapsed = state.Status == 2 ? counter : counter - 1;
+        return state.X == NativeCosineInterpolation.Interpolate(previousX, state.TargetX, duration, elapsed) && state.Y == NativeCosineInterpolation.Interpolate(previousY, state.TargetY, duration, elapsed);
     }
 
     internal static bool IsCompleted(BackgroundScrollPosition state)
@@ -147,7 +165,7 @@ internal static class DirectBackgroundScrollCertificate
         return state.Status == 2 && ValidPosition(state);
     }
 
-    private static bool InRange(short value)
+    private static bool InRange(short? value)
     {
         return value is >= -4095 and <= 4096;
     }

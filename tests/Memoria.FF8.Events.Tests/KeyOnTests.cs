@@ -18,7 +18,7 @@ internal static partial class Program
 
         (GameSession Session, EventEngine Engine) Create(int mask)
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             EventEngine engine = new(session, session.State.Variables);
             byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 0)]]);

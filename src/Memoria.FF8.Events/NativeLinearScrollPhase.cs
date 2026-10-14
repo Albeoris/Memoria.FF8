@@ -10,7 +10,7 @@ public static class NativeLinearScrollPhase
 
     public static bool IsValid(BackgroundScrollPosition state)
     {
-        if (state.Mode != 4 || state.NativeLinearVersion != 1 || state.Status is not (0 or 1 or 2) || state.Duration < 0)
+        if (state.Mode != 4 || state.NativeLinearVersion != 1 || state.Status is not (0 or 1 or 2) || state.Duration is not short duration || duration < 0 || state.X is null || state.Y is null)
         {
             return false;
         }
@@ -19,11 +19,11 @@ public static class NativeLinearScrollPhase
             // The command preserves previous/counter until post-VM475DF0.
             return true;
         }
-        if (state.Counter < 0 || state.Counter > state.Duration || state.Status == 2 && state.Counter != state.Duration || state.Status == 1 && state.Counter == 0)
+        if (state.Counter is not short counter || state.PreviousX is not short previousX || state.PreviousY is not short previousY || counter < 0 || counter > duration || state.Status == 2 && counter != duration || state.Status == 1 && counter == 0)
         {
             return false;
         }
-        short elapsed = (short)(state.Status == 2 ? state.Counter : state.Counter - 1);
-        return state.X == Interpolate(state.PreviousX, state.TargetX, state.Duration, elapsed) && state.Y == Interpolate(state.PreviousY, state.TargetY, state.Duration, elapsed);
+        short elapsed = (short)(state.Status == 2 ? counter : counter - 1);
+        return state.X == Interpolate(previousX, state.TargetX, duration, elapsed) && state.Y == Interpolate(previousY, state.TargetY, duration, elapsed);
     }
 }

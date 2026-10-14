@@ -83,7 +83,7 @@ internal static partial class Program
         }
 
         using GameAssets assets = new(gameDirectory);
-        GameSession fresh = new(new GameState());
+        GameSession fresh = GameSession.CreateColdProcess();
         fresh.StartNewGame();
         FieldAssets start = assets.LoadField(74);
         EventEngine original = new(fresh, fresh.State.Variables);

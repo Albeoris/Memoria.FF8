@@ -14,7 +14,7 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         (GameSession Session, EventEngine Engine) Fresh(byte[]? bytes = null)
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(74, bytes ?? content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

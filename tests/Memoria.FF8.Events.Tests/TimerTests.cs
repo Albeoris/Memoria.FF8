@@ -10,13 +10,13 @@ internal static partial class Program
     private static void NativeExamTimerContract()
     {
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState());
+        GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
         EventEngine first = new(session, session.State.Variables);
         first.LoadField(100, content, []);
         first.Step();
-        Require(first.ExamTimer is { ClockCalls: 0, DisplayX: 250, DisplayY: 10, DisplayEnabled: true } && first.ExamTimer.RequireRemaining() == 600, "SET/DISP reset unknown phase, lost unsigned screen coordinates or advanced a pre-SET clock.");
+        Require(first.ExamTimer is { ClockCalls: 2, DisplayX: 250, DisplayY: 10, DisplayEnabled: true } && first.ExamTimer.RequireRemaining() == 600, "SET/DISP reset unknown phase, lost unsigned screen coordinates or discarded a pre-SET clock.");
         first.Step();
-        Require(first.ExamTimer!.ClockCalls == 2 && first.ExamTimer.Alternatives.Any(item => item.Remaining == 599) && first.ExamTimer.Alternatives.Any(item => item.Remaining == 600), "Field clock did not preserve correlated remaining alternatives after two pre-VM native calls.");
+        Require(first.ExamTimer!.ClockCalls == 4 && first.ExamTimer.Alternatives.Any(item => item.Remaining == 599) && first.ExamTimer.Alternatives.Any(item => item.Remaining == 600), "Field clock did not preserve correlated remaining alternatives after two pre-VM native calls.");
         GameSession independentSession = new(new GameState());
         EventEngine resumed = new(independentSession, independentSession.State.Variables);
         resumed.LoadField(100, content, []);
@@ -34,7 +34,7 @@ internal static partial class Program
         Require(first.ExamTimer.ClockCalls == beforeLoadCalls + 2 && !first.ExamTimer.DisplayEnabled, "Normal field load reset native timer phase or display state.");
 
         byte[] ambiguousGet = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession uncertainSession = new(new GameState());
+        GameSession uncertainSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
         EventEngine uncertain = new(uncertainSession, uncertainSession.State.Variables);
         uncertain.LoadField(100, ambiguousGet, []);
         uncertain.Step();

@@ -34,7 +34,7 @@ public sealed class ElevatorScrollContinuationTests
             Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
             BackgroundScrollPosition position = world.Events.Scene.BackgroundScrollPositions[0];
             scrolled |= position.Y > 0;
-            Assert.InRange(position.Y, (short)0, (short)224);
+            Assert.InRange(Assert.IsType<short>(position.Y), (short)0, (short)224);
             Assert.Equal(world.Apply(wait), replay.Apply(wait));
             world.EnsureField();
             replay.EnsureField();

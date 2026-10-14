@@ -30,7 +30,7 @@ internal static class NativeLinearBackgroundScrollCertificate
 
     public static FieldNativeBackgroundWrapFrame PrepareWrap(FieldAssets field, SceneEventState scene, FieldNativeCameraCenter center)
     {
-        ImmutableArray<FieldNativeBackgroundLayerCurrent> currents = scene.BackgroundScrollPositions.OrderBy(pair => pair.Key).Select(pair => new FieldNativeBackgroundLayerCurrent((byte)pair.Key, pair.Value.X, pair.Value.Y)).ToImmutableArray();
+        ImmutableArray<FieldNativeBackgroundLayerCurrent> currents = scene.BackgroundScrollPositions.OrderBy(pair => pair.Key).Select(pair => new FieldNativeBackgroundLayerCurrent((byte)pair.Key, pair.Value.X!.Value, pair.Value.Y!.Value)).ToImmutableArray();
         return FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, center, currents) ?? throw new NotSupportedException("Native linear layer placement has unsupported signed-word offsets or camera bounds.");
     }
 
@@ -41,10 +41,10 @@ internal static class NativeLinearBackgroundScrollCertificate
 
     private static bool ValidPositions(FieldAssets field, SceneEventState scene)
     {
-        return scene.BackgroundScrollPositions.All(pair => NativeLinearScrollPhase.IsValid(pair.Value) && InRange(pair.Value.X) && InRange(pair.Value.Y) && CanSet(field, new NativeLinearScrollQuery(pair.Key, pair.Value.Status == 0 ? pair.Value.X : pair.Value.PreviousX, pair.Value.Status == 0 ? pair.Value.Y : pair.Value.PreviousY, pair.Value.TargetX, pair.Value.TargetY, pair.Value.Duration)));
+        return scene.BackgroundScrollPositions.All(pair => NativeLinearScrollPhase.IsValid(pair.Value) && InRange(pair.Value.X) && InRange(pair.Value.Y) && (pair.Value.Status == 0 ? pair.Value.X : pair.Value.PreviousX) is short startX && (pair.Value.Status == 0 ? pair.Value.Y : pair.Value.PreviousY) is short startY && pair.Value.Duration is short duration && CanSet(field, new NativeLinearScrollQuery(pair.Key, startX, startY, pair.Value.TargetX, pair.Value.TargetY, duration)));
     }
 
-    private static bool InRange(short value)
+    private static bool InRange(short? value)
     {
         return value is >= -4095 and <= 4096;
     }

@@ -15,6 +15,7 @@ internal static partial class Program
             EventEngine engine = new(session, session.State.Variables) { CanSetLinearBackgroundScroll = query => certificate && query.Layer == 0 && query.StartX == 40 && query.StartY == -80 && query.TargetX == 12 && query.TargetY == -24 && query.Duration >= 0, CanRestoreLinearBackgroundScroll = _ => true };
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 40), (Jsm.Opcode.PSHN_L, -80), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)), []);
             engine.CanSetBackgroundScrollPosition = (_, _, _) => true;
+            engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             engine.Step();
             if (!knownStart)
             {

@@ -13,7 +13,7 @@ internal static partial class Program
         foreach (int raw in new[] { 0, -1, 0x10004, 0x10100 })
         {
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
             session.State.Variables[512] = raw;
             EventEngine first = new(session, session.State.Variables);
             first.LoadField(999, content, []);
@@ -46,7 +46,7 @@ internal static partial class Program
         }
 
         byte[] battle = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x120), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        GameSession battleSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
+        GameSession battleSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromColdProcess() });
         EventEngine engine = new(battleSession, battleSession.State.Variables);
         engine.LoadField(998, battle, []);
         engine.Step();
@@ -74,7 +74,7 @@ internal static partial class Program
         Require(resumed.Scene.NativeBattleResult == 0 && resumed.Scene.NativeBattleFlagWrites![^1] is { Writer: NativeBattleFlagWriter.BattleMode, PersistentFlags: 0, ActiveFlags: 0 } && resumed.ExamTimer is { DisplayEnabled: false, Event182Mask4: false, SaveGlobalMask4: false, Event183Mask1: false }, "Battle return, KILLTIMER masking or second full mode replacement diverged.");
 
         byte[] loader = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x120), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
-        GameSession loaderSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
+        GameSession loaderSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromColdProcess() });
         EventEngine loading = new(loaderSession, loaderSession.State.Variables);
         loading.LoadField(996, loader, []);
         loading.Step();
@@ -99,7 +99,7 @@ internal static partial class Program
         suppressed.Step();
         Require(suppressed.Scene.NativeBattleFlagWrites is { Count: 1 } && suppressed.Scene.NativeBattleFlagWrites[0].ActiveFlags == 0x123 && suppressed.Scene.NativeBattleCompletions![0].FlagConsumer is null, "Suppressed BATTLE changed active flags or invented a battle consumer.");
 
-        GameSession uiSession = new(new GameState());
+        GameSession uiSession = GameSession.CreateColdProcess();
         EventEngine ui = new(uiSession, uiSession.State.Variables);
         ui.LoadField(995, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.RET, 0)), []);
         ui.Step();

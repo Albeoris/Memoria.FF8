@@ -10,7 +10,11 @@ public sealed partial class EventEngine
     private string? UnsupportedTimerAccess(Fiber fiber, JsmOperation operation)
     {
         bool timerCommand = operation.Opcode is Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER;
-        if (!timerCommand && services.ExamTimer is null)
+        if (operation.Opcode == Jsm.Opcode.MOVIE && services.ExamTimer is not null && services.NativeMovieClockFlag is null)
+        {
+            return "A tracked native process clock requires the accepted movie start/close lifecycle flag before movie departure";
+        }
+        if (!timerCommand && services.ExamTimer is not { TimerMemoryActivated: true })
         {
             return null;
         }
@@ -25,9 +29,9 @@ public sealed partial class EventEngine
             {
                 return "Native exam timer command requires its original operands";
             }
-            if (operation.Opcode != Jsm.Opcode.SETTIMER && services.ExamTimer is null)
+            if (services.ExamTimer is null)
             {
-                return "Native exam timer remaining DWORD has no reached SETTIMER provenance";
+                return "Native exam timer has no preserved process clock or remaining DWORD provenance";
             }
             if (variables.Keys.Any(address => address is >= 101 and <= 107 or >= 179 and <= 183))
             {
@@ -38,10 +42,6 @@ public sealed partial class EventEngine
                 return "DISPTIMER coordinates overlap legacy memory aliases with unknown width; original PC and operands retained";
             }
             return null;
-        }
-        if (operation.Opcode == Jsm.Opcode.MOVIE && services.NativeMovieClockFlag is null)
-        {
-            return "A tracked native timer requires the accepted movie start/close lifecycle flag before movie departure";
         }
         int width = operation.Opcode switch
         {
@@ -69,7 +69,7 @@ public sealed partial class EventEngine
         int[] operands = opcode == Jsm.Opcode.DISPTIMER ? fiber.Stack.Take(2).Reverse().ToArray() : opcode == Jsm.Opcode.SETTIMER ? [fiber.Stack.Peek()] : [];
         NativeExamTimerState next = opcode switch
         {
-            Jsm.Opcode.SETTIMER => current?.SetRemaining(operands[0]) ?? NativeExamTimerState.FromReachedSet(operands[0]),
+            Jsm.Opcode.SETTIMER => current!.SetRemaining(operands[0]),
             Jsm.Opcode.DISPTIMER => current!.Display(unchecked((byte)operands[0]), unchecked((byte)operands[1])),
             Jsm.Opcode.KILLTIMER => current!.KillDisplay(),
             _ => throw new ArgumentOutOfRangeException(nameof(opcode))
@@ -95,7 +95,7 @@ public sealed partial class EventEngine
 
     private void ValidateNativeTimerExpiryAfterVm()
     {
-        if (services.ExamTimer is not NativeExamTimerState timer || timer.Event104Mask40 == false || timer.Event183Mask1 == true || timer.Alternatives.All(item => item.Remaining != 0))
+        if (services.ExamTimer is not { TimerMemoryActivated: true } timer || timer.Event104Mask40 == false || timer.Event183Mask1 == true || timer.Alternatives.All(item => item.Remaining != 0))
         {
             return;
         }

@@ -11,7 +11,7 @@ public sealed class InfirmaryNativeMovementTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, directory);
         int centering = 0;
@@ -83,7 +83,7 @@ public sealed class InfirmaryNativeMovementTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, directory);
         HashSet<(int Field, int Object, string Command)> observed = [];

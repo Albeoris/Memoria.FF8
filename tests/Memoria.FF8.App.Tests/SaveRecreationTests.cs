@@ -15,7 +15,7 @@ public sealed class SaveRecreationTests
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-pending-draft-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            var session = new GameSession(new GameState());
+            var session = GameSession.CreateColdProcess();
             session.StartNewGame();
             using var world = new GameWorld(session, directory, persistReplayJournal: false);
             DialogueState? prompt = null;
@@ -63,7 +63,7 @@ public sealed class SaveRecreationTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         DriveOpening(world, session);
@@ -81,12 +81,16 @@ public sealed class SaveRecreationTests
         Assert.Equal(source.X, recreated.X);
         Assert.Equal(source.Y, recreated.Y);
         Assert.True(JsonElement.DeepEquals(source.EventState!.Value, recreated.EventState!.Value));
-        using var restored = new GameWorld(new GameSession(recreated), directory, persistReplayJournal: false);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })));
+        var restoredSession = new GameSession(recreated);
+        using var restored = new GameWorld(restoredSession, directory, persistReplayJournal: false);
         restored.EnsureField();
+        world.SetRenderSize(640, 448);
+        restored.SetRenderSize(640, 448);
         Assert.True(restored.Events.IsUserControlEnabled);
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
 
-        var wrongBoundary = new GameSession(new GameState());
+        var wrongBoundary = GameSession.CreateColdProcess();
         wrongBoundary.StartNewGame();
         IReadOnlyList<ReplayJournalEntry> recorded = source.ReplayJournal.Entries;
         for (int index = 0; index < recorded.Count; index++)
@@ -94,6 +98,15 @@ public sealed class SaveRecreationTests
             wrongBoundary.AppendReplayEntry(index == recorded.Count - 1 ? recorded[index] with { ResultTrigger = (int)PlayerTriggerKind.Waiting } : recorded[index]);
         }
         Assert.Throws<InvalidDataException>(() => GameWorld.RecreateSave(source with { ReplayJournal = wrongBoundary.ReplayJournal }, directory));
+
+        foreach (PlayerAction next in new[] { new PlayerAction(PlayerActionKind.Wait), new PlayerAction(PlayerActionKind.Move, Horizontal: -1) })
+        {
+            Assert.Equal(world.Apply(next), restored.Apply(next));
+            session.SetEventState(world.Events.Capture());
+            restoredSession.SetEventState(restored.Events.Capture());
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { ReplayJournal = null }), JsonSerializer.SerializeToElement(restoredSession.State with { ReplayJournal = null })));
+            Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
+        }
 
         var continuedSession = new GameSession(JsonSerializer.Deserialize<GameState>(portable)!);
         using var continued = new GameWorld(continuedSession, directory, persistReplayJournal: false);
@@ -118,7 +131,7 @@ public sealed class SaveRecreationTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         DriveOpening(world, session);
@@ -142,7 +155,7 @@ public sealed class SaveRecreationTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed movie corpus is required.");
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         var clock = new MovieClock(session, directory);
         using var world = new GameWorld(session, directory, clock, persistReplayJournal: false);
@@ -164,7 +177,7 @@ public sealed class SaveRecreationTests
         Assert.NotEmpty(samples);
         Assert.All(samples, entry => Assert.Equal(MovieClock.GetSourceHash(directory, 30), entry.MovieSourceHash));
 
-        var forged = new GameSession(new GameState());
+        var forged = GameSession.CreateColdProcess();
         forged.StartNewGame();
         foreach (ReplayJournalEntry entry in session.ReplayJournal!.Entries)
         {
@@ -191,7 +204,7 @@ public sealed class SaveRecreationTests
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), destination.Apply(new PlayerAction(PlayerActionKind.Wait)));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), destination.Events.Capture()));
 
-        var duplicated = new GameSession(new GameState());
+        var duplicated = GameSession.CreateColdProcess();
         duplicated.StartNewGame();
         foreach (ReplayJournalEntry entry in transition.ReplayJournal!.Entries)
         {

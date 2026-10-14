@@ -55,7 +55,7 @@ internal sealed partial class GameWorld
         {
             throw new NotSupportedException(journal.UnavailableReason);
         }
-        var rebuilt = new GameSession(new GameState());
+        var rebuilt = GameSession.CreateColdProcess();
         rebuilt.StartNewGame();
         var clock = new MovieClock(rebuilt, gameDirectory, mediaToolsDirectory);
         using var world = new GameWorld(rebuilt, gameDirectory, clock, persistReplayJournal: false);
@@ -127,11 +127,6 @@ internal sealed partial class GameWorld
                         world.PublishReplayDeparture();
                         break;
                     case ReplayEntryKind.Action:
-                        AwaitRecordedNavigationOrigin(world.Events, entry, () =>
-                        {
-                            world.Events.Step();
-                            world.PublishReplayDeparture();
-                        });
                         AwaitRecordedDialogueSite(world.Events, entry, () =>
                         {
                             world.Events.Step();
@@ -139,7 +134,7 @@ internal sealed partial class GameWorld
                         });
                         ValidateDialogueSite(world.Events, entry);
                         movieSkip = entry.Code == (int)PlayerActionKind.SkipMovie ? entry : null;
-                        result = entry.Code == (int)PlayerActionKind.Move ? world.PublishFieldAction(world.Events.ReplayNavigation(entry)) : world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
+                        result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
                         break;
                     case ReplayEntryKind.Dialogue:
                         AwaitRecordedDialogueSite(world.Events, entry, () =>
@@ -151,8 +146,7 @@ internal sealed partial class GameWorld
                         world.Events.ConfirmDialogue(entry.Code == 1 ? entry.Value : null, entry.Code == 2 ? entry.Text : null);
                         break;
                     case ReplayEntryKind.WorldAction:
-                        world.EnsureField();
-                        result = world.WorldScene!.ReplayNavigation(entry);
+                        result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
                         break;
                     case ReplayEntryKind.MovieSample:
                         rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State.MovieIndex, gameDirectory));
@@ -257,30 +251,6 @@ internal sealed partial class GameWorld
             rebuilt.SetDialogueDraft(draft);
         }
         return rebuilt.State;
-    }
-
-    internal static void AwaitRecordedNavigationOrigin(EventEngine engine, ReplayJournalEntry entry, Action advance)
-    {
-        if (entry.Code != (int)PlayerActionKind.Move || !entry.Accepted || entry.Navigation.FirstOrDefault()?.Start is not ReplayPlayerPose origin)
-        {
-            return;
-        }
-        for (int callback = 0; callback < 30000; callback++)
-        {
-            ActorState? player = engine.Actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
-            bool matchesOrigin = player is not null && player.X == origin.X && player.Y == origin.Y && player.Z == origin.Z && player.WalkmeshTriangle == origin.Triangle;
-            if (player is null || matchesOrigin && engine.IsUserControlEnabled)
-            {
-                return;
-            }
-            if (engine.FieldId != entry.FieldId || !engine.HasPendingPlayerPlacement && !(matchesOrigin && !engine.IsUserControlEnabled && engine.HasPendingPlayerControlRelease) || engine.CurrentDialogue is not null || engine.LastFault is not null || engine.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Movie)
-            {
-                return;
-            }
-            // The script writes its own body; the recorded pose remains a check, never a placement.
-            advance();
-        }
-        throw new InvalidDataException("Recorded navigation could not reach its pending scripted starting placement.");
     }
 
     internal static void AwaitRecordedDialogueSite(EventEngine engine, ReplayJournalEntry entry, Action advance)

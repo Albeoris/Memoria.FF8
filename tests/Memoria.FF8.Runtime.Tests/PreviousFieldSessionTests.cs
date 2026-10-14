@@ -42,6 +42,7 @@ public sealed class PreviousFieldSessionTests
         session.RequestMovie(1);
         session.RequestField(159, 0);
         Assert.Null(session.State.PreviousFieldId);
+        session = GameSession.CreateColdProcess();
         session.StartNewGame();
         Assert.Null(session.State.PreviousFieldId);
         string path = Path.Combine(Path.GetTempPath(), "ff8-unknown-previous-" + Guid.NewGuid().ToString("N") + ".json");

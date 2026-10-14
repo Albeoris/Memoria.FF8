@@ -147,7 +147,7 @@ public sealed class ReplayJournalArchiveTests : IDisposable
 
     private static GameSession Start()
     {
-        var session = new GameSession(new GameState());
+        var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         return session;
     }
