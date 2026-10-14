@@ -172,6 +172,7 @@ public sealed partial class EventEngine
         // Native51F900 consumes a full DWORD even without pending music. With
         // pending music46B890 retains that position and returns primary channel0.
         Scene.MusicPlayRequest = new NativeMusicPlayRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, opcode.ToString(), consumed, consumed ? prior.Requested213 : null, prior.Bank201, bank, prior.KeepBit400, volume, duration, consumed ? secondary ? 1 : 0 : null, GlobalSoundBackendStatus.Muted, skip ? args[0] : null);
+        AudioCommandExecuted?.Invoke(Scene.MusicPlayRequest);
         return args;
     }
 

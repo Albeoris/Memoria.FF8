@@ -87,6 +87,7 @@ public sealed partial class EventEngine
         SetSoundVolumeByte(197, 127);
         SetSoundVolumeByte(198, 127);
         Scene.SoundInitialization = new NativeSoundInitialization(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, 127, 127, 127, 0, 32, 1, 29, 64, GlobalSoundBackendStatus.Muted);
+        AudioCommandExecuted?.Invoke(Scene.SoundInitialization);
         // This records the installed calls on an explicit muted backend. It
         // neither invents active music channel IDs nor erases effect history.
     }

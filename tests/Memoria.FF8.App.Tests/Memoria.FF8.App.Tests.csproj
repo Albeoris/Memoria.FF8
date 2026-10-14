@@ -11,4 +11,10 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
   </ItemGroup>
+  <Target Name="CopyMusicHost" AfterTargets="Build">
+    <MSBuild Projects="../../src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" Targets="GetMusicHostFiles" Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x86;SelfContained=true">
+      <Output TaskParameter="TargetOutputs" ItemName="MusicHostFile" />
+    </MSBuild>
+    <Copy SourceFiles="@(MusicHostFile)" DestinationFiles="@(MusicHostFile->'$(OutDir)audio-host/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

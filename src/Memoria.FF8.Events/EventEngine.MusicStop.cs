@@ -83,6 +83,7 @@ public sealed partial class EventEngine
             variables[199 + slot] = byte.MaxValue;
         }
         Scene.MusicStop = new NativeMusicStop(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, unchecked((uint)args[0]), slot, previous?.ChannelId, requested, GlobalSoundBackendStatus.Muted);
+        AudioCommandExecuted?.Invoke(Scene.MusicStop);
         return args;
     }
 

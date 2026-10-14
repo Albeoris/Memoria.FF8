@@ -9,6 +9,13 @@ internal static partial class Program
 {
     private static void NativeKeyOnContract()
     {
+        void Press(EventEngine engine, ushort mask)
+        {
+            Require(engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons, mask)).Accepted, "Ordinary mapped physical input was refused.");
+            engine.Step();
+            Require(engine.Apply(new PlayerAction(PlayerActionKind.FieldButtons)).Accepted, "Ordinary mapped release was refused.");
+        }
+
         (GameSession Session, EventEngine Engine) Create(int mask)
         {
             GameSession session = new(new GameState());
@@ -25,8 +32,8 @@ internal static partial class Program
         {
             var current = Create(mask);
             Require(current.Session.State.Variables[5000] == 0, "KEYON invented a button edge without player input.");
-            PlayerActionResult confirmed = current.Engine.Apply(new PlayerAction(PlayerActionKind.Confirm));
-            Require(confirmed.Accepted && confirmed.FramesAdvanced == 1 && current.Session.State.Variables[5000] == ((mask & 0x40) == 0 ? 0 : 1), "Ordinary Confirm did not deliver one original mapped primary edge to the DWORD mask.");
+            Press(current.Engine, 0x40);
+            Require(current.Session.State.Variables[5000] == ((mask & 0x40) == 0 ? 0 : 1), "Ordinary primary input did not deliver one original mapped edge to the DWORD mask.");
             Require(current.Engine.Scene.ButtonInput is { PendingPressed: 0, Pressed: 0x40 }, "Confirm was not sampled and consumed by the field callback.");
             JsonElement saved = current.Engine.Capture();
             var independent = Create(mask);
@@ -34,7 +41,7 @@ internal static partial class Program
             current.Engine.Apply(new PlayerAction(PlayerActionKind.Wait));
             independent.Engine.Apply(new PlayerAction(PlayerActionKind.Wait));
             Require(current.Session.State.Variables[5000] == 0 && JsonElement.DeepEquals(current.Engine.Capture(), independent.Engine.Capture()), "A sampled edge persisted into the next frame or changed after independent restore.");
-            current.Engine.Apply(new PlayerAction(PlayerActionKind.Confirm));
+            Press(current.Engine, 0x40);
             Require(current.Session.State.Variables[5000] == ((mask & 0x40) == 0 ? 0 : 1), "A new ordinary Confirm failed to create its own edge.");
             current.Engine.Apply(new PlayerAction(PlayerActionKind.Cancel));
             Require(current.Engine.Scene.ButtonInput is { Pressed: 0x10 } && current.Session.State.Variables[5000] == ((mask & 0x10) == 0 ? 0 : 1), "Cancel was fabricated as the primary/card edge.");
@@ -44,7 +51,7 @@ internal static partial class Program
         }
 
         var source = Create(0xC0);
-        PlayerAction[] actions = [new(PlayerActionKind.Confirm), new(PlayerActionKind.Wait), new(PlayerActionKind.Cancel), new(PlayerActionKind.Confirm)];
+        PlayerAction[] actions = [new(PlayerActionKind.FieldButtons, 0x40), new(PlayerActionKind.Wait), new(PlayerActionKind.FieldButtons), new(PlayerActionKind.Wait), new(PlayerActionKind.Cancel), new(PlayerActionKind.FieldButtons, 0x40), new(PlayerActionKind.Wait)];
         var replayed = Create(0xC0);
         source.Engine.Replay(actions);
         replayed.Engine.Replay(actions);
@@ -80,7 +87,7 @@ internal static partial class Program
         {
         }
         Require(invalid.LastFault?.Opcode == "KEYON" && invalid.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 2, "KEYON underflow advanced the original operation.");
-        foreach (NativeFieldButtonInput malformed in new[] { new NativeFieldButtonInput(2, 0, 0, 0), new NativeFieldButtonInput(1, 0x80, 0, 0), new NativeFieldButtonInput(1, 0, 0, 10) })
+        foreach (NativeFieldButtonInput malformed in new[] { new NativeFieldButtonInput(1, 0, 0, 0, 0, 0, 0), new NativeFieldButtonInput(2, 0x80, 0, 0, 0, 0, 0), new NativeFieldButtonInput(2, 0, 0, 10, 0, 0, 0) })
         {
             try
             {

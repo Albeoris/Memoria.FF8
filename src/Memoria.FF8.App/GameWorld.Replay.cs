@@ -215,7 +215,7 @@ internal sealed partial class GameWorld
         {
             if ((int)world.NextTrigger.Kind != final.ResultTrigger)
             {
-                throw new InvalidDataException("Reconstruction did not reach the recorded checkpoint readiness boundary.");
+                throw new InvalidDataException($"Reconstruction did not reach the recorded checkpoint readiness boundary: expected {(PlayerTriggerKind)final.ResultTrigger}, actual {world.NextTrigger.Kind} at field{world.Events.FieldId}/frame{world.Events.Frame}.");
             }
             if (final.ResultMessageId is not null)
             {

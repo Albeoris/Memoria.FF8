@@ -50,6 +50,8 @@ internal static partial class Program
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["key-on"] = NativeKeyOnContract,
+                    ["key-scan"] = NativeKeyScanContract,
+                    ["terminal-commands"] = NativeTerminalCommandsContract,
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
                     ["actor-scroll"] = NativeActorScrollContract,
@@ -144,6 +146,8 @@ internal static partial class Program
             NativeDyingContract(gameDirectory);
             NativeDressContract(gameDirectory);
             NativeKeyOnContract();
+            NativeKeyScanContract();
+            NativeTerminalCommandsContract();
             NativeMovieTimerClockContract();
             NativeCarCommandsContract(gameDirectory);
             NativeActorScrollContract();

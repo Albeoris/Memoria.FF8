@@ -34,6 +34,7 @@ public sealed partial class EventEngine
         // TODO(TD-003):, muted audio records the
         // requested voice/volume without inventing backend buffers or gain.
         Scene.SoundVolume = new NativeSoundVolume(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, rawMask, args[1], mask, voice, (byte)(args[1] & 127), 0, GlobalSoundBackendStatus.Muted, Scene.AudioLoadEpoch);
+        AudioCommandExecuted?.Invoke(Scene.SoundVolume);
         return args;
     }
 
