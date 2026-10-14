@@ -11,6 +11,7 @@ public sealed record NativeWorldSalaryState
         Presentation = departure.SalaryPresentation;
         SoundProcess = departure.GlobalSoundProcess;
         EventRandom = departure.EventRandom;
+        VibrationProcess = departure.VibrationProcess;
     }
 
     public GameState Departure { get; }
@@ -21,6 +22,7 @@ public sealed record NativeWorldSalaryState
     public NativeSalaryPresentation? Presentation { get; private init; }
     public NativeGlobalSoundProcess? SoundProcess { get; private init; }
     public NativeEventRandomState? EventRandom { get; private init; }
+    public NativeVibrationProcessState? VibrationProcess { get; private init; }
 
     public static NativeWorldSalaryState Begin(GameState departure)
     {
@@ -28,18 +30,19 @@ public sealed record NativeWorldSalaryState
         return new NativeWorldSalaryState(departure);
     }
 
-    public NativeWorldSalaryState Advance(NativeSalaryResult? result, NativeSalaryPresentation? presentation, NativeGlobalSoundProcess? soundProcess, uint movementUnits)
+    public NativeWorldSalaryState Advance(NativeSalaryResult? result, NativeSalaryPresentation? presentation, NativeGlobalSoundProcess? soundProcess, uint movementUnits, int uiTicks)
     {
         result?.SeeD.Validate();
         result?.Economy?.Validate();
         presentation?.Validate();
         soundProcess?.Validate();
         EventRandom?.Validate();
+        NativeVibrationProcessState? vibration = VibrationProcess?.Advance(uiTicks);
         if (movementUnits > 5792 || Presentation is not null && presentation is null || SoundProcess is not null && soundProcess is null || Economy is not null && result is not null && result.Economy is null)
         {
             throw new InvalidDataException("World callback lost a current salary process owner or its native movement bound.");
         }
-        return this with { Callbacks = checked(Callbacks + 1), MovementUnits = checked(MovementUnits + movementUnits), SeeD = result?.SeeD ?? SeeD, Economy = result?.Economy ?? Economy, Presentation = presentation, SoundProcess = soundProcess };
+        return this with { Callbacks = checked(Callbacks + 1), MovementUnits = checked(MovementUnits + movementUnits), SeeD = result?.SeeD ?? SeeD, Economy = result?.Economy ?? Economy, Presentation = presentation, SoundProcess = soundProcess, VibrationProcess = vibration };
     }
 
     public GameState ApplyTo(GameState candidate, WorldState finalWorld)
@@ -53,16 +56,31 @@ public sealed record NativeWorldSalaryState
         Presentation?.Validate();
         SoundProcess?.Validate();
         EventRandom?.Validate();
+        VibrationProcess?.Validate();
         if (Economy is not null && Departure.CharacterVitals is not null && Economy.InitOutSha256 != Departure.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom };
+        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, VibrationProcess = VibrationProcess };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)
     {
         NativeEventRandomState random = EventRandom ?? throw new NotSupportedException("Native world6519D0 requires its actual shared random process and saved draw-point bank.");
         return this with { EventRandom = random.AdvanceMovement(movementUnits) };
+    }
+
+    public NativeWorldSalaryState PrepareCarVibration(int entityType, NativeVibrationBank bank)
+    {
+        NativeVibrationProcessState vibration = VibrationProcess ?? throw new NotSupportedException("Native car vibration requires its current process queue and prior graphics-speed latch.");
+        return this with { VibrationProcess = vibration.SampleCarStart(entityType, bank) };
+    }
+
+    public NativeWorldSalaryState WithGraphicsSpeed(int magnitude)
+    {
+        NativeVibrationProcessState vibration = VibrationProcess ?? throw new NotSupportedException("Native world graphics magnitude has no current process owner.");
+        NativeVibrationProcessState next = vibration with { GraphicsSpeed20409F0 = magnitude };
+        next.Validate();
+        return this with { VibrationProcess = next };
     }
 }

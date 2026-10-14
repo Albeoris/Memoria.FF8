@@ -137,7 +137,7 @@ public sealed class WorldSalaryMovementTests
             NativeSalaryResult result = GameSession.SampleWorldSalary(before, salary.SeeD, salary.Economy, 5792)!;
             NativeSalaryEffects effects = output.PrepareSalaryEffects(result, salary.Presentation, salary.SoundProcess);
             payments += result.Payment is null ? 0 : 1;
-            salary = salary.Advance(result, effects.Presentation!.Advance(2), effects.SoundProcess, 5792);
+            salary = salary.Advance(result, effects.Presentation!.Advance(2), effects.SoundProcess, 5792, 2);
             Assert.Same(before, session.State);
         }
         WorldState final = before.World! with { Frame = 6, Actions = [new(1, 6, "Wait", 0, 0, 6, 6, before.World.X, before.World.Z, before.World.NativeHeight)] };

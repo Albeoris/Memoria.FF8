@@ -15,8 +15,6 @@ public sealed record NativeWorldForestState
     [JsonRequired]
     public required byte RandomOffset { get; init; }
     [JsonRequired]
-    public required int RawSpeed { get; init; }
-    [JsonRequired]
     public required short CameraPitch { get; init; }
     [JsonRequired]
     public required int CameraCooldown { get; init; }
@@ -25,30 +23,30 @@ public sealed record NativeWorldForestState
 
     public static NativeWorldForestState Create(uint counter, int cooldown)
     {
-        //53F310 samples4022C0 for cursor/offset;542B90 clears raw speed;
+        //53F310 samples4022C0 for cursor/offset;
         //557250 sets pitch-112;555B20 clears all particle lifetimes/ages.
-        return new NativeWorldForestState { SeedCounter = counter, RandomCursor = unchecked((byte)counter), RandomOffset = unchecked((byte)counter), RawSpeed = 0, CameraPitch = -112, CameraCooldown = cooldown, Particles = [] };
+        return new NativeWorldForestState { SeedCounter = counter, RandomCursor = unchecked((byte)counter), RandomOffset = unchecked((byte)counter), CameraPitch = -112, CameraCooldown = cooldown, Particles = [] };
     }
 
     public void Validate()
     {
-        if (RawSpeed is < 0 or > 46340 || CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is < 4 or > 9 || particle.Lifetime is < 4 or > 11 || particle.Age > particle.Lifetime))
+        if (CameraPitch is < -512 or > 0 || Particles is null || Particles.Length > 64 || Particles.Select(particle => particle.Slot).Distinct().Count() != Particles.Length || Particles.Any(particle => particle.Slot is < 0 or >= 64 || particle.Type is < 4 or > 9 || particle.Lifetime is < 4 or > 11 || particle.Age > particle.Lifetime))
         {
             throw new InvalidDataException("Invalid executed native forest presentation state.");
         }
     }
 
-    public NativeWorldForestState Advance(byte groundType, int x, int nativeHeight, int rawZ, int bodyYaw, int nextRawSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects)
+    public NativeWorldForestState Advance(byte groundType, int x, int nativeHeight, int rawZ, int bodyYaw, int priorGraphicsSpeed, ReadOnlySpan<byte> random, IReadOnlyList<NativeWorldForestEffect> effects)
     {
         Validate();
-        if (random.Length != 256 || effects.Count != 6 || nextRawSpeed is < 0 or > 46340)
+        if (random.Length != 256 || effects.Count != 6 || priorGraphicsSpeed is < 0 or > 46340)
         {
             throw new InvalidDataException("Native forest update requires its complete original random/effect tables.");
         }
         byte cursor = RandomCursor;
         byte offset = RandomOffset;
         List<NativeWorldForestParticle> particles = [.. Particles];
-        if (groundType <= 5 && 8 * RawSpeed > NextRandom(random, ref cursor, ref offset))
+        if (groundType <= 5 && 8 * priorGraphicsSpeed > NextRandom(random, ref cursor, ref offset))
         {
             short yaw = unchecked((short)(bodyYaw - 2048 + 8 * NextRandom(random, ref cursor, ref offset) - 1024));
             short roll = unchecked((short)(4 * NextRandom(random, ref cursor, ref offset) - 512));
@@ -63,7 +61,7 @@ public sealed record NativeWorldForestState
             }
         }
         NativeWorldForestParticle[] advanced = particles.OrderBy(particle => particle.Slot).Select(particle => particle.Age < particle.Lifetime ? particle with { Scale = unchecked((ushort)(particle.Scale * effects[particle.Type - 4].Shrink / 4096)), Age = unchecked((byte)(particle.Age + 1)), Visible = true } : particle with { Visible = false }).ToArray();
-        return this with { RandomCursor = cursor, RandomOffset = offset, RawSpeed = nextRawSpeed, Particles = advanced };
+        return this with { RandomCursor = cursor, RandomOffset = offset, Particles = advanced };
     }
 
     private static byte NextRandom(ReadOnlySpan<byte> table, ref byte cursor, ref byte offset)

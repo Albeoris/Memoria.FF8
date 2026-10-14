@@ -12,6 +12,7 @@ internal static partial class Program
     private static void NativePartyMenuContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
+        Require(NativeFieldLocationPose.FromPhysicalWords(-1, -4097, 65535, 255) == new NativeFieldLocationPose(-1, -2, 65535, 255), "Native470250 changed its SAR12 or WORD/BYTE preservation into division/defaults.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
@@ -22,7 +23,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 14), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.MENUPHS, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 8)]]);
         // Declared component: actual resource initialization and executed native commands;
         // it claims no original field allocation or journey.
-        engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.LoadField(600, content, [], previousFieldId: 123, nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         for (int callback = 0; engine.PartyMenu is null && callback < 8; callback++)
         {
             engine.Step();
@@ -33,6 +34,7 @@ internal static partial class Program
         NativeCharacterVitals removedHeld = session.CharacterVitals!.WithMemberFlags(4, false);
         Require(removedHeld.PreparePartyMenuFieldSlots(engine.Scene.Party, new byte[] { 0, 1, 255 }).SequenceEqual(new byte[] { 0, 1, 255 }), "Ineligible row retaining hold bit4 was incorrectly preserved by the native eligible forced-field mask.");
         NativeWorldProcess worldProcess = session.WorldProcess!;
+        NativeVibrationProcessState vibrationBeforeMenu = session.VibrationProcess!;
         bool originalTimerDisplay = session.ExamTimer!.DisplayEnabled;
         Require(originalTimerDisplay, "Declared fixture did not execute its actual timer-display producer.");
         long fieldFrame = engine.Frame;
@@ -40,6 +42,7 @@ internal static partial class Program
         Require(!engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted && engine.Frame == fieldFrame && session.ExamTimer.ClockCalls == clockCalls, "Party menu admitted ordinary field movement or consumed time for a rejected action.");
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(engine.PartyMenu is { Phase: NativePartyMenuPhase.Entering } && !session.ExamTimer!.DisplayEnabled, "Native bootstrap did not cache and disable the timer display.");
+        Require(session.NativeFieldLocation is { FieldId: 600, PreviousFieldId: 123, NativeKind: 1 } location && location.Frame == fieldFrame && location.Operation == issuingOperation && location.IncomingEntryWords is null && location.Slots.All(slot => slot.RuntimeBinding is null && slot.Pose is null), "Actual470250 capture guessed an unknown physical binding/entry word, confused previous field with camera or lost its issuing source.");
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(engine.PartyMenu is { Phase: NativePartyMenuPhase.Active } && engine.PartyMenu.TemporaryCombatParty!.SequenceEqual(new byte[] { 4, 0, 255 }) && engine.PartyMenuCandidates.Contains((byte)1), "Native menu entry did not copy its actual combat slots and expose eligible unlocked Zell.");
         Require(engine.Frame == fieldFrame && session.ExamTimer.ClockCalls == clockCalls + 2 && session.SalaryPresentation!.Phase == 9, "Native menu entry advanced the field VM or invented a timer pause/UI reset.");
@@ -77,7 +80,27 @@ internal static partial class Program
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(engine.PartyMenu is { Phase: NativePartyMenuPhase.FieldReentry } && engine.Frame == fieldFrame && session.ExamTimer.ClockCalls == clockCalls + 7 && session.ExamTimer.DisplayEnabled == originalTimerDisplay && session.WorldProcess == worldProcess, "Native completed menu did not exit without an extra field callback.");
+        NativeVibrationProcessState expectedVibration = vibrationBeforeMenu.MarkControllerPending(0).Advance(2).ClearControllerRequests();
+        Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedVibration), JsonSerializer.SerializeToElement(session.VibrationProcess)), "Menu vibration queue did not receive exactly its two active49A970 ticks and actual teardown49E8E0 request clear.");
         JsonElement reentry = engine.Capture();
+        try
+        {
+            engine.PreparePartyMenuFieldReentry(1);
+            throw new InvalidOperationException("Unknown retained allocation predicate was admitted.");
+        }
+        catch (NotSupportedException exception)
+        {
+            Require(exception.Message.Contains("INF[8]") && JsonElement.DeepEquals(reentry, engine.Capture()), "Menu reentry invented a retained byte4905 or changed state before refusing.");
+        }
+        try
+        {
+            engine.PreparePartyMenuFieldReentry(0);
+            throw new InvalidOperationException("Unknown entry packet was replaced by menu current poses.");
+        }
+        catch (NotSupportedException exception)
+        {
+            Require(exception.Message.Contains("incoming entry words") && JsonElement.DeepEquals(reentry, engine.Capture()), "Menu reentry substituted470250 saved poses for an unknown native entry packet.");
+        }
         session.SetEventState(reentry);
         using (session.BeginReplayCapture())
         {

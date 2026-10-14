@@ -19,6 +19,7 @@ public sealed class GameAssets : IDisposable
     private readonly Dictionary<int, FieldSoundEffectTable> fieldSoundEffects = [];
     private readonly IAssetOverrideSource? overrides;
     private IFlArchive? mainCharacters;
+    private NativeVibrationBank? nativeVibrationBank;
 
     public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null)
     {
@@ -41,6 +42,7 @@ public sealed class GameAssets : IDisposable
 
     public string GameDirectory { get; }
     public string? NativeExecutableHash { get; }
+    public NativeVibrationBank ReadNativeVibrationBank() => nativeVibrationBank ??= NativeVibrationBankReader.ReadExecutable(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
     public NativeShakeTables ReadNativeShakeTables()
     {
         if (NativeRuntimeProfile is not { IsVerified: true })

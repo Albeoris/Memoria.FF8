@@ -63,6 +63,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.LoadSoundResource = _ => SoundResourceStatus.Muted;
         Events.ResolveGlobalSoundResource = ResolveGlobalSound;
         Events.PrepareWorldTransition = PrepareNativeWorldEntry;
+        Events.ReadNativeVibrationBank = assets.ReadNativeVibrationBank;
         if (persistReplayJournal)
         {
             journalArchive = new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory);
@@ -113,6 +114,11 @@ internal sealed partial class GameWorld : IDisposable
             worldScene!.Dispose();
             worldScene = null;
         }
+        if (Events.PartyMenu?.Phase == NativePartyMenuPhase.FieldReentry)
+        {
+            LoadField(session.State.FieldId, session.State.FieldArrival, null, menuReentry: true);
+            return true;
+        }
         // A world arrival starts a new visit even when its packet names the frozen departing field.
         if (!returningFromWorld && Field?.Id == session.State.FieldId && Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
@@ -127,14 +133,15 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
+    private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false, bool menuReentry = false)
     {
-        if (restoreDeparting && session.EventRandom is null)
+        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null))
         {
-            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world random process from its earlier snapshot.");
+            throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world random/vibration process from its earlier snapshot.");
         }
         using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
         FieldAssets next = assets.LoadField(fieldId);
+        NativeMenuFieldReentry? nativeMenuReentry = menuReentry ? Events.PreparePartyMenuFieldReentry(next.Information?.NativeRetainedAllocationFlag8 ?? throw new NotSupportedException("Menu reentry requires original field INF metadata.")) : null;
         Events.ResolveFieldSoundEffectTable = () =>
         {
             FieldSoundEffectTable table = assets.LoadFieldSoundEffects(next.Id);
@@ -195,7 +202,8 @@ internal sealed partial class GameWorld : IDisposable
         NativeGlobalSoundProcess? sceneSoundProcess = restoreDeparting ? session.GlobalSoundProcess : null;
         NativeSalaryPresentation? sceneSalaryPresentation = restoreDeparting ? session.SalaryPresentation : null;
         NativeEventRandomState? sceneEventRandom = restoreDeparting ? session.EventRandom : null;
-        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
+        NativeVibrationProcessState? sceneVibration = restoreDeparting ? session.VibrationProcess : null;
+        Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null && !menuReentry ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, menuReentry: nativeMenuReentry);
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
@@ -233,6 +241,10 @@ internal sealed partial class GameWorld : IDisposable
             if (sceneEventRandom is not null)
             {
                 session.SetEventRandom(sceneEventRandom);
+            }
+            if (sceneVibration is not null)
+            {
+                session.SetVibrationProcess(sceneVibration);
             }
         }
         Field = next;

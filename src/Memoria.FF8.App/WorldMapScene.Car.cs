@@ -26,7 +26,7 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits)
+    private WorldState StepCar(WorldState before, float horizontal, float vertical, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         NativeCarWorldRuntimeState car = before.NativeCarRuntime!;
         car.Validate();
@@ -39,6 +39,7 @@ internal sealed partial class WorldMapScene
         int throttle = -127 * Math.Sign(vertical);
         int speed = throttle == 0 ? Math.Abs(car.Speed) <= 4 ? 0 : car.Speed + (car.Speed > 0 ? -4 : 4) : Math.Clamp(car.Speed + throttle / 48, -64, 64);
         (int moveX, int graphicsZ) = Rotate(0, speed, bodyYaw);
+        graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsZ);
         // 557A90 computes this callback's motion before applying the prior selected terrain yaw.
         bodyYaw = WrapYaw(bodyYaw + (car.GroundYaw!.Value >> 3));
         int x = WrapCoordinate(before.X + moveX, 262144);

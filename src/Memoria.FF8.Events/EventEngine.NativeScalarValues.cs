@@ -24,6 +24,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.SETVIBRATE)
+        {
+            return UnsupportedVibrationRequest(fiber, operation);
+        }
         if (UnsupportedNativeEventRandom(fiber, operation) is string random)
         {
             return random;
