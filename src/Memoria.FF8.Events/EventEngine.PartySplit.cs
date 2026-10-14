@@ -11,12 +11,11 @@ public sealed partial class EventEngine
         return ReadNativeScriptPosition(actor);
     }
 
-    private bool CanUseNativeSplitMovement(int callerObjectId)
+    private bool CanUseNativeSplitMovement()
     {
         ActorState[] targets = Enumerable.Range(0, 3).Select(ResolveJoinPartyActor).OfType<ActorState>().ToArray();
-        bool solo = targets.Length == 1;
         bool fresh = Scene.NativeFieldInitialization?.IsFrom(NativeRuntimeProfile, FieldId, programHash) == true && Scene.NativeFieldInitialization.Stage == Memoria.FF8.Runtime.NativeFieldInitializationStage.Completed;
-        return targets.Length != 0 && targets[0].ObjectId == callerObjectId && fresh && ResolveNativeJoinMovement is not null && ResolveNativeScriptDirection is not null && targets.All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true && (solo || !actor.CollisionEnabled));
+        return targets.Length != 0 && fresh && ResolveNativeJoinMovement is not null && ResolveNativeScriptDirection is not null && targets.All(actor => CanUseNativeJoinMovement?.Invoke(actor) == true);
     }
 
     private string? UnsupportedSplitContext(Fiber fiber)
@@ -25,11 +24,10 @@ public sealed partial class EventEngine
         {
             return LastFault is not null ? "Saved unsupported native SPLIT substep requires its original pre-SPLIT source" : partySplit.FiberSequence == fiber.Sequence ? null : "Concurrent SPLIT would replace original global party movement targets";
         }
-        bool usesNativeMovement = CanUseNativeSplitMovement(fiber.ObjectId);
-        bool solo = ResolveJoinPartyActor(1) is null && ResolveJoinPartyActor(2) is null;
-        if (partyJoin is not null || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || ResolveJoinPartyActor(0)?.ObjectId != fiber.ObjectId || IsUserControlEnabled || !usesNativeMovement)
+        bool usesNativeMovement = CanUseNativeSplitMovement();
+        if (partyJoin is not null || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || !usesNativeMovement)
         {
-            return "Native SPLIT requires the reached compact leader/disabled-control context and saved party bodies and shared native movement services";
+            return "Native SPLIT requires the original compact saved party bodies and shared native movement services";
         }
         int[] args = fiber.Stack.ToArray();
         if (args.Length < 9 || args.Take(9).Any(value => value is < short.MinValue or > short.MaxValue))
@@ -49,10 +47,6 @@ public sealed partial class EventEngine
             if (actor.NativeTurnAccumulator474 is null)
             {
                 return "Native SPLIT requires its actual preserved WORD474 before target issue";
-            }
-            if (!solo && actor.CollisionEnabled)
-            {
-                return "Native SPLIT movement requires THROUGHON moving party peers; enabled moving-peer contact needs native staged ordering";
             }
             if (actor.ObjectId != fiber.ObjectId && fibers.Any(other => other.ObjectId == actor.ObjectId && !other.Complete && other.WaitReason != WaitReason.NativeHalt))
             {
@@ -133,7 +127,7 @@ public sealed partial class EventEngine
         {
             return true;
         }
-        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement(partySplit.CallerObjectId) || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
+        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement() || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
         {
             throw FreezeSplit("SPLIT requires its certified native mode1 adapters, actual motion authority and retained native WORD474");
         }
@@ -204,7 +198,7 @@ public sealed partial class EventEngine
         PartyJoinTarget[] targets = (PartyJoinTarget[])partySplit.Targets.Clone();
         targets[index] = next;
         partySplit = partySplit with { Targets = targets };
-        if (actor.ObjectId == partySplit.CallerObjectId)
+        if (IsNativePartyPlayerBody(actor))
         {
             Scene.NativePlayerPosition = new FieldFixedPosition(next.FixedX, next.FixedY, next.FixedZ);
         }

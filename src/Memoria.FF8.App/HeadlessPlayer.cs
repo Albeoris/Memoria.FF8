@@ -132,7 +132,7 @@ internal static class HeadlessPlayer
                     stopReason = "Field guide stopped at a scene, control or dialogue change.";
                     break;
                 }
-                ActorState player = world.Events.Actors.First(actor => actor.Active && actor.CharacterId == 0);
+                ActorState player = world.Events.PlayerActor is { Active: true } leader ? leader : throw new NotSupportedException("Field guiding requires its current native runtime leader binding.");
                 while (pathIndex < fieldPath.Length && Math.Sqrt(Math.Pow(fieldPath[pathIndex][0] - player.X, 2) + Math.Pow(fieldPath[pathIndex][1] - player.Y, 2)) <= worldTolerance)
                 {
                     pathIndex++;

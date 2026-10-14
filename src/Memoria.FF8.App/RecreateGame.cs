@@ -287,8 +287,8 @@ internal sealed class RecreateGame : Game
             }
             else if (events.IsUserControlEnabled)
             {
-                ActorState? player = events.Actors.FirstOrDefault(actor => actor.Active && actor.CharacterId == 0 && actor.Visible);
-                if (player is not null)
+                ActorState? player = events.PlayerActor;
+                if (player is { Active: true, Visible: true })
                 {
                     if (input.Confirm)
                     {

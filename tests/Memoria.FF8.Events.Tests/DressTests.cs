@@ -16,7 +16,7 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.SETDRESS, 0), (Jsm.Opcode.POPM_B, 1000), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         (GameSession Session, EventEngine Engine) Create(NativeCharacterAppearance? appearance, byte[] program)
         {
-            GameSession session = new(new GameState { CharacterAppearance = appearance });
+            GameSession session = new(new GameState { CharacterAppearance = appearance, CharacterVitals = assets.ReadNewGameCharacterVitals() });
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(100, program, []);
             return (session, engine);
@@ -58,6 +58,46 @@ internal static partial class Program
             }
             JsonElement failed = refused.Capture();
             Require(refused.LastFault?.Opcode == "SETDRESS" && failed.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 4 && failed.GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()).SequenceEqual([1, source.Character, 77]) && JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source.Appearance), JsonSerializer.SerializeToElement(refusedSession.CharacterAppearance)), "Refused SETDRESS changed the PC, stack or persistent costume bytes.");
+        }
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        RejectingDressServices rejectedServices = new(initial, vitals);
+        EventEngine rejected = new(rejectedServices, new Dictionary<int, int>());
+        rejected.LoadField(100, content, []);
+        JsonElement owners = JsonSerializer.SerializeToElement(new { rejectedServices.CharacterAppearance, rejectedServices.CharacterVitals });
+        try
+        {
+            rejected.Step();
+            throw new InvalidOperationException("SETDRESS ignored rejected appearance publication.");
+        }
+        catch (EventScriptException exception) when (exception.InnerException is NotSupportedException && rejected.LastFault?.Opcode == "SETDRESS")
+        {
+        }
+        JsonElement rejection = rejected.Capture();
+        Require(rejectedServices.Attempts == 1 && rejection.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 4 && rejection.GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()).SequenceEqual([257, 256, 77]) && JsonElement.DeepEquals(owners, JsonSerializer.SerializeToElement(new { rejectedServices.CharacterAppearance, rejectedServices.CharacterVitals })), "Rejected SETDRESS publication advanced its PC, consumed stack or changed any saved owner.");
+    }
+
+    private sealed class RejectingDressServices(NativeCharacterAppearance appearance, NativeCharacterVitals vitals) : IEventServices
+    {
+        public NativeCharacterAppearance CharacterAppearance => appearance;
+        public NativeCharacterVitals CharacterVitals => vitals;
+        public bool IsMoviePlaying => false;
+        public int Attempts { get; private set; }
+        public void SetCharacterAppearance(NativeCharacterAppearance next)
+        {
+            Attempts++;
+            throw new NotSupportedException("Component service rejects native costume publication.");
+        }
+        public void RequestMovie(int index)
+        {
+            throw new NotSupportedException();
+        }
+        public void RequestField(int fieldId, int entryPoint)
+        {
+            throw new NotSupportedException();
+        }
+        public void ShowDialog(string text)
+        {
+            throw new NotSupportedException();
         }
     }
 }

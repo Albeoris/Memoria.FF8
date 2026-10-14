@@ -99,17 +99,10 @@ public sealed partial class EventEngine
         Scene.PartyBindingMemory = new NativePartyBindingMemory(1, checked((byte)Scene.FieldPartyNativeActorIds[0]), checked((byte)Scene.FieldPartyNativeActorIds[1]), checked((byte)Scene.FieldPartyNativeActorIds[2]));
     }
 
+    public ActorState? PlayerActor => ResolvePartyActor(0);
+
     private ActorState? ResolvePartyActor(int slot)
     {
-        if ((uint)slot >= 3)
-        {
-            return null;
-        }
-        if (Scene.FieldPartyNativeActorIds.Count == 3)
-        {
-            int nativeActor = Scene.FieldPartyNativeActorIds[slot];
-            return nativeActor != 0xFF && (uint)nativeActor < Scene.NativeActorObjectIds.Count ? actors[Scene.NativeActorObjectIds[nativeActor]] : null;
-        }
-        return null;
+        return NativeFieldPartyBinding.ResolveActor(Scene, actors, slot);
     }
 }

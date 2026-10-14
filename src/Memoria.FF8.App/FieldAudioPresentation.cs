@@ -84,6 +84,9 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                 case NativeSoundVolumeTransition volume:
                     SetVoiceVolume(volume.Voice, volume.Volume, volume.DurationMilliseconds);
                     break;
+                case NativeSoundPosition position:
+                    SetVoicePan(position.Voice, position.Pan, position.DurationMilliseconds);
+                    break;
                 case NativeAllSoundVolume volume:
                     SetAllVoiceVolumes(volume.FirstVoice, volume.VoiceCount, volume.Volume, volume.DurationMilliseconds);
                     break;
@@ -129,7 +132,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             loop?.Volume(gain);
             loop?.Pan(pan);
             StopVoice(request.Voice);
-            var voice = new Voice(primary, loop, request.Volume, policy.LoopTransitionDelayMilliseconds);
+            var voice = new Voice(primary, loop, request.Volume, request.EffectivePan, policy.LoopTransitionDelayMilliseconds);
             voices.Add(request.Voice, voice);
             primary.Play(loop is null && (policy.PlaybackFlags & 1) != 0);
         }
@@ -223,6 +226,14 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         }
     }
 
+    private void SetVoicePan(int voice, int pan, int duration)
+    {
+        if (voices.TryGetValue(voice, out Voice? active))
+        {
+            active.PanRamp = new Ramp(active.Pan, pan, duration);
+        }
+    }
+
     public void Update()
     {
         TryOutput(() =>
@@ -245,6 +256,17 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                     if (ramp.Finished)
                     {
                         voice.VolumeRamp = null;
+                    }
+                }
+                if (voice.PanRamp is Ramp panRamp)
+                {
+                    voice.Pan = panRamp.Value;
+                    int pan = Catalog.SoundPan(Math.Clamp((int)voice.Pan, 0, 127));
+                    voice.Primary.Pan(pan);
+                    voice.Loop?.Pan(pan);
+                    if (panRamp.Finished)
+                    {
+                        voice.PanRamp = null;
                     }
                 }
             }
@@ -336,7 +358,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         sound?.Dispose();
     }
 
-    private sealed class Voice(DirectSoundOutput.Buffer primary, DirectSoundOutput.Buffer? loop, float volume, int? loopDelay)
+    private sealed class Voice(DirectSoundOutput.Buffer primary, DirectSoundOutput.Buffer? loop, float volume, float pan, int? loopDelay)
     {
         public DirectSoundOutput.Buffer Primary { get; } = primary;
         public DirectSoundOutput.Buffer? Loop { get; } = loop;
@@ -345,6 +367,8 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         public bool LoopStarted { get; set; }
         public float Volume { get; set; } = volume;
         public Ramp? VolumeRamp { get; set; }
+        public float Pan { get; set; } = pan;
+        public Ramp? PanRamp { get; set; }
     }
 
     internal sealed class Ramp(float initial, float target, int milliseconds)

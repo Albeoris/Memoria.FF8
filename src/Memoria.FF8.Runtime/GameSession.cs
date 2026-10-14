@@ -344,6 +344,10 @@ public sealed partial class GameSession : IEventServices
         {
             ValidateSeeDAliases(State.Variables, State.NativeVariableValues);
         }
+        if (characterVitals is not null || State.CharacterVitals is not null)
+        {
+            ValidateJunctionPartyBackupAliases(State.Variables, State.NativeVariableValues);
+        }
         NativeCharacterVitals? nextVitals = characterVitals is null ? State.CharacterVitals : characterVitals.DeepCopy();
         NativeEconomy? nextEconomy = economy is null ? State.Economy : economy.DeepCopy();
         if (nextEconomy is not null && nextVitals is not null && nextEconomy.InitOutSha256 != nextVitals.InitOutSha256)
@@ -372,6 +376,7 @@ public sealed partial class GameSession : IEventServices
     public void SetCharacterVitals(NativeCharacterVitals vitals)
     {
         vitals.Validate();
+        ValidateJunctionPartyBackupAliases(State.Variables, State.NativeVariableValues);
         State = State with { CharacterVitals = vitals.DeepCopy() };
     }
 
@@ -610,6 +615,10 @@ public sealed partial class GameSession : IEventServices
             ValidateSeeDAliases(state.Variables, state.NativeVariableValues);
         }
         state.CharacterVitals?.Validate();
+        if (state.CharacterVitals is not null)
+        {
+            ValidateJunctionPartyBackupAliases(state.Variables, state.NativeVariableValues);
+        }
         state.CharacterAppearance?.Validate();
         state.CardInventory?.Validate();
         state.Economy?.Validate();

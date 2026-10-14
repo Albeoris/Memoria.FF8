@@ -40,6 +40,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedShake(fiber, operation);
         }
+        if (operation.Opcode is Jsm.Opcode.SEPOS or Jsm.Opcode.SEPOSTRANS)
+        {
+            return UnsupportedSoundPosition(fiber, operation);
+        }
         if (operation.Opcode == Jsm.Opcode.MESVAR)
         {
             return UnsupportedMessageVariable(fiber, operation);

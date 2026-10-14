@@ -12,12 +12,6 @@ public sealed partial class EventEngine
         {
             return "SUBPARTY requires the exact three native character slots";
         }
-        int character = unchecked((byte)fiber.Stack.Peek());
-        int slot = Scene.Party.IndexOf(character);
-        if (slot >= 0 && character is >= 8 and < 255)
-        {
-            return "SUBPARTY guest-character removal requires its original character-to-combat-slot contract";
-        }
         return null;
     }
 

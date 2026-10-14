@@ -296,8 +296,8 @@ internal sealed partial class GameWorld : IDisposable
             session.SetDepartingFieldState(Events.Capture());
             return result;
         }
-        ActorState? player = Events.Actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
-        if (player is not null)
+        ActorState? player = Events.PlayerActor;
+        if (player is { Active: true, Visible: true })
         {
             session.SetPosition(player.X, player.Y);
         }

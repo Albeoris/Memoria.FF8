@@ -71,6 +71,9 @@ public sealed partial record NativeCharacterVitals
     public required NativeStatDefinitions Definitions { get; init; }
     [JsonRequired]
     public required byte[] DreamWeapons { get; init; }
+    /// <summary>Physical event-bank bytes188..193, cleared by executed native52CA90 and overwritten by JUNCTION.</summary>
+    [JsonRequired]
+    public required byte[] JunctionPartyBackup { get; init; }
 
     public void Validate()
     {
@@ -79,7 +82,7 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, eight records or raw combat slots.");
         }
-        if (Definitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null) || DreamWeapons is not { Length: 3 })
+        if (Definitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
         {
             throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
         }
@@ -97,7 +100,7 @@ public sealed partial record NativeCharacterVitals
 
     public NativeCharacterVitals DeepCopy()
     {
-        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray() };
+        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray() };
     }
 
     /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>
@@ -121,11 +124,14 @@ public sealed partial record NativeCharacterVitals
         Validate();
         // Native52CC20 compares the low BYTE with all eight saved identities;
         // its missing FF result is zero-extended and clamped to record7 by4ACE50.
-        int index = Array.FindIndex(Records, record => record.CharacterId == unchecked((byte)rawCharacter));
-        if (index < 0)
-        {
-            index = 7;
-        }
+        return ResetGuardianForcesAtRow(FindPhysicalRow(unchecked((byte)rawCharacter)));
+    }
+
+    public NativeCharacterVitals ResetGuardianForcesAtRow(int rawRow)
+    {
+        Validate();
+        // Native4ACE50 clamps its physical signed-DWORD row to0..7.
+        int index = Math.Clamp(rawRow, 0, 7);
         NativeCharacterVital selected = Records[index];
         NativeCharacterVital[] records = Records.ToArray();
         records[index] = selected with { Junction = selected.Junction.Reset() };

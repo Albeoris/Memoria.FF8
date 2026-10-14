@@ -47,7 +47,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (TryReadNativeEconomyMemory(operation, out int nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
+                if (TryReadJunctionBackupMemory(operation, out int nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
                 {
                     fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
                     fiber.StackExpressions.Push($"native[{parameter}]");
@@ -91,7 +91,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
+                if (TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -181,7 +181,7 @@ public sealed partial class EventEngine
                 args = ExecuteNativeActorInfo(fiber, false);
                 break;
             case Jsm.Opcode.INITTRACE:
-                ActorState tracePlayer = actors.FirstOrDefault(item => item.Active && item.CharacterId == 0) ?? throw Fault(fiber, "INITTRACE has no registered player actor.");
+                ActorState tracePlayer = PlayerActor is { Active: true } boundTracePlayer ? boundTracePlayer : throw Fault(fiber, "INITTRACE requires the current native runtime leader binding.");
                 PartyTraceSample trace = new((short)(int)tracePlayer.X, (short)(int)tracePlayer.Y, (short)(int)tracePlayer.Z, tracePlayer.WalkmeshTriangle, (byte)tracePlayer.Direction);
                 Scene.PartyTrace = new PartyTraceState(0, 15, 30, Enumerable.Repeat(trace, 64).ToArray(), Enumerable.Repeat(trace, 64).ToArray());
                 break;
@@ -216,6 +216,10 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SEVOLTRANS:
                 args = ExecuteSoundVolumeTransition(fiber);
+                break;
+            case Jsm.Opcode.SEPOS:
+            case Jsm.Opcode.SEPOSTRANS:
+                args = ExecuteSoundPosition(fiber, opcode == Jsm.Opcode.SEPOSTRANS);
                 break;
             case Jsm.Opcode.CSCROLLP:
                 args = ExecutePartyBackgroundScroll(fiber);
@@ -369,6 +373,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;
+                break;
+            case Jsm.Opcode.JUNCTION:
+                args = ExecuteJunction(fiber);
                 break;
             case Jsm.Opcode.SETDRESS:
                 args = ExecuteNativeDress(fiber);

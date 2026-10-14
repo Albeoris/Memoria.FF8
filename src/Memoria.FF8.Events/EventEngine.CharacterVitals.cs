@@ -26,22 +26,18 @@ public sealed partial class EventEngine
             return "Native party changes require authentic saved character rows and combat slots";
         }
         state.Validate();
-        if (state.DreamEnabled)
-        {
-            return "Native party changes with junction-reset flag1CFE978 mask10000 require the actual junction/stat contract";
-        }
         int count = operation.Opcode == Jsm.Opcode.SETPARTY ? 3 : 1;
         if (fiber.Stack.Count < count || fiber.Stack.Capture().Take(count).Any(value => !value.IsExact))
         {
             return "Native party changes require their complete exact DWORD operands";
         }
-        if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && (fiber.Stack.Peek() is < 0 or >= 8 || !state.Records.Any(record => record.CharacterId == fiber.Stack.Peek())))
+        if (operation.Opcode == Jsm.Opcode.ADDPARTY && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && fiber.Stack.Peek() < 0)
         {
-            return "ADDPARTY has no proved native saved character mapping for its original operand";
+            return "ADDPARTY negative DWORD addresses an unowned native membership row";
         }
-        if (operation.Opcode == Jsm.Opcode.SETPARTY && fiber.Stack.Take(3).Any(character => unchecked((byte)character) != 255 && unchecked((byte)character) >= 8))
+        if (operation.Opcode == Jsm.Opcode.ADDPARTY && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && fiber.Stack.Peek() >= 8 && (services.WorldControls is null || !services.CanStoreNativeEventOwners))
         {
-            return "SETPARTY guest-character combat mapping requires its original saved-record identity contract";
+            return "ADDPARTY guest flags require their current event-word owner and atomic publication";
         }
         if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && Scene.Party.Contains(255) && Array.IndexOf(state.CombatParty, (byte)255) < 0)
         {
@@ -86,12 +82,17 @@ public sealed partial class EventEngine
         if (insert)
         {
             int empty = Array.IndexOf(slots, (byte)255);
-            int row = Array.FindIndex(state.Records, record => record.CharacterId == unchecked((byte)character));
-            if (empty < 0 || row < 0)
+            byte row = state.FindPhysicalRow(unchecked((byte)character));
+            if (empty < 0)
             {
                 throw new NotSupportedException("ADDPARTY insertion requires its native empty combat slot and actual identity lookup.");
             }
-            slots[empty] = (byte)row;
+            slots[empty] = row;
+        }
+        if (character >= 8)
+        {
+            // Native51E160 sets the full-DWORD masked-shift bit and returns without rebuilding.
+            return state with { CombatParty = slots };
         }
         // Native51E160 performs membership and rebuild even with a full field
         // party, provided the requested character was not already present.
@@ -104,7 +105,16 @@ public sealed partial class EventEngine
         if (!Scene.Party.Contains(unchecked((byte)character)))
         {
             int empty = Scene.Party.IndexOf(255);
-            CommitSavedCharacters(fiber, PrepareAddedPartyCharacter(character, empty >= 0), Jsm.Opcode.ADDPARTY);
+            NativeCharacterVitals next = PrepareAddedPartyCharacter(character, empty >= 0);
+            if (character >= 8)
+            {
+                NativeWorldControlState controls = services.WorldControls!;
+                CommitNativePartyOwners(fiber, next, controls with { EventFlags104 = controls.EventFlags104 | (1u << (character - 8)) });
+            }
+            else
+            {
+                CommitSavedCharacters(fiber, next, Jsm.Opcode.ADDPARTY);
+            }
             if (empty >= 0)
             {
                 Scene.Party[empty] = unchecked((byte)character);
@@ -116,6 +126,18 @@ public sealed partial class EventEngine
     private NativeCharacterVitals PrepareSetCombatParty(int[] fieldParty)
     {
         NativeCharacterVitals state = services.CharacterVitals!;
+        if (state.DreamEnabled)
+        {
+            for (int slot = 0; slot < 3; slot++)
+            {
+                if (fieldParty[slot] == 255)
+                {
+                    state = state.ResetGuardianForcesAtRow(state.FindPhysicalRow(unchecked((byte)Scene.Party[slot])));
+                }
+            }
+            byte[] mapped = fieldParty.Select(character => state.FindPhysicalRow(unchecked((byte)character))).ToArray();
+            return (state with { CombatParty = [mapped[1], mapped[0], mapped[2]] }).RebuildParty().RepairDyingParty();
+        }
         // Original51E400 writes combat slots in field order1,0,2, using BYTEs.
         return (state with { CombatParty = [unchecked((byte)fieldParty[1]), unchecked((byte)fieldParty[0]), unchecked((byte)fieldParty[2])] }).RebuildParty().RepairDyingParty();
     }
@@ -136,8 +158,27 @@ public sealed partial class EventEngine
         int slot = Array.FindIndex(slots, index => index != 255 && state.Records[index].CharacterId == character);
         if (slot >= 0)
         {
+            if (state.DreamEnabled)
+            {
+                state = state.ResetGuardianForcesAtRow(slots[slot]);
+            }
             slots[slot] = 255;
         }
         return (state with { CombatParty = slots }).RebuildParty().RepairDyingParty();
+    }
+
+    private void CommitNativePartyOwners(Fiber fiber, NativeCharacterVitals next, NativeWorldControlState controls)
+    {
+        try
+        {
+            services.SetNativeEventOwners(controls, characterVitals: next);
+        }
+        catch (NotSupportedException exception)
+        {
+            fiber.Position--;
+            string message = $"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {fiber.Position}: native party owner publication rejected; PC and operands preserved.";
+            LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, nameof(Jsm.Opcode.ADDPARTY), message);
+            throw new EventScriptException(message, exception);
+        }
     }
 }

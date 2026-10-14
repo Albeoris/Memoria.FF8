@@ -152,8 +152,8 @@ public sealed partial class EventEngine
                     {
                         throw new ArgumentOutOfRangeException(nameof(action), "Movement axes must be finite and between -1 and 1.");
                     }
-                    ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
-                    accepted = player is not null && IsUserControlEnabled && !IsMovementBlockedByDialogue && !services.IsMoviePlaying;
+                    ActorState? player = PlayerActor;
+                    accepted = player is { Active: true, Visible: true } && IsUserControlEnabled && !IsMovementBlockedByDialogue && !services.IsMoviePlaying;
                     if (accepted && ResolveWalkmesh is null)
                     {
                         throw new InvalidOperationException("Player movement requires the field walkmesh resolver.");

@@ -81,9 +81,9 @@ public sealed partial class EventEngine
 
     private ReplayPlayerPose? ReplayPose()
     {
-        ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.Visible && actor.CharacterId == 0);
+        ActorState? player = PlayerActor;
         FieldFixedPosition? position = Scene.NativePartyTraceVersion == 1 ? Scene.NativePlayerPosition : null;
-        return player is null ? null : new ReplayPlayerPose(FieldId, player.X, player.Y, player.Z, player.WalkmeshTriangle, (int)player.Direction, position?.X, position?.Y, position?.Z);
+        return player is not { Active: true, Visible: true } ? null : new ReplayPlayerPose(FieldId, player.X, player.Y, player.Z, player.WalkmeshTriangle, (int)player.Direction, position?.X, position?.Y, position?.Z);
     }
 
     private T RunReplay<T>(ReplayJournalEntry input, Func<T> operation)

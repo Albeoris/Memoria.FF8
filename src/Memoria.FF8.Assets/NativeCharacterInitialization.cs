@@ -93,6 +93,8 @@ public static class NativeCharacterInitialization
             GuardianForces = savedGuardianForces,
             Definitions = definitions,
             DreamWeapons = initial.AsSpan(2744, 3).ToArray(),
+            // Executed52CA90(1) clears248 event-bank bytes, including188..193.
+            JunctionPartyBackup = new byte[6],
             // Native56D9F0 clears the global junction flag; the template has no such global.
             DreamEnabled = false
         };

@@ -7,7 +7,7 @@ public static class NativePlayerMovementAdapter
 {
     public static bool Supports(FieldAssets field, SceneEventState scene, ActorState actor)
     {
-        return field.Id >= 72 && SupportsBinding(scene, actor.ObjectId) && (uint)actor.ModelId < field.Models.Count && actor.CharacterId == 0 && actor.PushRadius is >= 0 and <= ushort.MaxValue;
+        return field.Id >= 72 && SupportsBinding(scene, actor.ObjectId) && (uint)actor.ModelId < field.Models.Count && actor.PushRadius is >= 0 and <= ushort.MaxValue;
     }
 
     public static NativePlayerMovementResult? Resolve(FieldAssets field, SceneEventState scene, NativePlayerMovementQuery query)
@@ -35,28 +35,6 @@ public static class NativePlayerMovementAdapter
 
     private static bool SupportsBinding(SceneEventState scene, int objectId)
     {
-        if (scene.NativeFieldLoadVersion != 1 || scene.NativeActorLayoutVersion != 1 || scene.NativePartyTraceVersion != 1 || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count || scene.FieldPartyNativeActorIds.Count != 3 || scene.Party.Count != 3 || scene.Party.Any(character => character is < 0 or > 255) || scene.ActiveParty.Distinct().Count() != scene.ActiveParty.Count())
-        {
-            return false;
-        }
-        HashSet<int> present = [];
-        for (int slot = 0; slot < 3; slot++)
-        {
-            int nativeActor = scene.FieldPartyNativeActorIds[slot];
-            if (nativeActor == 255)
-            {
-                // 478430 skips each absent runtime follower independently;
-                // SUBPARTY does not rewrite retained runtime body pointers.
-                if (slot == 0)
-                {
-                    return false;
-                }
-            }
-            else if ((uint)nativeActor >= scene.NativeActorObjectIds.Count || !present.Add(nativeActor))
-            {
-                return false;
-            }
-        }
-        return scene.NativeActorObjectIds[scene.FieldPartyNativeActorIds[0]] == objectId;
+        return scene.NativeFieldLoadVersion == 1 && scene.NativePartyTraceVersion == 1 && NativeFieldPartyBinding.TryGetObjectId(scene, 0, out int leaderObjectId) && leaderObjectId == objectId;
     }
 }

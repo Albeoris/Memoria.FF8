@@ -150,6 +150,7 @@ public sealed partial class EventEngine
         pendingNativePlayerInput = null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
+        Scene.SoundPosition = previousScene.SoundPosition;
         Scene.VibrationRequest = previousScene.VibrationRequest;
         Scene.AllSoundVolumeTransition = previousScene.AllSoundVolumeTransition;
         Scene.AllSoundVolume = previousScene.AllSoundVolume;
@@ -452,8 +453,8 @@ public sealed partial class EventEngine
         {
             return [];
         }
-        ActorState? player = actors.FirstOrDefault(actor => actor.Active && actor.CharacterId == 0 && actor.Visible);
-        if (player is null)
+        ActorState? player = PlayerActor;
+        if (player is not { Active: true, Visible: true })
         {
             return [];
         }
