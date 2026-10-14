@@ -102,7 +102,7 @@ internal sealed partial class RecreateGame
         };
         string party = menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
         List<string> candidates = events.PartyMenuCandidates.Select(Name).ToList();
-        string instruction = menu.Phase == NativePartyMenuPhase.FieldReentry ? "Native field reentry is unsupported" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
+        string instruction = menu.Phase == NativePartyMenuPhase.FieldReentry ? "Returning to field" : menu.TemporaryCombatParty?.All(row => row != 255) == true ? "Enter: confirm party" : "Arrows: select   Enter: add member";
         string key = string.Join("|", party, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
         if (nativePartyWindowUi is null || nativePartyWindowKey != key)
