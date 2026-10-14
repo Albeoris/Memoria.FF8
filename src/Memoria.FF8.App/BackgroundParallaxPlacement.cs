@@ -1,6 +1,7 @@
 using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -24,7 +25,7 @@ internal static class BackgroundParallaxPlacement
 
     public static bool SupportsCameraRange(FieldAssets field, BackgroundScrollSettings settings, short currentX = 0, short currentY = 0)
     {
-        if (settings.ScaleX is < 0 or > 256 || settings.ScaleY is < 0 or > 256 || field.Information is not { CameraBounds.Count: > 0 } information)
+        if (field.Information is not { CameraBounds.Count: > 0 } information)
         {
             return false;
         }
@@ -33,7 +34,7 @@ internal static class BackgroundParallaxPlacement
         int highX = Math.Max(lowX, camera.Right - 160);
         int lowY = camera.Top + 112;
         int highY = Math.Max(lowY, camera.Bottom - 112);
-        // For scale0..256, C - trunc(C*scale/256) is monotone. The two
+        // For any signed WORD scale, C - trunc(C*scale/256) is monotone. The two
         // original cap-then-floor clamp endpoints certify every normal C.
         return TryAxis(lowX, settings.OffsetX, settings.ScaleX, currentX, out _) && TryAxis(highX, settings.OffsetX, settings.ScaleX, currentX, out _) && TryAxis(lowY, settings.OffsetY, settings.ScaleY, currentY, out _) && TryAxis(highY, settings.OffsetY, settings.ScaleY, currentY, out _);
     }
@@ -68,13 +69,7 @@ internal static class BackgroundParallaxPlacement
     private static bool TryAxis(int center, short origin, short scale, short current, out int offset)
     {
         offset = 0;
-        if (center is < -4096 or > 4096 || scale is < 0 or > 256)
-        {
-            return false;
-        }
-        int quotient = center * scale / 256;
-        int raw = center + origin - quotient - current;
-        if (raw is < -4096 or > 4095)
+        if (!NativeBackgroundLayerPlacement.TryTranslation(center, origin, scale, current, out int raw))
         {
             return false;
         }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -18,7 +18,7 @@ public sealed partial class GameSession : IEventServices
 
     public static GameSession CreateColdProcess()
     {
-        return new GameSession(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess(), WorldProcess = NativeWorldProcess.FromColdProcess() });
+        return new GameSession(new GameState { EventRandom = NativeEventRandomState.FromColdProcess(), ExamTimer = NativeExamTimerState.FromColdProcess(), MessageVariables = NativeMessageVariables.FromColdProcess(), GlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(), SalaryPresentation = NativeSalaryPresentation.FromColdProcess(), FieldShake = NativeFieldShake.FromColdProcess(), WorldProcess = NativeWorldProcess.FromColdProcess(), FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
     }
 
     public GameState State { get; private set; }
@@ -56,6 +56,7 @@ public sealed partial class GameSession : IEventServices
     {
         NativeExamTimerState clock = State.ExamTimer ?? throw new NotSupportedException("New Game requires the existing native process clock; create a cold process explicitly or restore its current clock.");
         NativeExamTimerState reset = clock.ClearSavedStateForNewGame();
+        NativeEventRandomState random = State.EventRandom ?? throw new NotSupportedException("New Game requires the actual current native event random process.");
         ReplayJournal journal = ReplayJournal.StartNewGame();
         if (reset.ClockCalls != 0 || reset.Alternatives.Length != 1 || reset.Alternatives[0].FirstPhase != 0 || reset.Alternatives[0].LastPhase != 0 || reset.DisplayEnabled || reset.DisplayX != 0 || reset.DisplayY != 0)
         {
@@ -77,7 +78,15 @@ public sealed partial class GameSession : IEventServices
         {
             journal = journal.MarkUnavailable("Warm New Game preserves the main-loop counter and world camera cooldown; the journal lacks earlier process history.");
         }
-        Change(new GameState { WorldProcess = State.WorldProcess, FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
+        if (State.FieldButtonInput?.IsColdProcess != true)
+        {
+            journal = journal.MarkUnavailable("Warm NewGame preserves the input sampler process; the journal lacks its prior physical input history.");
+        }
+        if (!random.IsColdProcess)
+        {
+            journal = journal.MarkUnavailable("Warm New Game preserves the native event random process; earlier draws are absent from this new journal.");
+        }
+        Change(new GameState { EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -335,7 +344,7 @@ public sealed partial class GameSession : IEventServices
         State = State with { WorldControls = controls };
     }
 
-    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null)
+    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null)
     {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
@@ -345,6 +354,15 @@ public sealed partial class GameSession : IEventServices
         economy?.Validate();
         globalSoundProcess?.Validate();
         salaryPresentation?.Validate();
+        eventRandom?.Validate();
+        if (eventRandom is { DrawPoints: null } && State.EventRandom?.DrawPoints is not null)
+        {
+            throw new InvalidDataException("Atomic native event publication cannot erase the already initialized draw-point bank.");
+        }
+        if (eventRandom is not null || State.EventRandom is not null)
+        {
+            ValidateEventRandomAliases(State.Variables, State.NativeVariableValues);
+        }
         if (seeD is not null || State.SeeD is not null)
         {
             ValidateSeeDAliases(State.Variables, State.NativeVariableValues);
@@ -359,7 +377,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Native economy and character owners have different initialization provenance.");
         }
-        State = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation };
+        State = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom };
     }
 
     public void SetExamTimer(NativeExamTimerState timer)
@@ -503,6 +521,7 @@ public sealed partial class GameSession : IEventServices
         ValidateEconomyCheckpoint(state, currentVm);
         ValidatePresentationProcessCheckpoint(state, currentVm);
         ValidateFieldShakeCheckpoint(state, currentVm);
+        ValidateEventRandomCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -568,6 +587,8 @@ public sealed partial class GameSession : IEventServices
         }
         ValidateSeeDCheckpoint(state, currentVm);
         ValidateMessageVariableCheckpoint(state, currentVm);
+        ValidateInputConfigurationCheckpoint(state, currentVm);
+        ValidatePartyMenuOwnersCheckpoint(state, currentVm);
         return state;
     }
 
@@ -631,6 +652,13 @@ public sealed partial class GameSession : IEventServices
         state.WorldProcess?.Validate();
         state.SalaryPresentation?.Validate();
         state.FieldShake?.Validate();
+        state.EventRandom?.Validate();
+        if (state.EventRandom is not null)
+        {
+            ValidateEventRandomAliases(state.Variables, state.NativeVariableValues);
+        }
+        state.InputConfiguration?.Validate();
+        state.FieldButtonInput?.Validate();
         if (state.Economy is not null)
         {
             ValidateEconomyAliases(state.Variables, state.NativeVariableValues);

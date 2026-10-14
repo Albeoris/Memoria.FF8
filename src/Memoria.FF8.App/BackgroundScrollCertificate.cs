@@ -26,7 +26,7 @@ public static class BackgroundScrollCertificate
 
     internal static bool HasSupportedSettings(FieldAssets field, SceneEventState scene)
     {
-        return HasCurrentSettings(scene) && (field.Information!.BackgroundWrapMask != 0 ? HasDefaultSettings(scene) : scene.BackgroundScrollLayers.All(pair => CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex)));
+        return HasCurrentSettings(scene) && scene.BackgroundScrollLayers.All(pair => CanSetNormal(field, pair.Key, pair.Value, scene.CameraIndex));
     }
 
     internal static BackgroundScrollSettings ReadSettings(SceneEventState scene, int layer)
@@ -36,11 +36,15 @@ public static class BackgroundScrollCertificate
 
     internal static bool CanSetNormal(FieldAssets field, int layer, BackgroundScrollSettings settings, int cameraIndex)
     {
-        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && field.Information!.BackgroundWrapMask == 0 && layer is >= 0 and <= 7 && (layer == 0 || !field.Background.Any(tile => tile.Layer == layer) || BackgroundParallaxPlacement.SupportsCameraRange(field, settings));
+        return NormalCameraCertificate.HasBaseline(field, cameraIndex) && layer is >= 0 and <= 7 && (layer == 0 || !field.Background.Any(tile => tile.Layer == layer) || BackgroundParallaxPlacement.SupportsCameraRange(field, settings));
     }
 
     public static bool CanSetForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
     {
+        if (field.Information is { BackgroundWrapMask: > 0 })
+        {
+            return NativeWrappedBackgroundScrollCertificate.CanSetSettings(field, scene, layer, settings);
+        }
         if (!CanSet(field, layer, settings, scene.CameraIndex))
         {
             return false;
@@ -58,6 +62,10 @@ public static class BackgroundScrollCertificate
 
     public static bool CanSetRatioForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
     {
+        if (field.Information is { BackgroundWrapMask: > 0 })
+        {
+            return NativeWrappedBackgroundScrollCertificate.CanSetSettings(field, scene, layer, settings);
+        }
         if (!CanSetNormal(field, layer, settings, scene.CameraIndex))
         {
             return false;

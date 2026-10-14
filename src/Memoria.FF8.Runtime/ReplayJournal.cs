@@ -74,11 +74,11 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
         {
             throw new InvalidDataException("Invalid engine replay transaction.");
         }
-        if (Kind == ReplayEntryKind.Action && (Code is < 0 or > 8 || Code == 8 && (Value < 0 || (Value & ~0xF050) != 0)) || Kind == ReplayEntryKind.WorldAction && Code is < 0 or > 6 || NativeSourceHash is not null && (NativeSourceHash.Length != 64 || NativeSourceHash.Any(character => !Uri.IsHexDigit(character))))
+        if (Kind == ReplayEntryKind.Action && (Code is < 0 or > 9 || Code == 8 && (Value < 0 || Value > ushort.MaxValue)) || Kind == ReplayEntryKind.WorldAction && Code is < 0 or > 6 || NativeSourceHash is not null && (NativeSourceHash.Length != 64 || NativeSourceHash.Any(character => !Uri.IsHexDigit(character))))
         {
             throw new InvalidDataException("Unsupported replay action or native source hash.");
         }
-        if (Trigger is < 0 or > 7 || ResultTrigger is < 0 or > 7 || MessageId < -1 || ObjectId < -1 || ScriptId < -1 || Operation < -1 || ResultMessageId < -1 || ResultObjectId < -1 || ResultScriptId < -1 || ResultOperation < -1)
+        if (Trigger is < 0 or > 8 || ResultTrigger is < 0 or > 8 || MessageId < -1 || ObjectId < -1 || ScriptId < -1 || Operation < -1 || ResultMessageId < -1 || ResultObjectId < -1 || ResultScriptId < -1 || ResultOperation < -1)
         {
             throw new InvalidDataException("Invalid replay causal trigger or dialogue site.");
         }

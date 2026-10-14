@@ -34,7 +34,7 @@ public sealed class BackgroundTileCoverageTests
             FieldRenderer renderer = new(field, width, height);
             foreach ((Vector2 scroll, bool withActor) in new[] { (Vector2.Zero, false), (new Vector2(0.25f, -0.375f), false), (new Vector2(0.25f, -0.375f), true) })
             {
-                ActorVisual[] actors = withActor ? [new ActorVisual(0, 0, 0, 0, 100, 192, 0, 0, true)] : [];
+                ActorVisual[] actors = withActor ? [new ActorVisual(0, 0, 0, 0, 100, 192, 0, 0, true, PolygonColor: new Vector3(128))] : [];
                 byte[] pixels = renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero, backgroundScrollOffsets: new Dictionary<int, Vector2> { [0] = scroll, [1] = scroll });
                 float scale = Math.Min(width / 320f, height / 240f);
                 float left = (width - 320 * scale) / 2;

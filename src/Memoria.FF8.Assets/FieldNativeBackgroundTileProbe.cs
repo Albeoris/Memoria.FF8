@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Assets;
 
 public readonly record struct FieldNativeBackgroundWrapLayer(byte Layer, short OffsetX, short OffsetY, short PeriodX, short PeriodY);
-public readonly record struct FieldNativeBackgroundLayerCurrent(byte Layer, short X, short Y);
+public readonly record struct FieldNativeBackgroundLayerCurrent(byte Layer, short X, short Y, short OffsetX, short OffsetY, short ScaleX, short ScaleY);
 public sealed record FieldNativeBackgroundWrapFrame(int FieldId, string ProgramHash, short Left, short Right, short Top, short Bottom, ImmutableArray<FieldNativeBackgroundWrapLayer> Layers, int NativeNormalVersion = 0, ImmutableArray<FieldNativeBackgroundLayerCurrent> LayerCurrents = default);
 public readonly record struct FieldNativeBackgroundTileOrigin(short X, short Y);
 
@@ -15,6 +15,11 @@ public static class FieldNativeBackgroundTileProbe
         ArgumentNullException.ThrowIfNull(frame);
         short x = unchecked((short)(tileX + layer.OffsetX));
         short y = unchecked((short)(tileY + layer.OffsetY));
+        if (layer.PeriodX == 0 && layer.PeriodY == 0)
+        {
+            // 475480 bypasses relocation and strict origin culling when this layer's INF mask bit is clear.
+            return new FieldNativeBackgroundTileOrigin(x, y);
+        }
         if (layer.PeriodX != 0 && x < frame.Left)
         {
             x = unchecked((short)(x + layer.PeriodX));

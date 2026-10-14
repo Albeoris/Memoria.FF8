@@ -5,6 +5,22 @@ namespace Memoria.FF8.App.Tests;
 public sealed class InputTests
 {
     [Fact]
+    public void Train_raw_buttons_preserve_circle_square_and_L1_without_changing_confirm_or_cancel()
+    {
+        KeyboardInput keyboard = new();
+        Runtime.InputFrame first = keyboard.Read(new KeyboardState(Keys.C, Keys.S, Keys.Q), true);
+        Assert.Equal((ushort)0xA4, keyboard.HeldFieldButtons);
+        Assert.False(first.Confirm);
+        Assert.False(first.Cancel);
+        Runtime.InputFrame combined = keyboard.Read(new KeyboardState(Keys.C, Keys.S, Keys.Q, Keys.Enter, Keys.Escape), true);
+        Assert.Equal((ushort)0xF4, keyboard.HeldFieldButtons);
+        Assert.True(combined.Confirm);
+        Assert.True(combined.Cancel);
+        keyboard.Read(new KeyboardState(Keys.C, Keys.S, Keys.Q), false);
+        Assert.Equal((ushort)0, keyboard.HeldFieldButtons);
+    }
+
+    [Fact]
     public void Enter_and_space_share_one_mapped_confirm_edge()
     {
         KeyboardInput keyboard = new();

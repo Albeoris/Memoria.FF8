@@ -45,7 +45,7 @@ public sealed class NativeLinearWrappingTests
         using (JsonDocument variant = JsonDocument.Parse(genericVariant.ToJsonString()))
         {
             world.Events.Restore(variant.RootElement);
-            Assert.True(NativeLinearBackgroundScrollCertificate.SupportsPhase(world.Field!, world.Events.Scene));
+            Assert.True(NativeWrappedBackgroundScrollCertificate.SupportsPhase(world.Field!, world.Events.Scene));
             Assert.NotEmpty(world.Render(TimeSpan.Zero));
         }
         world.Events.Restore(originalPhase);
@@ -56,7 +56,7 @@ public sealed class NativeLinearWrappingTests
             Assert.Throws<InvalidDataException>(() => world.Events.Restore(unknown.RootElement));
             Assert.True(JsonElement.DeepEquals(originalPhase, world.Events.Capture()));
         }
-        Assert.True(NativeLinearBackgroundScrollCertificate.SupportsPhase(world.Field!, world.Events.Scene));
+        Assert.True(NativeWrappedBackgroundScrollCertificate.SupportsPhase(world.Field!, world.Events.Scene));
         BackgroundScrollFrame scroll = NormalCameraCertificate.Prepare(world.Field!, world.Events.Scene, world.Events.Actors)!;
         Assert.Equal(2, scroll.NativeWrap!.NativeNormalVersion);
         Assert.Equal(new[] { 1, 2 }, scroll.NativeWrap.LayerCurrents.Select(current => (int)current.Layer));
@@ -91,8 +91,8 @@ public sealed class NativeLinearWrappingTests
                 Assert.True(first!.Accepted);
             }
             JsonElement before = world.Events.Capture();
-            Assert.False(NativeLinearBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 20, 0, 20)));
-            Assert.False(NativeLinearBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 4097, 0, 20)));
+            Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 20, 0, 20)));
+            Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 4097, 0, 20)));
             world.Events.Scene.BackgroundScrollLayers[1] = new BackgroundScrollSettings(0, 0, 256, 256);
             Assert.False(world.Events.CanBeginLinearBackgroundScroll!(new NativeLinearScrollQuery(1, 0, 0, 20, 0, 20), world.Events.Scene));
             world.Events.Scene.BackgroundScrollLayers.Clear();

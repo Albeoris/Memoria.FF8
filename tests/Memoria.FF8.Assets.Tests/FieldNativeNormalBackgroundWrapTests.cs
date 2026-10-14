@@ -8,7 +8,7 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class FieldNativeNormalBackgroundWrapTests
 {
     [Fact]
-    public void OpposingLinearCurrentsRelocateBeforeSharedCameraOffsetAndDisabledWrappingOnlyAddsAndCulls()
+    public void OpposingLinearCurrentsRelocateBeforeSharedCameraOffsetAndDisabledWrappingOnlyAdds()
     {
         using GameAssets assets = InstalledAssets();
         FieldAssets original = assets.LoadField(130);
@@ -17,7 +17,7 @@ public sealed class FieldNativeNormalBackgroundWrapTests
             FieldAssets field = wrapping ? original : original with { Information = original.Information! with { BackgroundWrapMask = 0 } };
             foreach (int phase in new[] { 0, 81, 367 })
             {
-                ImmutableArray<FieldNativeBackgroundLayerCurrent> currents = ImmutableArray.Create(new FieldNativeBackgroundLayerCurrent(1, (short)phase, 0), new FieldNativeBackgroundLayerCurrent(2, (short)-phase, 0));
+                ImmutableArray<FieldNativeBackgroundLayerCurrent> currents = ImmutableArray.Create(new FieldNativeBackgroundLayerCurrent(1, (short)phase, 0, 0, 0, 256, 256), new FieldNativeBackgroundLayerCurrent(2, (short)-phase, 0, 0, 0, 256, 256));
                 FieldNativeBackgroundWrapFrame frame = FieldNativeNormalBackgroundWrap.Prepare(field, 0, new FieldNativeCameraCenter(6, 8), currents)!;
                 Assert.Equal(2, frame.NativeNormalVersion);
                 List<BackgroundTile> placed = [];
@@ -28,7 +28,7 @@ public sealed class FieldNativeNormalBackgroundWrapTests
                     {
                         int shift = tile.Layer == 1 ? -phase : phase;
                         BackgroundTile shifted = tile with { X = unchecked((short)(tile.X + shift)) };
-                        origin = wrapping ? NativePlacement(shifted, 6, 8, field.Information!) : shifted.X <= -186 || shifted.X >= 182 || shifted.Y <= -136 || shifted.Y >= 136 ? null : new FieldNativeBackgroundTileOrigin((short)shifted.X, (short)shifted.Y);
+                        origin = wrapping ? NativePlacement(shifted, 6, 8, field.Information!) : new FieldNativeBackgroundTileOrigin((short)shifted.X, (short)shifted.Y);
                     }
                     else
                     {

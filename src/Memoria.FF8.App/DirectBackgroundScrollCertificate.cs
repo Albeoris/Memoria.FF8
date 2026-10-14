@@ -90,7 +90,7 @@ internal static class DirectBackgroundScrollCertificate
         {
             BackgroundScrollSettings settings = BackgroundScrollCertificate.ReadSettings(scene, layer);
             Vector2 offset = -center;
-            if (layer != 0 && !BackgroundParallaxPlacement.TryOffset(x, y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out offset))
+            if (layer != 0 && field.Information!.BackgroundWrapMask == 0 && !BackgroundParallaxPlacement.TryOffset(x, y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out offset))
             {
                 throw new NotSupportedException("Scripted camera parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
             }
@@ -103,23 +103,23 @@ internal static class DirectBackgroundScrollCertificate
                 layers[layer] = offset;
             }
         }
-        FieldNativeBackgroundWrapFrame? wrap = field.Information!.BackgroundWrapMask == 0 ? null : FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, new FieldNativeCameraCenter(x, y)) ?? throw new NotSupportedException("Scripted camera wrapping exceeds the shared native tile-placement contract.");
+        FieldNativeBackgroundWrapFrame? wrap = field.Information!.BackgroundWrapMask == 0 ? null : NativeWrappedBackgroundScrollCertificate.PrepareWrap(field, scene, new FieldNativeCameraCenter(x, y));
         return new BackgroundScrollFrame(layers, -center) { NativeWrap = wrap };
     }
 
     internal static bool HasBaseline(FieldAssets field, SceneEventState scene)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || BackgroundScrollCertificate.HasDefaultSettings(scene) && FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
     }
 
     internal static bool SupportsCenter(FieldAssets field, SceneEventState scene, short x, short y)
     {
-        return BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.GetCamera(scene.CameraIndex).Pan) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.Prepare(field, scene.CameraIndex, new FieldNativeCameraCenter(x, y)) is not null);
+        return BackgroundParallaxPlacement.SupportsDrawingOrigin(x, y, field.GetCamera(scene.CameraIndex).Pan) && (field.Information!.BackgroundWrapMask == 0 || NativeWrappedBackgroundScrollCertificate.TryPrepareWrap(field, scene, new FieldNativeCameraCenter(x, y)) is not null);
     }
 
     private static bool ValidPositions(FieldAssets field, SceneEventState scene)
     {
-        return scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? ValidPosition(pair.Value) : NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
+        return scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? ValidPosition(pair.Value) : field.Information!.BackgroundWrapMask == 0 ? NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value) : NativeWrappedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
     }
 
     internal static bool ValidPosition(BackgroundScrollPosition state)

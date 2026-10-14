@@ -20,7 +20,7 @@ public sealed class FieldActorModeTests
         Assert.All(model.Faces.Skip(400), face => Assert.All(face.Vertices.Take(face.Quad ? 4 : 3), index => Assert.Equal(24, model.Vertices[index].Bone)));
         Assert.Equal(441, model.Faces.Count);
 
-        ActorVisual actor = new(0, 0, -3172, -5705, 8341, 72, 0, 0, true);
+        ActorVisual actor = new(0, 0, -3172, -5705, 8341, 72, 0, 0, true, PolygonColor: new System.Numerics.Vector3(128));
         FieldRenderer renderer = new(field, 960, 720);
         Dictionary<int, int> states = [];
         byte[] enabled = renderer.Render(states, [actor], TimeSpan.Zero, backgroundVisible: false).ToArray();

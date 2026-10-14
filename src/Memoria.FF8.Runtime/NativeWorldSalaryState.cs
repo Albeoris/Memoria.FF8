@@ -10,6 +10,7 @@ public sealed record NativeWorldSalaryState
         Economy = departure.Economy;
         Presentation = departure.SalaryPresentation;
         SoundProcess = departure.GlobalSoundProcess;
+        EventRandom = departure.EventRandom;
     }
 
     public GameState Departure { get; }
@@ -19,6 +20,7 @@ public sealed record NativeWorldSalaryState
     public NativeEconomy? Economy { get; private init; }
     public NativeSalaryPresentation? Presentation { get; private init; }
     public NativeGlobalSoundProcess? SoundProcess { get; private init; }
+    public NativeEventRandomState? EventRandom { get; private init; }
 
     public static NativeWorldSalaryState Begin(GameState departure)
     {
@@ -32,6 +34,7 @@ public sealed record NativeWorldSalaryState
         result?.Economy?.Validate();
         presentation?.Validate();
         soundProcess?.Validate();
+        EventRandom?.Validate();
         if (movementUnits > 5792 || Presentation is not null && presentation is null || SoundProcess is not null && soundProcess is null || Economy is not null && result is not null && result.Economy is null)
         {
             throw new InvalidDataException("World callback lost a current salary process owner or its native movement bound.");
@@ -49,10 +52,17 @@ public sealed record NativeWorldSalaryState
         Economy?.Validate();
         Presentation?.Validate();
         SoundProcess?.Validate();
+        EventRandom?.Validate();
         if (Economy is not null && Departure.CharacterVitals is not null && Economy.InitOutSha256 != Departure.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess };
+        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom };
+    }
+
+    public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)
+    {
+        NativeEventRandomState random = EventRandom ?? throw new NotSupportedException("Native world6519D0 requires its actual shared random process and saved draw-point bank.");
+        return this with { EventRandom = random.AdvanceMovement(movementUnits) };
     }
 }

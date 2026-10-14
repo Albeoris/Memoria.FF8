@@ -37,6 +37,12 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeExamTimerState? ExamTimer { get; init; }
     public NativeMessageVariables? MessageVariables { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeEventRandomState? EventRandom { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeInputConfiguration? InputConfiguration { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeFieldButtonInput? FieldButtonInput { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCharacterVitals? CharacterVitals { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -44,6 +50,8 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCardInventory? CardInventory { get; init; }
     public NativeEconomy? Economy { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeShotAvailabilityState? ShotAvailability { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeGlobalSoundProcess? GlobalSoundProcess { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -80,6 +88,26 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    NativeEventRandomState? EventRandom => null;
+    bool CanStoreEventRandom => false;
+    void SetEventRandom(NativeEventRandomState random)
+    {
+        throw new NotSupportedException("Native event random process ownership is not implemented by this service.");
+    }
+
+    NativeFieldButtonInput? FieldButtonInput => null;
+    bool CanStoreFieldButtonInput => false;
+    void SetFieldButtonInput(NativeFieldButtonInput input)
+    {
+        throw new NotSupportedException("Native sampled input process is not implemented by this event service.");
+    }
+    NativeInputConfiguration? InputConfiguration => null;
+    bool CanStoreInputConfiguration => false;
+    void SetInputConfiguration(NativeInputConfiguration configuration)
+    {
+        throw new NotSupportedException("Native saved input configuration is not implemented by this event service.");
+    }
+
     string? ReplayMovieSourceHash => null;
     ReplayJournal? ReplayJournal => null;
     SceneKind ReplayScene => SceneKind.Field;
@@ -104,6 +132,13 @@ public interface IEventServices
     NativeCharacterAppearance? CharacterAppearance => null;
     NativeCardInventory? CardInventory => null;
     NativeEconomy? Economy => null;
+    NativeShotAvailabilityState? ShotAvailability => null;
+    bool CanStoreNativePartyMenuOwners => false;
+    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null)
+    {
+        throw new NotSupportedException("Atomic party menu entry ownership is not implemented by this event service.");
+    }
+
     NativeGlobalSoundProcess? GlobalSoundProcess => null;
     int QueryNativeMusicStatus()
     {
@@ -170,7 +205,7 @@ public interface IEventServices
     }
     NativeWorldControlState? WorldControls => null;
     bool CanStoreNativeEventOwners => false;
-    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null)
+    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null)
     {
         throw new NotSupportedException("Atomic native event-owner publication is not implemented by this service.");
     }

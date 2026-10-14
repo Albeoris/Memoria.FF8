@@ -251,7 +251,12 @@ public sealed partial class EventEngine
 
     private void SampleNativeDoorActionEdges()
     {
-        if (Scene.NativeDoorDriverVersion != 2 || Scene.ButtonInput is not { Pressed: var pressed } || (pressed & 0x40) == 0 || !IsUserControlEnabled || ResolvePartyActor(0) is not ActorState player || player.NativeScriptMovement is { Active: true } || player.NativeMotionAuthority is not { Version: 1 } motion)
+        if (Scene.NativeDoorDriverVersion != 2 || !IsUserControlEnabled || ResolvePartyActor(0) is not ActorState player || player.NativeScriptMovement is { Active: true } || player.NativeMotionAuthority is not { Version: 1 } motion)
+        {
+            return;
+        }
+        ushort pressed = ButtonInput?.Pressed ?? throw new NotSupportedException("Native door interaction requires its actual mapped input sample.");
+        if ((pressed & 0x40) == 0)
         {
             return;
         }

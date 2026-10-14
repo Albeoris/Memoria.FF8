@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -9,7 +9,6 @@ public sealed partial class EventEngine
 {
     private readonly IEventServices services;
     private readonly IDictionary<int, int> variables;
-    private uint randomState;
     private readonly List<ActorState> actors = [];
     private readonly List<Fiber> fibers = [];
     // Native529FF0 visits its eight fixed channels in ascending order. Keep
@@ -37,11 +36,10 @@ public sealed partial class EventEngine
     private int backgroundFps = 8;
     private int nameEntity;
 
-    public EventEngine(IEventServices services, IDictionary<int, int> variables, int randomSeed = 0)
+    public EventEngine(IEventServices services, IDictionary<int, int> variables)
     {
         this.services = services ?? throw new ArgumentNullException(nameof(services));
         this.variables = variables ?? throw new ArgumentNullException(nameof(variables));
-        randomState = unchecked((uint)randomSeed + 1);
         if (services is GameSession session)
         {
             session.MovieCompleting += CompleteNativeMovieActors;
@@ -54,7 +52,7 @@ public sealed partial class EventEngine
     private bool userControlEnabled = true;
     public bool IsUserControlEnabled
     {
-        get => userControlEnabled && (NativeRuntimeProfile is not { IsVerified: true } || defaultsStarted);
+        get => partyMenu is null && userControlEnabled && (NativeRuntimeProfile is not { IsVerified: true } || defaultsStarted);
         private set => userControlEnabled = value;
     }
     public bool IsDialogueOpen => dialogues.Count != 0;
@@ -111,6 +109,7 @@ public sealed partial class EventEngine
         axisDuration = 0;
         axisElapsed = 0;
         InputAxisDirection = InitInputAxisDirection;
+        partyMenu = null;
         programHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(jsm));
         NativeRuntimeProfile = nativeRuntimeProfile;
         messages = fieldMessages ?? throw new ArgumentNullException(nameof(fieldMessages));
@@ -144,7 +143,7 @@ public sealed partial class EventEngine
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         InitializeNativeBackgroundScrollSettings();
-        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0);
+        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0);
         // This loader executes normal471F70 entry kinds0..2, which clear1CE477C.
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
         pendingNativePlayerInput = null;
@@ -188,10 +187,6 @@ public sealed partial class EventEngine
         {
             Scene.Names.Add(id, name);
         }
-        foreach ((int id, int[] hold) in previousScene.Holds)
-        {
-            Scene.Holds.Add(id, hold);
-        }
         foreach (EventObject obj in next.Objects)
         {
             // Original471010 selects clock20 before52BC00 initializes every
@@ -200,6 +195,8 @@ public sealed partial class EventEngine
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
+                //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
+                actors[^1].PolygonColor = new Vector3(128);
                 actors[^1].NativeLadderAnimation = new NativeLadderAnimationState(0, 0, 0);
                 actors[^1].NativeFootstepPair = new NativeFootstepPairState(1, 255, 255, new NativeFootstepPairSource(1, "Allocation", fieldId, programHash, nativeRuntimeProfile.ExecutableHash, obj.Index, -1, -1, 0));
             }
@@ -242,16 +239,22 @@ public sealed partial class EventEngine
         {
             return;
         }
+        if (partyMenu is not null)
+        {
+            StepPartyMenu();
+            return;
+        }
         ValidateNativeShakeCallback();
+        NativeEventRandomState? randomSample = PrepareNativeEventRandomBeforeVm();
         NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
         NativeEconomy? economySample = PrepareNativeGilBeforeVm(salarySample?.Economy ?? services.Economy);
         NativeSalaryEffects? salaryEffects = salarySample is null ? null : PrepareSalaryEffects(salarySample, services.SalaryPresentation, services.GlobalSoundProcess);
         Action? nativePlayerInput = pendingNativePlayerInput;
         ValidatePendingNativePushContacts();
         ValidatePendingNativeLineCrossings();
-        if (salarySample is not null && (salarySample.SeeD != services.SeeD || economySample != services.Economy || salaryEffects!.Presentation != services.SalaryPresentation || salaryEffects.SoundProcess != services.GlobalSoundProcess))
+        if (randomSample is not null || salarySample is not null && (salarySample.SeeD != services.SeeD || economySample != services.Economy || salaryEffects!.Presentation != services.SalaryPresentation || salaryEffects.SoundProcess != services.GlobalSoundProcess))
         {
-            services.SetNativeEventOwners(services.WorldControls!, seeD: salarySample.SeeD, economy: economySample, salaryPresentation: salaryEffects!.Presentation, globalSoundProcess: salaryEffects.SoundProcess);
+            services.SetNativeEventOwners(services.WorldControls!, seeD: salarySample?.SeeD, economy: economySample, salaryPresentation: salaryEffects?.Presentation, globalSoundProcess: salaryEffects?.SoundProcess, eventRandom: randomSample);
         }
         else if (economySample is not null && economySample != services.Economy)
         {
@@ -401,7 +404,7 @@ public sealed partial class EventEngine
         }
         if (dialogue.IsNamePrompt)
         {
-            string selectedName = string.IsNullOrWhiteSpace(name) ? Scene.Names.GetValueOrDefault(nameEntity, "Squall") : name.Trim();
+            string selectedName = string.IsNullOrWhiteSpace(name) ? NativeCharacterName(nameEntity) : name.Trim();
             if (selectedName.Length > 12)
             {
                 throw new ArgumentOutOfRangeException(nameof(name), "A character name may contain at most twelve characters.");
@@ -752,6 +755,7 @@ public sealed partial class EventEngine
             WaitReason.NativeJump => true,
             WaitReason.NativeHalt => false,
             WaitReason.WorldJump => false,
+            WaitReason.NativePartyMenu => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,
             WaitReason.MinimalBattle => Frame >= fiber.WaitUntil,
             WaitReason.None => true,
@@ -772,11 +776,7 @@ public sealed partial class EventEngine
         };
     }
 
-    private int NextRandom()
-    {
-        randomState = unchecked(randomState * 1664525u + 1013904223u);
-        return (int)(randomState >> 16) & 255;
-    }
+
 }
 
 public sealed class EventScriptException(string message, Exception? inner = null) : Exception(message, inner);

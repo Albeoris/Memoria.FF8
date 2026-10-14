@@ -31,7 +31,7 @@ public sealed class NativeField135LinearScrollTests
                 Assert.Null(world.Events.LastFault);
                 BackgroundScrollPosition phase = world.Events.Scene.BackgroundScrollPositions[1];
                 Assert.Equal(1, phase.NativeLinearVersion);
-                Assert.True(NativeLinearBackgroundScrollCertificate.SupportsPhase(world.Field!, world.Events.Scene));
+                Assert.True(NativeWrappedBackgroundScrollCertificate.SupportsPhase(world.Field!, world.Events.Scene));
                 bool inspectPixels = world.Events.Frame is 3 or 100 or 360 || phase.Status == 2 || completed && phase.Counter == 1;
                 byte[]? pixels = inspectPixels ? world.Render(TimeSpan.Zero) : null;
                 if (world.Events.Frame == 3)
@@ -103,9 +103,9 @@ public sealed class NativeField135LinearScrollTests
             Assert.Throws<InvalidDataException>(() => world.Events.Restore(saved.RootElement));
             Assert.True(JsonElement.DeepEquals(current, world.Events.Capture()));
         }
-        Assert.True(NativeLinearBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 351, 0, 351)));
-        Assert.True(NativeLinearBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 350, 0, 351)));
-        Assert.False(NativeLinearBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 351, 0, 351)));
+        Assert.True(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 351, 0, 351)));
+        Assert.True(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 350, 0, 351)));
+        Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 351, 0, 351)));
     }
 
     internal static GameState RecreateLava(string directory, string source)

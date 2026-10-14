@@ -6,7 +6,7 @@ public sealed partial class EventEngine
 {
     private Action? pendingNativePlayerInput;
 
-    private bool NativePlayerWalking => !Scene.RunEnabled || ((Scene.ButtonInput?.Held ?? 0) & 0x10) != 0;
+    private bool NativePlayerWalking => !Scene.RunEnabled || ((ButtonInput?.Held ?? throw new NotSupportedException("Native player movement requires the actual mapped input sample.")) & 0x10) != 0;
 
     private bool NativePlayerHasScriptedMode(ActorState actor) => actor.NativeMovementCompletion542 < 2 && actor.NativeScriptMovement is { Active: true, Suspended: false } || actor.NativeJump is { Active: true } || partyJoin?.Targets.Any(target => target.ObjectId == actor.ObjectId && actors[target.ObjectId].NativeMovementCompletion542 < 2) == true || partySplit?.Targets.Any(target => target.ObjectId == actor.ObjectId && actors[target.ObjectId].NativeMovementCompletion542 < 2) == true;
 
@@ -32,6 +32,10 @@ public sealed partial class EventEngine
 
     private void ValidateNativePlayerInput(ActorState player)
     {
+        if (Scene.RunEnabled && (services.InputConfiguration is null || ButtonInput is null))
+        {
+            throw new NotSupportedException("Native player walking/running requires its current input sampler and actual saved mapping before movement.");
+        }
         if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativePartyTraceVersion != 1 || Scene.NativePlayerPosition is null)
         {
             throw new NotSupportedException("Ordinary player input requires the current native field body and preserved party trace; recreate the authentic journal.");

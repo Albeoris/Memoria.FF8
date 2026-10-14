@@ -17,7 +17,7 @@ public sealed class NativeCosineScrollRenderTests
         FieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, Vector3.Zero, Vector2.Zero, 100);
         FieldAssets field = new(600, "cosine", identity, [], [], camera, new FieldWalkmesh([]), []) { Information = new FieldInformation(0, 200, Enumerable.Repeat(new FieldBounds(-512, 512, 512, -512), 8).ToArray(), [new FieldBounds(0, 224, 320, 0)], [], []) };
         NativeFieldInitializationProof proof = new(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, field.Id, Convert.ToHexString(SHA256.HashData(identity)), 20, NativeFieldInitializationStage.Completed);
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, FieldCallbackClock = new NativeFieldCallbackClock(1, 5, 0), NormalBackgroundScrollCenter = new NativeNormalBackgroundScrollCenter(1, field.Id, 0, 5, 7, -28) }))!;
+        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(new { NativeFieldInitialization = proof, NativeFieldLoadVersion = 1, FieldCallbackClock = new NativeFieldCallbackClock(1, 5, 0, 0), NormalBackgroundScrollCenter = new NativeNormalBackgroundScrollCenter(1, field.Id, 0, 5, 7, -28) }))!;
         Assert.True(BackgroundScrollCertificate.CanSetCosinePosition(field, scene, 0, -50, 120, 30));
         Assert.False(BackgroundScrollCertificate.CanSetCosinePosition(field, scene, 1, -50, 120, 30));
         Assert.False(BackgroundScrollCertificate.CanSetCosinePosition(field, scene, 0, -50, 120, -1));
