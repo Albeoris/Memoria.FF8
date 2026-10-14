@@ -87,6 +87,7 @@ public sealed partial class EventEngine
         {
             Scene.GlobalSoundRequests.Add(sound);
             Scene.GlobalSoundVoices[sound.Voice] = sound;
+            AudioCommandExecuted?.Invoke(sound);
         }
         return [effectIndex, .. arguments];
     }

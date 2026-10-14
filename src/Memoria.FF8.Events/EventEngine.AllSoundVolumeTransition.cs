@@ -20,6 +20,7 @@ public sealed partial class EventEngine
         // 51FFD0 calls46BEC0(first,2*second). That backend independently narrows
         // first to an unsigned time BYTE and masks doubled second with127.
         Scene.AllSoundVolumeTransition = new NativeAllSoundVolumeTransition(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], args[1], duration, milliseconds < 50 ? 0 : milliseconds, doubled, (byte)(doubled & 127), 1, 29, GlobalSoundBackendStatus.Muted, Scene.AudioLoadEpoch);
+        AudioCommandExecuted?.Invoke(Scene.AllSoundVolumeTransition);
         return args;
     }
 

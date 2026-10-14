@@ -15,8 +15,9 @@ internal sealed class MoviePresentation : IDisposable
     private bool started;
     private int absoluteFrame;
 
-    public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null)
+    public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true)
     {
+        sound.Volume = audioEnabled ? 1 : 0;
         decoder = new FfmpegMovieDecoder(toolsDirectory, path, startSeconds, information);
         Texture = new Texture2D(device, decoder.Information.Width, decoder.Information.Height);
         absoluteFrame = MovieClock.AbsoluteFrame(startSeconds, decoder.Information);

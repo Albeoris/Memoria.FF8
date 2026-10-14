@@ -15,6 +15,8 @@ internal sealed class RecreateGame : Game
     private readonly GraphicsDeviceManager graphics;
     private readonly KeyboardInput keyboard = new();
     private readonly MovieClock movieClock;
+    private FieldAudioPresentation? fieldAudio;
+    private bool resumeFieldMusic;
     private readonly PlayerSaveStore playerSaves;
     private readonly PlayerSaveMenu saveMenu;
     private SpriteBatch batch = null!;
@@ -68,6 +70,10 @@ internal sealed class RecreateGame : Game
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
         fieldTexture = new Texture2D(GraphicsDevice, FieldRenderer.Width, FieldRenderer.Height);
+        if (options.AudioEnabled)
+        {
+            fieldAudio = new FieldAudioPresentation(Window.Handle, options.GameDirectory, movieClock.ToolsDirectory);
+        }
         if (options.ControlDirectory is not null)
         {
             controls = new ControlQueue(options.ControlDirectory, DispatchControl);
@@ -96,6 +102,7 @@ internal sealed class RecreateGame : Game
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdatePlayerSaves(input))
         {
+            fieldAudio?.Update();
             base.Update(gameTime);
             metrics.Update(updateStarted);
             return;
@@ -140,8 +147,22 @@ internal sealed class RecreateGame : Game
             movie = null;
             movieIndex = -1;
         }
+        if (resumeFieldMusic && world?.Field is not null)
+        {
+            fieldAudio?.ResumeMusic(world.Events.Scene, world.Field.Id);
+            resumeFieldMusic = false;
+        }
+        fieldAudio?.Update();
         base.Update(gameTime);
         metrics.Update(updateStarted);
+    }
+
+    private GameWorld CreateWorld()
+    {
+        var next = new GameWorld(session, options.GameDirectory, movieClock);
+        fieldAudio?.Attach(next.Events);
+        resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
+        return next;
     }
 
     private void UpdateMovie(GameTime gameTime, InputFrame input)
@@ -162,7 +183,7 @@ internal sealed class RecreateGame : Game
             }
             if (world is null && session.State.EventState is not null)
             {
-                world = new GameWorld(session, options.GameDirectory, movieClock);
+                world = CreateWorld();
                 world.EnsureField();
             }
             if (movie is null || movieIndex != session.State.MovieIndex)
@@ -170,7 +191,7 @@ internal sealed class RecreateGame : Game
                 movie?.Dispose();
                 string directory = movieClock.ToolsDirectory;
                 string path = Path.Combine(options.GameDirectory, "Data", "movies", $"disc00_{session.State.MovieIndex:00}h.avi");
-                movie = new MoviePresentation(GraphicsDevice, directory, path, session.State.MovieSeconds, movieClock.Prepare());
+                movie = new MoviePresentation(GraphicsDevice, directory, path, session.State.MovieSeconds, movieClock.Prepare(), options.AudioEnabled);
                 movieIndex = session.State.MovieIndex;
                 error = null;
             }
@@ -226,7 +247,7 @@ internal sealed class RecreateGame : Game
         }
         try
         {
-            world ??= new GameWorld(session, options.GameDirectory, movieClock);
+            world ??= CreateWorld();
             if (world.EnsureField())
             {
                 presentedDialogue = null;
@@ -234,6 +255,10 @@ internal sealed class RecreateGame : Game
                 fieldFaulted = false;
                 fieldRenderFaulted = false;
                 Console.WriteLine($"loaded={field!.Id}:{field.Name} models={field.Models.Count} tiles={field.Background.Count}");
+            }
+            if (!options.ControlStep && (events!.Scene.ButtonInput?.PhysicalHeld ?? 0) != keyboard.HeldFieldButtons)
+            {
+                world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, keyboard.HeldFieldButtons));
             }
             DialogueState? dialogue = events!.CurrentDialogue;
             if (dialogue != presentedDialogue)
@@ -328,7 +353,7 @@ internal sealed class RecreateGame : Game
         }
         try
         {
-            world ??= new GameWorld(session, options.GameDirectory, movieClock);
+            world ??= CreateWorld();
             if (world.EnsureField())
             {
                 presentedDialogue = null;
@@ -487,6 +512,7 @@ internal sealed class RecreateGame : Game
         movie?.Dispose();
         movie = null;
         movieIndex = -1;
+        fieldAudio?.StopAll();
         world?.Dispose();
         world = null;
         session.Restore(state);
@@ -508,6 +534,7 @@ internal sealed class RecreateGame : Game
         movie?.Dispose();
         movie = null;
         movieIndex = -1;
+        fieldAudio?.StopAll();
         world?.Dispose();
         world = null;
         session.StartNewGame();
@@ -566,7 +593,7 @@ internal sealed class RecreateGame : Game
             {
                 throw new InvalidOperationException("A field is required for debug presentation overrides.");
             }
-            world ??= new GameWorld(session, options.GameDirectory, movieClock);
+            world ??= CreateWorld();
             world.ApplyDebug(request.Debug ?? throw new ArgumentException("A typed Debug payload is required."));
         }
         else if (request.Command.Equals("action", StringComparison.OrdinalIgnoreCase) || request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase))
@@ -579,7 +606,7 @@ internal sealed class RecreateGame : Game
             {
                 throw new InvalidOperationException("The VM stopped at a script fault. Resume a safe checkpoint or start a new game.");
             }
-            world ??= new GameWorld(session, options.GameDirectory, movieClock);
+            world ??= CreateWorld();
             world.EnsureField();
             PlayerAction action = request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase) ? new PlayerAction(PlayerActionKind.Wait, Frames: request.Frames) : request.Action ?? throw new ArgumentException("An action payload is required.");
             PlayerActionResult result;
@@ -640,7 +667,7 @@ internal sealed class RecreateGame : Game
             Names = events?.Scene.Names,
             Party = events?.Scene.Party,
             Music = new { Loaded = events?.Scene.LoadedMusic, Playing = events?.Scene.MusicPlaying, Volume = events?.Scene.MusicVolume },
-            FieldAudio = new { Effects = "Muted", Music = "Unsupported", Resources = events?.Scene.LoadedSoundEffects, Requests = events?.Scene.SoundRequests, GlobalRequests = events?.Scene.GlobalSoundRequests, GlobalVoiceAttempts = events?.Scene.GlobalSoundVoices },
+            FieldAudio = new { Effects = options.AudioEnabled ? "DirectSound" : "Muted", Music = options.AudioEnabled ? "DirectMusic/PCM" : "Muted", Error = fieldAudio?.Error, Resources = events?.Scene.LoadedSoundEffects, Requests = events?.Scene.SoundRequests, GlobalRequests = events?.Scene.GlobalSoundRequests, GlobalVoiceAttempts = events?.Scene.GlobalSoundVoices },
             Coverage = compact ? null : events?.Coverage,
             Decisions = compact ? null : events?.Decisions,
             DialogueOutcomes = compact ? null : events?.DialogueOutcomes,
@@ -654,7 +681,7 @@ internal sealed class RecreateGame : Game
 
     private void UploadField(TimeSpan elapsed)
     {
-        if (session.State.Scene != SceneKind.WorldMap && FieldPresentationReadiness.HasUnobservedShakeOutput(world!.Events.Scene.Shake))
+        if (session.State.Scene != SceneKind.WorldMap && (FieldPresentationReadiness.HasPendingInitialization(world!.Events.Scene.NativeFieldInitialization) || FieldPresentationReadiness.HasUnobservedShakeOutput(world.Events.Scene.Shake)))
         {
             return;
         }
@@ -888,6 +915,7 @@ internal sealed class RecreateGame : Game
     {
         if (disposing)
         {
+            fieldAudio?.Dispose();
             movie?.Dispose();
             world?.Dispose();
             fieldTexture?.Dispose();

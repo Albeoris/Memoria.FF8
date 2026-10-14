@@ -12,7 +12,8 @@ public enum PlayerActionKind
     Move,
     Wait,
     SkipMovie,
-    Cancel
+    Cancel,
+    FieldButtons
 }
 
 public enum PlayerTriggerKind
@@ -82,6 +83,13 @@ public sealed partial class EventEngine
         {
             switch (action.Kind)
             {
+                case PlayerActionKind.FieldButtons:
+                    accepted = program is not null && !services.IsMoviePlaying && !transitionRequested;
+                    if (accepted)
+                    {
+                        SetFieldButtons(action.Value);
+                    }
+                    break;
                 case PlayerActionKind.Confirm:
                     accepted = CanConfirmDialogue && CurrentDialogue?.FirstChoice is null && CurrentDialogue?.IsNamePrompt == false;
                     if (accepted)

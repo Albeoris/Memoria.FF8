@@ -27,7 +27,7 @@ public sealed partial class EventEngine
             // 475DF0 overwrites the previous words/counter before the new mode consumes them.
             return new BackgroundScrollPosition(x, y, x, y, x, y, actor.Counter, 0, actor.Status, actor.Duration, actor.NativeActorId);
         }
-        if (layer == 0 && Scene.BackgroundScrollPositions.Count == 0 && Scene.NormalBackgroundScrollCenter is NativeNormalBackgroundScrollCenter normal && normal.Version == 1 && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame <= Frame)
+        if (layer == 0 && !Scene.BackgroundScrollPositions.ContainsKey(0) && Scene.NormalBackgroundScrollCenter is NativeNormalBackgroundScrollCenter normal && normal.Version == 1 && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame <= Frame)
         {
             return new BackgroundScrollPosition(normal.X, normal.Y, normal.X, normal.Y, normal.X, normal.Y, 0, 0, 1);
         }

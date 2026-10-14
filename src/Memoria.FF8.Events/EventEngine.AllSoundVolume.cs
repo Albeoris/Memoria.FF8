@@ -19,6 +19,7 @@ public sealed partial class EventEngine
         // Volume is that request input; unknown backend master gain/buffers are
         // not inferred. TODO(TD-003):, muted audio.
         Scene.AllSoundVolume = new NativeAllSoundVolume(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], (byte)(args[0] & 127), 0, 0, 32, GlobalSoundBackendStatus.Muted, Scene.AudioLoadEpoch);
+        AudioCommandExecuted?.Invoke(Scene.AllSoundVolume);
         return args;
     }
 

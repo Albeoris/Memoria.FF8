@@ -99,5 +99,6 @@ public sealed partial class EventEngine
         // This is the latest attempt/original effect ID, not a claim that an
         // audible voice or the requested sample is active after backend failure.
         Scene.GlobalSoundVoices[request.Voice] = request;
+        AudioCommandExecuted?.Invoke(request);
     }
 }

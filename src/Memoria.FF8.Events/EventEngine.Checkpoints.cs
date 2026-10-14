@@ -120,6 +120,10 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved character appearance and vitals have different native New Game identities.");
         }
+        if (saved.Frame > 0 && saved.Scene.ButtonInput is null)
+        {
+            throw new InvalidDataException("Saved field callbacks lack their actual mapped button history; recreate the authentic journal.");
+        }
         saved.Scene.ButtonInput?.Validate(saved.Frame);
         if (saved.Dialogues.Select(dialogue => dialogue.Channel).Distinct().Count() != saved.Dialogues.Length || saved.Dialogues.Any(dialogue => (uint)dialogue.Channel >= 8) || saved.CurrentDialogueChannel is int focusedChannel && !saved.Dialogues.Any(dialogue => dialogue.Channel == focusedChannel))
         {

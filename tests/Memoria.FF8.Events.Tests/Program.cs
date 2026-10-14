@@ -51,6 +51,8 @@ internal static partial class Program
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
                     ["key-on"] = NativeKeyOnContract,
+                    ["key-scan"] = NativeKeyScanContract,
+                    ["terminal-commands"] = NativeTerminalCommandsContract,
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
                     ["actor-scroll"] = NativeActorScrollContract,
@@ -145,6 +147,8 @@ internal static partial class Program
             NativeDyingContract(gameDirectory);
             NativeDressContract(gameDirectory);
             NativeKeyOnContract();
+            NativeKeyScanContract();
+            NativeTerminalCommandsContract();
             NativeMovieTimerClockContract();
             NativeCarCommandsContract(gameDirectory);
             NativeActorScrollContract();

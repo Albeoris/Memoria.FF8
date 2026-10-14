@@ -36,6 +36,7 @@ public sealed partial class EventEngine
             milliseconds = 0;
         }
         Scene.SoundVolumeTransition = new NativeSoundVolumeTransition(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, raw, args[1], args[2], mask, voice, duration, milliseconds, (byte)(args[2] & 127), GlobalSoundBackendStatus.Muted, Scene.AudioLoadEpoch);
+        AudioCommandExecuted?.Invoke(Scene.SoundVolumeTransition);
         return args;
     }
 

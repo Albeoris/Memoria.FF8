@@ -234,6 +234,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.LSCROLL3:
                 args = ExecuteLinearBackgroundScroll(fiber);
                 break;
+            case Jsm.Opcode.LSCROLL2:
+                args = ExecuteLinearBackgroundScroll2(fiber);
+                break;
             case Jsm.Opcode.LSCROLL:
                 args = ExecuteNativeLayerZeroLinearBackgroundScroll(fiber);
                 break;
@@ -658,6 +661,9 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 CompleteMinimalMenu(fiber, opcode, args[0]);
                 break;
+            case Jsm.Opcode.MENUTUTO:
+                CompleteMinimalMenu(fiber, opcode, 0);
+                break;
             case Jsm.Opcode.RUNENABLE:
             case Jsm.Opcode.RUNDISABLE:
                 Scene.RunEnabled = opcode == Jsm.Opcode.RUNENABLE;
@@ -850,6 +856,10 @@ public sealed partial class EventEngine
                 Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
                 Scene.BackgroundShade = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
                 Scene.BackgroundShades[fiber.BackgroundId] = Scene.BackgroundShade;
+                break;
+            case Jsm.Opcode.KEYSCAN:
+                args = Pop(fiber, 1);
+                fiber.Results[0] = (unchecked((uint)args[0]) & Scene.ButtonInput!.Held) != 0 ? 1 : 0;
                 break;
             case Jsm.Opcode.KEYON:
                 args = Pop(fiber, 1);
@@ -1163,7 +1173,7 @@ public sealed partial class EventEngine
             throw Fault(caller, $"Request targets inactive object {objectId}; behavior requires further evidence.");
         }
         bool busy = RequestPriorityOccupied(objectId, priority);
-        if (busy && opcode == Jsm.Opcode.REQ)
+        if (busy && (opcode == Jsm.Opcode.REQ || NativeRuntimeProfile is { IsVerified: true }))
         {
             return;
         }
