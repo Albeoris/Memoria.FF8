@@ -1018,6 +1018,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PHSPOWER:
                 args = [ExecutePartyPower(fiber)];
                 break;
+            case Jsm.Opcode.SAVEENABLE:
+                args = [ExecuteSaveEnable(fiber)];
+                break;
+            case Jsm.Opcode.GETCARD:
+                args = [ExecuteGetCard(fiber)];
+                break;
             case Jsm.Opcode.SETBATTLEMUSIC:
                 args = Pop(fiber, 1);
                 Scene.BattleMusic = args[0];

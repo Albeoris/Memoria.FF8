@@ -427,6 +427,10 @@ public sealed class SelectedAssetTests
                         continue;
                     }
                     float logicalX = (x + 0.5f - offsetX) / scale - tile.X - 160;
+                    if (logicalX < 0 || logicalX >= 16 || logicalY < 0 || logicalY >= 16)
+                    {
+                        continue;
+                    }
                     Rgba32 source = tile.Image[Math.Clamp((int)(logicalX * tile.Image.Width / 16), 0, tile.Image.Width - 1), Math.Clamp((int)(logicalY * tile.Image.Height / 16), 0, tile.Image.Height - 1)];
                     if (source.A == 0)
                     {

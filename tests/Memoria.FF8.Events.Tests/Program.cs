@@ -49,6 +49,7 @@ internal static partial class Program
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
+                    ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
                     ["key-on"] = NativeKeyOnContract,
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
@@ -213,6 +214,7 @@ internal static partial class Program
             GardenFractionalLeaderJoinBoundary(gameDirectory);
             GardenNativeSplitBoundary(gameDirectory);
             NativePartyPowerAndFlagAliases(gameDirectory);
+            NativeCardAndSaveEnableContract(gameDirectory);
             NativeBackgroundScrollAndGuard(gameDirectory);
             NativeDirectScrollAndBoundary(gameDirectory);
             NativePartyScrollAndBoundary(gameDirectory);

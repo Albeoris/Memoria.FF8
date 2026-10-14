@@ -165,7 +165,7 @@ public sealed class IfritCausalRecreationTests
         return session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue?.FirstChoice is int first ? new PlayerAction(PlayerActionKind.Choose, first) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
     }
 
-    private static void WalkGateway(GameWorld world, GameSession session, int destination, bool worldExit = false)
+    internal static void WalkGateway(GameWorld world, GameSession session, int destination, bool worldExit = false)
     {
         int source = session.State.FieldId;
         DriveUntil(world, session, () => world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable);

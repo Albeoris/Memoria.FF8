@@ -20,7 +20,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (operation.Opcode is Jsm.Opcode.PHSPOWER or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
+        if (operation.Opcode is Jsm.Opcode.PHSPOWER or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
         {
             return UnsupportedWorldControlAliases();
         }
@@ -55,6 +55,26 @@ public sealed partial class EventEngine
         }
         Scene.PartyPower = Pop(fiber, 1)[0];
         return Scene.PartyPower;
+    }
+
+    private string? UnsupportedSaveEnable(Fiber fiber)
+    {
+        if (fiber.Stack.Count == 0)
+        {
+            return "SAVEENABLE requires its original DWORD operand";
+        }
+        if (services.WorldControls is not NativeWorldControlState controls)
+        {
+            return "SAVEENABLE requires the canonical native menu byte with authentic initialization; recreate the journal";
+        }
+        controls.Validate();
+        return UnsupportedWorldControlAliases();
+    }
+
+    private int ExecuteSaveEnable(Fiber fiber)
+    {
+        SetNativeWorldControls(fiber, services.WorldControls!.WithSaveEnabled(fiber.Stack.Peek()));
+        return Pop(fiber, 1)[0];
     }
 
     private void SetNativeWorldControls(Fiber fiber, NativeWorldControlState controls)

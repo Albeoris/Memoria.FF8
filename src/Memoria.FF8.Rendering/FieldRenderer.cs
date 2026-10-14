@@ -204,10 +204,12 @@ public sealed partial class FieldRenderer
 
     private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset)
     {
-        int startX = Math.Clamp((int)MathF.Floor(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale), clipLeft, clipRight);
-        int startY = Math.Clamp((int)MathF.Floor(offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale), clipTop, clipBottom);
-        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale), clipLeft, clipRight);
-        int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + 16 + scrollOffset.Y) * verticalScale), clipTop, clipBottom);
+        // Cover sample centers in [origin, origin + 16). Adjacent MAP tiles
+        // share an edge, so fractional scaling must not blend that row twice.
+        int startX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), clipLeft, clipRight);
+        int startY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale - 0.5f), clipTop, clipBottom);
+        int endX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + 16 + scrollOffset.X) * scale - 0.5f), clipLeft, clipRight);
+        int endY = Math.Clamp((int)MathF.Ceiling(offsetY + (tile.Y + drawingOrigin.Y + 16 + scrollOffset.Y) * verticalScale - 0.5f), clipTop, clipBottom);
         RasterRun[] columns = CreateRuns(startX, endX, destinationX =>
         {
             float logicalX = (destinationX + 0.5f - offsetX) / scale - tile.X - drawingOrigin.X - scrollOffset.X;

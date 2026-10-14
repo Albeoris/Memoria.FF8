@@ -86,6 +86,13 @@ public sealed record NativeWorldControlState
         };
     }
 
+    /// <summary>Native SAVEENABLE at 5221B0 sets byte 209 mask 1 for any nonzero DWORD operand, or clears it for zero.</summary>
+    public NativeWorldControlState WithSaveEnabled(int argument)
+    {
+        Validate();
+        return this with { Menu209 = argument == 0 ? (byte)(Menu209 & 0xFE) : (byte)(Menu209 | 1) };
+    }
+
     /// <summary>Native WORLDMAPJUMP at 521820 copies the inverse source mask into byte 209 mask 2.</summary>
     public NativeWorldControlState WithWorldEntryMenuFlag()
     {

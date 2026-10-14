@@ -48,7 +48,7 @@ public sealed partial class GameSession : IEventServices
 
     public void StartNewGame()
     {
-        Change(new GameState { Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), ReplayJournal = ReplayJournal.StartNewGame() });
+        Change(new GameState { Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), ReplayJournal = ReplayJournal.StartNewGame() });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -439,6 +439,7 @@ public sealed partial class GameSession : IEventServices
             }
         }
         ValidateAllocatedWorldEntityCheckpoint(state, currentVm);
+        ValidateCardInventoryCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -550,6 +551,7 @@ public sealed partial class GameSession : IEventServices
         state.ExamTimer?.Validate();
         state.CharacterVitals?.Validate();
         state.CharacterAppearance?.Validate();
+        state.CardInventory?.Validate();
         if (state.CharacterAppearance is not null && state.CharacterVitals is not null && state.CharacterAppearance.InitOutSha256 != state.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("Native appearance and character vitals have different New Game template identities.");

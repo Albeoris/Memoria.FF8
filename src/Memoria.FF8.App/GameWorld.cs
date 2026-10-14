@@ -90,12 +90,14 @@ internal sealed partial class GameWorld : IDisposable
             session.DismissDialog();
             return true;
         }
-        if (worldScene is not null)
+        bool returningFromWorld = worldScene is not null;
+        if (returningFromWorld)
         {
-            worldScene.Dispose();
+            worldScene!.Dispose();
             worldScene = null;
         }
-        if (Field?.Id == session.State.FieldId && Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
+        // A world arrival starts a new visit even when its packet names the frozen departing field.
+        if (!returningFromWorld && Field?.Id == session.State.FieldId && Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
         {
             return false;
         }

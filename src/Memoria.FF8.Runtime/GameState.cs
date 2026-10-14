@@ -40,6 +40,8 @@ public sealed record GameState
     public NativeCharacterVitals? CharacterVitals { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeCharacterAppearance? CharacterAppearance { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeCardInventory? CardInventory { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<int, NativeMemoryValue>? NativeVariableValues { get; init; }
@@ -88,6 +90,12 @@ public interface IEventServices
     NativeExamTimerState? ExamTimer => null;
     NativeCharacterVitals? CharacterVitals => null;
     NativeCharacterAppearance? CharacterAppearance => null;
+    NativeCardInventory? CardInventory => null;
+    bool CanStoreCardInventory => false;
+    void SetCardInventory(NativeCardInventory inventory)
+    {
+        throw new NotSupportedException("Native card inventory is not implemented by this event service.");
+    }
     void SetCharacterAppearance(NativeCharacterAppearance appearance)
     {
         throw new NotSupportedException("Native character appearance is not implemented by this event service.");
