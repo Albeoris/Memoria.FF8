@@ -18,7 +18,7 @@ public sealed partial class EventEngine
         {
             return modeAccess;
         }
-        if (operation.Opcode == Jsm.Opcode.ADDPARTY && services.WorldControls?.ScriptBattleDisabled20 is not null && fiber.Stack.Count > 0 && fiber.Stack.Peek() >= 8)
+        if (operation.Opcode == Jsm.Opcode.ADDPARTY && services.WorldControls?.ScriptBattleDisabled20 is not null && fiber.Stack.Count > 0 && fiber.Stack.Peek() >= 8 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())))
         {
             return "Native ADDPARTY argument>=8 requires its original event104 shift branch and party-table behavior; known script-battle flag, PC and operand preserved";
         }

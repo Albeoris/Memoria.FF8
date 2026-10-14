@@ -38,7 +38,7 @@ public sealed partial class EventEngine
         int[] bindings = Enumerable.Repeat(0xFF, 3).ToArray();
         for (int slot = 0; slot < 3; slot++)
         {
-            byte character = slot < Scene.Party.Count ? (byte)Scene.Party[slot] : (byte)0xFF;
+            byte character = (byte)Scene.Party[slot];
             int match = Array.FindIndex(retained, id => (byte)actors[id].CharacterId == character);
             if (match >= 0)
             {
@@ -158,7 +158,7 @@ public sealed partial class EventEngine
     {
         // Original startup kind0 fills all records from the initialized leader,
         // rather than manufacturing a coordinate-arrival packet or prior trail.
-        if (FieldId != 229 || !Scene.Party.SequenceEqual(new[] { 0 }) || program is null)
+        if (FieldId != 229 || !Scene.Party.SequenceEqual(new[] { 0, 255, 255 }) || program is null)
         {
             return null;
         }

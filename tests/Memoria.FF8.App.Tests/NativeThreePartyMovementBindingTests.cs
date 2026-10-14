@@ -83,6 +83,27 @@ public sealed class NativeThreePartyMovementBindingTests
         Assert.False(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(4)));
     }
 
+    [Fact]
+    public void SparseCanonicalPartyRetainsThirdSlotAndSkipsOnlyTheAbsentFollower()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
+        using GameAssets assets = new(directory);
+        FieldAssets field = assets.LoadField(260);
+        SceneEventState scene = SyntheticScene([0, 255, 2]);
+        scene.Party[1] = 255;
+        string before = JsonSerializer.Serialize(scene);
+        Assert.Equal(new[] { 0, 255, 6 }, scene.Party);
+        Assert.Equal(new[] { 0, 6 }, scene.ActiveParty);
+        Assert.True(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(0)));
+        Assert.NotNull(NativePlayerMovementAdapter.Resolve(field, scene, new(0, 18, 503808, 417792, 0, 192, 2696, 48, 0, _ => false)));
+        Assert.Equal(before, JsonSerializer.Serialize(scene));
+        scene.FieldPartyNativeActorIds[1] = 1;
+        Assert.True(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(0)));
+        scene.Party[0] = 5;
+        Assert.True(NativePlayerMovementAdapter.Supports(field, scene, SyntheticPlayer(0)));
+    }
+
     private static SceneEventState SyntheticScene(int[] runtimeBindings)
     {
         // This isolated admission/geometry fixture is not a research checkpoint.

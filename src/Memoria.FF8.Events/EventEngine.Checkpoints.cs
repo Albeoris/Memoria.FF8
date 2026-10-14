@@ -68,6 +68,10 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved VM must preserve its canonical world-control state; missing or unknown snapshot state cannot retain a different known service state.");
         }
         saved.WorldControls?.Validate();
+        if (!HasCanonicalPartySlots(saved.Scene))
+        {
+            throw new InvalidDataException("Saved VM requires exactly three native party character bytes; compressed or malformed party slots require authentic reconstruction.");
+        }
         if (saved.Scene.MovieActors is NativeMovieActorLifecycle movieActors)
         {
             movieActors.Validate(saved.Frame);

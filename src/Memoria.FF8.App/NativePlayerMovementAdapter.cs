@@ -35,7 +35,7 @@ public static class NativePlayerMovementAdapter
 
     private static bool SupportsBinding(SceneEventState scene, int objectId)
     {
-        if (scene.NativeFieldLoadVersion != 1 || scene.NativeActorLayoutVersion != 1 || scene.NativePartyTraceVersion != 1 || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count || scene.FieldPartyNativeActorIds.Count != 3 || scene.Party.Count is < 1 or > 3 || scene.Party[0] != 0 || scene.Party.Any(character => character is < 0 or >= 255) || scene.Party.Distinct().Count() != scene.Party.Count)
+        if (scene.NativeFieldLoadVersion != 1 || scene.NativeActorLayoutVersion != 1 || scene.NativePartyTraceVersion != 1 || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count || scene.FieldPartyNativeActorIds.Count != 3 || scene.Party.Count != 3 || scene.Party.Any(character => character is < 0 or > 255) || scene.ActiveParty.Distinct().Count() != scene.ActiveParty.Count())
         {
             return false;
         }
@@ -43,17 +43,10 @@ public static class NativePlayerMovementAdapter
         for (int slot = 0; slot < 3; slot++)
         {
             int nativeActor = scene.FieldPartyNativeActorIds[slot];
-            if (slot >= scene.Party.Count)
-            {
-                if (nativeActor != 255)
-                {
-                    return false;
-                }
-            }
-            else if (nativeActor == 255)
+            if (nativeActor == 255)
             {
                 // 478430 skips each absent runtime follower independently;
-                // canonical party membership and saved B194..196 can remain.
+                // SUBPARTY does not rewrite retained runtime body pointers.
                 if (slot == 0)
                 {
                     return false;

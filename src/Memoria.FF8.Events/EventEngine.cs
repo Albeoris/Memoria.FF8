@@ -91,7 +91,7 @@ public sealed partial class EventEngine
         {
             // Native New Game entry 0x470560 seeds field party bytes 00 FF FF before start0 init SETPC.
             Scene.Party.Clear();
-            Scene.Party.Add(0);
+            Scene.Party.AddRange([0, 255, 255]);
         }
         generation++;
         FieldId = fieldId;
@@ -162,6 +162,7 @@ public sealed partial class EventEngine
         Scene.MusicChannel112 = previousScene.MusicChannel112;
         Scene.MusicStop = previousScene.MusicStop;
         Scene.Members.UnionWith(previousScene.Members);
+        Scene.Party.Clear();
         Scene.Party.AddRange(previousScene.Party);
         Scene.PartyBindingMemory = previousScene.PartyBindingMemory;
         Scene.UnlockedTutorials.UnionWith(previousScene.UnlockedTutorials);

@@ -303,7 +303,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.GETPARTY:
                 args = Pop(fiber, 1);
-                fiber.Results[0] = args[0] < Scene.Party.Count ? Scene.Party[args[0]] : 255;
+                fiber.Results[0] = Scene.Party[args[0]];
                 break;
             case Jsm.Opcode.PGETINFO:
                 args = ExecuteNativeActorInfo(fiber, true);
@@ -962,10 +962,14 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.ADDPARTY:
                 args = Pop(fiber, 1);
-                if (!Scene.Party.Contains(args[0]))
+                if (!Scene.Party.Contains(unchecked((byte)args[0])))
                 {
-                    AddCombatPartyCharacter(args[0]);
-                    Scene.Party.Add(args[0]);
+                    int emptySlot = Scene.Party.IndexOf(255);
+                    if (emptySlot >= 0)
+                    {
+                        AddCombatPartyCharacter(args[0]);
+                        Scene.Party[emptySlot] = unchecked((byte)args[0]);
+                    }
                 }
                 break;
             case Jsm.Opcode.SUBPARTY:
@@ -975,7 +979,7 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 3);
                 SetCombatParty(args);
                 Scene.Party.Clear();
-                Scene.Party.AddRange(args.Where(id => id != 255));
+                Scene.Party.AddRange(args);
                 break;
             case Jsm.Opcode.DYING:
                 services.SetCharacterVitals(services.CharacterVitals!.RepairDyingParty());
@@ -1160,38 +1164,37 @@ public sealed partial class EventEngine
         {
             throw Fault(caller, $"{opcode} party slot or priority is outside the native request bounds.");
         }
-        if (Scene.FieldPartyNativeActorIds.Count != 3 && partySlot >= Scene.Party.Count)
-        {
-            return;
-        }
-        ActorState? target = ResolvePartyActor(partySlot);
+        ActorState? target = ResolveJoinPartyActor(partySlot);
         if (target is null)
         {
             return;
         }
-        Fiber[] active = fibers.Where(fiber => fiber.ObjectId == target.ObjectId && !fiber.Complete).ToArray();
         if (RequestPriorityOccupied(target.ObjectId, priority))
         {
             // Native PREQ/PREQSW/PREQEW consume and drop a request whose priority slot is occupied.
             return;
-        }
-        if (active.Length != 0 && !CanPreemptNativeHalt(target))
-        {
-            throw Fault(caller, $"{opcode} competing-priority preemption requires native movement/operand suspension support.");
         }
         if ((uint)scriptIndex >= program.Objects[target.ObjectId].Scripts.Count)
         {
             throw Fault(caller, $"{opcode} targets an unknown party actor script index.");
         }
         Fiber requested = Queue(target.ObjectId, program.Objects[target.ObjectId].Scripts[scriptIndex].Id, priority, false);
-        if (NativeRuntimeProfile is { IsVerified: true } && CanPreemptNativeHalt(target, requested))
+        if (IsNativeActorRequest(target.ObjectId))
         {
             requested.NativeActorSlot = (byte)priority;
         }
+        // Native51D1F0/51D360/51D530 use the same physical mode1 backup
+        // as51CD60/51CED0/51D060. Saved party selection does not change ownership.
+        SuspendNativeMovementForRequest(target, requested);
         if (opcode == Jsm.Opcode.PREQEW)
         {
             caller.Request = requested;
             caller.WaitReason = WaitReason.RequestEnd;
+        }
+        else if (opcode == Jsm.Opcode.PREQSW && fibers.Any(fiber => fiber.ObjectId == target.ObjectId && !fiber.Complete && NativeActorRequestSlot(fiber) > priority))
+        {
+            caller.Request = requested;
+            caller.WaitReason = WaitReason.RequestStart;
         }
     }
 

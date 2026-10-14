@@ -13,8 +13,6 @@ public sealed partial class EventEngine
 
     private bool RequestPriorityOccupied(int objectId, int priority) => fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete && (IsNativeActorRequest(objectId) ? NativeActorRequestSlot(fiber) : fiber.Priority) == priority);
 
-    private bool CanPreemptNativeHalt(ActorState actor, Fiber? excluded = null) => NativeRuntimeProfile is { IsVerified: true } && actor.NativeMovementRequest is null && actor.NativeScriptMovement is not { Active: true } && fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && fiber != excluded).All(fiber => fiber.WaitReason == WaitReason.NativeHalt);
-
     private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId)
     {
         if (actor.NativeMovementRequest is { } existing && priority > existing.RequestSlot && !CanTransferNativeMovementBackup(actor, existing) && actor.NativeScriptMovement is not { Active: true, Suspended: false })

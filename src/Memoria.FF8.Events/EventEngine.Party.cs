@@ -27,9 +27,9 @@ public sealed partial class EventEngine
         {
             return "GETPARTY only supports the original three party bytes; an out-of-range DWORD would read unrelated native save data";
         }
-        if (Scene.Party.Count is < 1 or > 3 || Scene.Party.Any(character => character is < 0 or >= 255) || Scene.Party.Distinct().Count() != Scene.Party.Count)
+        if (!HasCanonicalPartySlots(Scene))
         {
-            return "GETPARTY requires a known canonical party with byte character IDs and trailing absent slots";
+            return "GETPARTY requires the exact three native character bytes, including absent FF slots";
         }
         return null;
     }
@@ -41,17 +41,20 @@ public sealed partial class EventEngine
             return "SETPARTY requires its original three character operands";
         }
         int[] party = fiber.Stack.Take(3).Reverse().ToArray();
-        bool absent = false;
         HashSet<int> present = [];
         foreach (int character in party)
         {
-            if (character is < 0 or > 255 || character != 255 && (absent || !present.Add(character)))
+            if (character is < 0 or > 255 || character != 255 && !present.Add(character))
             {
-                return "SETPARTY requires a canonical byte-character prefix followed only by absent FF slots";
+                return "SETPARTY requires three bounded native character bytes without duplicate active characters";
             }
-            absent |= character == 255;
         }
         return null;
+    }
+
+    private static bool HasCanonicalPartySlots(SceneEventState scene)
+    {
+        return scene.Party is { Count: 3 } && scene.Party.All(character => character is >= 0 and <= 255) && scene.ActiveParty.Distinct().Count() == scene.ActiveParty.Count();
     }
 
     private void CompactNativeActors()
@@ -74,7 +77,7 @@ public sealed partial class EventEngine
         Scene.FieldPartyNativeActorIds.Clear();
         for (int slot = 0; slot < 3; slot++)
         {
-            byte character = slot < Scene.Party.Count ? (byte)Scene.Party[slot] : (byte)0xFF;
+            byte character = (byte)Scene.Party[slot];
             int nativeActor = 0xFF;
             for (int index = 0; index < Scene.NativeActorObjectIds.Count; index++)
             {
@@ -107,6 +110,6 @@ public sealed partial class EventEngine
             int nativeActor = Scene.FieldPartyNativeActorIds[slot];
             return nativeActor != 0xFF && (uint)nativeActor < Scene.NativeActorObjectIds.Count ? actors[Scene.NativeActorObjectIds[nativeActor]] : null;
         }
-        return slot < Scene.Party.Count ? actors.FirstOrDefault(actor => actor.Active && actor.CharacterId == Scene.Party[slot]) : null;
+        return null;
     }
 }

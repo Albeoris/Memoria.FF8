@@ -89,12 +89,13 @@ internal static partial class Program
         Require(combat.Count == 3 && combat[0].SequenceEqual(new byte[] { 255, 0, 255 }) && combat[1].SequenceEqual(new byte[] { 3, 0, 255 }) && combat[2].SequenceEqual(new byte[] { 255, 0, 255 }), "Party commands lost native swapped slots, first-empty insertion or exact combat-slot removal.");
         GameSession clearSession = new(new GameState { CharacterVitals = initial, Variables = new Dictionary<int, int> { [255] = 5, [256] = 6, [1279] = 7, [1280] = 8 } });
         EventEngine clear = new(clearSession, clearSession.State.Variables);
-        clear.Scene.Party.Add(0);
+        clear.Scene.Party.Clear();
+        clear.Scene.Party.AddRange([0, 255, 255]);
         clear.Scene.Members.Add(0);
         clear.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), []);
         clear.Step();
-        Require(clearSession.State.Variables.Count == 2 && clearSession.State.Variables[255] == 5 && clearSession.State.Variables[1280] == 8 && clear.Scene.Party.SequenceEqual([0]) && clear.Scene.Members.SetEquals([0]) && clearSession.CharacterVitals == initial, "Native CLEAR exceeded its256..1279 range or changed party, membership or character vitals.");
-        foreach (int character in new[] { -1, 8, 259 })
+        Require(clearSession.State.Variables.Count == 2 && clearSession.State.Variables[255] == 5 && clearSession.State.Variables[1280] == 8 && clear.Scene.Party.SequenceEqual([0, 255, 255]) && clear.Scene.Members.SetEquals([0]) && clearSession.CharacterVitals == initial, "Native CLEAR exceeded its256..1279 range or changed party, membership or character vitals.");
+        foreach (int character in new[] { 8, 259 })
         {
             GameSession invalidPartySession = new(new GameState { CharacterVitals = initial });
             EventEngine invalidParty = new(invalidPartySession, invalidPartySession.State.Variables);

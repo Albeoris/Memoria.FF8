@@ -82,10 +82,28 @@ public sealed class BackgroundScrollParallaxTests
         Assert.False(BackgroundScrollCertificate.Supports(field, scene, actors));
     }
 
+    [Fact]
+    public void SparseRuntimeFollowerSlotsKeepTheSameNativeLeaderCamera()
+    {
+        using var assets = OpenAssets();
+        FieldAssets field = assets.LoadField(230);
+        SceneEventState scene = Scene();
+        ActorState[] actors = [Actor(-1351, 0, -248)];
+        BackgroundScrollFrame before = NormalCameraCertificate.Prepare(field, scene, actors)!;
+        scene.NativeActorObjectIds.AddRange([1, 2]);
+        scene.Party[2] = 5;
+        scene.FieldPartyNativeActorIds[2] = 2;
+        BackgroundScrollFrame sparse = NormalCameraCertificate.Prepare(field, scene, actors)!;
+        Assert.Equal(before.ActorOffset, sparse.ActorOffset);
+        Assert.Equal(before.LayerOffsets, sparse.LayerOffsets);
+        scene.FieldPartyNativeActorIds[1] = 2;
+        Assert.Throws<NotSupportedException>(() => NormalCameraCertificate.Prepare(field, scene, actors));
+    }
+
     private static SceneEventState Scene()
     {
         // Isolated projection fixture; it is neither restored by an engine nor published as a causal save.
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"AudioLoadEpoch\":0,\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
+        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("{\"AudioLoadEpoch\":0,\"Party\":[0,255,255],\"NativeFieldLoadVersion\":1,\"NativeActorLayoutVersion\":1}")!;
         scene.NativeActorObjectIds.Add(0);
         scene.FieldPartyNativeActorIds.AddRange([0, 255, 255]);
         return scene;

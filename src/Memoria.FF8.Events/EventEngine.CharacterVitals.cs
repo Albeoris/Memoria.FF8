@@ -26,7 +26,7 @@ public sealed partial class EventEngine
         {
             return "Native party changes with junction-reset flag1CFE978 mask10000 require the actual junction/stat contract";
         }
-        if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(fiber.Stack.Peek()) && (fiber.Stack.Peek() is < 0 or >= 8 || !state.Records.Any(record => record.CharacterId == fiber.Stack.Peek())))
+        if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && (fiber.Stack.Peek() is < 0 or >= 8 || !state.Records.Any(record => record.CharacterId == fiber.Stack.Peek())))
         {
             return "ADDPARTY has no proved native saved character mapping for its original operand";
         }
@@ -38,7 +38,7 @@ public sealed partial class EventEngine
         {
             return "SETPARTY guest-character combat mapping requires its original saved-record identity contract";
         }
-        if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && Array.IndexOf(state.CombatParty, (byte)255) < 0)
+        if (operation.Opcode == Jsm.Opcode.ADDPARTY && fiber.Stack.Count > 0 && !Scene.Party.Contains(unchecked((byte)fiber.Stack.Peek())) && Scene.Party.Contains(255) && Array.IndexOf(state.CombatParty, (byte)255) < 0)
         {
             return "ADDPARTY has no original empty combat slot; native overflow branch is unsupported";
         }

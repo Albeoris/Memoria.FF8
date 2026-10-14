@@ -23,7 +23,7 @@ public sealed class RootTranslationContinuationTests
         Assert.Equal(225, world.Events.FieldId);
         Assert.Equal(2, world.Events.Frame);
         Assert.Null(world.Events.LastFault);
-        Assert.Equal(new[] { 0 }, world.Events.Scene.Party);
+        Assert.Equal(new[] { 0, 255, 255 }, world.Events.Scene.Party);
         var action = new PlayerAction(PlayerActionKind.Wait);
         Assert.True(world.Apply(action).Accepted);
         Assert.Null(world.Events.LastFault);

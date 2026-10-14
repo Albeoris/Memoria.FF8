@@ -39,7 +39,8 @@ internal sealed partial class GameWorld : IDisposable
         if (initializedNativeParty)
         {
             // Native470560 writes field-party DWORD1CFE990=FFFFFF00 after actual New Game.
-            Events.Scene.Party.Add(0);
+            Events.Scene.Party.Clear();
+            Events.Scene.Party.AddRange([0, 255, 255]);
             Events.Scene.Members.Add(0);
         }
         Events.MoviePlayback = () => clock.State;

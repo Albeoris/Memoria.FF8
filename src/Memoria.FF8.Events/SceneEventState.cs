@@ -172,7 +172,12 @@ public sealed class SceneEventState
     public float FadeOpacity { get; internal set; }
     public SortedSet<int> LockedTriangles { get; } = [];
     public SortedSet<int> Members { get; } = [];
-    public List<int> Party { get; } = [];
+    [JsonRequired]
+    [JsonInclude]
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Replace)]
+    public List<int> Party { get; internal set; } = [255, 255, 255];
+    [JsonIgnore]
+    public IEnumerable<int> ActiveParty => Party.Where(character => character != 255);
     public List<int> FieldPartyNativeActorIds { get; } = [];
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

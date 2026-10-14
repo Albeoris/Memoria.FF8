@@ -21,7 +21,7 @@ public sealed class FreshPartySplitTests
         Assert.True(begun.GetProperty("PartySplit").GetProperty("UsesNativeMovement").GetBoolean());
         Assert.Equal(2, begun.GetProperty("PartySplit").GetProperty("Targets").GetArrayLength());
         Assert.False(world.Events.IsUserControlEnabled);
-        Assert.Equal(new[] { 0, 5 }, world.Events.Scene.Party);
+        Assert.Equal(new[] { 0, 5, 255 }, world.Events.Scene.Party);
         using var restored = new GameWorld(new GameSession(state with { EventState = begun, Variables = new Dictionary<int, int>(state.Variables), NativeVariableValues = state.NativeVariableValues is null ? null : new Dictionary<int, NativeMemoryValue>(state.NativeVariableValues) }), directory, persistReplayJournal: false);
         restored.EnsureField();
         long firstFrame = world.Events.Frame;

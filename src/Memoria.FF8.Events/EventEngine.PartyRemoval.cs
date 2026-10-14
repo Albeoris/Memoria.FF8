@@ -8,17 +8,13 @@ public sealed partial class EventEngine
         {
             return "SUBPARTY requires its original character operand";
         }
-        if (Scene.Party.Count > 3 || Scene.Party.Any(character => character is < 0 or >= 255) || Scene.Party.Distinct().Count() != Scene.Party.Count)
+        if (!HasCanonicalPartySlots(Scene))
         {
-            return "SUBPARTY requires a known canonical character prefix followed by absent FF slots";
+            return "SUBPARTY requires the exact three native character slots";
         }
         int character = unchecked((byte)fiber.Stack.Peek());
         int slot = Scene.Party.IndexOf(character);
-        if (slot >= 0 && slot != Scene.Party.Count - 1)
-        {
-            return "SUBPARTY would leave an internal native FF slot; the canonical party representation cannot preserve that sparse slot without a raw-party contract";
-        }
-        if (slot >= 0 && character >= 8)
+        if (slot >= 0 && character is >= 8 and < 255)
         {
             return "SUBPARTY guest-character removal requires its original character-to-combat-slot contract";
         }
@@ -33,8 +29,8 @@ public sealed partial class EventEngine
         int slot = Scene.Party.IndexOf(character);
         if (slot >= 0)
         {
-            // 51E270 writes FF only to the matched field-party byte. A tail removal preserves our canonical prefix.
-            Scene.Party.RemoveAt(slot);
+            // 51E270 writes FF only to the matched field-party byte.
+            Scene.Party[slot] = 255;
         }
         // Native bindings, actor activity and Members remain unchanged until their own executed commands.
         // TODO(TD-009): exact junction/stat rebuilding remains deferred; authenticated combat slots and zero-HP/status repair are shared with DYING

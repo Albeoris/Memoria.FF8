@@ -30,12 +30,12 @@ public static class NormalCameraCertificate
         {
             throw new NotSupportedException("Normal camera tracking requires the current native loader, supported camera metadata and supported scroll state.");
         }
-        int[] partyActors = scene.FieldPartyNativeActorIds.TakeWhile(id => id != 255).ToArray();
-        if (scene.NativeActorLayoutVersion != 1 || scene.FieldPartyNativeActorIds.Count != 3 || partyActors.Length == 0 || partyActors.Distinct().Count() != partyActors.Length || scene.FieldPartyNativeActorIds.Skip(partyActors.Length).Any(id => id != 255) || partyActors.Any(id => (uint)id >= scene.NativeActorObjectIds.Count) || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count)
+        int[] partyActors = scene.FieldPartyNativeActorIds.Where(id => id != 255).ToArray();
+        if (scene.NativeActorLayoutVersion != 1 || scene.FieldPartyNativeActorIds.Count != 3 || scene.FieldPartyNativeActorIds[0] == 255 || partyActors.Distinct().Count() != partyActors.Length || partyActors.Any(id => (uint)id >= scene.NativeActorObjectIds.Count) || scene.NativeActorObjectIds.Count is < 1 or > 255 || scene.NativeActorObjectIds.Any(id => id < 0) || scene.NativeActorObjectIds.Distinct().Count() != scene.NativeActorObjectIds.Count)
         {
             throw new NotSupportedException("Normal camera tracking requires the original compact leader binding.");
         }
-        int leaderObjectId = scene.NativeActorObjectIds[partyActors[0]];
+        int leaderObjectId = scene.NativeActorObjectIds[scene.FieldPartyNativeActorIds[0]];
         ActorState[] matchingActors = actors.Where(actor => actor.ObjectId == leaderObjectId).ToArray();
         if (matchingActors.Length != 1 || matchingActors[0].CharacterId != 0 || (uint)matchingActors[0].ModelId >= field.Models.Count)
         {

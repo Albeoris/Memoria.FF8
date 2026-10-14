@@ -39,7 +39,7 @@ public sealed class PartyJoinCheckpointTests
                 Assert.Equal(first.Events.Capture().GetRawText(), resumed.Events.Capture().GetRawText());
             }
             Assert.NotNull(first.Events.Scene.PartyTrace);
-            Assert.Equal(new[] { 0, 5 }, first.Events.Scene.Party);
+            Assert.Equal(new[] { 0, 5, 255 }, first.Events.Scene.Party);
             Assert.Null(first.Events.LastFault);
             Assert.Equal(139, firstSession.State.FieldId);
         }

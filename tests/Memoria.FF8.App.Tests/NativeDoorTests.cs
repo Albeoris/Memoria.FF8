@@ -35,7 +35,7 @@ public sealed class NativeDoorTests
         AdvanceToCorner(world);
         Assert.Equal((2, 74L), (world.Events.Scene.NativeDoorDriverVersion, world.Events.Frame));
         Assert.Equal("Cecilia", world.Events.Scene.Names[0]);
-        Assert.Equal([0, 3], world.Events.Scene.Party);
+        Assert.Equal([0, 3, 255], world.Events.Scene.Party);
         foreach (var (horizontal, vertical) in RetainedCornerInputs.Take(7))
         {
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical)).Accepted);

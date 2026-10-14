@@ -458,7 +458,6 @@ public sealed partial class EventEngine
                 return "Unsupported ACTORMODE 3 requires proved additional-control metadata without descendant bone transforms";
             }
         }
-        int partySlotCount = Scene.FieldPartyNativeActorIds.Count == 3 ? 3 : Scene.Party.Count;
         if (operation.Opcode is not (Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW))
         {
             return null;
@@ -467,12 +466,8 @@ public sealed partial class EventEngine
         {
             return $"Unsupported {operation.Opcode} party slot, priority or operand stack is outside the native request bounds";
         }
-        if (operation.Parameter >= partySlotCount)
-        {
-            return null;
-        }
         int priority = fiber.Stack.Skip(1).First();
-        ActorState? target = ResolvePartyActor(operation.Parameter);
+        ActorState? target = ResolveJoinPartyActor(operation.Parameter);
         if (target is not null && !target.Active)
         {
             return $"Unsupported {operation.Opcode} refreshed inactive party actor requires further native execution evidence";
@@ -485,11 +480,8 @@ public sealed partial class EventEngine
         {
             return $"Unsupported {operation.Opcode} targets an unknown original party actor local script index";
         }
-        if (operation.Opcode == Jsm.Opcode.PREQSW && (priority == 0 || target.MovementTarget is not null || target.MovementActorId is not null))
-        {
-            return "Unsupported PREQSW requires an idle native target and a request above its default priority0";
-        }
-        return fibers.Any(request => request.ObjectId == target.ObjectId && !request.Complete) && !CanPreemptNativeHalt(target) ? $"Unsupported {operation.Opcode} competing-priority preemption requires native movement/operand suspension support" : null;
+        int partyScriptId = program.Objects[target.ObjectId].Scripts[fiber.Stack.Peek()].Id;
+        return UnsupportedNativeMovementRequest(target, priority, partyScriptId);
     }
 
     private void SampleMoviePlayback()

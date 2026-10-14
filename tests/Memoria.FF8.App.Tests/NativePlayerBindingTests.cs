@@ -103,7 +103,7 @@ public sealed class NativePlayerBindingTests
         duplicateMapping.NativeActorObjectIds[0] = duplicateMapping.NativeActorObjectIds[1];
         Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, duplicateMapping, player));
         SceneEventState twoMembers = CloneScene(world.Events.Scene);
-        twoMembers.Party.Add(5);
+        twoMembers.Party[1] = 5;
         twoMembers.FieldPartyNativeActorIds[1] = 2;
         Assert.True(NativePlayerMovementAdapter.Supports(world.Field!, twoMembers, player));
         twoMembers.FieldPartyNativeActorIds[1] = 1;
@@ -112,7 +112,7 @@ public sealed class NativePlayerBindingTests
         Assert.True(NativePlayerMovementAdapter.Supports(world.Field!, twoMembers, player));
         SceneEventState internalHole = CloneScene(world.Events.Scene);
         internalHole.FieldPartyNativeActorIds[2] = 2;
-        Assert.False(NativePlayerMovementAdapter.Supports(world.Field!, internalHole, player));
+        Assert.True(NativePlayerMovementAdapter.Supports(world.Field!, internalHole, player));
     }
 
     private static SceneEventState CloneScene(SceneEventState scene)

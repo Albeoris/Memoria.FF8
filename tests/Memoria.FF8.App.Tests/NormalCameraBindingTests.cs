@@ -41,8 +41,11 @@ public sealed class NormalCameraBindingTests
         Refuses([-1, 255, 255]);
         Refuses([8, 255, 255]);
         Refuses([1, 1, 255]);
-        Refuses([1, 255, 2]);
+        Refuses([1, 2, 2]);
         Refuses([1, 255]);
+        SceneEventState sparse = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(world.Events.Scene))!;
+        sparse.FieldPartyNativeActorIds[2] = 2;
+        Assert.NotNull(NormalCameraCertificate.Prepare(world.Field!, sparse, world.Events.Actors));
         ActorState unmodeled = JsonSerializer.Deserialize<ActorState>(JsonSerializer.SerializeToElement(leader).GetRawText().Replace("\"ModelId\":1", "\"ModelId\":-1"))!;
         Assert.Throws<NotSupportedException>(() => NormalCameraCertificate.Prepare(world.Field!, world.Events.Scene, world.Events.Actors.Where(actor => actor.ObjectId != 2).Append(unmodeled).ToArray()));
         Assert.Throws<NotSupportedException>(() => NormalCameraCertificate.Prepare(world.Field!, world.Events.Scene, world.Events.Actors.Where(actor => actor.ObjectId != 2).ToArray()));

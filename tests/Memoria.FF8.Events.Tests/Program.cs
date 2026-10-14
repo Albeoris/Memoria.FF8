@@ -42,7 +42,7 @@ internal static partial class Program
                     ["native-player-contacts"] = () => NativePlayerGroundContactContract(selectedGameDirectory),
                     ["world-transition"] = NativeWorldTransitionTransaction,
                     ["minimal-menu"] = MinimalMenuCompletionContract,
-                    ["party-query"] = NativePartyQueryContract,
+                    ["party-query"] = () => NativePartyQueryContract(selectedGameDirectory),
                     ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
                     ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
@@ -143,7 +143,7 @@ internal static partial class Program
             NativePlayerGroundContactContract(gameDirectory);
             NativeWorldTransitionTransaction();
             MinimalMenuCompletionContract();
-            NativePartyQueryContract();
+            NativePartyQueryContract(gameDirectory);
             NativeRootTranslationAndBoundary(gameDirectory);
             NativePlayerAcceptedRetryContract(gameDirectory);
             NativeBackgroundClearContract(gameDirectory);

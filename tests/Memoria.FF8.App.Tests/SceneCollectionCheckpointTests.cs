@@ -18,7 +18,8 @@ public sealed class SceneCollectionCheckpointTests
             bitmap.Add(7);
             bitmap.Add(2);
         }
-        original.Party.AddRange([5, 0, 1]);
+        original.Party.Clear();
+        original.Party.AddRange([5, 255, 1]);
         string captured = JsonSerializer.Serialize(original);
         SceneEventState restored = JsonSerializer.Deserialize<SceneEventState>(captured)!;
         Assert.Equal(captured, JsonSerializer.Serialize(restored));
@@ -26,7 +27,8 @@ public sealed class SceneCollectionCheckpointTests
         {
             Assert.Equal(new[] { 1, 2, 5, 7 }, bitmap);
         }
-        Assert.Equal(new[] { 5, 0, 1 }, restored.Party);
+        Assert.Equal(new[] { 5, 255, 1 }, restored.Party);
+        Assert.Equal(new[] { 5, 1 }, restored.ActiveParty);
         restored.LockedTriangles.Remove(5);
         restored.LockedTriangles.Add(5);
         Assert.Equal(captured, JsonSerializer.Serialize(restored));
