@@ -235,6 +235,10 @@ internal sealed class RecreateGame : Game
                 fieldRenderFaulted = false;
                 Console.WriteLine($"loaded={field!.Id}:{field.Name} models={field.Models.Count} tiles={field.Background.Count}");
             }
+            if (!options.ControlStep && (events!.Scene.ButtonInput?.PhysicalHeld ?? 0) != keyboard.HeldFieldButtons)
+            {
+                world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, keyboard.HeldFieldButtons));
+            }
             DialogueState? dialogue = events!.CurrentDialogue;
             if (dialogue != presentedDialogue)
             {

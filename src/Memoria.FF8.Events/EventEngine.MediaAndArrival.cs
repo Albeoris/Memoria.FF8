@@ -39,7 +39,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.SHADELEVEL or Jsm.Opcode.SHADEFORM or Jsm.Opcode.SHADESET or Jsm.Opcode.DOFFSET or Jsm.Opcode.BASEANIME or Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIME or
             Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or
             Jsm.Opcode.RCANIMELOOP or Jsm.Opcode.ANIMESPEED or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.ANIMESTOP or Jsm.Opcode.WAIT or Jsm.Opcode.LOADSYNC or
-            Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.MENUENABLE or Jsm.Opcode.MENUDISABLE or Jsm.Opcode.MENUTIPS or Jsm.Opcode.TUTO or Jsm.Opcode.RUNENABLE or Jsm.Opcode.RUNDISABLE or
+            Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.MENUENABLE or Jsm.Opcode.MENUDISABLE or Jsm.Opcode.MENUTIPS or Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO or Jsm.Opcode.RUNENABLE or Jsm.Opcode.RUNDISABLE or
             Jsm.Opcode.MOVIEREADY or Jsm.Opcode.MOVIE or Jsm.Opcode.MOVIESYNC or Jsm.Opcode.PREMAPJUMP2 or Jsm.Opcode.MAPJUMPO or
             Jsm.Opcode.IDLOCK or Jsm.Opcode.IDUNLOCK or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.AXIS or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or
             Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.WINSIZE or Jsm.Opcode.MESSYNC or Jsm.Opcode.MENUNAME or Jsm.Opcode.MESMODE or
@@ -50,8 +50,8 @@ public sealed partial class EventEngine
             Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.FOOTSTEP or Jsm.Opcode.FOOTSTEPCOPY or Jsm.Opcode.FOOTSTEPCUT or Jsm.Opcode.FOOTSTEPOFFALL or Jsm.Opcode.SETLINE or
             Jsm.Opcode.LINEON or Jsm.Opcode.LINEOFF or Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.DOORLINEON or Jsm.Opcode.PREMAPJUMP or Jsm.Opcode.BATTLEOFF or Jsm.Opcode.BATTLEON or Jsm.Opcode.SARALYOFF or
             Jsm.Opcode.SARALYON or Jsm.Opcode.SETPLACE or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or
-            Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.FOLLOWON or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.SEVOL or Jsm.Opcode.KEYON or Jsm.Opcode.RESETGF or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
-            Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE or Jsm.Opcode.ALLSEVOLTRANS or Jsm.Opcode.ALLSEVOL or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.LSCROLL or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
+            Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.FOLLOWON or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.SEVOL or Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.RESETGF or Jsm.Opcode.DYING or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
+            Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE or Jsm.Opcode.ALLSEVOLTRANS or Jsm.Opcode.ALLSEVOL or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.LSCROLL2 or Jsm.Opcode.LSCROLL or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.COFFSET or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
         _ => false
     };
 
@@ -158,7 +158,7 @@ public sealed partial class EventEngine
         {
             return "MAPJUMPO requires its original field and triangle WORD operands; PC and operands preserved";
         }
-        string? keyOn = UnsupportedKeyOn(fiber, operation);
+        string? keyOn = UnsupportedButtonQuery(fiber, operation);
         if (keyOn is not null)
         {
             return keyOn;
@@ -356,6 +356,10 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.LSCROLL3)
         {
             return UnsupportedLinearBackgroundScroll(fiber);
+        }
+        if (operation.Opcode == Jsm.Opcode.LSCROLL2)
+        {
+            return UnsupportedLinearBackgroundScroll2(fiber);
         }
         if (operation.Opcode == Jsm.Opcode.LSCROLL)
         {
