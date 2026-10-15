@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class SemanticSpatialRecreationTests
 {
     [Fact]
-    public void Actual_129_prefix_completes_spatial_commands_and_join_before_departing_to_131()
+    public void Actual_prefix_completes_129_join_and_131_delayed_story_before_arriving_at_132()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         string sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_LEGACY_SPATIAL_SOURCE") ?? Path.Combine("../fixtures/external-fixture.json");
@@ -20,10 +20,13 @@ public sealed class SemanticSpatialRecreationTests
         ReplayJournalEntry[] inputs = original.GetCommittedPrefix().Entries.ToArray();
         int arrival = Array.FindIndex(inputs, input => input.Kind == ReplayEntryKind.FieldLoad && input.FieldId == 129);
         Assert.True(arrival >= 0);
-        int departure = Array.FindIndex(inputs, arrival + 1, input => input.Kind == ReplayEntryKind.FieldLoad);
-        Assert.True(departure > arrival);
-        Assert.Equal(131, inputs[departure].FieldId);
-        Assert.Contains(inputs.Skip(arrival).Take(departure - arrival), input => input.Kind == ReplayEntryKind.Action && input.Code == (int)PlayerActionKind.Interact && input.Value == 9 && input.Accepted);
+        int joinDeparture = Array.FindIndex(inputs, arrival + 1, input => input.Kind == ReplayEntryKind.FieldLoad);
+        Assert.True(joinDeparture > arrival);
+        Assert.Equal(131, inputs[joinDeparture].FieldId);
+        int departure = Array.FindIndex(inputs, joinDeparture + 1, input => input.Kind == ReplayEntryKind.FieldLoad);
+        Assert.True(departure > joinDeparture);
+        Assert.Equal(132, inputs[departure].FieldId);
+        Assert.Contains(inputs.Skip(arrival).Take(joinDeparture - arrival), input => input.Kind == ReplayEntryKind.Action && input.Code == (int)PlayerActionKind.Interact && input.Value == 9 && input.Accepted);
 
         using JsonDocument document = JsonDocument.Parse(File.ReadAllBytes(sourcePath));
         JsonElement capsule = document.RootElement.GetProperty("ReplayJournal");
@@ -54,9 +57,10 @@ public sealed class SemanticSpatialRecreationTests
         MovieClock clock = new(cold, directory);
         Assert.SkipUnless(File.Exists(Path.Combine(clock.ToolsDirectory, "ffmpeg.exe")) && File.Exists(Path.Combine(clock.ToolsDirectory, "ffprobe.exe")), "The authentic movie decoder tools are required.");
         //Only an unchanged authentic input prefix is supplied; no source snapshot pose, follower trace or story values seed reconstruction.
-        GameState rebuilt = GameWorld.RecreateSave(new GameState { Scene = SceneKind.Field, FieldId = 131, ReplayJournal = prefix }, directory, clock.ToolsDirectory);
+        GameState rebuilt = GameWorld.RecreateSave(new GameState { Scene = SceneKind.Field, FieldId = 132, ReplayJournal = prefix }, directory, clock.ToolsDirectory);
         Assert.Equal(SceneKind.Field, rebuilt.Scene);
-        Assert.Equal(131, rebuilt.FieldId);
+        Assert.Equal(132, rebuilt.FieldId);
+        Assert.Equal(22, rebuilt.Variables.GetValueOrDefault(256));
         Assert.True(rebuilt.ReplayJournal!.IsComplete);
         Assert.NotEqual(prefix.SessionId, rebuilt.ReplayJournal.SessionId);
         ReplayCompletedVisit current = rebuilt.ReplayJournal.CompletedVisits.Single(visit => visit.FieldId == 129);
@@ -70,6 +74,10 @@ public sealed class SemanticSpatialRecreationTests
         Assert.Equal(current.EntryFieldLoad.Text, currentExit.ExecutableHash);
         Assert.Single(current.Intents, intent => intent.SemanticTrigger is { Kind: ReplaySemanticTriggerKind.ActorInteraction, ObjectId: 9 });
         Assert.DoesNotContain(current.Intents, intent => intent.Kind == ReplayEntryKind.Action && intent.Code == (int)PlayerActionKind.Move);
+        ReplayCompletedVisit delayedDefault = rebuilt.ReplayJournal.CompletedVisits.Single(visit => visit.FieldId == 131);
+        Assert.Equal(SceneKind.Field, delayedDefault.Exit.Scene);
+        Assert.Equal(132, delayedDefault.Exit.FieldId);
+        Assert.Contains(delayedDefault.Intents, intent => intent.Kind == ReplayEntryKind.ScriptGoal && intent.ScriptGoal is { FieldId: 131, ObjectId: 9, ScriptId: 37, Operation: 233, Code: 13, Inferred: false });
         Assert.NotNull(rebuilt.EventState);
         Assert.Equal(JsonValueKind.Null, rebuilt.EventState.Value.GetProperty("PartyJoin").ValueKind);
         Assert.Equal(JsonValueKind.Null, rebuilt.EventState.Value.GetProperty("LastFault").ValueKind);
@@ -77,6 +85,7 @@ public sealed class SemanticSpatialRecreationTests
         GameState repeated = GameWorld.RecreateSave(rebuilt, directory, clock.ToolsDirectory);
         Assert.Equal(rebuilt.Scene, repeated.Scene);
         Assert.Equal(rebuilt.FieldId, repeated.FieldId);
+        Assert.Equal(22, repeated.Variables.GetValueOrDefault(256));
         Assert.True(repeated.ReplayJournal!.IsComplete);
         Assert.Equal(rebuilt.Variables.Where(pair => pair.Key is >= 256 and < 1024).OrderBy(pair => pair.Key).ToArray(), repeated.Variables.Where(pair => pair.Key is >= 256 and < 1024).OrderBy(pair => pair.Key).ToArray());
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(rebuilt.CharacterVitals), JsonSerializer.SerializeToElement(repeated.CharacterVitals)));

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -62,6 +63,7 @@ internal sealed partial class GameWorld
         private readonly GameSession session;
         private readonly string gameDirectory;
         private readonly HashSet<(int ObjectId, int ScriptId)> knownProducers = [];
+        private readonly HashSet<(int ObjectId, int ScriptId, int Operation)> knownSites = [];
         private readonly List<ReplaySemanticTrigger> admissions = [];
         private readonly HashSet<int> consumedAdmissions = [];
         private readonly List<ReplayReceipt> receipts = [];
@@ -71,13 +73,19 @@ internal sealed partial class GameWorld
         private int movieCallbackFrame = -1;
         private bool inferredVisit;
         private ReplayCompletedVisit? currentVisit;
+        private JsmProgram? currentProgram;
+        private ushort deferredLegacyPulse;
 
         public SemanticRecreation(GameWorld world, GameSession session, string gameDirectory)
         {
             this.world = world;
             this.session = session;
             this.gameDirectory = gameDirectory;
-            world.Events.CommandExecuted += command => knownProducers.Add((command.ObjectId, command.ScriptId));
+            world.Events.CommandExecuted += command =>
+            {
+                knownProducers.Add((command.ObjectId, command.ScriptId));
+                knownSites.Add((command.ObjectId, command.ScriptId, command.Operation));
+            };
             world.Events.SemanticTriggerAdmitted += trigger => admissions.Add(trigger);
             world.Events.CausalReceiptRecorded += receipt =>
             {
@@ -85,6 +93,7 @@ internal sealed partial class GameWorld
                 if (receipt.Kind is ReplayReceiptKind.Command or ReplayReceiptKind.InputSample or ReplayReceiptKind.NativeTraversal)
                 {
                     knownProducers.Add((receipt.ObjectId, receipt.ScriptId));
+                    knownSites.Add((receipt.ObjectId, receipt.ScriptId, receipt.Operation));
                 }
             };
         }
@@ -96,6 +105,8 @@ internal sealed partial class GameWorld
             inferredVisit = visit.Inferred;
             admissions.Clear();
             knownProducers.Clear();
+            knownSites.Clear();
+            deferredLegacyPulse = 0;
             consumedAdmissions.Clear();
             receipts.Clear();
             consumedReceipts.Clear();
@@ -179,6 +190,7 @@ internal sealed partial class GameWorld
                 {
                     admissions.Clear();
                     knownProducers.Clear();
+                    knownSites.Clear();
                     consumedAdmissions.Clear();
                     receipts.Clear();
                     consumedReceipts.Clear();
@@ -194,6 +206,7 @@ internal sealed partial class GameWorld
 
         private void EnsureAllocation(ReplayJournalEntry? allocation, SceneKind scene, int fieldId)
         {
+            currentProgram = null;
             world.EnsureField();
             if (session.State.FieldId != fieldId || session.State.Scene != scene && !(scene == SceneKind.Field && session.State.Scene == SceneKind.Movie))
             {
@@ -209,6 +222,11 @@ internal sealed partial class GameWorld
             else if (allocation is not null && (world.Field is null || allocation.NativeSourceHash != Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(world.Field.Jsm)) || allocation.Text != world.assets.NativeExecutableHash))
             {
                 throw new InvalidDataException("Semantic allocation original script or executable identity changed.");
+            }
+            if (world.Events.IsSemanticSpatialReplay)
+            {
+                world.Events.Step();
+                world.PublishReplayDeparture();
             }
         }
 
@@ -315,6 +333,10 @@ internal sealed partial class GameWorld
             {
                 ApplyDecision(entry, kind);
             }
+            else if (kind == PlayerActionKind.Confirm && entry.MessageId is null && inferredVisit && !physicalTail)
+            {
+                deferredLegacyPulse |= 0x40;
+            }
             else if (entry.Kind == ReplayEntryKind.WorldAction)
             {
                 world.Apply(new PlayerAction(kind, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames, entry.Quantity, entry.CameraHorizontal));
@@ -367,7 +389,12 @@ internal sealed partial class GameWorld
 
         private void ApplyDecision(ReplayJournalEntry entry, PlayerActionKind kind)
         {
+            if (inferredVisit && entry.ObjectId is int objectId && entry.ScriptId is int scriptId && entry.Operation is int operation && !MatchesDecision(entry))
+            {
+                ReachProducer(world.Events.GetSemanticProducerGoal(objectId, scriptId, operation));
+            }
             Seek(() => MatchesDecision(entry), "recorded decision");
+            deferredLegacyPulse = 0;
             if (entry.Kind != ReplayEntryKind.WorldAction)
             {
                 ValidateDialogueSite(world.Events, entry);
@@ -385,7 +412,7 @@ internal sealed partial class GameWorld
             return dialogue is { CanConfirm: true } && dialogue.MessageId == entry.MessageId && dialogue.Operation == entry.Operation && (entry.Kind == ReplayEntryKind.WorldAction || dialogue.ObjectId == entry.ObjectId && dialogue.ScriptId == entry.ScriptId);
         }
 
-        private void Admit(ReplaySemanticTrigger trigger)
+        private void Admit(ReplaySemanticTrigger trigger, bool producerHint = false)
         {
             for (int index = 0; index < admissions.Count; index++)
             {
@@ -396,8 +423,12 @@ internal sealed partial class GameWorld
                 }
             }
             ReplaySemanticTrigger[] precedingEvents = admissions.Where(admission => admission.ObjectId != trigger.ObjectId && admission.Kind is ReplaySemanticTriggerKind.ActorInteraction or ReplaySemanticTriggerKind.DoorEntry or ReplaySemanticTriggerKind.DoorAction).ToArray();
-            Seek(() => precedingEvents.All(admission => !world.Events.IsSemanticAdmissionPending(admission)), "preceding native event completion");
-            Seek(() => world.Events.CanAdmitSemanticInput, "semantic native admission");
+            Seek(() => precedingEvents.All(admission => !world.Events.IsSemanticAdmissionPending(admission)) || producerHint && HasExternalDecisionBoundary(), "preceding native event completion");
+            Seek(() => world.Events.CanAdmitSemanticInput || producerHint && HasExternalDecisionBoundary(), "semantic native admission");
+            if (producerHint && HasExternalDecisionBoundary())
+            {
+                return;
+            }
             PlayerActionResult result = world.Events.ApplySemanticTrigger(trigger);
             if (!result.Accepted)
             {
@@ -418,9 +449,18 @@ internal sealed partial class GameWorld
 
         private void ReachProducer(ReplayScriptGoal goal)
         {
+            if (HasExternalDecisionBoundary())
+            {
+                return;
+            }
+            if (knownSites.Contains((goal.ObjectId, goal.ScriptId, goal.Operation)))
+            {
+                return;
+            }
             bool pending = world.Events.IsSemanticProducerPending(goal);
             if (knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || pending)
             {
+                DrainProducer(goal);
                 return;
             }
             ReplaySemanticTrigger[] targets = world.Events.GetSemanticProducerCandidates(goal).ToArray();
@@ -428,16 +468,19 @@ internal sealed partial class GameWorld
             {
                 if (world.Events.IsAutonomousSemanticProducer(goal))
                 {
+                    DrainProducer(goal);
                     return;
                 }
                 Seek(() => knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || world.Events.IsSemanticProducerPending(goal) || (targets = world.Events.GetSemanticProducerCandidates(goal).ToArray()).Length > 0 || world.Events.IsAutonomousSemanticProducer(goal), $"current producer admission {goal.FieldId}/{goal.ObjectId}/{goal.ScriptId}");
                 if (knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || world.Events.IsSemanticProducerPending(goal) || targets.Length == 0 && world.Events.IsAutonomousSemanticProducer(goal))
                 {
+                    DrainProducer(goal);
                     return;
                 }
             }
             if (targets.Any(target => admissions.Any(admission => SameAdmission(target, admission))))
             {
+                DrainProducer(goal);
                 return;
             }
             if (targets.Length > 1)
@@ -446,9 +489,46 @@ internal sealed partial class GameWorld
             }
             if (targets.Length == 1)
             {
-                Admit(targets[0]);
+                Admit(targets[0], producerHint: true);
+                DrainProducer(goal, targets[0]);
                 return;
             }
+        }
+
+        private void DrainProducer(ReplayScriptGoal goal, ReplaySemanticTrigger? admission = null)
+        {
+            ApplyDeferredLegacyPulse(goal);
+            ReplayScriptGoal? root = null;
+            if (admission is not null && world.Field is not null)
+            {
+                currentProgram ??= JsmProgram.Read(world.Field.Jsm);
+                EventScript script = currentProgram.Objects[admission.ObjectId].Scripts.Single(script => script.Id == admission.ScriptId);
+                root = world.Events.GetSemanticProducerGoal(admission.ObjectId, admission.ScriptId, script.Start);
+            }
+            Seek(() => knownSites.Contains((goal.ObjectId, goal.ScriptId, goal.Operation)) || !world.Events.HasSemanticProducerWork(goal) && (root is null || !world.Events.HasSemanticProducerWork(root)) || HasExternalDecisionBoundary(), "current semantic producer work");
+        }
+
+        private bool HasExternalDecisionBoundary()
+        {
+            return session.IsMoviePlaying || world.Events.PartyMenu is not null || world.Events.PendingInteractiveBattle is not null || world.CurrentDialogue is { FirstChoice: not null } or { IsNamePrompt: true };
+        }
+
+        private void ApplyDeferredLegacyPulse(ReplayScriptGoal goal)
+        {
+            if (deferredLegacyPulse == 0 || world.CurrentDialogue is not null || !world.Events.IsSemanticProducerPending(goal) || world.Field is null)
+            {
+                return;
+            }
+            currentProgram ??= JsmProgram.Read(world.Field.Jsm);
+            EventScript script = currentProgram.Objects[goal.ObjectId].Scripts.Single(script => script.Id == goal.ScriptId);
+            JsmOperation[] consumers = currentProgram.Operations.Skip(script.Start).Take(goal.Operation - script.Start).Where(operation => operation.Opcode is Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2).ToArray();
+            if (consumers.Length != 1)
+            {
+                return;
+            }
+            ReplayScriptGoal consumer = world.Events.GetSemanticProducerGoal(goal.ObjectId, goal.ScriptId, consumers[0].Index);
+            world.Events.QueueSemanticInputPulse(consumer, deferredLegacyPulse);
+            deferredLegacyPulse = 0;
         }
 
         private void SampleInput(ReplayJournalEntry entry)

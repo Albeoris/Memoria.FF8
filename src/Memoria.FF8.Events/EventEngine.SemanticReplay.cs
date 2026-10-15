@@ -1,4 +1,4 @@
-using Memoria.FF8.Runtime;
+﻿using Memoria.FF8.Runtime;
 using Albeoris.Games.FF8.Jsm;
 
 namespace Memoria.FF8.Events;
@@ -441,7 +441,7 @@ public sealed partial class EventEngine
 
     private bool CanAdmitSemanticTrigger()
     {
-        return program is not null && defaultsStarted && NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeFieldLoadVersion == 1 && !transitionRequested && LastFault is null && IsUserControlEnabled && !services.IsMoviePlaying && PartyMenu is null && PendingInteractiveBattle is null && CurrentDialogue is null && PlayerActor is { Active: true, Visible: true };
+        return program is not null && defaultsStarted && AreSelectedFieldScriptsStarted() && NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeFieldLoadVersion == 1 && !transitionRequested && LastFault is null && IsUserControlEnabled && !services.IsMoviePlaying && PartyMenu is null && PendingInteractiveBattle is null && CurrentDialogue is null && PlayerActor is { Active: true, Visible: true };
     }
 
     private void ValidateSemanticProducer(ReplaySemanticTrigger trigger)

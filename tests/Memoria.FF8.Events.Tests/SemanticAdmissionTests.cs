@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
@@ -67,6 +67,9 @@ internal static partial class Program
             byte[] content = SyntheticObjects(groups, scripts);
             LoadSemanticFixtureField(engine, session, content);
             Require(engine.Scene.NativeActorLayoutVersion == 1 && engine.Scene.NativeFieldLoadVersion == 1, "Semantic fixture did not execute the original New Game party loader.");
+            Require(!engine.CanAdmitSemanticInput, "Serial initialization admitted semantic input before queued current defaults received a scheduler turn.");
+            engine.Step();
+            Require(engine.CanAdmitSemanticInput, "Current halted defaults did not release semantic admission after their actual scheduler turn.");
             return (engine, session, JsmProgram.Read(content));
         }
 
@@ -129,9 +132,12 @@ internal static partial class Program
         ReplaySemanticTrigger chainIdentity = chain.Engine.GetSemanticTriggerCandidates().Single(candidate => candidate.ObjectId == 1 && candidate.ScriptId == 18);
         ReplayScriptGoal goal = new(600, chainIdentity.ProgramHash, chainIdentity.ExecutableHash, 2, 36, leaf.Start + 2, (int)Jsm.Opcode.POPM_B, Inferred: true);
         JsonElement beforeChainQuery = chain.Engine.Capture();
+        Require(chain.Engine.GetSemanticProducerGoal(2, 36, leaf.Start + 2) == goal && !chain.Engine.HasSemanticProducerWork(goal), "Current producer-site metadata or halted-work observation fabricated a pending branch.");
         ReplaySemanticTrigger[] roots = chain.Engine.GetSemanticProducerCandidates(goal).ToArray();
         Require(roots is [{ Kind: ReplaySemanticTriggerKind.ActorInteraction, ScriptId: 18, Inferred: true }] && !chain.Engine.IsAutonomousSemanticProducer(goal) && JsonElement.DeepEquals(beforeChainQuery, chain.Engine.Capture()) && !chain.Session.State.Variables.ContainsKey(5003), "Reverse literal native request discovery lost a unique external cause, operand narrowing or query purity.");
         Require(chain.Engine.ApplySemanticTrigger(roots[0]).Accepted, "Inferred request-chain root was not admitted through its ordinary current event dispatcher.");
+        ReplayScriptGoal admittedRoot = chain.Engine.GetSemanticProducerGoal(1, 18, chain.Program.Objects[1].Scripts.Single(script => script.Id == 18).Start + 1);
+        Require(!chain.Engine.HasSemanticProducerWork(goal) && chain.Engine.HasSemanticProducerWork(admittedRoot), "Current work observation confused static potential ancestry with an actual pending producer.");
         for (int callback = 0; callback < 20 && !chain.Session.State.Variables.ContainsKey(5003); callback++)
         {
             chain.Engine.Step();

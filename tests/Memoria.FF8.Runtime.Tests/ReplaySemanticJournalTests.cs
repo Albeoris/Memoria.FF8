@@ -86,6 +86,43 @@ public sealed class ReplaySemanticJournalTests
     }
 
     [Fact]
+    public void Legacy_unbound_confirm_is_retained_as_inferred_input_while_unevidenced_current_confirm_is_omitted()
+    {
+        //Literal shape of accepted source input17140, which preceded the original field240 uniform menu.
+        ReplayJournalEntry confirm = JsonSerializer.Deserialize<ReplayJournalEntry>("""
+            {"Kind":3,"Scene":1,"FieldId":240,"Frame":36,"Advanced":1,"ResultScene":1,"ResultFieldId":240,"ResultFrame":37,"Trigger":5,"ResultTrigger":1,"Receipts":[{"Kind":3,"FieldId":240,"Frame":37,"ObjectId":-1,"ScriptId":-1,"Operation":-1,"Code":1,"Value":-1,"Text":null,"Arguments":null}]}
+            """)!;
+        Assert.True(confirm.Accepted);
+        Assert.Equal(0, confirm.Code);
+        Assert.Null(confirm.MessageId);
+        Assert.DoesNotContain(confirm.Receipts, receipt => receipt.Kind == ReplayReceiptKind.InputSample);
+        ReplayJournalEntry rejected = confirm with { Accepted = false };
+        ReplayJournalEntry activeConfirm = confirm with { FieldId = 237, Frame = 0, Receipts = [] };
+        ReplayJournal legacy = ReadLegacy([Load(240), confirm, rejected, Load(237), activeConfirm]);
+        string original = JsonSerializer.Serialize(legacy);
+        ReplayJournal projection = legacy.GetSemanticProjection();
+        ReplayCompletedVisit visit = Assert.Single(projection.CompletedVisits);
+        Assert.True(visit.Inferred);
+        ReplayJournalEntry retained = Assert.Single(visit.Intents);
+        Assert.Equal(ReplayEntryKind.Action, retained.Kind);
+        Assert.Equal(0, retained.Code);
+        Assert.Null(retained.MessageId);
+        Assert.Null(retained.SemanticTrigger);
+        Assert.Equal(0, retained.Advanced);
+        Assert.Equal(1, retained.Frames);
+        Assert.Equal(JsonSerializer.Serialize(activeConfirm), JsonSerializer.Serialize(projection.ActiveEntries[^1]));
+        Assert.Equal(original, JsonSerializer.Serialize(legacy));
+
+        GameSession current = Start();
+        current.AppendReplayEntry(Load(240));
+        current.AppendReplayEntry(confirm);
+        current.AppendReplayEntry(rejected);
+        current.AppendReplayEntry(Load(237));
+        Assert.False(Assert.Single(current.ReplayJournal!.CompletedVisits).Inferred);
+        Assert.Empty(current.ReplayJournal.CompletedVisits[0].Intents);
+    }
+
+    [Fact]
     public void Input_projection_keeps_fresh_mapped_pulse_and_one_release_but_omits_idle_zero_polls()
     {
         GameSession session = Start();

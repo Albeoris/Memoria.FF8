@@ -1,10 +1,34 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    /// <summary>Current unfinished work for this exact producer, excluding intentionally halted contexts.</summary>
+    public bool HasSemanticProducerWork(ReplayScriptGoal goal)
+    {
+        ValidateSemanticScriptGoal(goal);
+        return fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.ObjectId == goal.ObjectId && fiber.Script.Id == goal.ScriptId && !IsSemanticSpatialObserver(fiber, goal));
+    }
+
+    /// <summary>Builds inferred metadata for an exact current declared site without dispatching or advancing it.</summary>
+    public ReplayScriptGoal GetSemanticProducerGoal(int objectId, int scriptId, int operation)
+    {
+        if (program is null || NativeRuntimeProfile is not { IsVerified: true } profile || (uint)objectId >= program.Objects.Count)
+        {
+            throw new InvalidDataException("Semantic producer metadata requires its current verified field program and object.");
+        }
+        EventScript? script = program.Objects[objectId].Scripts.SingleOrDefault(script => script.Id == scriptId);
+        if (script is null || operation < script.Start || operation >= script.End)
+        {
+            throw new InvalidDataException("Semantic producer metadata requires an exact site in its current declared script.");
+        }
+        ReplayScriptGoal goal = new(FieldId, programHash, profile.ExecutableHash, objectId, scriptId, operation, (int)program.Operations[operation].Opcode, Inferred: true);
+        ValidateSemanticScriptGoal(goal);
+        return goal;
+    }
+
     /// <summary>Whether this admitted producer still owns pending entry work or an unfinished native request slot. It does not dispatch or advance that work.</summary>
     public bool IsSemanticAdmissionPending(ReplaySemanticTrigger trigger)
     {

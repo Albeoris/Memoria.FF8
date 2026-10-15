@@ -220,6 +220,12 @@ public sealed partial class ReplayJournal
             //intent is retained under the visit's inferred provenance, without cadence.
             return inferred;
         }
+        if (inferred && entry.Code == 0 && entry.MessageId is null)
+        {
+            //Version1 did not record every native KEY poll or direct contact admission.
+            //Keep the accepted explicit Confirm as inferred input; current consumers decide its effect.
+            return true;
+        }
         if (entry.Code != 0 || entry.MessageId is not null || entry.Trigger is 2 or 8 or 9 || entry.Receipts.Any(receipt => receipt.Kind is ReplayReceiptKind.Command or ReplayReceiptKind.Dialogue or ReplayReceiptKind.PersistentEffect))
         {
             return true;
