@@ -193,11 +193,7 @@ internal sealed partial class WorldMapScene
             {
                 continue;
             }
-            if (item.Roll != 0)
-            {
-                throw new NotSupportedException("Visible normal world allocation requires an unimplemented nonzero native roll transform.");
-            }
-            NativeWorldPathAngles angles = new(0, unchecked((short)item.PackedOrientation), item.Roll);
+            NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item);
             models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
         }
         return models;

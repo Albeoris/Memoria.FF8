@@ -112,10 +112,6 @@ public sealed class WorldTerrainRenderer
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
         }
-        if (staticModels?.Any(draw => draw.Pose.Angles.Roll != 0) == true)
-        {
-            throw new NotSupportedException("Current native static-model placement requires its proved zero-roll transform.");
-        }
         Array.Fill(depth, float.NegativeInfinity);
         rasterTriangles.Clear();
         DrawnTriangles = 0;
@@ -294,7 +290,7 @@ public sealed class WorldTerrainRenderer
 
     private void DrawStaticModel(WorldStaticModel model, NativeWorldStaticModelPose pose)
     {
-        Matrix4x4 rotation = Matrix4x4.CreateRotationZ(pose.Angles.Pitch * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(pose.Angles.Yaw * 0.0015339808305725455f);
+        Matrix4x4 rotation = WorldStaticModelTransform.CreateRotation(model.ShapeId, pose.Angles);
         Vector3 position = pose.Anchor;
         Vector3[] vertices = model.NativeVertices.Select(vertex => Vector3.Transform(vertex, rotation)).Select(vertex => new Vector3(vertex.X, -vertex.Y, -vertex.Z) / 16 + position / 16).ToArray();
         foreach (WorldStaticFace face in model.Faces)

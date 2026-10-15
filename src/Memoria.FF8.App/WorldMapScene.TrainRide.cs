@@ -161,11 +161,7 @@ internal sealed partial class WorldMapScene
             NativeWorldPathNodeProjection projection = context.ProjectNode(item.Position) ?? throw new NativeWorldPresentationDeferredException(context.UnsupportedReason ?? "Native train allocation projection is unproved.");
             if (projection.Visible)
             {
-                if (item.Roll != 0)
-                {
-                    throw new NotSupportedException("Native visible static allocation requires its original nonzero roll transform.");
-                }
-                NativeWorldPathAngles angles = new(0, unchecked((short)item.PackedOrientation), item.Roll);
+                NativeWorldPathAngles angles = WorldStaticModelTransform.AllocationAngles(item);
                 models.Add(new NativeWorldStaticModelDraw(assets.ReadScriptedStaticModel(item.ShapeId), new NativeWorldStaticModelPose(context.CanonicalModelAnchor(projection), angles)));
             }
         }

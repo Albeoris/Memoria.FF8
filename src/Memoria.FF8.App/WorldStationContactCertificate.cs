@@ -1,4 +1,5 @@
 using Memoria.FF8.Assets;
+using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -32,8 +33,7 @@ public static class WorldStationContactCertificate
                 continue;
             }
             //549770 uses original WORD22 plus54A770's entity-class yaw correction; roll/pitch do not enter contact.
-            int correction = item.EntityType is >= 0 and < 10 or 128 || item.ShapeId is 2 or 3 ? -2048 : item.EntityType is >= 32 and <= 40 or 132 ? -1024 : item.EntityType == 50 ? 2048 : item.EntityType == 48 || item.ShapeId == 79 ? 1024 : item.ShapeId == 80 ? 2048 : 0;
-            short yaw = unchecked((short)(item.PackedOrientation + correction));
+            short yaw = WorldStaticModelTransform.AllocationAngles(item).Yaw;
             if (EvaluatePolygon(shape, yaw, player, projection.Words, padding))
             {
                 return new WorldStationContactResult(index, null, null);
