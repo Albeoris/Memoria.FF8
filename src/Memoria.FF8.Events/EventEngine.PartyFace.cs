@@ -10,20 +10,24 @@ public sealed partial class EventEngine
         NativeScalarValue[] operands = fiber.Stack.Capture().Take(2).ToArray();
         int slot = operands[1].RequireExact();
         ActorState target = ResolveNativeIndexedPartyBody(slot, out _, out _) ?? throw new NotSupportedException("Native party-facing target has no retained current body.");
+        if (target.RenderModelId < 0)
+        {
+            throw new NotSupportedException("Native party-facing target has no bound original model resource.");
+        }
         FieldFixedPosition raw = ReadNativeScriptPosition(target) ?? throw new NotSupportedException("Native party-facing requires the target's actual raw body position.");
         float height = ReadFaceAnchorHeight?.Invoke(target) ?? throw new NotSupportedException("Native party-facing requires the target's declared query30 joint height.");
-        if (target.ModelId < 0 || !float.IsFinite(height) || height < int.MinValue || (double)height > int.MaxValue)
+        if (!float.IsFinite(height) || height < int.MinValue || (double)height > int.MaxValue)
         {
             throw new NotSupportedException("Native party-facing target has no bounded original model joint height.");
         }
-        //527D30 divides signed fixed coordinates toward zero, then narrows the final target words.
+        //527D30/528130 divide signed fixed coordinates toward zero, then narrow the final target words.
         return new Vector3(unchecked((short)(raw.X / 4096)), unchecked((short)(raw.Y / 4096)), unchecked((short)(raw.Z / 4096 + (int)height)));
     }
 
     private string? UnsupportedNativePartyFace(Fiber fiber)
     {
         ActorState actor = actors[fiber.ObjectId];
-        if (fiber.Stack.Count < 2 || NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.FaceStateVersion != 1 || actor.ModelId < 0 || ResolveNativeActorFacing is null)
+        if (fiber.Stack.Count < 2 || NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.FaceStateVersion != 1 || actor.RenderModelId < 0 || ResolveNativeActorFacing is null)
         {
             return "Native party-facing requires its allocated face owner, two operands and actual native joint/facing providers";
         }
@@ -43,7 +47,7 @@ public sealed partial class EventEngine
         }
     }
 
-    private int[] ExecuteNativePartyFace(Fiber fiber, out NativeScalarValue[]? scalarArguments)
+    private int[] ExecuteNativePartyFace(Fiber fiber, bool asynchronous, out NativeScalarValue[]? scalarArguments)
     {
         Vector3 point = PrepareNativePartyFacePoint(fiber);
         NativeScalarValue duration = fiber.Stack.PeekValue();
@@ -59,7 +63,7 @@ public sealed partial class EventEngine
         actor.FaceDuration = unchecked((ushort)time);
         actor.FaceProgress = 0;
         actor.FaceReturning = false;
-        fiber.WaitReason = actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
+        fiber.WaitReason = asynchronous || actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
         return [slot, time];
     }
 }

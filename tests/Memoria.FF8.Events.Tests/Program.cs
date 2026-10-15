@@ -123,6 +123,7 @@ internal static partial class Program
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
                     ["native-facedir"] = NativeFacePointContract,
                     ["native-facedirp"] = NativePartyFaceContract,
+                    ["native-rfacedirp"] = () => NativePartyFaceContract(true),
                     ["native-ranimeloop-yield"] = NativeAnimationLoopYieldContract,
                     ["native-movement-animation"] = () => NativeMovementAnimationContract(selectedGameDirectory),
                     ["native-face-sync"] = NativeFaceSyncContract,

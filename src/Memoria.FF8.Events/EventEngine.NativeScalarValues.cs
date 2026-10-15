@@ -82,7 +82,7 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeFacePoint(fiber);
         }
-        if (operation.Opcode == Jsm.Opcode.FACEDIRP)
+        if (operation.Opcode is Jsm.Opcode.FACEDIRP or Jsm.Opcode.RFACEDIRP)
         {
             return UnsupportedNativePartyFace(fiber);
         }

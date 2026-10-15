@@ -11,13 +11,18 @@ internal static partial class Program
 {
     private static void NativePartyFaceContract()
     {
+        NativePartyFaceContract(false);
+    }
+
+    private static void NativePartyFaceContract(bool asynchronous)
+    {
         using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         byte[] Content(int slot, int duration, bool moving)
         {
             (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] face = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.FACEDIRP, 0), (Jsm.Opcode.POPM_L, 5002), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.FACEDIRSYNC, 0), (Jsm.Opcode.PSHN_L, 78), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] face = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, duration), (asynchronous ? Jsm.Opcode.RFACEDIRP : Jsm.Opcode.FACEDIRP, 0), (Jsm.Opcode.POPM_L, 5002), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.FACEDIRSYNC, 0), (Jsm.Opcode.PSHN_L, 78), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -19), (Jsm.Opcode.PSHN_L, -22), (Jsm.Opcode.PSHN_L, 32760), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             List<(Jsm.Opcode, int)> targetDefault = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 101), (Jsm.Opcode.PSHN_L, -202), (Jsm.Opcode.PSHN_L, 303), (Jsm.Opcode.DOFFSET, 0)];
@@ -67,7 +72,7 @@ internal static partial class Program
         int issues = 0;
         live.CommandExecuted += command =>
         {
-            if (command.Name == nameof(Jsm.Opcode.FACEDIRP))
+            if (command.Name == (asynchronous ? nameof(Jsm.Opcode.RFACEDIRP) : nameof(Jsm.Opcode.FACEDIRP)))
             {
                 issues++;
                 sampledMotion = live.Actors[2].NativeScriptMovement;
@@ -80,6 +85,34 @@ internal static partial class Program
         Require(issues == 1 && sampledMotion is not null && sampledMotion.FixedX < 0 && (sampledMotion.FixedX & 4095) != 0 && sampledMotion.FixedY < 0 && (sampledMotion.FixedY & 4095) != 0, $"FACEDIRP fixture did not execute negative fractional target motion: issues={issues}, motion={sampledMotion}.");
         Require(live.Scene.NativeActorObjectIds.SequenceEqual([0, 2]) && live.Scene.PartyBindingMemory is { First: 1 } && live.Scene.FieldPartyNativeActorIds.SequenceEqual([255, 255, 255]), "FACEDIRP fixture did not distinguish saved compact body selection from raw objects or detached runtime followers.");
         Vector3 expected = new(sampledMotion!.FixedX / 4096, sampledMotion.FixedY / 4096, -32756);
+        if (asynchronous)
+        {
+            Require(sampled == expected && actor.FaceDuration == 4 && actor.FaceProgress == 1 && actor.FirstControlRotation is not null && HasVariable(live, "5000") && !HasVariable(live, "5001") && live.Capture().GetProperty("Variables").GetProperty("5002").GetInt32() == 123456 && CallerFiber(live).GetProperty("Stack").GetArrayLength() == 0, "RFACEDIRP lost signed fractional capture/query30 WORD wrap, low-WORD duration or same-callback return2 continuation before FACEDIRSYNC.");
+            EventEngine asyncCopy = Create(moving: true);
+            asyncCopy.Restore(live.Capture());
+            while (actor.FaceProgress < actor.FaceDuration)
+            {
+                live.Step();
+                asyncCopy.Step();
+                Require(actor.FaceTargetPoint == expected && !HasVariable(live, "5001") && JsonElement.DeepEquals(live.Capture(), asyncCopy.Capture()), "RFACEDIRP retargeted its moving party body or changed the existing face/SYNC clock after independent restore.");
+            }
+            live.Step();
+            asyncCopy.Step();
+            Require(HasVariable(live, "5001") && issues == 1 && actor.FaceTargetPoint == expected && actor.FaceLimits == new Vector3(8, 0, 10) && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.Direction == 0 && live.Actors[2].X != sampledMotion.FixedX / 4096f && live.Actors[2].DisplayOffset == new Vector3(101, -202, 303) && JsonElement.DeepEquals(live.Capture(), asyncCopy.Capture()), "RFACEDIRP changed body/facing limits, tracked the target, included its display offset or failed native SYNC completion.");
+            EventEngine fullSlot = Create(slot: 256, duration: 4);
+            try
+            {
+                ReachIssue(fullSlot);
+                throw new InvalidOperationException("RFACEDIRP narrowed its full DWORD party index256.");
+            }
+            catch (EventScriptException) when (fullSlot.LastFault?.Opcode == nameof(Jsm.Opcode.RFACEDIRP))
+            {
+                JsonElement fiber = CallerFiber(fullSlot);
+                Require(fiber.GetProperty("Position").GetInt32() == fullSlot.LastFault.Operation && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([4, 256, 123456]) && fullSlot.Actors[0].FaceTargetPoint is null && fullSlot.Actors[0].FaceDuration == 0, "RFACEDIRP invalid full-index refusal mutated the issuing PC, operands or face owner.");
+            }
+            Console.WriteLine("RFACEDIRP existing party-face fixture: saved compact binding after FOLLOWOFF, one fractional/query30 target capture, low-WORD duration/full-DWORD slot, immediate successor, shared SYNC clock, independent restore and atomic index refusal PASS.");
+            return;
+        }
         Require(sampled == expected && live.Actors[2].DisplayOffset == new Vector3(101, -202, 303) && actor.FaceProgress == 1 && actor.FirstControlRotation is not null && !HasVariable(live, "5000") && CallerFiber(live).GetProperty("Stack")[0].GetInt32() == 123456, "FACEDIRP floored negative target coordinates, included target display offsets, lost final Z+height WORD wrap, consumed an unrelated operand or failed to block after its first post-VM sample.");
         JsonElement issued = live.Capture();
         EventEngine restored = Create(moving: true);

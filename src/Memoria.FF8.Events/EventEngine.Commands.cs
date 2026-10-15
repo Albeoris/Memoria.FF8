@@ -329,7 +329,8 @@ public sealed partial class EventEngine
                 ExecuteNativeFaceSync(fiber);
                 break;
             case Jsm.Opcode.FACEDIRP:
-                args = ExecuteNativePartyFace(fiber, out scalarArgs);
+            case Jsm.Opcode.RFACEDIRP:
+                args = ExecuteNativePartyFace(fiber, opcode == Jsm.Opcode.RFACEDIRP, out scalarArgs);
                 break;
             case Jsm.Opcode.FACEDIRA:
             case Jsm.Opcode.RFACEDIRA:
