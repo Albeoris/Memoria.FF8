@@ -344,6 +344,10 @@ public sealed partial class EventEngine
         if (!defaultsStarted && fibers.Where(item => item.Initialization).All(item => item.Complete))
         {
             NativeFieldPartyLoad? nativeLoad = PrepareNativeFieldPartyLoad();
+            if (HasOpaqueInitializationTrace() && nativeLoad is null)
+            {
+                throw new NotSupportedException("Native initialization trace requires its original automatic field-party setup before compaction and trace reads.");
+            }
             CompactNativeActors();
             if (nativeLoad is not null)
             {

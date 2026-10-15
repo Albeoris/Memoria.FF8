@@ -193,9 +193,7 @@ public sealed partial class EventEngine
                 args = ExecuteNativeActorInfo(fiber, false);
                 break;
             case Jsm.Opcode.INITTRACE:
-                ActorState tracePlayer = PlayerActor is { Active: true } boundTracePlayer ? boundTracePlayer : throw Fault(fiber, "INITTRACE requires the current native runtime leader binding.");
-                PartyTraceSample trace = new((short)(int)tracePlayer.X, (short)(int)tracePlayer.Y, (short)(int)tracePlayer.Z, tracePlayer.WalkmeshTriangle, (byte)tracePlayer.Direction);
-                Scene.PartyTrace = new PartyTraceState(0, 15, 30, Enumerable.Repeat(trace, 64).ToArray(), Enumerable.Repeat(trace, 64).ToArray());
+                InitializeNativePartyTrace(fiber);
                 break;
             case Jsm.Opcode.SETCAMERA:
                 args = Pop(fiber, 1);

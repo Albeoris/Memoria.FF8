@@ -502,9 +502,9 @@ public sealed partial class EventEngine
         {
             return UnsupportedJoinContext(fiber);
         }
-        if (operation.Opcode == Jsm.Opcode.INITTRACE && PlayerActor is not { Active: true })
+        if (operation.Opcode == Jsm.Opcode.INITTRACE && !HasNativeInitializationTraceOverwrite() && PlayerActor is not { Active: true })
         {
-            return "INITTRACE requires the current native runtime leader binding";
+            return "INITTRACE requires the current native runtime leader binding or proved normal initialization overwrite";
         }
         if (operation.Opcode == Jsm.Opcode.REFRESHPARTY && Scene.NativeActorLayoutVersion != 1)
         {

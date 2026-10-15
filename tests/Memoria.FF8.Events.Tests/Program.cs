@@ -36,6 +36,7 @@ internal static partial class Program
                     ["native-rest-membership"] = () => NativeRestAndMembershipContract(selectedGameDirectory),
                     ["native-split-control-caller"] = () => NativeSplitControlCallerContract(selectedGameDirectory),
                     ["native-field-party-binding"] = () => NativeCurrentFieldPartyBindingContract(selectedGameDirectory),
+                    ["native-init-trace"] = () => NativeInitializationTraceContract(selectedGameDirectory),
                     ["native-junction"] = () => NativeDreamJunctionContract(selectedGameDirectory),
                     ["native-economy"] = () => NativeEconomyContract(selectedGameDirectory),
                     ["native-salary-payout"] = () => NativeSalaryPayoutContract(selectedGameDirectory),
