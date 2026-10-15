@@ -28,6 +28,8 @@ internal sealed partial class RecreateGame : Game
     private SystemTextRenderer text = null!;
     private Texture2D pixel = null!;
     private MoviePresentation? movie;
+    private readonly MovieSkipGesture movieSkipGesture = new();
+    private (int Field, int Movie, NativeMovieSource? Source)? movieSkipIdentity;
     private int movieIndex = -1;
     private int movieDiscIndex = -1;
     private int titleSelection;
@@ -114,8 +116,15 @@ internal sealed partial class RecreateGame : Game
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
         InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
+        var currentMovieIdentity = (session.State.FieldId, session.State.MovieIndex, session.State.MovieSource);
+        if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !IsActive)
+        {
+            movieSkipGesture.Reset();
+        }
+        movieSkipIdentity = session.State.Scene == SceneKind.Movie ? currentMovieIdentity : null;
         if (capturing)
         {
+            movieSkipGesture.Reset();
             UpdateControlsCapturePointer();
             base.Update(gameTime);
             metrics.Update(updateStarted);
@@ -128,6 +137,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (userPaused)
         {
+            movieSkipGesture.Reset();
             base.Update(gameTime);
             metrics.Update(updateStarted);
             return;
@@ -154,6 +164,7 @@ internal sealed partial class RecreateGame : Game
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdateBattleDebugUi(input))
         {
+            movieSkipGesture.Reset();
             fieldAudio?.Update();
             base.Update(gameTime);
             metrics.Update(updateStarted);
@@ -161,6 +172,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (UpdateGameUi(gameTime.ElapsedGameTime, input))
         {
+            movieSkipGesture.Reset();
             fieldAudio?.Update();
             base.Update(gameTime);
             metrics.Update(updateStarted);
@@ -168,6 +180,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (UpdatePlayerSaves(input))
         {
+            movieSkipGesture.Reset();
             fieldAudio?.Update();
             base.Update(gameTime);
             metrics.Update(updateStarted);
@@ -212,7 +225,7 @@ internal sealed partial class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.Movie)
         {
-            UpdateMovie(gameTime, input);
+            UpdateMovie(gameTime);
         }
         else if (session.State.Scene == SceneKind.WorldMap)
         {
@@ -246,11 +259,11 @@ internal sealed partial class RecreateGame : Game
         return next;
     }
 
-    private void UpdateMovie(GameTime gameTime, InputFrame input)
+    private void UpdateMovie(GameTime gameTime)
     {
         try
         {
-            if (input.Skip)
+            if (movieSkipGesture.Update(gameTime.ElapsedGameTime, keyboard.CancelHeld))
             {
                 world ??= CreateWorld();
                 world.EnsureField();
@@ -320,7 +333,7 @@ internal sealed partial class RecreateGame : Game
         }
         catch (Exception exception)
         {
-            error = $"Movie playback failed: {exception.Message}\nSet --media-tools to the FFmpeg bin directory. Escape skips.";
+            error = $"Movie playback failed: {exception.Message}\nSet --media-tools to the FFmpeg bin directory. Hold Cancel for 3 seconds to skip.";
         }
     }
 
@@ -903,7 +916,6 @@ internal sealed partial class RecreateGame : Game
                 {
                     movie.Draw(batch, bounds);
                 }
-                DrawMovieHintUi(bounds);
             }
         }
         else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene is SceneKind.Field or SceneKind.Movie && world?.Field is not null)
@@ -930,6 +942,10 @@ internal sealed partial class RecreateGame : Game
         if (events?.PartyMenu is not null)
         {
             DrawPartyMenu(bounds);
+        }
+        if (session.State.Scene == SceneKind.Movie && movieSkipGesture.Visible)
+        {
+            DrawMovieHintUi(bounds);
         }
         if (error is not null)
         {

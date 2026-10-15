@@ -8,8 +8,6 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private readonly Dictionary<int, (string Key, UiView View)> dialogueUiViews = [];
-    private UiView? movieHintUi;
-    private string? movieHintBindings;
     private UiView? timerUi;
     private UiLabel? timerUiText;
     private readonly DialoguePageCache dialoguePages = new();
@@ -119,14 +117,7 @@ internal sealed partial class RecreateGame
 
     private void DrawMovieHintUi(Rectangle bounds)
     {
-        if (movieHintUi is null || movieHintBindings != keyboard.BindingHint(ControlAction.SkipMovie))
-        {
-            var root = new UiAnchorPanel();
-            movieHintBindings = keyboard.BindingHint(ControlAction.SkipMovie);
-            root.Children.Add(new UiLabel { Anchors = new UiAnchors(0.025f, 0.94f, 0.975f, 0.99f), Text = movieHintBindings + ": skip", FontSize = 16, Muted = true });
-            movieHintUi = CreateWindowView(root);
-        }
-        DrawWindowView(movieHintUi, bounds);
+        MovieSkipHint.Draw(uiCanvas!, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), keyboard.CancelBindingHint, movieSkipGesture.Progress, uiPreferences.UiFontFamily);
     }
 
     private void DrawTimerUi(Rectangle bounds, NativeExamTimerState timer)

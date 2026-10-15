@@ -46,7 +46,7 @@ public enum ControlAction
     QuickLoad,
     SaveMenu,
     LoadMenu,
-    SkipMovie,
+    SkipMovie, // Retired profile identifier; movie skipping follows Cancel.
     UiTab,
     UiPageUp,
     UiPageDown
@@ -132,13 +132,13 @@ public sealed class ControlsProfile
     private sealed record Document(int Version, Binding[] Bindings, ControllerSettings? Controller = null);
     private readonly Binding[] bindings;
 
-    public static IReadOnlyList<ControlActionDefinition> Definitions { get; } = Enum.GetValues<ControlAction>().Select(action => new ControlActionDefinition(action, Label(action), action <= ControlAction.MoveRight ? "Movement" : action <= ControlAction.RotateRight ? "Original game" : "Memoria shortcuts")).ToArray();
+    public static IReadOnlyList<ControlActionDefinition> Definitions { get; } = Enum.GetValues<ControlAction>().Where(action => action != ControlAction.SkipMovie).Select(action => new ControlActionDefinition(action, Label(action), action <= ControlAction.MoveRight ? "Movement" : action <= ControlAction.RotateRight ? "Original game" : "Memoria shortcuts")).ToArray();
     public static IReadOnlyList<Buttons> BindableButtons { get; } = [Buttons.A, Buttons.B, Buttons.X, Buttons.Y, Buttons.LeftShoulder, Buttons.RightShoulder, Buttons.LeftTrigger, Buttons.RightTrigger, Buttons.Back, Buttons.Start, Buttons.LeftStick, Buttons.RightStick, Buttons.DPadUp, Buttons.DPadDown, Buttons.DPadLeft, Buttons.DPadRight];
 
     private ControlsProfile(IEnumerable<Binding> bindings, ControllerSettings? controller = null)
     {
         Controller = controller ?? new ControllerSettings();
-        this.bindings = bindings.Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).ToArray();
+        this.bindings = bindings.Where(binding => binding.Action != ControlAction.SkipMovie).Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).ToArray();
         Validate();
     }
 
@@ -212,7 +212,6 @@ public sealed class ControlsProfile
         Key(ControlAction.SaveMenu, Keys.F6);
         Key(ControlAction.QuickLoad, Keys.F9);
         Key(ControlAction.LoadMenu, Keys.F10);
-        Key(ControlAction.SkipMovie, Keys.Escape, Keys.Space);
         Key(ControlAction.BattleAdvanceTurn, Keys.Space);
         Key(ControlAction.UiTab, Keys.Tab);
         Key(ControlAction.UiPageUp, Keys.PageUp);
