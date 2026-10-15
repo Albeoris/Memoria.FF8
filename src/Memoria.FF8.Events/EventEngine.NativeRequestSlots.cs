@@ -10,6 +10,10 @@ public sealed partial class EventEngine
     {
         if (NativeRuntimeProfile is { IsVerified: true })
         {
+            if (IsNativeDoorRequest(fiber.ObjectId) && operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 8)
+            {
+                return "Native door RET slot cancellation requires its original explicit-slot contract; PC and operands preserved";
+            }
             if (operation.Opcode == Jsm.Opcode.LBL && (fiber.NativeResultFrameEntered || fiber.Position != fiber.Script.Start))
             {
                 return "Native repeated LBL requires its additional saved-result frame; PC and operands preserved";
@@ -50,9 +54,17 @@ public sealed partial class EventEngine
         bool native = NativeRuntimeProfile is { IsVerified: true };
         priority = native ? unchecked((byte)rawPriority) : rawPriority;
         occupied = false;
+        if (native && program!.Objects[objectId].IsDoor && !IsNativeDoorRequest(objectId))
+        {
+            return "Native door request requires its completed physical-slot scheduler owner; PC and operands preserved";
+        }
         if ((uint)priority < 8)
         {
             occupied = RequestPriorityOccupied(objectId, priority);
+            if (native && IsNativeDoorRequest(objectId) && !occupied && opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW)
+            {
+                return $"Native door {opcode} requires its actual current-slot/raw DWORD wait comparison; PC and operands preserved";
+            }
             if (native && !occupied && opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW && rawPriority != priority)
             {
                 return $"Native {opcode} scheduling with a non-byte priority requires its original raw DWORD wait comparison";

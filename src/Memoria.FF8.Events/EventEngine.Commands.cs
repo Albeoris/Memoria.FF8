@@ -1188,12 +1188,21 @@ public sealed partial class EventEngine
         {
             scriptId = unchecked((ushort)scriptId);
         }
-        Fiber requested = Queue(objectId, scriptId, priority, false);
-        if (IsNativeActorRequest(objectId))
+        bool doorRequest = IsNativeDoorRequest(objectId);
+        Fiber requested = Queue(objectId, scriptId, doorRequest ? 7 - priority : priority, false);
+        if (doorRequest)
         {
-            requested.NativeActorSlot = (byte)priority;
+            requested.NativeDoorSlot = (byte)priority;
         }
-        SuspendNativeMovementForRequest(actors[objectId], requested);
+        else
+        {
+            if (IsNativeActorRequest(objectId))
+            {
+                requested.NativeActorSlot = (byte)priority;
+            }
+            // Original door records lack the physical actor movement-backup flag.
+            SuspendNativeMovementForRequest(actors[objectId], requested);
+        }
         if (opcode == Jsm.Opcode.REQEW)
         {
             caller.Request = requested;

@@ -7,11 +7,11 @@ public sealed record NativeMovementRequestState(int Version, long RequestSequenc
 
 public sealed partial class EventEngine
 {
-    private int NativeActorRequestSlot(Fiber fiber) => fiber.NativeActorSlot ?? (fiber.Priority == 7 && program!.Objects[fiber.ObjectId].Scripts.Count > 1 && fiber.Script.Id == program.Objects[fiber.ObjectId].Scripts[1].Id ? 0 : fiber.Priority);
+    private int NativeActorRequestSlot(Fiber fiber) => fiber.NativeDoorSlot ?? fiber.NativeActorSlot ?? (fiber.Priority == 7 && program!.Objects[fiber.ObjectId].Scripts.Count > 1 && fiber.Script.Id == program.Objects[fiber.ObjectId].Scripts[1].Id ? 0 : fiber.Priority);
 
     private bool IsNativeActorRequest(int objectId) => NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && program!.NativeObjects.Contains(objectId) && !program.Objects[objectId].IsDoor && (Scene.NativeActorObjectIds.Contains(objectId) || program.Objects[objectId].BackgroundModuleIndex is not null || program.Objects[objectId].IsArea);
 
-    private bool RequestPriorityOccupied(int objectId, int priority) => fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete && (IsNativeActorRequest(objectId) ? NativeActorRequestSlot(fiber) : fiber.Priority) == priority);
+    private bool RequestPriorityOccupied(int objectId, int priority) => fibers.Any(fiber => fiber.ObjectId == objectId && !fiber.Complete && (IsNativeActorRequest(objectId) || IsNativeDoorRequest(objectId) ? NativeActorRequestSlot(fiber) : fiber.Priority) == priority);
 
     private int CurrentNativeRequestSlot(ActorState actor, Fiber? incoming = null) => fibers.Where(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && fiber != incoming).Select(NativeActorRequestSlot).DefaultIfEmpty(0).Max();
 

@@ -138,18 +138,15 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native door V2 pending event lacks its original owner or byte flags; original state preserved.");
         }
         Fiber[] active = fibers.Where(fiber => fiber.ObjectId == objectId && !fiber.Complete).ToArray();
-        if (active.GroupBy(fiber => fiber.Priority).Any(slot => slot.Count() > 1))
+        if (active.GroupBy(NativeActorRequestSlot).Any(slot => slot.Count() > 1))
         {
             throw new NotSupportedException("Native door request slots cannot contain multiple unfinished owners; original state preserved.");
         }
         foreach (Fiber fiber in active)
         {
-            int local = NativeDoorLocalFromManagedPriority(fiber.Priority);
-            bool knownDefault = local == 1 && fiber.NativeDoorSlot is null;
-            bool knownRequest = local is >= 2 and <= 7 && fiber.NativeDoorSlot == 7 - fiber.Priority;
-            if (fiber.Initialization || !knownDefault && !knownRequest || (uint)local >= program!.Objects[objectId].Scripts.Count || fiber.Script.Id != program.Objects[objectId].Scripts[local].Id)
+            if (fiber.NativeActorSlot is not null || !IsKnownNativeDoorFiber(objectId, fiber.Script.Id, fiber.Priority, fiber.NativeDoorSlot, fiber.Initialization))
             {
-                throw new NotSupportedException("Native door V2 cannot suspend an external raw-priority request or unknown operand stack; original state preserved.");
+                throw new NotSupportedException("Native door V2 requires its actual physical request slot and declared script owner; original state preserved.");
             }
         }
         int[] requested = NativeDoorRequestedLocals(events, contact).ToArray();
@@ -157,7 +154,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Reached native door event has no declared original local script; original state preserved.");
         }
-        int[] meaningful = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Where(local => !EmptyNativeLineScript(line, local)).Concat(requested.Where(local => !EmptyNativeLineScript(line, local))).Distinct().ToArray();
+        int[] meaningful = active.Select(fiber => NativeDoorScriptLocal(line.ObjectId, fiber.Script.Id)).Where(local => !EmptyNativeLineScript(line, local)).Concat(requested.Where(local => !EmptyNativeLineScript(line, local))).Distinct().ToArray();
         if (meaningful.Length > 1)
         {
             ValidateNativeDoorSuspension(line, active, requested);
@@ -166,7 +163,7 @@ public sealed partial class EventEngine
 
     private void ValidateNativeDoorSuspension(ActorState line, IReadOnlyList<Fiber> active, IReadOnlyList<int> requested)
     {
-        int[] locals = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Concat(requested).Distinct().ToArray();
+        int[] locals = active.Select(fiber => NativeDoorScriptLocal(line.ObjectId, fiber.Script.Id)).Concat(requested).Distinct().ToArray();
         foreach (int local in locals)
         {
             EventScript script = program!.Objects[line.ObjectId].Scripts[local];
@@ -175,10 +172,10 @@ public sealed partial class EventEngine
                 throw new NotSupportedException("Native door competition requires proved RET8 slot resumption; explicit RET slot cancellation preserves the original requests.");
             }
         }
-        int newlyRequested = requested.Distinct().Count(local => !active.Any(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority) == local));
         // The native entity has eighty DWORD stack entries before its result bank.
-        // Each started LBL saves eight results separately from ordinary operands.
-        int stackWords = active.Sum(fiber => fiber.Stack.Count + 8) + newlyRequested * 8;
+        // Only executed LBL frames own eight saved results; queued requests reserve
+        // nothing until the shared operand-bank guard admits their actual LBL.
+        int stackWords = active.Where(fiber => fiber.NativeResultFrameEntered).Sum(fiber => fiber.Stack.Count + 8);
         if (stackWords > 80 || active.Any(fiber => fiber.Results.Keys.Any(register => register is < 0 or > 7)))
         {
             throw new NotSupportedException("Native door suspension exceeds the original operand/result stack or its eight result registers; original state preserved.");
@@ -199,7 +196,7 @@ public sealed partial class EventEngine
         foreach (ActorState line in saved.Actors.Where(line => program!.Objects[line.ObjectId].IsDoor))
         {
             Fiber[] active = restored.Where(fiber => fiber.ObjectId == line.ObjectId && !fiber.Complete).ToArray();
-            if (active.GroupBy(fiber => fiber.Priority).Any(slot => slot.Count() > 1))
+            if (active.GroupBy(NativeActorRequestSlot).Any(slot => slot.Count() > 1))
             {
                 throw new InvalidDataException("Saved native door request slot has multiple unfinished owners.");
             }
@@ -208,7 +205,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native door request has no original local script.");
             }
-            int[] meaningful = active.Select(fiber => NativeDoorLocalFromManagedPriority(fiber.Priority)).Concat(requested).Distinct().Where(local => !EmptyNativeLineScript(line, local)).ToArray();
+            int[] meaningful = active.Select(fiber => NativeDoorScriptLocal(line.ObjectId, fiber.Script.Id)).Concat(requested).Distinct().Where(local => !EmptyNativeLineScript(line, local)).ToArray();
             if (meaningful.Length > 1)
             {
                 ValidateNativeDoorSuspension(line, active, requested);
@@ -244,10 +241,35 @@ public sealed partial class EventEngine
         }
     }
 
-    // Original direct slots run from6(facing) down to2(entry). This private adapter
-    // reverses them for the existing managed ordering; raw JSM request priorities are unchanged.
+    // Original direct slots run from7(action) down to2(entry). Managed priority
+    // is7-physicalSlot; the retained physical slot remains the native authority.
     private static int NativeDoorManagedPriority(int local) => local - 2;
-    private static int NativeDoorLocalFromManagedPriority(int priority) => priority == 7 ? 1 : priority is >= 0 and <= 5 ? priority + 2 : -1;
+
+    private bool IsNativeDoorRequest(int objectId) => NativeRuntimeProfile is { IsVerified: true } && Scene.NativeDoorDriverVersion == 2 && program!.Objects[objectId].IsDoor;
+
+    private int NativeDoorScriptLocal(int objectId, int scriptId)
+    {
+        for (int local = 0; local < program!.Objects[objectId].Scripts.Count; local++)
+        {
+            if (program.Objects[objectId].Scripts[local].Id == scriptId)
+            {
+                return local;
+            }
+        }
+        return -1;
+    }
+
+    private bool IsKnownNativeDoorFiber(int objectId, int scriptId, int priority, byte? slot, bool initialization)
+    {
+        int local = NativeDoorScriptLocal(objectId, scriptId);
+        if (initialization || local < 0)
+        {
+            return false;
+        }
+        // 51CD60 and529FF0 share WORD356+2*slot. A raw request's script
+        // is independent of the local script selected by a direct door event.
+        return slot is byte physicalSlot ? physicalSlot <= 7 && priority == 7 - physicalSlot : priority == 7 && local == 1;
+    }
 
     private void SampleNativeDoorActionEdges()
     {
@@ -286,7 +308,7 @@ public sealed partial class EventEngine
             foreach (int local in NativeDoorRequestedLocals(events, line.LineContact))
             {
                 int priority = NativeDoorManagedPriority(local);
-                if (!fibers.Any(fiber => fiber.ObjectId == line.ObjectId && fiber.Priority == priority && !fiber.Complete))
+                if (!RequestPriorityOccupied(line.ObjectId, 7 - priority))
                 {
                     Fiber requested = Queue(line.ObjectId, program.Objects[line.ObjectId].Scripts[local].Id, priority, false);
                     requested.NativeDoorSlot = (byte)(7 - priority);
@@ -355,17 +377,14 @@ public sealed partial class EventEngine
         }
         foreach (FiberCheckpoint fiber in saved.Fibers.Where(fiber => !fiber.Complete && program!.Objects[fiber.ObjectId].IsDoor))
         {
-            int local = NativeDoorLocalFromManagedPriority(fiber.Priority);
-            bool knownDefault = local == 1 && fiber.NativeDoorSlot is null;
-            bool knownRequest = local is >= 2 and <= 7 && fiber.NativeDoorSlot == 7 - fiber.Priority;
-            if (fiber.Initialization || !knownDefault && !knownRequest || (uint)local >= program!.Objects[fiber.ObjectId].Scripts.Count || fiber.ScriptId != program.Objects[fiber.ObjectId].Scripts[local].Id)
+            if (fiber.NativeActorSlot is not null || !IsKnownNativeDoorFiber(fiber.ObjectId, fiber.ScriptId, fiber.Priority, fiber.NativeDoorSlot, fiber.Initialization))
             {
-                throw new InvalidDataException("Native door V2 saved fiber has an external raw priority or unproved script owner.");
+                throw new InvalidDataException("Native door V2 saved fiber lost its physical request slot or declared script owner.");
             }
         }
-        if (saved.Fibers.Any(fiber => fiber.NativeDoorSlot is not null && (!program!.Objects[fiber.ObjectId].IsDoor || fiber.NativeDoorSlot is < 2 or > 7)))
+        if (saved.Fibers.Any(fiber => fiber.NativeDoorSlot is not null && (!program!.Objects[fiber.ObjectId].IsDoor || fiber.NativeDoorSlot > 7)))
         {
-            throw new InvalidDataException("Native door V2 direct slot cannot belong to a regular actor or an unproved action/default slot.");
+            throw new InvalidDataException("Native door V2 physical slot cannot belong to a regular actor or exceed its eight-slot bank.");
         }
     }
 }
