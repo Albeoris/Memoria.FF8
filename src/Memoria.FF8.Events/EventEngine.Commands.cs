@@ -404,10 +404,10 @@ public sealed partial class EventEngine
                 actor.Active = true;
                 break;
             case Jsm.Opcode.HIDE:
-                actor.Visible = false;
+                SetNativeActorVisibility(actor, false);
                 break;
             case Jsm.Opcode.SHOW:
-                actor.Visible = true;
+                SetNativeActorVisibility(actor, true);
                 break;
             case Jsm.Opcode.SET3:
                 args = Pop(fiber, 3);

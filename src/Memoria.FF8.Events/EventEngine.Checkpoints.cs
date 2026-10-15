@@ -279,6 +279,10 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved allocated actor lost its required executed DWORD352 masks4/64.");
             }
+            if (allocated != (actor.NativeSavedCollisionDisabled16 is not null))
+            {
+                throw new InvalidDataException("Saved actor DWORD352 mask16 requires its explicit native allocation and executed HIDE/SHOW history.");
+            }
             if (allocated != (actor.NativeLadderAnimation is not null))
             {
                 throw new InvalidDataException("Saved ladder animation bytes594..596 require the current explicit native actor allocation.");

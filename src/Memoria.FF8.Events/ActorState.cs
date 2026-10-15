@@ -67,6 +67,10 @@ public sealed class ActorState
     public bool? NativeLineFacingContact { get; internal set; }
     [JsonInclude]
     public bool CollisionEnabled { get; internal set; } = true;
+    /// <summary>Physical actor DWORD352 mask16, written by HIDE from the current collision-disable byte588 and restored by SHOW.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public bool? NativeSavedCollisionDisabled16 { get; internal set; }
     [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
     [JsonInclude]
