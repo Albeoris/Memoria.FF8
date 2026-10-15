@@ -165,6 +165,7 @@ internal static partial class Program
                     ["native-ladder-followers"] = NativeLadderFollowerContract,
                     ["native-jump-request"] = NativeJumpMovementRequestContract,
                     ["native-cmove"] = NativeHeldFacingCmoveContract,
+                    ["native-change-party"] = NativeChangePartyContract,
                     ["party-follow"] = NativePartyBackgroundScrollContract,
                     ["native-party-linear-turn"] = NativePartyLinearTurnContract,
                     ["native-directed-linear-turn"] = NativeDirectedLinearTurnContract,

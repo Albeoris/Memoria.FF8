@@ -1051,6 +1051,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SETPARTY:
                 args = ExecuteSetParty(fiber);
                 break;
+            case Jsm.Opcode.CHANGEPARTY:
+                args = ExecuteNativeChangeParty(fiber);
+                break;
             case Jsm.Opcode.DYING:
                 CommitSavedCharacters(fiber, services.CharacterVitals!.RepairDyingParty(), opcode);
                 break;
