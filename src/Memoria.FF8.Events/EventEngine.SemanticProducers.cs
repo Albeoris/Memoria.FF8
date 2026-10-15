@@ -9,7 +9,80 @@ public sealed partial class EventEngine
     public bool HasSemanticProducerWork(ReplayScriptGoal goal)
     {
         ValidateSemanticScriptGoal(goal);
-        return fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.ObjectId == goal.ObjectId && fiber.Script.Id == goal.ScriptId && !IsSemanticSpatialObserver(fiber, goal));
+        return fibers.Any(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && fiber.ObjectId == goal.ObjectId && fiber.Script.Id == goal.ScriptId);
+    }
+
+    /// <summary>Whether the exact current site writes wholly within the field scratch bank cleared at each load.</summary>
+    public bool IsSemanticLocalWriter(ReplayScriptGoal goal)
+    {
+        ValidateSemanticScriptGoal(goal);
+        JsmOperation operation = program!.Operations[goal.Operation];
+        int width = operation.Opcode switch
+        {
+            Jsm.Opcode.POPM_B => 1,
+            Jsm.Opcode.POPM_W => 2,
+            Jsm.Opcode.POPM_L => 4,
+            _ => 0
+        };
+        return width > 0 && operation.Parameter >= 1024 && operation.Parameter <= 1280 - width;
+    }
+
+    /// <summary>Potential same-invocation control flow between two authenticated current sites, stopping at return or halt.</summary>
+    public bool CanSemanticProducerFollow(ReplayScriptGoal previous, ReplayScriptGoal next)
+    {
+        ValidateSemanticScriptGoal(previous);
+        ValidateSemanticScriptGoal(next);
+        if (previous.ObjectId != next.ObjectId || previous.ScriptId != next.ScriptId)
+        {
+            return false;
+        }
+        if (program!.Operations[previous.Operation].Opcode is Jsm.Opcode.RET or Jsm.Opcode.HALT)
+        {
+            return false;
+        }
+        EventScript script = program!.Objects[previous.ObjectId].Scripts.Single(script => script.Id == previous.ScriptId);
+        Stack<int> pending = new();
+        HashSet<int> visited = [];
+        pending.Push(previous.Operation + 1);
+        while (pending.TryPop(out int position))
+        {
+            if (position < script.Start || position >= script.End || !visited.Add(position))
+            {
+                continue;
+            }
+            if (position == next.Operation)
+            {
+                return true;
+            }
+            JsmOperation operation = program.Operations[position];
+            if (operation.Opcode is Jsm.Opcode.RET or Jsm.Opcode.HALT)
+            {
+                continue;
+            }
+            if (operation.Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
+            {
+                long target = (long)position + operation.Parameter;
+                if (target >= script.Start && target < script.End)
+                {
+                    pending.Push((int)target);
+                }
+            }
+            if (operation.Opcode != Jsm.Opcode.JMP)
+            {
+                pending.Push(position + 1);
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Declared request ancestry of a current authenticated admission, independent of present eligibility.</summary>
+    public bool IsSemanticAdmissionProducerAncestor(ReplaySemanticTrigger trigger, ReplayScriptGoal goal)
+    {
+        ArgumentNullException.ThrowIfNull(trigger);
+        trigger.Validate();
+        ValidateSemanticProducer(trigger);
+        HashSet<(int ObjectId, int ScriptId)> ancestors = GetSemanticProducerAncestors(goal);
+        return ancestors.Contains((trigger.ObjectId, trigger.ScriptId));
     }
 
     /// <summary>Builds inferred metadata for an exact current declared site without dispatching or advancing it.</summary>

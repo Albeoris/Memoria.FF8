@@ -12,19 +12,39 @@ internal static partial class Program
     private static void SemanticExitEquivalenceContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        EventEngine Create(bool writeState, bool conditionalWriter = false, int story = 0, bool conditionalDestination = false)
+        EventEngine Create(bool writeState, bool conditionalWriter = false, int story = 0, bool conditionalDestination = false, bool presentation = false, int postPresentation = 0, int conditionalStop = 0)
         {
             (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.RET, 8)];
             player = [.. player.Take(player.Length - 1), (Jsm.Opcode.PSHN_L, story), (Jsm.Opcode.POPM_W, 256), player[^1]];
+            if (conditionalStop != 0)
+            {
+                player = [.. player.Take(player.Length - 1), (Jsm.Opcode.PSHN_L, story), (Jsm.Opcode.POPM_B, 530), player[^1]];
+            }
             List<(Jsm.Opcode, int)[]> scripts = [player, [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]];
             foreach (int label in new[] { 16, 32 })
             {
                 scripts.Add([(Jsm.Opcode.LBL, label), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)]);
                 for (int local = 1; local < 7; local++)
                 {
-                    scripts.Add([(Jsm.Opcode.LBL, label + local), (Jsm.Opcode.RET, 8)]);
+                    scripts.Add(local == 1 ? [(Jsm.Opcode.LBL, label + local), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)] : [(Jsm.Opcode.LBL, label + local), (Jsm.Opcode.RET, 8)]);
                 }
                 List<(Jsm.Opcode, int)> exit = [(Jsm.Opcode.LBL, label + 7), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.LINEOFF, 0)];
+                if (conditionalStop != 0)
+                {
+                    exit.AddRange([(Jsm.Opcode.PSHM_B, 530), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.CAL, 12), (Jsm.Opcode.JPF, 3), (Jsm.Opcode.LINEOFF, 0), (conditionalStop == 1 ? Jsm.Opcode.HALT : Jsm.Opcode.RET, conditionalStop == 1 ? 0 : 8)]);
+                }
+                if (presentation)
+                {
+                    exit.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MUSICVOLTRANS, 0)]);
+                    if (postPresentation == 1)
+                    {
+                        exit.AddRange([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.JPF, 1)]);
+                    }
+                    if (postPresentation == 2)
+                    {
+                        exit.AddRange([(Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000)]);
+                    }
+                }
                 if (conditionalDestination)
                 {
                     exit.AddRange([(Jsm.Opcode.PSHM_W, 256), (Jsm.Opcode.PSHN_L, 482), (Jsm.Opcode.CAL, 8), (Jsm.Opcode.JPF, 8), (Jsm.Opcode.PSHN_L, 176), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.MAPJUMP3, 0), (Jsm.Opcode.JMP, 7), (Jsm.Opcode.PSHN_L, 175), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 567), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.MAPJUMP3, 0), (Jsm.Opcode.RET, 8)]);
@@ -54,6 +74,7 @@ internal static partial class Program
                 ResolvePartyTraceTriangle = (_, _, _) => 0
             };
             LoadSemanticFixtureField(engine, session, content);
+            engine.Step();
             return engine;
         }
 
@@ -114,6 +135,50 @@ internal static partial class Program
                 conditionalExit.InfGateways = [first with { Destination = first.Destination with { Triangle = short.MaxValue } }];
                 Require(!conditionalExit.CanCanonicalizeLegacySpatialExits(conditionalExit.GetSemanticExitCandidates(SceneKind.Field, 175), SceneKind.Field, 175), "Mixed exits erased the native leader-default reset discriminator.");
             }
+        }
+        EventEngine presentationExit = Create(writeState: false, presentation: true);
+        presentationExit.InfGateways = [first];
+        ReplaySemanticTrigger[] presentationCandidates = presentationExit.GetSemanticExitCandidates(SceneKind.Field, 175).ToArray();
+        int audioRequests = 0;
+        presentationExit.AudioCommandExecuted += _ => audioRequests++;
+        using (presentationExit.BeginSemanticSpatialReplay())
+        {
+            JsonElement beforePresentationProof = presentationExit.Capture();
+            Require(!presentationExit.AreSemanticExitCandidatesEquivalent(presentationCandidates) && !presentationExit.CanCanonicalizeLegacySpatialExits(presentationCandidates, SceneKind.Field, 175), "Strict or pure equivalence accepted a music-volume state write.");
+            Require(presentationExit.CanCanonicalizeLegacyPresentationExits(presentationCandidates, SceneKind.Field, 175) && audioRequests == 0 && JsonElement.DeepEquals(beforePresentationProof, presentationExit.Capture()), "Presentation policy failed its detached proof or mutated current audio/state.");
+            ReplaySemanticTrigger door = presentationCandidates.First(candidate => candidate.Kind != ReplaySemanticTriggerKind.FieldGateway);
+            Require(presentationExit.ApplySemanticTrigger(door).Accepted, "Canonical presentation exit was not admitted through its actual native door dispatcher.");
+            presentationExit.Step();
+            Require(presentationExit.LastFault is null && presentationExit.Scene.SoundMusicVolume197 == 0 && presentationExit.Scene.MusicVolumeRequest is { RequestedDuration: 120, EffectiveDuration: 120, StoredVolume: 0 } && audioRequests == 1 && presentationExit.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "Actual presentation exit lost its original BYTE197 write, audio request or field departure.");
+        }
+        foreach (int suffix in new[] { 1, 2 })
+        {
+            EventEngine invalidPresentation = Create(writeState: false, presentation: true, postPresentation: suffix);
+            invalidPresentation.InfGateways = [first];
+            using (invalidPresentation.BeginSemanticSpatialReplay())
+            {
+                JsonElement beforePresentationProof = invalidPresentation.Capture();
+                Require(!invalidPresentation.CanCanonicalizeLegacyPresentationExits(invalidPresentation.GetSemanticExitCandidates(SceneKind.Field, 175), SceneKind.Field, 175) && JsonElement.DeepEquals(beforePresentationProof, invalidPresentation.Capture()), "Presentation policy admitted or executed a post-effect branch or persistent write.");
+            }
+        }
+        foreach (int terminal in new[] { 1, 2 })
+        {
+            EventEngine stoppedExit = Create(writeState: false, story: 214, conditionalStop: terminal);
+            stoppedExit.InfGateways = [first];
+            Require(stoppedExit.GetSemanticExitCandidates(SceneKind.Field, 175).Count == 3, "Ordinary potential-exit metadata discarded a current stopped branch outside spatial replay.");
+            using (stoppedExit.BeginSemanticSpatialReplay())
+            {
+                JsonElement beforeStopProof = stoppedExit.Capture();
+                ReplaySemanticTrigger[] viable = stoppedExit.GetSemanticExitCandidates(SceneKind.Field, 175).ToArray();
+                Require(viable.Length == 1 && viable[0].Kind == ReplaySemanticTriggerKind.FieldGateway && JsonElement.DeepEquals(beforeStopProof, stoppedExit.Capture()), "A proven current safe-prefix HALT/RET remained a competing spatial exit or metadata review mutated state.");
+            }
+        }
+        EventEngine unknownExit = Create(writeState: true, story: 0, conditionalStop: 1);
+        unknownExit.InfGateways = [first];
+        using (unknownExit.BeginSemanticSpatialReplay())
+        {
+            JsonElement beforeUnknownProof = unknownExit.Capture();
+            Require(unknownExit.GetSemanticExitCandidates(SceneKind.Field, 175).Count == 3 && JsonElement.DeepEquals(beforeUnknownProof, unknownExit.Capture()), "A reached unknown state-writing prefix was mistaken for a proven no-exit branch.");
         }
         Console.WriteLine("Semantic exit equivalence: current enabled native door bodies match excluding only their LBL identity, pure query preserves state, state-writer and script/INF equivalence are refused PASS.");
     }

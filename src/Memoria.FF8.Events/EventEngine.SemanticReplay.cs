@@ -142,6 +142,10 @@ public sealed partial class EventEngine
                 return destinationScene == SceneKind.Field && destination.FieldId == destinationFieldId || destinationScene == SceneKind.WorldMap && destination.FieldId < 72;
             }
             EventScript script = program!.Objects[candidate.ObjectId].Scripts[candidate.LocalScript];
+            if (IsSemanticSpatialReplay && candidate.Inferred && ProbeCurrentExitPrefix(candidate.ObjectId, script, false, out _, out _) == CurrentSemanticExit.NoExit)
+            {
+                return false;
+            }
             for (int index = script.Start; index < script.End; index++)
             {
                 JsmOperation operation = program.Operations[index];
@@ -259,28 +263,63 @@ public sealed partial class EventEngine
 
     private bool TryReadPureCurrentExitPrefix(int objectId, EventScript script, out JsmOperation? terminal, out int[] arguments)
     {
+        return TryReadCurrentExitPrefix(objectId, script, false, out terminal, out arguments);
+    }
+
+    private bool TryReadCurrentExitPrefix(int objectId, EventScript script, bool allowPresentation, out JsmOperation? terminal, out int[] arguments)
+    {
+        return ProbeCurrentExitPrefix(objectId, script, allowPresentation, out terminal, out arguments) == CurrentSemanticExit.Exit;
+    }
+
+    private enum CurrentSemanticExit
+    {
+        Unknown,
+        NoExit,
+        Exit
+    }
+
+    private CurrentSemanticExit ProbeCurrentExitPrefix(int objectId, EventScript script, bool allowPresentation, out JsmOperation? terminal, out int[] arguments)
+    {
         terminal = null;
         arguments = [];
         // Only these existing Execute cases return after operating on the detached
         // operand stack. They do not emit CommandExecuted or publish event owners.
         Fiber probe = new(objectId, script, 0, 0, false) { Position = script.Start + 1 };
+        bool presentationSeen = false;
         try
         {
             while (probe.Position > script.Start && probe.Position < script.End)
             {
                 int index = probe.Position;
                 JsmOperation operation = program!.Operations[index];
+                if (presentationSeen && operation.Opcode is not (Jsm.Opcode.PSHN_L or Jsm.Opcode.NOP or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.MAPJUMPO))
+                {
+                    return CurrentSemanticExit.Unknown;
+                }
+                if (allowPresentation && operation.Opcode == Jsm.Opcode.MUSICVOLTRANS)
+                {
+                    if (UnsupportedMusicVolume(probe, operation.Opcode) is not null || probe.Stack.Capture().Take(3).Any(value => !value.IsExact))
+                    {
+                        return CurrentSemanticExit.Unknown;
+                    }
+                    // The metadata query consumes operands only. Actual admission
+                    // must execute the original BYTE197/198 write and audio request.
+                    Pop(probe, 3);
+                    probe.Position++;
+                    presentationSeen = true;
+                    continue;
+                }
                 if (operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.CAL)
                 {
                     if (UnsupportedNativeScalarAccess(probe, operation) is not null)
                     {
-                        return false;
+                        return CurrentSemanticExit.Unknown;
                     }
                     probe.Position++;
                     Execute(probe, operation);
                     if (probe.Stack.HasUncertainty)
                     {
-                        return false;
+                        return CurrentSemanticExit.Unknown;
                     }
                     continue;
                 }
@@ -289,7 +328,7 @@ public sealed partial class EventEngine
                     long target = (long)index + operation.Parameter;
                     if (operation.Parameter <= 0 || target <= script.Start || target >= script.End)
                     {
-                        return false;
+                        return CurrentSemanticExit.Unknown;
                     }
                     bool jump = operation.Opcode == Jsm.Opcode.JMP || Pop(probe, 1)[0] == 0;
                     probe.Position = jump ? (int)target : index + 1;
@@ -299,6 +338,10 @@ public sealed partial class EventEngine
                 {
                     probe.Position++;
                     continue;
+                }
+                if (operation.Opcode is Jsm.Opcode.RET or Jsm.Opcode.HALT)
+                {
+                    return CurrentSemanticExit.NoExit;
                 }
                 int operands = operation.Opcode switch
                 {
@@ -312,22 +355,33 @@ public sealed partial class EventEngine
                 // before departure are unsupported proof paths, not executed.
                 if (operands == 0 || probe.Stack.Count < operands)
                 {
-                    return false;
+                    return CurrentSemanticExit.Unknown;
                 }
                 terminal = operation;
                 arguments = probe.Stack.Take(operands).Reverse().ToArray();
-                return true;
+                return CurrentSemanticExit.Exit;
             }
         }
         catch (Exception exception) when (exception is EventScriptException or InvalidOperationException or InvalidDataException or ArgumentException or ArithmeticException or NotSupportedException)
         {
-            return false;
+            return CurrentSemanticExit.Unknown;
         }
-        return false;
+        return CurrentSemanticExit.Unknown;
     }
 
     /// <summary>Proves current pure field exits for inferred inputs under explicit completed-visit spatial abstraction.</summary>
     public bool CanCanonicalizeLegacySpatialExits(IReadOnlyList<ReplaySemanticTrigger> candidates, SceneKind destinationScene, int destinationFieldId)
+    {
+        return CanCanonicalizeLegacyCurrentExits(candidates, destinationScene, destinationFieldId, false);
+    }
+
+    /// <summary>Chooses an inferred current door exit while preserving its original music-volume presentation effect at actual execution.</summary>
+    public bool CanCanonicalizeLegacyPresentationExits(IReadOnlyList<ReplaySemanticTrigger> candidates, SceneKind destinationScene, int destinationFieldId)
+    {
+        return CanCanonicalizeLegacyCurrentExits(candidates, destinationScene, destinationFieldId, true);
+    }
+
+    private bool CanCanonicalizeLegacyCurrentExits(IReadOnlyList<ReplaySemanticTrigger> candidates, SceneKind destinationScene, int destinationFieldId, bool allowPresentation)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         if (!IsSemanticSpatialReplay || candidates.Count < 2 || program is null || NativeRuntimeProfile is not { IsVerified: true } || Scene.MapJumpDisabled || destinationScene != SceneKind.Field)
@@ -361,8 +415,12 @@ public sealed partial class EventEngine
                 }
                 else
                 {
+                    if (allowPresentation && !program.Objects[candidate.ObjectId].IsDoor)
+                    {
+                        return false;
+                    }
                     EventScript script = program.Objects[candidate.ObjectId].Scripts[candidate.LocalScript];
-                    if (!TryReadPureCurrentExitPrefix(candidate.ObjectId, script, out JsmOperation? terminal, out int[] arguments))
+                    if (!TryReadCurrentExitPrefix(candidate.ObjectId, script, allowPresentation, out JsmOperation? terminal, out int[] arguments))
                     {
                         return false;
                     }

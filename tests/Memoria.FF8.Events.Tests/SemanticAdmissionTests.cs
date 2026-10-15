@@ -44,12 +44,14 @@ internal static partial class Program
                     [(Jsm.Opcode.LBL, 4), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 36), (Jsm.Opcode.REQEW, 2), (Jsm.Opcode.RET, 8)],
                     target, targetIdle,
                     [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.PSHN_L, 65540), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.RET, 8)],
-                    push, secondary,
+                    push,
+                    [(Jsm.Opcode.LBL, 20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.JPF, 5), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 1024), (Jsm.Opcode.JMP, 4), (Jsm.Opcode.NOP, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.POPM_W, 1278), (Jsm.Opcode.RET, 8), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.POPM_W, 1279), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_L, 1276), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 1280), (Jsm.Opcode.RET, 8)],
+                    secondary,
                     [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
                     [(Jsm.Opcode.LBL, 34), (Jsm.Opcode.RET, 8)],
                     [(Jsm.Opcode.LBL, 35), (Jsm.Opcode.RET, 8)],
                     leafProgram];
-                groups = [4, (16 << 7) | 3, (32 << 7) | 4];
+                groups = [4, (16 << 7) | 4, (32 << 7) | 4];
             }
             if (autonomous)
             {
@@ -133,6 +135,11 @@ internal static partial class Program
         ReplayScriptGoal goal = new(600, chainIdentity.ProgramHash, chainIdentity.ExecutableHash, 2, 36, leaf.Start + 2, (int)Jsm.Opcode.POPM_B, Inferred: true);
         JsonElement beforeChainQuery = chain.Engine.Capture();
         Require(chain.Engine.GetSemanticProducerGoal(2, 36, leaf.Start + 2) == goal && !chain.Engine.HasSemanticProducerWork(goal), "Current producer-site metadata or halted-work observation fabricated a pending branch.");
+        EventScript metadata = chain.Program.Objects[1].Scripts.Single(script => script.Id == 20);
+        ReplayScriptGoal Metadata(int offset) => chain.Engine.GetSemanticProducerGoal(1, 20, metadata.Start + offset);
+        Require(chain.Engine.IsSemanticLocalWriter(Metadata(4)) && chain.Engine.IsSemanticLocalWriter(Metadata(8)) && chain.Engine.IsSemanticLocalWriter(Metadata(13)) && !chain.Engine.IsSemanticLocalWriter(Metadata(11)) && !chain.Engine.IsSemanticLocalWriter(Metadata(15)) && !chain.Engine.IsSemanticLocalWriter(Metadata(1)), "Field scratch writer classification ignored opcode or complete BYTE/WORD/DWORD boundaries.");
+        Require(!chain.Engine.CanSemanticProducerFollow(Metadata(4), Metadata(8)) && chain.Engine.CanSemanticProducerFollow(Metadata(1), Metadata(8)) && chain.Engine.CanSemanticProducerFollow(Metadata(11), Metadata(13)) && !chain.Engine.CanSemanticProducerFollow(Metadata(13), goal), "Same-invocation CFG proof crossed RET, lost a conditional path or joined different scripts.");
+        Require(chain.Engine.IsSemanticAdmissionProducerAncestor(chainIdentity, goal) && !chain.Engine.IsSemanticAdmissionProducerAncestor(chain.Engine.GetSemanticTriggerCandidates().Single(candidate => candidate.ObjectId == 1 && candidate.Kind == ReplaySemanticTriggerKind.PushContact), goal), "Current admission ancestry lost a literal request chain or fabricated an unrelated producer.");
         ReplaySemanticTrigger[] roots = chain.Engine.GetSemanticProducerCandidates(goal).ToArray();
         Require(roots is [{ Kind: ReplaySemanticTriggerKind.ActorInteraction, ScriptId: 18, Inferred: true }] && !chain.Engine.IsAutonomousSemanticProducer(goal) && JsonElement.DeepEquals(beforeChainQuery, chain.Engine.Capture()) && !chain.Session.State.Variables.ContainsKey(5003), "Reverse literal native request discovery lost a unique external cause, operand narrowing or query purity.");
         Require(chain.Engine.ApplySemanticTrigger(roots[0]).Accepted, "Inferred request-chain root was not admitted through its ordinary current event dispatcher.");
@@ -147,6 +154,8 @@ internal static partial class Program
         EventScript dormant = automatic.Program.Objects[2].Scripts.Single(script => script.Id == 36);
         JsonElement beforeAutomaticQuery = automatic.Engine.Capture();
         ReplayScriptGoal dormantGoal = goal with { ProgramHash = beforeAutomaticQuery.GetProperty("ProgramHash").GetString()!, Operation = dormant.Start + 2 };
+        ReplaySemanticTrigger dormantRoot = chainIdentity with { ProgramHash = dormantGoal.ProgramHash };
+        Require(automatic.Engine.IsSemanticAdmissionProducerAncestor(dormantRoot, dormantGoal), "Declared admission ancestry incorrectly required the target body to remain enabled.");
         Require(!automatic.Engine.Actors[2].Active && automatic.Engine.GetSemanticProducerCandidates(dormantGoal).Count == 0 && automatic.Engine.IsAutonomousSemanticProducer(dormantGoal) && !automatic.Engine.IsSemanticProducerPending(dormantGoal) && JsonElement.DeepEquals(beforeAutomaticQuery, automatic.Engine.Capture()) && !automatic.Session.State.Variables.ContainsKey(5003), "A declared automatic request chain to a currently unallocated body was lost, executed or misreported as a current external admission.");
         Console.WriteLine("Semantic admissions: authenticated talk/push, KEYON sample, atomic identity refusal, pure two-hop literal request roots with native BYTE/WORD narrowing and dormant automatic roots through unallocated targets PASS.");
     }
