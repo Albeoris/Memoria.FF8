@@ -516,7 +516,12 @@ public sealed partial class EventEngine
             EventScript? issuingScript = program.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == motion.ScriptId);
             bool directionPoint = (uint)motion.Operation < program.Operations.Count && program.Operations[motion.Operation].Opcode == Jsm.Opcode.DIRP;
             bool partyTarget = IsNativePartyMove(motion.Operation);
-            string movementOpcode = partyTarget ? "PMOVEA" : directionPoint ? "DIRP" : motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            bool asyncPartyTarget = IsNativeAsyncPartyMove(motion.Operation);
+            string movementOpcode = asyncPartyTarget ? "RPMOVEA" : partyTarget ? "PMOVEA" : directionPoint ? "DIRP" : motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            if (asyncPartyTarget && (!motion.Asynchronous || !motion.AutomaticAnimation || motion.HoldsFacing || motion.Accelerated || motion.TargetNativeObjectId is null))
+            {
+                throw new InvalidDataException("Saved RPMOVEA lost its one-time raw party target or asynchronous native mode1 policy.");
+            }
             if (partyTarget && (motion.Asynchronous || !motion.AutomaticAnimation || motion.HoldsFacing || motion.Accelerated || motion.Active && (!validOwner || owner!.Stack.Count == 0 || !owner.Stack.PeekValue().IsExact || (uint)owner.Stack.Peek() >= 3 || owner.NativeMoveTarget != (int)owner.Stack.Peek())))
             {
                 throw new InvalidDataException("Saved PMOVEA lost its full DWORD party-slot consumer or native mode1 policy.");

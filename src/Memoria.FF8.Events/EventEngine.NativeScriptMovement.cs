@@ -36,7 +36,7 @@ public sealed partial class EventEngine
     private string? UnsupportedNativeScriptMove(Fiber fiber)
     {
         ActorState actor = actors[fiber.ObjectId];
-        bool partyTarget = program!.Operations[fiber.Position].Opcode == Jsm.Opcode.PMOVEA;
+        bool partyTarget = program!.Operations[fiber.Position].Opcode is Jsm.Opcode.PMOVEA or Jsm.Opcode.RPMOVEA;
         if (actor.NativeLadderMode3 is { Active: true })
         {
             return "Native mode1 cannot replace an active mode3 body without its physical backup contract";
@@ -45,9 +45,9 @@ public sealed partial class EventEngine
         {
             return "Native MOVE requires its allocated physical WORD474/542";
         }
-        if (program!.Operations[fiber.Position].Opcode == Jsm.Opcode.RMOVEA && NativeRuntimeProfile is not { IsVerified: true })
+        if (program!.Operations[fiber.Position].Opcode is Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA && NativeRuntimeProfile is not { IsVerified: true })
         {
-            return "Native RMOVEA requires authenticated original executable provenance";
+            return "Native asynchronous actor-target MOVE requires authenticated original executable provenance";
         }
         bool holdsFacing = program!.Operations[fiber.Position].Opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE or Jsm.Opcode.MACCEL;
         if (holdsFacing && actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 })
@@ -93,7 +93,7 @@ public sealed partial class EventEngine
             return running.FiberSequence == fiber.Sequence && running.Operation == fiber.Position && CanUseNativeScriptMove?.Invoke(actor) == true && ResolveNativeScriptDirection is not null && ResolveNativeScriptMovement is not null && actor.X == running.FixedX / 4096f && actor.Y == running.FixedY / 4096f && actor.Z == running.FixedZ / 4096f && actor.WalkmeshTriangle == running.Triangle && actor.Direction == running.FacingDirection ? null : "Persisted native MOVE requires its original owner, raw placement and certified movement adapters";
         }
         bool replacingAsync = replacingRequest || actor.NativeScriptMovement is { Active: true, Asynchronous: true };
-        bool actorTarget = program.Operations[fiber.Position].Opcode is Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.PMOVEA;
+        bool actorTarget = program.Operations[fiber.Position].Opcode is Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.PMOVEA or Jsm.Opcode.RPMOVEA;
         if (CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || !replacingAsync && actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null && !actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed is <= 0 or > short.MaxValue || actor.Direction != MathF.Truncate(actor.Direction) || !float.IsFinite(actor.Direction) || actor.Direction is < 0 or > 255 || fiber.Stack.Count < (actorTarget ? 2 : program.Operations[fiber.Position].Opcode == Jsm.Opcode.MACCEL ? 5 : 4))
         {
             return $"Native MOVE requires its certified retained actor, original body direction, completed prior motion and signed speed (certified={CanUseNativeScriptMove?.Invoke(actor)}, retained={Scene.NativeActorObjectIds.Contains(actor.ObjectId)}, direction={actor.Direction}, speed={actor.MovementSpeed}, radius={actor.PushRadius}, model={actor.ModelId}, authority={actor.NativeMotionAuthority}, initialization={Scene.NativeFieldInitialization}, target={actor.MovementTarget}, followTarget={actor.MovementActorId}, rotation={actor.RotationTarget}, operands={fiber.Stack.Count}, replacement={replacingAsync})";
@@ -105,7 +105,7 @@ public sealed partial class EventEngine
         bool accelerated = program.Operations[fiber.Position].Opcode == Jsm.Opcode.MACCEL;
         if (partyTarget && fiber.Stack.Capture().Take(2).Any(value => !value.IsExact))
         {
-            return "PMOVEA requires its original exact full DWORD party slot and stop-distance operands";
+            return "Native party-target MOVE requires its original exact full DWORD party slot and stop-distance operands";
         }
         int[] operands = fiber.Stack.Take(actorTarget ? 2 : accelerated ? 5 : 4).ToArray();
         if ((!actorTarget && !accelerated && operands.Skip(1).Any(value => value is < short.MinValue or > short.MaxValue)) || actorTarget && (partyTarget ? ReadNativePartyMoveTarget(operands[1]) is null : operands[0] is < short.MinValue or > short.MaxValue || ReadNativeActorMoveTarget(operands[1]) is null) || ReadNativeScriptPosition(actor) is null)
@@ -180,12 +180,13 @@ public sealed partial class EventEngine
         {
             return CreateNativeAccelerationMove(fiber, raw, movementDirection, baseSpeed, operation);
         }
-        if (opcode is Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.PMOVEA)
+        if (opcode is Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.PMOVEA or Jsm.Opcode.RPMOVEA)
         {
             int[] actorArgs = fiber.Stack.Take(2).Reverse().ToArray();
-            (int NativeObjectId, FieldFixedPosition Position)? party = opcode == Jsm.Opcode.PMOVEA ? ReadNativePartyMoveTarget(actorArgs[0]) : null;
-            FieldFixedPosition target = opcode == Jsm.Opcode.PMOVEA ? party?.Position ?? throw new NotSupportedException("PMOVEA has no owned saved party target.") : ReadNativeActorMoveTarget(actorArgs[0]) ?? throw new NotSupportedException("Native MOVEA target has no preserved raw placement.");
-            return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, target.X, target.Y, target.Z, baseSpeed, unchecked((short)actorArgs[1]), movementDirection, (byte)actor.Direction, Asynchronous: opcode == Jsm.Opcode.RMOVEA, TargetNativeObjectId: party?.NativeObjectId ?? actorArgs[0], FacingHold576: actor.NativeMotionAuthority?.FacingHold == 1 ? (byte?)1 : null);
+            bool partyTarget = opcode is Jsm.Opcode.PMOVEA or Jsm.Opcode.RPMOVEA;
+            (int NativeObjectId, FieldFixedPosition Position)? party = partyTarget ? ReadNativePartyMoveTarget(actorArgs[0]) : null;
+            FieldFixedPosition target = partyTarget ? party?.Position ?? throw new NotSupportedException("Native party-target MOVE has no owned saved party target.") : ReadNativeActorMoveTarget(actorArgs[0]) ?? throw new NotSupportedException("Native MOVEA target has no preserved raw placement.");
+            return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, target.X, target.Y, target.Z, baseSpeed, unchecked((short)actorArgs[1]), movementDirection, (byte)actor.Direction, Asynchronous: opcode is Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA, TargetNativeObjectId: party?.NativeObjectId ?? actorArgs[0], FacingHold576: actor.NativeMotionAuthority?.FacingHold == 1 ? (byte?)1 : null);
         }
         int[] args = fiber.Stack.Take(4).Reverse().ToArray();
         bool holdsFacing = opcode is Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE;

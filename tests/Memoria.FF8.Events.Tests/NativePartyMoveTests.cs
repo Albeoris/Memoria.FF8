@@ -8,7 +8,7 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativePartyMoveContract(string gameDirectory)
+    private static void NativePartyMoveContract(string gameDirectory, bool asynchronous = false)
     {
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create(int slot = 0)
         {
             (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] move = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 901), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PMOVEA, 64), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5008), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] move = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 901), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, 123456), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, 65536), (asynchronous ? Jsm.Opcode.RPMOVEA : Jsm.Opcode.PMOVEA, asynchronous ? 122 : 64), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5004), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5008), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] targetMove = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, -200), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.DOFFSET, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
@@ -46,6 +46,30 @@ internal static partial class Program
         Require(first.StopDistance == 0 && first.TargetNativeObjectId == 2 && live.Scene.NativeActorObjectIds.SequenceEqual([0, 2]) && live.Scene.PartyBindingMemory is { First: 1 } && live.Scene.FieldPartyNativeActorIds.SequenceEqual([255, 255, 255]) && (first.TargetX & 4095) != 0, "PMOVEA lost low-WORD stop distance, compact saved binding, fractional raw target or FOLLOWOFF independence.");
         JsonElement issued = live.Capture();
         JsonElement held = issued.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+        if (asynchronous)
+        {
+            Require(first.Asynchronous && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([123456]) && !held.TryGetProperty("NativeMoveOperation", out _) && !held.TryGetProperty("NativeMoveTarget", out _) && held.GetProperty("Position").GetInt32() == first.Operation + 1 && !issued.GetProperty("Variables").TryGetProperty("5008", out _), "RPMOVEA did not consume both operands, advance PC and yield without a blocking target receipt.");
+            EventEngine restoredAsync = Create();
+            restoredAsync.Restore(issued);
+            live.Step();
+            restoredAsync.Step();
+            JsonElement successor = live.Capture().GetProperty("Variables");
+            Require(successor.GetProperty("5000").GetInt32() == 123456 && successor.GetProperty("5004").GetInt32() == 901 && successor.GetProperty("5008").GetInt32() == 73 && live.Actors[0].NativeScriptMovement is { Active: true } && live.Actors[2].NativeScriptMovement!.FixedX != first.TargetX, "RPMOVEA failed its return3 next-callback continuation or waited for the physical move to finish.");
+            for (int callback = 0; callback < 24; callback++)
+            {
+                NativeScriptMovementState current = live.Actors[0].NativeScriptMovement!;
+                Require(current.TargetX == first.TargetX && current.TargetY == first.TargetY && current.TargetZ == first.TargetZ && JsonElement.DeepEquals(live.Capture(), restoredAsync.Capture()), "RPMOVEA retargeted its moving party body or diverged after independent asynchronous restore.");
+                if (!current.Active)
+                {
+                    break;
+                }
+                live.Step();
+                restoredAsync.Step();
+            }
+            Require(live.Actors[0].NativeScriptMovement is { Active: false, Asynchronous: true, AnimationFlag40000: false } && live.Actors[0].NativeMotionAuthority?.FacingHold == 0, "RPMOVEA did not drain the existing post-VM asynchronous completion and animation flags.");
+            Console.WriteLine("RPMOVEA shared saved-party fixture: fractional target captured once after FOLLOWOFF/DOFFSET, low-WORD stop, consumed slot, return3 yield, next-callback stack/R0 continuation, independent restore and asynchronous completion PASS.");
+            return;
+        }
         Require(held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([0, 123456]) && held.GetProperty("NativeMoveTarget").GetInt32() == 0 && held.GetProperty("Position").GetInt32() == first.Operation, "PMOVEA consumed its full party slot early or confused it with the last resolved native object.");
         EventEngine independent = Create();
         independent.Restore(issued);

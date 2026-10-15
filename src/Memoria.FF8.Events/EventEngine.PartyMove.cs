@@ -6,9 +6,11 @@ public sealed partial class EventEngine
 {
     private bool IsNativePartyMove(int operation) => (uint)operation < program!.Operations.Count && program.Operations[operation].Opcode == Jsm.Opcode.PMOVEA;
 
+    private bool IsNativeAsyncPartyMove(int operation) => (uint)operation < program!.Operations.Count && program.Operations[operation].Opcode == Jsm.Opcode.RPMOVEA;
+
     private (int NativeObjectId, FieldFixedPosition Position)? ReadNativePartyMoveTarget(int slot)
     {
-        //523880 indexes saved BYTE194 with the full DWORD. Only the three
+        //523880/524310 index saved BYTE194 with the full DWORD. Only the three
         //owned party cells are admitted; neither BYTE wrapping nor FF bodies.
         if ((uint)slot >= 3 || services.NativeVariableValues?.Any(pair => pair.Key <= 194 + slot && (long)pair.Key + pair.Value.Width > 194 + slot) == true)
         {
