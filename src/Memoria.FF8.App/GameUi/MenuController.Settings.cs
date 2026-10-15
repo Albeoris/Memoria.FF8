@@ -4,8 +4,24 @@ public sealed partial class MenuController
 {
     private Func<UiPreferences>? _readPreferences;
     private Action<MenuAction>? _writePreferences;
-    private bool IsHostSettingsScreen => ScreenId is "debug-ui" or "debug-audio";
+    private bool IsHostSettingsScreen => ScreenId is "debug-ui" or "debug-audio" or "debug-battle";
     private bool UseHostControls => ScreenId == "debug-controls" || _history.Contains("debug-controls");
+    private Func<bool>? _hasActiveBattle;
+    private Action<bool>? _completeActiveBattle;
+
+    internal void ConnectBattleSettings(Func<bool> hasActiveBattle, Action<bool> completeActiveBattle)
+    {
+        _hasActiveBattle = hasActiveBattle;
+        _completeActiveBattle = completeActiveBattle;
+    }
+
+    internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
+    {
+        bool active = _hasActiveBattle?.Invoke() == true;
+        return [.. HostSettingsEntries("Battle policy", "Random encounters", "Battle ATB mode", "Initiative bar"),
+            new MenuEntry("instant-victory", "Instant victory", "Immediately defeat all enemies in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Victory"), Enabled: active),
+            new MenuEntry("instant-defeat", "Instant defeat", "Immediately defeat the party in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Defeat"), Enabled: active)];
+    }
 
     internal void ConnectPreferences(Func<UiPreferences> read, Action<MenuAction> write)
     {
@@ -37,12 +53,30 @@ public sealed partial class MenuController
             "Music volume" => preferences.MusicVolume + "%",
             "Effect volume" => preferences.SoundVolume + "%",
             "Initiative bar" => preferences.ShowInitiative ? "On" : "Off",
+            "Battle ATB mode" => preferences.AtbMode.ToString(),
+            "Battle policy" => preferences.BattlePolicyLabel,
+            "Random encounters" => preferences.RandomEncounters ? "On" : "Off",
             _ => throw new NotSupportedException($"Unknown local setting '{key}'.")
         };
     }
 
     private bool ExecuteHostSettingsAction(MenuAction action)
     {
+        if (action.Kind == "battle-debug-outcome")
+        {
+            if (_completeActiveBattle is null || _hasActiveBattle?.Invoke() != true)
+            {
+                Message = "An active game battle or laboratory battle is required.";
+                return true;
+            }
+            if (action.Value is not ("Victory" or "Defeat"))
+            {
+                throw new ArgumentException("Unsupported debug battle outcome.");
+            }
+            _completeActiveBattle(action.Value == "Victory");
+            Message = "Battle ended with " + action.Value.ToLowerInvariant() + ".";
+            return true;
+        }
         if (action.Kind != "host-config")
         {
             return false;

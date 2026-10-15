@@ -526,6 +526,7 @@ public sealed partial class GameSession : IEventServices
         ValidateMessageVariableCheckpoint(state, currentVm);
         ValidateInputConfigurationCheckpoint(state, currentVm);
         ValidatePartyMenuOwnersCheckpoint(state, currentVm);
+        ValidateBattleFactsCheckpoint(state);
         return state;
     }
 

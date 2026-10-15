@@ -6,6 +6,28 @@ namespace Memoria.FF8.Battle.Tests;
 public sealed class BattleSessionTests
 {
     [Fact]
+    public void InstantDefeatClearsQueuedAndActiveActionsAndSurvivesInMemorySnapshotRestore()
+    {
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(initialAtb: BattleSession.AtbMaximum)), BattleAtbMode.TurnBased);
+        session.QueueAttack("player", "enemy");
+        session.Tick();
+        Assert.NotNull(session.ActiveAction);
+        session.InstantDefeat();
+        Assert.Equal(BattleOutcome.Defeat, session.Outcome);
+        Assert.All(session.Combatants.Where(actor => actor.IsPlayer), actor =>
+        {
+            Assert.Equal(0, actor.CurrentHp);
+            Assert.Equal(0, actor.Atb);
+        });
+        Assert.All(session.Combatants, actor => Assert.False(actor.IsBusy));
+        Assert.Empty(session.QueuedActions);
+        Assert.Null(session.ActiveAction);
+        Assert.Equal(BattleOutcome.Defeat, BattleSession.Restore(session.Capture()).Outcome);
+        Assert.Throws<InvalidOperationException>(session.InstantDefeat);
+        new BattleInput(BattleInputKind.InstantDefeat).Validate();
+    }
+
+    [Fact]
     public void NormalClockFillsGaugesAndEnemyAiQueuesItsOwnReadyTransition()
     {
         BattleSession session = new(Definition(Player(speed: 100), Enemy(speed: 200)), BattleAtbMode.Normal);

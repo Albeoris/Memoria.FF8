@@ -78,7 +78,7 @@ public sealed class BattleUiTests
     {
         BattleDefinition original = Definition() with { StageId = 7, EncounterId = 42 };
         BattleDefinition? started = null;
-        BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, "ResearchInstantVictory", true, (definition, _) => started = definition, (_, _, _) => { }, () => { });
+        BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, (definition, _) => started = definition, () => { });
         SelectRow(debug, "Party 1");
         int attackRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Attack").index;
         debug.Select(attackRow, true);
@@ -119,13 +119,13 @@ public sealed class BattleUiTests
         JsonElement originalBefore = JsonSerializer.SerializeToElement(original);
         BattleSession session = new(original, BattleAtbMode.Normal);
         BattleSnapshot before = session.Capture();
-        BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, "ResearchInstantVictory", true, (_, _) => throw failure switch
+        BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, (_, _) => throw failure switch
         {
             "unsupported" => new NotSupportedException("Unsupported costume"),
             "data" => new InvalidDataException("Invalid resource"),
             "argument" => new ArgumentException("Invalid definition"),
             _ => new IOException("Cannot read model")
-        }, (_, _, _) => { }, () => { });
+        }, () => { });
         List<MenuSound> sounds = [];
         debug.SoundRequested += sounds.Add;
         debug.Start();
@@ -143,7 +143,7 @@ public sealed class BattleUiTests
     {
         BattleDefinition initial = Definition();
         BattleDebugCatalog catalog = new() { PlayerCostumes = new Dictionary<int, int[]> { [initial.Combatants[0].ModelId] = [0, 2, 4] } };
-        BattleDebugController debug = new(initial, catalog, BattleAtbMode.Normal, "ResearchInstantVictory", true, (_, _) => { }, (_, _, _) => { }, () => { });
+        BattleDebugController debug = new(initial, catalog, BattleAtbMode.Normal, (_, _) => { }, () => { });
         SelectRow(debug, "Party 1");
         int costumeRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Costume").index;
         debug.Select(costumeRow, true);
@@ -173,7 +173,7 @@ public sealed class BattleUiTests
         {
             Weapons = [new BattleDebugEquipment(7, "Compatible", 0), new BattleDebugEquipment(9, "Other character", 1)]
         };
-        BattleDebugController debug = new(Definition(), catalog, BattleAtbMode.Normal, "ResearchInstantVictory", true, (_, _) => { }, (_, _, _) => { }, () => { });
+        BattleDebugController debug = new(Definition(), catalog, BattleAtbMode.Normal, (_, _) => { }, () => { });
         SelectRow(debug, "Party 1");
         Assert.DoesNotContain(debug.Rows, row => row.Label == "Enemy 1 · Weapon");
         int weaponRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Weapon").index;

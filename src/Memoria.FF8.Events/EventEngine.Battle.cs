@@ -50,16 +50,16 @@ public sealed partial class EventEngine
         Scene.FieldCallbackClock = next;
     }
 
-    public void ReturnFromInteractiveBattle(int combatCallbacks, Action? publishCombatOutcome = null, ReplayJournalEntry? factualOutcome = null)
+    public void ReturnFromInteractiveBattle(int combatCallbacks, Action? publishCombatOutcome = null)
     {
         if (PendingInteractiveBattle is null)
         {
             throw new InvalidOperationException("No interactive battle owns the suspended field VM.");
         }
-        ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome, factualOutcome);
+        ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome);
     }
 
-    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, ReplayJournalEntry? factualOutcome = null)
+    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null)
     {
         NativeBattleCompletion request = PendingHostedBattle ?? throw new InvalidOperationException("No hosted battle owns the suspended field VM.");
         if (combatCallbacks < 0)
@@ -79,17 +79,11 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Automatic research victory has no simulated combat callbacks.");
         }
-        ReplayJournalEntry input = factualOutcome is null ? ReplayBoundary(ReplayEntryKind.BattleInput) with { BattleInput = new BattleInput(BattleInputKind.Return), Code = request.Flags, Value = request.Encounter, NativeSourceHash = request.ProgramHash, ObjectId = request.ObjectId, ScriptId = request.ScriptId, Operation = request.Operation } : ReplayBoundary(ReplayEntryKind.BattleOutcome) with { BattleOutcome = factualOutcome.BattleOutcome };
-        RunReplay(input, () =>
-        {
-            publishCombatOutcome?.Invoke();
-            int index = Scene.NativeBattleCompletions!.IndexOf(request);
-            Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
-            PlayerTrigger before = NextTrigger;
-            StepCore();
-            RecordReplayProgress(before);
-            return true;
-        });
+        publishCombatOutcome?.Invoke();
+        int index = Scene.NativeBattleCompletions!.IndexOf(request);
+        Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
+        StepCore();
+        OperationCompleted?.Invoke();
     }
     private string? UnsupportedBattle(Fiber fiber, JsmOperation operation)
     {

@@ -62,15 +62,20 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
         return new(level, maximumHp, stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], ElementDefenses);
     }
 
-    public static int ResolveLevel(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll)
+    public static int LevelRandomByteCount(byte sceneLevel)
+    {
+        return sceneLevel <= 100 || sceneLevel == 254 ? 0 : sceneLevel is 251 or 253 ? 2 : 1;
+    }
+
+    public static int ResolveLevel(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
     {
         if (sceneLevel <= 100)
         {
             return sceneLevel;
         }
-        if (sceneLevel != 255 && sceneLevel != 254)
+        if (LevelRandomByteCount(sceneLevel) == 2 && secondBattleRoll is null)
         {
-            throw new NotSupportedException($"Native enemy scene level code{sceneLevel} is outside the reached literal/FF/FE contract.");
+            throw new InvalidDataException("Native enemy level code requires its second original battle random byte.");
         }
         if (presentPartyLevels.Length is < 1 or > 3)
         {
@@ -90,7 +95,23 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
         {
             return average;
         }
-        //48BFA0 consumes exactly one48F020 byte; odd adds the truncated fifth.
-        return Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? average / 5 : average / -5), 1, 100);
+        // Original48BBD0 dispatches48BFA0/48C020/48C0A0/48C140; preserve their byte consumption.
+        int varied = Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? average / 5 : average / -5), 1, 100);
+        if (sceneLevel <= 200)
+        {
+            return Math.Min(sceneLevel - 100, varied);
+        }
+        if (sceneLevel <= 250)
+        {
+            return Math.Min(100, varied + sceneLevel - 200);
+        }
+        return sceneLevel switch
+        {
+            251 => Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? secondBattleRoll!.Value & 3 : -(secondBattleRoll!.Value & 3)), 1, 65),
+            252 => originalBattleRoll % 100 + 1,
+            253 => Math.Max(1, secondBattleRoll!.Value % varied),
+            255 => varied,
+            _ => throw new InvalidDataException("Invalid native level dispatch.")
+        };
     }
 }

@@ -11,10 +11,11 @@ public enum BattleInputKind
     Return,
     InstantVictory,
     Action,
-    ConfigureEncounters
+    ConfigureEncounters,
+    InstantDefeat
 }
 
-/// <summary>Live combat controls. Reconstruction consumes encounter/outcome facts; only playthrough policy inputs are journaled.</summary>
+/// <summary>Live combat controls and settings for the current game.</summary>
 public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? ActorId = null, string? TargetId = null, BattleAtbMode Mode = BattleAtbMode.Normal, bool FullCombat = false, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, bool? RandomEncounters = null, byte? NativeSeed = null)
 {
     public void Validate()

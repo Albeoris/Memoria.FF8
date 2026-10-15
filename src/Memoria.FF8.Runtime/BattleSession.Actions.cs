@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     public string ActionName(BattleAbility ability, int id)
     {
-        return ability == BattleAbility.Attack ? "Attack" : ability == BattleAbility.Draw ? $"Draw {FindAction(BattleAbility.Magic, id).Name}" : FindAction(ability, id).Name;
+        return ability == BattleAbility.Attack ? "Attack" : ability == BattleAbility.EnemyAbility ? $"Enemy ability {id}" : ability == BattleAbility.Draw ? $"Draw {FindAction(BattleAbility.Magic, id).Name}" : FindAction(ability, id).Name;
     }
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false)
@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
         bool revive = action.Effect == BattleActionEffect.Revive;
         bool allies = ability != BattleAbility.Draw && action.Allies;
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(ability) || (actor.IsPlayer == target.IsPlayer) != allies || (!target.IsAlive && !revive) || target.IsAlive && revive || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(ability) || target.Untargetable || !target.IsActive || (actor.IsPlayer == target.IsPlayer) != allies || (!target.IsAlive && !revive) || target.IsAlive && revive || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }
@@ -59,6 +59,11 @@ public sealed partial class BattleSession
 
     private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (command.Ability == BattleAbility.EnemyAbility)
+        {
+            ResolveNativeAbility(actor, target, command);
+            return;
+        }
         if (command.Ability == BattleAbility.Attack)
         {
             // Original492C40/48F600 physical integer damage and mitigation.
@@ -119,7 +124,7 @@ public sealed partial class BattleSession
             }
             target = action.Allies ? actor : target;
         }
-        IEnumerable<BattleCombatant> targets = action.AllTargets ? combatants.Where(candidate => candidate.IsPlayer == target.IsPlayer && (action.Effect == BattleActionEffect.Revive ? !candidate.IsAlive : candidate.IsAlive)) : [target];
+        IEnumerable<BattleCombatant> targets = action.AllTargets ? combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (action.Effect == BattleActionEffect.Revive ? !candidate.IsAlive : candidate.IsAlive)).ToArray() : [target];
         foreach (BattleCombatant recipient in targets)
         {
             switch (action.Effect)

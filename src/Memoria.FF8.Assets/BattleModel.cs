@@ -52,9 +52,22 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
     }
 }
 
-public sealed record BattleStage(int Id, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures);
-public sealed record BattleEnemyPlacement(int Slot, int ModelId, Vector3 Position, int Level, bool Hidden, bool Untargetable);
-public sealed record BattleEncounter(int Id, int StageId, byte Flags, byte PrimaryCamera, byte AlternativeCamera, IReadOnlyList<BattleEnemyPlacement> Enemies);
+public sealed record BattleStageCamera(Vector3 NativeEye, Vector3 NativeTarget, int FocalLength);
+public sealed record BattleStage(int Id, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures)
+{
+    public IReadOnlyDictionary<int, BattleStageCamera> IntroductionCameras { get; init; } = new Dictionary<int, BattleStageCamera>();
+}
+public sealed record BattleEnemyPlacement(int Slot, int ModelId, Vector3 Position, int Level, bool Hidden, bool Untargetable)
+{
+    public int NativeModelId => ModelId + 16;
+    public bool IsEnemyModel => NativeModelId >= 16;
+    public bool Enabled { get; init; } = true;
+    public bool InitiallySuspended { get; init; }
+}
+public sealed record BattleEncounter(int Id, int StageId, byte Flags, byte PrimaryCamera, byte AlternativeCamera, IReadOnlyList<BattleEnemyPlacement> Enemies)
+{
+    public IReadOnlyList<BattleEnemyPlacement> Slots { get; init; } = Enemies;
+}
 
 
 

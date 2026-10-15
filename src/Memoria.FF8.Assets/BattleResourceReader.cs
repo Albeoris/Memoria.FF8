@@ -398,6 +398,9 @@ internal static class BattleResourceReader
                 meshes.Add(new BattleMesh(vertices, faces));
             }
         }
-        return new BattleStage(stageId, meshes, textures);
+        return new BattleStage(stageId, meshes, textures)
+        {
+            IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header)
+        };
     }
 }

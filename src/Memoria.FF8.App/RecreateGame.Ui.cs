@@ -30,8 +30,9 @@ internal sealed partial class RecreateGame
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
-        gameMenus.ConnectPreferences(() => uiPreferences, ApplyLiveMenuAction);
+        gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
+        gameMenus.ConnectBattleSettings(() => ActiveBattle?.Outcome == BattleOutcome.Active, victory => ApplyBattleCommand(new BattleInput(victory ? BattleInputKind.InstantVictory : BattleInputKind.InstantDefeat)));
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
         gameMenus.ConnectControls(() => keyboard.Profile, profile =>
@@ -73,9 +74,9 @@ internal sealed partial class RecreateGame
         data.Settings["UI font size"] = uiPreferences.UiFontSize.ToString();
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
-        data.Settings["Battle ATB mode"] = uiPreferences.AtbMode.ToString();
-        data.Settings["Battle policy"] = uiPreferences.BattlePolicy;
-        data.Settings["Random encounters"] = uiPreferences.RandomEncounters ? "On" : "Off";
+        data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode.ToString();
+        data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
+        data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
         data.Settings["Initiative bar"] = uiPreferences.ShowInitiative ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");
@@ -147,18 +148,45 @@ internal sealed partial class RecreateGame
         }
         if (action.Kind == "config")
         {
-            UiPreferences nextPreferences = uiPreferences.WithSetting(action.SubjectId, action.Value);
+            UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value);
+            ApplyCurrentBattleSettings(nextPreferences, action.SubjectId);
             nextPreferences.Save(UiPreferencesPath);
             uiPreferences = nextPreferences;
             text.FontFamily = uiPreferences.UiFontFamily;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
-            if (ActiveBattle is not null && ActiveBattle.Mode != uiPreferences.AtbMode)
-            {
-                ApplyBattleCommand(new BattleInput(BattleInputKind.SetMode, Mode: uiPreferences.AtbMode));
-            }
             return;
         }
         throw new NotSupportedException($"Live menu action '{action.Kind}' requires a supported game-owned command.");
+    }
+
+    private UiPreferences ReadCurrentUiPreferences()
+    {
+        UiPreferences current = session.State.Scene == SceneKind.Title ? uiPreferences : uiPreferences with
+        {
+            BattlePolicy = session.State.FullBattlePlaythrough == true ? "NewGameFullCombat" : "ResearchInstantVictory",
+            RandomEncounters = session.State.RandomEncounters?.Enabled == true
+        };
+        return current with { AtbMode = ActiveBattle?.Mode ?? uiPreferences.AtbMode };
+    }
+
+    private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
+    {
+        if (session.State.Scene != SceneKind.Title && key is "Battle policy" or "Random encounters")
+        {
+            world ??= CreateWorld();
+            if (key == "Battle policy")
+            {
+                world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: preferences.BattlePolicy == "NewGameFullCombat"));
+            }
+            else if (key == "Random encounters")
+            {
+                world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
+            }
+        }
+        if (key == "Battle ATB mode" && ActiveBattle is not null && ActiveBattle.Mode != preferences.AtbMode)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.SetMode, Mode: preferences.AtbMode));
+        }
     }
 
     private bool UpdateGameUi(TimeSpan elapsed, InputFrame input)

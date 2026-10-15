@@ -46,9 +46,27 @@ public sealed class BattleScenePresentationTests
         renderer.Render(new BattleStage(0, [], []), []);
         Assert.True(renderer.TryProject(BattleFormationPresentation.PartyPosition(0, 1), out Vector2 party));
         Assert.True(renderer.TryProject(BattleFormationPresentation.DebugEnemyPosition(0, 1), out Vector2 enemy));
-        Assert.True(party.X < enemy.X, "Allies must occupy the left foreground, facing opponents on the right.");
+        Assert.True(party.X > enemy.X, "The original bootstrap view places the native party on the right, facing opponents on the left.");
         Assert.True(party.Y > enemy.Y);
-        Assert.False(renderer.TryProject(BattleCamera.Overview.Eye, out _));
+        Assert.False(renderer.TryProject(BattleCamera.NativeInitial.Eye, out _));
+    }
+
+    [Fact]
+    public void Installed_scene_uses_its_native_introduction_subject_angle_and_lens_without_actor_bounds_fitting()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
+        using BattleAssets assets = new(directory);
+        BattleDefinition single = ReadyBattle().Capture().Definition;
+        BattleScenePresentation first = new(assets, single, false);
+        BattleDefinition expanded = single with { Combatants = [.. single.Combatants, new() { Id = "second-party", Name = "Zell", IsPlayer = true, ModelId = 1 }] };
+        BattleScenePresentation second = new(assets, expanded, false);
+        BattleCamera expected = BattleCamera.FromNative(assets.LoadStage(0).IntroductionCameras[0]);
+        Assert.Equal(expected, first.Camera);
+        Assert.Equal(expected, second.Camera);
+        first.Render(new BattleSession(single, BattleAtbMode.TurnBased), 640, 480);
+        first.Render(new BattleSession(single, BattleAtbMode.TurnBased), 1280, 720);
+        Assert.Equal(expected, first.Camera);
     }
 
     [Fact]

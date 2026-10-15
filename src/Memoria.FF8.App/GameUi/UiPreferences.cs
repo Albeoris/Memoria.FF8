@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>Local UI and next New Game choices. Existing playthrough policy changes only through explicit journaled input.</summary>
+/// <summary>Local presentation preferences and battle settings applied to the running game.</summary>
 internal sealed record UiPreferences
 {
     public int MusicVolume { get; init; } = 100;
@@ -15,13 +15,15 @@ internal sealed record UiPreferences
     public int DialogueFontSize { get; init; } = 8;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.Normal;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
     public bool ShowInitiative { get; init; }
     public bool RandomEncounters { get; init; } = true;
 
-    public BattleInput[] CreateNewGameBattleInputs()
+    public BattleInput[] CreateBattleSettingsInputs()
     {
         Validate();
-        return BattlePolicy == "NewGameFullCombat" ? [new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true), new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: RandomEncounters)] : [];
+        return [new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: BattlePolicy == "NewGameFullCombat"), new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: RandomEncounters)];
     }
 
     public static UiPreferences Load(string path)
@@ -70,7 +72,12 @@ internal sealed record UiPreferences
         }
         if (key == "Battle policy")
         {
-            return value is "ResearchInstantVictory" or "NewGameFullCombat" ? this with { BattlePolicy = value } : throw new ArgumentException("Unsupported battle policy.");
+            return value switch
+            {
+                "Instant victory" or "ResearchInstantVictory" => this with { BattlePolicy = "ResearchInstantVictory" },
+                "Full combat" or "NewGameFullCombat" => this with { BattlePolicy = "NewGameFullCombat" },
+                _ => throw new ArgumentException("Unsupported battle policy.")
+            };
         }
         if (key == "Initiative bar")
         {

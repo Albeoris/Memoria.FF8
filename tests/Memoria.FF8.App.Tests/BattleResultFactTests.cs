@@ -20,7 +20,7 @@ public sealed class BattleResultFactTests
         Assert.Equal(fact.ItemConsumptions[0].CountBefore - 1, firstRules.Economy.Items.Single(stock => stock.ItemId == 1).Count);
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
         session.SetPendingBattleEncounter(fact.Encounter);
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory, persistReplayJournal: false);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
         world.ApplyBattleResult(fact.Encounter, fact);
         Assert.Equal(2, session.State.CharacterVitals!.GuardianForces[0].AbilityProgress[learningIndex]);
         Assert.Null(session.State.PendingBattleEncounter);
@@ -36,7 +36,7 @@ public sealed class BattleResultFactTests
     {
         (NativeCharacterVitals vitals, NativeEconomy economy, ReplayBattleOutcome fact, _) = Fixture();
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory, persistReplayJournal: false);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
         ReplayBattleEncounter changedResource = fact.Encounter with { FormationHash = new string('F', 64) };
         session.SetPendingBattleEncounter(changedResource);
         string before = JsonSerializer.Serialize(session.State);

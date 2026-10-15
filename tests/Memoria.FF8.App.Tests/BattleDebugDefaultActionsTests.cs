@@ -20,10 +20,10 @@ public sealed class BattleDebugDefaultActionsTests
         using TemporaryPresetFile file = new();
         BattleDebugPresets presets = new(file.Path);
         BattleDefinition? started = null;
-        BattleDebugController editor = new(initial, new BattleDebugCatalog(), BattleAtbMode.TurnBased, "NewGameFullCombat", false, (definition, _) => started = definition, (_, _, _) => { }, () => { }, presets);
+        BattleDebugController editor = new(initial, new BattleDebugCatalog(), BattleAtbMode.TurnBased, (definition, _) => started = definition, () => { }, presets);
         presets.Save(0, editor.Definition, editor.Mode);
         BattleDebugPreset loaded = new BattleDebugPresets(file.Path).Read(0)!;
-        BattleDebugController reopened = new(loaded.Definition, new BattleDebugCatalog(), loaded.Mode, "NewGameFullCombat", false, (definition, _) => started = definition, (_, _, _) => { }, () => { }, presets);
+        BattleDebugController reopened = new(loaded.Definition, new BattleDebugCatalog(), loaded.Mode, (definition, _) => started = definition, () => { }, presets);
         reopened.Start();
         Assert.NotNull(started);
         Assert.Equal(items, started.Items);
@@ -60,7 +60,7 @@ public sealed class BattleDebugDefaultActionsTests
         };
         BattleDebugPresets presets = new();
         presets.Save(0, custom, BattleAtbMode.TurnBased);
-        BattleDebugController editor = new(presets.Read(0)!.Definition, new BattleDebugCatalog(), BattleAtbMode.TurnBased, "NewGameFullCombat", false, (_, _) => { }, (_, _, _) => { }, () => { });
+        BattleDebugController editor = new(presets.Read(0)!.Definition, new BattleDebugCatalog(), BattleAtbMode.TurnBased, (_, _) => { }, () => { });
         Assert.Equal("Custom action", Assert.Single(editor.Definition.ActionDefinitions).Name);
         Assert.Equal(new BattleStock(91, 2), Assert.Single(editor.Definition.Items));
     }

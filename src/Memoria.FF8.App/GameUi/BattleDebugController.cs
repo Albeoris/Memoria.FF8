@@ -25,10 +25,7 @@ public sealed class BattleDebugController
     private readonly BattleDebugPresets presets;
     private readonly HashSet<string> expanded = [];
     private readonly Action<BattleDefinition, BattleAtbMode> start;
-    private readonly Action<BattleAtbMode, string, bool> settings;
     private readonly Action close;
-    private Func<bool?>? readCurrentEncounters;
-    private Action<bool>? changeCurrentEncounters;
     private readonly List<BattleCombatantDefinition> party;
     private readonly List<BattleCombatantDefinition> enemies;
     private readonly UiView view;
@@ -37,7 +34,7 @@ public sealed class BattleDebugController
     private int presetSlot;
     private bool toggleExpansion = true;
 
-    public BattleDebugController(BattleDefinition initial, BattleDebugCatalog catalog, BattleAtbMode mode, string policy, bool showInitiative, Action<BattleDefinition, BattleAtbMode> start, Action<BattleAtbMode, string, bool> settings, Action close, BattleDebugPresets? presets = null)
+    public BattleDebugController(BattleDefinition initial, BattleDebugCatalog catalog, BattleAtbMode mode, Action<BattleDefinition, BattleAtbMode> start, Action close, BattleDebugPresets? presets = null)
     {
         this.catalog = catalog;
         this.initial = BattleSession.CloneDefinition(initial);
@@ -45,13 +42,10 @@ public sealed class BattleDebugController
         this.presets = presets ?? new BattleDebugPresets();
         stageId = initial.StageId;
         this.start = start;
-        this.settings = settings;
         this.close = close;
         party = this.initial.Combatants.Where(actor => actor.IsPlayer).ToList();
         enemies = this.initial.Combatants.Where(actor => !actor.IsPlayer).ToList();
         Mode = mode;
-        Policy = policy;
-        ShowInitiative = showInitiative;
         view = new UiView(new BattleDebugElement(this)) { DesignWidth = 960, DesignHeight = 672, Cancel = Close };
         RebuildRows();
         view.Resize(960, 672);
@@ -59,21 +53,10 @@ public sealed class BattleDebugController
 
     public BattleAtbMode Mode { get; private set; }
     public event Action<MenuSound>? SoundRequested;
-    public string Policy { get; private set; }
-    public bool ShowInitiative { get; private set; }
     public int SelectedIndex { get; private set; }
-    public string Message { get; private set; } = "Edit the scenario or the explicitly labeled playthrough settings.";
+    public string Message { get; private set; } = "Edit an isolated scenario. Current game settings are in Debug Room · Battle.";
     internal IReadOnlyList<BattleDebugRow> Rows => rows;
     public BattleDefinition Definition => initial with { Name = "Debug battle", StageId = stageId, Combatants = [.. party.Select((actor, index) => actor with { Id = $"party-{index}", IsPlayer = true }), .. enemies.Select((actor, index) => actor with { Id = $"enemy-{index}", IsPlayer = false })] };
-
-    public void ConnectCurrentEncounters(Func<bool?> read, Action<bool> change)
-    {
-        ArgumentNullException.ThrowIfNull(read);
-        ArgumentNullException.ThrowIfNull(change);
-        readCurrentEncounters = read;
-        changeCurrentEncounters = change;
-        RebuildRows();
-    }
 
     public static BattleDefinition InitializeParty(BattleDefinition scenario, IReadOnlyList<BattleCombatantDefinition> currentParty, BattleSession? currentBattle = null)
     {
@@ -186,25 +169,7 @@ public sealed class BattleDebugController
         rows.Add(new("ATB mode", Mode.ToString(), "Normal runs ATB continuously. TurnBased holds idle gauges until Advance Turn; actions still animate.", _ =>
         {
             Mode = Mode == BattleAtbMode.Normal ? BattleAtbMode.TurnBased : BattleAtbMode.Normal;
-            settings(Mode, Policy, ShowInitiative);
         }));
-        rows.Add(new("Next New Game policy", Policy, "NewGameFullCombat enables combat for the next New Game. ResearchInstantVictory preserves the research default.", _ =>
-        {
-            Policy = Policy == "ResearchInstantVictory" ? "NewGameFullCombat" : "ResearchInstantVictory";
-            settings(Mode, Policy, ShowInitiative);
-        }));
-        if (readCurrentEncounters is not null && changeCurrentEncounters is not null)
-        {
-            bool? current = readCurrentEncounters();
-            rows.Add(new("Current save random battles", current is null ? "No playthrough" : current.Value ? "On" : "Off", "Explicitly change this playthrough's encounter setting. This is recorded in its session journal.", _ =>
-            {
-                bool? enabled = readCurrentEncounters();
-                if (enabled is not null)
-                {
-                    changeCurrentEncounters(!enabled.Value);
-                }
-            }));
-        }
         rows.Add(new("Battle stage", stageId?.ToString() ?? "None", "Cycle installed battle stage identities.", direction =>
         {
             if (catalog.StageIds.Length == 0)

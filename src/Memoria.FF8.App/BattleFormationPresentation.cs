@@ -4,7 +4,7 @@ namespace Memoria.FF8;
 
 internal static class BattleFormationPresentation
 {
-    // Original 47DBA0/B81030 party table, converted with the same (x,y,-z)/100 basis as scene.out.
+    // Original47DBA0/B81030 party table, converted with the same(x,-y,-z)/100 basis as scene.out.
     // Slots follow the canonical combat party order.
     public static Vector3 PartyPosition(int slot, int count)
     {

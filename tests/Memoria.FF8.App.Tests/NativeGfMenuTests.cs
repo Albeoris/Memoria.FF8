@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -9,49 +9,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeGfMenuTests
 {
-    [Fact]
-    public void OrdinaryMenuInputsSaveAndColdRecreateFromTheAuthenticNewGameJournal()
-    {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
-        Assert.SkipUnless(Directory.Exists(directory), "Installed original game resources are required for causal menu reconstruction.");
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        MovieClock clock = new(session, directory);
-        using GameWorld world = new(session, directory, clock, persistReplayJournal: false);
-        BalambTestJourney.OpeningToGate(session, world, encounters: true);
-        Assert.Equal(PlayerTriggerKind.Playable, world.Events.NextTrigger.Kind);
-        NativeCharacterVitals vitals = session.State.CharacterVitals!;
-        Assert.NotEqual(0, vitals.GuardianForces[0].Flags & 1);
-        if (!vitals.Records[0].Junction.GuardianForceAssignments.Contains(0))
-        {
-            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.JunctionGuardianForce, 0, "0")).Accepted);
-        }
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.SetJunctionCommand, 0, "20", Quantity: 0)).Accepted);
-        NativeGuardianForceAbility target = session.State.CharacterVitals!.GuardianForceAbilities(0).First(ability => !ability.Learned && ability.Ability != 0);
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.SelectGuardianForceLearning, 0, target.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture))).Accepted);
-        GameState completed = session.State;
-        Assert.True(completed.ReplayJournal!.IsComplete);
-        string scratch = Path.Combine(Path.GetTempPath(), "Memoria-GfMenu-" + Guid.NewGuid().ToString("N") + ".json");
-        bool verified = false;
-        try
-        {
-            session.Save(scratch, registerJournalReference: false);
-            Console.WriteLine("Authentic menu checkpoint: " + scratch);
-            GameState loaded = GameSession.Load(scratch);
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(completed.CharacterVitals), JsonSerializer.SerializeToElement(loaded.CharacterVitals)));
-            GameState rebuilt = GameWorld.RecreateSave(GameSession.LoadReplaySource(scratch), directory);
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(completed.CharacterVitals), JsonSerializer.SerializeToElement(rebuilt.CharacterVitals)));
-            verified = true;
-        }
-        finally
-        {
-            if (verified)
-            {
-                File.Delete(scratch);
-            }
-        }
-    }
-
     [Fact]
     public void AuthenticLearningTablesOfferOnlyUnlockedTargetsAndKeepProgressAcrossSelection()
     {
@@ -275,12 +232,10 @@ public sealed class NativeGfMenuTests
     [InlineData(PlayerActionKind.SelectGuardianForceLearning, 16, "20", null)]
     [InlineData(PlayerActionKind.SetJunctionMagic, 0, "1", 19)]
     [InlineData(PlayerActionKind.SetJunctionMagic, 0, "57", 0)]
-    public void MalformedMenuInputsCannotEnterTheCausalJournal(PlayerActionKind kind, int row, string choice, int? slot)
+    public void MalformedMenuInputsAreRejectedBeforeApplyingNativeChanges(PlayerActionKind kind, int row, string choice, int? slot)
     {
         PlayerAction action = new(kind, row, choice, Quantity: slot);
         Assert.Throws<ArgumentException>(() => NativeJunctionMenuInput.Validate(action));
-        ReplayJournalEntry entry = new(ReplayEntryKind.Action, SceneKind.Field, 74, 0) { Code = (int)kind, Value = row, Text = choice, Quantity = slot };
-        Assert.Throws<InvalidDataException>(entry.Validate);
     }
 
     private static GameAssets InstalledAssets()

@@ -5,6 +5,7 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    public event Action? OperationCompleted;
     public void Restore(JsonElement snapshot)
     {
         RestoreCore(snapshot);
@@ -13,26 +14,34 @@ public sealed partial class EventEngine
     public void LoadField(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, JsonElement? worldEntityAllocationContext = null)
     {
         LoadFieldCore(fieldId, jsm, fieldMessages, arrival, previousFieldId, nativeRuntimeProfile, worldEntityAllocationContext);
+        OperationCompleted?.Invoke();
     }
 
     public void Step()
     {
         StepCore();
+        OperationCompleted?.Invoke();
     }
 
     public void Update(TimeSpan elapsed)
     {
         UpdateCore(elapsed);
+        OperationCompleted?.Invoke();
     }
 
     public void ConfirmDialogue(int? choice = null, string? name = null)
     {
         ConfirmDialogueCore(choice, name);
+        OperationCompleted?.Invoke();
     }
 
     public PlayerActionResult Apply(PlayerAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        if (NativeJunctionMenuInput.IsMenuAction(action.Kind))
+        {
+            NativeJunctionMenuInput.Validate(action);
+        }
         if (action.CameraHorizontal != 0)
         {
             throw new NotSupportedException("Manual camera input belongs to the ordinary world motor; field cameras require their executed script contract.");
@@ -45,6 +54,8 @@ public sealed partial class EventEngine
         {
             throw new ArgumentException("Party menu input requires an explicit slot0..2 or native member0..7/emptyFF.", nameof(action));
         }
-        return ApplyCore(action);
+        PlayerActionResult result = ApplyCore(action);
+        OperationCompleted?.Invoke();
+        return result;
     }
 }

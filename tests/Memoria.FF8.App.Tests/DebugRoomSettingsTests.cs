@@ -7,6 +7,45 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DebugRoomSettingsTests
 {
     [Fact]
+    public void LaboratoryContainsOnlyScenarioControlsAndChangingItsAtbModeIsLocal()
+    {
+        BattleDebugController debug = Controller();
+        Assert.DoesNotContain(debug.Rows, row => row.Label.Contains("policy", StringComparison.OrdinalIgnoreCase) || row.Label.Contains("random", StringComparison.OrdinalIgnoreCase) || row.Label.Contains("Initiative", StringComparison.OrdinalIgnoreCase));
+        Activate(debug, "ATB mode");
+        Assert.Equal(BattleAtbMode.TurnBased, debug.Mode);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DebugOutcomeButtonsFollowActiveGameOrLaboratoryBattleAndApplyImmediately(bool victory)
+    {
+        BattleSession? battle = null;
+        MenuController menus = new();
+        menus.ConnectBattleSettings(() => battle?.Outcome == BattleOutcome.Active, won =>
+        {
+            if (won)
+            {
+                battle!.InstantVictory();
+            }
+            else
+            {
+                battle!.InstantDefeat();
+            }
+        });
+        menus.Open("debug-battle", true);
+        Assert.False(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
+        Assert.False(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
+        battle = new BattleSession(Scenario(), BattleAtbMode.TurnBased);
+        Assert.True(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
+        Assert.True(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
+        menus.Execute(new MenuAction("battle-debug-outcome", Value: victory ? "Victory" : "Defeat"));
+        Assert.Equal(victory ? BattleOutcome.Victory : BattleOutcome.Defeat, battle.Outcome);
+        Assert.False(menus.Entries.Single(row => row.Id == "instant-victory").Enabled);
+        Assert.False(menus.Entries.Single(row => row.Id == "instant-defeat").Enabled);
+    }
+
+    [Fact]
     public void Actor_headers_expand_and_collapse_without_changing_scenario()
     {
         BattleDebugController debug = Controller();
@@ -81,7 +120,8 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Battle laboratory", "UI", "Audio", "Controls", "Names", "Menu gallery" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Battle laboratory", "Battle", "UI", "Audio", "Controls", "Names", "Menu gallery" }, menus.Entries.Select(entry => entry.Label));
+        menus.Navigate(MenuInput.Down);
         menus.Navigate(MenuInput.Down);
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-ui", menus.ScreenId);
@@ -145,7 +185,7 @@ public sealed class DebugRoomSettingsTests
     public void Missing_current_model_cycles_to_first_available_model_without_skipping_it()
     {
         BattleDebugCatalog catalog = new() { Enemies = [new() { Id = "first", Name = "First choice", ModelId = 4 }, new() { Id = "second", Name = "Second choice", ModelId = 8 }] };
-        BattleDebugController debug = new(Scenario(), catalog, BattleAtbMode.Normal, "ResearchInstantVictory", false, (_, _) => { }, (_, _, _) => { }, () => { });
+        BattleDebugController debug = new(Scenario(), catalog, BattleAtbMode.Normal, (_, _) => { }, () => { });
         Activate(debug, "Enemy 1");
         Activate(debug, "Enemy 1 · Character / model");
         Assert.Equal(4, debug.Definition.Combatants[1].ModelId);
@@ -153,7 +193,7 @@ public sealed class DebugRoomSettingsTests
 
     private static BattleDebugController Controller(BattleDebugPresets? presets = null)
     {
-        return new BattleDebugController(Scenario(), new BattleDebugCatalog(), BattleAtbMode.Normal, "ResearchInstantVictory", false, (_, _) => { }, (_, _, _) => { }, () => { }, presets);
+        return new BattleDebugController(Scenario(), new BattleDebugCatalog(), BattleAtbMode.Normal, (_, _) => { }, () => { }, presets);
     }
 
     private static void Activate(BattleDebugController debug, string label)

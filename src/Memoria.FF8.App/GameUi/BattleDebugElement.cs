@@ -20,7 +20,7 @@ internal sealed class BattleDebugElement : UiElement
     {
         canvas.Fill(Bounds, new UiColor(12, 12, 16));
         theme.Panel(canvas, new UiRect(18, 18, 924, 66));
-        canvas.Text("DEBUG BATTLE", 28, new UiRect(36, 28, 860, 40), theme.Foreground);
+        canvas.Text("BATTLE LABORATORY", 28, new UiRect(36, 28, 860, 40), theme.Foreground);
         theme.Panel(canvas, new UiRect(18, 94, 626, 510));
         theme.Panel(canvas, new UiRect(656, 94, 286, 510));
         EnsureVisible();

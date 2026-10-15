@@ -19,7 +19,8 @@ public enum BattleAbility
     Magic,
     Draw,
     GuardianForce,
-    Item
+    Item,
+    EnemyAbility
 }
 
 public enum BattleActionEffect
@@ -61,6 +62,12 @@ public sealed record BattleStatusEffectDefinition
 
 public sealed record BattleCombatantDefinition
 {
+    public int? SceneSlot { get; init; }
+    public bool InitialActive { get; init; } = true;
+    public bool InitialHidden { get; init; }
+    public bool InitialUntargetable { get; init; }
+    public bool InitialSuspended { get; init; }
+    public NativeBattleAiDefinition? NativeAi { get; init; }
     public string Id { get; init; } = "";
     public string Name { get; init; } = "";
     public bool IsPlayer { get; init; }
@@ -84,6 +91,7 @@ public sealed record BattleCombatantDefinition
     public int[] ElementDefenses { get; init; } = [800, 800, 800, 800, 800, 800, 800, 800];
     public BattleStock[] MagicStocks { get; init; } = [];
     public BattleDrawSpell[] DrawSpells { get; init; } = [];
+    public int[] DrawGuardianForces { get; init; } = [];
     public int InitialAtb { get; init; }
     public int? WeaponId { get; init; }
     public string? WeaponName { get; init; }
@@ -112,13 +120,14 @@ public enum BattleActionPhase
     Recovery
 }
 
-public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false);
-public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false);
+public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0);
+public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0);
 public sealed record BattleEvent(long Frame, string Kind, string? ActorId, string? TargetId, int Amount, string Message, BattleAbility Ability = BattleAbility.Attack);
 public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
 public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)
 {
     public BattleStock[] MagicStocks { get; init; } = [];
+    public NativeBattleParticipantSnapshot? NativeParticipant { get; init; }
 }
 
 public sealed record BattleSnapshot
@@ -137,6 +146,8 @@ public sealed record BattleSnapshot
     public ReplayBattleEnemyDefeat[] EnemyDefeats { get; init; } = [];
 
     public NativeBattleRandomState? Random { get; init; }
+    public uint[]? NativeAiVariables { get; init; }
+    public BattleStock[] ScriptedRewards { get; init; } = [];
     public BattleStatusKind[] CustomHandlers { get; init; } = [];
 }
 
@@ -152,6 +163,10 @@ public sealed class BattleCombatant
         Atb = CurrentHp == 0 ? 0 : definition.InitialAtb;
         Effects = definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)).ToList();
         Stocks.AddRange(definition.MagicStocks);
+        IsActive = definition.InitialActive;
+        Hidden = definition.InitialHidden;
+        Untargetable = definition.InitialUntargetable;
+        Suspended = definition.InitialSuspended;
     }
 
     public string Id => definition.Id;
@@ -159,6 +174,18 @@ public sealed class BattleCombatant
     public bool IsPlayer => definition.IsPlayer;
     public int ModelId => definition.ModelId;
     public int Costume => definition.Costume;
+    public int? SceneSlot => definition.SceneSlot;
+    public bool IsActive { get; internal set; }
+    public bool Hidden { get; internal set; }
+    public bool Untargetable { get; internal set; }
+    public bool Suspended { get; internal set; }
+    internal NativeBattleAiDefinition? NativeAi => definition.NativeAi;
+    internal uint[] AiVariables { get; } = new uint[8];
+    internal byte AiTurnCount { get; set; }
+    internal string? LastAttackerId { get; set; }
+    internal BattleAbility? LastAttackerAbility { get; set; }
+    internal bool AiDeathHandled { get; set; }
+    internal int NativeIndex { get; set; } = -1;
     public int MaximumHp => definition.MaximumHp;
     public int CurrentHp { get; internal set; }
     public int Speed => definition.Speed;
@@ -175,6 +202,7 @@ public sealed class BattleCombatant
     internal List<BattleStock> Stocks { get; } = [];
     public IReadOnlyList<BattleStock> MagicStocks => Stocks.AsReadOnly();
     public IReadOnlyList<BattleDrawSpell> DrawSpells => Array.AsReadOnly(definition.DrawSpells);
+    public IReadOnlyList<int> DrawGuardianForces => Array.AsReadOnly(definition.DrawGuardianForces);
     public int? WeaponId => definition.WeaponId;
     public string? WeaponName => definition.WeaponName;
     public IReadOnlyList<int> EquipmentIds => Array.AsReadOnly(definition.EquipmentIds);
@@ -182,7 +210,7 @@ public sealed class BattleCombatant
     public IReadOnlyList<BattleStatusSnapshot> StatusEffects => Effects.Select(effect => new BattleStatusSnapshot(effect.Definition.Kind, effect.RemainingFrames, effect.UntilTickFrames, effect.Definition)).ToArray();
     public int Atb { get; internal set; }
     public bool IsBusy { get; internal set; }
-    public bool IsAlive => CurrentHp > 0;
+    public bool IsAlive => IsActive && CurrentHp > 0;
     public bool IsReady => IsAlive && !IsBusy && Atb == BattleSession.AtbMaximum;
 }
 

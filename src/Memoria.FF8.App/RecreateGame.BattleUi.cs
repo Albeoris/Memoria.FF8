@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? ShowInitiative = null);
+internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? ShowInitiative = null, bool? RandomEncounters = null);
 
 internal sealed partial class RecreateGame
 {
@@ -225,6 +225,9 @@ internal sealed partial class RecreateGame
             case BattleInputKind.InstantVictory:
                 debugBattle.InstantVictory();
                 break;
+            case BattleInputKind.InstantDefeat:
+                debugBattle.InstantDefeat();
+                break;
             default:
                 throw new InvalidOperationException("This command requires a game-owned encounter.");
         }
@@ -285,21 +288,23 @@ internal sealed partial class RecreateGame
         BattleStock[] items = currentEconomy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
         BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle, actions, items);
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
-        battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, uiPreferences.BattlePolicy, uiPreferences.ShowInitiative, StartDebugBattle, ApplyBattleDebugSettings, () => battleDebug = null, battleDebugPresets);
-        battleDebug.ConnectCurrentEncounters(() => world is null ? null : session.State.RandomEncounters?.Enabled == true, enabled => world!.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: enabled)));
+        battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, StartDebugBattle, () => battleDebug = null, battleDebugPresets);
         battleDebug.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         SynchronizeUiMoviePause();
     }
 
-    private void ApplyBattleDebugSettings(BattleAtbMode mode, string policy, bool initiative)
+    private void ApplyBattleDebugSettings(BattleAtbMode mode, string policy, bool initiative, bool? randomEncounters)
     {
-        UiPreferences nextPreferences = uiPreferences with { AtbMode = mode, BattlePolicy = policy, ShowInitiative = initiative };
+        UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting("Battle policy", policy) with { AtbMode = mode, ShowInitiative = initiative };
+        ApplyCurrentBattleSettings(nextPreferences, "Battle policy");
+        if (randomEncounters is bool enabled)
+        {
+            nextPreferences = nextPreferences with { RandomEncounters = enabled };
+            ApplyCurrentBattleSettings(nextPreferences, "Random encounters");
+        }
+        ApplyCurrentBattleSettings(nextPreferences, "Battle ATB mode");
         nextPreferences.Save(UiPreferencesPath);
         uiPreferences = nextPreferences;
-        if (ActiveBattle is not null && ActiveBattle.Mode != mode)
-        {
-            ApplyBattleCommand(new BattleInput(BattleInputKind.SetMode, Mode: mode));
-        }
     }
 
     private void StartDebugBattle(BattleDefinition definition, BattleAtbMode mode)
@@ -366,6 +371,7 @@ internal sealed partial class RecreateGame
     private object DispatchBattleControl(ControlRequest request)
     {
         BattleControlCommand command = request.Battle ?? new();
+        UiPreferences currentPreferences = ReadCurrentUiPreferences();
         switch (request.Command.ToLowerInvariant())
         {
             case "battle-start":
@@ -375,7 +381,7 @@ internal sealed partial class RecreateGame
                 ApplyBattleCommand(command.Input ?? throw new ArgumentException("Battle Input is required."));
                 break;
             case "battle-settings":
-                ApplyBattleDebugSettings(command.Mode ?? uiPreferences.AtbMode, command.Policy ?? uiPreferences.BattlePolicy, command.ShowInitiative ?? uiPreferences.ShowInitiative);
+                ApplyBattleDebugSettings(command.Mode ?? currentPreferences.AtbMode, command.Policy ?? currentPreferences.BattlePolicy, command.ShowInitiative ?? currentPreferences.ShowInitiative, command.RandomEncounters);
                 break;
             case "battle-debug-open":
                 OpenBattleDebug();

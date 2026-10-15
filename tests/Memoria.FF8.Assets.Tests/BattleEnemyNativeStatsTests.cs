@@ -8,6 +8,36 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class BattleEnemyNativeStatsTests
 {
     [Theory]
+    [InlineData(110, 0, 0, 8)]
+    [InlineData(110, 1, 0, 10)]
+    [InlineData(111, 1, 0, 11)]
+    [InlineData(200, 1, 0, 12)]
+    [InlineData(201, 0, 0, 9)]
+    [InlineData(250, 1, 0, 62)]
+    [InlineData(251, 0, 3, 7)]
+    [InlineData(251, 1, 3, 13)]
+    [InlineData(252, 255, 0, 56)]
+    [InlineData(253, 1, 24, 1)]
+    [InlineData(253, 0, 15, 7)]
+    public void OriginalLevelDispatcherPreservesCapsOffsetsAndBothRandomOperands(byte code, byte first, byte second, int expected)
+    {
+        Assert.Equal(expected, BattleEnemyNativeStats.ResolveLevel(code, [9, 10, 11], first, second));
+    }
+
+    [Fact]
+    public void EverySceneLevelCodeHasExplicitEntropyOwnership()
+    {
+        for (int code = 0; code <= 255; code++)
+        {
+            int count = BattleEnemyNativeStats.LevelRandomByteCount((byte)code);
+            Assert.Equal(code <= 100 || code == 254 ? 0 : code is 251 or 253 ? 2 : 1, count);
+            Assert.InRange(BattleEnemyNativeStats.ResolveLevel((byte)code, [100], 255, 255), code == 0 ? 0 : 1, 100);
+        }
+        Assert.Throws<InvalidDataException>(() => BattleEnemyNativeStats.ResolveLevel(251, [10], 0));
+        Assert.Throws<InvalidDataException>(() => BattleEnemyNativeStats.ResolveLevel(253, [10], 0));
+    }
+
+    [Theory]
     [InlineData(0, 8)]
     [InlineData(1, 12)]
     [InlineData(2, 8)]

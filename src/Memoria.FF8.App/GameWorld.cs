@@ -58,6 +58,7 @@ internal sealed partial class GameWorld : IDisposable
         Events = new EventEngine(session);
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
+        Events.OperationCompleted += ObservePendingBattle;
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
@@ -346,6 +347,7 @@ internal sealed partial class GameWorld : IDisposable
         if (session.State.Scene == SceneKind.WorldMap)
         {
             PlayerActionResult worldResult = worldScene!.Apply(action);
+            ObservePendingBattle();
             if (Field is not null)
             {
                 // The field VM is dormant; Capture reads the current process-owned globals.
@@ -381,6 +383,7 @@ internal sealed partial class GameWorld : IDisposable
 
     public void Dispose()
     {
+        Events.OperationCompleted -= ObservePendingBattle;
         assets.Dispose();
         battleAssets?.Dispose();
         preparedWorldEntry?.Dispose();

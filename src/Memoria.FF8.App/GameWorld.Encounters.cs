@@ -18,13 +18,13 @@ internal sealed partial class GameWorld
 
     private void ApplyEncounterConfiguration(BattleInput input)
     {
-        if (input.RandomEncounters is not bool enabled || HasPendingBattle || battle is not null || session.State.Scene is not (SceneKind.Field or SceneKind.WorldMap))
+        if (input.RandomEncounters is not bool enabled || session.State.Scene is not (SceneKind.Field or SceneKind.WorldMap or SceneKind.Movie))
         {
-            throw new InvalidOperationException("Encounter policy requires an explicit setting outside combat in a running playthrough.");
+            throw new InvalidOperationException("Encounter policy requires an explicit setting in a running playthrough.");
         }
         RandomEncounterSessionState current = session.State.RandomEncounters ?? new(false, NativeRandomEncounterState.FromColdProcess(), null);
         session.SetRandomEncounters(current with { Enabled = enabled });
-        if (enabled && session.State.Scene == SceneKind.WorldMap)
+        if (enabled && session.State.Scene == SceneKind.WorldMap && !HasPendingBattle)
         {
             InitializeWorldRandomEncounters();
         }
@@ -32,15 +32,11 @@ internal sealed partial class GameWorld
 
     private void ProcessFieldRandomEncounters(bool accepted)
     {
-        if (IsCausalReconstruction || session.State.FullBattlePlaythrough != true || session.State.RandomEncounters is not { Enabled: true, Pending: null } encounter || session.State.Scene != SceneKind.Field || HasPendingBattle || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
+        if (session.State.FullBattlePlaythrough != true || session.State.RandomEncounters is not { Enabled: true, Pending: null } encounter || session.State.Scene != SceneKind.Field || HasPendingBattle || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
         {
             return;
         }
         FieldAssets field = Field ?? throw new InvalidOperationException("Random encounters require the loaded field resources.");
-        if (BattleFactDiagnostics is not null)
-        {
-            BattleFactDiagnostics.RandomEncounterChecks++;
-        }
         NativeFieldEncounterDefinition definition = field.RandomEncounters ?? throw new NotSupportedException("Random encounters require the original field RAT/MRT resources.");
         NativeFieldEncounterInput input = new(accepted, unchecked((short)(Events.PlayerActor?.MovementSpeed ?? 0)), session.State.CharacterVitals!.GetEncounterAbilityFlags(), !Events.Scene.RandomBattlesEnabled, session.IsMoviePlaying, 0, unchecked((ushort)Events.FieldFade!.Physical.Mode));
         NativeRandomEncounterResult result = NativeRandomEncounter.AdvanceField(encounter.Native, definition, assets.ReadNativeEncounterTables().FieldRandom.AsSpan(), input);
@@ -50,7 +46,7 @@ internal sealed partial class GameWorld
 
     private void InitializeWorldRandomEncounters()
     {
-        if (IsCausalReconstruction || session.State.FullBattlePlaythrough != true || session.State.RandomEncounters is not { Enabled: true } encounter || encounter.Native.WorldInitialized)
+        if (session.State.FullBattlePlaythrough != true || session.State.RandomEncounters is not { Enabled: true } encounter || encounter.Native.WorldInitialized)
         {
             return;
         }
@@ -64,15 +60,11 @@ internal sealed partial class GameWorld
         scene.HasPendingBattle = () => session.State.RandomEncounters?.Pending is not null || session.State.PendingBattleEncounter is { SourceScene: SceneKind.WorldMap };
         scene.ProcessRandomEncounters = (worldState, movementMagnitude, currentEncounters) =>
         {
-            if (IsCausalReconstruction || session.State.FullBattlePlaythrough != true || currentEncounters is not { Enabled: true, Pending: null } encounter || worldState.NativeFootRuntime is null || worldState.NativeScriptedRuntime is not null || worldState.NativeTrainRuntime is not null)
+            if (session.State.FullBattlePlaythrough != true || currentEncounters is not { Enabled: true, Pending: null } encounter || worldState.NativeFootRuntime is null || worldState.NativeScriptedRuntime is not null || worldState.NativeTrainRuntime is not null)
             {
                 return (worldState, currentEncounters);
             }
             NativeEncounterTables tables = assets.ReadNativeEncounterTables();
-            if (BattleFactDiagnostics is not null)
-            {
-                BattleFactDiagnostics.RandomEncounterChecks++;
-            }
             byte ground = worldState.GroundType ?? throw new NotSupportedException("World encounters require the actual ground polygon.");
             int entityType = worldState.NativeFootRuntime?.EntityType ?? worldState.NativeCarRuntime?.EntityType ?? 10;
             NativeWorldEncounterDefinition? definition = scene.ReadRandomEncounterDefinition(worldState);
@@ -96,7 +88,6 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("Battle policy cannot change during a pending encounter.");
         }
-        using (session.BeginReplayCapture())
         {
             if (input.Kind == BattleInputKind.StartEncounter)
             {
@@ -136,10 +127,6 @@ internal sealed partial class GameWorld
                         session.SetWorldProcess(session.State.WorldProcess!.AdvanceMainLoopCallbacks(advanced));
                     }
                 }
-                if (active.Outcome == BattleOutcome.Defeat && session.State.PendingBattleEncounter is not null)
-                {
-                    RecordCompletedDefeat(active);
-                }
             }
             session.SetBattle(battle?.Capture());
         }
@@ -165,12 +152,4 @@ internal sealed partial class GameWorld
         }
     }
 
-    private void ValidateRecordedBattleOwner(ReplayJournalEntry entry)
-    {
-        if (entry.BattleInput?.Kind is BattleInputKind.ConfigurePlaythrough or BattleInputKind.ConfigureEncounters)
-        {
-            return;
-        }
-        throw new NotSupportedException("Legacy battle input traces cannot be reconstructed; regenerate an encounter/outcome factual journal from current play.");
-    }
 }

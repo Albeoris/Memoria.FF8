@@ -667,11 +667,11 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
-        BattleInput[] newGameBattleInputs = uiPreferences.CreateNewGameBattleInputs();
-        if (newGameBattleInputs.Length > 0)
+        BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
+        if (battleSettingsInputs.Length > 0)
         {
             world = CreateWorld();
-            foreach (BattleInput input in newGameBattleInputs)
+            foreach (BattleInput input in battleSettingsInputs)
             {
                 world.ApplyBattleInput(input);
             }

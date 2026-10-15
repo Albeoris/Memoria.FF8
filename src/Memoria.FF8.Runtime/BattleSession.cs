@@ -25,7 +25,11 @@ public sealed partial class BattleSession
     {
     }
 
-    public BattleSession(BattleDefinition definition, BattleAtbMode mode, IEnumerable<IBattleStatusEffectHandler> additionalHandlers)
+    public BattleSession(BattleDefinition definition, BattleAtbMode mode, IEnumerable<IBattleStatusEffectHandler> additionalHandlers) : this(definition, mode, additionalHandlers, true)
+    {
+    }
+
+    private BattleSession(BattleDefinition definition, BattleAtbMode mode, IEnumerable<IBattleStatusEffectHandler> additionalHandlers, bool initializeNativeAi)
     {
         ValidateMode(mode);
         handlers = Enum.GetValues<BattleStatusKind>().ToDictionary(kind => kind, kind => (IBattleStatusEffectHandler)new ScaffoldBattleEffectHandler(kind));
@@ -47,6 +51,10 @@ public sealed partial class BattleSession
         random = this.definition.InitialRandom ?? NativeBattleRandomState.Initialize(this.definition.NativeSeed);
         random.Validate();
         Mode = mode;
+        if (initializeNativeAi)
+        {
+            InitializeNativeParticipants();
+        }
         Outcome = DetermineOutcome();
     }
 
@@ -110,7 +118,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !target.IsAlive || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack) || HasStatus(actor, BattleStatusKind.Sleep))
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || !target.IsAlive || target.Untargetable || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack) || HasStatus(actor, BattleStatusKind.Sleep))
         {
             throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living opponent in an active battle.");
         }
@@ -129,6 +137,21 @@ public sealed partial class BattleSession
             enemy.Atb = 0;
         }
         Log("debug-victory", null, null, 0, "Debug shortcut: all enemies defeated.");
+        CompleteBattleIfNeeded();
+    }
+
+    public void InstantDefeat()
+    {
+        if (Outcome != BattleOutcome.Active)
+        {
+            throw new InvalidOperationException("Debug defeat requires an active battle.");
+        }
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsPlayer))
+        {
+            actor.CurrentHp = 0;
+            actor.Atb = 0;
+        }
+        Log("debug-defeat", null, null, 0, "Debug shortcut: all party members defeated.");
         CompleteBattleIfNeeded();
     }
 
@@ -187,13 +210,14 @@ public sealed partial class BattleSession
             Mode = Mode,
             Frame = Frame,
             Outcome = Outcome,
-            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray()) { MagicStocks = actor.Stocks.ToArray() }).ToArray(),
+            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray()) { MagicStocks = actor.Stocks.ToArray(), NativeParticipant = actor.SceneSlot is null && actor.NativeAi is null ? null : CaptureNativeParticipant(actor) }).ToArray(),
             QueuedActions = actions.ToArray(),
             ActiveAction = ActiveAction,
             Events = events.ToArray(),
             Items = items.ToArray(),
             EnemyDefeats = enemyDefeats.ToArray(),
             Random = random,
+            NativeAiVariables = combatants.Any(actor => actor.NativeAi is not null) ? nativeAiVariables.ToArray() : null,
             CustomHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).Select(handler => handler.Kind).Order().ToArray()
         };
     }
@@ -203,7 +227,7 @@ public sealed partial class BattleSession
         ArgumentNullException.ThrowIfNull(snapshot);
         try
         {
-            BattleSession session = new(snapshot.Definition, snapshot.Mode, additionalHandlers ?? []);
+            BattleSession session = new(snapshot.Definition, snapshot.Mode, additionalHandlers ?? [], false);
             session.RestoreValidated(snapshot);
             return session;
         }
@@ -269,6 +293,13 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady && !HasStatus(actor, BattleStatusKind.Sleep)))
         {
+            if (enemy.NativeAi is not null)
+            {
+                enemy.Atb = 0;
+                enemy.AiTurnCount = unchecked((byte)(enemy.AiTurnCount + 1));
+                RunNativeAi(enemy, 1);
+                continue;
+            }
             // TODO(TD-009): First living opponent is scaffold AI until native enemy decision programs are implemented
             BattleCombatant target = combatants.First(actor => actor.IsPlayer && actor.IsAlive);
             EnqueueAttack(enemy, target);
@@ -293,7 +324,7 @@ public sealed partial class BattleSession
                     Log("Cancelled", actor.Id, target.Id, 0, "Attack cancelled because a participant was defeated.");
                     continue;
                 }
-                ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, AttackWindupFrames, command.Ability, command.ActionId, command.DrawCast);
+                ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, AttackWindupFrames, command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector);
                 Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                 return;
             }
@@ -338,13 +369,28 @@ public sealed partial class BattleSession
         }
         int applied = Math.Min(target.CurrentHp, amount);
         target.CurrentHp -= applied;
+        target.LastAttackerId = actor?.Id;
+        target.LastAttackerAbility = ActiveAction?.Ability;
         Log("Damage", actor?.Id, target.Id, applied, $"{source}: {target.Name} takes {applied} damage.");
+        if (target.NativeAi is not null)
+        {
+            RunNativeAi(target, 4);
+        }
         if (!target.IsAlive)
         {
             ObserveEnemyDefeat(actor, target);
+            if (target.NativeAi is not null && !target.AiDeathHandled)
+            {
+                target.AiDeathHandled = true;
+                RunNativeAi(target, 3);
+            }
             target.Atb = 0;
             target.IsBusy = false;
             Log("Defeated", actor?.Id, target.Id, 0, $"{target.Name} is defeated.");
+        }
+        else if (target.NativeAi is not null)
+        {
+            RunNativeAi(target, 2);
         }
     }
 
@@ -392,7 +438,7 @@ public sealed partial class BattleSession
         {
             return BattleOutcome.Defeat;
         }
-        return combatants.Any(actor => !actor.IsPlayer && actor.IsAlive) ? BattleOutcome.Active : BattleOutcome.Victory;
+        return combatants.Any(actor => !actor.IsPlayer && actor.IsAlive && !actor.Untargetable) ? BattleOutcome.Active : BattleOutcome.Victory;
     }
 
     private void CompleteBattleIfNeeded()

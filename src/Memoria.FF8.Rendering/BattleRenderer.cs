@@ -6,8 +6,21 @@ namespace Memoria.FF8.Rendering;
 
 public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float FieldOfView = 0.8f, float VerticalCenter = 0.5f)
 {
-    // TODO(TD-009): Custom overview camera until native battle camera sequencing is implemented
-    public static BattleCamera Overview => new(new Vector3(-65, 32, -52), new Vector3(0, 6, 0), VerticalCenter: 0.46f);
+    // Original B8B7F0/B8B800 bootstrap tuple,500541/500560 focal512,500900 projection center(160,108).
+    // The live scene selects its installed introduction endpoint instead of this bootstrap view.
+    public static BattleCamera NativeInitial => FromNative(new BattleStageCamera(new Vector3(10000, -3000, 5000), new Vector3(0, -500, 0), 512));
+
+    public static BattleCamera FromNative(BattleStageCamera camera)
+    {
+        if (camera.FocalLength <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(camera));
+        }
+        // Native50CBA0/50F900 use positive-down Y and positive-forward Z. A half-turn about X
+        // reconciles that camera basis with CreateLookAt without reversing projected winding.
+        Vector3 World(Vector3 native) => new Vector3(native.X, -native.Y, -native.Z) / 100f;
+        return new BattleCamera(World(camera.NativeEye), World(camera.NativeTarget), 2 * MathF.Atan(120f / camera.FocalLength), 108f / 240);
+    }
 }
 
 public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0, bool LoopAnimation = true);
@@ -54,7 +67,7 @@ public sealed class BattleRenderer
 
     public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null)
     {
-        Begin(camera ?? BattleCamera.Overview, true);
+        Begin(camera ?? BattleCamera.NativeInitial, true);
         foreach (BattleMesh mesh in stage.Meshes)
         {
             Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1);

@@ -19,8 +19,7 @@ internal sealed class BattleScenePresentation
     private readonly Dictionary<string, BattleAnimationPresentation> animations = [];
     private readonly BattleRenderer portraitRenderer = new(64, 64);
     private readonly BattleImpactTimeline impactTimeline = new();
-    private readonly List<Vector3> restingVertices = [];
-    private BattleCamera camera;
+    private readonly BattleCamera camera;
     private BattleRenderer? renderer;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
@@ -29,13 +28,22 @@ internal sealed class BattleScenePresentation
         BattleCombatantDefinition[] party = definition.Combatants.Where(actor => actor.IsPlayer).ToArray();
         BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer).ToArray();
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
+        // TODO(TD-009): Show the primary native introduction's settled pose immediately; random alternative
+        // selection, introduction motion and action camera scripts remain unsupported
+        int cameraId = (encounter?.PrimaryCamera ?? 0) & 0xF7;
+        if (!stage.IntroductionCameras.TryGetValue(cameraId, out BattleStageCamera? introduction))
+        {
+            throw new NotSupportedException($"Stage {stage.Id} camera {cameraId} requires an unsupported native endpoint resolver.");
+        }
+        camera = BattleCamera.FromNative(introduction);
         for (int index = 0; index < party.Length; index++)
         {
             positions[party[index].Id] = BattleFormationPresentation.PartyPosition(index, party.Length);
         }
         for (int index = 0; index < enemies.Length; index++)
         {
-            positions[enemies[index].Id] = encounter?.Enemies[index].Position ?? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length);
+            BattleCombatantDefinition actor = enemies[index];
+            positions[actor.Id] = encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
         }
         foreach (BattleCombatantDefinition actor in definition.Combatants)
         {
@@ -51,34 +59,31 @@ internal sealed class BattleScenePresentation
                 throw new NotSupportedException("Enemy weapon replacement requires its own battle model attachment contract.");
             }
             weapons.Add(actor.Id, actor.IsPlayer && actor.WeaponId is int weapon ? assets.ResolveWeaponModel(actor.ModelId, weapon, model) : null);
-            Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.IsPlayer ? MathF.PI : 0) * Matrix4x4.CreateTranslation(positions[actor.Id] - Vector3.UnitY * groundOffsets[actor.Id]);
-            foreach (BattleModel boundModel in weapons[actor.Id] is BattleModel held ? new[] { model, held } : new[] { model })
-            {
-                foreach (Vector3 vertex in boundModel.Pose(0, 0).SelectMany(mesh => mesh))
-                {
-                    Vector3 point = Vector3.Transform(vertex, transform);
-                    restingVertices.Add(point);
-                }
-            }
         }
     }
+
+    internal BattleCamera Camera => camera;
 
     public byte[] Render(BattleSession session, int width, int height)
     {
         if (renderer?.Width != width || renderer.Height != height)
         {
             renderer = new BattleRenderer(width, height);
-            camera = OverviewCamera(width / (float)height);
         }
         List<BattleActorDraw> actors = [];
         impactTimeline.Collect(session);
         foreach (BattleCombatant actor in session.Combatants)
         {
+            if (!actor.IsActive || actor.Hidden)
+            {
+                continue;
+            }
             BattleEvent? action = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
             Vector3 target = action?.TargetId is string targetId ? positions[targetId] : positions[actor.Id];
             BattleAnimationSample pose = animations[actor.Id].Sample(session, actor, positions[actor.Id], target);
             float ground = animations[actor.Id].GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
-            // TODO(TD-009): Reflected facing matches the current model/formation basis; original502070 writes party yaw0/enemy2048. Complete native stage/model basis reconciliation remains open
+            // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
+            // bases yields renderer partyPI/enemy0
             BattleActorDraw drawing = new(models[actor.Id], positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop);
             actors.Add(drawing);
             if (weapons[actor.Id] is BattleModel weapon)
@@ -87,35 +92,6 @@ internal sealed class BattleScenePresentation
             }
         }
         return renderer!.Render(stage, actors, camera);
-    }
-
-    private BattleCamera OverviewCamera(float aspect)
-    {
-        // TODO(TD-009): Fit stable combatant bounds between the HUD panels until native camera scripts execute
-        BattleCamera overview = BattleCamera.Overview;
-        Vector3 backward = Vector3.Normalize(overview.Eye - overview.Target);
-        Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, backward));
-        Vector3 up = Vector3.Cross(backward, right);
-        Vector3 minimum = new(float.PositiveInfinity);
-        Vector3 maximum = new(float.NegativeInfinity);
-        foreach (Vector3 vertex in restingVertices)
-        {
-            Vector3 oriented = new(Vector3.Dot(vertex, right), Vector3.Dot(vertex, up), Vector3.Dot(vertex, backward));
-            minimum = Vector3.Min(minimum, oriented);
-            maximum = Vector3.Max(maximum, oriented);
-        }
-        Vector3 middle = (minimum + maximum) / 2;
-        Vector3 center = right * middle.X + up * middle.Y + backward * middle.Z;
-        float tangent = MathF.Tan(overview.FieldOfView / 2);
-        float distance = 85;
-        foreach (Vector3 point in restingVertices)
-        {
-            Vector3 relative = point - center;
-            float depth = Vector3.Dot(relative, backward);
-            distance = Math.Max(distance, depth + Math.Abs(Vector3.Dot(relative, right)) / (2 * tangent * aspect * 0.4f));
-            distance = Math.Max(distance, depth + Math.Abs(Vector3.Dot(relative, up)) / (2 * tangent * 0.24f));
-        }
-        return overview with { Eye = center + backward * distance, Target = center };
     }
 
     public void DrawEffects(BattleSession session, IUiCanvas canvas, UiRect viewport)
