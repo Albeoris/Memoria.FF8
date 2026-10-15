@@ -160,6 +160,7 @@ internal static partial class Program
                     ["native-jump"] = NativeJumpContract,
                     ["native-jump3"] = NativeJump3Contract,
                     ["native-party-jump"] = () => NativePartyJumpContract(selectedGameDirectory),
+                    ["native-party-move"] = () => NativePartyMoveContract(selectedGameDirectory),
                     ["native-ladder"] = NativeLadderContract,
                     ["native-ladder-reverse"] = NativeLadderReverseAndRestoreContract,
                     ["native-ladder-followers"] = NativeLadderFollowerContract,
