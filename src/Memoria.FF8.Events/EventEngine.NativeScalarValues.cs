@@ -24,6 +24,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.SETDCAMERA)
+        {
+            return UnsupportedMovieMask(fiber, operation);
+        }
         if (UnsupportedWorldEntryMemory(fiber, operation) is string worldEntry)
         {
             return worldEntry;

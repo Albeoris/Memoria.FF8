@@ -63,14 +63,18 @@ internal sealed partial class GameWorld
         world.Events.MovieSkipRequested -= clock.Skip;
         world.Events.MovieSkipRequested += () =>
         {
-            MoviePlaybackState playback = movieSkip?.MoviePlayback ?? throw new NotSupportedException("The movie skip has no game-recorded terminal clock.");
+            MoviePlaybackState playback = movieSkip?.MoviePlayback ?? throw new NotSupportedException("The movie skip has no game-recorded completion clock.");
             string hash = MovieClock.GetSourceHash(gameDirectory, rebuilt.State.MovieIndex);
             if (movieSkip.MovieSourceHash is null || movieSkip.MovieSourceHash != hash)
             {
                 throw new InvalidDataException("The game-recorded movie clock does not match the installed clip.");
             }
-            rebuilt.SetReplayMovieSourceHash(hash);
-            rebuilt.SetMoviePlayback(playback with { IsPlaying = true, Completed = false, Skipped = false });
+            clock.Prepare();
+            MoviePlaybackState current = rebuilt.State.MoviePlayback ?? throw new NotSupportedException("The movie skip has no actual decoded playback clock.");
+            if (playback != (current with { IsPlaying = false, Completed = true, Skipped = true }))
+            {
+                throw new InvalidDataException("The recorded movie skip completion differs from the actual current decoded frame.");
+            }
             rebuilt.CompleteMovie(true);
         };
         Queue<(int FieldId, string ScriptHash, string? ExecutableHash)> autonomousAllocations = new();

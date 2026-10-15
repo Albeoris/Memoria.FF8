@@ -195,6 +195,13 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 1);
                 Scene.CameraIndex = args[0] & 3;
                 break;
+            case Jsm.Opcode.SETDCAMERA:
+                NativeScalarValue movieMaskOperand = PopNativeScalar(fiber);
+                byte movieMaskByte = checked((byte)movieMaskOperand.ToWidth(1).RequireExact());
+                scalarArgs = [movieMaskOperand];
+                args = [movieMaskOperand.IsExact ? movieMaskOperand.RequireExact() : movieMaskByte];
+                Scene.NativeMovieMask = Scene.NativeMovieMask! with { Value = movieMaskByte };
+                break;
             case Jsm.Opcode.SCROLLMODE2:
                 args = ExecuteBackgroundScroll(fiber);
                 break;
@@ -679,6 +686,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MOVIEREADY:
                 args = Pop(fiber, 2);
                 preparedMovie = args[0];
+                PrepareNativeMovieMask(preparedMovie);
                 variables[80] = 0;
                 movieProgressExpected = false;
                 Scene.MovieActors = new NativeMovieActorLifecycle(1, preparedMovie, args[1], Frame, null, null);

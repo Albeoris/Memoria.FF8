@@ -29,6 +29,10 @@ public sealed class SceneEventState
 {
     [JsonRequired]
     [JsonInclude]
+    public NativeMovieMaskState? NativeMovieMask { get; internal set; }
+
+    [JsonRequired]
+    [JsonInclude]
     public NativeFieldModelPartsState? ModelParts { get; internal set; }
 
     [System.Text.Json.Serialization.JsonRequired]

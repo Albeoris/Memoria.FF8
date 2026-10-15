@@ -140,6 +140,8 @@ public sealed partial class EventEngine
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0);
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
         Scene.NativeLadderSpeed490E = nativeRuntimeProfile is { IsVerified: true } ? nativeRuntimeProfile.AllocatedLadderSpeed : null;
+        //471F70 normal load kinds0..2 reset BYTE1CE4907; menu resumes retain this scene in place.
+        Scene.NativeMovieMask = nativeRuntimeProfile is { IsVerified: true } ? new NativeMovieMaskState(1, 1, null) : null;
         pendingNativePlayerInput = null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
@@ -377,6 +379,7 @@ public sealed partial class EventEngine
             StepFaceDirection(actor);
         }
         StepNativeModelParts();
+        StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
         NativeSalaryPresentation? salaryUi = services.SalaryPresentation?.Advance(movieUi ? 4 : 2);
         NativeVibrationProcessState? vibrationUi = services.VibrationProcess?.Advance(movieUi ? 4 : 2);

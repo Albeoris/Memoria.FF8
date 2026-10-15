@@ -76,6 +76,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved VM must preserve its canonical world-control state; missing or unknown snapshot state cannot retain a different known service state.");
         }
         saved.WorldControls?.Validate();
+        ValidateNativeMovieMask(saved.Scene, saved.PreparedMovie, saved.Frame, saved.CurrentMoviePlayback);
         saved.NativeFieldLocation?.Validate();
         if (saved.NativeFieldLocation is null && services.NativeFieldLocation is not null || saved.NativeFieldLocation is not null && !services.CanStoreNativePartyMenuOwners)
         {

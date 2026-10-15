@@ -23,6 +23,10 @@ public sealed partial class EventEngine
     {
         if (operation.Opcode == Jsm.Opcode.MOVIEREADY)
         {
+            if (UnsupportedMovieMask(fiber, operation) is string movieMask)
+            {
+                return movieMask;
+            }
             return fiber.Stack.Count < 2 || fiber.Stack.Skip(1).First() is < 0 or > 999 || Scene.MovieActors?.Active == true ? "MOVIEREADY requires two operands, a supported original clip index and no active original movie" : null;
         }
         if (operation.Opcode != Jsm.Opcode.MOVIE)
@@ -36,6 +40,7 @@ public sealed partial class EventEngine
         try
         {
             _ = PrepareMovieActorWords(start: true);
+            _ = PrepareNativeMovieMaskStart();
             _ = NeedsNativeSalaryTransitionReset();
             return null;
         }
@@ -93,10 +98,12 @@ public sealed partial class EventEngine
     private void StartNativeMovieActors(Fiber fiber)
     {
         var writes = PrepareMovieActorWords(start: true);
+        NativeMovieMaskState movieMask = PrepareNativeMovieMaskStart();
         ResetNativeSalaryForTransition(fiber);
         services.RequestMovie(preparedMovie);
         CommitMovieActorWords(writes);
         Scene.MovieActors = Scene.MovieActors! with { StartFrame = Frame };
+        Scene.NativeMovieMask = movieMask;
     }
 
     private void CompleteNativeMovieActors()
@@ -106,7 +113,10 @@ public sealed partial class EventEngine
             return;
         }
         var writes = PrepareMovieActorWords(start: false);
+        NativeMovieMaskState movieMask = Scene.NativeMovieMask ?? throw new NotSupportedException("Native movie cleanup has no mask-control owner.");
         CommitMovieActorWords(writes);
         Scene.MovieActors = Scene.MovieActors with { EndFrame = Frame };
+        //Ordinary MOVIEREADY always prepares530460 flags1;5304B0 clears this byte to1.
+        Scene.NativeMovieMask = movieMask with { Value = 1 };
     }
 }

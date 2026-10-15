@@ -68,6 +68,7 @@ internal sealed partial class GameWorld : IDisposable
             Events.Scene.Party.AddRange([0, 255, 255]);
         }
         Events.MoviePlayback = () => clock.State;
+        Events.ReadMovieCameraFlags = ReadNativeMovieCameraFlags;
         Events.MovieSkipRequested += clock.Skip;
         Events.LoadSoundResource = _ => SoundResourceStatus.Muted;
         Events.ResolveGlobalSoundResource = ResolveGlobalSound;
@@ -303,6 +304,7 @@ internal sealed partial class GameWorld : IDisposable
 
     public byte[] Render(TimeSpan elapsed)
     {
+        RequireSupportedMovieMaskRender();
         if (session.State.Scene == SceneKind.WorldMap)
         {
             EnsureField();

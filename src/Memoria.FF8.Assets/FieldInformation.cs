@@ -16,6 +16,7 @@ public sealed record FieldInformation(byte ControlDirection, short CameraHeight,
 {
     public byte BackgroundWrapMask { get; init; }
     public byte NativeRetainedAllocationFlag8 { get; init; }
+    public byte NativeMovieMaskFlag14 { get; init; }
 
     public static FieldInformation Read(byte[] bytes)
     {
@@ -36,6 +37,6 @@ public sealed record FieldInformation(byte ControlDirection, short CameraHeight,
             offset = 484 + index * 16;
             triggers[index] = new FieldAreaTrigger(Point(offset), Point(offset + 6), bytes[offset + 12], bytes[offset + 13], bytes[offset + 14], bytes[offset + 15]);
         }
-        return new FieldInformation(bytes[9], Word(18), Enumerable.Range(0, 8).Select(index => Bounds(20 + index * 8)).ToArray(), Enumerable.Range(0, 2).Select(index => Bounds(84 + index * 8)).ToArray(), gateways, triggers) { BackgroundWrapMask = bytes[15], NativeRetainedAllocationFlag8 = bytes[8] };
+        return new FieldInformation(bytes[9], Word(18), Enumerable.Range(0, 8).Select(index => Bounds(20 + index * 8)).ToArray(), Enumerable.Range(0, 2).Select(index => Bounds(84 + index * 8)).ToArray(), gateways, triggers) { BackgroundWrapMask = bytes[15], NativeRetainedAllocationFlag8 = bytes[8], NativeMovieMaskFlag14 = bytes[14] };
     }
 }

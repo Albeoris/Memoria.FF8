@@ -817,11 +817,18 @@ internal sealed partial class RecreateGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
+        if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene is SceneKind.Field or SceneKind.Movie)))
         {
             try
             {
-                UploadField(gameplayClock.Total);
+                if (session.State.Scene == SceneKind.Movie && movie?.HasFrame == true)
+                {
+                    world.RequireSupportedMovieMaskRender();
+                }
+                else
+                {
+                    UploadField(gameplayClock.Total);
+                }
                 if (worldPresentationDeferred)
                 {
                     worldPresentationDeferred = false;
@@ -856,8 +863,11 @@ internal sealed partial class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.Movie && movie?.HasFrame == true)
         {
-            movie.Draw(batch, bounds);
-            DrawMovieHintUi(bounds);
+            if (!fieldRenderFaulted)
+            {
+                movie.Draw(batch, bounds);
+                DrawMovieHintUi(bounds);
+            }
         }
         else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene is SceneKind.Field or SceneKind.Movie && world?.Field is not null)
         {

@@ -180,7 +180,8 @@ public sealed partial class GameSession : IEventServices
             MoviePlaybackState? playback = State.MoviePlayback;
             if (playback is not null)
             {
-                playback = playback with { FrameIndex = playback.TerminalFrame, IsPlaying = false, Completed = true, Skipped = skipped };
+                //Native5304B0 closes playback without seeking past its actual last decoded frame.
+                playback = playback with { IsPlaying = false, Completed = true, Skipped = skipped };
             }
             Change(State with { Scene = movieReturnScene, MovieSeconds = 0, MoviePlayback = playback });
             RecordMovieChange(source, ReplayEntryKind.MovieComplete, skipped);
