@@ -207,7 +207,7 @@ public sealed class BattleIntegrationTests
 
     private static EventEngine CreateEngine(GameSession session)
     {
-        return new EventEngine(session, session.State.Variables)
+        return new EventEngine(session)
         {
             UseInteractiveBattle = (_, _) => true,
             ValidateInteractiveBattle = (_, _) => null

@@ -30,16 +30,9 @@ public sealed partial class EventEngine
         try
         {
             FieldFade.Validate();
-            foreach ((int address, int value) in variables)
+            if (EventMemory.Overlaps(216, 24))
             {
-                if (address is >= 213 and < 240 && !IsKnownNativeByteAlias(address, value))
-                {
-                    return "Native fade bank intersects an untyped event-memory alias; original PC and operands preserved.";
-                }
-            }
-            if (services.NativeVariableValues?.Any(pair => pair.Key < 240 && pair.Key + pair.Value.Width > 216) == true)
-            {
-                return "Native fade bank intersects an uncertain separately stored memory alias.";
+                return "Native saved fade words overlap generic event memory.";
             }
             if (memory)
             {
@@ -129,7 +122,7 @@ public sealed partial class EventEngine
             return;
         }
         saved.FieldFade.Validate();
-        if (saved.Variables.Keys.Any(address => address is >= 216 and < 240) || saved.NativeVariableValues?.Any(pair => pair.Key < 240 && pair.Key + pair.Value.Width > 216) == true)
+        if (saved.EventMemory.Overlaps(216, 24))
         {
             throw new InvalidDataException("Saved field fade words cannot also exist in untyped or uncertain event memory.");
         }

@@ -19,7 +19,7 @@ public sealed class CheckpointTests
             FieldAssets field = assets.LoadField(74);
             var original = GameSession.CreateColdProcess();
             original.StartNewGame();
-            var engine = new EventEngine(original, original.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
+            var engine = new EventEngine(original) { AnimationFrameCount = field.GetAnimationFrameCount };
             engine.LoadField(field.Id, field.Jsm, field.Messages);
             for (int frame = 0; frame < 200 && !original.IsMoviePlaying; frame++)
             {
@@ -35,7 +35,7 @@ public sealed class CheckpointTests
             original.SetEventState(engine.Capture());
             original.Save(checkpoint);
             var resumed = new GameSession(GameSession.Load(checkpoint));
-            var restoredEngine = new EventEngine(resumed, resumed.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
+            var restoredEngine = new EventEngine(resumed) { AnimationFrameCount = field.GetAnimationFrameCount };
             restoredEngine.LoadField(field.Id, field.Jsm, field.Messages);
             restoredEngine.Restore(resumed.State.EventState!.Value);
             restoredEngine.MoviePlayback = () => resumed.State.MoviePlayback;

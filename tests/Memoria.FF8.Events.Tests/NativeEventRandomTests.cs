@@ -18,7 +18,7 @@ internal static partial class Program
             session.StartNewGame();
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             return (session, engine);
         }
@@ -79,7 +79,7 @@ internal static partial class Program
         }
 
         RejectingRandomServices rejecting = new();
-        EventEngine refused = new(rejecting, new Dictionary<int, int>());
+        EventEngine refused = new(rejecting, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         refused.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.RND, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -93,7 +93,7 @@ internal static partial class Program
         Require(refused.LastFault?.Opcode == "RND" && caller.GetProperty("Position").GetInt32() == 2 && caller.GetProperty("Stack").GetArrayLength() == 1 && !caller.GetProperty("Results").TryGetProperty("0", out _) && rejecting.EventRandom!.State == 1, "Rejected RND publication changed PC, operand, result or process.");
 
         GameSession unknown = new(new GameState());
-        EventEngine blocked = new(unknown, unknown.State.Variables);
+        EventEngine blocked = new(unknown);
         blocked.LoadField(600, code, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
         JsonElement beforeCallback = blocked.Capture();
         try

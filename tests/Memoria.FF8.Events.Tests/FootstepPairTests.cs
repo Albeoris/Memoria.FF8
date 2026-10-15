@@ -33,7 +33,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(byte[] content, bool authenticated = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return (session, engine);
         }
@@ -130,7 +130,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }

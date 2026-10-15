@@ -19,7 +19,7 @@ internal static partial class Program
         (EventEngine Engine, GameSession Session) Create(byte[] program, NativeWorldControlState? controls = null, bool bind = true)
         {
             GameSession session = new(new GameState { FieldId = 100, WorldControls = controls, CharacterVitals = initial.DeepCopy() });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             if (bind)
             {
                 engine.PrepareWorldTransition = request => () =>
@@ -91,21 +91,7 @@ internal static partial class Program
             Require(commits == 0 && ReferenceEquals(before, session.State) && engine.Scene.WorldTransitionRequest is null && engine.Scene.WorldJumpWaits.Count == 0 && engine.LastFault is { Opcode: "WORLDMAPJUMP", Operation: 4 } && fiber.GetProperty("Position").GetInt32() == 4 && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 0x12345, -65536, 65536 }), "Failed world preparation/commit changed packet, controls, issuing PC or three operands.");
         }
         (EventEngine aliases, GameSession aliasSession) = Create(jump, known);
-        aliasSession.State.Variables[104] = 0x200;
-        int aliasPrepares = 0;
-        aliases.PrepareWorldTransition = _ =>
-        {
-            aliasPrepares++;
-            return () => { };
-        };
-        try
-        {
-            aliases.Step();
-        }
-        catch (EventScriptException)
-        {
-        }
-        Require(aliasPrepares == 0 && aliases.LastFault?.Operation == 4 && aliases.Scene.WorldJumpWaits.Count == 0, "Unknown legacy L104 alias entered world resource preparation.");
+        ExpectEventMemoryPublicationFault(aliasSession, aliasSession.State.EventMemory.Write(104, 4, NativeScalarValue.Exact(0x200)));
 
         byte[] sticky = SyntheticObjects([0, (ushort)(1 << 7)],
         [

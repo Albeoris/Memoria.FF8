@@ -12,7 +12,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(int start, int target, int duration, bool native = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, target), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.Unknown9, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
             return (session, engine);
         }

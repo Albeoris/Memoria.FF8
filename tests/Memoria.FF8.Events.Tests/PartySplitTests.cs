@@ -18,7 +18,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine result = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount, ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z) };
+            EventEngine result = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z) };
             result.LoadField(137, field.Jsm, field.Messages);
             result.Restore(session.State.EventState!.Value);
             sessions[result] = session;
@@ -70,8 +70,8 @@ internal static partial class Program
         refused.Restore(frozen);
         Require(JsonElement.DeepEquals(frozen, refused.Capture()) && refused.LastFault?.Opcode == "SPLIT", "Failed native SPLIT lost its exact frozen raw targets/wait.");
 
-        GameSession clearedSession = new(new GameState { SavedWorld = savedWorld, Variables = new Dictionary<int, int> { [256] = 9 } });
-        EventEngine clear = new(clearedSession, clearedSession.State.Variables);
+        GameSession clearedSession = new(new GameState { SavedWorld = savedWorld, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 9 }) });
+        EventEngine clear = new(clearedSession);
         clear.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), []);
         clear.Step();
         Require(clearedSession.State.Variables.Count == 0 && clearedSession.State.SavedWorld == savedWorld, "Field CLEAR erased typed saved-world slots along with event variables.");

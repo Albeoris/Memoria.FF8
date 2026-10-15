@@ -82,14 +82,18 @@ public sealed class WorldEntryTransactionTests
     [InlineData(17, 209)]
     public void StoryUpperByteAndAmbiguousAliasesRefuseBeforeLoadingResources(int story, int alias)
     {
-        var variables = new Dictionary<int, int> { [256] = story };
-        if (alias != 256)
-        {
-            variables[alias] = alias == 263 ? 256 : 1;
-        }
-        var departure = new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), Variables = variables };
+        NativeWorldEntryMemory selected = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, story);
+        NativeEventMemory generic = alias == 256 ? NativeEventMemory.Empty : NativeEventMemory.Empty.Write(alias, 4, NativeScalarValue.Exact(alias == 263 ? 256 : 1));
+        var departure = new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = selected, EventMemory = generic };
         string before = JsonSerializer.Serialize(departure);
-        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(0, 0, 0)));
+        if (alias is 256 or 209)
+        {
+            Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(0, 0, 0)));
+        }
+        else
+        {
+            Assert.Throws<InvalidDataException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(0, 0, 0)));
+        }
         Assert.Equal(before, JsonSerializer.Serialize(departure));
     }
 

@@ -12,7 +12,7 @@ internal static partial class Program
         EventEngine Create(int rawDuration = 65540, bool certificate = true)
         {
             GameSession session = new(new GameState());
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 CanSetBackgroundScrollPosition = (_, _, _) => true,
                 CanSetCosineBackgroundScroll = (layer, x, y, duration) => certificate && layer == 0 && x == 12 && y == -24 && duration == (short)rawDuration
@@ -48,7 +48,7 @@ internal static partial class Program
             live.Step();
             restored.Step();
             BackgroundScrollPosition phase = live.Scene.BackgroundScrollPositions[0];
-            Require(phase.X == NativeCosineInterpolation.Interpolate(40, 12, 4, elapsed) && phase.Y == NativeCosineInterpolation.Interpolate(-80, -24, 4, elapsed) && phase.Counter == Math.Min(elapsed + 1, 4) && phase.Status == (elapsed == 4 ? 2 : 1) && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "CSCROLL changed shared cosine arithmetic, endpoint, held synchronization or restored phase.");
+            Require(phase.X == NativeCosineInterpolation.Interpolate(40, 12, 4, elapsed) && phase.Y == NativeCosineInterpolation.Interpolate(-80, -24, 4, elapsed) && phase.Counter == Math.Min(elapsed + 1, 4) && phase.Status == (elapsed == 4 ? 2 : 1) && !CapturedVariables(live.Capture()).TryGetProperty("5000", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "CSCROLL changed shared cosine arithmetic, endpoint, held synchronization or restored phase.");
             if (elapsed == 2)
             {
                 restored = Create();
@@ -57,13 +57,13 @@ internal static partial class Program
         }
         live.Step();
         restored.Step();
-        Require(live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && operands.Count == 1 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "CSCROLL synchronization failed same-budget continuation on the first VM tick after post-VM completion.");
+        Require(CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77 && operands.Count == 1 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "CSCROLL synchronization failed same-budget continuation on the first VM tick after post-VM completion.");
 
         EventEngine zero = Create(0);
         zero.Step();
-        Require(zero.Scene.BackgroundScrollPositions[0] is { Mode: 5, Duration: 0, Counter: 0, Status: 2, X: 12, Y: -24 } && !zero.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "Zero-duration CSCROLL failed its native immediate target and post-VM completion.");
+        Require(zero.Scene.BackgroundScrollPositions[0] is { Mode: 5, Duration: 0, Counter: 0, Status: 2, X: 12, Y: -24 } && !CapturedVariables(zero.Capture()).TryGetProperty("5000", out _), "Zero-duration CSCROLL failed its native immediate target and post-VM completion.");
         zero.Step();
-        Require(zero.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77, "Zero-duration CSCROLL synchronization inserted an extra VM wait.");
+        Require(CapturedVariables(zero.Capture()).GetProperty("5000").GetInt32() == 77, "Zero-duration CSCROLL synchronization inserted an extra VM wait.");
 
         foreach (EventEngine declined in new[] { Create(certificate: false), Create(-1) })
         {

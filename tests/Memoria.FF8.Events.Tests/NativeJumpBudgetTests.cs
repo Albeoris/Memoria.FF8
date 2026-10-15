@@ -13,7 +13,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, program, []);
             return engine;
         }

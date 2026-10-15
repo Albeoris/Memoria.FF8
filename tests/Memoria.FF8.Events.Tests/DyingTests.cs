@@ -23,7 +23,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(NativeCharacterVitals? state)
         {
             GameSession session = new(new GameState { CharacterVitals = state });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, content, []);
             return (session, engine);
         }
@@ -75,7 +75,7 @@ internal static partial class Program
 
         byte[] partyContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SUBPARTY, 0), (Jsm.Opcode.DYING, 0), (Jsm.Opcode.RET, 0));
         GameSession partySession = new(new GameState { CharacterVitals = initial });
-        EventEngine partyEngine = new(partySession, partySession.State.Variables);
+        EventEngine partyEngine = new(partySession);
         partyEngine.LoadField(100, partyContent, []);
         List<byte[]> combat = [];
         partyEngine.CommandExecuted += command =>
@@ -87,8 +87,8 @@ internal static partial class Program
         };
         partyEngine.Step();
         Require(combat.Count == 3 && combat[0].SequenceEqual(new byte[] { 255, 0, 255 }) && combat[1].SequenceEqual(new byte[] { 3, 0, 255 }) && combat[2].SequenceEqual(new byte[] { 255, 0, 255 }), "Party commands lost native swapped slots, first-empty insertion or exact combat-slot removal.");
-        GameSession clearSession = new(new GameState { CharacterVitals = initial, Variables = new Dictionary<int, int> { [255] = 5, [256] = 6, [1279] = 7, [1280] = 8 } });
-        EventEngine clear = new(clearSession, clearSession.State.Variables);
+        GameSession clearSession = new(new GameState { CharacterVitals = initial, EventMemory = new NativeEventMemory(1, new Dictionary<int, NativeMemoryValue> { [255] = new(1, NativeScalarValue.Exact(5)), [256] = new(1, NativeScalarValue.Exact(6)), [1279] = new(1, NativeScalarValue.Exact(7)), [1280] = new(1, NativeScalarValue.Exact(8)) }) });
+        EventEngine clear = new(clearSession);
         clear.Scene.Party.Clear();
         clear.Scene.Party.AddRange([0, 255, 255]);
         clear.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), []);
@@ -97,7 +97,7 @@ internal static partial class Program
         foreach (int character in new[] { 8, 259 })
         {
             GameSession invalidPartySession = new(new GameState { CharacterVitals = initial });
-            EventEngine invalidParty = new(invalidPartySession, invalidPartySession.State.Variables);
+            EventEngine invalidParty = new(invalidPartySession);
             invalidParty.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.RET, 0)), []);
             try
             {

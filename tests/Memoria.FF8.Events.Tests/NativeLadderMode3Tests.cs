@@ -47,7 +47,7 @@ internal static partial class Program
             live.Step();
             restored.Step();
             endpoint.Step();
-            Require(actor.NativeLadderMode3 is { Active: false } && LadderMode3HasSuccessor(live) && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), endpoint.Capture()), "Mode3 completion failed return2 same-callback successor or independent equality-phase continuation.");
+            Require(actor.NativeLadderMode3 is { Active: false } && LadderMode3HasSuccessor(live) && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), endpoint.Capture()), "Mode3 completion failed return2 same-callback successor or independent equality-phase continuation.");
             foreach (Action<JsonNode> corrupt in new Action<JsonNode>[]
             {
                 state => state["Actors"]![0]!["NativeLadderMode3"]!["Operation"] = actor.NativeLadderMode3!.Operation + 1,
@@ -226,7 +226,7 @@ internal static partial class Program
             (Jsm.Opcode, int)[] companion = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 29), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.LADDERUP, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)];
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             session.SetInputConfiguration(input);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolveNativeTriangleHeight = (_, _, _) => 3,
@@ -302,7 +302,7 @@ internal static partial class Program
         }
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
         session.SetInputConfiguration(input);
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             LoadSoundResource = _ => SoundResourceStatus.Muted,
             AnimationFrameCount = (_, _) => 4,
@@ -324,5 +324,5 @@ internal static partial class Program
 
     private static JsonElement LadderMode3Caller(EventEngine engine) => engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 1);
 
-    private static bool LadderMode3HasSuccessor(EventEngine engine) => engine.Capture().GetProperty("Variables").TryGetProperty("6000", out _);
+    private static bool LadderMode3HasSuccessor(EventEngine engine) => CapturedVariables(engine.Capture()).TryGetProperty("6000", out _);
 }

@@ -22,7 +22,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolvePartyTraceTriangle = (_, _, _) => 0,
@@ -93,7 +93,7 @@ internal static partial class Program
             copy.Step();
             Require(JsonElement.DeepEquals(live.Capture(), copy.Capture()), "Limited JOIN completion changed after restore.");
         }
-        Require(live.Capture().GetProperty("PartyJoin").ValueKind == JsonValueKind.Null && live.Actors[1].NativeTurnAccumulator474 == 0 && live.Actors[2].NativeTurnAccumulator474 != 0 && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77, "JOIN completion lost its retained turn or same-callback successor.");
+        Require(live.Capture().GetProperty("PartyJoin").ValueKind == JsonValueKind.Null && live.Actors[1].NativeTurnAccumulator474 == 0 && live.Actors[2].NativeTurnAccumulator474 != 0 && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77, "JOIN completion lost its retained turn or same-callback successor.");
         Console.WriteLine("Native component RFMOVE produces474=5/610=5/facing44; JOIN retains474 then turns toward its new target to474=0/facing39 despite blocked geometry; pending restore, missing-word atomic refusal and completion successor pass.");
     }
 }

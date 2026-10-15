@@ -128,7 +128,7 @@ public sealed class NativeDoorInitializationTests
     private static EventEngine Engine(byte[] source, bool verified = true)
     {
         var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 999 });
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         engine.LoadField(999, source, [], nativeRuntimeProfile: verified ? NativeFieldRuntimeProfile.FF8En : null);
         return engine;
     }

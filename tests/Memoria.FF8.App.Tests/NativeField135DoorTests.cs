@@ -43,7 +43,7 @@ public sealed class NativeField135DoorTests
         session.SetEventState(world.Events.Capture());
         JsonElement legacyVm = legacy.EventState!.Value;
         JsonElement freshVm = world.Events.Capture();
-        Assert.True(JsonElement.DeepEquals(legacyVm.GetProperty("Variables"), freshVm.GetProperty("Variables")));
+        Assert.True(JsonElement.DeepEquals(legacyVm.GetProperty("EventMemory"), freshVm.GetProperty("EventMemory")));
         Assert.True(JsonElement.DeepEquals(legacyVm.GetProperty("Scene").GetProperty("NativePlayerPosition"), freshVm.GetProperty("Scene").GetProperty("NativePlayerPosition")));
         Assert.True(JsonElement.DeepEquals(legacyVm.GetProperty("Scene").GetProperty("PartyTrace"), freshVm.GetProperty("Scene").GetProperty("PartyTrace")));
         Assert.Equal(NativeFieldInitializationStage.Completed, world.Events.Scene.NativeFieldInitialization!.Stage);

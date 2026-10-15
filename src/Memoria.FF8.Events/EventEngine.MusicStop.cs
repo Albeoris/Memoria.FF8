@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
@@ -35,9 +36,9 @@ public sealed partial class EventEngine
             }
             int slot = fiber.Stack.Peek() & 1;
             int address = 108 + slot * 4;
-            foreach ((int key, int value) in variables)
+            foreach ((int key, NativeMemoryValue value) in EventMemory.Cells)
             {
-                if (key >= address - 3 && key < address + 4 && !(key == address && ReadMusicChannel(slot)?.ChannelId == value))
+                if (key < address + 4 && (long)key + value.Width > address || key <= 199 + slot && (long)key + value.Width > 199 + slot)
                 {
                     return "Native MUSICSTOP channel intersects an ambiguous bare alias; original PC/operand preserved";
                 }
@@ -75,13 +76,6 @@ public sealed partial class EventEngine
         {
             Scene.MusicChannel112 = stopped;
         }
-        // The resulting channel is -1 for both native branches. Unknown prior
-        // B199/200 remains unknown rather than manufacturing the conditional FF.
-        variables[108 + slot * 4] = -1;
-        if (requested == true)
-        {
-            variables[199 + slot] = byte.MaxValue;
-        }
         Scene.MusicStop = new NativeMusicStop(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, unchecked((uint)args[0]), slot, previous?.ChannelId, requested, GlobalSoundBackendStatus.Muted);
         AudioCommandExecuted?.Invoke(Scene.MusicStop);
         return args;
@@ -92,7 +86,7 @@ public sealed partial class EventEngine
         foreach (int slot in new[] { 0, 1 })
         {
             NativeMusicChannelState? channel = slot == 0 ? saved.Scene.MusicChannel108 : saved.Scene.MusicChannel112;
-            if (channel is not null && (saved.Variables.TryGetValue(108 + slot * 4, out int alias) && alias != channel.ChannelId || channel.MusicId is byte music && saved.Variables.TryGetValue(199 + slot, out int musicAlias) && musicAlias != music))
+            if (channel is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 112 + slot * 4 && (long)pair.Key + pair.Value.Width > 108 + slot * 4 || pair.Key <= 199 + slot && (long)pair.Key + pair.Value.Width > 199 + slot))
             {
                 throw new InvalidDataException("Saved music stop channel authority disagrees with its exact memory alias.");
             }

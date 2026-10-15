@@ -17,7 +17,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(NativeCharacterAppearance? appearance, byte[] program)
         {
             GameSession session = new(new GameState { CharacterAppearance = appearance, CharacterVitals = assets.ReadNewGameCharacterVitals() });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, program, []);
             return (session, engine);
         }
@@ -61,7 +61,7 @@ internal static partial class Program
         }
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         RejectingDressServices rejectedServices = new(initial, vitals);
-        EventEngine rejected = new(rejectedServices, new Dictionary<int, int>());
+        EventEngine rejected = new(rejectedServices, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         rejected.LoadField(100, content, []);
         JsonElement owners = JsonSerializer.SerializeToElement(new { rejectedServices.CharacterAppearance, rejectedServices.CharacterVitals });
         try

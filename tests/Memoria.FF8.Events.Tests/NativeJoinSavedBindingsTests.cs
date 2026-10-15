@@ -24,7 +24,7 @@ internal static partial class Program
         EventEngine Create(bool reverseBindings = false, int companionY = 300)
         {
             var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
-            var engine = new EventEngine(session, session.State.Variables)
+            var engine = new EventEngine(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolvePartyTraceTriangle = (_, _, _) => 0,

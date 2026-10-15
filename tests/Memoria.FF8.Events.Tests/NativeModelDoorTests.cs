@@ -24,7 +24,7 @@ internal static partial class Program
                 scripts.Add([(Jsm.Opcode.LBL, 9), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             }
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session, session.State.Variables) { ReadNativeModelParts = provider ? id => id == 13 ? originalParts ?? definition : null : null };
+            EventEngine engine = new(session) { ReadNativeModelParts = provider ? id => id == 13 ? originalParts ?? definition : null : null };
             engine.LoadField(600, SyntheticObjects(peer ? [1, (8 << 7) | 1] : [1], scripts), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -33,7 +33,7 @@ internal static partial class Program
         live.Step();
         Require(live.Scene.ModelParts?.Resources[13].Parts[1][7] == 0, "Normal model registration did not execute flags-only allocation.");
         live.Step();
-        Require(live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 77 && live.Scene.ModelParts!.Resources[13].Parts[1][12] == 32 && live.Scene.ModelParts.Resources[13].Parts[1][14] == 207, "Model-door return2 or busy request drop changed the original command contract.");
+        Require(CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 77 && live.Scene.ModelParts!.Resources[13].Parts[1][12] == 32 && live.Scene.ModelParts.Resources[13].Parts[1][14] == 207, "Model-door return2 or busy request drop changed the original command contract.");
         Require(live.GetNativeModelPartTranslations(0)![1] == new Vector3(1, 0, 6) && live.Scene.ModelParts!.Resources[13].Parts[1][2] == 2, "Command callback did not produce the counter1 skin sample before advancing to2.");
         for (int tick = 0; tick < 9; tick++)
         {
@@ -76,7 +76,7 @@ internal static partial class Program
             }
             JsonElement failed = blocked.Capture();
             JsonElement fiber = failed.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-            Require(blocked.LastFault?.Opcode == "MODELDOOROPEN" && fiber.GetProperty("Position").GetInt32() == blocked.LastFault.Operation && fiber.GetProperty("Stack")[0].GetInt32() == (known ? 257 : 1) && !failed.GetProperty("Variables").TryGetProperty("6000", out _) && JsonElement.DeepEquals(before, failed.GetProperty("Scene").GetProperty("ModelParts")), "Model-door refusal changed PC, operands, memory or physical part rows.");
+            Require(blocked.LastFault?.Opcode == "MODELDOOROPEN" && fiber.GetProperty("Position").GetInt32() == blocked.LastFault.Operation && fiber.GetProperty("Stack")[0].GetInt32() == (known ? 257 : 1) && !CapturedVariables(failed).TryGetProperty("6000", out _) && JsonElement.DeepEquals(before, failed.GetProperty("Scene").GetProperty("ModelParts")), "Model-door refusal changed PC, operands, memory or physical part rows.");
         }
         JsonNode malformed = JsonNode.Parse(saved.GetRawText())!;
         malformed["Scene"]!.AsObject().Remove("ModelParts");

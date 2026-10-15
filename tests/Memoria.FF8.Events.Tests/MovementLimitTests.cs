@@ -13,7 +13,7 @@ internal static partial class Program
         EventEngine Create(byte[] program)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, program, []);
             return engine;
         }
@@ -54,7 +54,7 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(165);
         GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-        EventEngine actual = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
+        EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
         actual.LoadField(165, field.Jsm, field.Messages, session.State.FieldArrival);
         actual.Restore(session.State.EventState!.Value);
         Require(actual.Frame == 4 && actual.Actors[20].MovementDirectionLimit == 0, "Actual165 MLIMIT source changed its frame or default actor byte610.");
@@ -70,7 +70,7 @@ internal static partial class Program
         Require(actual.Frame == 5 && actual.Actors[20].MovementDirectionLimit == 4 && commands.Any(command => command.ObjectId == 20 && command.Operation == 1634 && command.Name == "MLIMIT") && actual.LastFault is null && actual.Actors[20].MovementTarget is null, $"Actual165 ordinary Wait did not execute MLIMIT4 immediately with supported background-loop continuation: frame{actual.Frame}, limit{actual.Actors[20].MovementDirectionLimit}, fault{actual.LastFault}.");
         JsonElement actualSaved = actual.Capture();
         GameSession independentSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-        EventEngine independent = new(independentSession, independentSession.State.Variables);
+        EventEngine independent = new(independentSession);
         independent.LoadField(165, field.Jsm, field.Messages, independentSession.State.FieldArrival);
         independent.Restore(actualSaved);
         Require(JsonElement.DeepEquals(actualSaved, independent.Capture()), "Actual165 MLIMIT byte4 and its bounded successor did not preserve complete independent VM state.");

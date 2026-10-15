@@ -47,14 +47,14 @@ internal static partial class Program
                 issuedBeforeHalt = actualDefault.GetProperty("WaitReason").GetString() == "None" && actualDefault.GetProperty("NativeDoorDefaultFrame").GetBoolean() && !actualDefault.GetProperty("NativeResultFrameEntered").GetBoolean();
             }
         };
-        for (int callback = 0; callback < 12 && !engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _); callback++)
+        for (int callback = 0; callback < 12 && !CapturedVariables(engine.Capture()).TryGetProperty("6200", out _); callback++)
         {
             restored.Restore(engine.Capture());
             engine.Step();
             restored.Step();
             Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Native current-slot wait before the default reached HALT diverged after independent restore.");
         }
-        Require(issuedBeforeHalt && !engine.Actors[1].LineEnabled && engine.Capture().GetProperty("Variables").GetProperty("6200").GetInt32() == 77, "Native door wait invented a HALT floor requirement instead of reading the executed52C960 current0 owner.");
+        Require(issuedBeforeHalt && !engine.Actors[1].LineEnabled && CapturedVariables(engine.Capture()).GetProperty("6200").GetInt32() == 77, "Native door wait invented a HALT floor requirement instead of reading the executed52C960 current0 owner.");
     }
 
     private static void NativeDoorWaitSelectedBeforeLabel(NativeCharacterVitals vitals, NativeEconomy economy)
@@ -70,13 +70,13 @@ internal static partial class Program
                 JsonElement caller = NativeDoorRawFiber(engine, 1);
                 completedBeforeLabel = !target.GetProperty("Started").GetBoolean() && !target.GetProperty("NativeResultFrameEntered").GetBoolean() && target.GetProperty("NativeDoorSlot").GetInt32() == 3 && caller.GetProperty("Stack").GetArrayLength() == 0 && caller.GetProperty("WaitReason").GetString() == "None";
                 completionFrame = engine.Frame;
-                Require(!engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _), "Selected SW ran its successor before native return3 yield.");
+                Require(!CapturedVariables(engine.Capture()).TryGetProperty("6200", out _), "Selected SW ran its successor before native return3 yield.");
             }
         };
         ReachNativeDoorWait(engine, () => completionFrame >= 0);
-        Require(completedBeforeLabel && !engine.Actors[1].LineEnabled && !engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _), "SW used host Started rather than actual selected slot3 or failed the reached LINEOFF/RET8 target.");
+        Require(completedBeforeLabel && !engine.Actors[1].LineEnabled && !CapturedVariables(engine.Capture()).TryGetProperty("6200", out _), "SW used host Started rather than actual selected slot3 or failed the reached LINEOFF/RET8 target.");
         engine.Step();
-        Require(engine.Frame == completionFrame + 1 && engine.Capture().GetProperty("Variables").GetProperty("6200").GetInt32() == 77, "SW completion failed to yield until the following ordinary callback.");
+        Require(engine.Frame == completionFrame + 1 && CapturedVariables(engine.Capture()).GetProperty("6200").GetInt32() == 77, "SW completion failed to yield until the following ordinary callback.");
     }
 
     private static void NativeDoorWaitLowerStart(NativeCharacterVitals vitals, NativeEconomy economy)
@@ -102,13 +102,13 @@ internal static partial class Program
                 selectedUnstarted = !NativeDoorRawFiber(engine, 24).GetProperty("Started").GetBoolean();
             }
         };
-        for (int tick = 0; tick < 16 && !engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _); tick++)
+        for (int tick = 0; tick < 16 && !CapturedVariables(engine.Capture()).TryGetProperty("6200", out _); tick++)
         {
             engine.Step();
             restored.Step();
             Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Lower SW wait diverged after independent pending-slot restore.");
         }
-        Require(completions == 1 && selectedUnstarted && !engine.Actors[1].LineEnabled && engine.Capture().GetProperty("Variables").GetProperty("6200").GetInt32() == 77, "SW did not release exactly when lower slot3 became current before LBL, or reissued the request on a poll.");
+        Require(completions == 1 && selectedUnstarted && !engine.Actors[1].LineEnabled && CapturedVariables(engine.Capture()).GetProperty("6200").GetInt32() == 77, "SW did not release exactly when lower slot3 became current before LBL, or reissued the request on a poll.");
     }
 
     private static void NativeDoorWaitEndWithSlotReuse(NativeCharacterVitals vitals, NativeEconomy economy)
@@ -148,10 +148,10 @@ internal static partial class Program
                 AssertNativeDoorWaitHeld(engine, 3);
             }
         }
-        Require(waitedOnReusedSlot && completedAt >= 0 && !engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _) && engine.Capture().GetProperty("Variables").GetProperty("6201").GetInt32() == 91, "EW released before reused slot3 retired or executed its successor in the completion callback.");
+        Require(waitedOnReusedSlot && completedAt >= 0 && !CapturedVariables(engine.Capture()).TryGetProperty("6200", out _) && CapturedVariables(engine.Capture()).GetProperty("6201").GetInt32() == 91, "EW released before reused slot3 retired or executed its successor in the completion callback.");
         engine.Step();
         restored.Step();
-        Require(engine.Frame == completedAt + 1 && engine.Capture().GetProperty("Variables").GetProperty("6200").GetInt32() == 77 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "EW completion failed native pop2/return3/following-callback continuation.");
+        Require(engine.Frame == completedAt + 1 && CapturedVariables(engine.Capture()).GetProperty("6200").GetInt32() == 77 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "EW completion failed native pop2/return3/following-callback continuation.");
     }
 
     private static void NativeDoorWaitWidth(NativeCharacterVitals vitals, NativeEconomy economy, Jsm.Opcode opcode, int raw, bool completes)
@@ -170,7 +170,7 @@ internal static partial class Program
         {
             Require(selectedBeforeLabel && !IsNativeDoorWaitHeld(engine), "EW raw257 was narrowed before its signed fullDWORD comparison.");
             engine.Step();
-            Require(engine.Capture().GetProperty("Variables").GetProperty("6200").GetInt32() == 77, "Immediate signed EW completion did not preserve native yield.");
+            Require(CapturedVariables(engine.Capture()).GetProperty("6200").GetInt32() == 77, "Immediate signed EW completion did not preserve native yield.");
             return;
         }
         AssertNativeDoorWaitHeld(engine, raw);
@@ -218,7 +218,7 @@ internal static partial class Program
         content[3] = 1;
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
         session.MarkReplayUnavailable("Declared door wait component; original request executes normally, direct/reused slots are staged through current Queue boundary.");
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;
     }
@@ -237,7 +237,7 @@ internal static partial class Program
     {
         JsonElement caller = NativeDoorRawFiber(engine, 1);
         JsonElement owner = caller.GetProperty("NativeDoorRequestWait");
-        Require(caller.GetProperty("WaitReason").GetString() == "NativeDoorRequest" && caller.GetProperty("Position").GetInt32() == owner.GetProperty("Operation").GetInt32() && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 24, raw }) && owner.GetProperty("RawPriority").GetInt32() == raw && owner.GetProperty("RawScriptId").GetInt32() == 24 && owner.GetProperty("TargetNativeObjectId").GetInt32() == 1 && owner.GetProperty("TargetObjectId").GetInt32() == 1 && !engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _), "Native door polling changed its held PC, original DWORD operands, target receipt or successor.");
+        Require(caller.GetProperty("WaitReason").GetString() == "NativeDoorRequest" && caller.GetProperty("Position").GetInt32() == owner.GetProperty("Operation").GetInt32() && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 24, raw }) && owner.GetProperty("RawPriority").GetInt32() == raw && owner.GetProperty("RawScriptId").GetInt32() == 24 && owner.GetProperty("TargetNativeObjectId").GetInt32() == 1 && owner.GetProperty("TargetObjectId").GetInt32() == 1 && !CapturedVariables(engine.Capture()).TryGetProperty("6200", out _), "Native door polling changed its held PC, original DWORD operands, target receipt or successor.");
     }
 
     private static void ReachNativeDoorWait(EventEngine engine, Func<bool> predicate)

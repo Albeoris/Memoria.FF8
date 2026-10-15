@@ -17,7 +17,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (variables.Keys.Any(address => address is >= 101 and <= 115 or >= 194 and <= 214))
+        if (EventMemory.Cells.Any(pair => pair.Key < 116 && (long)pair.Key + pair.Value.Width > 108 || pair.Key < 203 && (long)pair.Key + pair.Value.Width > 197 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key < 215 && (long)pair.Key + pair.Value.Width > 213))
         {
             throw new NotSupportedException("Native New Game music reset intersects memory without an executed empty bootstrap.");
         }
@@ -26,10 +26,6 @@ public sealed partial class EventEngine
         Scene.MusicProcess = new NativeMusicProcessState(1, null, 0, 0, 0, 255, new NativeMusicBootstrap(1, "ff8-en-music-new-game-470560-52ca90-v1", profile.ExecutableHash));
         Scene.MusicChannel108 = new NativeMusicChannelState(-1, 255);
         Scene.MusicChannel112 = new NativeMusicChannelState(-1, 255);
-        variables[108] = -1;
-        variables[112] = -1;
-        variables[199] = 255;
-        variables[200] = 255;
         SetSoundVolumeByte(197, 127);
         SetSoundVolumeByte(198, 127);
     }
@@ -51,21 +47,21 @@ public sealed partial class EventEngine
 
     private void ValidateNativeMusicFieldLoad(NativeFieldRuntimeProfile? profile)
     {
-        if (profile is { IsVerified: true } && UnsupportedNativeMusicAliases(variables, services.NativeVariableValues) is string aliases)
+        if (profile is { IsVerified: true } && UnsupportedNativeMusicAliases(EventMemory) is string aliases)
         {
             throw new NotSupportedException(aliases);
         }
-        if (profile is { IsVerified: true } && variables.ContainsKey(207))
+        if (profile is { IsVerified: true } && EventMemory.Cells.Any(pair => pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207))
         {
             throw new NotSupportedException("Native music field reset intersects a separate B207 memory alias; canonical event ownership is required.");
         }
     }
 
-    private static string? UnsupportedNativeMusicAliases(IDictionary<int, int> values, IReadOnlyDictionary<int, NativeMemoryValue>? memory)
+    private static string? UnsupportedNativeMusicAliases(NativeEventMemory memory)
     {
         // These are physical BYTEs owned by MusicProcess, not DWORD entries in Variables.
         // Readers project the owner directly; even equal scalar copies create a second owner.
-        return values.Keys.Any(address => address is 201 or 202 or 213 or 214) || memory?.Any(pair => pair.Key <= 202 && (long)pair.Key + pair.Value.Width > 201 || pair.Key <= 214 && (long)pair.Key + pair.Value.Width > 213) == true ? "Native music process bytes overlap a second memory owner; recreate authentic history." : null;
+        return memory.Cells.Any(pair => pair.Key <= 202 && (long)pair.Key + pair.Value.Width > 201 || pair.Key <= 214 && (long)pair.Key + pair.Value.Width > 213) ? "Native music process bytes overlap a second memory owner; recreate authentic history." : null;
     }
 
     private bool TryReadNativeMusicByte(int address, out int value)
@@ -85,7 +81,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedMusicLoad(Fiber fiber, JsmOperation operation)
     {
-        if (Scene.MusicProcess is not null && UnsupportedNativeMusicAliases(variables, services.NativeVariableValues) is string musicAliases)
+        if (Scene.MusicProcess is not null && UnsupportedNativeMusicAliases(EventMemory) is string musicAliases)
         {
             return musicAliases;
         }
@@ -93,7 +89,7 @@ public sealed partial class EventEngine
         {
             return selection;
         }
-        if (operation.Opcode == Jsm.Opcode.EFFECTLOAD && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || LoadSoundResource is null || variables.ContainsKey(202) || services.NativeVariableValues?.Any(pair => pair.Key <= 202 && pair.Key + pair.Value.Width > 202) == true))
+        if (operation.Opcode == Jsm.Opcode.EFFECTLOAD && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || LoadSoundResource is null || EventMemory.Cells.Any(pair => pair.Key <= 202 && (long)pair.Key + pair.Value.Width > 202)))
         {
             return "EFFECTLOAD requires its exact operand, explicit backend and unaliased physical BYTE202 owner";
         }
@@ -129,17 +125,13 @@ public sealed partial class EventEngine
                     return aliases;
                 }
             }
-            if (services.NativeVariableValues?.Any(pair => new[] { 108, 109, 110, 111, 112, 113, 114, 115, 199, 200, 201, 202, 207, 213, 214 }.Any(address => pair.Key <= address && pair.Key + pair.Value.Width > address)) == true)
+            foreach ((int address, NativeMemoryValue value) in EventMemory.Cells)
             {
-                return "Native music load/play overlaps uncertain memory without an exact owned-byte projection";
-            }
-            foreach ((int address, int value) in variables)
-            {
-                bool channel = address >= 109 && address <= 115 || operation.Opcode != Jsm.Opcode.MUSICLOAD && address >= 105 && address <= 111;
-                bool bytes = address >= 196 && address <= 201 || address >= 204 && address <= 207 || address >= 210 && address <= 214;
-                bool flags = address is >= 101 and <= 107 && (operation.Opcode == Jsm.Opcode.MUSICLOAD ? Scene.MusicChannel112?.ChannelId == -1 : Scene.MusicProcess?.Pending == true);
-                bool knownChannel = address == 108 && Scene.MusicChannel108?.ChannelId == value || address == 112 && Scene.MusicChannel112?.ChannelId == value;
-                if ((channel || bytes || flags) && !knownChannel && !IsKnownNativeByteAlias(address, value))
+                long end = (long)address + value.Width;
+                bool channel = address < 116 && end > 108;
+                bool bytes = address < 203 && end > 199 || address <= 207 && end > 207 || address < 215 && end > 213;
+                bool flags = writesControls && address < 108 && end > 103;
+                if (channel || bytes || flags)
                 {
                     return "Native music load/play intersects an unproved overlapping memory alias";
                 }
@@ -205,14 +197,10 @@ public sealed partial class EventEngine
                 // 51FB00 selects the opposite buffer without52CCE0's bank toggle;
                 // every46B870/46B530 path returns its requested channel1.
                 Scene.MusicChannel112 = new NativeMusicChannelState(1, music);
-                variables[112] = 1;
-                variables[200] = music;
             }
             else
             {
                 Scene.MusicChannel108 = new NativeMusicChannelState(0, music);
-                variables[108] = 0;
-                variables[199] = music;
                 Scene.MusicPlaying = true;
             }
             if (opcode == Jsm.Opcode.CROSSMUSIC)
@@ -245,7 +233,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }
-        if (process is not null && UnsupportedNativeMusicAliases(saved.Variables, saved.NativeVariableValues) is string aliases)
+        if (process is not null && UnsupportedNativeMusicAliases(saved.EventMemory) is string aliases)
         {
             throw new InvalidDataException(aliases);
         }

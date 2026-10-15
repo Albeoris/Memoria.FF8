@@ -13,12 +13,12 @@ internal static partial class Program
     {
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, -1494), (Jsm.Opcode.PSHN_L, 670), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState { WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(new WorldTransition(63, 33, -1), 262) });
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         engine.LoadField(134, content, []);
         engine.Step();
         Require(engine.Scene.PreviousWorldEntityByte86 == 33 && engine.Scene.DrawPointReset is not null, "Known allocated BYTE86 was misclassified as an overlapping DWORD at B88.");
-        GameSession unprovedSession = new(new GameState { Variables = new Dictionary<int, int> { [86] = 33 } });
-        EventEngine unproved = new(unprovedSession, unprovedSession.State.Variables);
+        GameSession unprovedSession = new(new GameState { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [86] = 33 }) });
+        EventEngine unproved = new(unprovedSession);
         unproved.LoadField(134, content, []);
         ExpectDrawPointFault(unproved, "SETDRAWPOINT", 7, 1);
     }
@@ -28,7 +28,7 @@ internal static partial class Program
         EventEngine Create(byte[] content, int fieldId = 148, Dictionary<int, int>? variables = null)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, variables ?? session.State.Variables);
+            EventEngine engine = new(session, variables is null ? null : NativeEventMemory.FromDWords(variables));
             engine.LoadField(fieldId, content, []);
             return engine;
         }
@@ -53,7 +53,7 @@ internal static partial class Program
             Require(engine.Scene.DrawPointFieldStateVersion == 1 && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 1 && engine.Scene.DrawPointIndex == expected && engine.Scene.DrawPointReset is { SampledDisplayMask: 1, ObjectId: 0, ScriptId: 0, Operation: 7 } reset && reset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && reset.Sparks.Count == 8 && reset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)), "Draw-point setup lost its low bytes, native anchor reset or immediate index continuation.");
             JsonElement saved = engine.Capture();
             Require(saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("5").GetInt32() == expected, "Exact native byte reads did not use the known typed setup/index.");
-            Require(JsonElement.DeepEquals(saved.GetProperty("EventRandom"), before.GetProperty("EventRandom")) && saved.GetProperty("Variables").EnumerateObject().All(pair => !int.TryParse(pair.Name, out int address) || address is < 116 or > 242) && engine.AcquiredGuardianForces is null, "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
+            Require(JsonElement.DeepEquals(saved.GetProperty("EventRandom"), before.GetProperty("EventRandom")) && CapturedVariables(saved).EnumerateObject().All(pair => !int.TryParse(pair.Name, out int address) || address is < 116 or > 242) && engine.AcquiredGuardianForces is null, "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
             Require(commands.Single(command => command.Name == "SETDRAWPOINT").Arguments.SequenceEqual([mask]) && commands.Single(command => command.Name == "Unknown16").Arguments.SequenceEqual([index]), "Draw-point setup discarded its original full operands.");
             EventEngine independent = Create(content);
             independent.Restore(saved);
@@ -104,7 +104,7 @@ internal static partial class Program
         ExpectDrawPointFault(special, "SETDRAWPOINT", 7, 1);
         EventEngine retainedAliases = Create(SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.CLEAR, 0), (Jsm.Opcode.RET, 0)), variables: new Dictionary<int, int> { [238] = 5 });
         retainedAliases.Step();
-        Require(retainedAliases.LastFault is null && retainedAliases.Capture().GetProperty("Variables").GetProperty("238").GetInt32() == 5, "Native CLEAR changed an alias outside its original256..1279 range.");
+        Require(retainedAliases.LastFault is null && CapturedVariables(retainedAliases.Capture()).GetProperty("238").GetInt32() == 5, "Native CLEAR changed an alias outside its original256..1279 range.");
 
         byte[] knownContent = Content();
         EventEngine known = Create(knownContent);
@@ -161,7 +161,7 @@ internal static partial class Program
         EventEngine Actual()
         {
             GameSession session = new(GameSession.Load(source));
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(field.Walkmesh, triangle, x, y),
@@ -184,7 +184,7 @@ internal static partial class Program
             resumed.Apply(new PlayerAction(PlayerActionKind.Wait));
         }
         Require(JsonElement.DeepEquals(actual.Capture(), resumed.Capture()), "Actual148 draw-point setup changed restored four-tick continuation.");
-        Console.WriteLine("Draw-point setup: exact low-byte stores/mask1/eight anchors, persistent known index, load reset/CLEAR retention, atomic alias/refusal and checkpoint validation; original148 Wait1 frame0→1 plus four restored ordinary ticks.");
+        Console.WriteLine("Draw-point setup: exact low-byte stores/mask1/eight anchors, persistent known index, load reset/CLEAR retention, atomic alias/refusal and checkpoint validation; original148 Wait1 frame0â†’1 plus four restored ordinary ticks.");
     }
 
     private static void ExpectDrawPointFault(EventEngine engine, string opcode, int position, int? operand = null)

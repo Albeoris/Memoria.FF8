@@ -11,11 +11,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(memory);
         memory.Validate();
-        if (State.NativeVariableValues?.Any(pair => NativeWorldEntryMemory.Overlaps(pair.Key, pair.Value.Width)) == true)
-        {
-            throw new InvalidDataException("Native world-entry publication overlaps uncertain event memory.");
-        }
-        memory.ProjectVariables(State.Variables);
+        ValidateEventMemoryOwners(State with { WorldEntryMemory = memory }, State.EventMemory);
         State = State with { WorldEntryMemory = memory };
     }
 
@@ -25,7 +21,7 @@ public sealed partial class GameSession
         {
             throw new InvalidDataException("Native saved-world history requires its executed world-entry event bytes.");
         }
-        state.WorldEntryMemory?.ValidateVariables(state.Variables, state.NativeVariableValues);
+        state.WorldEntryMemory?.ValidateEventMemory(state.EventMemory);
         if (currentVm is not JsonElement vm)
         {
             return;

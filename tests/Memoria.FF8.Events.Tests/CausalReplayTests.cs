@@ -18,7 +18,7 @@ internal static partial class Program
         {
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 ResolveWalkmesh = (x, y) => new WalkmeshPosition(new Vector3(x, y, 0), 0)
             };
@@ -51,7 +51,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(first.Engine.Capture(), exact.Engine.Capture()), "Identical ordinary inputs changed complete VM state relative to uninterrupted play.");
         GameState saved = first.Session.State with { EventState = first.Engine.Capture() };
         GameSession restoredSession = new(saved);
-        EventEngine restored = new(restoredSession, restoredSession.State.Variables);
+        EventEngine restored = new(restoredSession);
         using (restoredSession.BeginReplayCapture())
         {
             restored.LoadField(74, ProgramWithSpeed(256, 41), []);
@@ -60,14 +60,14 @@ internal static partial class Program
         int prefix = saved.ReplayJournal!.EntryCount;
         restored.Step();
         Require(restoredSession.State.ReplayJournal is { IsComplete: true } && restoredSession.State.ReplayJournal.EntryCount == prefix + 1, "A genuine independent save load invented an extra field initialization or invalidated history.");
-        first.Session.State.Variables[900] = 123;
+        first.Session.SetEventMemory(first.Session.State.EventMemory.Write(900, 4, NativeScalarValue.Exact(123)));
         first.Engine.Capture();
         Require(first.Session.State.ReplayJournal is { IsComplete: false }, "Unjournaled script memory mutation left a false complete history.");
 
         byte[] dialogueProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 700), (Jsm.Opcode.RET, 0));
         GameSession dialogueSession = GameSession.CreateColdProcess();
         dialogueSession.StartNewGame();
-        EventEngine dialogueEngine = new(dialogueSession, dialogueSession.State.Variables);
+        EventEngine dialogueEngine = new(dialogueSession);
         dialogueEngine.LoadField(74, dialogueProgram, ["Continue"]);
         dialogueEngine.Step();
         dialogueEngine.Step();

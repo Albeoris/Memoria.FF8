@@ -59,13 +59,13 @@ public sealed class WorldControlSessionTests
         NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();
         // A narrow root/VM owner consistency fixture; process message data is
         // genuinely unknown here and recorded explicitly, without a cold seed.
-        var session = new GameSession(new GameState { WorldControls = controls, EventState = System.Text.Json.JsonSerializer.SerializeToElement(new { WorldControls = controls.WithPartyPower(0), MessageVariables = (NativeMessageVariables?)null }) });
+        var session = new GameSession(new GameState { WorldControls = controls, EventState = RuntimeOwnerCheckpointFixture.Capture(new GameState { WorldControls = controls.WithPartyPower(0) }) });
         string path = Path.Combine(Path.GetTempPath(), "ff8-conflicting-flags-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
             session.Save(path);
             Assert.Throws<InvalidDataException>(() => GameSession.Load(path));
-            session.SetEventState(System.Text.Json.JsonSerializer.SerializeToElement(new { WorldControls = controls, MessageVariables = session.State.MessageVariables }));
+            session.SetEventState(RuntimeOwnerCheckpointFixture.Capture(session.State));
             session.Save(path);
             Assert.Equal(controls, GameSession.Load(path).WorldControls);
         }

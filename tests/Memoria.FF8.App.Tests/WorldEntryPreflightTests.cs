@@ -51,7 +51,7 @@ public sealed class WorldEntryPreflightTests
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(departure));
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { WorldArrival = new WorldTransition(0, 0, 1) }));
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { World = entry.InitialState with { Frame = 1 } }));
-        Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { Variables = new Dictionary<int, int> { [256] = 18 } }));
+        Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 18 }) }));
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { SavedWorld = candidate.SavedWorld! with { Slot4 = candidate.SavedWorld!.Slot4 with { ShapeId = 1 } } }));
         var unchangedSession = new GameSession(departure);
         string before = JsonSerializer.Serialize(unchangedSession.State);
@@ -82,14 +82,14 @@ public sealed class WorldEntryPreflightTests
         string directory = GameDirectory();
         using PreparedWorldEntry entry = WorldEntryPreflight.Prepare(departure, directory, new WorldTransition(0, 0, 0));
         GameState candidate = Candidate(departure, entry);
-        departure.Variables[256] = 18;
-        Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate));
-        GameState originalCandidate = candidate with { Variables = new Dictionary<int, int> { [256] = 17 } };
+        GameState changedCandidate = candidate with { EventMemory = candidate.EventMemory.Write(256, 2, NativeScalarValue.Exact(18)) };
+        Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(changedCandidate));
+        GameState originalCandidate = candidate with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 17 }) };
         entry.ValidateAdoption(originalCandidate);
         using WorldMapScene scene = entry.Adopt(new GameSession(originalCandidate));
         Assert.Equal(320 * 224 * 4, scene.Render(320, 224).Length);
 
-        GameState unsupportedContact = ComponentDeparture() with { Variables = new Dictionary<int, int> { [256] = 34 } };
+        GameState unsupportedContact = ComponentDeparture() with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 34 }) };
         string before = JsonSerializer.Serialize(unsupportedContact);
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(unsupportedContact, directory, new WorldTransition(0, 0, 0)));
         Assert.Equal(before, JsonSerializer.Serialize(unsupportedContact));
@@ -98,7 +98,7 @@ public sealed class WorldEntryPreflightTests
     private static GameState ComponentDeparture()
     {
         // Isolated lifecycle fixture; it does not force a live field gateway or establish a visited world.
-        return new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new Dictionary<int, int> { [256] = 17 } };
+        return new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 17 }) };
     }
 
     private static GameState Candidate(GameState departure, PreparedWorldEntry entry)

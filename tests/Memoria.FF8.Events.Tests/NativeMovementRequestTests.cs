@@ -26,7 +26,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 var session = new GameSession(new GameState());
-                var result = new EventEngine(session, session.State.Variables);
+                var result = new EventEngine(session);
                 result.AnimationFrameCount = (_, _) => 4;
                 result.CanUseNativeScriptMove = actor => actor.ObjectId == 1;
                 result.ResolveNativeScriptDirection = query => query.TargetX == 500 * 4096 && query.FixedX >= 3 * 4096 ? new(NativeScriptDirectionStatus.Snapped, query.TargetX, query.TargetY, query.MovementDirection, query.TurnAccumulator) : new(NativeScriptDirectionStatus.Moving, query.FixedX, query.FixedY, 64, 0);
@@ -109,7 +109,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = _ => true,
@@ -154,7 +154,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
-                var engine = new EventEngine(session, session.State.Variables)
+                var engine = new EventEngine(session)
                 {
                     AnimationFrameCount = (_, _) => 4,
                     CanUseNativeScriptMove = actor => actor.ObjectId == 1,
@@ -194,7 +194,7 @@ internal static partial class Program
         content[2] = 1;
         content[3] = 1;
         var session = new GameSession(new GameState());
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         for (int tick = 0; tick < 6; tick++)
         {
@@ -203,7 +203,7 @@ internal static partial class Program
         Require(session.State.Variables.GetValueOrDefault(5000) == 77 && session.State.Variables.GetValueOrDefault(5001) == 55, "REQEW slot7 was confused with the background module's occupied default0/HALT.");
         JsonElement defaultFiber = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 17);
         Require(!defaultFiber.GetProperty("Complete").GetBoolean() && defaultFiber.GetProperty("WaitReason").GetString() == "NativeHalt", "Native module default HALT lost its occupied original slot after RET8.");
-        var copy = new EventEngine(new GameSession(new GameState()), new Dictionary<int, int>());
+        var copy = new EventEngine(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         copy.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         copy.Restore(engine.Capture());
         Require(JsonElement.DeepEquals(engine.Capture(), copy.Capture()), "Native non-actor pointer-table request slot did not restore independently.");

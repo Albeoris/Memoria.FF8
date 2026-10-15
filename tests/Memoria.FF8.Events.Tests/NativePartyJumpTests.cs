@@ -21,9 +21,9 @@ internal static partial class Program
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -19), (Jsm.Opcode.PSHN_L, -22), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 7), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] move = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 101), (Jsm.Opcode.PSHN_L, -202), (Jsm.Opcode.PSHN_L, 303), (Jsm.Opcode.DOFFSET, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, -1000), (Jsm.Opcode.PSHN_L, -22), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            session.State.Variables[5100] = slot;
-            session.State.Variables[5104] = duration;
-            EventEngine engine = new(session, session.State.Variables)
+            session.SetEventMemory(session.State.EventMemory.Write(5100, 4, NativeScalarValue.Exact(slot)));
+            session.SetEventMemory(session.State.EventMemory.Write(5104, 4, NativeScalarValue.Exact(duration)));
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolveNativeTriangleHeight = plane ? (triangle, _, _) => triangle == 7 ? 4 : null : null,
@@ -74,7 +74,7 @@ internal static partial class Program
             independent.Step();
             Require(JsonElement.DeepEquals(actual.Capture(), independent.Capture()) && actual.Actors[0].NativeJump!.TargetX == sampledTarget.FixedX && actual.Actors[0].NativeJump!.TargetY == sampledTarget.FixedY, "PJUMPA retargeted the moving party body or diverged after an independent active restore.");
         }
-        JsonElement variables = actual.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(actual.Capture());
         Require(issues == 1 && actual.Actors[2].NativeScriptMovement!.FixedX != sampledTarget.FixedX && actual.Actors[0].NativeJump is { Active: false } && actual.Actors[0].WalkmeshTriangle == 7 && variables.GetProperty("5000").GetInt32() == 123456 && variables.GetProperty("5001").GetInt32() == 901 && variables.GetProperty("5002").GetInt32() == 903, "PJUMPA completion did not consume its operands once, preserve result registers/stack and finish on the captured triangle.");
 
         foreach ((int slot, int duration, bool plane) in new[] { (1, 65540, true), (256, 65540, true), (int.MinValue, 65540, true), (0, 65536, true), (0, -1, true), (0, 65540, false) })

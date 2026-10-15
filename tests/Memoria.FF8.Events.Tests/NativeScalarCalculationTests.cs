@@ -12,7 +12,7 @@ internal static partial class Program
         EventEngine Create(byte[] content)
         {
             GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(999, content, []);
             return engine;
         }
@@ -66,8 +66,8 @@ internal static partial class Program
         foreach (int kind in new[] { 3, 4 })
         {
             GameSession divisionSession = new(new GameState());
-            divisionSession.State.Variables[512] = int.MinValue;
-            EventEngine division = new(divisionSession, divisionSession.State.Variables);
+            divisionSession.SetEventMemory(divisionSession.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(int.MinValue)));
+            EventEngine division = new(divisionSession);
             division.LoadField(999, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.CAL, kind), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.RET, 8)), []);
             try
             {

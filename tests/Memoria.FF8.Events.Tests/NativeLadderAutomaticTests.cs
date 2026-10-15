@@ -36,7 +36,7 @@ internal static partial class Program
             }
             live.Step();
             independent.Step();
-            Require(actor.NativeMovementCompletion542 == 2 && actor.NativeTurnAccumulator474 == climb.Duration && actor.NativeLadder is { Active: true, AutomaticCompletion: true } && actor.WalkmeshTriangle == 7 && actor.NativeMovementGroundContact600 == 0 && !live.Capture().GetProperty("Variables").TryGetProperty("6000", out _) && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Automatic equality callback failed direct completion with retained climb counter/triangle/contact and held issuing PC.");
+            Require(actor.NativeMovementCompletion542 == 2 && actor.NativeTurnAccumulator474 == climb.Duration && actor.NativeLadder is { Active: true, AutomaticCompletion: true } && actor.WalkmeshTriangle == 7 && actor.NativeMovementGroundContact600 == 0 && !CapturedVariables(live.Capture()).TryGetProperty("6000", out _) && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Automatic equality callback failed direct completion with retained climb counter/triangle/contact and held issuing PC.");
             JsonElement completed = live.Capture();
             independent.Restore(completed);
             JsonNode malformed = JsonNode.Parse(completed.GetRawText())!;
@@ -52,7 +52,7 @@ internal static partial class Program
             }
             live.Step();
             independent.Step();
-            Require(actor.NativeLadder is { Active: false, AutomaticCompletion: true } && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73 && actor.WalkmeshTriangle == 7 && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Automatic completion did not execute the immediate successor with return2 or preserved an unsupported exit/drain.");
+            Require(actor.NativeLadder is { Active: false, AutomaticCompletion: true } && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73 && actor.WalkmeshTriangle == 7 && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Automatic completion did not execute the immediate successor with return2 or preserved an unsupported exit/drain.");
         }
         Console.WriteLine("Native mode4 UCOFF: unchanged entry, increment-first automatic middle, current model animation, no trace/triangle/exit/drain, direct delayed completion/return2 and independent restores PASS.");
     }

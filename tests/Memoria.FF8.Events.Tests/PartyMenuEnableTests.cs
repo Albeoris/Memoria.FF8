@@ -23,7 +23,7 @@ internal static partial class Program
                 NativeWorldControlState controls = NativeWorldControlState.CreateNewGame().WithPartyPower(sourceDisabled ? 0 : 1) with { Menu209 = 0xAB, EventFlags104 = sourceDisabled ? 0x80000218u : 0x80000018u, MusicKeep207 = 7 };
                 byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 76), (Jsm.Opcode.GETCARD, 0), (Jsm.Opcode.PSHN_L, 91), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PHSENABLE, 0), (Jsm.Opcode.PSHI_L, 3), (Jsm.Opcode.POPM_L, 1000), (Jsm.Opcode.POPM_L, 1004), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 1008), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
                 (GameSession session, EventEngine engine) = CreateCardEngine(cards, controls, content);
-                session.State.Variables[512] = argument;
+                session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(argument)));
                 int executions = 0;
                 engine.CommandExecuted += command =>
                 {
@@ -68,7 +68,7 @@ internal static partial class Program
             Require(refused && unknown.LastFault?.Opcode == opcode.ToString() && unknown.LastFault.Operation == 2 && unknown.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 256, "Unknown menu/control owner did not refuse atomically at its original command.");
 
             RejectingMenuControlService service = new(NativeWorldControlState.CreateNewGame());
-            EventEngine rejected = new(service, new Dictionary<int, int>());
+            EventEngine rejected = new(service, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
             rejected.LoadField(100, content, []);
             NativeWorldControlState before = service.WorldControls;
             refused = false;
@@ -83,7 +83,7 @@ internal static partial class Program
             Require(refused && service.Publications == 1 && service.WorldControls == before && rejected.LastFault?.Operation == 2 && rejected.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 256, "Rejected native menu flag publication changed PC/operands/owner.");
         }
         RejectingMenuControlService skipped = new(NativeWorldControlState.CreateNewGame().WithPartyPower(0));
-        EventEngine noWriter = new(skipped, new Dictionary<int, int>());
+        EventEngine noWriter = new(skipped, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         noWriter.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PHSENABLE, 0), (Jsm.Opcode.RET, 0)), []);
         noWriter.Step();
         Require(noWriter.LastFault is null && skipped.Publications == 0, "Source-disabled PHSENABLE fabricated a native menu-byte write.");

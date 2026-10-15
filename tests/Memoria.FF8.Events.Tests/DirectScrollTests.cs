@@ -12,7 +12,7 @@ internal static partial class Program
     {
         byte[] commands = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, 65760), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true };
+        EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true };
         engine.LoadField(100, commands, []);
         engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
         bool pendingObserved = false;
@@ -30,7 +30,7 @@ internal static partial class Program
         Require(pendingObserved && first == new BackgroundScrollPosition(0, 224, 0, 224, 0, 0, 0, 3, 2) && !session.State.Variables.ContainsKey(512), "DSCROLL2 lost native lowWORD targets, same-update direct commit or return3 instruction-budget yield.");
         JsonElement saved = engine.Capture();
         GameSession resumedSession = new(new GameState());
-        EventEngine resumed = new(resumedSession, resumedSession.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true };
+        EventEngine resumed = new(resumedSession) { CanSetBackgroundScrollPosition = (_, _, _) => true };
         resumed.LoadField(100, commands, []);
         resumed.Restore(saved);
         engine.Step();
@@ -40,7 +40,7 @@ internal static partial class Program
         resumed.Step();
         Require(session.State.Variables[512] == 9 && JsonElement.DeepEquals(engine.Capture(), resumed.Capture()), "DSCROLL2 yielded at the same PC or blocked its ordinary following instruction.");
 
-        EventEngine blocked = new(new GameSession(new GameState()), new Dictionary<int, int>()) { CanSetBackgroundScrollPosition = (_, _, _) => false };
+        EventEngine blocked = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { CanSetBackgroundScrollPosition = (_, _, _) => false };
         blocked.LoadField(100, commands, []);
         try
         {
@@ -58,7 +58,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession source = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine result = new(source, source.State.Variables)
+            EventEngine result = new(source)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(field.Walkmesh, triangle, x, y),

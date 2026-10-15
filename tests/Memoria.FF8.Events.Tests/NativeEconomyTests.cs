@@ -35,7 +35,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(byte[] program, NativeEconomy? economy)
         {
             GameSession session = new(new GameState { Economy = economy });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -84,7 +84,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(valid, bank.Capture()), "Malformed economy restore partially changed VM or services.");
         }
         JsonNode aliased = JsonNode.Parse(valid.GetRawText())!;
-        aliased["Variables"]!["72"] = 5000;
+        SetCapturedCell(aliased, 72, 4, 5000);
         try
         {
             bank.Restore(JsonSerializer.SerializeToElement(aliased));
@@ -106,7 +106,7 @@ internal static partial class Program
         Require(unknownSession.Economy is null && unknown.Capture().GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([168, 1]), "Unknown economy refusal consumed original operands or published defaults.");
 
         RejectingEconomyServices rejected = new(initial.CopyGilToEventBank());
-        EventEngine refused = new(rejected, new Dictionary<int, int>());
+        EventEngine refused = new(rejected, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         refused.LoadField(600, grant, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         try
         {
@@ -119,7 +119,7 @@ internal static partial class Program
         JsonElement held = refused.Capture().GetProperty("Fibers")[0];
         Require(held.GetProperty("Position").GetInt32() == 3 && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([168, 1]) && rejected.Economy!.Items[4].ItemId == 0, "Rejected economy publication advancedPC, consumed operands or partially changed inventory.");
         RejectingEconomyServices rejectedCopy = new(initial);
-        EventEngine refusedCopy = new(rejectedCopy, new Dictionary<int, int>());
+        EventEngine refusedCopy = new(rejectedCopy, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         refusedCopy.LoadField(600, grant, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement before = refusedCopy.Capture();
         try
@@ -132,7 +132,7 @@ internal static partial class Program
         }
         Require(JsonElement.DeepEquals(before, refusedCopy.Capture()), "Rejected preVM copy changedFrame or VM before publication.");
         CopyingEconomyServices movie = new(initial);
-        EventEngine movieEngine = new(movie, new Dictionary<int, int>());
+        EventEngine movieEngine = new(movie, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         movieEngine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         movieEngine.Step();
         Require(movie.Economy!.EventBankGil72 == 5000 && movie.Economy.EventBankPastGil76 == 3000 && movieEngine.Scene.FieldCallbackClock is { MovieCallbacks: 1 }, "Movie field callback omitted its shared native529FF0 gil copy.");

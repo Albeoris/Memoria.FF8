@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte[] content, bool authenticated = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;
         }
@@ -30,7 +30,7 @@ internal static partial class Program
             ActorState actor = engine.Actors[0];
             byte[] expected = Enumerable.Range(0, 8).Select(index => unchecked((byte)(sizes[(index + 4) & 7] / 4))).ToArray();
             Require(actor.NativeShadowSet is null && actor.NativeShadowForm is { } form && form.RawSizes.SequenceEqual(sizes) && form.Radii601To608.SequenceEqual(expected) && actor.NativeShadowLevel is { Level609: 255 } && actor.ShadeLevel == 255 && actor.PolygonColor == new Vector3(128), "SHADEFORM changed native division, BYTE order, current-shape replacement or independent color.");
-            Require(engine.Capture().GetProperty("Variables").GetProperty("500").GetInt32() == 7, "SHADEFORM did not return immediately to the following script store.");
+            Require(CapturedVariables(engine.Capture()).GetProperty("500").GetInt32() == 7, "SHADEFORM did not return immediately to the following script store.");
             JsonElement saved = engine.Capture();
             EventEngine restored = Create(content);
             restored.Restore(saved);

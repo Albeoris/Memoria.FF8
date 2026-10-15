@@ -97,14 +97,13 @@ public sealed class NativeEventRandomTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        session.State.Variables[116] = 99;
         GameState before = session.State;
-        Assert.Throws<InvalidDataException>(() => session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), eventRandom: session.EventRandom!.Draw(out _)));
+        Assert.Throws<InvalidDataException>(() => session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), eventRandom: session.EventRandom!.Draw(out _), eventMemory: session.EventMemory.Write(116, 4, NativeScalarValue.Exact(99))));
         Assert.Same(before, session.State);
         Assert.True(session.WorldControls!.SalarySuppressed);
         Assert.Equal(1u, session.EventRandom!.State);
-        session.State.Variables.Remove(116);
-        session.State.Variables[1000] = 99;
+        session.SetEventMemory(session.State.EventMemory.Remove(116));
+        session.SetEventMemory(session.State.EventMemory.Write(1000, 4, NativeScalarValue.Exact(99)));
         session.SetNativeEventOwners(session.WorldControls.WithSalaryEnabled(true), eventRandom: session.EventRandom.Draw(out _));
         Assert.False(session.WorldControls!.SalarySuppressed);
         Assert.Equal(0x41C67EA6u, session.EventRandom!.State);

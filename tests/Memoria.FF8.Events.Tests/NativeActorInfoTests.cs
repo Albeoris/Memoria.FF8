@@ -23,16 +23,16 @@ internal static partial class Program
             main.Add((Jsm.Opcode.GETINFO, 0));
             for (int register = 0; register < 8; register++)
             {
-                main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5000 + register)]);
+                main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5000 + register * 4)]);
             }
             main.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PGETINFO, 0)]);
             for (int register = 0; register < 8; register++)
             {
-                main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5010 + register)]);
+                main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5040 + register * 4)]);
             }
             main.Add((Jsm.Opcode.RET, 8));
             var session = new GameSession(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
-            var engine = new EventEngine(session, session.State.Variables)
+            var engine = new EventEngine(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = _ => true,
@@ -60,11 +60,11 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "GETINFO/PGETINFO register bank diverged after independent restore.");
         }
-        JsonElement variables = live.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(live.Capture());
         int[] expected = [-19, 22, -4, 333, 255, 65535, -321, 777];
         for (int register = 0; register < 8; register++)
         {
-            Require(variables.GetProperty((5000 + register).ToString()).GetInt32() == expected[register] && variables.GetProperty((5010 + register).ToString()).GetInt32() == expected[register], "Actor information lost unsigned triangle, signed speed, saved detached body or preserved R3/R7.");
+            Require(variables.GetProperty((5000 + register * 4).ToString()).GetInt32() == expected[register] && variables.GetProperty((5040 + register * 4).ToString()).GetInt32() == expected[register], "Actor information lost unsigned triangle, signed speed, saved detached body or preserved R3/R7.");
         }
         EventEngine fractional = Create(true);
         fractional.Step();
@@ -78,8 +78,8 @@ internal static partial class Program
             fractionalCopy.Step();
             Require(JsonElement.DeepEquals(fractional.Capture(), fractionalCopy.Capture()), "Fractional actor info or active asynchronous motion diverged after restore.");
         }
-        JsonElement fractionalVariables = fractional.Capture().GetProperty("Variables");
-        Require(fractionalVariables.GetProperty("5000").GetInt32() == -19 && fractionalVariables.GetProperty("5001").GetInt32() == 22 && fractionalVariables.GetProperty("5003").GetInt32() == 333 && fractionalVariables.GetProperty("5007").GetInt32() == 777, "Native signed fixed-point division was replaced by flooring or changed untouched result registers.");
+        JsonElement fractionalVariables = CapturedVariables(fractional.Capture());
+        Require(fractionalVariables.GetProperty("5000").GetInt32() == -19 && fractionalVariables.GetProperty("5004").GetInt32() == 22 && fractionalVariables.GetProperty("5012").GetInt32() == 333 && fractionalVariables.GetProperty("5028").GetInt32() == 777, "Native signed fixed-point division was replaced by flooring or changed untouched result registers.");
         Console.WriteLine("Native GETINFO/PGETINFO: actual allocated body/saved detached party selection, R0/1/2 truncation, R4 BYTE, R5 unsigned WORD sentinel, R6 signed WORD, preserved R3/R7, executed fractional native motion and independent restore passed (synthetic component geometry).");
     }
 }

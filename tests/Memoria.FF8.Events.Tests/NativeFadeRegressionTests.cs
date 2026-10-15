@@ -55,7 +55,7 @@ internal static partial class Program
         session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
         List<NativePlayerMovementQuery> playerCalls = [];
         List<NativeJoinMovementQuery> joinCalls = [];
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             AnimationFrameCount = (_, _) => 4,
             ResolveNativeTriangleHeight = (_, _, _) => 3,
@@ -85,7 +85,7 @@ internal static partial class Program
             return new NativeJoinMovementResult(true, x, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new NativeJoinMovementProposal(x, query.FixedY, query.Direction)], [[probe, probe, probe]]);
         };
         engine.LoadField(600, SyntheticObjects([1, (16 << 7) | 1, (32 << 7) | 1], scripts), [], new FieldTransition(600, 1, 2, 7, 0), nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-        for (int update = 0; update < 10 && !engine.Capture().GetProperty("Variables").TryGetProperty("6002", out _); update++)
+        for (int update = 0; update < 10 && !CapturedVariables(engine.Capture()).TryGetProperty("6002", out _); update++)
         {
             engine.Step();
         }
@@ -123,7 +123,7 @@ internal static partial class Program
                 engine.Step();
                 independent.Engine.Step();
             }
-            Require(engine.FieldFade!.Physical.Mode == (release == Jsm.Opcode.FADEIN ? 2 : 0) && engine.Capture().GetProperty("Variables").GetProperty("6003").GetInt32() == 73, "Executed FADENONE/FADEIN failed to release physical mode4 while continuing the VM.");
+            Require(engine.FieldFade!.Physical.Mode == (release == Jsm.Opcode.FADEIN ? 2 : 0) && CapturedVariables(engine.Capture()).GetProperty("6003").GetInt32() == 73, "Executed FADENONE/FADEIN failed to release physical mode4 while continuing the VM.");
             Require(engine.Actors[1].X == 1 && engine.Actors[2].X == 1, "Leaving black mode did not resume ordinary delayed follower placement.");
             Require(engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted && independent.Engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted, "Released field callback did not admit normal movement.");
             Require(live.PlayerCalls.Count == 1 && engine.Scene.NativePlayerPosition == position with { X = position.X + 4096 } && engine.Scene.NativeSalaryMovementUnits == 5 && JsonElement.DeepEquals(engine.Capture(), independent.Engine.Capture()), "Normal motor, movement salary scalar or independent continuation failed after the actual fade producer left mode4.");
@@ -175,13 +175,13 @@ internal static partial class Program
         var live = CreateNativeFadeRegression(Jsm.Opcode.FADENONE, join: true);
         var independent = CreateNativeFadeRegression(Jsm.Opcode.FADENONE, join: true);
         independent.Engine.Restore(live.Engine.Capture());
-        for (int update = 0; update < 24 && !live.Engine.Capture().GetProperty("Variables").TryGetProperty("6003", out _); update++)
+        for (int update = 0; update < 24 && !CapturedVariables(live.Engine.Capture()).TryGetProperty("6003", out _); update++)
         {
             live.Engine.Step();
             independent.Engine.Step();
             Require(live.Engine.FieldFade is { Physical.Mode: 4 } && JsonElement.DeepEquals(live.Engine.Capture(), independent.Engine.Capture()), "Physical black mode changed the scripted UCOFF/JOIN callback or its independent restore.");
         }
-        Require(!live.Engine.IsUserControlEnabled && live.JoinCalls.Count > 0 && live.PlayerCalls.Count == 0 && live.Engine.Actors[1].X < 120 && live.Engine.Actors[2].X < 240 && live.Engine.Capture().GetProperty("Variables").GetProperty("6003").GetInt32() == 73 && live.Engine.FieldFade is { Physical.Mode: 4 }, "Black-mode normal-motor gate froze UCOFF/JOIN, blocked explicit companion mode1 movement or prevented its successor.");
+        Require(!live.Engine.IsUserControlEnabled && live.JoinCalls.Count > 0 && live.PlayerCalls.Count == 0 && live.Engine.Actors[1].X < 120 && live.Engine.Actors[2].X < 240 && CapturedVariables(live.Engine.Capture()).GetProperty("6003").GetInt32() == 73 && live.Engine.FieldFade is { Physical.Mode: 4 }, "Black-mode normal-motor gate froze UCOFF/JOIN, blocked explicit companion mode1 movement or prevented its successor.");
         Console.WriteLine("Native black mode: VM UCOFF, explicit JOIN companion movement/completion and same-black successor execute with independent restoration; ordinary player motor remains unused.");
     }
 }

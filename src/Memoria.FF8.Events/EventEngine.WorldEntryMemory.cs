@@ -62,7 +62,6 @@ public sealed partial class EventEngine
         int value = fiber.Stack.Peek();
         NativeWorldEntryMemory next = memory.WriteBytes(operation.Parameter, width, value);
         services.SetWorldEntryMemory(next);
-        next.ProjectVariables(variables);
         operands = Pop(fiber, 1);
         return true;
     }
@@ -75,7 +74,6 @@ public sealed partial class EventEngine
         }
         NativeWorldEntryMemory cleared = services.WorldEntryMemory?.ClearFieldBytes() ?? NativeWorldEntryMemory.CreateCleared();
         services.SetWorldEntryMemory(cleared);
-        cleared.ProjectVariables(variables);
     }
 
     private void ValidateWorldEntryMemoryCheckpoint(Checkpoint saved)
@@ -84,6 +82,6 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native world-entry bytes require their explicit current producer and publication service.");
         }
-        saved.WorldEntryMemory?.ValidateVariables(saved.Variables, saved.NativeVariableValues);
+        saved.WorldEntryMemory?.ValidateEventMemory(saved.EventMemory);
     }
 }

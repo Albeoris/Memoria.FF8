@@ -13,14 +13,14 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 205), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1500), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.RET, 8));
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        EventEngine live = new(session, session.State.Variables);
+        EventEngine live = new(session);
         live.LoadField(999, content, []);
         for (int frame = 0; frame < 3; frame++)
         {
             live.Step();
         }
         Require(live.ExamTimer is { ClockCalls: 6, TimerMemoryActivated: true } && live.ExamTimer.RequireRemaining() == 60 && live.ExamTimer.Alternatives[0].FirstPhase == 6 * 2191, "First SET discarded genuine pre-SET callbacks or pre-SET clock tracking claimed unproved timer coordinate memory.");
-        EventEngine resumed = new(GameSession.CreateColdProcess(), new Dictionary<int, int>());
+        EventEngine resumed = new(GameSession.CreateColdProcess(), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         resumed.LoadField(999, content, []);
         JsonElement issued = live.Capture();
         resumed.Restore(issued);
@@ -68,7 +68,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(before, resumed.Capture()), "Invalid process-clock restore changed VM or services before refusal.");
         }
         GameSession unknown = new(new GameState());
-        EventEngine refused = new(unknown, unknown.State.Variables);
+        EventEngine refused = new(unknown);
         refused.LoadField(999, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.RET, 8)), []);
         try
         {

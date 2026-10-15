@@ -18,12 +18,11 @@ internal static partial class Program
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 0)];
         (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.PSHN_L, 0x100000 + 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0x10000), (Jsm.Opcode.PSHN_L, 0x10000 + 3000), (Jsm.Opcode.MACCEL, 0), (Jsm.Opcode.PSHN_L, 19), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 150), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.POPM_B, 1101), (Jsm.Opcode.RET, 0)];
         byte[] content = SyntheticObjects([1], [init, main]);
-        Dictionary<EventEngine, Dictionary<int, int>> memory = [];
-        int Variable(EventEngine engine, int address) => memory[engine].GetValueOrDefault(address);
+        int Variable(EventEngine engine, int address) => engine.Variables.GetValueOrDefault(address);
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolveWalkmesh = (x, y) => new(new(x, y, 200), 7),
@@ -47,7 +46,6 @@ internal static partial class Program
                     return new(NativeScriptMovementStatus.Accepted, x, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new(x, query.FixedY, query.Direction, fans)]);
                 }
             };
-            memory.Add(engine, session.State.Variables);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -125,7 +123,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = _ => true,

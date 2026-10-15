@@ -11,7 +11,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(state);
         state.Validate();
-        ValidateSeeDAliases(State.Variables, State.NativeVariableValues);
+        ValidateEventMemoryOwners(State with { SeeD = state }, State.EventMemory);
         State = State with { SeeD = state };
     }
 
@@ -33,7 +33,7 @@ public sealed partial class GameSession
         state.SeeD?.Validate();
         if (state.SeeD is not null)
         {
-            ValidateSeeDAliases(state.Variables, state.NativeVariableValues);
+            ValidateSeeDAliases(state.EventMemory);
         }
         if (vm is not JsonElement saved)
         {
@@ -41,10 +41,10 @@ public sealed partial class GameSession
         }
         NativeSeeDState? captured = saved.TryGetProperty("SeeD", out JsonElement value) && value.ValueKind != JsonValueKind.Null ? value.Deserialize<NativeSeeDState>(JsonOptions) : null;
         captured?.Validate();
-        if (captured is not null && saved.TryGetProperty("NativeVariableValues", out JsonElement memory) && memory.ValueKind != JsonValueKind.Null)
+        if (captured is not null && saved.TryGetProperty("EventMemory", out JsonElement memory) && memory.ValueKind != JsonValueKind.Null)
         {
-            Dictionary<int, NativeMemoryValue> aliases = memory.Deserialize<Dictionary<int, NativeMemoryValue>>(JsonOptions) ?? throw new InvalidDataException("Empty typed event-memory metadata.");
-            if (aliases.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
+            NativeEventMemory aliases = memory.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Empty typed event-memory metadata.");
+            if (aliases.Cells.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
             {
                 throw new InvalidDataException("Canonical SeeD words overlap a typed VM alias; recreate authentic inputs.");
             }
@@ -55,13 +55,9 @@ public sealed partial class GameSession
         }
     }
 
-    private static void ValidateSeeDAliases(IReadOnlyDictionary<int, int> variables, IReadOnlyDictionary<int, NativeMemoryValue>? memory)
+    private static void ValidateSeeDAliases(NativeEventMemory memory)
     {
-        if (variables.Keys.Any(address => OverlapsSeeDMemory(address, 4)))
-        {
-            throw new InvalidDataException("Canonical SeeD event words overlap an untyped root variable alias; recreate authentic inputs.");
-        }
-        if (memory is not null && memory.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
+        if (memory.Cells.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
         {
             throw new InvalidDataException("Canonical SeeD event words overlap a typed root variable alias; recreate authentic inputs.");
         }

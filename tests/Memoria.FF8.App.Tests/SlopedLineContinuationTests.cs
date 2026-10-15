@@ -38,7 +38,7 @@ public sealed class SlopedLineContinuationTests
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
         }
         Assert.Equal(226, world.Events.FieldId);
-        using var replay = new GameWorld(new GameSession(session.State with { Variables = new Dictionary<int, int>(session.State.Variables), EventState = world.Events.Capture() }), directory);
+        using var replay = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
         replay.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));

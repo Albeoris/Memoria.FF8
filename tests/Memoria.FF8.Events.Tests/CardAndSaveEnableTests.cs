@@ -69,7 +69,7 @@ internal static partial class Program
             NativeWorldControlState controls = NativeWorldControlState.CreateNewGame().WithPartyPower(0) with { Menu209 = 0xAA };
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 76), (Jsm.Opcode.GETCARD, 0), (Jsm.Opcode.PSHN_L, 91), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.SAVEENABLE, 0), (Jsm.Opcode.PSHI_L, 3), (Jsm.Opcode.POPM_L, 1000), (Jsm.Opcode.POPM_L, 1004), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 1008), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             (GameSession session, EventEngine engine) = CreateCardEngine(capped, controls, content);
-            session.State.Variables[512] = argument;
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(argument)));
             engine.Step();
             Require(session.WorldControls == controls.WithSaveEnabled(argument) && session.WorldControls.Menu209 == (argument == 0 ? 0xAA : 0xAB) && session.State.Variables[1000] == 91 && session.State.Variables[1004] == 57 && session.State.Variables[1008] == -1, "SAVEENABLE narrowed its DWORD, changed another menu bit/result or failed same-callback completion.");
             JsonElement captured = engine.Capture();
@@ -102,8 +102,7 @@ internal static partial class Program
             Require(CardsEqual(session.CardInventory, boundary.Cards) && session.WorldControls == boundary.Controls, "Refused card/save contract mutated persistent bytes.");
         }
         (GameSession aliasSession, EventEngine aliasEngine) = CreateCardEngine(initial, NativeWorldControlState.CreateNewGame(), SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SAVEENABLE, 0), (Jsm.Opcode.RET, 0)));
-        aliasSession.State.Variables[208] = 255;
-        ExpectWorldControlFault(aliasEngine, Jsm.Opcode.SAVEENABLE, 2, [1]);
+        ExpectEventMemoryPublicationFault(aliasSession, aliasSession.State.EventMemory.Write(208, 4, NativeScalarValue.Exact(255)));
         foreach ((Jsm.Opcode Opcode, int Address) access in new[] { (Jsm.Opcode.PSHM_B, 1408), (Jsm.Opcode.PSHM_W, 1407), (Jsm.Opcode.POPM_L, 1405), (Jsm.Opcode.POPM_B, 1522) })
         {
             byte[] content = access.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHM_W ? SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 57), (access.Opcode, access.Address), (Jsm.Opcode.POPM_L, 1000), (Jsm.Opcode.POPM_L, 1004), (Jsm.Opcode.RET, 0)) : SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 57), (access.Opcode, access.Address), (Jsm.Opcode.RET, 0));
@@ -112,10 +111,9 @@ internal static partial class Program
             Require(session.State.Variables.Count == 0 && CardsEqual(session.CardInventory, initial), "Direct card-byte alias refusal mutated native inventory or created a duplicate memory record.");
         }
         (GameSession cardAliasSession, EventEngine cardAliasEngine) = CreateCardEngine(initial, NativeWorldControlState.CreateNewGame(), SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.GETCARD, 0), (Jsm.Opcode.RET, 0)));
-        cardAliasSession.State.Variables[1405] = 77;
-        ExpectWorldControlFault(cardAliasEngine, Jsm.Opcode.GETCARD, 2, [0]);
+        ExpectEventMemoryPublicationFault(cardAliasSession, cardAliasSession.State.EventMemory.Write(1405, 4, NativeScalarValue.Exact(77)));
         RejectingCardService refusingService = new(initial);
-        EventEngine refusedService = new(refusingService, new Dictionary<int, int>());
+        EventEngine refusedService = new(refusingService, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         refusedService.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 76), (Jsm.Opcode.GETCARD, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -147,7 +145,7 @@ internal static partial class Program
     private static (GameSession Session, EventEngine Engine) CreateCardEngine(NativeCardInventory? cards, NativeWorldControlState? controls, byte[] content)
     {
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 100, CardInventory = cards, WorldControls = controls });
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         engine.LoadField(100, content, []);
         return (session, engine);
     }

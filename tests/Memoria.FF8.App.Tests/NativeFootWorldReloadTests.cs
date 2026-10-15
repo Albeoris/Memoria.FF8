@@ -81,7 +81,7 @@ public sealed class NativeFootWorldReloadTests
         GameState entry = FirstEntry() with
         {
             WorldArrival = new WorldTransition(1, 1, -1),
-            Variables = new Dictionary<int, int> { [256] = 135 },
+            EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 135 }),
             SavedWorld = NativeSavedWorldState.CreateNewGame() with { Slot4 = new NativeSavedWorldVehicleSlot(255, new NativeSavedWorldPose(12884, -26807, -304, 2699)) }
         };
         var session = new GameSession(entry);
@@ -154,7 +154,7 @@ public sealed class NativeFootWorldReloadTests
     [InlineData(1390)]
     public void LegacyAuxiliaryAliasesRefuseBeforeResourcesWithoutMutatingDeparture(int address)
     {
-        GameState field = FirstEntry() with { Scene = SceneKind.Field, Variables = new Dictionary<int, int> { [256] = 17, [address] = 0 } };
+        GameState field = FirstEntry() with { Scene = SceneKind.Field, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 17, [address] = 0 }) };
         string before = JsonSerializer.Serialize(field);
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(field, "missing corpus", new WorldTransition(0, 0, 0)));
         Assert.Equal(before, JsonSerializer.Serialize(field));
@@ -162,7 +162,7 @@ public sealed class NativeFootWorldReloadTests
 
     private static GameState FirstEntry()
     {
-        return new GameState { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, -1), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new Dictionary<int, int> { [256] = 17 } };
+        return new GameState { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, -1), SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 17 }) };
     }
 
     private static string GameDirectory()

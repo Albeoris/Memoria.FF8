@@ -10,13 +10,13 @@ public sealed partial class GameSession
     public void SetDiscProcess(NativeDiscProcessState disc)
     {
         disc.Validate();
-        ValidateDiscAliases(State.Variables, State.NativeVariableValues);
+        ValidateEventMemoryOwners(State with { DiscProcess = disc }, State.EventMemory);
         State = State with { DiscProcess = disc };
     }
 
-    private static void ValidateDiscAliases(IReadOnlyDictionary<int, int> variables, IReadOnlyDictionary<int, NativeMemoryValue>? memory)
+    private static void ValidateDiscAliases(NativeEventMemory memory)
     {
-        if (variables.Keys.Any(address => address <= 204 && (long)address + 4 > 204) || memory?.Any(pair => pair.Key <= 204 && (long)pair.Key + pair.Value.Width > 204) == true)
+        if (memory.Cells.Any(pair => pair.Key <= 204 && (long)pair.Key + pair.Value.Width > 204))
         {
             throw new InvalidDataException("Native disc BYTE204 overlaps a second memory owner.");
         }
@@ -27,7 +27,7 @@ public sealed partial class GameSession
         state.DiscProcess?.Validate();
         if (state.DiscProcess is not null)
         {
-            ValidateDiscAliases(state.Variables, state.NativeVariableValues);
+            ValidateDiscAliases(state.EventMemory);
         }
         if (currentVm is JsonElement vm && (!vm.TryGetProperty("DiscProcess", out JsonElement saved) || !JsonElement.DeepEquals(saved, JsonSerializer.SerializeToElement(state.DiscProcess, JsonOptions))))
         {

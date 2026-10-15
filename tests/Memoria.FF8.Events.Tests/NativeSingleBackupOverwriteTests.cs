@@ -19,7 +19,7 @@ internal static partial class Program
             session.StartNewGame();
             session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
             session.MarkReplayUnavailable("Declared native single-backup component with bounded test movement providers.");
-            var result = new EventEngine(session, session.State.Variables)
+            var result = new EventEngine(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = actor => actor.ObjectId == 1,

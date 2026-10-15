@@ -13,7 +13,7 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 91), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 42), (Jsm.Opcode.SEVOL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 41), (Jsm.Opcode.SEVOLTRANS, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
         EventEngine Create(GameSession session)
         {
-            EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
+            EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -49,7 +49,7 @@ internal static partial class Program
         Require(priorRequests == live.Scene.GlobalSoundRequests.Count && session.GlobalSoundProcess == prepared.SoundProcess && session.SalaryPresentation == prepared.Presentation, "Failed salary descriptor preparation changed earlier sound/UI owners or published a partial notification.");
 
         RejectingSoundServices rejecting = new();
-        EventEngine refused = new(rejecting, new Dictionary<int, int>()) { ResolveGlobalSoundResource = MutedGlobalSample };
+        EventEngine refused = new(rejecting, NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ResolveGlobalSoundResource = MutedGlobalSample };
         refused.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         try
         {

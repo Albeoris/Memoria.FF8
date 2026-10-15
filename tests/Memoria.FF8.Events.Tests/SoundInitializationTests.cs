@@ -14,7 +14,8 @@ internal static partial class Program
         EventEngine Create(byte[]? program = null)
         {
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session, session.State.Variables);
+            session.SetWorldControls(NativeWorldControlState.CreateNewGame());
+            EventEngine engine = new(session);
             engine.LoadField(100, program ?? content, []);
             JsonNode source = JsonNode.Parse(engine.Capture().GetRawText())!;
             source["Scene"]!["LoadedMusic"] = 26;
@@ -68,7 +69,7 @@ internal static partial class Program
         }
         EventEngine ambiguous = Create();
         JsonNode ambiguousSource = JsonNode.Parse(ambiguous.Capture().GetRawText())!;
-        ambiguousSource["Variables"]!["197"] = 65537;
+        SetCapturedCell(ambiguousSource, 197, 4, 65537);
         ambiguous.Restore(JsonSerializer.SerializeToElement(ambiguousSource));
         try
         {

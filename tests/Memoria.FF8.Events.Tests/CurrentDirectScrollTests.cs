@@ -17,7 +17,7 @@ internal static partial class Program
         EventEngine Create(bool known, bool admitted = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (layer, _, _) => admitted && layer == 0 };
+            EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (layer, _, _) => admitted && layer == 0 };
             engine.LoadField(600, content, []);
             engine.Step();
             if (known)
@@ -38,12 +38,12 @@ internal static partial class Program
         };
         live.Step();
         Require(order.SequenceEqual([0, 1]) && live.Scene.BackgroundScrollPositions[0] is { X: 0, Y: -8, TargetX: 0, TargetY: -8, PreviousX: 13, PreviousY: -7, Counter: 0, Mode: 3, Status: 2, Duration: 17, NativeActorId: 1 }, "Native actor order, lowWORD targets or same-callback direct replacement failed.");
-        Require(!live.Capture().GetProperty("Variables").TryGetProperty("5000", out _) && !live.Capture().GetProperty("Variables").TryGetProperty("5001", out _), "Direct return3 did not yield each caller's instruction budget.");
+        Require(!CapturedVariables(live.Capture()).TryGetProperty("5000", out _) && !CapturedVariables(live.Capture()).TryGetProperty("5001", out _), "Direct return3 did not yield each caller's instruction budget.");
         EventEngine resumed = Create(true);
         resumed.Restore(live.Capture());
         live.Step();
         resumed.Step();
-        Require(JsonElement.DeepEquals(live.Capture(), resumed.Capture()) && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 9 && live.Capture().GetProperty("Variables").GetProperty("5001").GetInt32() == 7, "Independent direct-scroll restore or next-callback successor order diverged.");
+        Require(JsonElement.DeepEquals(live.Capture(), resumed.Capture()) && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 9 && CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 7, "Independent direct-scroll restore or next-callback successor order diverged.");
         EventEngine initiallyUnknown = Create(false);
         initiallyUnknown.Step();
         Require(initiallyUnknown.Scene.BackgroundScrollPositions[0] is { X: 0, Y: -8, PreviousX: null, PreviousY: null, Counter: 0, Duration: null, Status: 2 }, "Direct placement required or invented unused prior current/previous/duration words.");
@@ -51,7 +51,7 @@ internal static partial class Program
         EventEngine Unknown()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true };
+            EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true };
             engine.LoadField(600, unknownContent, []);
             return engine;
         }
@@ -87,7 +87,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(before, pendingResume.Capture()), "Malformed nullable scroll restore changed current VM or services.");
         }
         GameSession linearSession = new(new GameState());
-        EventEngine explicitStart = new(linearSession, linearSession.State.Variables) { CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
+        EventEngine explicitStart = new(linearSession) { CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
         explicitStart.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.PSHN_L, -9), (Jsm.Opcode.PSHN_L, 29), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)), []);
         explicitStart.CommandExecuted += command =>
         {

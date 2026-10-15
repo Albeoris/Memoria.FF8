@@ -24,7 +24,7 @@ public sealed partial class EventEngine
         byte disabled = 0;
         if ((controls.EventFlags104 & 0x800) != 0)
         {
-            if (services.NativeVariableValues?.TryGetValue(243, out NativeMemoryValue? source) != true || source is null || source.Width != 1 || !source.Value.IsExact)
+            if (EventMemory.Cells.TryGetValue(243, out NativeMemoryValue? source) != true || source is null || source.Width != 1 || !source.Value.IsExact)
             {
                 throw new NotSupportedException("DRAWPOINT's restricted command branch requires its actual source BYTE243.");
             }
@@ -44,7 +44,7 @@ public sealed partial class EventEngine
         {
             return "DRAWPOINT requires its exact original operand, executed native allocation and canonical random/depletion/character publication";
         }
-        if (variables.Keys.Any(address => address is >= 208 and <= 211) || services.NativeVariableValues?.Any(pair => pair.Key <= 211 && pair.Key + pair.Value.Width > 211) == true)
+        if (EventMemory.Overlaps(211, 1))
         {
             return "DRAWPOINT's channel6 completion bit overlaps an unowned scalar alias";
         }

@@ -26,7 +26,7 @@ public sealed partial class EventEngine
             {
                 return "BATTLEMODE requires its original WORD operand";
             }
-            if (variables.Keys.Any(address => address is >= 179 and <= 183) || services.NativeVariableValues?.Any(pair => pair.Key <= 183 && pair.Key + pair.Value.Width > 182) == true)
+            if (EventMemory.Overlaps(182, 2))
             {
                 return "BATTLEMODE overlaps an unproved legacy or uncertain WORD182 alias; PC and operand preserved";
             }

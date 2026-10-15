@@ -26,7 +26,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Fresh(byte[]? bytes = null)
         {
             GameSession session = CreateNativeMusicSession();
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(74, bytes ?? content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -80,7 +80,7 @@ internal static partial class Program
         foreach ((int address, string property) in new[] { (201, "Bank201"), (202, "Bank202"), (213, "Requested213"), (214, "Complete214") })
         {
             JsonNode duplicate = JsonNode.Parse(before)!;
-            duplicate["Variables"]![address.ToString()] = duplicate["Scene"]!["MusicProcess"]![property]!.GetValue<int>();
+            SetCapturedCell(duplicate, address, 1, duplicate["Scene"]!["MusicProcess"]![property]!.GetValue<int>());
             try
             {
                 first.Restore(JsonSerializer.SerializeToElement(duplicate));
@@ -94,13 +94,13 @@ internal static partial class Program
         foreach ((int address, int width) in new[] { (202, 1), (212, 2) })
         {
             JsonNode duplicate = JsonNode.Parse(before)!;
-            duplicate["NativeVariableValues"] = JsonSerializer.SerializeToNode(new Dictionary<int, NativeMemoryValue> { [address] = new(width, NativeScalarValue.Exact(0)) });
+            SetCapturedCell(duplicate, address, width, 0);
             try
             {
                 first.Restore(JsonSerializer.SerializeToElement(duplicate));
                 throw new InvalidOperationException("Overlapping typed music owner was restored.");
             }
-            catch (InvalidDataException exception) when (exception.Message.Contains("Native music process bytes", StringComparison.Ordinal))
+            catch (InvalidDataException exception) when (exception.Message.Contains("canonical memory owner", StringComparison.Ordinal))
             {
             }
             Require(before == first.Capture().GetRawText(), "Typed music owner refusal mutated the VM.");
@@ -134,8 +134,8 @@ internal static partial class Program
         Require(mixedEngine.Scene.MusicProcess?.Requested213 == 26 && !mixedSession.State.Variables.ContainsKey(213) && mixedEngine.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 4, "Rejected mixed-width music store consumed its operand or canonical music byte.");
 
         GameSession ambiguousFadeSession = new(new GameState());
-        ambiguousFadeSession.State.Variables[213] = 26;
-        EventEngine ambiguousFade = new(ambiguousFadeSession, ambiguousFadeSession.State.Variables);
+        ambiguousFadeSession.SetEventMemory(ambiguousFadeSession.State.EventMemory.Write(213, 4, NativeScalarValue.Exact(26)));
+        EventEngine ambiguousFade = new(ambiguousFadeSession);
         ambiguousFade.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -197,7 +197,7 @@ internal static partial class Program
             sourceEngine.Step();
             (GameSession rejectedSession, _) = Fresh(rejectedContent);
             RejectingMusicControlServices service = new(rejectedSession);
-            EventEngine rejected = new(service, rejectedSession.State.Variables);
+            EventEngine rejected = new(service);
             rejected.LoadField(74, rejectedContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             rejected.Restore(sourceEngine.Capture());
             NativeWorldControlState beforeControls = rejectedSession.WorldControls!;
@@ -219,7 +219,7 @@ internal static partial class Program
         }
 
         GameSession unknownSession = new(new GameState());
-        EventEngine unknown = new(unknownSession, unknownSession.State.Variables);
+        EventEngine unknown = new(unknownSession);
         unknown.LoadField(100, content, []);
         try
         {
@@ -232,7 +232,7 @@ internal static partial class Program
         Require(unknown.Scene.MusicLoadRequest is null && unknown.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 300, "Unknown music load consumed its operand or selected a default channel.");
 
         GameSession unknownDualSession = new(new GameState());
-        EventEngine unknownDual = new(unknownDualSession, unknownDualSession.State.Variables);
+        EventEngine unknownDual = new(unknownDualSession);
         unknownDual.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DUALMUSIC, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -248,6 +248,9 @@ internal static partial class Program
     {
         public bool Reject { get; set; }
         public bool IsMoviePlaying => false;
+        public NativeEventMemory EventMemory => session.EventMemory;
+        public bool CanStoreEventMemory => true;
+        public void SetEventMemory(NativeEventMemory memory) => session.SetEventMemory(memory);
         public NativeCharacterVitals? CharacterVitals => session.CharacterVitals;
         public void SetCharacterVitals(NativeCharacterVitals state) => session.SetCharacterVitals(state);
         public NativeMenuRandomState? MenuRandom => session.MenuRandom;
@@ -296,7 +299,7 @@ internal static partial class Program
         public void SetSeeD(NativeSeeDState state) => session.SetSeeD(state);
         public void SetMessageVariables(NativeMessageVariables state) => session.SetMessageVariables(state);
         public void SetCardInventory(NativeCardInventory state) => session.SetCardInventory(state);
-        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, nativeVariableValues);
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null) => session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, eventMemory);
 
         public void SetWorldControls(NativeWorldControlState controls)
         {

@@ -22,7 +22,7 @@ internal static partial class Program
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
             session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(74, Content(mask), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             session.MarkReplayUnavailable("Declared BYTE88/menu/draw-point component; no original journey is claimed.");
             return (session, engine);
@@ -44,7 +44,7 @@ internal static partial class Program
         engine.Step();
         engine.Step();
         CloseNormalMenu(engine);
-        Require(session.NativeVariableValues?.TryGetValue(88, out NativeMemoryValue? source) == true && source.Width == 1 && source.Value.IsExact && source.Value.RequireExact() == 0 && !session.State.Variables.ContainsKey(88), "Executed495EF0/52B4F0 lost BYTE88 width or retained a bare scalar mirror.");
+        Require(session.EventMemory.Cells?.TryGetValue(88, out NativeMemoryValue? source) == true && source.Width == 1 && source.Value.IsExact && source.Value.RequireExact() == 0, "Executed495EF0/52B4F0 lost BYTE88 width or retained a bare scalar mirror.");
         JsonElement beforeSecondReturn = engine.Capture();
         (GameSession restoredSession, EventEngine restored) = Create();
         restored.Restore(beforeSecondReturn);
@@ -80,7 +80,7 @@ internal static partial class Program
         }
         engine.Step();
         restored.Step();
-        Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()) && !restoredSession.State.Variables.ContainsKey(88), "Draw-point continuation or restore recreated a bare BYTE88 mirror.");
+        Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Draw-point continuation or restore recreated a bare BYTE88 mirror.");
 
         JsonElement stateBeforeRefusal = JsonSerializer.SerializeToElement(session.State);
         foreach (Dictionary<int, NativeMemoryValue> invalid in new[]
@@ -92,7 +92,7 @@ internal static partial class Program
         {
             try
             {
-                session.SetNativeEventOwners(session.WorldControls! with { Menu209 = 99 }, nativeVariableValues: invalid);
+                session.SetNativeEventOwners(session.WorldControls! with { Menu209 = 99 }, eventMemory: new NativeEventMemory(1, invalid));
                 throw new InvalidOperationException("Invalid prospective typed memory was accepted.");
             }
             catch (InvalidDataException)
@@ -101,9 +101,9 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(stateBeforeRefusal, JsonSerializer.SerializeToElement(session.State)), "Composite native publication changed controls or another owner before typed-memory refusal.");
         }
         Dictionary<int, NativeMemoryValue> valid = new() { [88] = new(1, NativeScalarValue.Exact(0)), [5000] = new(2, NativeScalarValue.Exact(32768)) };
-        session.SetNativeEventOwners(session.WorldControls!, nativeVariableValues: valid);
+        session.SetNativeEventOwners(session.WorldControls!, eventMemory: new NativeEventMemory(1, valid));
         valid.Clear();
-        Require(session.NativeVariableValues?.Count == 2 && session.NativeVariableValues[5000].Width == 2, "Valid nonoverlapping exact native memory was refused or retained a mutable caller dictionary.");
+        Require(session.EventMemory.Cells?.Count == 2 && session.EventMemory.Cells[5000].Width == 2, "Valid nonoverlapping exact native memory was refused or retained a mutable caller dictionary.");
         foreach (int mask in new[] { 256, -256, 2, 254, 255, 0x1234 })
         {
             (_, EventEngine selected) = Create(mask);

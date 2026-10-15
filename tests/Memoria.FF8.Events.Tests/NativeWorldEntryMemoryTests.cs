@@ -77,7 +77,7 @@ internal static partial class Program
             }
             else
             {
-                malformed["Variables"]!["264"] = 99;
+                SetCapturedCell(malformed, 264, 4, 99);
             }
             try
             {
@@ -140,7 +140,7 @@ internal static partial class Program
         JsonElement after = live.Engine.Capture();
         JsonElement fiber = after.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
         Require(refused && before is not null && operation >= 0 && live.Engine.LastFault?.Operation == operation && live.Engine.LastFault.Opcode == opcode && fiber.GetProperty("Position").GetInt32() == operation, "Unsupported selected-memory access advanced its original instruction pointer.");
-        foreach (string property in new[] { "WorldEntryMemory", "Variables", "NativeVariableValues", "Fibers" })
+        foreach (string property in new[] { "WorldEntryMemory", "EventMemory", "Fibers" })
         {
             bool hadValue = before!.Value.TryGetProperty(property, out JsonElement oldValue);
             bool hasValue = after.TryGetProperty(property, out JsonElement newValue);
@@ -160,7 +160,7 @@ internal static partial class Program
             // Existing supported phase-unknown timer component; actual SET/WAIT/GET creates the alternatives.
             session.SetExamTimer(NativeExamTimerState.FromReachedSet(0));
         }
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         List<(Jsm.Opcode, int)> main = [(Jsm.Opcode.LBL, 1)];
         foreach ((Jsm.Opcode opcode, int parameter) in commands)
         {

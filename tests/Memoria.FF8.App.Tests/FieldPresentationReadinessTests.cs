@@ -36,7 +36,7 @@ public sealed class FieldPresentationReadinessTests
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
         session.Restore(session.State with { FieldId = 600, FieldName = "declared-shake-component" });
-        var engine = new EventEngine(session, session.State.Variables) { ShakeTables = assets.ReadNativeShakeTables() };
+        var engine = new EventEngine(session) { ShakeTables = assets.ReadNativeShakeTables() };
         // This declared native component executes the producer; no original field
         // visit, guessed process phase or reconstructable journey is claimed.
         engine.LoadField(600, Program([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

@@ -58,7 +58,7 @@ internal static partial class Program
             cards.Cards[109] = 0xFF;
             byte[] content = CardLocationQueryProgram(id);
             (GameSession session, EventEngine engine) = CreateCardEngine(cards, null, content);
-            session.State.Variables[512] = id;
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(id)));
             engine.Step();
             Require(session.State.Variables[1000] == cards.Location(id) && session.State.Variables[1004] == 57 && session.State.Variables[1008] == 91 && CardsEqual(cards, session.CardInventory), "WHERECARD lost full signed DWORD/R0, unrelated stack/result or read purity.");
         }
@@ -70,7 +70,7 @@ internal static partial class Program
                 NativeCardInventory expected = cards.Transfer(id, location, out int result);
                 byte[] content = CardLocationTransferProgram(id, location);
                 (GameSession session, EventEngine engine) = CreateCardEngine(cards, null, content);
-                session.State.Variables[516] = location;
+                session.SetEventMemory(session.State.EventMemory.Write(516, 4, NativeScalarValue.Exact(location)));
                 engine.Step();
                 Require(CardsEqual(expected, session.CardInventory) && session.State.Variables[1000] == result && session.State.Variables[1004] == 57 && session.State.Variables[1008] == 91, "SETCARD reversed DWORD operands, yielded, lost R0 or consumed unrelated stack/results.");
                 JsonElement saved = engine.Capture();
@@ -91,20 +91,18 @@ internal static partial class Program
                     continue;
                 }
                 (GameSession session, EventEngine engine) = CreateCardEngine(initial, null, CardLocationFaultProgram(opcode, id));
-                session.State.Variables[512] = id;
+                session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(id)));
                 ExpectWorldControlFault(engine, opcode, 4, [id, 17, 57]);
             }
             (GameSession missing, EventEngine missingEngine) = CreateCardEngine(null, null, CardLocationFaultProgram(opcode, 77));
-            missing.State.Variables[512] = 77;
+            missing.SetEventMemory(missing.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(77)));
             ExpectWorldControlFault(missingEngine, opcode, 4, [77, 17, 57]);
             Require(missing.CardInventory is null, "Missing card location owner refusal created data.");
             foreach (int address in new[] { 1405, 1408, 1522 })
             {
                 (GameSession session, EventEngine engine) = CreateCardEngine(initial, null, CardLocationFaultProgram(opcode, 77));
-                session.State.Variables[address] = 7;
-                session.State.Variables[512] = 77;
-                ExpectWorldControlFault(engine, opcode, 4, [77, 17, 57]);
-                Require(CardsEqual(initial, session.CardInventory) && session.State.Variables[address] == 7, "Card location alias refusal mutated ownership.");
+                ExpectEventMemoryPublicationFault(session, session.State.EventMemory.Write(address, 4, NativeScalarValue.Exact(7)));
+                Require(CardsEqual(initial, session.CardInventory), "Card location publication refusal changed the inventory.");
             }
             byte[] underflow = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.JPF, 2), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.NOP, 0), (opcode, 0), (Jsm.Opcode.RET, 0));
             (_, EventEngine empty) = CreateCardEngine(initial, null, underflow);
@@ -112,16 +110,16 @@ internal static partial class Program
         }
         ReadOnlyCardService readOnly = new(initial);
         Dictionary<int, int> memory = new() { [512] = 109 };
-        EventEngine query = new(readOnly, memory);
+        EventEngine query = new(readOnly, NativeEventMemory.FromDWords(memory));
         query.LoadField(100, CardLocationQueryProgram(109), []);
         query.Step();
-        Require(memory[1000] == 0 && readOnly.Writes == 0, "WHERECARD incorrectly requires writer capability.");
-        EventEngine readOnlyTransfer = new(readOnly, new Dictionary<int, int> { [512] = 77 });
+        Require(query.Variables[1000] == 0 && readOnly.Writes == 0, "WHERECARD incorrectly requires writer capability.");
+        EventEngine readOnlyTransfer = new(readOnly, NativeEventMemory.FromDWords(new Dictionary<int, int> { [512] = 77 }));
         readOnlyTransfer.LoadField(100, CardLocationFaultProgram(Jsm.Opcode.SETCARD, 77), []);
         ExpectCardLocationServiceFault(readOnlyTransfer);
         Require(readOnly.Writes == 0, "SETCARD called a read-only setter before refusing.");
         RejectingCardService rejecting = new(initial);
-        EventEngine rejected = new(rejecting, new Dictionary<int, int> { [512] = 77 });
+        EventEngine rejected = new(rejecting, NativeEventMemory.FromDWords(new Dictionary<int, int> { [512] = 77 }));
         rejected.LoadField(100, CardLocationFaultProgram(Jsm.Opcode.SETCARD, 77), []);
         ExpectCardLocationServiceFault(rejected);
         Require(CardsEqual(initial, rejecting.CardInventory), "SETCARD rejected service changed native card arrays.");
@@ -130,7 +128,7 @@ internal static partial class Program
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.WHERECARD, Jsm.Opcode.SETCARD })
         {
             GameSession session = new(new GameState { CardInventory = initial, ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (opcode, 0), (Jsm.Opcode.RET, 0)), []);
             engine.Step();
             try

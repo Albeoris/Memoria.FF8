@@ -94,7 +94,6 @@ public sealed partial class EventEngine
                 }
             }
             Scene.FieldPartyNativeActorIds.Add(nativeActor);
-            variables[194 + slot] = nativeActor;
         }
         RecordPartyBindingMemory();
     }

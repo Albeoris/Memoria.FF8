@@ -42,7 +42,7 @@ internal static partial class Program
         EventEngine Create(MovementAnimationSample sample, int speed = 2000, Jsm.Opcode opcode = Jsm.Opcode.RMOVE)
         {
             GameSession session = NewSession();
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 8,
                 CanUseNativeScriptMove = _ => true
@@ -97,7 +97,7 @@ internal static partial class Program
         {
             (Jsm.Opcode, int)[] Init(int label, int position, int height, int push, int talk) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.PSHN_L, position), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, height), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, push), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PSHN_L, talk), (Jsm.Opcode.TALKRADIUS, 0), (Jsm.Opcode.RET, 8)];
             GameSession session = NewSession();
-            EventEngine touch = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 8 };
+            EventEngine touch = new(session) { AnimationFrameCount = (_, _) => 8 };
             int touchCommands = 0;
             touch.CommandExecuted += command =>
             {

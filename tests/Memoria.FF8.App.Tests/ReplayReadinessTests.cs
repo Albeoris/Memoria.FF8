@@ -11,7 +11,7 @@ public sealed class ReplayReadinessTests
     public void Rejected_confirmation_of_a_nonconfirming_window_preserves_its_site_without_advancing()
     {
         var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 100 });
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         engine.LoadField(100, Program(confirming: false), ["Announcement"]);
         for (int callback = 0; callback < 10 && engine.CurrentDialogue is null; callback++)
         {
@@ -42,7 +42,7 @@ public sealed class ReplayReadinessTests
     public void Recorded_visible_decision_waits_for_real_callbacks_and_rejects_a_different_site()
     {
         var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 100 });
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         engine.LoadField(100, Program(), ["Question"]);
         ReplayJournalEntry decision = new(ReplayEntryKind.Action, SceneKind.Field, 100, 0)
         {

@@ -55,7 +55,7 @@ internal sealed partial class GameWorld : IDisposable
             session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
-        Events = new EventEngine(session, session.State.Variables);
+        Events = new EventEngine(session);
         ConfigureBattleHost();
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {

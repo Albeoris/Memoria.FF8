@@ -27,14 +27,14 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(int slot = 0)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 2, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 2, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
             engine.LoadField(600, Content(slot), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
         var live = Create();
         live.Engine.Step();
         live.Engine.Step();
-        Require(live.Engine.Scene.NativeActorObjectIds.SequenceEqual([0, 2]) && live.Engine.Scene.FieldPartyNativeActorIds.SequenceEqual([255, 255, 255]) && live.Engine.Scene.PartyBindingMemory is { First: 1 } && live.Session.State.Variables[194] == 1, "Synthetic FOLLOWOFF did not distinguish saved compact binding from detached runtime followers.");
+        Require(live.Engine.Scene.NativeActorObjectIds.SequenceEqual([0, 2]) && live.Engine.Scene.FieldPartyNativeActorIds.SequenceEqual([255, 255, 255]) && live.Engine.Scene.PartyBindingMemory is { First: 1 } && live.Engine.Variables[194] == 1, "Synthetic FOLLOWOFF did not distinguish saved compact binding from detached runtime followers.");
         var restored = Create();
         restored.Engine.Restore(live.Engine.Capture());
         live.Engine.Step();

@@ -12,7 +12,7 @@ internal static partial class Program
         EventEngine Scroll(int layer, int rawDuration)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
+            EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetLinearBackgroundScroll = _ => true, CanRestoreLinearBackgroundScroll = _ => true };
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.PSHN_L, 65548), (Jsm.Opcode.PSHN_L, -65560), (Jsm.Opcode.PSHN_L, rawDuration), (Jsm.Opcode.LSCROLL2, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.RET, 0)), []);
             engine.Scene.BackgroundScrollPositions[1] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             if (layer == 0)
@@ -65,13 +65,13 @@ internal static partial class Program
         Require(layerZero.Scene.BackgroundScrollPositions[0] is { X: 40, Y: -80, PreviousX: 40, PreviousY: -80 }, "Layer0 linear scroll lost its authentic center because another layer record existed.");
 
         GameSession menuSession = new(new GameState());
-        EventEngine menu = new(menuSession, menuSession.State.Variables);
+        EventEngine menu = new(menuSession);
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.MENUTUTO, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
         menu.LoadField(600, content, []);
         menu.Step();
         Require(menu.Scene.MinimalMenuCompletions.Single() is { Kind: MinimalMenuKind.TutorialBrowser, RawArgument: 0, MenuId: 26, Selection: 1, GuardianForceId: null } && !menuSession.State.Variables.ContainsKey(5000), "MENUTUTO changed its zero-operand request or immediate return3 yield.");
         GameSession menuRestoredSession = new(new GameState());
-        EventEngine menuRestored = new(menuRestoredSession, menuRestoredSession.State.Variables);
+        EventEngine menuRestored = new(menuRestoredSession);
         menuRestored.LoadField(600, content, []);
         menuRestored.Restore(menu.Capture());
         menu.Step();

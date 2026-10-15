@@ -32,7 +32,7 @@ internal static partial class Program
                 session.StartNewGame();
                 Initialize(session);
             }
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, initial), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.PSHM_W, 16), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -60,13 +60,13 @@ internal static partial class Program
         Initialize(flags);
         Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true } && flags.ReplayJournal!.IsComplete, "Executed New Game did not establish native500/mask18/zero movement and actual52CA90 process UIfalse.");
         Require(flags.SeeD!.AddRankPoints(int.MaxValue).RankPoints == 499 && flags.SeeD.AddRankPoints(int.MinValue).RankPoints == 500, "SeeD full DWORD arithmetic narrowed or overflowed before the native WORD destination.");
-        EventEngine projected = new(flags, flags.State.Variables);
+        EventEngine projected = new(flags);
         projected.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65530), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHSM_W, 16), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHM_B, 16), (Jsm.Opcode.POPM_W, 5002), (Jsm.Opcode.PSHSM_B, 16), (Jsm.Opcode.POPM_L, 5003), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.POPM_B, 17), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 16), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         projected.Step();
         Require(flags.State.Variables[5001] == -6 && flags.State.Variables[5002] == 250 && flags.State.Variables[5003] == -6 && flags.SeeD!.RankPoints == 0x12FF && !flags.State.Variables.ContainsKey(16) && !flags.State.Variables.ContainsKey(17), "Native SeeD signed/unsigned BYTE/WORD projections or partial BYTE writes lost their owned WORD.");
         const uint unrelated = 0xA5000267;
         flags.SetNativeEventOwners(flags.WorldControls! with { EventFlags104 = unrelated | 0x18 });
-        EventEngine salary = new(flags, flags.State.Variables);
+        EventEngine salary = new(flags);
         salary.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SARALYON, 0), (Jsm.Opcode.SARALYDISPOFF, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         salary.Step();
         Require(flags.WorldControls is { SalarySuppressed: false, SalaryDisplaySuppressed: true } && flags.SeeD is { SalaryUiEnabled: true }, "SARALYON/DISPOFF failed mask8/mask10 separation or process UI enable.");

@@ -33,7 +33,6 @@ public sealed partial class EventEngine
         }
         args = Pop(fiber, 1);
         byte music = unchecked((byte)args[0]);
-        variables[268] = music;
         Scene.WorldMusicSelection = new NativeWorldMusicSelection(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], music);
         return true;
     }
@@ -44,11 +43,11 @@ public sealed partial class EventEngine
         ArgumentNullException.ThrowIfNull(resolveResource);
         NativeWorldMusicSelection selection = Scene.WorldMusicSelection ?? throw new NotSupportedException("World music needs its executed BYTE268 selection; recreate the authentic journal.");
         NativeMusicProcessState process = Scene.MusicProcess ?? throw new NotSupportedException("World music requires the current native music process.");
-        if (UnsupportedNativeMusicAliases(variables, services.NativeVariableValues) is string aliases)
+        if (UnsupportedNativeMusicAliases(EventMemory) is string aliases)
         {
             throw new NotSupportedException(aliases);
         }
-        if (services.ReplayScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Pending != false || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || !variables.TryGetValue(268, out int selected) || selected != selection.Music || services.NativeVariableValues?.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268) == true || variables.Keys.Any(address => address is >= 265 and <= 267))
+        if (services.ReplayScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Pending != false || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
         {
             throw new NotSupportedException("World music requires authenticated native bank, channel, consumed field preload and unaliased BYTE268 authority.");
         }
@@ -90,7 +89,7 @@ public sealed partial class EventEngine
         NativeMusicChannelState primary = Scene.MusicChannel108;
         return () =>
         {
-            if (services is not GameSession session || session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival != packet || !ReferenceEquals(Scene.MusicProcess, process) || Scene.MusicChannel108 != primary || Scene.WorldMusicSelection != selection || !variables.TryGetValue(268, out int currentSelection) || currentSelection != selection.Music)
+            if (services is not GameSession session || session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival != packet || !ReferenceEquals(Scene.MusicProcess, process) || Scene.MusicChannel108 != primary || Scene.WorldMusicSelection != selection)
             {
                 throw new InvalidOperationException("Prepared world music no longer matches its current native owner.");
             }
@@ -98,7 +97,6 @@ public sealed partial class EventEngine
             if (kind == NativeWorldMusicOperation.Play)
             {
                 Scene.MusicChannel108 = new NativeMusicChannelState(0, music);
-                variables[108] = 0;
                 Scene.LoadedMusic = music!.Value;
                 Scene.MusicPlaying = true;
             }
@@ -107,7 +105,6 @@ public sealed partial class EventEngine
                 Scene.MusicChannel108 = primary with { MusicId = 255 };
                 Scene.MusicPlaying = false;
             }
-            variables[199] = music ?? 255;
             Scene.WorldMusicLoad = request;
             AudioCommandExecuted?.Invoke(request);
         };
@@ -143,7 +140,7 @@ public sealed partial class EventEngine
     {
         if (saved.Scene.WorldMusicSelection is NativeWorldMusicSelection selection)
         {
-            if (selection.Music != unchecked((byte)selection.RawOperand) || saved.Variables.GetValueOrDefault(268) != selection.Music)
+            if (selection.Music != unchecked((byte)selection.RawOperand) || saved.EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
             {
                 throw new InvalidDataException("Saved world music selection lost its executed BYTE268 writer.");
             }

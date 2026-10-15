@@ -41,9 +41,9 @@ internal static partial class Program
                 JsonElement saved = live.Capture();
                 ActorState actor = live.Actors[0];
                 Require(actor.NativeMovementRequest is null && actor.NativeScriptMovement is null && JsonElement.DeepEquals(saved, independent.Capture()), "Mode4 beneath a higher request gained an invented scalar backup or diverged after restore.");
-                if (saved.GetProperty("Variables").TryGetProperty("6000", out JsonElement lowerResult))
+                if (CapturedVariables(saved).TryGetProperty("6000", out JsonElement lowerResult))
                 {
-                    Require(completedUnderUpperWait && lowerResult.GetInt32() == 73 && saved.GetProperty("Variables").GetProperty("6001").GetInt32() == 99 && actor.NativeLadder is { Active: false } && actor.NativeMovementCompletion542 == 2 && actor.NativeTurnAccumulator474 == 1 && actor.WalkmeshTriangle == 9, "RET8 did not resume the original lower LADDER consumer without physical restore/reset.");
+                    Require(completedUnderUpperWait && lowerResult.GetInt32() == 73 && CapturedVariables(saved).GetProperty("6001").GetInt32() == 99 && actor.NativeLadder is { Active: false } && actor.NativeMovementCompletion542 == 2 && actor.NativeTurnAccumulator474 == 1 && actor.WalkmeshTriangle == 9, "RET8 did not resume the original lower LADDER consumer without physical restore/reset.");
                     independent.Restore(saved);
                     break;
                 }
@@ -53,11 +53,11 @@ internal static partial class Program
                 if (actor.NativeMovementCompletion542 == 2 && !upper.GetProperty("Complete").GetBoolean())
                 {
                     completedUnderUpperWait = true;
-                    Require(actor.NativeLadder is { Active: true, AutomaticCompletion: false } && actor.WalkmeshTriangle == 9 && actor.NativeLadder.Duration == 1 && actor.NativeTurnAccumulator474 == 1 && !saved.GetProperty("Variables").TryGetProperty("6000", out _), "Physical mode4 did not finish its unchanged controlled exit/drain while the lower VM stayed held.");
+                    Require(actor.NativeLadder is { Active: true, AutomaticCompletion: false } && actor.WalkmeshTriangle == 9 && actor.NativeLadder.Duration == 1 && actor.NativeTurnAccumulator474 == 1 && !CapturedVariables(saved).TryGetProperty("6000", out _), "Physical mode4 did not finish its unchanged controlled exit/drain while the lower VM stayed held.");
                 }
                 independent.Restore(saved);
             }
-            Require(completedUnderUpperWait && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73, "Mode4 request failed to return to its original lower consumer.");
+            Require(completedUnderUpperWait && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73, "Mode4 request failed to return to its original lower consumer.");
         }
         Console.WriteLine("Native mode4 requests: REQ/REQSW/REQEW preserve the physical exit/drain beneath higher HIDE/UCOFF/WAIT, create no mode1 backup, and RET8 resumes the lower consumer; independent restores PASS.");
     }

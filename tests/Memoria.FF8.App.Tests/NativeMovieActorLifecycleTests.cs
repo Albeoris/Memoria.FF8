@@ -87,7 +87,7 @@ public sealed class NativeMovieActorLifecycleTests
     private static (GameSession Session, EventEngine Engine) Create(GameState? state = null)
     {
         var session = new GameSession(state ?? new GameState { Scene = SceneKind.Field, FieldId = 600, ExamTimer = NativeExamTimerState.FromReachedSet(600) });
-        var engine = new EventEngine(session, session.State.Variables)
+        var engine = new EventEngine(session)
         {
             MoviePlayback = () => session.State.MoviePlayback,
             AnimationFrameCount = (_, _) => 4,

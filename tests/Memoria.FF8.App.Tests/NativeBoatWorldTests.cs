@@ -16,7 +16,7 @@ public sealed class NativeBoatWorldTests
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
         var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess()) };
         NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
-        var departure = new GameState { Scene = SceneKind.Field, FieldId = 123, DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(car), WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new() { [256] = 40 }, ExamTimer = NativeExamTimerState.FromReachedSet(600) };
+        var departure = new GameState { Scene = SceneKind.Field, FieldId = 123, DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(car), WorldControls = NativeWorldControlState.CreateNewGame(), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 40 }), ExamTimer = NativeExamTimerState.FromReachedSet(600) };
         var packet = new WorldTransition(11, 66, 61);
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -99,7 +99,7 @@ public sealed class NativeBoatWorldTests
 
         // This second isolated allocation uses the genuinely executed preceding boat callbacks,
         // not a car seed or a patched retained world. Story135 selects the same original static-foot clause.
-        GameState returnDeparture = session.State with { Variables = new() { [256] = 135 } };
+        GameState returnDeparture = session.State with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 135 }) };
         NativeSavedWorldScriptedReturn outboundReturn = returnDeparture.SavedWorld!.ScriptedReturn!;
         var returnPacket = new WorldTransition(12, 66, 60);
         Assert.Throws<InvalidDataException>(() => WorldEntryPreflight.Prepare(returnDeparture with { DepartingWorldState = returnDeparture.DepartingWorldState! with { Frame = 245 } }, directory, returnPacket));

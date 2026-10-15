@@ -19,7 +19,7 @@ internal static partial class Program
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 14), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.MENUPHS, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 8)]]);
         // Declared component: actual resource initialization and executed native commands;
         // it claims no original field allocation or journey.
@@ -111,7 +111,7 @@ internal static partial class Program
         unknown.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         unknown.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         unknown.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine refused = new(unknown, unknown.State.Variables);
+        EventEngine refused = new(unknown);
         refused.LoadField(600, SyntheticObjects([0], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.MENUPHS, 0), (Jsm.Opcode.RET, 8)]]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement unknownVitals = JsonSerializer.SerializeToElement(unknown.CharacterVitals);
         try
@@ -134,7 +134,7 @@ internal static partial class Program
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         (Jsm.Opcode, int)[] Player(int label, int character) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, character), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1, (16 << 7) | 1], [Player(0, 0), [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.RET, 8)], Player(16, 1), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.FOLLOWON, 0), (Jsm.Opcode.RET, 8)]]);
         engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -174,7 +174,7 @@ internal static partial class Program
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.MAPFADEOFF, 0), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 8)]]);
         engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();

@@ -68,7 +68,7 @@ public sealed class NativeWorldEventRandomTests
             GameSession restored = new(GameSession.Load(path));
             Assert.Equal(1u, restored.State.DepartingFieldState!.Value.GetProperty("EventRandom").GetProperty("State").GetUInt32());
             Assert.Equal(0x967EB0E7u, restored.EventRandom!.State);
-            EventEngine dormant = new(restored, restored.State.Variables);
+            EventEngine dormant = new(restored);
             dormant.LoadField(74, component.Program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             dormant.Restore(restored.State.EventState!.Value);
             Assert.Equal(session.EventRandom, restored.EventRandom);
@@ -107,7 +107,7 @@ public sealed class NativeWorldEventRandomTests
         using GameAssets assets = new(GameDirectory());
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         WorldMapScene? world = null;
         engine.PrepareWorldTransition = request =>
         {

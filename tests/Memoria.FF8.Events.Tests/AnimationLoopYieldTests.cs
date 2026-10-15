@@ -17,7 +17,7 @@ internal static partial class Program
             GameSession session = GameSession.CreateColdProcess();
             session.SetWorldControls(NativeWorldControlState.CreateNewGame());
             session.SetEventRandom(session.EventRandom!.ClearSavedStateForNewGame());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (model, animation) => model == 2 && animation == 1 ? 4 : throw new InvalidOperationException($"RANIMELOOP did not select the signed low-WORD model animation: model{model}, animation{animation}.")
             };
@@ -25,7 +25,7 @@ internal static partial class Program
             return engine;
         }
         JsonElement Fiber(EventEngine engine) => engine.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-        bool HasVariable(EventEngine engine, string address) => engine.Capture().GetProperty("Variables").TryGetProperty(address, out _);
+        bool HasVariable(EventEngine engine, string address) => CapturedVariables(engine.Capture()).TryGetProperty(address, out _);
 
         EventEngine live = Create();
         int issued = 0;
@@ -48,7 +48,7 @@ internal static partial class Program
         restored.Restore(live.Capture());
         live.Step();
         restored.Step();
-        Require(issued == 1 && actor.AnimationFrame == 1 && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && !HasVariable(live, "5001") && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RANIMELOOP repeated the issue, waited for animation completion, lost its original operand or diverged across a yielded-PC restore.");
+        Require(issued == 1 && actor.AnimationFrame == 1 && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77 && !HasVariable(live, "5001") && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RANIMELOOP repeated the issue, waited for animation completion, lost its original operand or diverged across a yielded-PC restore.");
         live.Step();
         restored.Step();
         Require(issued == 2 && actor.AnimationId == 1 && actor.AnimationFrame == 0 && !HasVariable(live, "5001") && Fiber(live).GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Repeated RANIMELOOP of the current animation skipped its unconditional restart or failed to yield before its successor.");
@@ -57,7 +57,7 @@ internal static partial class Program
         live.Step();
         restored.Step();
         restartedCopy.Step();
-        Require(actor.AnimationFrame == 1 && live.Capture().GetProperty("Variables").GetProperty("5001").GetInt32() == 88 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), restartedCopy.Capture()), "Second RANIMELOOP did not resume its successor in the next callback or restore its restart independently.");
+        Require(actor.AnimationFrame == 1 && CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 88 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), restartedCopy.Capture()), "Second RANIMELOOP did not resume its successor in the next callback or restore its restart independently.");
         foreach (int expectedFrame in new[] { 2, 3, 0, 1 })
         {
             live.Step();

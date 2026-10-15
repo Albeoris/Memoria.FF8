@@ -17,7 +17,7 @@ internal static partial class Program
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.RET, 0)];
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
             engine.ResolveNativeNormalBackgroundScrollCenter = () => knownStart ? ((short)40, (short)-80) : null;
             engine.ResolveNativeActorScrollCenter = actor => actor < engine.Scene.NativeActorObjectIds.Count ? ((short)(100 * engine.Scene.NativeActorObjectIds[actor] + engine.Frame), (short)(-2 * engine.Frame)) : null;
             engine.CanSetNativeActorLinearBackgroundScroll = (actor, ticks) => certificate && ticks >= 0 && engine.Scene.NormalBackgroundScrollCenter is not null && actor < engine.Scene.NativeActorObjectIds.Count;
@@ -47,11 +47,11 @@ internal static partial class Program
             live.Step();
             restored.Step();
             NativeActorBackgroundScroll state = live.Scene.ActorBackgroundScroll!;
-            Require(state.X == NativeLinearScrollPhase.Interpolate(40, (short)(200 + live.Frame), 4, elapsed) && state.Y == NativeLinearScrollPhase.Interpolate(-80, (short)(-2 * live.Frame), 4, elapsed) && state.Status == (elapsed == 4 ? 2 : 1) && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "LSCROLLA froze its moving endpoint, changed signed native linear arithmetic or lost restore/synchronization ordering.");
+            Require(state.X == NativeLinearScrollPhase.Interpolate(40, (short)(200 + live.Frame), 4, elapsed) && state.Y == NativeLinearScrollPhase.Interpolate(-80, (short)(-2 * live.Frame), 4, elapsed) && state.Status == (elapsed == 4 ? 2 : 1) && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && !CapturedVariables(live.Capture()).TryGetProperty("5000", out _), "LSCROLLA froze its moving endpoint, changed signed native linear arithmetic or lost restore/synchronization ordering.");
         }
         NativeActorBackgroundScroll completed = live.Scene.ActorBackgroundScroll!;
         live.Step();
-        Require(live.Scene.ActorBackgroundScroll == completed && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77, "Completed actor linear camera kept following or delayed synchronization.");
+        Require(live.Scene.ActorBackgroundScroll == completed && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77, "Completed actor linear camera kept following or delayed synchronization.");
         EventEngine zero = Create(0);
         zero.Step();
         Require(zero.Scene.ActorBackgroundScroll is { Mode: 1, Status: 2, Counter: 0, X: 40, Y: -80, ProjectedTargetX: 202, ProjectedTargetY: -4 }, "Zero-duration actor linear camera must retain start while recording the actual callback target.");

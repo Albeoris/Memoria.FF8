@@ -24,8 +24,8 @@ internal static partial class Program
                 EventEngine Create()
                 {
                     GameSession session = GameSession.CreateColdProcess();
-                    session.State.Variables[512] = rawVolume;
-                    EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
+                    session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(rawVolume)));
+                    EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
                     engine.LoadField(100, content, []);
                     return engine;
                 }
@@ -60,7 +60,7 @@ internal static partial class Program
                 first.LoadField(101, next, []);
                 Require(first.Scene.AllSoundVolume == request, "Field allocation erased the historical ALLSEVOL request.");
                 GameSession historicalSession = new(new GameState());
-                EventEngine historical = new(historicalSession, historicalSession.State.Variables);
+                EventEngine historical = new(historicalSession);
                 historical.LoadField(101, next, []);
                 historical.Restore(first.Capture());
                 Require(JsonElement.DeepEquals(first.Capture(), historical.Capture()), "Historical ALLSEVOL did not restore at the reset field frame.");

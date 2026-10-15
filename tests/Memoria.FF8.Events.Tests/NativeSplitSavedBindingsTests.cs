@@ -28,7 +28,7 @@ internal static partial class Program
         EventEngine Create(bool nonzeroLimit = false)
         {
             GameSession session = new(new GameState { CharacterVitals = initialVitals.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeJoinMovement = _ => true,

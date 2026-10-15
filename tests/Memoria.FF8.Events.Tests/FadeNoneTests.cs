@@ -21,7 +21,7 @@ internal static partial class Program
             {
                 session = new GameSession(session.State with { FieldFade = null });
             }
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, bytes ?? content, []);
             return engine;
         }
@@ -29,7 +29,7 @@ internal static partial class Program
         first.Step();
         JsonElement begun = first.Capture();
         Require(first.FieldFade is { Physical.Mode: 0, Physical.Rate: 8, Saved.Mode: 0, SyncMode: 3, Draw.Mode: NativeFadeDrawMode.None } && begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 0, "FADENONE consumed an operand, reset retained physical words or lost exact native WORD216.");
-        Require(!begun.GetProperty("Variables").TryGetProperty("216", out _), "Fade bank has a second mutable memory owner.");
+        Require(!CapturedVariables(begun).TryGetProperty("216", out _), "Fade bank has a second mutable memory owner.");
         EventEngine resumed = Create();
         resumed.Restore(begun);
         for (int tick = 0; tick < 4; tick++)

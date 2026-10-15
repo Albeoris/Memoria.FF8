@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte initial)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { InitInputAxisDirection = initial };
+            EventEngine engine = new(session) { InitInputAxisDirection = initial };
             engine.LoadField(100, content, []);
             return engine;
         }
@@ -39,19 +39,19 @@ internal static partial class Program
         engine.LoadField(101, content, []);
         Require(engine.InputAxisDirection == 192 && engine.Capture().GetProperty("AxisStart").GetInt32() == 192, "A fresh field inherited the preceding script AXIS instead of the selected field INF direction.");
         GameSession legacySession = new(new GameState());
-        EventEngine legacy = new(legacySession, legacySession.State.Variables);
+        EventEngine legacy = new(legacySession);
         legacy.LoadField(100, content, []);
         Require(legacy.InputAxisDirection == 0, "An unbound synthetic or legacy field lost the zero initial direction default.");
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(172);
         GameSession savedSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-        EventEngine saved = new(savedSession, savedSession.State.Variables) { InitInputAxisDirection = field.Information!.ControlDirection };
+        EventEngine saved = new(savedSession) { InitInputAxisDirection = field.Information!.ControlDirection };
         saved.LoadField(172, field.Jsm, field.Messages, savedSession.State.FieldArrival);
         Require(saved.InputAxisDirection == 128, "Selected original172 INF byte9 was not installed on fresh load.");
         saved.Restore(savedSession.State.EventState!.Value);
         GameSession baselineSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-        EventEngine baseline = new(baselineSession, baselineSession.State.Variables);
+        EventEngine baseline = new(baselineSession);
         baseline.LoadField(172, field.Jsm, field.Messages, baselineSession.State.FieldArrival);
         baseline.Restore(baselineSession.State.EventState!.Value);
         Require(saved.Frame == 57 && saved.InputAxisDirection == 0 && JsonElement.DeepEquals(baseline.Capture(), saved.Capture()), "Installing fresh INF direction rewrote the actual historical172 saved axis or other VM state.");

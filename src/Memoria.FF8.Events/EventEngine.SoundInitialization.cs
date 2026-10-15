@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
@@ -8,23 +9,9 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedSoundInitializationAliases()
     {
-        foreach ((int address, int value) in variables)
+        foreach ((int address, NativeMemoryValue value) in EventMemory.Cells)
         {
-            if (address is < 194 or > 198)
-            {
-                continue;
-            }
-            if (address <= 196 && Scene.NativeActorLayoutVersion == 1 && Scene.FieldPartyNativeActorIds.Count == 3 && value == Scene.FieldPartyNativeActorIds[address - 194])
-            {
-                // These canonical aliases are proved BYTE party indices.
-                continue;
-            }
-            if (address <= 196 && Scene.PartyBindingMemory is { Version: 1 } memory && value == memory.At(address - 194))
-            {
-                // Native save BYTE194..196 survives field allocation, before the new compact actor mapping exists.
-                continue;
-            }
-            if (TryReadSoundVolumeByte(address, out int known) && value == known)
+            if (address >= 199 || (long)address + value.Width <= 197)
             {
                 continue;
             }
@@ -79,7 +66,6 @@ public sealed partial class EventEngine
         {
             Scene.SoundMusicVolume198 = value;
         }
-        variables[address] = value;
     }
 
     private void ExecuteSoundInitialization(Fiber fiber)
@@ -95,14 +81,14 @@ public sealed partial class EventEngine
     private void ValidateSoundInitializationCheckpoint(Checkpoint saved)
     {
         SceneEventState scene = saved.Scene;
-        if (scene.PartyBindingMemory is NativePartyBindingMemory memory && (memory.Version != 1 || Enumerable.Range(0, 3).Any(slot => saved.Variables.TryGetValue(194 + slot, out int alias) && alias != memory.At(slot))))
+        if (scene.PartyBindingMemory is NativePartyBindingMemory memory && (memory.Version != 1 || saved.EventMemory.Cells.Any(pair => pair.Key < 197 && (long)pair.Key + pair.Value.Width > 194)))
         {
             throw new InvalidDataException("Saved native party-binding BYTE authority disagrees with its exact aliases.");
         }
         foreach (int address in new[] { 197, 198 })
         {
             byte? known = address == 197 ? scene.SoundMusicVolume197 : scene.SoundMusicVolume198;
-            if (known is byte volume && (saved.Variables.TryGetValue(address, out int alias) && alias != volume || address == 197 && scene.MusicVolume != volume))
+            if (known is byte volume && (saved.EventMemory.Cells.Any(pair => pair.Key <= address && (long)pair.Key + pair.Value.Width > address) || address == 197 && scene.MusicVolume != volume))
             {
                 throw new InvalidDataException("Saved sound volume bytes disagree with their canonical byte aliases or logical music volume.");
             }

@@ -43,7 +43,7 @@ internal static partial class Program
             NativeParticleRequest[] requests = engine.Scene.NativeParticleRequests.ToArray();
             JsonElement completed = engine.Capture();
             JsonElement caller = ParticleSetCaller(engine);
-            Require(commands == 3 && requests.Select(request => request.RawSlot).SequenceEqual(Enumerable.Repeat(rawSlot, 3)) && requests.Select(request => request.Slot).SequenceEqual(Enumerable.Repeat(rawSlot & 15, 3)) && requests.Select(request => request.Value).SequenceEqual(new byte[] { 1, 0x82, 0 }) && requests.Select(request => request.InstanceIndex).SequenceEqual(new int?[] { null, 2, null }) && engine.Scene.NativeParticleSlots.Count == 1 && engine.ReadNativeParticleAttachment(rawSlot & 15) is null && completed.GetProperty("Variables").GetProperty("6000").GetInt32() == 73 && caller.GetProperty("Stack").GetArrayLength() == 0 && caller.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(beforeRandom!.Value, completed.GetProperty("EventRandom")), "ON/SET/OFF failed to overwrite one physical byte, preserve source-instance provenance and unrelated opaque scalar, return2 to its immediate successor or leave event RNG untouched.");
+            Require(commands == 3 && requests.Select(request => request.RawSlot).SequenceEqual(Enumerable.Repeat(rawSlot, 3)) && requests.Select(request => request.Slot).SequenceEqual(Enumerable.Repeat(rawSlot & 15, 3)) && requests.Select(request => request.Value).SequenceEqual(new byte[] { 1, 0x82, 0 }) && requests.Select(request => request.InstanceIndex).SequenceEqual(new int?[] { null, 2, null }) && engine.Scene.NativeParticleSlots.Count == 1 && engine.ReadNativeParticleAttachment(rawSlot & 15) is null && CapturedVariables(completed).GetProperty("6000").GetInt32() == 73 && caller.GetProperty("Stack").GetArrayLength() == 0 && caller.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(beforeRandom!.Value, completed.GetProperty("EventRandom")), "ON/SET/OFF failed to overwrite one physical byte, preserve source-instance provenance and unrelated opaque scalar, return2 to its immediate successor or leave event RNG untouched.");
         }
 
         EventEngine live = CreateParticleSetFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PARTICLEON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PARTICLESET, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0)], moving: true);
@@ -173,7 +173,7 @@ internal static partial class Program
             scripts.Add(main.ToArray());
         }
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             AnimationFrameCount = (_, _) => 4,
             LoadSoundResource = _ => SoundResourceStatus.Muted,
@@ -197,11 +197,11 @@ internal static partial class Program
 
     private static void ReachParticleSetSuccessor(EventEngine engine)
     {
-        for (int callback = 0; callback < 16 && !engine.Capture().GetProperty("Variables").TryGetProperty("6000", out _); callback++)
+        for (int callback = 0; callback < 16 && !CapturedVariables(engine.Capture()).TryGetProperty("6000", out _); callback++)
         {
             engine.Step();
         }
-        Require(engine.Capture().GetProperty("Variables").TryGetProperty("6000", out _), "Particle component did not reach its immediate successor.");
+        Require(CapturedVariables(engine.Capture()).TryGetProperty("6000", out _), "Particle component did not reach its immediate successor.");
     }
 
     private static JsonElement ParticleSetCaller(EventEngine engine) => engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 7 && fiber.GetProperty("ScriptId").GetInt32() == 57);

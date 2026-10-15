@@ -22,7 +22,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(NativeCharacterVitals? state)
         {
             GameSession session = new(new GameState { CharacterVitals = state });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(323, content, []);
             return (session, engine);
         }
@@ -88,7 +88,7 @@ internal static partial class Program
 
         byte[] resetOnly = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.RESETGF, 0), (Jsm.Opcode.RET, 0));
         GameSession missingSession = new(new GameState());
-        EventEngine missing = new(missingSession, missingSession.State.Variables);
+        EventEngine missing = new(missingSession);
         missing.LoadField(323, resetOnly, []);
         try
         {
@@ -101,7 +101,7 @@ internal static partial class Program
         Require(missing.LastFault is { Opcode: "RESETGF", Operation: 2 } && missing.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 2 && missing.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 6 && missingSession.CharacterVitals is null, "Missing RESETGF provenance consumed the original operand or advanced PC.");
 
         RejectingGuardianForceServices rejectingServices = new(source);
-        EventEngine rejecting = new(rejectingServices, new Dictionary<int, int>());
+        EventEngine rejecting = new(rejectingServices, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         rejecting.LoadField(323, resetOnly, []);
         try
         {

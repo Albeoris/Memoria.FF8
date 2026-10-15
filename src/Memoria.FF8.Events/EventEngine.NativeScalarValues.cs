@@ -108,24 +108,29 @@ public sealed partial class EventEngine
         }
         int width = NativeMemoryWidth(operation.Opcode);
         bool writing = operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L;
-        if (width > 0 && services.NativeVariableValues is { Count: > 0 } memory && memory.Any(pair => pair.Key < (long)operation.Parameter + width && pair.Key + pair.Value.Width > operation.Parameter && (pair.Key != operation.Parameter || pair.Value.Width != width)))
+        if (width > 0)
         {
-            return "Native uncertain memory requires a matching address and width; overlapping aliases remain unsupported";
-        }
-        if (writing && fiber.Stack.Count > 0 && !fiber.Stack.PeekValue().IsExact)
-        {
-            if (fiber.Stack.PeekValue().ActorInfoOrigin is not null)
+            try
             {
-                return "Native memory cannot consume an unknown out-of-retained-table actor-info result";
+                NativeEventMemoryOwnership.Validate(EventMemory, MemoryRegions());
+                NativeEventMemoryOwner owner = ResolveMemoryOwner(operation.Parameter, width);
+                if (writing && owner == NativeEventMemoryOwner.Generic && fiber.Stack.Count > 0)
+                {
+                    NativeScalarValue value = fiber.Stack.PeekValue();
+                    if (value.ActorInfoOrigin is not null)
+                    {
+                        return "Native event memory cannot store an out-of-table actor-info result.";
+                    }
+                    _ = EventMemory.Write(operation.Parameter, width, value);
+                }
+                else if (!writing)
+                {
+                    _ = ReadEventMemory(operation);
+                }
             }
-            long last = (long)operation.Parameter + width - 1;
-            if (!services.CanStoreNativeVariableValues || operation.Parameter < 0 || last > ushort.MaxValue - 3 || operation.Parameter <= 86 && last >= 84 || operation.Parameter <= 107 && last >= 101 || operation.Parameter <= 217 && last >= 179 || operation.Parameter <= 242 && last >= 240)
+            catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or ArgumentOutOfRangeException)
             {
-                return "Uncertain native store needs a typed memory service and cannot replace separately owned loader/control bytes";
-            }
-            if (variables.Keys.Any(address => address != operation.Parameter && address >= operation.Parameter && address <= last))
-            {
-                return "Uncertain native store overlaps a legacy untyped memory alias";
+                return exception.Message;
             }
         }
         if (!fiber.Stack.HasUncertainty || operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.POPI_L or Jsm.Opcode.LBL or Jsm.Opcode.NOP or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADENONE or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADESYNC or Jsm.Opcode.COLSYNC or Jsm.Opcode.MAPFADEOFF or Jsm.Opcode.MAPFADEON or Jsm.Opcode.RND || writing)
@@ -146,17 +151,6 @@ public sealed partial class EventEngine
         return NativeScalarCalculation.Resolve(kind, count == 2 ? operands[1] : null, operands[0]);
     }
 
-    private bool TryReadNativeScalar(JsmOperation operation, out NativeScalarValue value)
-    {
-        if (services.NativeVariableValues is { } memory && memory.TryGetValue(operation.Parameter, out NativeMemoryValue? entry))
-        {
-            value = entry.Value.ToWidth(NativeMemoryWidth(operation.Opcode), operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W);
-            return true;
-        }
-        value = NativeScalarValue.Exact(0);
-        return false;
-    }
-
     private NativeScalarValue PopNativeScalar(Fiber fiber)
     {
         if (fiber.Stack.Count == 0)
@@ -170,32 +164,8 @@ public sealed partial class EventEngine
 
     private NativeScalarValue StoreNativeScalar(Fiber fiber, JsmOperation operation)
     {
-        int width = NativeMemoryWidth(operation.Opcode);
         NativeScalarValue raw = fiber.Stack.PeekValue();
-        NativeScalarValue value = raw.ToWidth(width);
-        Dictionary<int, NativeMemoryValue> next = services.NativeVariableValues is { } memory ? new(memory) : [];
-        next.Remove(operation.Parameter);
-        if (!value.IsExact)
-        {
-            next.Add(operation.Parameter, new NativeMemoryValue(width, value));
-        }
-        bool hadKnown = variables.Remove(operation.Parameter, out int previous);
-        try
-        {
-            services.SetNativeVariableValues(next);
-        }
-        catch
-        {
-            if (hadKnown)
-            {
-                variables[operation.Parameter] = previous;
-            }
-            throw;
-        }
-        if (value.IsExact)
-        {
-            variables[operation.Parameter] = value.RequireExact();
-        }
+        WriteGenericEventMemory(operation.Parameter, NativeMemoryWidth(operation.Opcode), raw);
         PopNativeScalar(fiber);
         return raw;
     }

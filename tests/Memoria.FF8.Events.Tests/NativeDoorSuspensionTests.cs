@@ -35,7 +35,7 @@ internal static partial class Program
             session.StartNewGame();
             session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
             session.MarkReplayUnavailable("Declared native door scheduler component; requests are staged through the current Queue boundary.");
-            var engine = new EventEngine(session, session.State.Variables);
+            var engine = new EventEngine(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -78,7 +78,7 @@ internal static partial class Program
             midBudget.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), midBudget.Capture()), "Door RET8 resumption diverged after independent pending-request or mid-expression restore.");
         }
-        JsonElement variables = live.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(live.Capture());
         Require(variables.GetProperty("5000").GetInt32() == 2300 && variables.GetProperty("5001").GetInt32() == 77 && variables.GetProperty("5002").GetInt32() == 7659 && variables.GetProperty("5003").GetInt32() == 555 && variables.GetProperty("5004").GetInt32() == 10212 && variables.GetProperty("5005").GetInt32() == 999 && labels.SequenceEqual([19, 20]), "Native slots failed6→5→default0 order, lower operand/result restoration or same-budget RET8 continuation.");
         Console.WriteLine("Native door slots6→5→0: meaningful default and two meaningful requests, unfinished operands/PC/eight-result bank ownership, native sixteen-op budgets, RET8 continuation and independent pending/mid-expression restores passed (synthetic component requests).");
     }

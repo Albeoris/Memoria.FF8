@@ -27,7 +27,7 @@ internal static partial class Program
             session.StartNewGame();
             session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
             session.MarkReplayUnavailable("Declared native request-slot readiness component; no actual field visit or movement claimed.");
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(74, selectedProgram ?? content, ["Declared readiness dialogue"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }

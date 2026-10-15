@@ -29,7 +29,7 @@ internal static partial class Program
             }
             byte[] content = SyntheticObjects([0, 16 << 7, 32 << 7], [player, Target(16, distance, height, hidden, talkOff), Target(32, secondDistance, 0, false, false)]);
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 1,
                 ResolvePartyTraceTriangle = (_, _, _) => 0,

@@ -17,7 +17,7 @@ internal static partial class Program
         EventEngine Create(Action<JsonNode>? alter = null)
         {
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 CanUseNativePlayerMovement = actor => actor.ObjectId == 0,

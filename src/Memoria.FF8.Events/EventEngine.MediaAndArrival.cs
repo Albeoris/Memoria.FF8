@@ -622,7 +622,7 @@ public sealed partial class EventEngine
         }
         if (movieProgressExpected || playback.IsPlaying)
         {
-            variables[80] = (ushort)playback.FrameIndex;
+            WriteGenericEventMemory(80, 2, NativeScalarValue.Exact((ushort)playback.FrameIndex));
         }
         CurrentMoviePlayback = playback;
         if (playback.Completed)

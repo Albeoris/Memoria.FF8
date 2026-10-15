@@ -10,8 +10,8 @@ public sealed class NativeFootWorldReturnTests
     {
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay();
         var session = Session();
-        session.SetEventState(JsonSerializer.SerializeToElement(new { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1), WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables, Economy = session.State.Economy, SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess }));
-        session.SetDepartingFieldState(JsonSerializer.SerializeToElement(new { ExamTimer = timer, WorldControls = session.WorldControls, MessageVariables = session.State.MessageVariables, Economy = session.State.Economy, SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess }));
+        session.SetEventState(RuntimeOwnerCheckpointFixture.Capture(session.State with { ExamTimer = timer.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1) }));
+        session.SetDepartingFieldState(RuntimeOwnerCheckpointFixture.Capture(session.State with { ExamTimer = timer }));
         session.SetExamTimer(timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3));
         string path = Path.Combine(Path.GetTempPath(), "ff8-frozen-world-timer-" + Guid.NewGuid().ToString("N") + ".json");
         try
@@ -307,10 +307,13 @@ public sealed class NativeFootWorldReturnTests
             World = World(),
             SavedWorld = NativeSavedWorldState.CreateNewGame(),
             WorldControls = NativeWorldControlState.CreateNewGame() with { Menu209 = 0xA7 },
-            EventState = JsonSerializer.SerializeToElement(new { FieldId = 159, Party = new[] { 0, 4 }, Name = "Squall" }),
-            Variables = new Dictionary<int, int> { [256] = 17, [84] = 160 },
+            // Declared component initialization, without an authentic route or journal.
+            WorldProcess = NativeWorldProcess.FromColdProcess(),
+            WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 17),
+            EventMemory = NativeEventMemory.Empty.Write(84, 2, NativeScalarValue.Exact(160)),
             DialogueDraft = new DialogueDraft(0, 1, 0, "Squall")
         });
+        session.SetEventState(RuntimeOwnerCheckpointFixture.Capture(session.State));
         session.ShowDialog("Retained");
         return session;
     }

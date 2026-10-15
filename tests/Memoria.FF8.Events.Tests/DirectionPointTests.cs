@@ -19,7 +19,7 @@ internal static partial class Program
         {
             GameSession session = GameSession.CreateColdProcess();
             session.Restore(session.State with { CharacterVitals = initial.DeepCopy(), WorldControls = NativeWorldControlState.CreateNewGame() });
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolvePartyTraceTriangle = (_, _, _) => 0,
@@ -61,13 +61,13 @@ internal static partial class Program
         }
         ActorState actor = live.Actors[0];
         Require(issued is { Speed: 0, StopDistance: 0, TurnAccumulator: 5, DirectionLimit: 5, TargetX: 70 * 4096, TargetY: -136 * 4096 } && actor.Direction == 39 && actor.NativeTurnAccumulator474 == 0 && actor.MovementDirectionLimit == 5 && actor.NativeMovementCompletion542 == 1 && actor.X == 1000 && actor.Y == 300 && actor.MovementSpeed == 0, "DIRP used duration/direct facing, reset474/610 or bypassed zero-speed body geometry.");
-        Require(!live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "DIRP issue did not end the current entity budget.");
+        Require(!CapturedVariables(live.Capture()).TryGetProperty("5000", out _), "DIRP issue did not end the current entity budget.");
         JsonElement current = live.Capture();
         EventEngine restored = Create();
         restored.Restore(current);
         live.Step();
         restored.Step();
-        Require(actor.NativeMovementCompletion542 == 2 && actor.MovementSpeed == actor.NativeMovementBaseSpeed && actor.NativeScriptMovement is { Active: false } && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "DIRP retry waited for542, popped more operands, changed physical speed restoration or differed after independent restore.");
+        Require(actor.NativeMovementCompletion542 == 2 && actor.MovementSpeed == actor.NativeMovementBaseSpeed && actor.NativeScriptMovement is { Active: false } && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "DIRP retry waited for542, popped more operands, changed physical speed restoration or differed after independent restore.");
         EventEngine wrapped = Create(0x100000 + 70);
         while (wrapped.Actors[0].NativeScriptMovement is not { Active: true, Speed: 0 } && wrapped.Frame < 12)
         {
@@ -89,7 +89,7 @@ internal static partial class Program
         {
         }
         JsonElement pending = refused.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
-        Require(pending.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([0, -136, 70]) && beforeActor == JsonSerializer.Serialize(refused.Actors[0]) && refused.Actors[0].MovementSpeed == refused.Actors[0].NativeMovementBaseSpeed && !refused.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "DIRP refusal consumed XYZ or changed actor words before admission.");
+        Require(pending.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([0, -136, 70]) && beforeActor == JsonSerializer.Serialize(refused.Actors[0]) && refused.Actors[0].MovementSpeed == refused.Actors[0].NativeMovementBaseSpeed && !CapturedVariables(refused.Capture()).TryGetProperty("5000", out _), "DIRP refusal consumed XYZ or changed actor words before admission.");
         Console.WriteLine("DIRP: fullDWORD XYZ wrapping, zero-speed mode1 body, preserved474/610, unconditional nextcallback512/542 writes, budget successor, pending restore and missing geometry atomic refusal passed.");
     }
 }

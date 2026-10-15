@@ -37,7 +37,7 @@ internal static partial class Program
         GameSession session = new(new GameState());
         using GameAssets assets = new(gameDirectory);
         session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         engine.Scene.Party.Clear();
         engine.Scene.Party.AddRange([8, 9, 0]);
         engine.LoadField(600, content, []);

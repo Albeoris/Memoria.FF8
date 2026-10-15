@@ -32,7 +32,7 @@ internal static partial class Program
             }
             main.AddRange([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 314159), (Jsm.Opcode.POPI_L, 0), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, 0x105), (Jsm.Opcode.CHANGEPARTY, 0), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 6000), (Jsm.Opcode.PSHN_L, 65536), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.CHANGEPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.CHANGEPARTY, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 6004), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]);
             (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)];
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, SyntheticObjects([1], [init, main.ToArray()]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (engine, session);
         }

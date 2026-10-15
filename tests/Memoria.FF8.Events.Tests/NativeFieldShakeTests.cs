@@ -57,7 +57,7 @@ internal static partial class Program
         }
         EventEngine live = Create();
         live.Step();
-        Require(live.FieldShake is { X.Cursor: 1, Y.Cursor: 1, X.Target: 7, Y.Target: 7, X.Duration: 4 } && !live.Capture().GetProperty("Variables").TryGetProperty("512", out _), "SHAKE WORD operands, first output or return3 yield differs.");
+        Require(live.FieldShake is { X.Cursor: 1, Y.Cursor: 1, X.Target: 7, Y.Target: 7, X.Duration: 4 } && !CapturedVariables(live.Capture()).TryGetProperty("512", out _), "SHAKE WORD operands, first output or return3 yield differs.");
         JsonElement snapshot = live.Capture();
         Require(!snapshot.GetProperty("Scene").TryGetProperty("Shake", out _) && snapshot.GetProperty("FieldShake").GetProperty("X").GetProperty("Cursor").GetByte() == 1, "VM retained a second shake authority or alternative cursor domain.");
         EventEngine independent = Create();
@@ -68,7 +68,7 @@ internal static partial class Program
             independent.Step();
             Require(JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Current native shake words diverged after independent exact-frame restore.");
         }
-        Require(live.FieldShake is { X.Enabled: false, Y.Enabled: false, X.Output: 0, Y.Output: 0 } && live.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 17, "SHAKEOFF lost same-callback successor or residual completion.");
+        Require(live.FieldShake is { X.Enabled: false, Y.Enabled: false, X.Output: 0, Y.Output: 0 } && CapturedVariables(live.Capture()).GetProperty("512").GetInt32() == 17, "SHAKEOFF lost same-callback successor or residual completion.");
         byte[] runningContent = FieldMediaProgram((Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0));
         EventEngine moving = CreateFieldMedia(runningContent);
         moving.ShakeTables = tables;
@@ -99,7 +99,7 @@ internal static partial class Program
         warm.SetFieldShake(produced);
         warm.StartNewGame();
         Require(warm.FieldShake == produced && warm.State.ReplayJournal is { IsComplete: false }, "Warm NewGame reset process shake or fabricated fresh journal provenance.");
-        EventEngine absent = new(new GameSession(new GameState()), new Dictionary<int, int>()) { ShakeTables = tables };
+        EventEngine absent = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ShakeTables = tables };
         absent.LoadField(101, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         absent.Step();
         try
@@ -113,7 +113,7 @@ internal static partial class Program
         JsonElement refused = absent.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         Require(refused.GetProperty("Stack").GetArrayLength() == 4 && absent.FieldShake is null, "Unknown SHAKE admission consumed operands or initialized cursor.");
         NativeShakeAccessServices access = new();
-        EventEngine unavailable = new(access, new Dictionary<int, int>()) { ShakeTables = tables };
+        EventEngine unavailable = new(access, NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ShakeTables = tables };
         unavailable.LoadField(101, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         unavailable.Step();
         access.CanStoreFieldShake = false;
@@ -130,7 +130,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(beforeRefusal, unavailable.Capture()) && beforeOwner == access.FieldShake, "Unavailable shake callback mutated the VM frame or process owner before refusal.");
         GameSession scalarSession = new(GameSession.CreateColdProcess().State with { ExamTimer = NativeExamTimerState.FromReachedSet(10) });
         byte[] scalarContent = FieldMediaProgram((Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.SHAKEOFF, 0), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0));
-        EventEngine scalar = new(scalarSession, scalarSession.State.Variables) { ShakeTables = tables };
+        EventEngine scalar = new(scalarSession) { ShakeTables = tables };
         scalar.LoadField(101, scalarContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         scalar.Step();
         scalar.Step();
@@ -140,7 +140,7 @@ internal static partial class Program
         Require(scalar.FieldShake is { X.Enabled: false, Y.Enabled: false } && scalarFiber.GetProperty("Stack").GetArrayLength() == 0 && scalarFiber.GetProperty("Results").TryGetProperty("1", out JsonElement retained) && retained.ValueKind == JsonValueKind.Object, "Zero-operand SHAKEOFF rejected/deleted unrelated uncertainty or failed its same-budget successor.");
         GameSession ambiguousSession = new(GameSession.CreateColdProcess().State with { ExamTimer = NativeExamTimerState.FromReachedSet(10) });
         byte[] ambiguousContent = FieldMediaProgram((Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.PSHN_L, 256), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.SHAKE, 0));
-        EventEngine ambiguous = new(ambiguousSession, ambiguousSession.State.Variables) { ShakeTables = tables };
+        EventEngine ambiguous = new(ambiguousSession) { ShakeTables = tables };
         ambiguous.LoadField(101, ambiguousContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         ambiguous.Step();
         try

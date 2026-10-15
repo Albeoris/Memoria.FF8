@@ -9,7 +9,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedEconomyAliases()
     {
-        return variables.Keys.Any(address => address < 80 && (long)address + 4 > 72) || services.NativeVariableValues?.Any(pair => pair.Key < 80 && (long)pair.Key + pair.Value.Width > 72) == true ? "Native gil event-bank words overlap a separate VM memory alias; recreate authentic inputs" : null;
+        return EventMemory.Overlaps(72, 8) ? "Native gil event-bank words overlap a separate VM memory alias; recreate authentic inputs" : null;
     }
 
     private string? UnsupportedNativeEconomy(Fiber fiber, JsmOperation operation)

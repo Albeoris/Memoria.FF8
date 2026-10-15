@@ -8,7 +8,7 @@ public sealed class PreviousFieldSessionTests
     public void NormalFieldAndMovieDeparturesPersistTheirActualSourceAcrossReload()
     {
         var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 160 });
-        session.State.Variables[256] = 17;
+        session.SetEventMemory(session.State.EventMemory.Write(256, 4, NativeScalarValue.Exact(17)));
         session.RequestField(new FieldTransition(159, -126, -3803, 244, 0, 1323));
         Assert.Equal(160, session.State.PreviousFieldId);
         Assert.Equal(159, session.State.FieldId);

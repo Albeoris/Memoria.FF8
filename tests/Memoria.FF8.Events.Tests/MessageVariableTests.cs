@@ -14,7 +14,7 @@ internal static partial class Program
         {
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(999, content, ["Score {Var 49}"], nativeRuntimeProfile: verified ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;
         }
@@ -45,7 +45,7 @@ internal static partial class Program
         Require(fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack")[0].GetInt32() == 100 && fiber.GetProperty("Stack")[1].GetInt32() == -7 && unproved.MessageVariables == NativeMessageVariables.FromColdProcess(), "Refused MESVAR consumed operands, advanced PC or wrote the bank.");
         byte[] uncertain = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.MESVAR, 0), (Jsm.Opcode.RET, 8));
         GameSession uncertainSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine uncertainEngine = new(uncertainSession, uncertainSession.State.Variables);
+        EventEngine uncertainEngine = new(uncertainSession);
         uncertainEngine.LoadField(997, uncertain, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         uncertainEngine.Step();
         try

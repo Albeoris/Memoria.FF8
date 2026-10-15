@@ -24,11 +24,11 @@ internal static partial class Program
                 EventEngine Create()
                 {
                     GameSession session = GameSession.CreateColdProcess();
-                    session.State.Variables[640] = duration;
-                    session.State.Variables[644] = int.MinValue;
-                    session.State.Variables[648] = 511;
-                    session.State.Variables[652] = int.MaxValue;
-                    EventEngine engine = new(session, session.State.Variables);
+                    session.SetEventMemory(session.State.EventMemory.Write(640, 4, NativeScalarValue.Exact(duration)));
+                    session.SetEventMemory(session.State.EventMemory.Write(644, 4, NativeScalarValue.Exact(int.MinValue)));
+                    session.SetEventMemory(session.State.EventMemory.Write(648, 4, NativeScalarValue.Exact(511)));
+                    session.SetEventMemory(session.State.EventMemory.Write(652, 4, NativeScalarValue.Exact(int.MaxValue)));
+                    EventEngine engine = new(session);
                     engine.LoadField(100, content, []);
                     return engine;
                 }
@@ -68,8 +68,8 @@ internal static partial class Program
         foreach (int volume in new[] { -1, 0, 1, 63, 64, 127, 128, 255, 256, int.MinValue, int.MaxValue })
         {
             GameSession session = GameSession.CreateColdProcess();
-            session.State.Variables[640] = volume;
-            EventEngine engine = new(session, session.State.Variables);
+            session.SetEventMemory(session.State.EventMemory.Write(640, 4, NativeScalarValue.Exact(volume)));
+            EventEngine engine = new(session);
             engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.PSHM_L, 640), (Jsm.Opcode.ALLSEVOLTRANS, 0), (Jsm.Opcode.RET, 0)), []);
             engine.Step();
             Require(engine.Scene.AllSoundVolumeTransition is { DurationMilliseconds: 600 } request && request.RawVolume == volume && request.DoubledVolume == unchecked(2 * volume) && request.Volume == (unchecked(2 * volume) & 127), "ALLSEVOLTRANS lost signed/full volume doubling before backend seven-bit narrowing.");

@@ -18,7 +18,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(int x = 1048576 + 82)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, Content(x), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }

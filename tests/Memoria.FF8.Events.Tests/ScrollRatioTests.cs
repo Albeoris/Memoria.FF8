@@ -17,7 +17,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState());
-                EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScroll = (_, _) => true, CanSetBackgroundScrollRatio = (_, _) => true };
+                EventEngine engine = new(session) { CanSetBackgroundScroll = (_, _) => true, CanSetBackgroundScrollRatio = (_, _) => true };
                 engine.LoadField(100, content, []);
                 return engine;
             }
@@ -38,7 +38,7 @@ internal static partial class Program
             session.StartNewGame();
             using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
-            EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollRatio = (_, _) => true };
+            EventEngine engine = new(session) { CanSetBackgroundScrollRatio = (_, _) => true };
             engine.LoadField(100, allocated, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -66,7 +66,7 @@ internal static partial class Program
         foreach (int layer in new[] { -1, 8, 65537, 1 })
         {
             GameSession session = new(new GameState());
-            EventEngine refused = new(session, session.State.Variables) { CanSetBackgroundScrollRatio = (_, _) => true };
+            EventEngine refused = new(session) { CanSetBackgroundScrollRatio = (_, _) => true };
             refused.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, layer), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SCROLLRATIO2, 0), (Jsm.Opcode.RET, 0)), []);
             try
             {

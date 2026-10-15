@@ -11,7 +11,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        return variables.Keys.Any(address => address is >= 100 and <= 107 or >= 206 and <= 209) || services.NativeVariableValues?.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 103 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209) == true ? "Native world controls overlap an unproved memory alias; canonical byte-addressed owners are required" : null;
+        return EventMemory.Overlaps(103, 5) || EventMemory.Overlaps(207, 1) || EventMemory.Overlaps(209, 1) ? "Native world controls overlap an unproved memory alias; canonical byte-addressed owners are required" : null;
     }
 
     private string? UnsupportedWorldControlAccess(JsmOperation operation)

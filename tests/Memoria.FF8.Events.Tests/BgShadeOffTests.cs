@@ -28,7 +28,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState());
-                EventEngine engine = new(session, session.State.Variables);
+                EventEngine engine = new(session);
                 engine.LoadField(100, content, []);
                 return engine;
             }
@@ -63,7 +63,7 @@ internal static partial class Program
         }
         byte[] nonModule = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.BGSHADEOFF, 0), (Jsm.Opcode.POPM_B, 1000), (Jsm.Opcode.RET, 0));
         GameSession invalidSession = new(new GameState());
-        EventEngine invalid = new(invalidSession, invalidSession.State.Variables);
+        EventEngine invalid = new(invalidSession);
         invalid.LoadField(100, nonModule, []);
         try
         {
@@ -82,7 +82,7 @@ internal static partial class Program
             using GameAssets assets = new(gameDirectory);
             GameSession session = new(GameSession.Load(source));
             FieldAssets field = assets.LoadField(session.State.FieldId);
-            EventEngine actual = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
+            EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
             actual.LoadField(field.Id, field.Jsm, field.Messages, session.State.FieldArrival, nativeRuntimeProfile: assets.NativeRuntimeProfile);
             actual.Restore(session.State.EventState!.Value);
             bool crossed = false;

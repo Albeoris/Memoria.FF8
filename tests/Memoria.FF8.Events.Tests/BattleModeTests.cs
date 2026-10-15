@@ -15,8 +15,8 @@ internal static partial class Program
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            session.State.Variables[512] = raw;
-            EventEngine first = new(session, session.State.Variables);
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(raw)));
+            EventEngine first = new(session);
             first.LoadField(999, content, []);
             first.Step();
             NativeBattleFlagWrite write = first.Scene.NativeBattleFlagWrites![0];
@@ -26,7 +26,7 @@ internal static partial class Program
             Require(snapshot.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && snapshot.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "Frames", "BATTLEMODE consumed a sentinel or yielded its own instruction budget.");
             Require(first.ExamTimer!.Event182Mask4 == ((word & 4) != 0) && first.ExamTimer.SaveGlobalMask4 == ((word & 4) != 0) && first.ExamTimer.Event183Mask1 == ((word & 0x100) != 0), "Reached SETTIMER ignored the authentic battle-mode WORD masks.");
             GameSession other = new(new GameState());
-            EventEngine restored = new(other, other.State.Variables);
+            EventEngine restored = new(other);
             restored.LoadField(999, content, []);
             restored.Restore(snapshot);
             first.Step();
@@ -48,7 +48,7 @@ internal static partial class Program
 
         byte[] battle = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x120), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         GameSession battleSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromColdProcess() });
-        EventEngine engine = new(battleSession, battleSession.State.Variables);
+        EventEngine engine = new(battleSession);
         engine.LoadField(998, battle, []);
         engine.Step();
         NativeBattleFlagWrite current = engine.Scene.NativeBattleFlagWrites![^1];
@@ -57,7 +57,7 @@ internal static partial class Program
         Require(completion.FlagConsumer is { RequestedFlags: 2, PersistentModeFlags: 0x124, ReplacedActiveFlags: true, NativeEncounterFlagMergeEmulated: false } && completion.EmulatedCombatCallbacks == 0 && completion.Result is null, "Minimal battle backend discarded its flags or fabricated the native encounter merge/combat.");
         JsonElement pending = engine.Capture();
         GameSession resumedSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
-        EventEngine resumed = new(resumedSession, resumedSession.State.Variables);
+        EventEngine resumed = new(resumedSession);
         resumed.LoadField(998, battle, []);
         resumed.Restore(pending);
         JsonNode changedConsumer = JsonNode.Parse(pending.GetRawText())!;
@@ -76,7 +76,7 @@ internal static partial class Program
 
         byte[] loader = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x120), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         GameSession loaderSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromColdProcess() });
-        EventEngine loading = new(loaderSession, loaderSession.State.Variables);
+        EventEngine loading = new(loaderSession);
         loading.LoadField(996, loader, []);
         loading.Step();
         loading.Step();
@@ -84,33 +84,33 @@ internal static partial class Program
         Require(loading.Scene.NativeBattleFlagWrites![^1] is { Writer: NativeBattleFlagWriter.FieldLoad, PersistentFlags: 0x124, ActiveFlags: 0x124 } && loading.ExamTimer!.SaveGlobalMask4 == true, "Normal field load did not copy saved WORD182 back into active battle flags.");
         JsonElement loaded = loading.Capture();
         GameSession loadedSession = new(new GameState());
-        EventEngine loadedEngine = new(loadedSession, loadedSession.State.Variables);
+        EventEngine loadedEngine = new(loadedSession);
         loadedEngine.LoadField(997, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
         loadedEngine.Restore(loaded);
         Require(JsonElement.DeepEquals(loaded, loadedEngine.Capture()), "Battle-mode field-loader write did not survive independent restore.");
         loading.LoadField(996, loader, []);
-        EventEngine revisited = new(loadedSession, loadedSession.State.Variables);
+        EventEngine revisited = new(loadedSession);
         revisited.LoadField(996, loader, []);
         revisited.Restore(loading.Capture());
         Require(JsonElement.DeepEquals(loading.Capture(), revisited.Capture()), "Battle-mode history treated an earlier visit's frame as a current field operation.");
 
         GameSession suppressedSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x38 } });
-        EventEngine suppressed = new(suppressedSession, suppressedSession.State.Variables);
+        EventEngine suppressed = new(suppressedSession);
         suppressed.LoadField(994, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x123), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.RET, 0)), []);
         suppressed.Step();
         Require(suppressed.Scene.NativeBattleFlagWrites is { Count: 1 } && suppressed.Scene.NativeBattleFlagWrites[0].ActiveFlags == 0x123 && suppressed.Scene.NativeBattleCompletions![0].FlagConsumer is null, "Suppressed BATTLE changed active flags or invented a battle consumer.");
 
         GameSession uiSession = GameSession.CreateColdProcess();
         uiSession.StartNewGame();
-        EventEngine ui = new(uiSession, uiSession.State.Variables);
+        EventEngine ui = new(uiSession);
         ui.LoadField(995, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.RET, 0)), []);
         ui.Step();
         Require(ui.ExamTimer is { DisplayEnabled: true, Event182Mask4: false, SaveGlobalMask4: false, Event183Mask1: false }, "BATTLEMODE cleared timer UI state while replacing native flag WORDs.");
         ui.ExamTimer!.Validate();
 
         GameSession aliasSession = new(new GameState());
-        aliasSession.State.Variables[182] = 123;
-        EventEngine alias = new(aliasSession, aliasSession.State.Variables);
+        aliasSession.SetEventMemory(aliasSession.State.EventMemory.Write(182, 4, NativeScalarValue.Exact(123)));
+        EventEngine alias = new(aliasSession);
         alias.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {

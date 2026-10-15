@@ -8,7 +8,6 @@ namespace Memoria.FF8.Events;
 public sealed partial class EventEngine
 {
     private readonly IEventServices services;
-    private readonly IDictionary<int, int> variables;
     private readonly List<ActorState> actors = [];
     private readonly List<Fiber> fibers = [];
     // Native529FF0 visits its eight fixed channels in ascending order. Keep
@@ -27,10 +26,13 @@ public sealed partial class EventEngine
     private int backgroundFps = 8;
     private int nameEntity;
 
-    public EventEngine(IEventServices services, IDictionary<int, int> variables)
+    public EventEngine(IEventServices services, NativeEventMemory? initialMemory = null)
     {
         this.services = services ?? throw new ArgumentNullException(nameof(services));
-        this.variables = variables ?? throw new ArgumentNullException(nameof(variables));
+        if (initialMemory is not null)
+        {
+            SetEventMemory(initialMemory);
+        }
         if (services is GameSession session)
         {
             session.MovieCompleting += CompleteNativeMovieActors;
@@ -130,10 +132,7 @@ public sealed partial class EventEngine
         movieProgressExpected = false;
         CurrentMoviePlayback = null;
         // Native field initialization clears the 256 temporary bytes at variable offset 0x400.
-        foreach (int address in variables.Keys.Where(address => address >= 1024 && address < 1280).ToArray())
-        {
-            variables.Remove(address);
-        }
+        SetEventMemory(EventMemory.Clear(1024, 1280));
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;

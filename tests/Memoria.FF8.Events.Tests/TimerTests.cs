@@ -12,7 +12,7 @@ internal static partial class Program
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
         const uint unrelatedFlags = 0xA500023F;
         GameSession session = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = unrelatedFlags }, ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine first = new(session, session.State.Variables);
+        EventEngine first = new(session);
         first.LoadField(100, content, []);
         first.Step();
         Require(first.ExamTimer is { ClockCalls: 2, DisplayX: 250, DisplayY: 10, DisplayEnabled: true } && first.ExamTimer.RequireRemaining() == 600, "SET/DISP reset unknown phase, lost unsigned screen coordinates or discarded a pre-SET clock.");
@@ -20,7 +20,7 @@ internal static partial class Program
         first.Step();
         Require(first.ExamTimer!.ClockCalls == 4 && first.ExamTimer.Alternatives.Any(item => item.Remaining == 599) && first.ExamTimer.Alternatives.Any(item => item.Remaining == 600), "Field clock did not preserve correlated remaining alternatives after two pre-VM native calls.");
         GameSession independentSession = new(new GameState());
-        EventEngine resumed = new(independentSession, independentSession.State.Variables);
+        EventEngine resumed = new(independentSession);
         resumed.LoadField(100, content, []);
         resumed.Restore(first.Capture());
         for (int frame = 0; frame < 25; frame++)
@@ -38,7 +38,7 @@ internal static partial class Program
 
         byte[] ambiguousGet = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.RET, 0));
         GameSession uncertainSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine uncertain = new(uncertainSession, uncertainSession.State.Variables);
+        EventEngine uncertain = new(uncertainSession);
         uncertain.LoadField(100, ambiguousGet, []);
         uncertain.Step();
         uncertain.Step();
@@ -47,20 +47,20 @@ internal static partial class Program
 
         NativeExamTimerState exact = NativeExamTimerState.FromReachedSet(5) with { Alternatives = [new NativeTimerAlternative(131071, 131071, 5)] };
         GameSession exactSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = exact });
-        EventEngine exactEngine = new(exactSession, exactSession.State.Variables);
+        EventEngine exactEngine = new(exactSession);
         exactEngine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.RET, 0)), []);
         exactEngine.Step();
         Require(exactEngine.Capture().GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 4, "GETTIMER did not observe clock calls before VM dispatch.");
 
         NativeExamTimerState expired = NativeExamTimerState.FromReachedSet(0).Display(250, 10) with { Event183Mask1 = false };
         GameSession killSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x58 }, ExamTimer = expired });
-        EventEngine kill = new(killSession, killSession.State.Variables);
+        EventEngine kill = new(killSession);
         kill.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0)), []);
         kill.Step();
         Require((killSession.WorldControls!.EventFlags104 & 0x40) == 0 && killSession.State.FieldId == 74, "Expiry ran before same-frame native KILLTIMER.");
 
         GameSession boundarySession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = 0x58 }, ExamTimer = expired });
-        EventEngine boundary = new(boundarySession, boundarySession.State.Variables);
+        EventEngine boundary = new(boundarySession);
         boundary.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -73,7 +73,7 @@ internal static partial class Program
         Require(boundarySession.State.FieldArrival is null, "Unsupported timer expiry published a guessed arrival.");
 
         GameSession aliasSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10) });
-        EventEngine alias = new(aliasSession, aliasSession.State.Variables);
+        EventEngine alias = new(aliasSession);
         alias.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 205), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -85,7 +85,7 @@ internal static partial class Program
         }
         Require(alias.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1, "Unproved timer memory alias advanced its issuing PC.");
         GameSession movieSession = new(new GameState { Scene = SceneKind.Field, WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromReachedSet(600).Display(250, 10).KillDisplay() });
-        EventEngine movie = new(movieSession, movieSession.State.Variables);
+        EventEngine movie = new(movieSession);
         movie.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.MOVIESYNC, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         movie.Step();
         Require(!movieSession.IsMoviePlaying && movieSession.ExamTimer!.ClockCalls == 2, "MOVIEREADY did not yield its original return3 ordinary callback before starting playback.");

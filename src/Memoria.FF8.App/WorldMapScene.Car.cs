@@ -19,7 +19,7 @@ internal sealed partial class WorldMapScene
         }
         // Section9 clause1 creates only stored shape4 in [34,205).548CD0 skips
         // that controlled foot record and the current shape73 car;94 is skipped universally.
-        if (inputs.StoryWord is < 34 or >= 205 || (inputs.ReplacementFlags & 7) != 0 || saved.Slot4.ShapeId != 73 || saved.Slot5.ShapeId != 0 || (session.State.Variables.GetValueOrDefault(265) & 128) == 0)
+        if (inputs.StoryWord is < 34 or >= 205 || (inputs.ReplacementFlags & 7) != 0 || saved.Slot4.ShapeId != 73 || saved.Slot5.ShapeId != 0 || (inputs.EventFlags265 & 128) == 0)
         {
             throw new NotSupportedException("Native car contacts require the proved ordinary story clause, current shape73, disabled object pairs and disabled disembark control.");
         }

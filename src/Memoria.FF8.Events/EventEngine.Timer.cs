@@ -37,11 +37,11 @@ public sealed partial class EventEngine
             {
                 return "Native timer display requires its DWORD104 owner and atomic flag/timer publication";
             }
-            if (variables.Keys.Any(address => address is >= 101 and <= 107 or >= 179 and <= 183))
+            if (EventMemory.Overlaps(103, 5) || EventMemory.Overlaps(182, 2))
             {
                 return "Native exam timer flags overlap legacy memory aliases with unknown width; original PC and operands retained";
             }
-            if (operation.Opcode == Jsm.Opcode.DISPTIMER && variables.Keys.Any(address => address is >= 202 and <= 206))
+            if (operation.Opcode == Jsm.Opcode.DISPTIMER && EventMemory.Overlaps(205, 2))
             {
                 return "DISPTIMER coordinates overlap legacy memory aliases with unknown width; original PC and operands retained";
             }

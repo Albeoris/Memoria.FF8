@@ -75,10 +75,10 @@ internal static partial class Program
                     restored.Step();
                     Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Short-clip ladder follower drain changed physical trace, animation or completion after independent restore.");
                 }
-                Require(actor.NativeMovementCompletion542 == 2 && actor.NativeTurnAccumulator474 == 32 && actor.NativeLadder is { Active: true } && !live.Capture().GetProperty("Variables").TryGetProperty("6000", out _), "Short-clip traversal skipped the original32-callback two-follower drain or released its VM instruction too early.");
+                Require(actor.NativeMovementCompletion542 == 2 && actor.NativeTurnAccumulator474 == 32 && actor.NativeLadder is { Active: true } && !CapturedVariables(live.Capture()).TryGetProperty("6000", out _), "Short-clip traversal skipped the original32-callback two-follower drain or released its VM instruction too early.");
                 live.Step();
                 restored.Step();
-                Require(actor.NativeLadder is { Active: false } && live.Scene.PartyTrace is { FirstOffset: 15, SecondOffset: 30 } && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Short ladder did not complete return2 with its immediate successor and restored normal follower delays.");
+                Require(actor.NativeLadder is { Active: false } && live.Scene.PartyTrace is { FirstOffset: 15, SecondOffset: 30 } && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Short ladder did not complete return2 with its immediate successor and restored normal follower delays.");
             }
         }
         Console.WriteLine("Native mode4 short clips: one/two-frame leader exit durations−1/0, one-frame follower animation resources, old-counter placement/triangle transfer, exact transient restore scope,32-callback drain and return2 successor pass in both directions.");

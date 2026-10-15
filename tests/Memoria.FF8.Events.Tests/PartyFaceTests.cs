@@ -36,7 +36,7 @@ internal static partial class Program
         EventEngine Create(int slot = 0, int duration = 65540, bool moving = false)
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0),
@@ -56,7 +56,7 @@ internal static partial class Program
             return engine;
         }
         JsonElement CallerFiber(EventEngine engine) => engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        bool HasVariable(EventEngine engine, string address) => engine.Capture().GetProperty("Variables").TryGetProperty(address, out _);
+        bool HasVariable(EventEngine engine, string address) => CapturedVariables(engine.Capture()).TryGetProperty(address, out _);
         void ReachIssue(EventEngine engine)
         {
             while (engine.Actors[0].FaceTargetPoint is null && engine.Frame < 16)
@@ -130,7 +130,7 @@ internal static partial class Program
         live.Step();
         restored.Step();
         completedCopy.Step();
-        Require(HasVariable(live, "5000") && HasVariable(live, "5001") && live.Capture().GetProperty("Variables").GetProperty("5002").GetInt32() == 123456 && actor.FaceProgress == 4 && actor.FaceTargetPoint == expected && actor.FirstControlRotation is not null && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.Direction == 0 && CallerFiber(live).GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), completedCopy.Capture()), "FACEDIRP equality/FACEDIRSYNC did not continue in the closing VM callback, preserve physical pose and completed joint state or restore independently at equality.");
+        Require(HasVariable(live, "5000") && HasVariable(live, "5001") && CapturedVariables(live.Capture()).GetProperty("5002").GetInt32() == 123456 && actor.FaceProgress == 4 && actor.FaceTargetPoint == expected && actor.FirstControlRotation is not null && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.Direction == 0 && CallerFiber(live).GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), completedCopy.Capture()), "FACEDIRP equality/FACEDIRSYNC did not continue in the closing VM callback, preserve physical pose and completed joint state or restore independently at equality.");
 
         foreach (int duration in new[] { 65536, 65535, -1 })
         {

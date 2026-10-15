@@ -12,11 +12,10 @@ public sealed partial class EventEngine
             return;
         }
         configuration.Validate();
-        if (services.NativeVariableValues?.Any(pair => pair.Key <= 86 && pair.Key + pair.Value.Width > 86) == true)
+        if (EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86))
         {
             throw new NotSupportedException("Native world entity allocation overlaps retained uncertain memory whose byte projection is unimplemented.");
         }
-        byte? restoredByte = null;
         if (allocationContext is JsonElement context)
         {
             bool authentic = services is Memoria.FF8.Runtime.GameSession session && (session.State.EventState is JsonElement current && JsonElement.DeepEquals(current, context) || session.State.DepartingFieldState is JsonElement departing && JsonElement.DeepEquals(departing, context));
@@ -26,14 +25,6 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Native field allocation restore context does not match its saved original VM and program.");
             }
             ValidatePreviousWorldEntityCheckpoint(saved);
-            restoredByte = saved.Scene.PreviousWorldEntityByte86;
-        }
-        foreach ((int address, int value) in variables)
-        {
-            if (address is >= 83 and <= 86 && address != 84 && !(address == 86 && (Scene.PreviousWorldEntityByte86 == value || restoredByte == value)))
-            {
-                throw new NotSupportedException("Native world entity BYTE86 allocation intersects an ambiguous memory alias; current field is preserved.");
-            }
         }
     }
 
@@ -43,7 +34,6 @@ public sealed partial class EventEngine
         {
             // Native52BC00 copies BYTE1(2036B4C) on every allocation, independently of field identity.
             Scene.PreviousWorldEntityByte86 = configuration.EntityByte;
-            variables[86] = configuration.EntityByte;
         }
     }
 
@@ -58,11 +48,11 @@ public sealed partial class EventEngine
         {
             return "Native world entity BYTE86 requires its exact byte read; overlapping access or an unimplemented writer preserves PC and operands";
         }
-        if (Scene.PreviousWorldEntityByte86 is not byte known)
+        if (Scene.PreviousWorldEntityByte86 is null)
         {
             return "Native world entity BYTE86 requires executed process configuration and field allocation authority";
         }
-        if (!variables.TryGetValue(86, out int alias) || alias != known || variables.Keys.Any(address => address is 83 or 85) || services.NativeVariableValues?.Any(pair => pair.Key <= 86 && pair.Key + pair.Value.Width > 86) == true)
+        if (EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86))
         {
             return "Native world entity BYTE86 disagrees with its exact allocated memory authority";
         }
@@ -73,7 +63,7 @@ public sealed partial class EventEngine
     {
         if (saved.Scene.PreviousWorldEntityByte86 is byte known)
         {
-            if (!saved.Variables.TryGetValue(86, out int alias) || alias != known || saved.Variables.Keys.Any(address => address is 83 or 85) || services.ReplayScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration?.EntityByte != known)
+            if (saved.EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86) || services.ReplayScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration?.EntityByte != known)
             {
                 throw new InvalidDataException("Saved world entity BYTE86 disagrees with its allocated process configuration.");
             }

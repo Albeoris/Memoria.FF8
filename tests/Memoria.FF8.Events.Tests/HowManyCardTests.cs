@@ -71,11 +71,11 @@ internal static partial class Program
 
         ReadOnlyCardService readOnly = new(initial.Acquire(12, out _));
         Dictionary<int, int> memory = [];
-        EventEngine read = new(readOnly, memory);
+        EventEngine read = new(readOnly, NativeEventMemory.FromDWords(memory));
         read.LoadField(100, HowManyCardProgram(12), []);
         read.Step();
-        Require(!readOnly.CanStoreCardInventory && readOnly.Writes == 0 && memory[1000] == 1 && readOnly.CardInventory.Cards[12] == 0x81, "HOWMANYCARD incorrectly requires a writer or updates a read-only service.");
-        EventEngine cannotGrant = new(readOnly, new Dictionary<int, int>());
+        Require(!readOnly.CanStoreCardInventory && readOnly.Writes == 0 && read.Variables[1000] == 1 && readOnly.CardInventory.Cards[12] == 0x81, "HOWMANYCARD incorrectly requires a writer or updates a read-only service.");
+        EventEngine cannotGrant = new(readOnly, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         cannotGrant.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.GETCARD, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
@@ -93,7 +93,7 @@ internal static partial class Program
         {
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.HOWMANYCARD, 0), (Jsm.Opcode.RET, 0));
             (GameSession session, EventEngine engine) = CreateCardEngine(initial, null, content);
-            session.State.Variables[512] = id;
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(id)));
             ExpectWorldControlFault(engine, Jsm.Opcode.HOWMANYCARD, 3, [id, 57]);
             Require(session.State.Variables.Count == 1 && session.State.Variables[512] == id && CardsEqual(initial, session.CardInventory), "Invalid full DWORD card ID changed memory, narrowed into an accepted ID or changed the owner.");
         }
@@ -106,21 +106,18 @@ internal static partial class Program
         foreach (int address in new[] { 1405, 1408, 1518, 1522 })
         {
             (GameSession session, EventEngine engine) = CreateCardEngine(initial, null, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.HOWMANYCARD, 0), (Jsm.Opcode.RET, 0)));
-            session.State.Variables[address] = 7;
-            ExpectWorldControlFault(engine, Jsm.Opcode.HOWMANYCARD, 2, [12]);
-            Require(session.State.Variables.Count == 1 && session.State.Variables[address] == 7 && CardsEqual(initial, session.CardInventory), "Card-memory alias refusal mutated its stack/source or admitted a duplicate memory owner.");
+            ExpectEventMemoryPublicationFault(session, session.State.EventMemory.Write(address, 4, NativeScalarValue.Exact(7)));
+            Require(CardsEqual(initial, session.CardInventory), "Card-memory publication refusal changed the inventory.");
         }
         foreach ((int address, int width) in new[] { (1405, 4), (1407, 2), (1522, 1) })
         {
             NativeMemoryValue alias = new(width, NativeScalarValue.Exact(7));
-            GameSession session = new(new GameState { CardInventory = initial, NativeVariableValues = new Dictionary<int, NativeMemoryValue> { [address] = alias } });
-            EventEngine engine = new(session, session.State.Variables);
-            engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.HOWMANYCARD, 0), (Jsm.Opcode.RET, 0)), []);
-            ExpectWorldControlFault(engine, Jsm.Opcode.HOWMANYCARD, 2, [12]);
-            Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State.NativeVariableValues![address]), JsonSerializer.SerializeToElement(alias)) && session.State.NativeVariableValues.Count == 1 && CardsEqual(initial, session.CardInventory), "Typed partial card alias was admitted or changed before refusal.");
+            GameSession session = new(new GameState { CardInventory = initial });
+            ExpectEventMemoryPublicationFault(session, new NativeEventMemory(1, new Dictionary<int, NativeMemoryValue> { [address] = alias }));
+            Require(CardsEqual(initial, session.CardInventory), "Typed partial card alias changed the inventory before publication refusal.");
         }
         GameSession uncertainSession = new(new GameState { CardInventory = initial, ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine uncertain = new(uncertainSession, uncertainSession.State.Variables);
+        EventEngine uncertain = new(uncertainSession);
         uncertain.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.HOWMANYCARD, 0), (Jsm.Opcode.RET, 0)), []);
         uncertain.Step();
         try

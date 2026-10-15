@@ -22,10 +22,10 @@ internal static partial class Program
             (GameSession Session, EventEngine Engine) Create()
             {
                 GameSession session = GameSession.CreateColdProcess();
-                session.State.Variables[3000] = unchecked((int)sample.Mask);
-                session.State.Variables[3004] = sample.Duration;
-                session.State.Variables[3008] = sample.Pan;
-                EventEngine engine = new(session, session.State.Variables);
+                session.SetEventMemory(session.State.EventMemory.Write(3000, 4, NativeScalarValue.Exact(unchecked((int)sample.Mask))));
+                session.SetEventMemory(session.State.EventMemory.Write(3004, 4, NativeScalarValue.Exact(sample.Duration)));
+                session.SetEventMemory(session.State.EventMemory.Write(3008, 4, NativeScalarValue.Exact(sample.Pan)));
+                EventEngine engine = new(session);
                 engine.LoadField(100, content, []);
                 return (session, engine);
             }
@@ -81,7 +81,7 @@ internal static partial class Program
         foreach (bool missing in new[] { false, true })
         {
             RejectingSoundPositionServices services = new(missing ? null : NativeGlobalSoundProcess.FromBufferlessColdProcess());
-            EventEngine rejected = new(services, new Dictionary<int, int>());
+            EventEngine rejected = new(services, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
             rejected.LoadField(100, rejectedProgram, []);
             JsonElement owner = JsonSerializer.SerializeToElement(services.GlobalSoundProcess);
             try

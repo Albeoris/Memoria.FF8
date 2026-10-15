@@ -16,7 +16,7 @@ internal static partial class Program
     {
         byte[] ProgramFor(int effect = 69, int mask = 4, int pan = 100, int volume = 20) => SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, effect), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.PSHN_L, pan), (Jsm.Opcode.PSHN_L, volume), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 999), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.RET, 0));
         GameSession session = GameSession.CreateColdProcess();
-        EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
+        EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
         engine.LoadField(100, ProgramFor(), []);
         engine.Step();
         GlobalSoundRequest request = engine.Scene.GlobalSoundRequests.Single();
@@ -46,7 +46,7 @@ internal static partial class Program
         foreach (bool automaticVoice in new[] { false, true })
         {
             GameSession boundedSession = new(new GameState());
-            EventEngine bounded = new(boundedSession, boundedSession.State.Variables) { ResolveGlobalSoundResource = automaticVoice ? MutedGlobalSample : null };
+            EventEngine bounded = new(boundedSession) { ResolveGlobalSoundResource = automaticVoice ? MutedGlobalSample : null };
             bounded.LoadField(100, ProgramFor(mask: automaticVoice ? 0 : 4), []);
             try
             {
@@ -75,7 +75,7 @@ internal static partial class Program
         EventEngine Create(bool backend)
         {
             GameSession session = new(GameSession.Load(path));
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 LoadSoundResource = _ => SoundResourceStatus.Muted,

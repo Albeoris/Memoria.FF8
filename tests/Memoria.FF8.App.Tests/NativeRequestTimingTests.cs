@@ -18,7 +18,7 @@ public sealed class NativeRequestTimingTests
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -48,7 +48,7 @@ public sealed class NativeRequestTimingTests
     public void UnprovedSelfRequestRefusesBeforeConsumingOperandsOrTransferringItsSlot()
     {
         GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         engine.LoadField(999, Modules(Jsm.Opcode.REQ, selfRequest: true), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         Assert.Throws<EventScriptException>(() => engine.Step());
@@ -67,7 +67,7 @@ public sealed class NativeRequestTimingTests
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(999, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }

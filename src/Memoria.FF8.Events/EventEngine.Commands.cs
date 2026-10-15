@@ -55,69 +55,17 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_B:
             case Jsm.Opcode.PSHSM_B:
             case Jsm.Opcode.PSHM_W:
-            case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (services.DiscProcess is NativeDiscProcessState discMemory && parameter == 204 && operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B)
-                {
-                    fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)discMemory.SavedDisc204) : discMemory.SavedDisc204);
-                    fiber.StackExpressions.Push($"native[{parameter}]");
-                    return;
-                }
-                if (TryReadWorldEntryMemory(operation, out int nativeEconomy) || TryReadNativeFadeMemory(operation, out nativeEconomy) || TryReadNativeDrawPointMemory(operation, out nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
-                {
-                    fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
-                    fiber.StackExpressions.Push($"native[{parameter}]");
-                    return;
-                }
-                if (TryReadNativeScalar(operation, out NativeScalarValue nativeRead))
-                {
-                    fiber.Stack.Push(nativeRead);
-                    fiber.StackExpressions.Push($"native[{parameter}]");
-                    return;
-                }
-                bool byteRead = opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B;
-                int value = byteRead && parameter == 209 && services.WorldControls is not null ? services.WorldControls.Menu209 : variables.TryGetValue(parameter, out int stored) ? stored : 0;
-                if (byteRead && TryReadDrawPointByte(parameter, out int drawPointByte))
-                {
-                    value = drawPointByte;
-                }
-                if (byteRead && TryReadSoundVolumeByte(parameter, out int soundVolumeByte))
-                {
-                    value = soundVolumeByte;
-                }
-                if (TryReadMusicStopMemory(operation, out int stoppedMusicValue))
-                {
-                    value = stoppedMusicValue;
-                }
-                if (byteRead && TryReadNativeMusicByte(parameter, out int nativeMusicByte))
-                {
-                    value = nativeMusicByte;
-                }
-                if (TryReadPreviousFieldWord(operation, out int previousFieldWord))
-                {
-                    value = previousFieldWord;
-                }
-                fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)value) : opcode == Jsm.Opcode.PSHSM_W ? (short)value : value);
-                fiber.StackExpressions.Push($"{(opcode == Jsm.Opcode.PSHM_B ? "B" : opcode == Jsm.Opcode.PSHSM_B ? "SB" : opcode == Jsm.Opcode.PSHM_W ? "W" : opcode == Jsm.Opcode.PSHSM_W ? "SW" : "L")}[{parameter}]");
+            case Jsm.Opcode.PSHM_L:
+                NativeScalarValue memoryRead = ReadEventMemory(operation);
+                fiber.Stack.Push(memoryRead);
+                fiber.StackExpressions.Push($"native[{parameter}/{NativeMemoryWidth(opcode)}]");
                 return;
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
                 if (TryWriteWorldEntryMemory(fiber, operation, out args) || TryWriteWorldMusicSelection(fiber, operation, out args) || TryWriteNativeFadeMemory(fiber, operation, out args) || TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
-                    break;
-                }
-                if (fiber.Stack.Count > 0 && (!fiber.Stack.PeekValue().IsExact || services.NativeVariableValues?.ContainsKey(parameter) == true))
-                {
-                    NativeScalarValue nativeStored = StoreNativeScalar(fiber, operation);
-                    if (nativeStored.IsExact)
-                    {
-                        args = [nativeStored.RequireExact()];
-                    }
-                    else
-                    {
-                        scalarArgs = [nativeStored];
-                    }
                     break;
                 }
                 if (opcode == Jsm.Opcode.POPM_W && parameter == 84)
@@ -142,8 +90,15 @@ public sealed partial class EventEngine
                     args = Pop(fiber, 1);
                     break;
                 }
-                args = Pop(fiber, 1);
-                variables[parameter] = opcode == Jsm.Opcode.POPM_B ? args[0] & 255 : opcode == Jsm.Opcode.POPM_W ? args[0] & 65535 : args[0];
+                NativeScalarValue nativeStored = StoreNativeScalar(fiber, operation);
+                if (nativeStored.IsExact)
+                {
+                    args = [nativeStored.RequireExact()];
+                }
+                else
+                {
+                    scalarArgs = [nativeStored];
+                }
                 break;
             case Jsm.Opcode.PSHI_L:
                 fiber.Stack.Push(fiber.Results.GetValueOrDefault(parameter) ?? NativeScalarValue.Exact(0));
@@ -390,15 +345,7 @@ public sealed partial class EventEngine
                 ExecuteSplit(fiber);
                 break;
             case Jsm.Opcode.CLEAR:
-                if (services.NativeVariableValues is { Count: > 0 } retainedMemory)
-                {
-                    services.SetNativeVariableValues(retainedMemory.Where(pair => pair.Key < 256 || pair.Key >= 1280).ToDictionary());
-                }
-                // Original51D8B0 clears exactly event bytes256..1279, outside party and character records.
-                foreach (int address in variables.Keys.Where(address => address is >= 256 and < 1280).ToArray())
-                {
-                    variables.Remove(address);
-                }
+                SetEventMemory(EventMemory.Clear(256, 1280));
                 ClearWorldEntryMemory();
                 break;
             case Jsm.Opcode.SETMODEL:
@@ -702,7 +649,7 @@ public sealed partial class EventEngine
                 PrepareNativeMovieMask(fiber, fiber.Stack.Skip(1).First());
                 args = Pop(fiber, 2);
                 preparedMovie = args[0];
-                variables[80] = 0;
+                WriteGenericEventMemory(80, 2, NativeScalarValue.Exact(0));
                 movieProgressExpected = false;
                 Scene.MovieActors = new NativeMovieActorLifecycle(1, preparedMovie, args[1], Frame, null, null);
                 fiber.WaitReason = WaitReason.Frames;

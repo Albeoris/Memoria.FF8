@@ -10,7 +10,9 @@ public sealed partial class GameSession
     public void SetCardInventory(NativeCardInventory inventory)
     {
         ArgumentNullException.ThrowIfNull(inventory);
-        State = State with { CardInventory = inventory.DeepCopy() };
+        GameState candidate = State with { CardInventory = inventory.DeepCopy() };
+        ValidateEventMemoryOwners(candidate, State.EventMemory);
+        State = candidate;
     }
 
     private static void ValidateCardInventoryCheckpoint(GameState state, JsonElement? currentVm)

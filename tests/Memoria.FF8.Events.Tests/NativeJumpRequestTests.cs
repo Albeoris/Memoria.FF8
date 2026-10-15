@@ -25,7 +25,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 var session = new GameSession(new GameState());
-                var result = new EventEngine(session, session.State.Variables)
+                var result = new EventEngine(session)
                 {
                     AnimationFrameCount = (_, _) => 4,
                     CanUseNativeScriptMove = body => body.ObjectId == 0,

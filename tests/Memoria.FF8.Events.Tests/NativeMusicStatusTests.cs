@@ -13,7 +13,7 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         MusicStatusCountingServices countedServices = new();
-        EventEngine counted = new(countedServices, new Dictionary<int, int>());
+        EventEngine counted = new(countedServices, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         counted.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.MUSICSTATUS, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         counted.Step();
         Require(countedServices.QueryCount == 1, "MUSICSTATUS preflight executed an extra backend status query.");
@@ -35,7 +35,7 @@ internal static partial class Program
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             session.SetCharacterVitals(initial.DeepCopy());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -56,7 +56,7 @@ internal static partial class Program
 
         byte[] opaque = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.MUSICSTATUS, 0), (Jsm.Opcode.POPI_L, 2), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         GameSession opaqueSession = GameSession.CreateColdProcess();
-        EventEngine opaqueEngine = new(opaqueSession, opaqueSession.State.Variables) { LoadSoundResource = _ => SoundResourceStatus.Muted };
+        EventEngine opaqueEngine = new(opaqueSession) { LoadSoundResource = _ => SoundResourceStatus.Muted };
         opaqueEngine.Scene.Party.Clear();
         opaqueEngine.Scene.Party.AddRange([0, 255, 255]);
         opaqueEngine.LoadField(600, opaque, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -67,7 +67,7 @@ internal static partial class Program
 
         GameSession cold = GameSession.CreateColdProcess();
         GameSession missing = new(cold.State with { GlobalSoundProcess = null });
-        EventEngine unknown = new(missing, missing.State.Variables);
+        EventEngine unknown = new(missing);
         unknown.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.MUSICSTATUS, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         try
         {

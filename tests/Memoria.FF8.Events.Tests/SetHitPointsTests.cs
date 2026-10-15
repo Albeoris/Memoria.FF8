@@ -40,7 +40,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(NativeCharacterVitals? vitals, byte[] content)
         {
             GameSession session = new(new GameState { CharacterVitals = vitals });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, []);
             return (session, engine);
         }
@@ -107,7 +107,7 @@ internal static partial class Program
             Require(refused.LastFault is { Opcode: "SETHP", Operation: 3 } && fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()).SequenceEqual([9999, rawRow]) && refusedSession.CharacterVitals == vitals, "Unsupported SETHP consumed operands/PC or changed saved HP.");
         }
         RejectingSetHitPointsServices rejectingServices = new(source);
-        EventEngine rejecting = new(rejectingServices, new Dictionary<int, int>());
+        EventEngine rejecting = new(rejectingServices, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         rejecting.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 9999), (Jsm.Opcode.SETHP, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {

@@ -11,8 +11,8 @@ internal static partial class Program
     private static void NativeScalarMemoryContract()
     {
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine engine = new(session, session.State.Variables);
+        GameSession session = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame() });
+        EventEngine engine = new(session);
         engine.LoadField(999, content, []);
         engine.Step();
         try
@@ -26,14 +26,14 @@ internal static partial class Program
         JsonElement held = engine.Capture();
         Require(held.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 8 && held.GetProperty("Fibers")[0].GetProperty("Stack")[1].GetProperty("Values").GetArrayLength() == 2, "Uncertain command refusal did not preserve its PC and typed stack.");
         GameSession resumedSession = new(new GameState());
-        EventEngine resumed = new(resumedSession, resumedSession.State.Variables);
+        EventEngine resumed = new(resumedSession);
         resumed.LoadField(999, content, []);
         resumed.Restore(held);
         Require(JsonElement.DeepEquals(held, resumed.Capture()), "Typed stack/result restore changed its native alternatives.");
 
         byte[] storeContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 432), (Jsm.Opcode.KILLTIMER, 0), (Jsm.Opcode.RET, 0));
-        GameSession storeSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine stored = new(storeSession, storeSession.State.Variables);
+        GameSession storeSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame() });
+        EventEngine stored = new(storeSession);
         ScriptCommand? write = null;
         stored.CommandExecuted += command =>
         {
@@ -48,13 +48,13 @@ internal static partial class Program
         NativeMemoryValue entry = storeSession.State.NativeVariableValues![432];
         Require(!storeSession.State.Variables.ContainsKey(432) && entry.Width == 2 && entry.Value.Values.SequenceEqual([599, 600]) && write!.Arguments.Count == 0 && write.ScalarArguments![0].Values.SequenceEqual([599, 600]), "POPM_W fabricated a scalar or lost its original argument alternatives.");
         GameSession restoredSession = new(new GameState());
-        EventEngine restored = new(restoredSession, restoredSession.State.Variables);
+        EventEngine restored = new(restoredSession);
         restored.LoadField(999, storeContent, []);
         JsonElement saved = stored.Capture();
         restored.Restore(saved);
         Require(JsonElement.DeepEquals(saved, restored.Capture()), "Independent typed memory restore lost the read snapshot or width.");
         JsonNode malformed = JsonNode.Parse(saved.GetRawText())!;
-        malformed["NativeVariableValues"]!["432"]!["Value"]!["Values"]![0] = 598;
+        malformed["EventMemory"]!["Cells"]!["432"]!["Value"]!["Values"]![0] = 598;
         try
         {
             using JsonDocument invalid = JsonDocument.Parse(malformed.ToJsonString());
@@ -69,7 +69,7 @@ internal static partial class Program
         JsonElement reentered = restored.Capture();
         Require(restored.Frame == 0 && restored.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation == 4, "Same-field reentry did not retain its global allocation clock.");
         GameSession reentrySession = new(new GameState());
-        EventEngine reentry = new(reentrySession, reentrySession.State.Variables);
+        EventEngine reentry = new(reentrySession);
         reentry.LoadField(999, storeContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         reentry.Restore(reentered);
         Require(JsonElement.DeepEquals(reentered, reentry.Capture()) && reentrySession.State.NativeVariableValues![432].Value.Values.SequenceEqual([599, 600]), "Same-field reentry compared a previous read's frame with the reset current frame.");

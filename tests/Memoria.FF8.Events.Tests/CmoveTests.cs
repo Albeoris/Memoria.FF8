@@ -24,7 +24,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(bool priorMove = false, bool geometry = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = actor => actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 },

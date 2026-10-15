@@ -26,8 +26,8 @@ public sealed class FieldAudioPresentationTests
         byte[] program = Program((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 69), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.EFFECTPLAY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SESTOP, 0), (Jsm.Opcode.RET, 0));
         var firstSession = new GameSession(new GameState());
         var secondSession = new GameSession(new GameState());
-        var first = new EventEngine(firstSession, firstSession.State.Variables);
-        var second = new EventEngine(secondSession, secondSession.State.Variables);
+        var first = new EventEngine(firstSession);
+        var second = new EventEngine(secondSession);
         GlobalSoundResource Resource(int sample) => new(sample, GlobalSoundBackendStatus.Muted, new GlobalSoundLoopPolicy(0, 0, 0, 22050, 16, 1, null));
         first.ResolveGlobalSoundResource = Resource;
         second.ResolveGlobalSoundResource = Resource;

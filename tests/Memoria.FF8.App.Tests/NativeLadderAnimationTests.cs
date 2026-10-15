@@ -25,16 +25,16 @@ public sealed class NativeLadderAnimationTests
             BinaryPrimitives.WriteInt32LittleEndian(program.AsSpan(16 + 4 * index), raw);
         }
         Dictionary<int, int> variables = [];
-        EventEngine engine = new(new GameSession(new GameState()), variables);
+        EventEngine engine = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(variables));
         engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         Assert.Equal(new NativeLadderAnimationState(0, 0, 0), engine.Actors[0].NativeLadderAnimation);
         engine.Step();
         Assert.Equal(new NativeLadderAnimationState(3, 0x4A, 0xFF), engine.Actors[0].NativeLadderAnimation);
-        Assert.Equal(77, variables[1100]);
+        Assert.Equal(77, engine.Variables[1100]);
         Assert.Equal((0, 0f), (engine.Actors[0].AnimationId, engine.Actors[0].AnimationFrame));
         Assert.Null(engine.Actors[0].NativeScriptMovement);
         JsonElement snapshot = engine.Capture();
-        EventEngine restored = new(new GameSession(new GameState()), new Dictionary<int, int>());
+        EventEngine restored = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         restored.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         restored.Restore(snapshot);
         Assert.Equal(engine.Actors[0].NativeLadderAnimation, restored.Actors[0].NativeLadderAnimation);

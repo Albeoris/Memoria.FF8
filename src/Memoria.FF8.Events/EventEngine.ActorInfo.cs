@@ -19,6 +19,8 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native indexed party byte lies outside the retained event bank.");
         }
         bankAddress = (int)address;
+        NativeEventMemoryOwnership.Validate(EventMemory, MemoryRegions());
+        _ = ResolveMemoryOwner(bankAddress, 1);
         int index;
         if (bankAddress is >= 194 and <= 196 && Scene.PartyBindingMemory is { Version: 1 } memory)
         {
@@ -35,10 +37,6 @@ public sealed partial class EventEngine
         else
         {
             throw new NotSupportedException("Native indexed party lookup requires an executed owner for its event-bank byte.");
-        }
-        if (variables.TryGetValue(bankAddress, out int alias) && alias != index)
-        {
-            throw new NotSupportedException("Native indexed party byte differs from its canonical owner.");
         }
         nativeActor = checked((byte)index);
         return nativeActor < Scene.NativeActorObjectIds.Count ? actors[Scene.NativeActorObjectIds[nativeActor]] : null;

@@ -38,7 +38,7 @@ public sealed class NativePartySlotUiTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        EventEngine events = new(session, session.State.Variables);
+        EventEngine events = new(session);
         GameState before = session.State;
         ReplayJournal journal = session.ReplayJournal!;
         Assert.Throws<ArgumentException>(() => events.Apply(new PlayerAction(kind, value)));

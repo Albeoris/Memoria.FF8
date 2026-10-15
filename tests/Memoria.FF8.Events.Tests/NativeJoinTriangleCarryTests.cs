@@ -36,7 +36,7 @@ internal static partial class Program
         restored.Step();
         Require(queries.Count == 64 && queries.Take(32).All(point => point == (0, 10, 0)) && queries.Skip(32).All(point => point == (0, -10, 0)) && queries.SequenceEqual(restoredQueries) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "JOIN did not perform both original32-query trails in order or recompute its synchronous carry independently after restore.");
         PartyTraceState trace = live.Scene.PartyTrace!;
-        Require(trace.FirstTrail[63] is { Triangle: 7 } && trace.FirstTrail[33] is { Triangle: 7 } && trace.FirstTrail[32] is { Triangle: 9 } && trace.SecondTrail[63] is { Triangle: 9 } && trace.SecondTrail[56] is { Triangle: 9 } && trace.SecondTrail[55] is { Triangle: 11 } && trace.SecondTrail[32] is { Triangle: 11 } && trace.FirstTrail.Take(32).All(sample => sample is { Triangle: 7, FirstFlag: 1, SecondFlag: 1 }) && trace.SecondTrail.Take(32).All(sample => sample is { Triangle: 7, FirstFlag: 1, SecondFlag: 1 }) && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73 && live.Capture().GetProperty("PartyJoin").ValueKind == JsonValueKind.Null, "JOIN misses did not retain the last real hit across rings, a later hit failed to overwrite it, untouched half-rings changed or the completion successor was delayed.");
+        Require(trace.FirstTrail[63] is { Triangle: 7 } && trace.FirstTrail[33] is { Triangle: 7 } && trace.FirstTrail[32] is { Triangle: 9 } && trace.SecondTrail[63] is { Triangle: 9 } && trace.SecondTrail[56] is { Triangle: 9 } && trace.SecondTrail[55] is { Triangle: 11 } && trace.SecondTrail[32] is { Triangle: 11 } && trace.FirstTrail.Take(32).All(sample => sample is { Triangle: 7, FirstFlag: 1, SecondFlag: 1 }) && trace.SecondTrail.Take(32).All(sample => sample is { Triangle: 7, FirstFlag: 1, SecondFlag: 1 }) && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73 && live.Capture().GetProperty("PartyJoin").ValueKind == JsonValueKind.Null, "JOIN misses did not retain the last real hit across rings, a later hit failed to overwrite it, untouched half-rings changed or the completion successor was delayed.");
         JsonElement completed = live.Capture();
         EventEngine completedCopy = CreateJoinTriangleCarryFixture(vitals, economy, (_, _, _) => throw new InvalidOperationException("Completed JOIN restore queried transient native triangle memory."));
         completedCopy.Restore(completed);
@@ -60,7 +60,7 @@ internal static partial class Program
         JsonElement beforeCaller = beforeMiss.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 1);
         JsonElement afterCaller = JoinTriangleCarryCaller(firstMiss);
         string changedFiberKeys = string.Join(",", beforeCaller.EnumerateObject().Where(property => !JsonElement.DeepEquals(property.Value, afterCaller.GetProperty(property.Name))).Select(property => property.Name));
-        Require(firstMissCalls == 1 && firstLookup is not null && JsonElement.DeepEquals(firstLookup.Value.GetProperty("Scene"), refused.GetProperty("Scene")) && JsonElement.DeepEquals(firstLookup.Value.GetProperty("Actors"), refused.GetProperty("Actors")) && JsonElement.DeepEquals(beforeMiss.GetProperty("PartyJoin"), refused.GetProperty("PartyJoin")) && JsonElement.DeepEquals(beforeCaller, afterCaller) && firstMiss.Actors[1].X == 0 && firstMiss.Actors[1].Y == 10 && firstMiss.Actors[2].X == 0 && firstMiss.Actors[2].Y == -10 && afterCaller.GetProperty("Position").GetInt32() == pendingPosition && afterCaller.GetProperty("WaitReason").GetString() == "PartyJoin" && !refused.GetProperty("Variables").TryGetProperty("6000", out _), $"An unseeded first miss guessed a triangle or lost pending JOIN state: calls={firstMissCalls}, sceneEqual={firstLookup is not null && JsonElement.DeepEquals(firstLookup.Value.GetProperty("Scene"), refused.GetProperty("Scene"))}, joinEqual={JsonElement.DeepEquals(beforeMiss.GetProperty("PartyJoin"), refused.GetProperty("PartyJoin"))}, fiberChanges={changedFiberKeys}, PC={afterCaller.GetProperty("Position").GetInt32()}/{pendingPosition}, wait={afterCaller.GetProperty("WaitReason").GetString()}.");
+        Require(firstMissCalls == 1 && firstLookup is not null && JsonElement.DeepEquals(firstLookup.Value.GetProperty("Scene"), refused.GetProperty("Scene")) && JsonElement.DeepEquals(firstLookup.Value.GetProperty("Actors"), refused.GetProperty("Actors")) && JsonElement.DeepEquals(beforeMiss.GetProperty("PartyJoin"), refused.GetProperty("PartyJoin")) && JsonElement.DeepEquals(beforeCaller, afterCaller) && firstMiss.Actors[1].X == 0 && firstMiss.Actors[1].Y == 10 && firstMiss.Actors[2].X == 0 && firstMiss.Actors[2].Y == -10 && afterCaller.GetProperty("Position").GetInt32() == pendingPosition && afterCaller.GetProperty("WaitReason").GetString() == "PartyJoin" && !CapturedVariables(refused).TryGetProperty("6000", out _), $"An unseeded first miss guessed a triangle or lost pending JOIN state: calls={firstMissCalls}, sceneEqual={firstLookup is not null && JsonElement.DeepEquals(firstLookup.Value.GetProperty("Scene"), refused.GetProperty("Scene"))}, joinEqual={JsonElement.DeepEquals(beforeMiss.GetProperty("PartyJoin"), refused.GetProperty("PartyJoin"))}, fiberChanges={changedFiberKeys}, PC={afterCaller.GetProperty("Position").GetInt32()}/{pendingPosition}, wait={afterCaller.GetProperty("WaitReason").GetString()}.");
 
         int repeatQueries = 0;
         EventEngine? repeated = null;
@@ -77,13 +77,13 @@ internal static partial class Program
         }, repeat: true);
         ReachJoinTriangleCarryCompletion(repeated);
         repeated.Step();
-        Require(repeatQueries == 64 && repeated.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73, "Repeated-JOIN fixture did not finish its first genuinely seeded call.");
+        Require(repeatQueries == 64 && CapturedVariables(repeated.Capture()).GetProperty("6000").GetInt32() == 73, "Repeated-JOIN fixture did not finish its first genuinely seeded call.");
         repeated.Step();
         JsonElement secondPending = repeated.Capture();
         Require(secondPending.GetProperty("PartyJoin").ValueKind == JsonValueKind.Object, "Repeated-JOIN fixture did not issue its independent second call.");
         ExpectJoinTriangleCarryMiss(repeated);
         JsonElement secondRefused = repeated.Capture();
-        Require(repeatQueries == 65 && secondLookup is not null && JsonElement.DeepEquals(secondLookup.Value.GetProperty("Scene"), secondRefused.GetProperty("Scene")) && JsonElement.DeepEquals(secondLookup.Value.GetProperty("Actors"), secondRefused.GetProperty("Actors")) && JsonElement.DeepEquals(secondPending.GetProperty("PartyJoin"), secondRefused.GetProperty("PartyJoin")) && JoinTriangleCarryCaller(repeated).GetProperty("WaitReason").GetString() == "PartyJoin" && !secondRefused.GetProperty("Variables").TryGetProperty("6001", out _), "JOIN leaked an earlier call's winner into a later completion or partially published the second call's trace.");
+        Require(repeatQueries == 65 && secondLookup is not null && JsonElement.DeepEquals(secondLookup.Value.GetProperty("Scene"), secondRefused.GetProperty("Scene")) && JsonElement.DeepEquals(secondLookup.Value.GetProperty("Actors"), secondRefused.GetProperty("Actors")) && JsonElement.DeepEquals(secondPending.GetProperty("PartyJoin"), secondRefused.GetProperty("PartyJoin")) && JoinTriangleCarryCaller(repeated).GetProperty("WaitReason").GetString() == "PartyJoin" && !CapturedVariables(secondRefused).TryGetProperty("6001", out _), "JOIN leaked an earlier call's winner into a later completion or partially published the second call's trace.");
         Console.WriteLine("Native JOIN triangle lookup: real-hit replacement, miss carry across both32-sample rings, unseeded first-miss refusal, call-local lifetime and independent pending/completed restoration pass; synthetic component geometry, no original-runtime parity claim.");
     }
 
@@ -118,7 +118,7 @@ internal static partial class Program
         }
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
         EventEngine? engine = null;
-        engine = new(session, session.State.Variables)
+        engine = new(session)
         {
             AnimationFrameCount = (_, _) => 4,
             ResolveNativeTriangleHeight = (_, _, _) => 0,

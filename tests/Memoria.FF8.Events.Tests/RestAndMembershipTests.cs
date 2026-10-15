@@ -22,7 +22,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(NativeCharacterVitals? vitals, byte[] program)
         {
             GameSession session = new(new GameState { CharacterVitals = vitals, WorldControls = NativeWorldControlState.CreateNewGame() });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, program, []);
             return (session, engine);
         }
@@ -146,7 +146,7 @@ internal static partial class Program
         })
         {
             RejectingSavedCharacterServices service = new(source, NativeWorldControlState.CreateNewGame().WithGuestMember(9, true));
-            EventEngine refused = new(service, new Dictionary<int, int>());
+            EventEngine refused = new(service, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
             refused.LoadField(600, packet, []);
             try
             {
@@ -174,7 +174,7 @@ internal static partial class Program
             throw new NotSupportedException("Test native saved-character publication rejection.");
         }
 
-        public void SetNativeEventOwners(NativeWorldControlState state, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
+        public void SetNativeEventOwners(NativeWorldControlState state, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
         {
             throw new NotSupportedException("Test composite native owner publication rejection.");
         }

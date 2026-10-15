@@ -30,7 +30,7 @@ internal static partial class Program
     private static EventEngine CreateFieldMedia(byte[] program, bool native = true, int fieldId = 101)
     {
         GameSession session = GameSession.CreateColdProcess();
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             ResolveGlobalSoundResource = MutedGlobalSample,
             ResolveFieldSoundEffectTable = () => new NativeFieldSoundTable("generic.sfx", new string('A', 64), ImmutableArray.Create<uint>(10228, 10069))
@@ -87,7 +87,7 @@ internal static partial class Program
             EventEngine rejected = CreateFieldMedia(FieldMediaProgram((Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.EFFECTPLAY2, index), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512)));
             rejected.ResolveGlobalSoundResource = null;
             rejected.Step();
-            Require(rejected.Scene.NativeFieldSoundRequests.Single().Sound is null && rejected.Scene.GlobalSoundRequests.Count == 0 && rejected.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 9, "Native invalid field index did not consume and advance without a voice request.");
+            Require(rejected.Scene.NativeFieldSoundRequests.Single().Sound is null && rejected.Scene.GlobalSoundRequests.Count == 0 && CapturedVariables(rejected.Capture()).GetProperty("512").GetInt32() == 9, "Native invalid field index did not consume and advance without a voice request.");
         }
         EventEngine adjacent = CreateFieldMedia(FieldMediaProgram((Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.EFFECTPLAY2, 2)));
         try
@@ -121,7 +121,7 @@ internal static partial class Program
             second.Step();
             replay.Step();
             Require(first.Actors[0].DisplayOffset == expected && second.Actors[0].DisplayOffset == expected && JsonElement.DeepEquals(first.Capture(), replay.Capture()), "Native cosine golden, field-independent support or complete restored VM differs.");
-            Require(!first.Capture().GetProperty("Variables").TryGetProperty("512", out _), "OFFSETSYNC continued before observing completed mode3 in VM.");
+            Require(!CapturedVariables(first.Capture()).TryGetProperty("512", out _), "OFFSETSYNC continued before observing completed mode3 in VM.");
         }
         NativeDisplayOffsetState completed = first.Actors[0].NativeDisplayOffset!;
         Require(completed.Mode == 3 && completed.Counter == 4, "Cosine offset completion mode/counter differs.");
@@ -143,7 +143,7 @@ internal static partial class Program
             replay.Step();
             Require(JsonElement.DeepEquals(first.Capture(), replay.Capture()), "Chained offset completion failed independent restoration.");
         }
-        Require(first.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 9, "Completed OFFSETSYNC failed to continue the original script.");
+        Require(CapturedVariables(first.Capture()).GetProperty("512").GetInt32() == 9, "Completed OFFSETSYNC failed to continue the original script.");
         JsonElement valid = first.Capture();
         foreach (Action<JsonNode> corrupt in new Action<JsonNode>[]
         {
@@ -180,7 +180,7 @@ internal static partial class Program
         zero.Step();
         Require(zero.Actors[0].NativeDisplayOffset is { X: 12, Y: -25, Z: 3, Mode: 3, Counter: 0 }, "Native zero-duration cosine offset did not select its endpoint.");
         zero.Step();
-        Require(zero.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 1, "Zero-duration OFFSETSYNC did not resume on the next VM update.");
+        Require(CapturedVariables(zero.Capture()).GetProperty("512").GetInt32() == 1, "Zero-duration OFFSETSYNC did not resume on the next VM update.");
         foreach (int duration in new[] { 65537, 0 })
         {
             byte[] linearProgram = FieldMediaProgram((Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 700), (Jsm.Opcode.PSHN_L, -932), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.LOFFSET, 0), (Jsm.Opcode.OFFSETSYNC, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.POPM_W, 512));
@@ -194,7 +194,7 @@ internal static partial class Program
             Require(linear.Actors[0].NativeDisplayOffset is { Mode: 3 } && linear.Actors[0].DisplayOffset == (duration == 0 ? Vector3.Zero : new Vector3(0, 700, -932)) && JsonElement.DeepEquals(linear.Capture(), resumed.Capture()), "Native linear duration1, lowWORD duration or independent restoration differs.");
             linear.Step();
             resumed.Step();
-            Require(linear.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 17 && JsonElement.DeepEquals(linear.Capture(), resumed.Capture()), "Linear OFFSETSYNC failed next-VM continuation.");
+            Require(CapturedVariables(linear.Capture()).GetProperty("512").GetInt32() == 17 && JsonElement.DeepEquals(linear.Capture(), resumed.Capture()), "Linear OFFSETSYNC failed next-VM continuation.");
         }
     }
 }

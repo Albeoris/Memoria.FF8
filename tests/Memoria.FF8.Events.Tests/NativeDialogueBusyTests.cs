@@ -25,7 +25,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState());
-                EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+                EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
                 engine.LoadField(600, content, ["First", "Second"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 return engine;
             }
@@ -50,14 +50,14 @@ internal static partial class Program
             restored.Step();
             Require(live.CurrentDialogue is { MessageId: 1, ObjectId: 1 } && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Second actor did not open its own window after the original occupied channel closed.");
             JsonElement opened = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1);
-            Require(opened.GetProperty("Stack").GetArrayLength() == 0 && !live.Capture().GetProperty("Variables").TryGetProperty("514", out _), "Successful native dialogue opening failed its return1/return3 yield or consumed operands more than once.");
+            Require(opened.GetProperty("Stack").GetArrayLength() == 0 && !CapturedVariables(live.Capture()).TryGetProperty("514", out _), "Successful native dialogue opening failed its return1/return3 yield or consumed operands more than once.");
             if (secondOpcode == Jsm.Opcode.AMESW)
             {
                 live.Apply(new PlayerAction(PlayerActionKind.Confirm));
                 restored.Apply(new PlayerAction(PlayerActionKind.Confirm));
                 live.Step();
                 restored.Step();
-                Require(!live.Capture().GetProperty("Variables").TryGetProperty("514", out _), "Closing native return3 executed the next command during the same actor turn.");
+                Require(!CapturedVariables(live.Capture()).TryGetProperty("514", out _), "Closing native return3 executed the next command during the same actor turn.");
                 live.Step();
                 restored.Step();
                 Require(live.DialogueOutcomes.Select(outcome => outcome.MessageId).SequenceEqual([0, 1]), "Same-channel independent actors changed the authentic dialogue decision order.");
@@ -72,7 +72,7 @@ internal static partial class Program
         }
         byte[] syncContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 8));
         GameSession syncSession = new(new GameState());
-        EventEngine sync = new(syncSession, syncSession.State.Variables);
+        EventEngine sync = new(syncSession);
         sync.LoadField(600, syncContent, ["Synchronized"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         sync.Step();
         sync.Step();
@@ -82,7 +82,7 @@ internal static partial class Program
         Require(syncSession.State.Variables.TryGetValue(512, out int successor) && successor == 77, "Native529900 closing return2 failed to continue its successor during the same actor callback.");
         byte[] rameswCollision = SyntheticObjects([0, 8 << 7], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.RET, 8)]]);
         GameSession rejectedSession = new(new GameState());
-        EventEngine rejected = new(rejectedSession, rejectedSession.State.Variables);
+        EventEngine rejected = new(rejectedSession);
         rejected.LoadField(600, rameswCollision, ["First", "Unsupported occupied RAMESW"], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         try
         {

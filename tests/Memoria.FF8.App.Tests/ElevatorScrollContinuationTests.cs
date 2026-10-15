@@ -25,7 +25,7 @@ public sealed class ElevatorScrollContinuationTests
         var wait = new PlayerAction(PlayerActionKind.Wait);
         Assert.True(world.Apply(wait).Accepted);
         Assert.Equal((short)224, world.Events.Scene.BackgroundScrollPositions[0].TargetY);
-        using var replay = new GameWorld(new GameSession(session.State with { Variables = new Dictionary<int, int>(session.State.Variables), EventState = world.Events.Capture() }), directory);
+        using var replay = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
         replay.EnsureField();
         bool scrolled = false;
         for (int tick = 0; tick < 240 && world.Events.FieldId == 172; tick++)

@@ -24,7 +24,7 @@ internal static partial class Program
             target.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
             target.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
             target.RequestField(99, 0);
-            EventEngine result = new(target, target.State.Variables) { ReadSteamDiscMount = provider };
+            EventEngine result = new(target) { ReadSteamDiscMount = provider };
             result.LoadField(99, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (target, result);
         }

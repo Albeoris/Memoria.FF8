@@ -39,7 +39,7 @@ public sealed class NativeDoorSuspensionTests
         JsonElement pending = world.Events.Capture();
         JsonElement suspendedDefault = DefaultFiber(pending);
         Assert.Equal(1359, suspendedDefault.GetProperty("Position").GetInt32());
-        using var restored = new GameWorld(new GameSession(session.State with { Variables = session.State.Variables.ToDictionary(), EventState = pending }), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = pending }), directory, persistReplayJournal: false);
         restored.EnsureField();
         int earthquakeStarts = 0;
         int earthquakeStops = 0;
@@ -65,7 +65,7 @@ public sealed class NativeDoorSuspensionTests
             if (tick == 0)
             {
                 Assert.True(JsonElement.DeepEquals(suspendedDefault, DefaultFiber(world.Events.Capture())), "Earthquake slot changed the suspended polling default.");
-                using var midScript = new GameWorld(new GameSession(session.State with { Variables = session.State.Variables.ToDictionary(), EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+                using var midScript = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
                 midScript.EnsureField();
                 Assert.Equal(world.Render(TimeSpan.Zero), midScript.Render(TimeSpan.Zero));
             }

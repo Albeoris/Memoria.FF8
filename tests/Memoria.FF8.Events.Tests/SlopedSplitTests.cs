@@ -15,7 +15,7 @@ internal static partial class Program
         EventEngine Create(bool certified = true)
         {
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 CanUseNativeJoinMovement = actor => certified && actor.ObjectId == 0 && actor.ModelId == 0 && actor.CharacterId == 0,

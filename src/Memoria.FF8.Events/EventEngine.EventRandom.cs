@@ -9,7 +9,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedEventRandomAliases()
     {
-        return variables.Keys.Any(address => address < 182 && (long)address + 4 > 116) || services.NativeVariableValues?.Any(pair => pair.Key < 182 && (long)pair.Key + pair.Value.Width > 116) == true ? "Native packed draw-point bank overlaps a separate memory alias" : null;
+        return EventMemory.Overlaps(116, 66) ? "Native packed draw-point bank overlaps a separate memory alias" : null;
     }
 
     private string? UnsupportedNativeEventRandom(Fiber fiber, JsmOperation operation)

@@ -12,7 +12,7 @@ public sealed class ClassroomInteractionTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         GameState classroom = RecreateClassroom(directory);
-        var session = new GameSession(classroom with { Variables = classroom.Variables.ToDictionary() });
+        var session = new GameSession(classroom with { EventMemory = classroom.EventMemory});
         using var world = new GameWorld(session, directory, persistReplayJournal: false);
         world.EnsureField();
         Assert.Equal(1185, world.Events.Frame);
@@ -22,7 +22,7 @@ public sealed class ClassroomInteractionTests
         Assert.True(desk.NativeLineFacingContact);
         Assert.Equal((byte?)252, desk.NativeLineFacingDirection);
         JsonElement beforeConfirm = world.Events.Capture();
-        using var restored = new GameWorld(new GameSession(session.State with { Variables = session.State.Variables.ToDictionary(), EventState = beforeConfirm }), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = beforeConfirm }), directory, persistReplayJournal: false);
         restored.EnsureField();
         var confirm = new PlayerAction(PlayerActionKind.Confirm);
         Assert.Equal(world.Apply(confirm), restored.Apply(confirm));
@@ -61,7 +61,7 @@ public sealed class ClassroomInteractionTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         GameState classroom = RecreateClassroom(directory);
-        var session = new GameSession(classroom with { Variables = classroom.Variables.ToDictionary() });
+        var session = new GameSession(classroom with { EventMemory = classroom.EventMemory});
         using (var world = new GameWorld(session, directory, persistReplayJournal: false))
         {
             world.EnsureField();
@@ -78,12 +78,12 @@ public sealed class ClassroomInteractionTests
             Assert.True(pushes > 0);
             Assert.Equal(1220, world.Events.Frame);
             Assert.Null(world.Events.LastFault);
-            using var resumed = new GameWorld(new GameSession(session.State with { Variables = session.State.Variables.ToDictionary(), EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+            using var resumed = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
             resumed.EnsureField();
             Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), resumed.Apply(new PlayerAction(PlayerActionKind.Wait)));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), resumed.Events.Capture()));
         }
-        using (var world = new GameWorld(new GameSession(classroom with { Variables = classroom.Variables.ToDictionary() }), directory, persistReplayJournal: false))
+        using (var world = new GameWorld(new GameSession(classroom with { EventMemory = classroom.EventMemory}), directory, persistReplayJournal: false))
         {
             world.EnsureField();
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 60)).Accepted);

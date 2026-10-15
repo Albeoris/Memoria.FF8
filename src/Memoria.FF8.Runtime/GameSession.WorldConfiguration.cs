@@ -15,9 +15,5 @@ public sealed partial class GameSession
         {
             throw new InvalidDataException("Root process world configuration and allocated field BYTE86 disagree.");
         }
-        if (allocated is byte known && (!vm.GetProperty("Variables").TryGetProperty("86", out JsonElement alias) || alias.GetInt32() != known || !state.Variables.TryGetValue(86, out int rootAlias) || rootAlias != known))
-        {
-            throw new InvalidDataException("Allocated field BYTE86 disagrees with its saved memory alias.");
-        }
     }
 }

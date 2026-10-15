@@ -77,7 +77,7 @@ public sealed class NativeWorldStaticRotationTests
             initialized.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         }
         WorldTransition packet = new(6, 0, -1);
-        GameSession session = new(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 713, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 713), Variables = new Dictionary<int, int> { [256] = 345 }, ReplayJournal = null });
+        GameSession session = new(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 713, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 713), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 345 }), ReplayJournal = null });
         using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
         Assert.Equal(13, world.State.NativeFootRuntime!.NormalObjects!.Allocation.Objects.Length);
         byte[] pixels = world.Render(320, 224).ToArray();

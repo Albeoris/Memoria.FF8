@@ -18,7 +18,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -43,7 +43,7 @@ internal static partial class Program
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.DOORLINEON, Jsm.Opcode.DOORLINEOFF })
         {
             GameSession session = new(new GameState());
-            EventEngine invalid = new(session, session.State.Variables);
+            EventEngine invalid = new(session);
             invalid.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (opcode, 0), (Jsm.Opcode.POPM_W, 5000), (Jsm.Opcode.RET, 0)), []);
             try
             {

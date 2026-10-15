@@ -29,7 +29,7 @@ internal static partial class Program
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 2, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 2, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
             engine.LoadField(600, Content(start, duration, slot, x, y, opcode), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }

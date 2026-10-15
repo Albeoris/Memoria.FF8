@@ -20,7 +20,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(economy);
         NativeEconomy next = economy.DeepCopy();
-        ValidateEconomyAliases(State.Variables, State.NativeVariableValues);
+        ValidateEventMemoryOwners(State with { Economy = next }, State.EventMemory);
         if (State.CharacterVitals is not null && next.InitOutSha256 != State.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("Economy and character records have different executed New Game templates.");
@@ -28,9 +28,9 @@ public sealed partial class GameSession
         State = State with { Economy = next };
     }
 
-    private static void ValidateEconomyAliases(IReadOnlyDictionary<int, int> variables, IReadOnlyDictionary<int, NativeMemoryValue>? nativeVariables)
+    private static void ValidateEconomyAliases(NativeEventMemory memory)
     {
-        if (variables.Keys.Any(address => address < 80 && (long)address + 4 > 72) || nativeVariables?.Any(pair => pair.Key < 80 && (long)pair.Key + pair.Value.Width > 72) == true)
+        if (memory.Cells.Any(pair => pair.Key < 80 && (long)pair.Key + pair.Value.Width > 72))
         {
             throw new InvalidDataException("Canonical native gil bank words overlap a separately stored VM memory alias.");
         }
@@ -41,7 +41,7 @@ public sealed partial class GameSession
         if (state.Economy is not null)
         {
             state.Economy.Validate();
-            ValidateEconomyAliases(state.Variables, state.NativeVariableValues);
+            ValidateEconomyAliases(state.EventMemory);
         }
         if (currentVm is not JsonElement vm)
         {

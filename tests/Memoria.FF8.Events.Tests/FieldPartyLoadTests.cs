@@ -14,7 +14,7 @@ internal static partial class Program
         string path = Path.Combine("../fixtures/external-fixture.json");
         EventEngine Create(GameSession session)
         {
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 LoadSoundResource = _ => SoundResourceStatus.Muted,
@@ -51,7 +51,7 @@ internal static partial class Program
         ActorState follower = first.Actors[first.Scene.NativeActorObjectIds[followerNative]];
         PartyTraceSample originalFollower = trace.FirstTrail[49]!;
         Require(follower.X == originalFollower.X && follower.Y == originalFollower.Y && follower.Z == originalFollower.Z && follower.WalkmeshTriangle == originalFollower.Triangle, "Native loader placed a present follower at the leader instead of trace slot49.");
-        Require(first.Scene.FieldPartyNativeActorIds.Select((id, slot) => first.Capture().GetProperty("Variables").GetProperty((194 + slot).ToString()).GetInt32() == id).All(value => value), "Automatic loader failed to persist original save194..196 compact bindings.");
+        Require(first.Scene.FieldPartyNativeActorIds.Select((id, slot) => CapturedVariables(first.Capture()).GetProperty((194 + slot).ToString()).GetInt32() == id).All(value => value), "Automatic loader failed to persist original save194..196 compact bindings.");
         for (int tick = 0; tick < 12 && first.LastFault is null; tick++)
         {
             foreach (EventEngine bounded in new[] { first, resumed })
@@ -95,7 +95,7 @@ internal static partial class Program
         // historical137 snapshot's lost metadata to a guessed record.
         FieldAssets departing = assets.LoadField(139);
         GameSession seamSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-        EventEngine seam = new(seamSession, seamSession.State.Variables)
+        EventEngine seam = new(seamSession)
         {
             AnimationFrameCount = departing.GetAnimationFrameCount,
             ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(departing.Walkmesh, triangle, x, y),
@@ -113,7 +113,7 @@ internal static partial class Program
         seam.AnimationFrameCount = field.GetAnimationFrameCount;
         seam.LoadField(137, field.Jsm, field.Messages, seamSession.State.FieldArrival);
         seam.Step();
-        GameSession midInitSession = new(seamSession.State with { EventState = seam.Capture(), Variables = new Dictionary<int, int>(seamSession.State.Variables) });
+        GameSession midInitSession = new(seamSession.State with { EventState = seam.Capture(), EventMemory = seamSession.State.EventMemory});
         EventEngine midInit = Create(midInitSession);
         for (int tick = 0; tick < 12 && seam.Scene.NativeFieldLoadVersion == 0; tick++)
         {

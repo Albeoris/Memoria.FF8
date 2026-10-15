@@ -15,7 +15,7 @@ internal static partial class Program
         EventEngine CreateSynthetic(bool certificate = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetCosineBackgroundScroll = (_, _, _, _) => certificate };
+            EventEngine engine = new(session) { CanSetBackgroundScrollPosition = (_, _, _) => true, CanSetCosineBackgroundScroll = (_, _, _, _) => certificate };
             engine.LoadField(100, program, []);
             engine.Scene.BackgroundScrollPositions[0] = new BackgroundScrollPosition(0, 0, 0, 0, 0, 0, 0, 3, 2);
             engine.Step();
@@ -34,11 +34,11 @@ internal static partial class Program
             engine.Step();
             independent.Step();
             BackgroundScrollPosition state = engine.Scene.BackgroundScrollPositions[0];
-            Require(state.Y == NativeCosineInterpolation.Interpolate(224, 0, 40, elapsed) && state.Counter == Math.Min(elapsed + 1, 40) && state.Status == (elapsed == 40 ? 2 : 1) && !engine.Capture().GetProperty("Variables").TryGetProperty("512", out _) && JsonElement.DeepEquals(engine.Capture(), independent.Capture()), "Cosine scroll/sync changed phase, resumed VM, heldPC or earliest continuation.");
+            Require(state.Y == NativeCosineInterpolation.Interpolate(224, 0, 40, elapsed) && state.Counter == Math.Min(elapsed + 1, 40) && state.Status == (elapsed == 40 ? 2 : 1) && !CapturedVariables(engine.Capture()).TryGetProperty("512", out _) && JsonElement.DeepEquals(engine.Capture(), independent.Capture()), "Cosine scroll/sync changed phase, resumed VM, heldPC or earliest continuation.");
         }
         engine.Step();
         independent.Step();
-        Require(engine.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 9 && JsonElement.DeepEquals(engine.Capture(), independent.Capture()), "SCROLLSYNC did not continue immediately on the first VM update after post-VM completion.");
+        Require(CapturedVariables(engine.Capture()).GetProperty("512").GetInt32() == 9 && JsonElement.DeepEquals(engine.Capture(), independent.Capture()), "SCROLLSYNC did not continue immediately on the first VM update after post-VM completion.");
         EventEngine declined = CreateSynthetic(false);
         try
         {
@@ -56,7 +56,7 @@ internal static partial class Program
         EventEngine CreateActual()
         {
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 LoadSoundResource = _ => SoundResourceStatus.Muted,

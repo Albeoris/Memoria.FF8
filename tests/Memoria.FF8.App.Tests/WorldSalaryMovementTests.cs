@@ -14,7 +14,7 @@ public sealed class WorldSalaryMovementTests
     {
         GameSession session = CreateNativeSession();
         session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), session.SeeD!.WithSalaryUiEnabled(true));
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new() { [256] = 40, [265] = 128 } });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 40, [265] = 128 }) });
         using WorldMapScene scene = new(session, GameDirectory());
         session.SetWorldState(scene.State with { NativeCarRuntime = scene.State.NativeCarRuntime! with { Speed = 24 } });
         GameState initial = session.State;
@@ -172,7 +172,7 @@ public sealed class WorldSalaryMovementTests
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16 + index * 4), encoded);
         }
         GameSession session = CreateNativeSession();
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         WorldMapScene? world = null;
         engine.PrepareWorldTransition = request =>
         {
@@ -209,7 +209,7 @@ public sealed class WorldSalaryMovementTests
         {
             session.Save(path);
             GameSession independent = new(GameSession.Load(path));
-            EventEngine restored = new(independent, independent.State.Variables);
+            EventEngine restored = new(independent);
             restored.LoadField(74, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             restored.Restore(independent.State.EventState!.Value);
             using WorldMapScene other = new(independent, GameDirectory());
@@ -243,7 +243,7 @@ public sealed class WorldSalaryMovementTests
     {
         // Declared empty field component supplies the verified native output handler;
         // it does not execute an original route or supply any saved process defaults.
-        var engine = new EventEngine(session, session.State.Variables)
+        var engine = new EventEngine(session)
         {
             ResolveGlobalSoundResource = sample =>
             {

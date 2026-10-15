@@ -10,7 +10,7 @@ public sealed class SessionTests
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         Assert.Equal(74, session.State.FieldId);
-        session.State.Variables[256] = 7;
+        session.SetWorldEntryMemory(session.WorldEntryMemory!.WriteBytes(256, 2, 7));
         session.RequestMovie(30);
         Assert.True(session.IsMoviePlaying);
         session.CompleteMovie();
@@ -33,7 +33,7 @@ public sealed class SessionTests
             LaunchOptions options = LaunchOptions.Parse(["--field", "bghoke_2", "--entry", "0"]);
             var session = new GameSession(options.InitialState);
             session.SetPosition(123.5f, -24);
-            session.State.Variables[256] = 9;
+            session.SetEventMemory(session.State.EventMemory.Write(256, 4, NativeScalarValue.Exact(9)));
             session.SetDialogueDraft(new DialogueDraft(1, 3, 2, "Cec"));
             session.Save(path);
             GameState state = LaunchOptions.Parse(["--state", path]).InitialState;

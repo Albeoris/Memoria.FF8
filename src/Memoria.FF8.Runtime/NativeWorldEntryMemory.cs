@@ -76,13 +76,10 @@ public sealed record NativeWorldEntryMemory([property: JsonRequired] int Version
         return this with { Bytes = ImmutableArray.CreateRange(new byte[ByteCount]) };
     }
 
-    public void ProjectVariables(IDictionary<int, int> variables)
+    public IReadOnlyDictionary<int, int> ProjectVariables(IReadOnlyDictionary<int, int> values)
     {
         Validate();
-        foreach (int address in variables.Keys.Where(address => address is >= FirstAddress and < FirstAddress + ByteCount).ToArray())
-        {
-            variables.Remove(address);
-        }
+        Dictionary<int, int> variables = new(values);
         foreach ((int address, int value) in new[] { (256, (int)StoryWord), (264, (int)ReplacementFlags264), (265, ReadBytes(265, 1)), (266, (int)StoryByte266) })
         {
             if (value != 0)
@@ -90,14 +87,15 @@ public sealed record NativeWorldEntryMemory([property: JsonRequired] int Version
                 variables[address] = value;
             }
         }
+        return new System.Collections.ObjectModel.ReadOnlyDictionary<int, int>(variables);
     }
 
-    public void ValidateVariables(IReadOnlyDictionary<int, int> variables, IReadOnlyDictionary<int, NativeMemoryValue>? uncertain)
+    public void ValidateEventMemory(NativeEventMemory memory)
     {
         Validate();
-        if (variables.Keys.Any(address => address is >= FirstAddress and < FirstAddress + ByteCount && address is not (256 or 264 or 265 or 266)) || variables.GetValueOrDefault(256) != StoryWord || variables.GetValueOrDefault(264) != ReplacementFlags264 || variables.GetValueOrDefault(265) != ReadBytes(265, 1) || variables.GetValueOrDefault(266) != StoryByte266 || uncertain?.Any(pair => Overlaps(pair.Key, pair.Value.Width)) == true)
+        if (memory.Cells.Any(pair => Overlaps(pair.Key, pair.Value.Width)))
         {
-            throw new InvalidDataException("Native world-entry byte owner disagrees with its scalar projections or overlaps uncertain memory.");
+            throw new InvalidDataException("Native world-entry byte owner overlaps generic event memory.");
         }
     }
 }

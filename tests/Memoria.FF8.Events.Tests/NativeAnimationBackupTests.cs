@@ -97,13 +97,13 @@ internal static partial class Program
             live.Step();
             restored.Step();
             RequireNativeAnimationWords(live.Actors[0], callback < 3 ? 2 : 0, callback < 3 ? 16 * callback : 0, 16, 0, 48, callback < 3 ? 0x4000 : 0x2800);
-            Require(live.Frame == issued + callback && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Blocking ANIME resumed before its third physical sample or executed a successor on its native return3 completion callback.");
+            Require(live.Frame == issued + callback && !CapturedVariables(live.Capture()).TryGetProperty("5000", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Blocking ANIME resumed before its third physical sample or executed a successor on its native return3 completion callback.");
         }
         for (int callback = 4; callback <= 6; callback++)
         {
             live.Step();
             restored.Step();
-            JsonElement variables = live.Capture().GetProperty("Variables");
+            JsonElement variables = CapturedVariables(live.Capture());
             Require(variables.GetProperty("5000").GetInt32() == 77 && variables.TryGetProperty("5001", out JsonElement syncSuccessor) == (callback == 6) && (callback != 6 || syncSuccessor.GetInt32() == 88) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "ANIME did not release its successor on the following callback, or ANIMESYNC inserted a yield after its native return2 completion.");
         }
         Require(live.Frame == issued + 6 && live.Actors[0].NativeAnimationHeader!.Flags == 0x2800, "Native blocking/SYNC clock did not preserve the independent three-frame idle completion phase.");
@@ -164,7 +164,7 @@ internal static partial class Program
         Require(pops.Count == 2 && pops[0].Frame == pops[1].Frame && pops[0].Header == pops[1].Header && pushes.Count == 2, "POP cleared its reusable backup or inserted an animation callback/yield between immediate same-turn instructions.");
         RequireNativeAnimationWords(actor, 3, 16, 8, 0, 48, 0x8000);
         Require(actor.NativeAnimationBackup == pushes[1] && actor.ModelId == 3 && actor.NativeAnimationHeader!.BoundModelId == 2 && !actor.Visible && !actor.TalkEnabled && !actor.CollisionEnabled, "POP restored physical model identity or lower current control/visibility/collision state instead of only animation ownership.");
-        Require(live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 88 && live.Capture().GetProperty("Variables").GetProperty("5001").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Immediate backup commands lost their successor, unrelated stack operand or independent continuation.");
+        Require(CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 88 && CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Immediate backup commands lost their successor, unrelated stack operand or independent continuation.");
         JsonElement valid = live.Capture();
         foreach (string owner in new[] { "NativeAnimationHeader", "NativeAnimationBackup" })
         {
@@ -190,12 +190,12 @@ internal static partial class Program
     private static void NativeAnimationFreshPopAndOpaqueRefusal(NativeCharacterVitals vitals, NativeEconomy economy)
     {
         EventEngine fresh = CreateNativeAnimationBackupFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPANIME, 0), (Jsm.Opcode.POPANIME, 0), (Jsm.Opcode.POPM_B, 5000)]);
-        for (int callback = 0; callback < 8 && !fresh.Capture().GetProperty("Variables").TryGetProperty("5000", out _); callback++)
+        for (int callback = 0; callback < 8 && !CapturedVariables(fresh.Capture()).TryGetProperty("5000", out _); callback++)
         {
             fresh.Step();
         }
         RequireNativeAnimationWords(fresh.Actors[0], 0, 0, 0, 0, 0, 0);
-        Require(fresh.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && fresh.Actors[0].NativeAnimationBackup == new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0), "POP before PUSH invented a clip range/speed or consumed the authentic zero slot.");
+        Require(CapturedVariables(fresh.Capture()).GetProperty("5000").GetInt32() == 77 && fresh.Actors[0].NativeAnimationBackup == new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0), "POP before PUSH invented a clip range/speed or consumed the authentic zero slot.");
 
         EventEngine opaque = CreateNativeAnimationBackupFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.PUSHANIME, 0), (Jsm.Opcode.POPM_B, 5000)], ushort.MaxValue);
         bool refused = false;
@@ -211,7 +211,7 @@ internal static partial class Program
             refused = true;
         }
         JsonElement held = opaque.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        Require(refused && opaque.LastFault is { Opcode: nameof(Jsm.Opcode.PUSHANIME) } fault && held.GetProperty("Position").GetInt32() == fault.Operation && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([77]) && opaque.Actors[0].NativeAnimationHeader!.BoundModelId == -1 && opaque.Actors[0].NativeAnimationHeader!.Terminal is null && opaque.Actors[0].NativeAnimationBackup == new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0) && !opaque.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "Opaque empty-model animation was replaced with inferred metadata, or PUSH refused only after changing PC, operand or backup state.");
+        Require(refused && opaque.LastFault is { Opcode: nameof(Jsm.Opcode.PUSHANIME) } fault && held.GetProperty("Position").GetInt32() == fault.Operation && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([77]) && opaque.Actors[0].NativeAnimationHeader!.BoundModelId == -1 && opaque.Actors[0].NativeAnimationHeader!.Terminal is null && opaque.Actors[0].NativeAnimationBackup == new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0) && !CapturedVariables(opaque.Capture()).TryGetProperty("5000", out _), "Opaque empty-model animation was replaced with inferred metadata, or PUSH refused only after changing PC, operand or backup state.");
     }
 
     private static EventEngine CreateNativeAnimationBackupFixture(NativeCharacterVitals vitals, NativeEconomy economy, (Jsm.Opcode Opcode, int Parameter)[] operations, int model = 2)
@@ -229,7 +229,7 @@ internal static partial class Program
             }
         }
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             AnimationFrameCount = (boundModel, clip) => boundModel == 2 && clip is >= 0 and <= 6 ? clip == 6 ? 42 : 3 : throw new InvalidOperationException($"Animation queried unknown/unbound resource model{boundModel},clip{clip}; physical SETMODEL must not replace the retained binding.")
         };

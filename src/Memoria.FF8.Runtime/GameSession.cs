@@ -63,8 +63,9 @@ public sealed partial class GameSession : IEventServices
     public NativeExamTimerState? ExamTimer => State.ExamTimer;
     public NativeCharacterVitals? CharacterVitals => State.CharacterVitals;
     public NativeCharacterAppearance? CharacterAppearance => State.CharacterAppearance;
-    public IReadOnlyDictionary<int, NativeMemoryValue>? NativeVariableValues => State.NativeVariableValues;
-    public bool CanStoreNativeVariableValues => true;
+    public NativeEventMemory EventMemory => State.EventMemory;
+    public IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => State.NativeVariableValues;
+    public bool CanStoreEventMemory => true;
     public string? Dialog { get; private set; }
     public bool IsMoviePlaying => State.Scene == SceneKind.Movie;
     // Accepted RequestMovie models51F390->55A530; CompleteMovie models55A5C0 cleanup.
@@ -416,10 +417,11 @@ public sealed partial class GameSession : IEventServices
     {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
+        ValidateEventMemoryOwners(State with { WorldControls = controls }, State.EventMemory);
         State = State with { WorldControls = controls };
     }
 
-    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
+    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
     {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
@@ -432,26 +434,22 @@ public sealed partial class GameSession : IEventServices
         eventRandom?.Validate();
         vibrationProcess?.Validate();
         fieldFade?.Validate();
-        Dictionary<int, NativeMemoryValue>? nextMemory = nativeVariableValues is null ? State.NativeVariableValues : new(nativeVariableValues);
-        if (nextMemory is not null)
-        {
-            NativeMemoryValue.Validate(nextMemory, State.Variables);
-        }
+        NativeEventMemory nextMemory = eventMemory ?? State.EventMemory;
         if (eventRandom is { DrawPoints: null } && State.EventRandom?.DrawPoints is not null)
         {
             throw new InvalidDataException("Atomic native event publication cannot erase the already initialized draw-point bank.");
         }
-        if (eventRandom is not null || State.EventRandom is not null)
+        if ((eventRandom ?? State.EventRandom)?.DrawPoints is not null)
         {
-            ValidateEventRandomAliases(State.Variables, nextMemory);
+            ValidateEventRandomAliases(nextMemory);
         }
         if (seeD is not null || State.SeeD is not null)
         {
-            ValidateSeeDAliases(State.Variables, nextMemory);
+            ValidateSeeDAliases(nextMemory);
         }
         if (characterVitals is not null || State.CharacterVitals is not null)
         {
-            ValidateJunctionPartyBackupAliases(State.Variables, nextMemory);
+            ValidateJunctionPartyBackupAliases(nextMemory);
         }
         NativeCharacterVitals? nextVitals = characterVitals is null ? State.CharacterVitals : characterVitals.DeepCopy();
         NativeEconomy? nextEconomy = economy is null ? State.Economy : economy.DeepCopy();
@@ -459,13 +457,16 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Native economy and character owners have different initialization provenance.");
         }
-        State = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom, VibrationProcess = vibrationProcess ?? State.VibrationProcess, FieldFade = fieldFade ?? State.FieldFade, NativeVariableValues = nextMemory is { Count: > 0 } ? nextMemory : null };
+        GameState candidate = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom, VibrationProcess = vibrationProcess ?? State.VibrationProcess, FieldFade = fieldFade ?? State.FieldFade, EventMemory = nextMemory };
+        ValidateEventMemoryOwners(candidate, nextMemory);
+        State = candidate;
     }
 
     public void SetExamTimer(NativeExamTimerState timer)
     {
         ArgumentNullException.ThrowIfNull(timer);
         timer.Validate();
+        ValidateEventMemoryOwners(State with { ExamTimer = timer }, State.EventMemory);
         State = State with { ExamTimer = timer };
     }
 
@@ -481,7 +482,7 @@ public sealed partial class GameSession : IEventServices
     public void SetCharacterVitals(NativeCharacterVitals vitals)
     {
         vitals.Validate();
-        ValidateJunctionPartyBackupAliases(State.Variables, State.NativeVariableValues);
+        ValidateEventMemoryOwners(State with { CharacterVitals = vitals }, State.EventMemory);
         State = State with { CharacterVitals = vitals.DeepCopy() };
     }
 
@@ -501,17 +502,11 @@ public sealed partial class GameSession : IEventServices
         State = State with { CharacterAppearance = appearance with { Records = appearance.Records.ToArray() } };
     }
 
-    public void SetNativeVariableValues(Dictionary<int, NativeMemoryValue>? values)
+    public void SetEventMemory(NativeEventMemory memory)
     {
-        if (values is not null)
-        {
-            NativeMemoryValue.Validate(values, State.Variables);
-        }
-        if (State.DiscProcess is not null)
-        {
-            ValidateDiscAliases(State.Variables, values);
-        }
-        State = State with { NativeVariableValues = values is { Count: > 0 } ? new Dictionary<int, NativeMemoryValue>(values) : null };
+        ArgumentNullException.ThrowIfNull(memory);
+        ValidateEventMemoryOwners(State, memory);
+        State = State with { EventMemory = memory };
     }
 
     public void ShowDialog(string text)
@@ -666,18 +661,18 @@ public sealed partial class GameSession : IEventServices
                 throw new InvalidDataException("Root and event exam timer checkpoints disagree.");
             }
         }
-        if (currentVm is JsonElement memoryVm && memoryVm.TryGetProperty("NativeVariableValues", out JsonElement memoryJson) && memoryJson.ValueKind != JsonValueKind.Null)
+        if (currentVm is JsonElement memoryVm)
         {
-            Dictionary<int, NativeMemoryValue> memory = memoryJson.Deserialize<Dictionary<int, NativeMemoryValue>>(JsonOptions) ?? throw new InvalidDataException("Empty event uncertain memory state.");
-            NativeMemoryValue.Validate(memory, state.Variables);
-            if (state.NativeVariableValues is null || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.NativeVariableValues), JsonSerializer.SerializeToElement(memory)))
+            if (!memoryVm.TryGetProperty("EventMemory", out JsonElement memoryJson) || memoryJson.ValueKind == JsonValueKind.Null)
             {
-                throw new InvalidDataException("Root and event uncertain native memory checkpoints disagree.");
+                throw new InvalidDataException("Saved VM lacks its required typed event memory; recreate authentic history.");
             }
-        }
-        else if (currentVm is not null && state.NativeVariableValues is { Count: > 0 })
-        {
-            throw new InvalidDataException("Root uncertain native memory is missing from the saved complete VM.");
+            NativeEventMemory memory = memoryJson.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Empty event memory state.");
+            ValidateEventMemoryOwners(state, memory);
+            if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(state.EventMemory), JsonSerializer.SerializeToElement(memory)))
+            {
+                throw new InvalidDataException("Root and event native memory checkpoints disagree.");
+            }
         }
         ValidateSeeDCheckpoint(state, currentVm);
         ValidateMessageVariableCheckpoint(state, currentVm);
@@ -744,12 +739,12 @@ public sealed partial class GameSession : IEventServices
         state.SeeD?.Validate();
         if (state.SeeD is not null)
         {
-            ValidateSeeDAliases(state.Variables, state.NativeVariableValues);
+            ValidateSeeDAliases(state.EventMemory);
         }
         state.CharacterVitals?.Validate();
         if (state.CharacterVitals is not null)
         {
-            ValidateJunctionPartyBackupAliases(state.Variables, state.NativeVariableValues);
+            ValidateJunctionPartyBackupAliases(state.EventMemory);
         }
         state.CharacterAppearance?.Validate();
         state.CardInventory?.Validate();
@@ -766,15 +761,15 @@ public sealed partial class GameSession : IEventServices
         state.ShopHistory?.Validate();
         state.MenuRandom?.Validate();
         state.WeaponRecipes?.Validate();
-        if (state.EventRandom is not null)
+        if (state.EventRandom?.DrawPoints is not null)
         {
-            ValidateEventRandomAliases(state.Variables, state.NativeVariableValues);
+            ValidateEventRandomAliases(state.EventMemory);
         }
         state.InputConfiguration?.Validate();
         state.FieldButtonInput?.Validate();
         if (state.Economy is not null)
         {
-            ValidateEconomyAliases(state.Variables, state.NativeVariableValues);
+            ValidateEconomyAliases(state.EventMemory);
             if (state.CharacterVitals is not null && state.Economy.InitOutSha256 != state.CharacterVitals.InitOutSha256)
             {
                 throw new InvalidDataException("Native economy and character state have different New Game template identities.");
@@ -784,10 +779,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Native appearance and character vitals have different New Game template identities.");
         }
-        if (state.NativeVariableValues is not null)
-        {
-            NativeMemoryValue.Validate(state.NativeVariableValues, state.Variables);
-        }
+        ValidateEventMemoryOwners(state, state.EventMemory);
         state.DebugView?.Validate();
         if (state.DebugView is not null && state.DebugView.FieldId != state.FieldId)
         {

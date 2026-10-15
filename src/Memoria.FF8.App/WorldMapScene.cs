@@ -220,17 +220,17 @@ internal sealed partial class WorldMapScene : IDisposable
     internal static void RequireUnaliasedFootAuxiliary(GameState state)
     {
         // Event base1CFE9B8 aliases saved-world base1CFEEB8 at +108/+110.
-        // Reject every byte of a legacy word/dword write that could overlap either.
-        if (state.Variables.Keys.Any(address => address is >= 1385 and <= 1390))
+        // Reject every typed cell whose physical span overlaps either saved word.
+        if (state.EventMemory.Cells.Any(pair => pair.Key < 1392 && (long)pair.Key + pair.Value.Width > 1388))
         {
-            throw new NotSupportedException("Native saved-world foot auxiliary bytes overlap an unproved legacy variable alias.");
+            throw new NotSupportedException("Native saved-world foot auxiliary bytes overlap an generic event-memory cell.");
         }
     }
 
     internal void ValidatePreparedSession(GameState candidate)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (rebound || candidate.Scene != SceneKind.WorldMap || candidate.WorldArrival != session.State.WorldArrival || candidate.World != State || candidate.SavedWorld != session.State.SavedWorld || candidate.Variables.Count != session.State.Variables.Count || candidate.Variables.Any(pair => !session.State.Variables.TryGetValue(pair.Key, out int value) || value != pair.Value))
+        if (rebound || candidate.Scene != SceneKind.WorldMap || candidate.WorldArrival != session.State.WorldArrival || candidate.World != State || candidate.SavedWorld != session.State.SavedWorld || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(candidate.EventMemory), System.Text.Json.JsonSerializer.SerializeToElement(session.State.EventMemory)))
         {
             throw new InvalidOperationException("The committed world session does not match its unused prepared entry.");
         }

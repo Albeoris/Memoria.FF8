@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte[] program)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, program, []);
             return engine;
         }
@@ -32,7 +32,7 @@ internal static partial class Program
                 int expected = first + Math.Sign(last - first) * (frame / divider % (Math.Abs(last - first) + 1));
                 JsonElement saved = engine.Capture();
                 JsonElement loop = saved.GetProperty("BackgroundAnimations")[0];
-                Require(engine.BackgroundStates[0] == expected && loop.GetProperty("Loop").GetBoolean() && loop.GetProperty("Active").GetBoolean() && !loop.GetProperty("Complete").GetBoolean() && saved.GetProperty("Variables").GetProperty("512").GetInt32() == 7 && !saved.GetProperty("Variables").TryGetProperty("514", out _), "Native background loop changed inclusive frame/divider order, immediate continuation or held synchronization.");
+                Require(engine.BackgroundStates[0] == expected && loop.GetProperty("Loop").GetBoolean() && loop.GetProperty("Active").GetBoolean() && !loop.GetProperty("Complete").GetBoolean() && CapturedVariables(saved).GetProperty("512").GetInt32() == 7 && !CapturedVariables(saved).TryGetProperty("514", out _), "Native background loop changed inclusive frame/divider order, immediate continuation or held synchronization.");
                 if (frame == 5)
                 {
                     independent = Create(program);
@@ -64,9 +64,9 @@ internal static partial class Program
         finite.Step();
         Require(!finite.Capture().GetProperty("BackgroundAnimations")[0].GetProperty("Loop").GetBoolean(), "Finite RBGANIME retained the former loop flag.");
         finite.Step();
-        Require(!finite.Capture().GetProperty("Variables").TryGetProperty("514", out _), "BGANIMESYNC continued in the completion update rather than the next script update.");
+        Require(!CapturedVariables(finite.Capture()).TryGetProperty("514", out _), "BGANIMESYNC continued in the completion update rather than the next script update.");
         finite.Step();
-        Require(finite.Capture().GetProperty("Variables").GetProperty("514").GetInt32() == 9, "Replacing a loop with a finite animation did not release native synchronization.");
+        Require(CapturedVariables(finite.Capture()).GetProperty("514").GetInt32() == 9, "Replacing a loop with a finite animation did not release native synchronization.");
         foreach (Jsm.Opcode hold in new[] { Jsm.Opcode.BGDRAW, Jsm.Opcode.BGOFF })
         {
             List<(Jsm.Opcode, int)> operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.BGANIMESPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.RBGANIMELOOP, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0)];
@@ -88,7 +88,7 @@ internal static partial class Program
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(165);
         GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-        EventEngine actual = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
+        EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
         actual.LoadField(165, field.Jsm, field.Messages, session.State.FieldArrival);
         actual.Restore(session.State.EventState!.Value);
         actual.Apply(new PlayerAction(PlayerActionKind.Wait));

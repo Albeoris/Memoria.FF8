@@ -13,7 +13,7 @@ internal readonly record struct WorldEntryVariables(ushort StoryWord, byte Repla
         }
         state.SavedWorld.Validate();
         NativeWorldEntryMemory memory = state.WorldEntryMemory ?? throw new NotSupportedException("World entry requires its executed native NewGame/CLEAR and typed store byte history.");
-        memory.ValidateVariables(state.Variables, state.NativeVariableValues);
+        memory.ValidateEventMemory(state.EventMemory);
         return new WorldEntryVariables(memory.StoryWord, memory.ReplacementFlags264, memory.StoryByte266, unchecked((byte)memory.ReadBytes(265, 1)));
     }
 }

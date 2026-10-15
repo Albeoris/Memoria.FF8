@@ -22,7 +22,7 @@ internal static partial class Program
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             session.SetNativeEventOwners(session.WorldControls!.WithSalaryEnabled(true), seeD: session.SeeD!.WithSalaryUiEnabled(true));
             List<int> speeds = [];
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolveWalkmesh = (x, y) => new(new(x, y, 0), 0),
@@ -117,7 +117,7 @@ internal static partial class Program
         }
         GameSession unknownSession = new(new GameState());
         int obsoleteResolverCalls = 0;
-        EventEngine unknown = new(unknownSession, unknownSession.State.Variables)
+        EventEngine unknown = new(unknownSession)
         {
             ResolveWalkmesh = (x, y) =>
             {

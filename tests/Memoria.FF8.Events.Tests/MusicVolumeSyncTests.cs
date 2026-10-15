@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -21,7 +21,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState());
-                EventEngine engine = new(session, session.State.Variables);
+                EventEngine engine = new(session);
                 engine.LoadField(100, content, []);
                 return engine;
             }
@@ -70,7 +70,7 @@ internal static partial class Program
         // An actual GETTIMER produces a bounded typed scalar, rather than a seeded operand.
         byte[] uncertain = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.MUSICVOLSYNC, 0), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8));
         GameSession timerSession = new(new GameState { ExamTimer = NativeExamTimerState.FromReachedSet(0) });
-        EventEngine timer = new(timerSession, timerSession.State.Variables);
+        EventEngine timer = new(timerSession);
         timer.LoadField(100, uncertain, []);
         timer.Step();
         timer.Step();

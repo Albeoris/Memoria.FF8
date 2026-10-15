@@ -53,7 +53,7 @@ internal static partial class Program
             preBody.Step();
             Require(JsonElement.DeepEquals(engine.Capture(), preBody.Capture()), "Default-before-HALT state diverged after independent restore.");
         }
-        JsonElement variables = engine.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(engine.Capture());
         Require(Enumerable.Range(0, 8).All(register => variables.GetProperty((6300 + register).ToString()).GetInt32() == (register + 1) * 11), "Skipped default LBL cleared live init values before actual PSHI reads.");
         QueueNativeDoorWaitComponent(engine, 24, 3);
         if (twoRequests)
@@ -172,7 +172,7 @@ internal static partial class Program
         onDefaultStart?.Invoke(JsmProgram.Read(content).Objects[1].Scripts[1].Start);
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
         session.MarkReplayUnavailable("Declared door default/result-bank component; requested contexts use current native Queue/selection producers.");
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;
     }

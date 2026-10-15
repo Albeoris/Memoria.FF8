@@ -26,7 +26,7 @@ internal static partial class Program
             session.StartNewGame();
             session.InitializeNewGameInputConfiguration(configuration);
             session.InitializeNewGameCharacterVitals(initial.DeepCopy());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 0)]]);
             engine.LoadField(74, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             engine.Step();
@@ -64,7 +64,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(source.Engine.Capture(), replayed.Engine.Capture()), "Replaying ordinary button actions changed complete VM state.");
 
         GameSession dialogueSession = new(new GameState { InputConfiguration = configuration, FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
-        EventEngine dialogue = new(dialogueSession, dialogueSession.State.Variables);
+        EventEngine dialogue = new(dialogueSession);
         byte[] dialogueContent = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MES, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MESSYNC, 0), (Jsm.Opcode.PSHN_L, 0x40), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
         dialogue.LoadField(100, dialogueContent, ["Continue"]);
         dialogue.Step();
@@ -72,7 +72,7 @@ internal static partial class Program
         Require(dialogue.Apply(new PlayerAction(PlayerActionKind.Confirm)) is { Accepted: true, FramesAdvanced: 0 } && dialogue.ButtonInput is { PendingPulse: 0x40, Pressed: 0 }, "Dialogue completion lost the edge before its next field callback.");
         JsonElement pending = dialogue.Capture();
         GameSession restoredSession = new(new GameState { InputConfiguration = configuration, FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
-        EventEngine restored = new(restoredSession, restoredSession.State.Variables);
+        EventEngine restored = new(restoredSession);
         restored.LoadField(100, dialogueContent, ["Continue"]);
         restored.Restore(pending);
         dialogue.Step();
@@ -80,7 +80,7 @@ internal static partial class Program
         Require(dialogueSession.State.Variables[5000] == 1 && JsonElement.DeepEquals(dialogue.Capture(), restored.Capture()), "Saving between confirmation and the next callback lost or repeated its pending edge.");
 
         GameSession invalidSession = new(new GameState { InputConfiguration = configuration, FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
-        EventEngine invalid = new(invalidSession, invalidSession.State.Variables);
+        EventEngine invalid = new(invalidSession);
         invalid.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x40), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.RET, 0)), []);
         System.Text.Json.Nodes.JsonNode empty = System.Text.Json.Nodes.JsonNode.Parse(invalid.Capture().GetRawText())!;
         empty["Fibers"]![0]!["Position"] = 2;

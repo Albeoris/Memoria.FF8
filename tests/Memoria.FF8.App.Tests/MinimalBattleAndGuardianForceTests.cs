@@ -41,7 +41,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.Equal((byte)0, original.Scene.NativeBattleResult);
         Assert.Equal((byte)0, original.Scene.NativeBattleCompletions![0].Result);
         Assert.Equal(2, original.Scene.NativeBattleCompletions![0].ReturnFrame);
-        Assert.Equal(0, original.Capture().GetProperty("Variables").GetProperty("800").GetInt32());
+        Assert.Equal(0, original.Variables[800]);
         Assert.Equal(new[] { 2 }, original.AcquiredGuardianForces!);
         MinimalMenuCompletion naming = Assert.Single(original.Scene.MinimalMenuCompletions);
         Assert.Equal((5, 7, 2), (naming.RawArgument, naming.MenuId, naming.GuardianForceId));
@@ -50,7 +50,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         original.Step();
         restored.Step();
         Assert.True(JsonElement.DeepEquals(original.Capture(), restored.Capture()));
-        Assert.Equal(321, original.Capture().GetProperty("Variables").GetProperty("900").GetInt32());
+        Assert.Equal(321, original.Variables[900]);
         Assert.Equal(999, original.FieldId);
         Assert.Equal(3, original.Frame);
     }
@@ -67,7 +67,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.Null(engine.Scene.NativeBattleResult);
         Assert.Empty(engine.AcquiredGuardianForces!);
         engine.Step();
-        Assert.Equal(123, engine.Capture().GetProperty("Variables").GetProperty("900").GetInt32());
+        Assert.Equal(123, engine.Variables[900]);
         Assert.Null(engine.Scene.NativeBattleResult);
     }
 
@@ -163,7 +163,7 @@ public sealed class MinimalBattleAndGuardianForceTests
     private static EventEngine Engine(byte[] source, NativeWorldControlState? controls)
     {
         var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 999, WorldControls = controls, CharacterVitals = InitialVitals.Value.DeepCopy() });
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         engine.LoadField(999, source, []);
         return engine;
     }

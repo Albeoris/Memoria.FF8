@@ -39,7 +39,7 @@ internal static partial class Program
                 session.StartNewGame();
                 session.InitializeNewGameCharacterVitals(vitals.DeepCopy());
                 session.InitializeNewGameEconomy(economy.DeepCopy());
-                EventEngine engine = new(session, session.State.Variables)
+                EventEngine engine = new(session)
                 {
                     AnimationFrameCount = (_, _) => 4
                 };
@@ -95,7 +95,7 @@ internal static partial class Program
         foreach (Jsm.Opcode command in new[] { Jsm.Opcode.HIDE, Jsm.Opcode.SHOW })
         {
             GameSession session = new(new GameState());
-            EventEngine unallocated = new(session, session.State.Variables);
+            EventEngine unallocated = new(session);
             unallocated.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (command, 0), (Jsm.Opcode.RET, 0)), []);
             try
             {

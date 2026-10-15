@@ -29,7 +29,7 @@ internal static partial class Program
             {
                 session = new GameSession(state);
             }
-            EventEngine engine = new(session, session.State.Variables) { MoviePlayback = () => session.State.MoviePlayback };
+            EventEngine engine = new(session) { MoviePlayback = () => session.State.MoviePlayback };
             engine.MovieSkipRequested += () => session.CompleteMovie(true);
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
@@ -79,7 +79,7 @@ internal static partial class Program
         Require(natural.Session.ExamTimer.ClockCalls == 10 && natural.Session.State.Variables[5000] == 77 && natural.Session.State.Variables[80] == 2, "Natural completion failed to resume the normal field clock or changed the retained predecode movie word.");
 
         UnprovedMovieClockServices unproved = new();
-        EventEngine unsupported = new(unproved, new Dictionary<int, int>());
+        EventEngine unsupported = new(unproved, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         unsupported.LoadField(100, content, []);
         try
         {

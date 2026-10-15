@@ -34,7 +34,7 @@ internal static partial class Program
             }
         };
         engine.Step();
-        Require(observed && engine.Actors[0].DisplayOffset == new Vector3(100, -200, 300) && engine.Capture().GetProperty("Variables").GetProperty("514").GetInt32() == 88, "COFFSETS did not continue its successor in the issuing callback and publish explicit start during post-VM.");
+        Require(observed && engine.Actors[0].DisplayOffset == new Vector3(100, -200, 300) && CapturedVariables(engine.Capture()).GetProperty("514").GetInt32() == 88, "COFFSETS did not continue its successor in the issuing callback and publish explicit start during post-VM.");
         JsonElement first = engine.Capture();
         EventEngine restored = CreateFieldMedia(content);
         restored.Restore(first);
@@ -44,13 +44,13 @@ internal static partial class Program
         {
             engine.Step();
             restored.Step();
-            Require(engine.Actors[0].DisplayOffset == expected && JsonElement.DeepEquals(engine.Capture(), restored.Capture()) && !engine.Capture().GetProperty("Variables").TryGetProperty("512", out _), "COFFSETS cosine table result, exact restored callback or OFFSETSYNC observation order differs.");
+            Require(engine.Actors[0].DisplayOffset == expected && JsonElement.DeepEquals(engine.Capture(), restored.Capture()) && !CapturedVariables(engine.Capture()).TryGetProperty("512", out _), "COFFSETS cosine table result, exact restored callback or OFFSETSYNC observation order differs.");
             Require(new Vector3(engine.Actors[0].X, engine.Actors[0].Y, engine.Actors[0].Z) == physical && engine.Actors[0].WalkmeshTriangle == triangle && engine.Actors[0].MovementSpeed == speed && engine.Actors[0].Direction == direction && engine.Actors[0].NativeLandingTriangle508 == landing && engine.Actors[0].NativeMovementCompletion542 == completion, "Display-only cosine offsets changed physical position, triangle, speed, facing or landing/completion words.");
         }
         Require(engine.Actors[0].NativeDisplayOffset is { Mode: 3, Counter: 4 }, "COFFSETS did not complete at its unsigned duration.");
         engine.Step();
         restored.Step();
-        Require(engine.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 27 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "OFFSETSYNC did not continue its successor in the first callback observing completed mode3.");
+        Require(CapturedVariables(engine.Capture()).GetProperty("512").GetInt32() == 27 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "OFFSETSYNC did not continue its successor in the first callback observing completed mode3.");
 
         JsonObject malformed = JsonNode.Parse(first.GetRawText())!.AsObject();
         malformed["Actors"]![0]!["NativeDisplayOffset"]!["StartX"] = 99;
@@ -70,7 +70,7 @@ internal static partial class Program
         zero.Step();
         Require(zero.Actors[0].NativeDisplayOffset is { X: 100, Y: 200, Z: 300, StartX: 11, StartY: -15, StartZ: 8, Duration: 0, Counter: 0, Mode: 3 }, "Zero-WORD-duration cosine offsets must select target at counter0, preserving independently written start.");
         zero.Step();
-        Require(zero.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 13, "Zero-duration cosine OFFSETSYNC did not continue on the next ordinary callback.");
+        Require(CapturedVariables(zero.Capture()).GetProperty("512").GetInt32() == 13, "Zero-duration cosine OFFSETSYNC did not continue on the next ordinary callback.");
 
         byte[] longContent = FieldMediaProgram((Jsm.Opcode.PSHN_L, -32768), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 32767), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.COFFSETS, 0), (Jsm.Opcode.OFFSETSYNC, 0));
         EventEngine longDuration = CreateFieldMedia(longContent);
@@ -94,9 +94,9 @@ internal static partial class Program
                 Require(twenty.Actors[0].DisplayOffset.Z == 328, "Twenty-frame cosine midpoint is not half the explicit656 start.");
             }
         }
-        Require(twenty.Actors[0].NativeDisplayOffset is { X: 0, Y: 0, Z: 0, Mode: 3, Counter: 20 } && !twenty.Capture().GetProperty("Variables").TryGetProperty("512", out _), "Actual219 operand shape did not complete after counter20 post-VM.");
+        Require(twenty.Actors[0].NativeDisplayOffset is { X: 0, Y: 0, Z: 0, Mode: 3, Counter: 20 } && !CapturedVariables(twenty.Capture()).TryGetProperty("512", out _), "Actual219 operand shape did not complete after counter20 post-VM.");
         twenty.Step();
-        Require(twenty.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 7, "Twenty-frame cosine offset completion did not resume its original successor.");
+        Require(CapturedVariables(twenty.Capture()).GetProperty("512").GetInt32() == 7, "Twenty-frame cosine offset completion did not resume its original successor.");
 
         EventEngine unknown = CreateFieldMedia(actualShape, native: false);
         try

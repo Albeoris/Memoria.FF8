@@ -29,7 +29,7 @@ internal static partial class Program
             JsmProgram decoded = JsmProgram.Read(content);
             Require(!decoded.Objects[0].IsDoor && decoded.Objects[1].IsDoor && decoded.NativeObjects.SequenceEqual([0, 1]), "Original raw door group was not correlated before sorting/native pointer-table ordering.");
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 2,
                 ResolveWalkmesh = (x, y) => new WalkmeshPosition(new Vector3(x, y, groundZ), 0),
@@ -47,13 +47,13 @@ internal static partial class Program
         EventEngine engine = Create();
         engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));
         JsonElement pending = engine.Capture();
-        Require(engine.Scene.NativePlayerMovementVersion == 1 && engine.Actors[1].NativeLineContactVersion == 1 && engine.Actors[1].LineContact && engine.Actors[1].NativeLineCrossingPending && !pending.GetProperty("Variables").TryGetProperty("5000", out _) && engine.LineCrossings.Count == 1, "Native sloped line did not stage its radius-qualified crossing after the issuing action, or ran it one update early.");
+        Require(engine.Scene.NativePlayerMovementVersion == 1 && engine.Actors[1].NativeLineContactVersion == 1 && engine.Actors[1].LineContact && engine.Actors[1].NativeLineCrossingPending && !CapturedVariables(pending).TryGetProperty("5000", out _) && engine.LineCrossings.Count == 1, "Native sloped line did not stage its radius-qualified crossing after the issuing action, or ran it one update early.");
         EventEngine independent = Create();
         independent.Restore(pending);
         Require(JsonElement.DeepEquals(pending, independent.Capture()), "Pending native line crossing did not restore independently.");
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         independent.Apply(new PlayerAction(PlayerActionKind.Wait));
-        Require(JsonElement.DeepEquals(engine.Capture(), independent.Capture()) && !engine.Actors[1].NativeLineCrossingPending && engine.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 1, "The following update did not consume the native crossing exactly once across independent restore.");
+        Require(JsonElement.DeepEquals(engine.Capture(), independent.Capture()) && !engine.Actors[1].NativeLineCrossingPending && CapturedVariables(engine.Capture()).GetProperty("5000").GetInt32() == 1, "The following update did not consume the native crossing exactly once across independent restore.");
         Require(engine.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1 && fiber.GetProperty("ScriptId").GetInt32() == 23 && fiber.GetProperty("Priority").GetInt32() == 2 && fiber.GetProperty("WaitReason").GetString() == "Frames"), "Native crossing did not select original local7 at priority2.");
         for (int tick = 0; tick < 4; tick++)
         {
@@ -76,7 +76,7 @@ internal static partial class Program
             }
             gated.Restore(JsonSerializer.SerializeToElement(disabled));
             gated.Step();
-            Require(!gated.Actors[1].NativeLineCrossingPending && !gated.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "Native disabled/control gate did not clear pending crossing without dispatch.");
+            Require(!gated.Actors[1].NativeLineCrossingPending && !CapturedVariables(gated.Capture()).TryGetProperty("5000", out _), "Native disabled/control gate did not clear pending crossing without dispatch.");
         }
 
         foreach ((int height, int targetX, bool expected) in new[] { (47, 0, true), (48, 0, false), (80, 2, false) })

@@ -21,7 +21,7 @@ internal static partial class Program
             {
                 session.SetInputConfiguration(configuration);
             }
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 333), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHN_L, mask), (query, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 8)]]), [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             engine.Step();
             return engine;
@@ -36,7 +36,7 @@ internal static partial class Program
                 JsonElement saved = live.Capture();
                 int expected = (unchecked((uint)mask) & (uint)raw) != 0 ? 1 : 0;
                 JsonElement fiber = saved.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-                Require(saved.GetProperty("Variables").GetProperty("5000").GetInt32() == expected && live.ButtonInput!.RawHeld == raw && live.ButtonInput.Held is null && fiber.GetProperty("Results").GetProperty("3").GetInt32() == 333 && fiber.GetProperty("Results").GetProperty("7").GetInt32() == 777, "KEYSCAN2 failed its zero-extended raw word/fullDWORD mask or return2 register preservation.");
+                Require(CapturedVariables(saved).GetProperty("5000").GetInt32() == expected && live.ButtonInput!.RawHeld == raw && live.ButtonInput.Held is null && fiber.GetProperty("Results").GetProperty("3").GetInt32() == 333 && fiber.GetProperty("Results").GetProperty("7").GetInt32() == 777, "KEYSCAN2 failed its zero-extended raw word/fullDWORD mask or return2 register preservation.");
                 EventEngine restored = Create(Jsm.Opcode.KEYSCAN2, mask, mapped: false);
                 restored.Restore(saved);
                 live.Step();
@@ -56,7 +56,7 @@ internal static partial class Program
         }
         JsonElement failed = unknownMapped.Capture();
         JsonElement blocked = failed.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-        Require(unknownMapped.LastFault?.Opcode == "KEYSCAN" && blocked.GetProperty("Position").GetInt32() == unknownMapped.LastFault.Operation && blocked.GetProperty("Stack")[0].GetInt32() == 4 && !failed.GetProperty("Variables").TryGetProperty("5000", out _), "Unknown mapped query consumed its mask, PC or result memory.");
+        Require(unknownMapped.LastFault?.Opcode == "KEYSCAN" && blocked.GetProperty("Position").GetInt32() == unknownMapped.LastFault.Operation && blocked.GetProperty("Stack")[0].GetInt32() == 4 && !CapturedVariables(failed).TryGetProperty("5000", out _), "Unknown mapped query consumed its mask, PC or result memory.");
 
         byte[] custom = Enumerable.Range(1, 12).Select(value => (byte)value).ToArray();
         custom[2] = 8;
@@ -138,7 +138,7 @@ internal static partial class Program
         {
             GameSession namingSession = GameSession.CreateColdProcess();
             namingSession.SetInputConfiguration(configuration);
-            EventEngine naming = new(namingSession, namingSession.State.Variables);
+            EventEngine naming = new(namingSession);
             naming.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, entity), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, entity), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)), [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             naming.Step();
             Require(naming.CurrentDialogue is { IsNamePrompt: true } name && name.Text == "Name: " + original, "Native naming prompt invented a placeholder or selected another default subject.");

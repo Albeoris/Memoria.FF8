@@ -15,12 +15,12 @@ internal static partial class Program
         accepted.Step();
         JsonElement pending = accepted.Capture();
         JsonElement caller = pending.GetProperty("Fibers")[0];
-        Require(pending.GetProperty("Variables").GetProperty("512").GetInt32() == 11 && !pending.GetProperty("Variables").TryGetProperty("513", out _), "PREQSW waited for target completion instead of continuing when its idle target started.");
+        Require(CapturedVariables(pending).GetProperty("512").GetInt32() == 11 && !CapturedVariables(pending).TryGetProperty("513", out _), "PREQSW waited for target completion instead of continuing when its idle target started.");
         Require(caller.GetProperty("WaitReason").GetString() == nameof(WaitReason.None) && caller.GetProperty("RequestSequence").ValueKind == JsonValueKind.Null, "An immediately started PREQSW installed an invented caller completion wait.");
         accepted.Step();
         accepted.Step();
         string completed = accepted.Capture().GetRawText();
-        Require(accepted.Capture().GetProperty("Variables").GetProperty("513").GetInt32() == 7, "PREQSW target failed to finish independently.");
+        Require(CapturedVariables(accepted.Capture()).GetProperty("513").GetInt32() == 7, "PREQSW target failed to finish independently.");
         accepted.Restore(pending);
         accepted.Step();
         accepted.Step();
@@ -31,7 +31,7 @@ internal static partial class Program
             EventEngine ignored = CreatePartyRequestFixture(slot, priority, true, Jsm.Opcode.PREQSW);
             ignored.Step();
             ignored.Step();
-            Require(ignored.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 11 && ignored.Capture().GetProperty("Fibers").GetArrayLength() == 2, "PREQSW absent party slot or occupied same-priority slot was not consumed and dropped.");
+            Require(CapturedVariables(ignored.Capture()).GetProperty("512").GetInt32() == 11 && ignored.Capture().GetProperty("Fibers").GetArrayLength() == 2, "PREQSW absent party slot or occupied same-priority slot was not consumed and dropped.");
         }
 
         EventEngine conflicting = CreatePartyRequestFixture(0, 1, true, Jsm.Opcode.PREQSW);
@@ -86,7 +86,7 @@ internal static partial class Program
         {
             GameState state = GameSession.Load(Path.Combine("../fixtures", source));
             GameSession session = new(state);
-            EventEngine engine = new(session, state.Variables) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
+            EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
             engine.LoadField(137, field.Jsm, field.Messages);
             engine.Restore(state.EventState!.Value);
             return engine;

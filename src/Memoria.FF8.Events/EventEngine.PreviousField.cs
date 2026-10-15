@@ -1,4 +1,5 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
@@ -14,9 +15,9 @@ public sealed partial class EventEngine
         {
             throw new ArgumentOutOfRangeException(nameof(previousFieldId), "Native previous field must fit its unsigned WORD.");
         }
-        foreach ((int address, int value) in variables)
+        foreach ((int address, NativeMemoryValue value) in EventMemory.Cells)
         {
-            if (address >= 81 && address <= 85 && !(address == 84 && Scene.PreviousFieldWord84 == value))
+            if (address < 86 && (long)address + value.Width > 84)
             {
                 throw new NotSupportedException($"Native previous-field load intersects ambiguous alias {address}={value}, current WORD84={Scene.PreviousFieldWord84}; the current field is preserved.");
             }
@@ -34,7 +35,6 @@ public sealed partial class EventEngine
     private void SetPreviousFieldWord(ushort value)
     {
         Scene.PreviousFieldWord84 = value;
-        variables[84] = value;
     }
 
     private bool TryReadPreviousFieldWord(JsmOperation operation, out int value)
@@ -59,17 +59,17 @@ public sealed partial class EventEngine
         bool exact = operation.Parameter == 84 && operation.Opcode is Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.POPM_W;
         if (Scene.PreviousFieldWord84 is null && !(operation.Opcode == Jsm.Opcode.POPM_W && operation.Parameter == 84))
         {
-            // Historical snapshots retain their prior unknown memory behavior;
-            // no loader provenance is reconstructed from the current field.
+            // Unallocated diagnostic memory remains generic; field identity
+            // does not establish previous-field provenance.
             return null;
         }
         if (!exact)
         {
             return "Native previous-field WORD84 requires an exact WORD access; overlapping widths preserve PC and operands";
         }
-        foreach ((int address, int value) in variables)
+        foreach ((int address, NativeMemoryValue value) in EventMemory.Cells)
         {
-            if (address >= 81 && address <= 85 && !(address == 84 && Scene.PreviousFieldWord84 == value))
+            if (address < 86 && (long)address + value.Width > 84)
             {
                 return "Native previous-field WORD84 intersects an ambiguous alias; PC and operands preserved";
             }
@@ -79,7 +79,7 @@ public sealed partial class EventEngine
 
     private void ValidatePreviousFieldCheckpoint(Checkpoint saved)
     {
-        if (saved.Scene.PreviousFieldWord84 is ushort known && (!saved.Variables.TryGetValue(84, out int alias) || alias != known || saved.Variables.Keys.Any(address => address >= 81 && address <= 85 && address != 84)))
+        if (saved.Scene.PreviousFieldWord84 is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 86 && (long)pair.Key + pair.Value.Width > 84))
         {
             throw new InvalidDataException("Saved previous-field WORD84 disagrees with its exact native memory authority.");
         }

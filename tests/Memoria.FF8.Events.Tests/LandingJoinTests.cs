@@ -17,7 +17,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures", source)));
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 LoadSoundResource = _ => SoundResourceStatus.Muted,

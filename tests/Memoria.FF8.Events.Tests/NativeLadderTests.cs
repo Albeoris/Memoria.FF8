@@ -42,7 +42,7 @@ internal static partial class Program
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             AnimationFrameCount = (_, _) => 4,
             ResolveNativeTriangleHeight = (_, _, _) => 3,
@@ -139,9 +139,9 @@ internal static partial class Program
             StepBoth(0);
             Require(actor.NativeMovementCompletion542 == 6 && actor.WalkmeshTriangle == 9 && actor.NativeLadder!.FixedX == NativeJumpMath.Interpolate(65565 << 12, 65569 << 12, 2, 1), "Exit phase snapped the endpoint or failed the landing-triangle transfer to stage6.");
             StepBoth(0);
-            Require(actor.NativeMovementCompletion542 == 2 && actor.NativeLadder is { Active: true } && !live.Capture().GetProperty("Variables").TryGetProperty("6000", out _), "Zero-follower stage6 did not complete after its single callback while preserving the held instruction.");
+            Require(actor.NativeMovementCompletion542 == 2 && actor.NativeLadder is { Active: true } && !CapturedVariables(live.Capture()).TryGetProperty("6000", out _), "Zero-follower stage6 did not complete after its single callback while preserving the held instruction.");
             StepBoth(0);
-            Require(actor.NativeLadder is not { Active: true } && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73, "Ladder completion return2 failed to execute its immediate successor within the same VM budget.");
+            Require(actor.NativeLadder is not { Active: true } && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 73, "Ladder completion return2 failed to execute its immediate successor within the same VM budget.");
         }
         NativeLadderAutomaticContract();
         NativeLadderRequestContract();

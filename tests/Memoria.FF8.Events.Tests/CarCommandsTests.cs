@@ -39,7 +39,7 @@ internal static partial class Program
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals().DeepCopy());
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
-            EventEngine engine = new(session, session.State.Variables) { ShakeTables = tables, AnimationFrameCount = (_, _) => 5, CanSetBackgroundScrollPosition = (layer, x, y) => layer == 0 && x == -3 && y == 4 };
+            EventEngine engine = new(session) { ShakeTables = tables, AnimationFrameCount = (_, _) => 5, CanSetBackgroundScrollPosition = (layer, x, y) => layer == 0 && x == -3 && y == 4 };
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.ResolveNativeNormalBackgroundScrollCenter = () => ((short)0, (short)0);
             return (session, engine);
@@ -69,14 +69,14 @@ internal static partial class Program
         foreach (int duration in new[] { 0, 2, 30, 128, -1 })
         {
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x1000005), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SEVOLTRANS, 0), (Jsm.Opcode.RET, 0)), []);
             engine.Step();
             byte narrowed = unchecked((byte)(duration * 2));
             Require(engine.Scene.SoundVolumeTransition is { Mask: 5, Voice: 1, Volume: 127 } request && request.DurationMilliseconds == (narrowed < 5 ? 0 : narrowed * 10), "SEVOLTRANS differs from native mask, least voice, BYTE duration wrap or sub50ms clamp.");
         }
         GameSession unknownSession = new(new GameState());
-        EventEngine rejected = new(unknownSession, unknownSession.State.Variables) { ShakeTables = tables };
+        EventEngine rejected = new(unknownSession) { ShakeTables = tables };
         byte[] invalid = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.SHAKE, 0), (Jsm.Opcode.RET, 0));
         rejected.LoadField(100, invalid, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         try

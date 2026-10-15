@@ -40,19 +40,21 @@ public sealed partial class GameSession
         {
             throw new InvalidDataException("Native shop history and economy have different New Game resource provenance.");
         }
-        ValidateJunctionPartyBackupAliases(State.Variables, State.NativeVariableValues);
-        ValidateEconomyAliases(State.Variables, State.NativeVariableValues);
+        ValidateJunctionPartyBackupAliases(State.EventMemory);
+        ValidateEconomyAliases(State.EventMemory);
         if (characterVitals.InitOutSha256 != economy.InitOutSha256 || shots.InitOutSha256 != economy.InitOutSha256 || shots.KernelSha256 != characterVitals.KernelSha256)
         {
             throw new InvalidDataException("Party menu owners disagree with their actual New Game resources.");
         }
         NativeCharacterVitals nextVitals = characterVitals.DeepCopy();
         NativeEconomy nextEconomy = economy.DeepCopy();
+        GameState candidate = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom, WeaponRecipes = weaponRecipes ?? State.WeaponRecipes };
+        ValidateEventMemoryOwners(candidate, State.EventMemory);
         if (!IsReplayCaptureActive)
         {
             MarkReplayUnavailable("Party menu owners changed outside a recorded engine transaction.");
         }
-        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom, WeaponRecipes = weaponRecipes ?? State.WeaponRecipes };
+        State = candidate with { ReplayJournal = State.ReplayJournal };
     }
 
     private static void ValidatePartyMenuOwnersCheckpoint(GameState state, JsonElement? vm)

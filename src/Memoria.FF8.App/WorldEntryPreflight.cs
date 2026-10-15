@@ -73,13 +73,13 @@ public static class WorldEntryPreflight
             throw new NotSupportedException("Native world-entry control flags have unknown provenance.");
         }
         departure.WorldControls.Validate();
-        if (departure.Variables.Keys.Any(address => address is >= 101 and <= 107 or >= 206 and <= 209) || departure.NativeVariableValues?.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 104 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209) == true)
+        if (departure.EventMemory.Cells.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 103 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209))
         {
-            throw new NotSupportedException("Native world-entry controls overlap an unproved legacy variable alias.");
+            throw new NotSupportedException("Native world-entry controls overlap an generic event-memory cell.");
         }
         _ = WorldEntryVariables.Read(departure);
         WorldMapScene.RequireUnaliasedFootAuxiliary(departure);
-        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, Variables = new Dictionary<int, int>(departure.Variables) };
+        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, EventMemory = departure.EventMemory };
         var temporarySession = new GameSession(candidate);
         var scene = new WorldMapScene(temporarySession, gameDirectory);
         try

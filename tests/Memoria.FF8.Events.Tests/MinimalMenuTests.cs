@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create(byte[] program)
         {
             GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(159, program, []);
             return engine;
         }
@@ -30,12 +30,12 @@ internal static partial class Program
             MinimalMenuCompletion completed = engine.Scene.MinimalMenuCompletions.Single();
             JsonElement paused = engine.Capture();
             JsonElement owner = paused.GetProperty("Fibers")[0];
-            Require(completed is { Version: 1, Kind: MinimalMenuKind.Tutorial, FieldId: 159, Frame: 1, ObjectId: 0, ScriptId: 0, Operation: 2, MenuId: 29, GuardianForceId: null } && completed.RawArgument == argument && completed.Selection == (byte)argument && !engine.IsDialogueOpen && engine.Scene.UnlockedTutorials.Count == 0 && !paused.GetProperty("Variables").TryGetProperty("256", out _) && owner.GetProperty("Position").GetInt32() == 3 && owner.GetProperty("Stack").GetArrayLength() == 0 && owner.GetProperty("WaitReason").GetString() == "MinimalMenu" && owner.GetProperty("WaitUntil").GetInt64() == 2, "Automatic tutorial completion did not preserve its low BYTE, advanced PC and one-update yield without story writes.");
+            Require(completed is { Version: 1, Kind: MinimalMenuKind.Tutorial, FieldId: 159, Frame: 1, ObjectId: 0, ScriptId: 0, Operation: 2, MenuId: 29, GuardianForceId: null } && completed.RawArgument == argument && completed.Selection == (byte)argument && !engine.IsDialogueOpen && engine.Scene.UnlockedTutorials.Count == 0 && !CapturedVariables(paused).TryGetProperty("256", out _) && owner.GetProperty("Position").GetInt32() == 3 && owner.GetProperty("Stack").GetArrayLength() == 0 && owner.GetProperty("WaitReason").GetString() == "MinimalMenu" && owner.GetProperty("WaitUntil").GetInt64() == 2, "Automatic tutorial completion did not preserve its low BYTE, advanced PC and one-update yield without story writes.");
             EventEngine independent = Create(program);
             independent.Restore(paused);
             engine.Apply(new PlayerAction(PlayerActionKind.Wait));
             independent.Apply(new PlayerAction(PlayerActionKind.Wait));
-            Require(JsonElement.DeepEquals(engine.Capture(), independent.Capture()) && engine.Frame == 2 && engine.Scene.UnlockedTutorials.SetEquals([argument & 127]) && engine.Capture().GetProperty("Variables").GetProperty("256").GetInt32() == 33 && engine.Scene.MinimalMenuWaits.Count == 0 && commands.Count(command => command.Name == "TUTO") == 1 && commands.Any(command => command.Name == "MENUTIPS"), "Tutorial continuation added a second update, replayed the request, lost native MENUTIPS masking or changed original script writes.");
+            Require(JsonElement.DeepEquals(engine.Capture(), independent.Capture()) && engine.Frame == 2 && engine.Scene.UnlockedTutorials.SetEquals([argument & 127]) && CapturedVariables(engine.Capture()).GetProperty("256").GetInt32() == 33 && engine.Scene.MinimalMenuWaits.Count == 0 && commands.Count(command => command.Name == "TUTO") == 1 && commands.Any(command => command.Name == "MENUTIPS"), "Tutorial continuation added a second update, replayed the request, lost native MENUTIPS masking or changed original script writes.");
         }
 
         byte[] naming = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, 777), (Jsm.Opcode.POPM_W, 384), (Jsm.Opcode.RET, 0));
@@ -52,7 +52,7 @@ internal static partial class Program
             restoredGf.Apply(new PlayerAction(PlayerActionKind.Wait));
             Require(JsonElement.DeepEquals(gf.Capture(), restoredGf.Capture()), "Independent GF naming-yield restore changed acquisition, request provenance or native script continuation.");
         }
-        Require(gf.Frame == 3 && gf.AcquiredGuardianForces!.SetEquals([0, 1]) && gf.Scene.MinimalMenuCompletions[1] is { RawArgument: 4, MenuId: 6, GuardianForceId: 1 } && gf.Capture().GetProperty("Variables").GetProperty("384").GetInt32() == 777 && !gf.Scene.Names.ContainsKey(4), "MENUNAME4 did not acquire GF1 before the original successor write or invented a name.");
+        Require(gf.Frame == 3 && gf.AcquiredGuardianForces!.SetEquals([0, 1]) && gf.Scene.MinimalMenuCompletions[1] is { RawArgument: 4, MenuId: 6, GuardianForceId: 1 } && CapturedVariables(gf.Capture()).GetProperty("384").GetInt32() == 777 && !gf.Scene.Names.ContainsKey(4), "MENUNAME4 did not acquire GF1 before the original successor write or invented a name.");
         MinimalMenuCompletion[] history = gf.Scene.MinimalMenuCompletions.ToArray();
         byte[] next = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0));
         gf.LoadField(160, next, []);

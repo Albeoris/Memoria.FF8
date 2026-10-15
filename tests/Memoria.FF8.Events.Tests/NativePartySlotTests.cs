@@ -92,7 +92,7 @@ internal static partial class Program
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         //Declared component executes original producers; it does not represent a field visit or reconstructed journey.
         byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.ADDMEMBER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.MENUPHS, 0), (Jsm.Opcode.RET, 8)]]);
         engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

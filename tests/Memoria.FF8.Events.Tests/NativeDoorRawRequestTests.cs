@@ -84,7 +84,7 @@ internal static partial class Program
         EventEngine midRestore = CreateNativeDoorRawRequest(vitals, economy, busy);
         midRestore.Restore(directCapture);
         JsonElement? directBeforeHigh = null;
-        for (int tick = 0; tick < 24 && !live.Capture().GetProperty("Variables").TryGetProperty("6000", out _); tick++)
+        for (int tick = 0; tick < 24 && !CapturedVariables(live.Capture()).TryGetProperty("6000", out _); tick++)
         {
             bool highBefore = HasNativeDoorRawFiber(live, 25);
             JsonElement? directBefore = HasNativeDoorRawFiber(live, 19) ? NativeDoorRawFiber(live, 19) : null;
@@ -98,7 +98,7 @@ internal static partial class Program
                 Require(directBefore is JsonElement held && JsonElement.DeepEquals(held, NativeDoorRawFiber(live, 19)), "Higher raw slot7 changed suspended direct slot6 before its RET8.");
             }
         }
-        JsonElement variables = live.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(live.Capture());
         Require(sawUnenteredHigh && directBeforeHigh is not null && busyCount == 1 && labels.Where(script => script >= 19).SequenceEqual(new[] { 24, 19, 25 }) && returns.SequenceEqual(new[] { 25, 19, 24 }), "Native raw/direct occupancy, actual LBL admission or highest physical slot7→6→1 return order changed.");
         Require(variables.GetProperty("6002").GetInt32() == 33 && variables.GetProperty("6001").GetInt32() == 22 && variables.GetProperty("6000").GetInt32() == 11 && variables.GetProperty("6100").GetInt32() == 77, "Busy raw request looked up its invalid script, lost its successor or overwrote another slot's results.");
         Require(resumedInReturnCallback.SetEquals(new[] { 19, 24 }), "Door RET8 failed to resume retained lower requests within the same sixteen-op callback budget.");
@@ -135,7 +135,7 @@ internal static partial class Program
         content[3] = 1;
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
         session.MarkReplayUnavailable("Declared native door raw/direct scheduler component; direct event is staged at the existing Queue boundary.");
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4, LoadSoundResource = _ => SoundResourceStatus.Muted };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4, LoadSoundResource = _ => SoundResourceStatus.Muted };
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;
     }
@@ -162,7 +162,7 @@ internal static partial class Program
             }
         }
         JsonElement after = NativeDoorRawFiber(engine, script);
-        Require(before is JsonElement saved && engine.LastFault?.Opcode == opcode && JsonElement.DeepEquals(saved, after) && after.GetProperty("Position").GetInt32() == engine.LastFault.Operation && !engine.Capture().GetProperty("Variables").TryGetProperty("6100", out _), $"Unsupported {description} changed its original PC, operands, entered frame or successor before refusal.");
+        Require(before is JsonElement saved && engine.LastFault?.Opcode == opcode && JsonElement.DeepEquals(saved, after) && after.GetProperty("Position").GetInt32() == engine.LastFault.Operation && !CapturedVariables(engine.Capture()).TryGetProperty("6100", out _), $"Unsupported {description} changed its original PC, operands, entered frame or successor before refusal.");
         if (opcode != "RET")
         {
             Require(!HasNativeDoorRawFiber(engine, 24), $"Unsupported {description} queued a door request before refusal.");

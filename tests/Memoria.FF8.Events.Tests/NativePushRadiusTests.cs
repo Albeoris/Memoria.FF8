@@ -37,7 +37,7 @@ internal static partial class Program
     {
         (Jsm.Opcode, int)[] Actor(int label, int model, int x) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.SETMODEL, model), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, radiusOperand), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.PUSHOFF, 0), (Jsm.Opcode.RET, 8)];
         var session = new GameSession(new GameState());
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         engine.LoadField(600, SyntheticObjects([0, 16 << 7], [Actor(0, 0, 0), Actor(16, 1, peerX)]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;
     }

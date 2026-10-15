@@ -18,7 +18,7 @@ public sealed class SavedWorldSessionTests
     public void NonzeroSavedSlotsSurviveScenesAndCheckpointReload()
     {
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { Slot4 = new NativeSavedWorldVehicleSlot(73, new NativeSavedWorldPose(-123, 456, -789, 65000)) };
-        var session = new GameSession(new GameState { SavedWorld = saved });
+        var session = new GameSession(new GameState { SavedWorld = saved, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame() });
         session.RequestField(232, 0);
         session.RequestMovie(1);
         session.CompleteMovie();

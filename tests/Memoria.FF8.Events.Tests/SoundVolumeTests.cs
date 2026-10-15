@@ -18,9 +18,9 @@ internal static partial class Program
                 EventEngine Create()
                 {
                     GameSession session = GameSession.CreateColdProcess();
-                    session.State.Variables[512] = unchecked((int)rawMask);
-                    session.State.Variables[516] = rawVolume;
-                    EventEngine engine = new(session, session.State.Variables) { ResolveGlobalSoundResource = MutedGlobalSample };
+                    session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(unchecked((int)rawMask))));
+                    session.SetEventMemory(session.State.EventMemory.Write(516, 4, NativeScalarValue.Exact(rawVolume)));
+                    EventEngine engine = new(session) { ResolveGlobalSoundResource = MutedGlobalSample };
                     engine.LoadField(100, content, []);
                     return engine;
                 }
@@ -57,7 +57,7 @@ internal static partial class Program
                 first.LoadField(101, next, []);
                 Require(first.Scene.SoundVolume == request, "Field allocation erased the historical SEVOL request.");
                 GameSession historicalSession = new(new GameState());
-                EventEngine historical = new(historicalSession, historicalSession.State.Variables);
+                EventEngine historical = new(historicalSession);
                 historical.LoadField(101, next, []);
                 historical.Restore(first.Capture());
                 Require(JsonElement.DeepEquals(first.Capture(), historical.Capture()), "Historical SEVOL failed to restore at the reset field clock.");
@@ -70,8 +70,8 @@ internal static partial class Program
         foreach (uint rawMask in new[] { 0u, 0xFF000000u })
         {
             GameSession session = new(new GameState());
-            session.State.Variables[512] = unchecked((int)rawMask);
-            EventEngine refused = new(session, session.State.Variables);
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(unchecked((int)rawMask))));
+            EventEngine refused = new(session);
             refused.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.PSHN_L, 127), (Jsm.Opcode.SEVOL, 0), (Jsm.Opcode.RET, 0)), []);
             try
             {

@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte[] content, int fieldId = 100)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(fieldId, content, []);
             return engine;
         }
@@ -102,7 +102,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(225);
         string source = Path.Combine("../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
-        EventEngine actual = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
+        EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
         actual.LoadField(225, field.Jsm, field.Messages, session.State.FieldArrival);
         actual.Restore(session.State.EventState!.Value);
         Require(actual.Frame == 2 && actual.Actors[11].RootTranslationZ == 0 && actual.Actors[11].ModelId == 10, "Original225 root-translation source changed its frame, actor model or initialized root word.");
@@ -111,7 +111,7 @@ internal static partial class Program
         Require(actual.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted && actual.Frame == 3 && actual.LastFault is null && actual.Actors[11].RootTranslationZ == -30 && commands.Any(command => command.ObjectId == 11 && command.ScriptId == 47 && command.Operation == 437 && command.Name == "SETROOTTRANS"), "Original225 ordinary Wait did not execute the original negative root translation.");
         Require(actual.Actors[11].X == -547 && actual.Actors[11].Y == 192 && actual.Actors[11].Z == -245, "Root translation incorrectly changed original225 actor placement.");
         GameSession independentSession = new(GameSession.Load(source));
-        EventEngine replay = new(independentSession, independentSession.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
+        EventEngine replay = new(independentSession) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
         replay.LoadField(225, field.Jsm, field.Messages, independentSession.State.FieldArrival);
         replay.Restore(actual.Capture());
         for (int tick = 0; tick < 4; tick++)

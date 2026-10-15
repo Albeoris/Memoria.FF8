@@ -24,7 +24,7 @@ internal static partial class Program
         EventEngine Create(bool modeled = false)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) =>
                 {

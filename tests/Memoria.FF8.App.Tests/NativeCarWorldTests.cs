@@ -47,7 +47,7 @@ public sealed class NativeCarWorldTests
         Assert.Equal(edge, blocked.Cache.Alternatives[0].CurrentGround);
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = 12904, Z = -27135, NativeHeight = -304, CameraTargetX = 12904, CameraTargetZ = -27135, CameraTargetNativeHeight = -560, GroundType = assets.ResolveNativeGroundIdentity(edge, replacements).GroundType, NativeCarRuntime = scene.State.NativeCarRuntime! with { GroundCache = stoppedCache, Speed = 2 } });
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
@@ -106,7 +106,7 @@ public sealed class NativeCarWorldTests
         // Isolated component fixture; actual gameplay acceptance belongs to the authentic New Game journal.
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
         using var scene = new WorldMapScene(session, directory);
         Assert.Equal((24511, -28167, -552), (scene.State.X, scene.State.Z, scene.State.NativeHeight));
         Assert.Equal((2256, 2256), (scene.State.CameraYaw, scene.State.BodyYaw));
@@ -161,7 +161,7 @@ public sealed class NativeCarWorldTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
         using (var entry = new WorldMapScene(session, directory))
         {
             // Isolated component contact fixture at an installed entrance-polygon centroid;
@@ -207,7 +207,7 @@ public sealed class NativeCarWorldTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
         session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
         using var scene = new WorldMapScene(session, directory);
         session.SetWorldState(scene.State with { X = -5000, CameraTargetX = -1476, CameraYaw = 0 });
@@ -224,7 +224,7 @@ public sealed class NativeCarWorldTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
-        session.Restore(session.State with { FieldId = 262, Variables = new Dictionary<int, int> { [256] = 40, [265] = 128 } });
+        session.Restore(session.State with { FieldId = 262, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
         var transition = new WorldTransition(63, 33, -1);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, directory, transition);
         GameState before = session.State;

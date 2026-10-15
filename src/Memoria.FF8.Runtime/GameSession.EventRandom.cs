@@ -15,13 +15,13 @@ public sealed partial class GameSession
         {
             throw new InvalidDataException("Native random publication cannot erase executed draw-point bank history.");
         }
-        ValidateEventRandomAliases(State.Variables, State.NativeVariableValues);
+        ValidateEventMemoryOwners(State with { EventRandom = random }, State.EventMemory);
         State = State with { EventRandom = random };
     }
 
-    private static void ValidateEventRandomAliases(IReadOnlyDictionary<int, int> variables, IReadOnlyDictionary<int, NativeMemoryValue>? memory)
+    private static void ValidateEventRandomAliases(NativeEventMemory memory)
     {
-        if (variables.Keys.Any(address => address < 182 && (long)address + 4 > 116) || memory?.Any(pair => pair.Key < 182 && (long)pair.Key + pair.Value.Width > 116) == true)
+        if (memory.Cells.Any(pair => pair.Key < 182 && (long)pair.Key + pair.Value.Width > 116))
         {
             throw new InvalidDataException("Canonical draw-point memory overlaps a separate native event-bank alias.");
         }
@@ -30,9 +30,9 @@ public sealed partial class GameSession
     private static void ValidateEventRandomCheckpoint(GameState state, JsonElement? currentVm)
     {
         state.EventRandom?.Validate();
-        if (state.EventRandom is not null)
+        if (state.EventRandom?.DrawPoints is not null)
         {
-            ValidateEventRandomAliases(state.Variables, state.NativeVariableValues);
+            ValidateEventRandomAliases(state.EventMemory);
         }
         if (currentVm is not JsonElement vm)
         {

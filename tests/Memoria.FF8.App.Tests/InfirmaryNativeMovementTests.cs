@@ -30,7 +30,7 @@ public sealed class InfirmaryNativeMovementTests
                 Assert.Equal(quistis.BaseAnimationId, quistis.AnimationId);
                 Assert.Null(quistis.MovementTarget);
                 JsonElement snapshot = world.Events.Capture();
-                using var restored = new GameWorld(new GameSession(session.State with { EventState = snapshot, Variables = new Dictionary<int, int>(session.State.Variables), NativeVariableValues = session.State.NativeVariableValues is null ? null : new Dictionary<int, NativeMemoryValue>(session.State.NativeVariableValues) }), directory);
+                using var restored = new GameWorld(new GameSession(session.State with { EventState = snapshot, EventMemory = session.State.EventMemory}), directory);
                 restored.EnsureField();
                 Assert.True(JsonElement.DeepEquals(snapshot, restored.Events.Capture()));
                 Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
@@ -125,7 +125,7 @@ public sealed class InfirmaryNativeMovementTests
                     continue;
                 }
                 JsonElement snapshot = world.Events.Capture();
-                using var restored = new GameWorld(new GameSession(session.State with { EventState = snapshot, Variables = new Dictionary<int, int>(session.State.Variables), NativeVariableValues = session.State.NativeVariableValues is null ? null : new Dictionary<int, NativeMemoryValue>(session.State.NativeVariableValues) }), directory);
+                using var restored = new GameWorld(new GameSession(session.State with { EventState = snapshot, EventMemory = session.State.EventMemory}), directory);
                 restored.EnsureField();
                 Assert.True(JsonElement.DeepEquals(snapshot, restored.Events.Capture()));
                 Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

@@ -33,7 +33,7 @@ public sealed class SoundInitializationContinuationTests
         Assert.True(world.Events.Scene.MusicPlaying);
         Assert.NotNull(world.Events.FieldFade);
         Assert.Equal((short)0, world.Events.FieldFade.Physical.Mode);
-        using var replay = new GameWorld(new GameSession(session.State with { Variables = new Dictionary<int, int>(session.State.Variables), EventState = world.Events.Capture() }), directory);
+        using var replay = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
         replay.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));

@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(GameSession.Load(path));
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z),
@@ -60,7 +60,7 @@ internal static partial class Program
     private static void NativeBaseAnimationContract()
     {
         GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => throw new InvalidOperationException("BASEANIME must not read model metadata.") };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => throw new InvalidOperationException("BASEANIME must not read model metadata.") };
         byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 264), (Jsm.Opcode.PSHN_L, 263), (Jsm.Opcode.BASEANIME, 262), (Jsm.Opcode.RET, 0));
         engine.LoadField(100, program, []);
         Require(engine.Actors[0].BaseAnimationId == 42 && engine.Actors[0].WalkAnimationId == 42 && engine.Actors[0].RunAnimationId == 42, "Native base animation defaults differ from actor bytes591..593.");
@@ -86,7 +86,7 @@ internal static partial class Program
         GameSession secondSession = new(GameSession.Load(path));
         EventEngine Create(GameSession session)
         {
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 LoadSoundResource = _ => SoundResourceStatus.Muted,

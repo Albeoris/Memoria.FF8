@@ -14,13 +14,13 @@ internal static partial class Program
         {
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, position), (Jsm.Opcode.MUSICSKIP, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.RET, 0));
             GameSession session = CreateNativeMusicSession();
-            EventEngine first = new(session, session.State.Variables);
+            EventEngine first = new(session);
             first.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             first.Step();
             Require(first.Scene.MusicPlayRequest is { Opcode: "MUSICSKIP", ConsumedPending: true, Music: 26, Bank: 1, Channel: 0, Volume: 127 } request && request.SkipPosition == position && first.Scene.MusicChannel112?.ChannelId == -1 && !session.State.Variables.ContainsKey(500), "MUSICSKIP lost full position, primary routing, bank toggle or return3 yield.");
             JsonElement checkpoint = first.Capture();
             GameSession copySession = CreateNativeMusicSession();
-            EventEngine copy = new(copySession, copySession.State.Variables);
+            EventEngine copy = new(copySession);
             copy.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             copy.Restore(checkpoint);
             first.Step();

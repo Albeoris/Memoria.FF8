@@ -25,7 +25,7 @@ public sealed class MusicPositionContinuationTests
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -0.83029f, Vertical: -0.55733f)).Accepted);
         world.EnsureField();
         Assert.Null(world.Events.LastFault);
-        using var restored = new GameWorld(new GameSession(session.State with { Variables = new Dictionary<int, int>(session.State.Variables), EventState = world.Events.Capture() }), directory);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

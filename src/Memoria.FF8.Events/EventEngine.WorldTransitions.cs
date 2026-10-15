@@ -130,7 +130,7 @@ public sealed partial class EventEngine
             }
             return;
         }
-        if (request.Version != 1 || request.SourceFieldId != saved.FieldId || request.SourceFrame != saved.Frame || !Enum.IsDefined(request.Origin) || !saved.TransitionRequested || request.Transition is null || request.ControlsAtDeparture is null || request.ControlsAtIssue is null || request.ControlsAtLoader is null || saved.WorldControls is null || saved.Variables.Keys.Any(address => address is >= 102 and <= 105 or >= 206 and <= 209))
+        if (request.Version != 1 || request.SourceFieldId != saved.FieldId || request.SourceFrame != saved.Frame || !Enum.IsDefined(request.Origin) || !saved.TransitionRequested || request.Transition is null || request.ControlsAtDeparture is null || request.ControlsAtIssue is null || request.ControlsAtLoader is null || saved.WorldControls is null || (saved.EventMemory.Overlaps(103, 5) || saved.EventMemory.Overlaps(207, 1) || saved.EventMemory.Overlaps(209, 1)))
         {
             throw new InvalidDataException("Saved world request lacks its original field/frame, transition or canonical control provenance.");
         }

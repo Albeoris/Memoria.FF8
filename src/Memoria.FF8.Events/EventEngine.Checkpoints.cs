@@ -60,7 +60,7 @@ public sealed partial class EventEngine
             1, FieldId, programHash, Frame, accumulatedSeconds, preparedMovie, sequence, defaultsStarted, transitionRequested, userControlEnabled,
             backgroundFps, nameEntity,
             actors.ToArray(), fibers.Select(fiber => new FiberCheckpoint(fiber.ObjectId, fiber.Script.Id, fiber.Priority, fiber.Sequence, fiber.Initialization, fiber.Position, fiber.Complete, fiber.Started, fiber.NativeResultFrameEntered, fiber.Stack.Capture(), fiber.StackExpressions.ToArray(), new Dictionary<int, NativeScalarValue>(fiber.Results), fiber.WaitReason, fiber.WaitUntil, fiber.Request?.Sequence, fiber.DialogueChannel, fiber.BackgroundId, fiber.SoundResourceId, fiber.NativeDoorSlot, fiber.NativeActorSlot, fiber.NativeMoveOperation, fiber.NativeMoveTarget, fiber.NativeDoorRequestWait, fiber.NativeDoorDefaultFrame, fiber.NativeDoorSavedResults, fiber.NativeShadeOperation)).ToArray(),
-            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), new Dictionary<int, int>(variables), Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.NativeVariableValues is { Count: > 0 } nativeMemory ? new Dictionary<int, NativeMemoryValue>(nativeMemory) : null, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource);
+            dialogues.Values.ToArray(), CurrentDialogue?.Channel, new Dictionary<int, int>(backgroundStates), backgroundAnimations.Select(pair => new BackgroundCheckpoint(pair.Key, pair.Value.First, pair.Value.Last, pair.Value.Speed, pair.Value.Complete, pair.Value.NativeVersion, pair.Value.Counter, pair.Value.Position, pair.Value.Active, pair.Value.Loop)).ToArray(), EventMemory, Scene, axisStart, axisTarget, axisDuration, axisElapsed, InputAxisDirection, movieProgressExpected, CurrentMoviePlayback, pendingArrival, LastFault, partyJoin, partySplit, services.WorldControls, services.ExamTimer, services.CharacterVitals, services.CharacterAppearance, services.CardInventory, services.SeeD, services.MessageVariables, services.Economy, services.GlobalSoundProcess, services.SalaryPresentation, services.FieldShake, services.InputConfiguration, services.FieldButtonInput, services.ShotAvailability, partyMenu, services.EventRandom, services.NativeFieldLocation, services.VibrationProcess, services.FieldFade, services.ShopHistory, services.MenuRandom, services.WeaponRecipes, services.WorldEntryMemory, services.DiscProcess, services.MovieSource);
         return JsonSerializer.SerializeToElement(snapshot, CheckpointOptions);
     }
 
@@ -68,6 +68,12 @@ public sealed partial class EventEngine
     private void RestoreCore(JsonElement snapshot)
     {
         Checkpoint saved = snapshot.Deserialize<Checkpoint>(CheckpointOptions) ?? throw new InvalidDataException("Empty event checkpoint.");
+        if (saved.EventMemory is null)
+        {
+            throw new InvalidDataException("Saved VM requires explicit typed event memory; recreate its authentic journal.");
+        }
+        saved.EventMemory.Validate();
+        ValidateSceneMemoryOwners(saved.EventMemory, saved.Scene);
         if (program is null || saved.Version != 1 || saved.FieldId != FieldId || saved.ProgramHash != programHash || saved.Actors.Length != actors.Count || saved.Frame < 0 || !double.IsFinite(saved.AccumulatedSeconds) || saved.AccumulatedSeconds < 0 || saved.AccumulatedSeconds > 10)
         {
             throw new InvalidDataException("Event checkpoint does not match the loaded field/program or has invalid timing.");
@@ -123,17 +129,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Active or pending movie snapshot has no executed native actor lifecycle; recreate its journal.");
         }
-        if (saved.NativeVariableValues is { Count: > 0 } savedMemory)
+        foreach (NativeMemoryValue entry in saved.EventMemory.Cells.Values)
         {
-            if (!services.CanStoreNativeVariableValues)
-            {
-                throw new InvalidDataException("Saved uncertain native memory requires its typed event service.");
-            }
-            NativeMemoryValue.Validate(savedMemory, saved.Variables);
-            foreach (NativeMemoryValue entry in savedMemory.Values)
-            {
-                ValidateNativeScalarSource(entry.Value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer, saved.Scene);
-            }
+            ValidateNativeScalarSource(entry.Value, saved.FieldId, saved.ProgramHash, saved.Frame, saved.Scene.NativeFieldInitialization, saved.ExamTimer, saved.Scene);
         }
         if (saved.Scene.UnlockedTutorials.Any(id => (uint)id >= 128))
         {
@@ -188,7 +186,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved native shake process history requires authenticated original lookup tables.");
         }
         saved.CharacterVitals?.Validate();
-        if (saved.CharacterVitals is not null && (saved.Variables.Keys.Any(address => address < 194 && (long)address + 4 > 188) || saved.NativeVariableValues?.Any(pair => pair.Key < 194 && (long)pair.Key + pair.Value.Width > 188) == true))
+        if (saved.CharacterVitals is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 194 && pair.Key + pair.Value.Width > 188))
         {
             throw new InvalidDataException("Canonical JUNCTION backup bytes overlap a separate saved VM alias; recreate authentic inputs.");
         }
@@ -205,7 +203,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved VM lacks matching prepared movie resource ownership.");
         }
         saved.DiscProcess?.Validate();
-        if (saved.DiscProcess is null && services.DiscProcess is not null || saved.DiscProcess is not null && (!services.CanStoreDiscProcess || saved.Variables.Keys.Any(address => address <= 204 && (long)address + 4 > 204) || saved.NativeVariableValues?.Any(pair => pair.Key <= 204 && (long)pair.Key + pair.Value.Width > 204) == true))
+        if (saved.DiscProcess is null && services.DiscProcess is not null || saved.DiscProcess is not null && (!services.CanStoreDiscProcess || saved.EventMemory.Cells.Any(pair => pair.Key <= 204 && pair.Key + pair.Value.Width > 204)))
         {
             throw new InvalidDataException("Saved VM lacks matching native disc process ownership.");
         }
@@ -230,7 +228,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved native vibration queue requires matching known process ownership.");
         }
         saved.EventRandom?.Validate();
-        if (saved.EventRandom is null && services.EventRandom is not null || saved.EventRandom is { DrawPoints: null } && services.EventRandom?.DrawPoints is not null || saved.EventRandom is not null && !services.CanStoreEventRandom || saved.EventRandom is not null && (saved.Variables.Keys.Any(address => address < 182 && (long)address + 4 > 116) || saved.NativeVariableValues?.Any(pair => pair.Key < 182 && (long)pair.Key + pair.Value.Width > 116) == true))
+        if (saved.EventRandom is null && services.EventRandom is not null || saved.EventRandom is { DrawPoints: null } && services.EventRandom?.DrawPoints is not null || saved.EventRandom is not null && !services.CanStoreEventRandom || saved.EventRandom is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 182 && pair.Key + pair.Value.Width > 116))
         {
             throw new InvalidDataException("Saved native random process requires matching known ownership and canonical packed depletion memory.");
         }
@@ -245,12 +243,12 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved economy requires matching known history and a persistent service; recreate authentic inputs.");
         }
-        if (saved.Economy is not null && (saved.Variables.Keys.Any(address => address < 80 && (long)address + 4 > 72) || saved.NativeVariableValues?.Any(pair => pair.Key < 80 && (long)pair.Key + pair.Value.Width > 72) == true || saved.CharacterVitals is not null && saved.Economy.InitOutSha256 != saved.CharacterVitals.InitOutSha256))
+        if (saved.Economy is not null && (saved.EventMemory.Cells.Any(pair => pair.Key < 80 && pair.Key + pair.Value.Width > 72) || saved.CharacterVitals is not null && saved.Economy.InitOutSha256 != saved.CharacterVitals.InitOutSha256))
         {
             throw new InvalidDataException("Saved economy overlaps another memory owner or has a different New Game template identity.");
         }
         saved.SeeD?.Validate();
-        if (saved.SeeD is not null && !services.CanStoreSeeD || saved.SeeD is null && services.SeeD is not null || saved.SeeD is not null && (saved.Variables.Keys.Any(address => address < 12 && (long)address + 4 > 8 || address < 20 && (long)address + 4 > 16 || address < 188 && (long)address + 4 > 184) || saved.NativeVariableValues?.Any(pair => pair.Key < 12 && (long)pair.Key + pair.Value.Width > 8 || pair.Key < 20 && (long)pair.Key + pair.Value.Width > 16 || pair.Key < 188 && (long)pair.Key + pair.Value.Width > 184) == true))
+        if (saved.SeeD is not null && !services.CanStoreSeeD || saved.SeeD is null && services.SeeD is not null || saved.SeeD is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 12 && pair.Key + pair.Value.Width > 8 || pair.Key < 20 && pair.Key + pair.Value.Width > 16 || pair.Key < 188 && pair.Key + pair.Value.Width > 184))
         {
             throw new InvalidDataException("Saved SeeD rank and salary require matching native state and canonical WORD16 ownership; recreate the authentic journal.");
         }
@@ -636,29 +634,6 @@ public sealed partial class EventEngine
             // A complete VM snapshot restores this canonical service state too.
             services.SetWorldControls(savedControls);
         }
-        if (saved.NativeVariableValues is { Count: > 0 } || services.NativeVariableValues is { Count: > 0 })
-        {
-            // Validation completed before mutation; replace the complete captured memory state.
-            Dictionary<int, int> originalVariables = new(variables);
-            variables.Clear();
-            foreach ((int address, int value) in saved.Variables)
-            {
-                variables.Add(address, value);
-            }
-            try
-            {
-                services.SetNativeVariableValues(saved.NativeVariableValues);
-            }
-            catch
-            {
-                variables.Clear();
-                foreach ((int address, int value) in originalVariables)
-                {
-                    variables.Add(address, value);
-                }
-                throw;
-            }
-        }
         if (saved.FieldButtonInput is NativeFieldButtonInput fieldButtonInput)
         {
             services.SetFieldButtonInput(fieldButtonInput);
@@ -783,11 +758,6 @@ public sealed partial class EventEngine
         actors.AddRange(saved.Actors);
         fibers.Clear();
         fibers.AddRange(restored);
-        variables.Clear();
-        foreach ((int key, int value) in saved.Variables)
-        {
-            variables.Add(key, value);
-        }
         dialogues.Clear();
         foreach (DialogueState dialogue in saved.Dialogues)
         {
@@ -805,6 +775,7 @@ public sealed partial class EventEngine
             backgroundAnimations.Add(animation.Id, new BackgroundAnimation { NativeVersion = animation.NativeVersion, First = animation.First, Last = animation.Last, Speed = animation.Speed, Counter = animation.Counter, Position = animation.Position, Active = animation.Active, Complete = animation.Complete, Loop = animation.Loop });
         }
         Scene = saved.Scene;
+        PublishEventMemory(saved.EventMemory);
         partyJoin = saved.PartyJoin;
         partySplit = saved.PartySplit;
         if (LastFault is EventFault retryableFault && Supports(program.Operations[retryableFault.Operation].Opcode))
@@ -820,5 +791,12 @@ public sealed partial class EventEngine
 
     private sealed record FiberCheckpoint(int ObjectId, int ScriptId, int Priority, long Sequence, bool Initialization, int Position, bool Complete, bool Started, [property: JsonRequired] bool NativeResultFrameEntered, NativeScalarValue[] Stack, string[] StackExpressions, Dictionary<int, NativeScalarValue> Results, WaitReason WaitReason, long WaitUntil, long? RequestSequence, int DialogueChannel, int BackgroundId, int SoundResourceId = 0, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeDoorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? NativeActorSlot = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveOperation = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeMoveTarget = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDoorRequestWaitState? NativeDoorRequestWait = null, [property: JsonRequired] bool NativeDoorDefaultFrame = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarValue[]? NativeDoorSavedResults = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? NativeShadeOperation = null);
     private sealed record BackgroundCheckpoint(int Id, int First, int Last, int Speed, bool Complete, int NativeVersion = 0, int Counter = 0, int Position = -1, bool Active = false, bool Loop = false);
-    private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, Dictionary<int, int> Variables, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Dictionary<int, NativeMemoryValue>? NativeVariableValues = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterAppearance? CharacterAppearance = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCardInventory? CardInventory = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSeeDState? SeeD = null, [property: JsonRequired] NativeMessageVariables? MessageVariables = null, [property: JsonRequired] NativeEconomy? Economy = null, [property: JsonRequired] NativeGlobalSoundProcess? GlobalSoundProcess = null, [property: JsonRequired] NativeSalaryPresentation? SalaryPresentation = null, [property: JsonRequired] NativeFieldShake? FieldShake = null, [property: JsonRequired] NativeInputConfiguration? InputConfiguration = null, [property: JsonRequired] NativeFieldButtonInput? FieldButtonInput = null, [property: JsonRequired] NativeShotAvailabilityState? ShotAvailability = null, [property: JsonRequired] NativePartyMenuState? PartyMenu = null, [property: JsonRequired] NativeEventRandomState? EventRandom = null, [property: JsonRequired] NativeFieldLocation? NativeFieldLocation = null, [property: JsonRequired] NativeVibrationProcessState? VibrationProcess = null, [property: JsonRequired] NativeFieldFadeState? FieldFade = null, [property: JsonRequired] NativeShopHistory? ShopHistory = null, [property: JsonRequired] NativeMenuRandomState? MenuRandom = null, [property: JsonRequired] NativeWeaponRecipes? WeaponRecipes = null, [property: JsonRequired] NativeWorldEntryMemory? WorldEntryMemory = null, [property: JsonRequired] NativeDiscProcessState? DiscProcess = null, [property: JsonRequired] NativeMovieSource? MovieSource = null);
+    private sealed record Checkpoint(int Version, int FieldId, string ProgramHash, long Frame, double AccumulatedSeconds, int PreparedMovie, long Sequence, bool DefaultsStarted, bool TransitionRequested, bool UserControlEnabled, int BackgroundFps, int NameEntity, ActorState[] Actors, FiberCheckpoint[] Fibers, DialogueState[] Dialogues, int? CurrentDialogueChannel, Dictionary<int, int> BackgroundStates, BackgroundCheckpoint[] BackgroundAnimations, [property: JsonRequired] NativeEventMemory EventMemory, SceneEventState Scene, int AxisStart = 0, int AxisTarget = 0, int AxisDuration = 0, int AxisElapsed = 0, int InputAxisDirection = 0, bool MovieProgressExpected = false, MoviePlaybackState? CurrentMoviePlayback = null, FieldTransition? PendingArrival = null, EventFault? LastFault = null, PartyJoinState? PartyJoin = null, PartySplitState? PartySplit = null, NativeWorldControlState? WorldControls = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeExamTimerState? ExamTimer = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterVitals? CharacterVitals = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCharacterAppearance? CharacterAppearance = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeCardInventory? CardInventory = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeSeeDState? SeeD = null, [property: JsonRequired] NativeMessageVariables? MessageVariables = null, [property: JsonRequired] NativeEconomy? Economy = null, [property: JsonRequired] NativeGlobalSoundProcess? GlobalSoundProcess = null, [property: JsonRequired] NativeSalaryPresentation? SalaryPresentation = null, [property: JsonRequired] NativeFieldShake? FieldShake = null, [property: JsonRequired] NativeInputConfiguration? InputConfiguration = null, [property: JsonRequired] NativeFieldButtonInput? FieldButtonInput = null, [property: JsonRequired] NativeShotAvailabilityState? ShotAvailability = null, [property: JsonRequired] NativePartyMenuState? PartyMenu = null, [property: JsonRequired] NativeEventRandomState? EventRandom = null, [property: JsonRequired] NativeFieldLocation? NativeFieldLocation = null, [property: JsonRequired] NativeVibrationProcessState? VibrationProcess = null, [property: JsonRequired] NativeFieldFadeState? FieldFade = null, [property: JsonRequired] NativeShopHistory? ShopHistory = null, [property: JsonRequired] NativeMenuRandomState? MenuRandom = null, [property: JsonRequired] NativeWeaponRecipes? WeaponRecipes = null, [property: JsonRequired] NativeWorldEntryMemory? WorldEntryMemory = null, [property: JsonRequired] NativeDiscProcessState? DiscProcess = null, [property: JsonRequired] NativeMovieSource? MovieSource = null)
+    {
+        [JsonIgnore]
+        public IReadOnlyDictionary<int, int> Variables => EventMemory.KnownValues;
+
+        [JsonIgnore]
+        public IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => EventMemory.UncertainValues;
+    }
 }

@@ -11,6 +11,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(fade);
         fade.Validate();
+        ValidateEventMemoryOwners(State with { FieldFade = fade }, State.EventMemory);
         State = State with { FieldFade = fade };
     }
 

@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte[] content, int fieldId = 100)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(fieldId, content, []);
             return engine;
         }
@@ -124,14 +124,14 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(170);
         string source = Path.Combine("../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
-        EventEngine actual = new(session, session.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
+        EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
         actual.LoadField(170, field.Jsm, field.Messages, session.State.FieldArrival);
         actual.Restore(session.State.EventState!.Value);
         Require(actual.Frame == 0 && actual.Scene.BackgroundClearValue == 0, "Original170 BGCLEAR preboundary changed.");
         actual.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(actual.Frame == 1 && actual.Scene.BackgroundClearValue == 1 && actual.LastFault is null, "Original170 ordinary Wait1 did not store the clear byte immediately.");
         GameSession independentSession = new(GameSession.Load(source));
-        EventEngine independent = new(independentSession, independentSession.State.Variables) { AnimationFrameCount = field.GetAnimationFrameCount };
+        EventEngine independent = new(independentSession) { AnimationFrameCount = field.GetAnimationFrameCount };
         independent.LoadField(170, field.Jsm, field.Messages, independentSession.State.FieldArrival);
         independent.Restore(actual.Capture());
         Require(JsonElement.DeepEquals(actual.Capture(), independent.Capture()), "Actual170 clear byte and complete VM did not restore independently.");

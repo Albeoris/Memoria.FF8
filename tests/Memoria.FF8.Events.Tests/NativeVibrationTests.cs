@@ -32,7 +32,7 @@ internal static partial class Program
         }
         EventEngine Engine(GameSession session, int pattern = 0, int priority = 256, bool missing = false, bool native = true)
         {
-            EventEngine engine = new(session, session.State.Variables) { ReadNativeVibrationBank = () => bank };
+            EventEngine engine = new(session) { ReadNativeVibrationBank = () => bank };
             engine.LoadField(600, Content(pattern, priority, missing), [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;
         }
@@ -108,7 +108,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(before, invalid.Capture()), "Malformed vibration receipt mutated VM/process before restore refusal.");
         GameSession rejectedSession = Session();
         RejectingVibrationServices rejectedService = new(rejectedSession);
-        EventEngine rejected = new(rejectedService, rejectedSession.State.Variables) { ReadNativeVibrationBank = () => bank };
+        EventEngine rejected = new(rejectedService) { ReadNativeVibrationBank = () => bank };
         rejected.LoadField(600, Content(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         rejected.Step();
         string previousQueue = JsonSerializer.Serialize(rejectedSession.VibrationProcess);
@@ -146,9 +146,9 @@ internal static partial class Program
             session.SetVibrationProcess(vibration);
         }
 
-        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
         {
-            session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, nativeVariableValues);
+            session.SetNativeEventOwners(controls, seeD, timer, characterVitals, economy, globalSoundProcess, salaryPresentation, eventRandom, vibrationProcess, fieldFade, eventMemory);
         }
 
         public void RequestMovie(int index)

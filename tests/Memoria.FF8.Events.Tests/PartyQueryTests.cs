@@ -17,7 +17,7 @@ internal static partial class Program
         EventEngine Create(byte[] content, int[] party, NativeCharacterVitals? vitals = null)
         {
             GameSession session = new(new GameState { CharacterVitals = vitals });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, []);
             engine.Scene.Party.Clear();
             engine.Scene.Party.AddRange(party);
@@ -113,7 +113,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
-                EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1 };
+                EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
                 engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 sessions[engine] = session;
                 return engine;
@@ -166,7 +166,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState { CharacterVitals = initial.DeepCopy() });
-                EventEngine engine = new(session, session.State.Variables)
+                EventEngine engine = new(session)
                 {
                     AnimationFrameCount = (_, _) => 30,
                     CanUseNativeScriptMove = actor => actor.ObjectId == 2,
@@ -197,7 +197,7 @@ internal static partial class Program
                 resumed.Step();
                 Require(JsonElement.DeepEquals(live.Capture(), resumed.Capture()), "Native party request above MOVE/below animation diverged after restore.");
             }
-            Require(live.Capture().GetProperty("Variables").GetProperty("710").GetInt32() == 1 && live.Actors[2].NativeMovementRequest is null && (!moving || live.Actors[2].NativeScriptMovement is { Suspended: false, Active: true }), "Native PREQEW did not complete its actual queued request or restore lower MOVE ownership.");
+            Require(CapturedVariables(live.Capture()).GetProperty("710").GetInt32() == 1 && live.Actors[2].NativeMovementRequest is null && (!moving || live.Actors[2].NativeScriptMovement is { Suspended: false, Active: true }), "Native PREQEW did not complete its actual queued request or restore lower MOVE ownership.");
         }
     }
 }

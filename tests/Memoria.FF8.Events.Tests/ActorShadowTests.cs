@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte[] content, bool authenticated = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return engine;
         }
@@ -25,7 +25,7 @@ internal static partial class Program
             Require(engine.Actors[0].ShadeLevel == 96 && engine.Actors[0].NativeShadowLevel is null && engine.Actors[0].NativeShadowSet is null && engine.Actors[0].NativeShadowAllocation is { Level609: 96 }, "Authenticated allocation lost native96 or invented an executed shadow command.");
             engine.Step();
             ActorState actor = engine.Actors[0];
-            Require(actor.NativeShadowSet is { } set && set.RawSize == size && set.Radius601To608 == unchecked((byte)(size / 4)) && actor.NativeShadowLevel is { RawLevel: 511, Level609: 255 } && actor.ShadeLevel == 255 && actor.PolygonColor == new Vector3(128) && engine.Capture().GetProperty("Variables").GetProperty("500").GetInt32() == 7, "SHADESET/SHADELEVEL narrowing, immediate return or independent polygon color changed.");
+            Require(actor.NativeShadowSet is { } set && set.RawSize == size && set.Radius601To608 == unchecked((byte)(size / 4)) && actor.NativeShadowLevel is { RawLevel: 511, Level609: 255 } && actor.ShadeLevel == 255 && actor.PolygonColor == new Vector3(128) && CapturedVariables(engine.Capture()).GetProperty("500").GetInt32() == 7, "SHADESET/SHADELEVEL narrowing, immediate return or independent polygon color changed.");
             JsonElement saved = engine.Capture();
             EventEngine independent = Create(content);
             independent.Restore(saved);

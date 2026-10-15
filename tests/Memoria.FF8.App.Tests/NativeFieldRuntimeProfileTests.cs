@@ -20,7 +20,7 @@ public sealed class NativeFieldRuntimeProfileTests
         {
             FieldAssets data = assets.LoadField(fieldId == 997 ? 130 : 135);
             var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = fieldId });
-            var engine = new EventEngine(session, session.State.Variables);
+            var engine = new EventEngine(session);
             engine.LoadField(fieldId, data.Jsm, data.Messages, nativeRuntimeProfile: assets.NativeRuntimeProfile);
             Assert.All(engine.Actors, actor => Assert.Equal(7929, actor.MovementSpeed));
             JsmProgram program = JsmProgram.Read(data.Jsm);

@@ -30,7 +30,7 @@ internal static partial class Program
         EventEngine Create(byte[] program)
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0),
@@ -59,7 +59,7 @@ internal static partial class Program
         ActorState actor = live.Actors[0];
         JsonElement first = live.Capture();
         JsonElement source = first.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        Require(issued == 1 && actor.FaceTargetPoint == new Vector3(100, 0, 100) && actor.FaceDuration == 8 && actor.FaceProgress == 1 && first.GetProperty("Variables").GetProperty("5000").GetInt32() == 73 && source.GetProperty("Stack").GetArrayLength() == 0 && source.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && source.GetProperty("WaitReason").GetString() == "Frames", "RFACEDIR waited, consumed unrelated opaque scalar, interpreted relative angles or lost low signedXYZ/unsignedduration WORDs.");
+        Require(issued == 1 && actor.FaceTargetPoint == new Vector3(100, 0, 100) && actor.FaceDuration == 8 && actor.FaceProgress == 1 && CapturedVariables(first).GetProperty("5000").GetInt32() == 73 && source.GetProperty("Stack").GetArrayLength() == 0 && source.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && source.GetProperty("WaitReason").GetString() == "Frames", "RFACEDIR waited, consumed unrelated opaque scalar, interpreted relative angles or lost low signedXYZ/unsignedduration WORDs.");
         EventEngine restored = Create(content);
         restored.Restore(first);
         while (actor.FaceDuration == 8 && live.Frame < 12)
@@ -69,13 +69,13 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RFACEDIR pending/replacement phase diverged across independent restore.");
         }
         Vector3 midpoint = actor.FirstControlRotation!.Value;
-        Require(issued == 2 && actor.FaceTargetPoint == new Vector3(-100, 0, -100) && actor.FaceProgress == 1 && actor.FaceElapsed == 0 && actor.FaceSecondAngle == 0 && actor.FacePitchTarget == -8 && actor.FaceYawTarget == -10 && Math.Abs(midpoint.Y - 252 * MathF.Tau / 256) < 0.00001 && Math.Abs(midpoint.Z + 251 * MathF.Tau / 256) < 0.00001 && live.Capture().GetProperty("Variables").GetProperty("5001").GetInt32() == 74, "Replacement RFACEDIR reset starts to the intermediate override, applied a relative point or blocked its same-callback successor.");
+        Require(issued == 2 && actor.FaceTargetPoint == new Vector3(-100, 0, -100) && actor.FaceProgress == 1 && actor.FaceElapsed == 0 && actor.FaceSecondAngle == 0 && actor.FacePitchTarget == -8 && actor.FaceYawTarget == -10 && Math.Abs(midpoint.Y - 252 * MathF.Tau / 256) < 0.00001 && Math.Abs(midpoint.Z + 251 * MathF.Tau / 256) < 0.00001 && CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 74, "Replacement RFACEDIR reset starts to the intermediate override, applied a relative point or blocked its same-callback successor.");
         live.Step();
         restored.Step();
-        Require(actor.FaceProgress == 2 && !live.Capture().GetProperty("Variables").TryGetProperty("5002", out _), "Post-body completion became a premature VM sync result.");
+        Require(actor.FaceProgress == 2 && !CapturedVariables(live.Capture()).TryGetProperty("5002", out _), "Post-body completion became a premature VM sync result.");
         live.Step();
         restored.Step();
-        Require(live.Capture().GetProperty("Variables").GetProperty("5002").GetInt32() == 75 && actor.Direction == 0 && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.FaceElapsed == -8 && actor.FaceSecondAngle == -10 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RFACEDIR/FACEDIRSYNC completion changed physical pose, final words or continuation.");
+        Require(CapturedVariables(live.Capture()).GetProperty("5002").GetInt32() == 75 && actor.Direction == 0 && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.FaceElapsed == -8 && actor.FaceSecondAngle == -10 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RFACEDIR/FACEDIRSYNC completion changed physical pose, final words or continuation.");
         foreach (int duration in new[] { 0, 65535 })
         {
             byte[] edgeContent = Content(duration, replacement: false);
@@ -84,7 +84,7 @@ internal static partial class Program
             {
                 edge.Step();
             }
-            Require(edge.Actors[0].FaceDuration == duration && edge.Actors[0].FaceProgress == (duration == 0 ? 0 : 1) && edge.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 73 && (duration != 0 || edge.Actors[0].FirstControlRotation is null), "RFACEDIR zero/full WORD duration invented a wait or interpolation.");
+            Require(edge.Actors[0].FaceDuration == duration && edge.Actors[0].FaceProgress == (duration == 0 ? 0 : 1) && CapturedVariables(edge.Capture()).GetProperty("5000").GetInt32() == 73 && (duration != 0 || edge.Actors[0].FirstControlRotation is null), "RFACEDIR zero/full WORD duration invented a wait or interpolation.");
             EventEngine copy = Create(edgeContent);
             copy.Restore(edge.Capture());
             edge.Step();
@@ -109,7 +109,7 @@ internal static partial class Program
             }
             JsonElement failed = refused.Capture();
             JsonElement fiber = failed.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-            Require(fiber.GetProperty("Stack").GetArrayLength() == 5 && fiber.GetProperty("Position").GetInt32() == refused.LastFault!.Operation && refused.Actors[0].FaceTargetPoint is null && refused.Actors[0].FaceDuration == 0 && refused.Actors[0].FaceProgress == 0 && refused.Actors[0].FirstControlRotation is null && !failed.GetProperty("Variables").TryGetProperty("5000", out _), "Refused RFACEDIR popped known operands before an unknown value or partially published its face phase.");
+            Require(fiber.GetProperty("Stack").GetArrayLength() == 5 && fiber.GetProperty("Position").GetInt32() == refused.LastFault!.Operation && refused.Actors[0].FaceTargetPoint is null && refused.Actors[0].FaceDuration == 0 && refused.Actors[0].FaceProgress == 0 && refused.Actors[0].FirstControlRotation is null && !CapturedVariables(failed).TryGetProperty("5000", out _), "Refused RFACEDIR popped known operands before an unknown value or partially published its face phase.");
         }
     }
 }

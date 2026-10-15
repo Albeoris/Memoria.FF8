@@ -17,7 +17,7 @@ public sealed class NativeShopInputPreflightTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        EventEngine events = new(session, new Dictionary<int, int>());
+        EventEngine events = new(session, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         GameState originalState = session.State;
         ReplayJournal originalJournal = session.ReplayJournal!;
         JsonElement before = JsonSerializer.SerializeToElement(originalState);

@@ -12,17 +12,17 @@ internal static partial class Program
     {
         byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65537), (Jsm.Opcode.PSHN_L, -65535), (Jsm.Opcode.PSHN_L, 65535), (Jsm.Opcode.PSHN_L, -65536), (Jsm.Opcode.SCROLLMODE2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScroll = (_, _) => true };
+        EventEngine engine = new(session) { CanSetBackgroundScroll = (_, _) => true };
         engine.LoadField(100, program, []);
         engine.Step();
         Require(engine.Scene.BackgroundScrollLayers[1] == new BackgroundScrollSettings(1, 1, -1, 0) && session.State.Variables[512] == 9, "SCROLLMODE2 lost four low signedWORDs, first full layer operand or immediate continuation.");
         JsonElement saved = engine.Capture();
-        EventEngine restored = new(new GameSession(new GameState()), new Dictionary<int, int>()) { CanSetBackgroundScroll = (_, _) => true };
+        EventEngine restored = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { CanSetBackgroundScroll = (_, _) => true };
         restored.LoadField(100, program, []);
         restored.Restore(saved);
         Require(JsonElement.DeepEquals(saved, restored.Capture()), "Background scroll settings failed independent typed Scene restore.");
 
-        EventEngine blocked = new(new GameSession(new GameState()), new Dictionary<int, int>()) { CanSetBackgroundScroll = (_, _) => false };
+        EventEngine blocked = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { CanSetBackgroundScroll = (_, _) => false };
         blocked.LoadField(100, program, []);
         try
         {
@@ -47,7 +47,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession source = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine result = new(source, source.State.Variables)
+            EventEngine result = new(source)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 ResolveNativeTriangleHeight = (triangle, x, y) => FieldPartyTraceGeometry.ResolveTriangleHeight(field.Walkmesh, triangle, x, y),

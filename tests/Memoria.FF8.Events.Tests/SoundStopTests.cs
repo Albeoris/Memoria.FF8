@@ -13,8 +13,8 @@ internal static partial class Program
         {
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1234), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.SESTOP, 0), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             GameSession session = new(new GameState());
-            session.State.Variables[512] = unchecked((int)rawMask);
-            EventEngine first = new(session, session.State.Variables);
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(unchecked((int)rawMask))));
+            EventEngine first = new(session);
             first.LoadField(100, content, []);
             first.Step();
             NativeSoundStop stopped = first.Scene.SoundStop ?? throw new InvalidOperationException("SESTOP did not record its original stop request.");
@@ -22,7 +22,7 @@ internal static partial class Program
             JsonElement state = first.Capture();
             Require(state.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1234 && state.GetProperty("Fibers")[0].GetProperty("WaitReason").GetString() == "Frames", "SESTOP consumed a sentinel operand or invented a sound wait.");
             GameSession otherSession = new(new GameState());
-            EventEngine restored = new(otherSession, otherSession.State.Variables);
+            EventEngine restored = new(otherSession);
             restored.LoadField(100, content, []);
             restored.Restore(state);
             for (int tick = 0; tick < 4; tick++)
@@ -39,8 +39,8 @@ internal static partial class Program
         {
             byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.SESTOP, 0), (Jsm.Opcode.RET, 0));
             GameSession session = new(new GameState());
-            session.State.Variables[512] = unchecked((int)rawMask);
-            EventEngine refused = new(session, session.State.Variables);
+            session.SetEventMemory(session.State.EventMemory.Write(512, 4, NativeScalarValue.Exact(unchecked((int)rawMask))));
+            EventEngine refused = new(session);
             refused.LoadField(100, content, []);
             try
             {

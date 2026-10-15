@@ -15,7 +15,7 @@ internal static partial class Program
         foreach (int argument in new[] { 0, 1 })
         {
             GameSession session = new(new GameState { WorldControls = initial });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             byte[] powerProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, argument), (Jsm.Opcode.PHSPOWER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
             engine.LoadField(100, powerProgram, []);
             engine.Step();
@@ -23,7 +23,7 @@ internal static partial class Program
             NativeWorldControlState afterPower = session.WorldControls!;
             JsonElement saved = engine.Capture();
             GameSession restoredSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
-            EventEngine restored = new(restoredSession, restoredSession.State.Variables);
+            EventEngine restored = new(restoredSession);
             restored.LoadField(100, powerProgram, []);
             restored.Restore(saved);
             Require(JsonElement.DeepEquals(saved, restored.Capture()) && restoredSession.WorldControls == afterPower, "VM-only PHSPOWER restore left canonical flags at initial native values.");
@@ -35,7 +35,7 @@ internal static partial class Program
         }
 
         GameSession legacy = new(new GameState());
-        EventEngine legacyEngine = new(legacy, legacy.State.Variables);
+        EventEngine legacyEngine = new(legacy);
         legacyEngine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PHSPOWER, 0), (Jsm.Opcode.RET, 0)), []);
         legacyEngine.Step();
         Require(legacy.WorldControls is null && legacyEngine.Scene.PartyPower == 1, "Legacy PHSPOWER fabricated native world-control provenance.");
@@ -49,12 +49,12 @@ internal static partial class Program
         Require(legacy.WorldControls == initial, "Null legacy VM controls erased explicitly proved service metadata.");
 
         GameSession byteSession = new(new GameState { WorldControls = initial });
-        EventEngine bytes = new(byteSession, byteSession.State.Variables);
+        EventEngine bytes = new(byteSession);
         bytes.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 209), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.PSHN_L, 0xA3), (Jsm.Opcode.POPM_B, 209), (Jsm.Opcode.PSHM_B, 209), (Jsm.Opcode.POPM_W, 514), (Jsm.Opcode.RET, 0)), []);
         bytes.Step();
         Require(byteSession.State.Variables[512] == 0xFF && byteSession.State.Variables[514] == 0xA3 && !byteSession.State.Variables.ContainsKey(209) && byteSession.WorldControls == initial with { Menu209 = 0xA3 }, "B209 used a stale duplicate variable or lost its complete canonical byte.");
         GameSession byteRestoredSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
-        EventEngine byteRestored = new(byteRestoredSession, byteRestoredSession.State.Variables);
+        EventEngine byteRestored = new(byteRestoredSession);
         byteRestored.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 209), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.PSHN_L, 0xA3), (Jsm.Opcode.POPM_B, 209), (Jsm.Opcode.PSHM_B, 209), (Jsm.Opcode.POPM_W, 514), (Jsm.Opcode.RET, 0)), []);
         byteRestored.Restore(bytes.Capture());
         Require(JsonElement.DeepEquals(bytes.Capture(), byteRestored.Capture()) && byteRestoredSession.WorldControls == byteSession.WorldControls, "VM-only B209 restore left its canonical byte stale.");
@@ -62,7 +62,7 @@ internal static partial class Program
         foreach ((Jsm.Opcode opcode, int address) in new[] { (Jsm.Opcode.PSHM_B, 105), (Jsm.Opcode.POPM_B, 105), (Jsm.Opcode.PSHM_W, 104), (Jsm.Opcode.PSHSM_W, 104), (Jsm.Opcode.POPM_W, 104), (Jsm.Opcode.PSHM_L, 102), (Jsm.Opcode.POPM_L, 102), (Jsm.Opcode.PSHM_W, 208), (Jsm.Opcode.POPM_W, 208), (Jsm.Opcode.PSHM_L, 206), (Jsm.Opcode.POPM_L, 206) })
         {
             GameSession session = new(new GameState { WorldControls = initial });
-            EventEngine blocked = new(session, session.State.Variables);
+            EventEngine blocked = new(session);
             bool read = opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L;
             byte[] commands = read ? SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (opcode, address), (Jsm.Opcode.POPM_L, 512), (Jsm.Opcode.POPM_L, 514), (Jsm.Opcode.RET, 0)) : SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (opcode, address), (Jsm.Opcode.RET, 0));
             blocked.LoadField(100, commands, []);
@@ -71,22 +71,15 @@ internal static partial class Program
         }
         foreach (int alias in new[] { 102, 103, 104, 105, 206, 207, 208, 209 })
         {
-            foreach (bool transition in new[] { false, true })
-            {
-                GameSession session = new(new GameState { FieldId = 100, WorldControls = initial, Variables = new Dictionary<int, int> { [alias] = 77 } });
-                EventEngine blocked = new(session, session.State.Variables);
-                byte[] commands = transition ? SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 101), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0)) : SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PHSPOWER, 0), (Jsm.Opcode.RET, 0));
-                blocked.LoadField(100, commands, []);
-                ExpectWorldControlFault(blocked, transition ? Jsm.Opcode.MAPJUMPO : Jsm.Opcode.PHSPOWER, transition ? 3 : 2, transition ? [0, 101] : [0]);
-                Require(session.State.FieldId == 100 && session.WorldControls == initial && session.State.Variables[alias] == 77 && blocked.Scene.PartyPower == 0, "Ambiguous legacy aliases allowed a field packet or world-control mutation.");
-            }
+            GameSession session = new(new GameState { FieldId = 100, WorldControls = initial });
+            ExpectEventMemoryPublicationFault(session, session.State.EventMemory.Write(alias, 4, NativeScalarValue.Exact(77)));
         }
 
         using GameAssets assets = new(gameDirectory);
         GameSession fresh = GameSession.CreateColdProcess();
         fresh.StartNewGame();
         FieldAssets start = assets.LoadField(74);
-        EventEngine original = new(fresh, fresh.State.Variables);
+        EventEngine original = new(fresh);
         original.LoadField(74, start.Jsm, start.Messages);
         bool reached = false;
         original.CommandExecuted += command =>

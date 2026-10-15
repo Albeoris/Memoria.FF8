@@ -45,7 +45,7 @@ public sealed class SceneCollectionCheckpointTests
         using GameAssets assets = new(directory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithMemberFlags(1, true).WithMemberFlags(5, true).AcquireGuardianForce(1).AcquireGuardianForce(7);
         var session = new GameSession(new GameState { CharacterVitals = vitals });
-        var engine = new EventEngine(session, session.State.Variables);
+        var engine = new EventEngine(session);
         Assert.Contains(1, engine.NormalMembers!);
         Assert.Contains(5, engine.NormalMembers!);
         Assert.Contains(1, engine.AcquiredGuardianForces!);
@@ -56,7 +56,7 @@ public sealed class SceneCollectionCheckpointTests
         NativeCharacterVitals restored = JsonSerializer.Deserialize<NativeCharacterVitals>(JsonSerializer.Serialize(vitals))!;
         restored.Validate();
         var resumedSession = new GameSession(new GameState { CharacterVitals = restored });
-        var resumed = new EventEngine(resumedSession, resumedSession.State.Variables);
+        var resumed = new EventEngine(resumedSession);
         Assert.Equal(engine.NormalMembers!.Order(), resumed.NormalMembers!.Order());
         Assert.Equal(engine.AcquiredGuardianForces!.Order(), resumed.AcquiredGuardianForces!.Order());
         JsonNode missing = JsonSerializer.SerializeToNode(vitals)!;
@@ -66,7 +66,7 @@ public sealed class SceneCollectionCheckpointTests
         missingGuardianForces.AsObject().Remove("GuardianForces");
         Assert.Throws<JsonException>(() => missingGuardianForces.Deserialize<NativeCharacterVitals>());
         var unknownSession = new GameSession(new GameState());
-        var unknown = new EventEngine(unknownSession, unknownSession.State.Variables);
+        var unknown = new EventEngine(unknownSession);
         Assert.Null(unknown.NormalMembers);
         Assert.Null(unknown.AcquiredGuardianForces);
     }

@@ -155,7 +155,7 @@ internal static partial class Program
         }
         main.AddRange([(Jsm.Opcode.NOP, 0), (opcode, parameter), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+        EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         engine.LoadField(600, SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], main.ToArray()]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement? beforeActor = null;
         JsonElement? beforeFiber = null;
@@ -196,7 +196,7 @@ internal static partial class Program
         (Jsm.Opcode, int)[] requested = [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 55), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1, (16 << 7) | 2], [issuerInit, issuer, targetInit, target, requested]);
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             AnimationFrameCount = (_, _) => 4,
             CanUseNativeScriptMove = body => body.ObjectId == 1,

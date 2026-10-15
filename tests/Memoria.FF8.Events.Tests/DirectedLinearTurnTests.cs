@@ -23,7 +23,7 @@ internal static partial class Program
                 (GameSession Session, EventEngine Engine) Create()
                 {
                     GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-                    EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+                    EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
                     engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                     return (session, engine);
                 }
@@ -61,7 +61,7 @@ internal static partial class Program
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine unknown = new(session, session.State.Variables);
+            EventEngine unknown = new(session);
             unknown.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 184), (Jsm.Opcode.PSHN_L, 30), (opcode, 0), (Jsm.Opcode.RET, 8)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             JsonNode fractional = JsonNode.Parse(unknown.Capture().GetRawText())!;
             fractional["Actors"]![0]!["Direction"] = 193.9f;
@@ -105,7 +105,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-                EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4, CanUseNativeScriptMove = body => body.ObjectId == 1 };
+                EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4, CanUseNativeScriptMove = body => body.ObjectId == 1 };
                 engine.ResolveNativeScriptDirection = query =>
                 {
                     ActorState body = engine.Actors[1];

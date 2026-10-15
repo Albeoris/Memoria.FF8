@@ -18,7 +18,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(byte[] content, NativeCharacterVitals? vitals = null, uint flags = 7)
         {
             GameSession session = new(new GameState { CharacterVitals = vitals ?? initial.DeepCopy(), CharacterAppearance = appearance, WorldControls = NativeWorldControlState.CreateNewGame() with { EventFlags104 = flags } });
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -90,7 +90,7 @@ internal static partial class Program
         }
         Require(JsonElement.DeepEquals(before, restored.Capture()), "Missing backup restore changed VM or saved owners.");
         JsonNode alias = JsonNode.Parse(pending.GetRawText())!;
-        alias["Variables"]!["189"] = 4;
+        SetCapturedCell(alias, 189, 4, 4);
         try
         {
             restored.Restore(JsonSerializer.SerializeToElement(alias));

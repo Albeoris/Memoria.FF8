@@ -19,7 +19,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
-            EventEngine result = new(session, session.State.Variables)
+            EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out Vector3 point, out int triangle) ? new WalkmeshPosition(point, triangle) : null

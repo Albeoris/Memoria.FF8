@@ -32,7 +32,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(byte[] content, bool authenticated = true)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return (session, engine);
         }

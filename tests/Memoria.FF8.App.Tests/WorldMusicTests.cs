@@ -57,7 +57,7 @@ public sealed class WorldMusicTests
         session.RequestWorld(packet);
         commit();
         Assert.All(new[] { 201, 202, 213, 214 }, address => Assert.False(session.State.Variables.ContainsKey(address)));
-        session.SetNativeVariableValues(null);
+        session.SetEventMemory(session.State.EventMemory);
         NativeWorldMusicLoad loaded = Assert.IsType<NativeWorldMusicLoad>(engine.Scene.WorldMusicLoad);
         Assert.Equal(expected, loaded.Operation);
         Assert.Equal(actualMusic < 0 ? null : (byte?)actualMusic, loaded.Music);

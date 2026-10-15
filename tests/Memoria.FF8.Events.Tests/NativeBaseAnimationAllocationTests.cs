@@ -37,7 +37,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 ResolveNativeTriangleHeight = (_, _, _) => 0,
                 ResolvePartyTraceTriangle = (_, _, _) => 0,

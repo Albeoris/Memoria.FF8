@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4, ResolveNativeTriangleHeight = (triangle, x, y) => triangle == 333 && x == 400 && y == 5 ? 4 : null };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4, ResolveNativeTriangleHeight = (triangle, x, y) => triangle == 333 && x == 400 && y == 5 ? 4 : null };
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -78,7 +78,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolveNativeTriangleHeight = (triangle, x, y) => triangle == 9 && x == 400 && y == 5 ? 4 : null

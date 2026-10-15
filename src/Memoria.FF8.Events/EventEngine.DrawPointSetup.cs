@@ -41,20 +41,16 @@ public sealed partial class EventEngine
 
     private string? UnsupportedDrawPointAliases(bool includeDisplaySource)
     {
-        if (variables.Any(pair => (pair.Key is >= 237 and <= 242 || includeDisplaySource && pair.Key is >= 85 and <= 88) && !IsKnownNativeByteAlias(pair.Key, pair.Value)))
+        if (EventMemory.Overlaps(240, 3) || includeDisplaySource && EventMemory.Cells.Any(pair => pair.Key < 89 && (long)pair.Key + pair.Value.Width > 88 && (pair.Key != 88 || pair.Value.Width != 1 || !pair.Value.Value.IsExact)))
         {
-            return "Native draw-point bytes overlap a legacy scalar with unknown width; original byte-addressed aliases are required";
-        }
-        if (services.NativeVariableValues?.Any(pair => pair.Key <= 242 && pair.Key + pair.Value.Width > 240 || includeDisplaySource && pair.Key <= 88 && pair.Key + pair.Value.Width > 88 && (pair.Key != 88 || pair.Value.Width != 1 || !pair.Value.Value.IsExact)) == true)
-        {
-            return "Native draw-point setup requires its exact BYTE88 and cannot replace overlapping typed memory";
+            return "Native draw-point byte access overlaps another typed memory owner.";
         }
         return null;
     }
 
     private byte? ReadDrawPointSourceByte()
     {
-        return services.NativeVariableValues?.TryGetValue(88, out NativeMemoryValue? source) == true && source.Width == 1 && source.Value.IsExact ? checked((byte)source.Value.RequireExact()) : null;
+        return EventMemory.Cells.TryGetValue(88, out NativeMemoryValue? source) == true && source.Width == 1 && source.Value.IsExact ? checked((byte)source.Value.RequireExact()) : null;
     }
 
     private string? UnsupportedDrawPointAccess(JsmOperation operation)
@@ -72,7 +68,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (displaySource && operation.Parameter == 88 && operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B && services.NativeVariableValues?.TryGetValue(88, out NativeMemoryValue? source) == true && source.Width == 1 && source.Value.IsExact)
+        if (displaySource && operation.Parameter == 88 && operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B && EventMemory.Cells.TryGetValue(88, out NativeMemoryValue? source) == true && source.Width == 1 && source.Value.IsExact)
         {
             return null;
         }

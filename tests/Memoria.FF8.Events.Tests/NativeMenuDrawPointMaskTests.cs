@@ -23,7 +23,7 @@ internal static partial class Program
                 session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
                 session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
                 session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-                EventEngine engine = new(session, session.State.Variables);
+                EventEngine engine = new(session);
                 engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
                 session.MarkReplayUnavailable("Declared active draw-point/menu tail component; no original journey or particle lifetime is claimed.");
                 return (session, engine);
@@ -53,7 +53,7 @@ internal static partial class Program
             restored.Apply(new PlayerAction(PlayerActionKind.Wait));
             Require(engine.LastFault is null && engine.PartyMenu is null && session.State.Variables[500] == 77 && engine.Scene.NativeDrawPointDisplayMask == mask && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == mask && engine.Scene.DrawPointIndex == 12, "Kind6 refused nonzero dispatch, cleared native bytes or missed its remaining same-callback successor.");
             Require(JsonElement.DeepEquals(setup, JsonSerializer.SerializeToElement(engine.Scene.DrawPointReset)) && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Kind6 invented another474750 reset, rewrote sampled source/anchors or changed restored continuation.");
-            Require(session.NativeVariableValues?.TryGetValue(88, out NativeMemoryValue? source) == true && source.Value.IsExact && source.Value.RequireExact() == 0, "Kind6 did not publish its actual newly rebuilt source BYTE88.");
+            Require(session.EventMemory.Cells?.TryGetValue(88, out NativeMemoryValue? source) == true && source.Value.IsExact && source.Value.RequireExact() == 0, "Kind6 did not publish its actual newly rebuilt source BYTE88.");
 
             JsonElement valid = engine.Capture();
             foreach (string invalid in new[] { "missing", "unknown", "bits", "width" })

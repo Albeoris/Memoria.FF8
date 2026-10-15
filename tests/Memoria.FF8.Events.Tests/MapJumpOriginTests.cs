@@ -14,12 +14,12 @@ internal static partial class Program
     {
         byte[] jump = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65636), (Jsm.Opcode.PSHN_L, 65538), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 99 });
-        EventEngine issuing = new(session, session.State.Variables);
+        EventEngine issuing = new(session);
         issuing.LoadField(99, jump, []);
         issuing.Step();
         Require(session.State.FieldArrival == new FieldTransition(100, 32767, 32767, 2, 0) && session.State.EntryPoint == 0 && issuing.NextTrigger.Kind == PlayerTriggerKind.FieldTransition, "MAPJUMPO did not preserve its low WORD field/triangle and original centroid sentinels.");
         GameSession missingSession = new(new GameState());
-        EventEngine missing = new(missingSession, missingSession.State.Variables);
+        EventEngine missing = new(missingSession);
         missing.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 175), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.MAPJUMPO, 0), (Jsm.Opcode.RET, 0)), []);
         missing.Step();
         JsonObject missingSnapshot = JsonNode.Parse(missing.Capture().GetRawText())!.AsObject();
@@ -43,7 +43,7 @@ internal static partial class Program
         EventEngine Create(int triangle)
         {
             GameSession target = new(new GameState());
-            EventEngine result = new(target, target.State.Variables)
+            EventEngine result = new(target)
             {
                 AnimationFrameCount = (_, _) => 3,
                 ResolveNativeTriangleCentroid = index => FieldPartyTraceGeometry.ResolveTriangleCentroid(mesh, index),

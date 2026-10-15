@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine CreateSynthetic(bool certificate = true)
         {
             GameSession session = new(new GameState());
-            EventEngine result = new(session, session.State.Variables) { CanSetLinearBackgroundScroll = query => certificate && query == new NativeLinearScrollQuery(1, 0, 0, 7, 0, 7) };
+            EventEngine result = new(session) { CanSetLinearBackgroundScroll = query => certificate && query == new NativeLinearScrollQuery(1, 0, 0, 7, 0, 7) };
             result.LoadField(100, program, []);
             return result;
         }
@@ -48,11 +48,11 @@ internal static partial class Program
             phase.Step();
             replay.Step();
             BackgroundScrollPosition state = phase.Scene.BackgroundScrollPositions[1];
-            Require(state.X == elapsed && state.Y == 0 && state.Counter == Math.Min(elapsed + 1, 7) && state.Status == (elapsed == 7 ? 2 : 1) && !phase.Capture().GetProperty("Variables").TryGetProperty("512", out _) && JsonElement.DeepEquals(phase.Capture(), replay.Capture()), "Native linear phase changed inclusive endpoints, held layer operand, earliest synchronization or restored VM.");
+            Require(state.X == elapsed && state.Y == 0 && state.Counter == Math.Min(elapsed + 1, 7) && state.Status == (elapsed == 7 ? 2 : 1) && !CapturedVariables(phase.Capture()).TryGetProperty("512", out _) && JsonElement.DeepEquals(phase.Capture(), replay.Capture()), "Native linear phase changed inclusive endpoints, held layer operand, earliest synchronization or restored VM.");
         }
         phase.Step();
         replay.Step();
-        Require(phase.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 9 && phase.Capture().GetProperty("Fibers")[0].GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(phase.Capture(), replay.Capture()), "SCROLLSYNC2 did not pop and continue on the first VM update after native completion.");
+        Require(CapturedVariables(phase.Capture()).GetProperty("512").GetInt32() == 9 && phase.Capture().GetProperty("Fibers")[0].GetProperty("Stack").GetArrayLength() == 0 && JsonElement.DeepEquals(phase.Capture(), replay.Capture()), "SCROLLSYNC2 did not pop and continue on the first VM update after native completion.");
         EventEngine refused = CreateSynthetic(false);
         try
         {
@@ -94,7 +94,7 @@ internal static partial class Program
         foreach ((short start, short target, short duration) in new (short, short, short)[] { (3, -8, 7), (12, 25, 0) })
         {
             GameSession sampleSession = new(new GameState());
-            EventEngine sample = new(sampleSession, sampleSession.State.Variables) { CanSetLinearBackgroundScroll = query => query == new NativeLinearScrollQuery(1, start, 0, target, 0, duration) };
+            EventEngine sample = new(sampleSession) { CanSetLinearBackgroundScroll = query => query == new NativeLinearScrollQuery(1, start, 0, target, 0, duration) };
             sample.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, target), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.RET, 0)), []);
             for (int counter = 0; counter <= duration; counter++)
             {
@@ -104,7 +104,7 @@ internal static partial class Program
             }
         }
         GameSession legacyLoopSession = new(new GameState());
-        EventEngine legacyLoop = new(legacyLoopSession, legacyLoopSession.State.Variables) { CanSetLinearBackgroundScroll = query => query == new NativeLinearScrollQuery(1, 0, 0, 7, 0, 7) };
+        EventEngine legacyLoop = new(legacyLoopSession) { CanSetLinearBackgroundScroll = query => query == new NativeLinearScrollQuery(1, 0, 0, 7, 0, 7) };
         legacyLoop.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.LSCROLL3, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SCROLLSYNC2, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.JMP, -12), (Jsm.Opcode.RET, 0)), []);
         for (int tick = 0; tick < 9; tick++)
         {
@@ -120,7 +120,7 @@ internal static partial class Program
         EventEngine CreateActual()
         {
             GameSession session = new(GameSession.Load(source));
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,
                 LoadSoundResource = _ => SoundResourceStatus.Muted,

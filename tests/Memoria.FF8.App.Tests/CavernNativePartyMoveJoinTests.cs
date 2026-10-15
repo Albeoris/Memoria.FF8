@@ -142,7 +142,7 @@ public sealed class CavernNativePartyMoveJoinTests
                 if (companion.NativeScriptMovement is { Active: true } current && restoredScripts.Add(current.ScriptId))
                 {
                     JsonElement snapshot = world.Events.Capture();
-                    var restored = new GameWorld(new GameSession(session.State with { EventState = snapshot, Variables = new Dictionary<int, int>(session.State.Variables) }), directory);
+                    var restored = new GameWorld(new GameSession(session.State with { EventState = snapshot, EventMemory = session.State.EventMemory}), directory);
                     restored.EnsureField();
                     restored.SetRenderSize(320, 240);
                     Assert.True(JsonElement.DeepEquals(snapshot, restored.Events.Capture()));
@@ -174,7 +174,7 @@ public sealed class CavernNativePartyMoveJoinTests
         Assert.Equal((-182 * 4096, 5022 * 4096, 0), (moving.FixedX, moving.FixedY, moving.FixedZ));
         Assert.Equal((ushort)2, quistis.NativeMovementCompletion542);
         Console.WriteLine($"Fresh129 native MOVE complete before474: raw({moving.FixedX},{moving.FixedY},{moving.FixedZ}), tri{moving.Triangle}, dir{moving.FacingDirection}, contactsteering{sawActorCollision}.");
-        var replaySession = new GameSession(session.State with { EventState = world.Events.Capture(), Variables = new Dictionary<int, int>(session.State.Variables) });
+        var replaySession = new GameSession(session.State with { EventState = world.Events.Capture(), EventMemory = session.State.EventMemory});
         using var replay = new GameWorld(replaySession, directory);
         replay.EnsureField();
         var wait = new PlayerAction(PlayerActionKind.Wait);
@@ -186,7 +186,7 @@ public sealed class CavernNativePartyMoveJoinTests
         Assert.Equal(475, world.Events.Frame);
         Assert.Equal((-182f, 5032.53125f), (quistis.X, quistis.Y));
         Assert.Null(quistis.NativeScriptMovement);
-        using var joinedRestore = new GameWorld(new GameSession(session.State with { EventState = joining, Variables = new Dictionary<int, int>(session.State.Variables) }), directory);
+        using var joinedRestore = new GameWorld(new GameSession(session.State with { EventState = joining, EventMemory = session.State.EventMemory}), directory);
         joinedRestore.EnsureField();
         bool completedJoin = false;
         for (int tick = 0; tick < 100; tick++)

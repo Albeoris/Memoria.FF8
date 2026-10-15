@@ -98,7 +98,7 @@ public sealed class NativeTrainRideTests
         var car = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess());
         var previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = car };
         NativeSavedWorldCarReturn receipt = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
-        GameState departure = session.State with { Scene = SceneKind.Field, FieldId = 265, Variables = new() { [256] = 290 }, CharacterVitals = assets.ReadNewGameCharacterVitals(), Economy = assets.ReadNewGameEconomy(), DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(receipt) };
+        GameState departure = session.State with { Scene = SceneKind.Field, FieldId = 265, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 290 }), CharacterVitals = assets.ReadNewGameCharacterVitals(), Economy = assets.ReadNewGameEconomy(), DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(receipt) };
         session.Restore(departure);
         session.MarkReplayUnavailable("Declared mode3 component boundary; no preceding route history is fabricated.");
         return session;

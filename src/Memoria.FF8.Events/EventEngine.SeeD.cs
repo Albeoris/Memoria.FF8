@@ -49,7 +49,7 @@ public sealed partial class EventEngine
         {
             return "Native salary requires atomic DWORD104/process UI publication";
         }
-        if (rankMemory && (variables.Keys.Any(address => address < 12 && (long)address + 4 > 8 || address < 20 && (long)address + 4 > 16 || address < 188 && (long)address + 4 > 184) || services.NativeVariableValues?.Any(pair => pair.Key < 12 && (long)pair.Key + pair.Value.Width > 8 || pair.Key < 20 && (long)pair.Key + pair.Value.Width > 16 || pair.Key < 188 && (long)pair.Key + pair.Value.Width > 184) == true))
+        if (rankMemory && (EventMemory.Overlaps(8, 4) || EventMemory.Overlaps(16, 4) || EventMemory.Overlaps(184, 4)))
         {
             return "Native SeeD WORD16 overlaps an unproved VM memory alias; recreate the authentic journal";
         }

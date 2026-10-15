@@ -20,7 +20,7 @@ internal static partial class Program
         Require(fresh.SalaryUiEnabled == false && fresh.KillBaseline18 == 0 && fresh.SalaryDisplayCountdown184 == 0 && fresh.PreviousRank186 == 0, "Executed52CA90 NewGame did not clear saved words and derive UIfalse from104mask8.");
         NativeSeeDState seed = fresh with { SalaryTable = table, RankPoints = 650, SalaryMovementCounter = 24575, SalaryDisplayCountdown184 = ushort.MaxValue };
         NativeSalaryResult paid = NativeSalaryCalculator.Sample(seed, economy, vitals, 1, 0);
-        Require(paid.SeeD is { RankPoints: 640, PreviousRank186: 650, KillBaseline18: 0, SalaryMovementCounter: 0, SalaryDisplayCountdown184: 149 } && paid.Economy is { Gil: 9000, PastGil: 3000, EventBankGil72: 0, EventBankPastGil76: 0 } && paid.Payment == new NativeSalaryPayment(6, 6, 4000, 4000) && !paid.CloseDisplay, "Native payout lost signed rank adjustment, raw saved words, counter reset, live-only gil or immediate150→149 countdown.");
+        Require(paid.SeeD is { RankPoints: 640, PreviousRank186: 650, KillBaseline18: 0, SalaryMovementCounter: 0, SalaryDisplayCountdown184: 149 } && paid.Economy is { Gil: 9000, PastGil: 3000, EventBankGil72: 0, EventBankPastGil76: 0 } && paid.Payment == new NativeSalaryPayment(6, 6, 4000, 4000) && !paid.CloseDisplay, "Native payout lost signed rank adjustment, raw saved words, counter reset, live-only gil or immediate150â†’149 countdown.");
         Require(seed.RankPoints == 650 && seed.SalaryMovementCounter == 24575 && economy.Gil == 5000 && vitals.Records.All(row => row.KillCount == 0), "Prospective payout mutated the source owner or fabricated combat kills.");
         NativeCharacterVital[] rows = vitals.Records.ToArray();
         rows[7] = rows[7] with { KillCount = 200 };
@@ -90,7 +90,7 @@ internal static partial class Program
             session.InitializeNewGameEconomy(economy.DeepCopy());
             session.InitializeNewGameSalaryTable(table);
             session.SetWorldControls(session.WorldControls!.WithSalaryEnabled(true).WithSalaryDisplayEnabled(false));
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x6000), (Jsm.Opcode.POPM_L, 8), (Jsm.Opcode.PSHM_L, 8), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_L, 8), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
@@ -110,18 +110,17 @@ internal static partial class Program
         Require(!uncertainByte.IsExact, "Overlap fixture did not retain genuine timer alternatives.");
         GameSession aliasSession = GameSession.CreateColdProcess();
         aliasSession.StartNewGame();
-        aliasSession.SetNativeVariableValues(new Dictionary<int, NativeMemoryValue> { [9] = new(1, uncertainByte) });
         GameState beforeAlias = aliasSession.State;
         try
         {
-            aliasSession.SetNativeEventOwners(aliasSession.WorldControls!.WithSalaryEnabled(true), seeD: aliasSession.SeeD! with { RankPoints = 600 }, economy: economy.DeepCopy());
+            aliasSession.SetNativeEventOwners(aliasSession.WorldControls!.WithSalaryEnabled(true), seeD: aliasSession.SeeD! with { RankPoints = 600 }, economy: economy.DeepCopy(), eventMemory: new NativeEventMemory(1, new Dictionary<int, NativeMemoryValue> { [9] = new(1, uncertainByte) }));
             throw new InvalidOperationException("Typed counter overlap was admitted by atomic native-owner publication.");
         }
         catch (InvalidDataException)
         {
         }
         Require(ReferenceEquals(beforeAlias, aliasSession.State) && aliasSession.WorldControls!.SalarySuppressed && aliasSession.SeeD!.RankPoints == 500 && aliasSession.Economy is null, "Typed SeeD alias rejection partially changed controls, rank or economy.");
-        aliasSession.SetNativeVariableValues(new Dictionary<int, NativeMemoryValue> { [1200] = new(1, uncertainByte) });
+        aliasSession.SetEventMemory(new NativeEventMemory(1, new Dictionary<int, NativeMemoryValue> { [1200] = new(1, uncertainByte) }));
         aliasSession.SetNativeEventOwners(aliasSession.WorldControls!.WithSalaryEnabled(true), seeD: aliasSession.SeeD! with { RankPoints = 600 }, economy: economy.DeepCopy());
         Require(!aliasSession.WorldControls!.SalarySuppressed && aliasSession.SeeD!.RankPoints == 600 && aliasSession.Economy!.Gil == 5000 && aliasSession.State.NativeVariableValues!.ContainsKey(1200), "Nonoverlapping typed native input was incorrectly rejected or lost at atomic publication.");
         JsonNode missingKills = JsonNode.Parse(JsonSerializer.Serialize(vitals))!;

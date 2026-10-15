@@ -24,7 +24,7 @@ internal static partial class Program
                 main.AddRange([(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PGETINFO, 0)]);
                 for (int register = 0; register < 8; register++)
                 {
-                    main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5000 + register)]);
+                    main.AddRange([(Jsm.Opcode.PSHI_L, register), (Jsm.Opcode.POPM_L, 5000 + register * 4)]);
                 }
             }
             else
@@ -38,7 +38,7 @@ internal static partial class Program
             }
             main.AddRange([(Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session, session.State.Variables) { LoadSoundResource = _ => SoundResourceStatus.Muted };
+            EventEngine engine = new(session) { LoadSoundResource = _ => SoundResourceStatus.Muted };
             engine.Scene.Party.Clear();
             engine.Scene.Party.AddRange([0, 255, 255]);
             engine.LoadField(600, SyntheticObjects([1], [init.ToArray(), main.ToArray()]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -46,7 +46,7 @@ internal static partial class Program
         }
         byte[] indexedContent = SyntheticObjects([1, (8 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 257), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_L, 6000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 33), (Jsm.Opcode.PSHN_L, -44), (Jsm.Opcode.PSHN_L, 55), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         GameSession indexedSession = GameSession.CreateColdProcess();
-        EventEngine indexed = new(indexedSession, indexedSession.State.Variables) { LoadSoundResource = _ => SoundResourceStatus.Muted };
+        EventEngine indexed = new(indexedSession) { LoadSoundResource = _ => SoundResourceStatus.Muted };
         indexed.Scene.Party.Clear();
         indexed.Scene.Party.AddRange([0, 255, 255]);
         indexed.LoadField(600, indexedContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -68,17 +68,17 @@ internal static partial class Program
         Require(results.GetProperty("3").GetInt32() == 333 && results.GetProperty("7").GetInt32() == 777, "Unknown PGETINFO changed untouched R3/R7.");
         EventEngine resumed = Create(0);
         resumed.Restore(pending);
-        for (int callback = 0; callback < 6 && !live.Capture().GetProperty("Variables").TryGetProperty("5007", out _); callback++)
+        for (int callback = 0; callback < 6 && !CapturedVariables(live.Capture()).TryGetProperty("5028", out _); callback++)
         {
             live.Step();
             resumed.Step();
             Require(JsonElement.DeepEquals(live.Capture(), resumed.Capture()), "Unknown register bank diverged after genuine component restore and actual overwrite.");
         }
         int[] expected = [-19, 22, -4, 333, 255, 65535, 7929, 777];
-        JsonElement variables = live.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(live.Capture());
         for (int register = 0; register < 8; register++)
         {
-            Require(variables.GetProperty((5000 + register).ToString()).GetInt32() == expected[register], "Known follow-up PGETINFO failed to overwrite unknown outputs with native widths.");
+            Require(variables.GetProperty((5000 + register * 4).ToString()).GetInt32() == expected[register], "Known follow-up PGETINFO failed to overwrite unknown outputs with native widths.");
         }
         foreach (int consumer in new[] { 1, 2 })
         {
@@ -98,7 +98,7 @@ internal static partial class Program
             }
             JsonElement fault = blocked.Capture();
             JsonElement fiber = fault.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-            Require(blocked.LastFault?.Opcode == (consumer == 1 ? "CAL" : "POPM_L") && fiber.GetProperty("Position").GetInt32() == blocked.LastFault.Operation && fiber.GetProperty("Stack").GetArrayLength() == (consumer == 1 ? 2 : 1) && !fault.GetProperty("Variables").TryGetProperty("5000", out _), "Unknown consumption did not preserve PC, operands and memory before publication.");
+            Require(blocked.LastFault?.Opcode == (consumer == 1 ? "CAL" : "POPM_L") && fiber.GetProperty("Position").GetInt32() == blocked.LastFault.Operation && fiber.GetProperty("Stack").GetArrayLength() == (consumer == 1 ? 2 : 1) && !CapturedVariables(fault).TryGetProperty("5000", out _), "Unknown consumption did not preserve PC, operands and memory before publication.");
         }
         JsonNode malformed = JsonNode.Parse(pending.GetRawText())!;
         JsonNode savedFiber = malformed["Fibers"]!.AsArray().Single(item => item!["ScriptId"]!.GetValue<int>() == 1)!;

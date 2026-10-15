@@ -11,18 +11,16 @@ public sealed partial class EventEngine
         NativeSeeDState seeD = services.SeeD ?? throw new NotSupportedException("Menu52B4F0(2) requires actual salary WORDs.");
         NativeExamTimerState timer = services.ExamTimer ?? throw new NotSupportedException("Menu52B4F0(2) requires actual timer UI ownership.");
         NativeSalaryPresentation salary = services.SalaryPresentation ?? throw new NotSupportedException("Menu52B4F0(2) requires actual salary UI ownership.");
-        if (!services.CanStoreNativeEventOwners || !services.CanStoreNativeVariableValues || Scene.MusicProcess is null || variables.Keys.Any(address => address is 85 or 88) || services.NativeVariableValues?.Any(pair => pair.Key <= 88 && pair.Key + pair.Value.Width > 88 && (pair.Key != 88 || pair.Value.Width != 1)) == true)
+        if (!services.CanStoreNativeEventOwners || !services.CanStoreEventMemory || Scene.MusicProcess is null || EventMemory.Cells.Any(pair => pair.Key < 89 && (long)pair.Key + pair.Value.Width > 88 && (pair.Key != 88 || pair.Value.Width != 1)))
         {
             throw new NotSupportedException("Menu52B4F0(2) requires owned music and unaliased entry/source BYTEs.");
         }
         RequireKnownZeroMenuPartyAbilityFlags(vitals);
         ushort? drawPointMask = PrepareMenuDrawPointDisplayMask();
-        Dictionary<int, NativeMemoryValue> nativeMemory = services.NativeVariableValues is { } retainedMemory ? new(retainedMemory) : [];
-        nativeMemory[88] = new NativeMemoryValue(1, NativeScalarValue.Exact(0));
-        NativeMemoryValue.Validate(nativeMemory, new Dictionary<int, int>(variables));
+        NativeEventMemory memory = EventMemory.Write(88, 1, NativeScalarValue.Exact(0));
         if ((controls.EventFlags104 & 0x40) != 0)
         {
-            if (!timer.TimerMemoryActivated || variables.Keys.Any(address => address is >= 202 and <= 206))
+            if (!timer.TimerMemoryActivated || EventMemory.Overlaps(205, 2))
             {
                 throw new NotSupportedException("Menu timer display reload requires its actual saved DISPTIMER coordinates.");
             }
@@ -36,7 +34,7 @@ public sealed partial class EventEngine
             salary = salary.StartPayment(oldRank, newRank, table.Pay(oldRank), table.Pay(newRank));
             seeD = seeD with { SalaryDisplayCountdown184 = 90 };
         }
-        services.SetNativeEventOwners(controls, seeD: seeD, timer: timer, salaryPresentation: salary, vibrationProcess: vibration, fieldFade: fieldFade, nativeVariableValues: nativeMemory);
+        services.SetNativeEventOwners(controls, seeD: seeD, timer: timer, salaryPresentation: salary, vibrationProcess: vibration, fieldFade: fieldFade, eventMemory: memory);
         Scene.MusicProcess = Scene.MusicProcess with { Complete214 = 1 };
         //52B4F0's common tail calls4747A0 only when B240 is nonzero;
         //it preserves B240/241/242 and never calls the eight-anchor reset474750.

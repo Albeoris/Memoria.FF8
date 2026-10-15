@@ -214,10 +214,24 @@ public sealed partial class EventEngine
     private ulong ReplayMemoryDigest()
     {
         ulong digest = 14695981039346656037UL;
-        foreach ((int address, int value) in variables.OrderBy(pair => pair.Key))
+        NativeEventMemory memory = EventMemory;
+        digest = unchecked((digest ^ (uint)memory.Version) * 1099511628211UL);
+        foreach ((int address, NativeMemoryValue cell) in memory.Cells.OrderBy(pair => pair.Key))
         {
             digest = unchecked((digest ^ (uint)address) * 1099511628211UL);
-            digest = unchecked((digest ^ (uint)value) * 1099511628211UL);
+            digest = unchecked((digest ^ (uint)cell.Width) * 1099511628211UL);
+            digest = unchecked((digest ^ (cell.Value.IsExact ? 1UL : 0UL)) * 1099511628211UL);
+            if (cell.Value.IsExact)
+            {
+                digest = unchecked((digest ^ (uint)cell.Value.Values[0]) * 1099511628211UL);
+                continue;
+            }
+            byte[] scalar = JsonSerializer.SerializeToUtf8Bytes(cell.Value, CheckpointOptions);
+            digest = unchecked((digest ^ (uint)scalar.Length) * 1099511628211UL);
+            foreach (byte value in scalar)
+            {
+                digest = unchecked((digest ^ value) * 1099511628211UL);
+            }
         }
         return digest;
     }

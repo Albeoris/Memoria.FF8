@@ -81,9 +81,12 @@ public sealed record GameState
     public NativeWorldEntryMemory? WorldEntryMemory { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeSeeDState? SeeD { get; init; }
-    public Dictionary<int, int> Variables { get; init; } = [];
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public Dictionary<int, NativeMemoryValue>? NativeVariableValues { get; init; }
+    [JsonRequired]
+    public NativeEventMemory EventMemory { get; init; } = NativeEventMemory.Empty;
+    [JsonIgnore]
+    public IReadOnlyDictionary<int, int> Variables => WorldEntryMemory is null ? EventMemory.KnownValues : WorldEntryMemory.ProjectVariables(EventMemory.KnownValues);
+    [JsonIgnore]
+    public IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => EventMemory.UncertainValues;
     public JsonElement? EventState { get; init; }
     public JsonElement? DepartingFieldState { get; init; }
     public DialogueDraft? DialogueDraft { get; init; }
@@ -194,11 +197,12 @@ public interface IEventServices
     {
     }
     IDisposable? BeginReplayCapture() => null;
-    IReadOnlyDictionary<int, NativeMemoryValue>? NativeVariableValues => null;
-    bool CanStoreNativeVariableValues => false;
-    void SetNativeVariableValues(Dictionary<int, NativeMemoryValue>? values)
+    NativeEventMemory EventMemory => NativeEventMemory.Empty;
+    IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => EventMemory.UncertainValues;
+    bool CanStoreEventMemory => false;
+    void SetEventMemory(NativeEventMemory memory)
     {
-        throw new NotSupportedException("Typed uncertain native memory is not implemented by this event service.");
+        throw new NotSupportedException("Typed native event memory is not implemented by this event service.");
     }
     NativeExamTimerState? ExamTimer => null;
     NativeCharacterVitals? CharacterVitals => null;
@@ -285,7 +289,7 @@ public interface IEventServices
         throw new NotSupportedException("Native world-entry byte ownership is not implemented by this event service.");
     }
     bool CanStoreNativeEventOwners => false;
-    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
+    void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
     {
         throw new NotSupportedException("Atomic native event-owner publication is not implemented by this service.");
     }

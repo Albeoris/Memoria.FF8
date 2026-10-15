@@ -17,7 +17,7 @@ internal static partial class Program
         EventEngine Create(byte[] content)
         {
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ReadFaceBaseline = _ => new FaceDirectionBaseline(7, 8, 6),
@@ -38,14 +38,14 @@ internal static partial class Program
             }
             ActorState actor = live.Actors[0];
             JsonElement pending = live.Capture();
-            Require(actor.FaceDuration == 2 && actor.FaceProgress == 1 && actor.FaceTargetPoint is null && actor.FacePitchTarget == 6 && actor.FacePendingBaseline == 7 && actor.FaceYawTarget == 8 && actor.FaceElapsed == 8 && actor.FaceSecondAngle == 10 && pending.GetProperty("Variables").TryGetProperty("5000", out _) == asynchronous, "Face return lost low duration WORD, query32 XYZ targets, retained joint starts or native async/blocking return distinction.");
+            Require(actor.FaceDuration == 2 && actor.FaceProgress == 1 && actor.FaceTargetPoint is null && actor.FacePitchTarget == 6 && actor.FacePendingBaseline == 7 && actor.FaceYawTarget == 8 && actor.FaceElapsed == 8 && actor.FaceSecondAngle == 10 && CapturedVariables(pending).TryGetProperty("5000", out _) == asynchronous, "Face return lost low duration WORD, query32 XYZ targets, retained joint starts or native async/blocking return distinction.");
             Vector3 midpoint = actor.FirstControlRotation!.Value;
             Require(Math.Abs(midpoint.Y - 7 * MathF.Tau / 256) < 0.00001 && Math.Abs(midpoint.Z + 9 * MathF.Tau / 256) < 0.00001, "Face return used guessed relative targets or a second interpolation kernel.");
             EventEngine restored = Create(content);
             restored.Restore(pending);
             live.Step();
             restored.Step();
-            Require(actor.FaceProgress == 2 && actor.FaceReturning && actor.FirstControlRotation is not null && !live.Capture().GetProperty("Variables").TryGetProperty("5001", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Face return released its override or completed source sync before the native closing callback.");
+            Require(actor.FaceProgress == 2 && actor.FaceReturning && actor.FirstControlRotation is not null && !CapturedVariables(live.Capture()).TryGetProperty("5001", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Face return released its override or completed source sync before the native closing callback.");
             EventEngine completedCopy = Create(content);
             completedCopy.Restore(live.Capture());
             live.Step();
@@ -53,7 +53,7 @@ internal static partial class Program
             completedCopy.Step();
             JsonElement complete = live.Capture();
             JsonElement fiber = complete.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-            Require(!actor.FaceReturning && actor.FirstControlRotation is null && actor.FaceElapsed == 6 && actor.FaceFirstAngle == 7 && actor.FaceSecondAngle == 8 && actor.FaceDuration == 2 && actor.FaceProgress == 2 && actor.Direction == 0 && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && complete.GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && complete.GetProperty("Variables").GetProperty("5001").GetInt32() == 78 && fiber.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(complete, restored.Capture()) && JsonElement.DeepEquals(complete, completedCopy.Capture()), "Completed face return changed physical pose, consumed unrelated unknown scalar, invented another callback or failed exact restore.");
+            Require(!actor.FaceReturning && actor.FirstControlRotation is null && actor.FaceElapsed == 6 && actor.FaceFirstAngle == 7 && actor.FaceSecondAngle == 8 && actor.FaceDuration == 2 && actor.FaceProgress == 2 && actor.Direction == 0 && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && CapturedVariables(complete).GetProperty("5000").GetInt32() == 77 && CapturedVariables(complete).GetProperty("5001").GetInt32() == 78 && fiber.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(complete, restored.Capture()) && JsonElement.DeepEquals(complete, completedCopy.Capture()), "Completed face return changed physical pose, consumed unrelated unknown scalar, invented another callback or failed exact restore.");
         }
         foreach (int duration in new[] { 0, 65535 })
         {
@@ -63,7 +63,7 @@ internal static partial class Program
             {
                 edge.Step();
             }
-            while (!edge.Capture().GetProperty("Variables").TryGetProperty("5000", out _) && edge.Frame < 8)
+            while (!CapturedVariables(edge.Capture()).TryGetProperty("5000", out _) && edge.Frame < 8)
             {
                 edge.Step();
             }
@@ -95,7 +95,7 @@ internal static partial class Program
                 }
                 JsonElement failed = refused.Capture();
                 JsonElement fiber = failed.GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ScriptId").GetInt32() == 1);
-                Require(fiber.GetProperty("Position").GetInt32() == refused.LastFault!.Operation && fiber.GetProperty("Stack").GetArrayLength() == 2 && fiber.GetProperty("Stack")[0].GetInt32() == 2 && !refused.Actors[0].FaceReturning && refused.Actors[0].FaceTargetPoint == new Vector3(100, 0, 100) && refused.Actors[0].FaceDuration == 1 && refused.Actors[0].FaceProgress == 1 && refused.Actors[0].FirstControlRotation == previous && !failed.GetProperty("Variables").TryGetProperty("5000", out _), "Refused face return popped duration or changed point/phase/override before query32 validation.");
+                Require(fiber.GetProperty("Position").GetInt32() == refused.LastFault!.Operation && fiber.GetProperty("Stack").GetArrayLength() == 2 && fiber.GetProperty("Stack")[0].GetInt32() == 2 && !refused.Actors[0].FaceReturning && refused.Actors[0].FaceTargetPoint == new Vector3(100, 0, 100) && refused.Actors[0].FaceDuration == 1 && refused.Actors[0].FaceProgress == 1 && refused.Actors[0].FirstControlRotation == previous && !CapturedVariables(failed).TryGetProperty("5000", out _), "Refused face return popped duration or changed point/phase/override before query32 validation.");
             }
         }
     }

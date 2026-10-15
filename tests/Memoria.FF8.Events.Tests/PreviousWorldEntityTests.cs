@@ -14,15 +14,15 @@ internal static partial class Program
         foreach ((short mode, int signed) in new[] { ((short)33, 33), ((short)255, -1), ((short)128, -128) })
         {
             GameSession session = new(new GameState { Scene = SceneKind.Field, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(new WorldTransition(63, mode, -1), 262) });
-            EventEngine first = new(session, session.State.Variables);
+            EventEngine first = new(session);
             first.LoadField(106, content, [], previousFieldId: 262);
             Require(first.Scene.PreviousWorldEntityByte86 == unchecked((byte)mode) && first.Frame == 0, "Native world entity byte was unavailable before field initialization.");
             first.Step();
             JsonElement snapshot = first.Capture();
             JsonElement results = snapshot.GetProperty("Fibers")[0].GetProperty("Results");
             Require(results.GetProperty("3").GetInt32() == signed && results.GetProperty("4").GetInt32() == unchecked((byte)mode), "Signed/unsigned native byte projections disagree.");
-            GameSession boundSession = new(session.State with { Variables = new(session.State.Variables), EventState = snapshot });
-            EventEngine bound = new(boundSession, boundSession.State.Variables);
+            GameSession boundSession = new(session.State with { EventMemory = session.State.EventMemory, EventState = snapshot });
+            EventEngine bound = new(boundSession);
             bound.LoadField(106, content, [], worldEntityAllocationContext: snapshot);
             bound.Restore(snapshot);
             Require(JsonElement.DeepEquals(snapshot, bound.Capture()), "Fresh receiver rejected or replaced the exact saved native allocation receipt.");
@@ -47,15 +47,15 @@ internal static partial class Program
             {
                 File.Delete(savePath);
             }
-            GameSession resumedSession = new(session.State with { Variables = [] });
-            EventEngine resumed = new(resumedSession, resumedSession.State.Variables);
+            GameSession resumedSession = new(session.State with { EventMemory = NativeEventMemory.Empty});
+            EventEngine resumed = new(resumedSession);
             resumed.LoadField(106, content, []);
             resumed.Restore(snapshot);
             first.Step();
             resumed.Step();
             Require(JsonElement.DeepEquals(first.Capture(), resumed.Capture()), "Independent byte-authority restore changed the next callback.");
             JsonNode malformed = JsonNode.Parse(resumed.Capture().GetRawText())!;
-            malformed["Variables"]!["86"] = 0;
+            SetCapturedCell(malformed, 86, 4, 0);
             string before = resumed.Capture().GetRawText();
             try
             {
@@ -72,7 +72,7 @@ internal static partial class Program
         GameSession unknownSession = GameSession.CreateColdProcess();
         unknownSession.StartNewGame();
         Require(unknownSession.WorldConfiguration is null, "New Game invented previous process world configuration.");
-        EventEngine unknown = new(unknownSession, unknownSession.State.Variables);
+        EventEngine unknown = new(unknownSession);
         unknown.LoadField(106, content, []);
         try
         {
@@ -85,7 +85,7 @@ internal static partial class Program
         Require(unknown.Capture().GetProperty("Fibers")[0].GetProperty("Stack").GetArrayLength() == 0 && unknown.Scene.PreviousWorldEntityByte86 is null, "Unknown byte refusal changed stack or authority.");
         byte[] overlap = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 123), (Jsm.Opcode.POPM_W, 86), (Jsm.Opcode.RET, 0));
         GameSession refusedSession = new(new GameState { WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(new WorldTransition(63, 33, -1), 262) });
-        EventEngine refused = new(refusedSession, refusedSession.State.Variables);
+        EventEngine refused = new(refusedSession);
         refused.LoadField(106, overlap, []);
         try
         {

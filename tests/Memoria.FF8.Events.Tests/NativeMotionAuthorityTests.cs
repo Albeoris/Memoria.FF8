@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create(bool native = true, byte[]? content = null)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = _ => native,

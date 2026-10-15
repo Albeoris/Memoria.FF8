@@ -60,7 +60,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedJunctionBackupAliases()
     {
-        return variables.Keys.Any(address => address < 194 && (long)address + 4 > 188) || services.NativeVariableValues?.Any(pair => pair.Key < 194 && (long)pair.Key + pair.Value.Width > 188) == true ? "Native JUNCTION backup bytes overlap a separate typed/untyped VM alias; recreate authentic inputs" : null;
+        return EventMemory.Overlaps(188, 6) ? "Native JUNCTION backup bytes overlap a separate typed/untyped VM alias; recreate authentic inputs" : null;
     }
 
     private string? UnsupportedJunctionBackupMemory(Fiber fiber, JsmOperation operation)

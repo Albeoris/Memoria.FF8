@@ -23,7 +23,7 @@ internal static partial class Program
                 session.StartNewGame();
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
                 session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-                EventEngine engine = new(session, session.State.Variables)
+                EventEngine engine = new(session)
                 {
                     ReadNativeDrawPointCatalog = provider ? assets.ReadNativeDrawPointCatalog : null
                 };

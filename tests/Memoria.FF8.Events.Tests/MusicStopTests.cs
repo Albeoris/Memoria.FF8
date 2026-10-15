@@ -14,7 +14,7 @@ internal static partial class Program
         EventEngine Create(byte[]? bytes = null)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, bytes ?? content, []);
             JsonNode saved = JsonNode.Parse(engine.Capture().GetRawText())!;
             saved["Scene"]!["LoadedMusic"] = 26;
@@ -27,7 +27,7 @@ internal static partial class Program
         NativeMusicStop stopped = first.Scene.MusicStop ?? throw new InvalidOperationException("MUSICSTOP lost original stop provenance.");
         Require(stopped is { RawSlot: 2, Slot: 0, PriorChannelId: null, StopRequested: null, BackendStatus: GlobalSoundBackendStatus.Muted } && first.Scene.MusicChannel108 is { ChannelId: -1, MusicId: null } && !first.Scene.MusicPlaying && first.Scene.LoadedMusic == 26 && first.Scene.MusicChannel112 is null, "Unknown prior music channel fabricated a conditional stop/music byte or changed the other slot.");
         JsonElement begun = first.Capture();
-        Require(begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == -1 && !begun.GetProperty("Variables").TryGetProperty("199", out _), "Known post-stop DWORD was unreadable or unknown B199 was manufactured.");
+        Require(begun.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == -1 && !CapturedVariables(begun).TryGetProperty("199", out _), "Known post-stop DWORD was unreadable or unknown B199 was manufactured.");
         EventEngine resumed = Create();
         resumed.Restore(begun);
         for (int tick = 0; tick < 4; tick++)
@@ -58,7 +58,7 @@ internal static partial class Program
         Require(refused.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 3, "Unknown music-byte read advanced its issuing PC.");
         EventEngine ambiguous = Create();
         JsonNode alias = JsonNode.Parse(ambiguous.Capture().GetRawText())!;
-        alias["Variables"]!["107"] = 65536;
+        SetCapturedCell(alias, 107, 4, 65536);
         ambiguous.Restore(JsonSerializer.SerializeToElement(alias));
         try
         {
@@ -82,7 +82,7 @@ internal static partial class Program
             catch (EventScriptException) when (changed.LastFault?.Opcode == takeover.ToString())
             {
             }
-            Require(changed.Scene.MusicStop is not null && changed.Scene.MusicChannel108?.ChannelId == -1 && changed.Capture().GetProperty("Variables").GetProperty("108").GetInt32() == -1, "Unproved music load/play erased the preceding actual stop authority.");
+            Require(changed.Scene.MusicStop is not null && changed.Scene.MusicChannel108?.ChannelId == -1 && CapturedVariables(changed.Capture()).GetProperty("108").GetInt32() == -1, "Unproved music load/play erased the preceding actual stop authority.");
         }
         Console.WriteLine("Native MUSICSTOP: full slot operand masks &1, immediate known channel -1, conditional unknown stop/music byte retained, primary logical playing false; independent/cross-field restore, unknown aliases and unproved music load/play refusal verified.");
     }

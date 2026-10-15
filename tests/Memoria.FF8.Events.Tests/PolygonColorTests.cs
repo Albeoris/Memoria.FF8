@@ -29,7 +29,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = GameSession.CreateColdProcess();
-            EventEngine engine = new(session, session.State.Variables) { ReadNativeModelParts = id => id == 6 ? definition : null };
+            EventEngine engine = new(session) { ReadNativeModelParts = id => id == 6 ? definition : null };
             engine.LoadField(600, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             return engine;
         }
@@ -38,7 +38,7 @@ internal static partial class Program
         live.Step();
         Require(live.Actors[0].PolygonColor is null && live.Actors[1].PolygonColor == new Vector3(1, 255, 0) && live.Actors[2].PolygonColor == new Vector3(1, 255, 0), "Init POLYCOLORALL failed BYTE narrowing or wrote a nonactor record.");
         live.Step();
-        Require(live.Actors[1].PolygonColor == new Vector3(17, 34, 51) && live.Actors[2].PolygonColor == new Vector3(1, 255, 0) && !live.Actors[2].Active && live.Scene.ModelParts!.Resources.Count == 1 && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77, "Caller-only RGB leaked through shared model resource or failed same-budget successor.");
+        Require(live.Actors[1].PolygonColor == new Vector3(17, 34, 51) && live.Actors[2].PolygonColor == new Vector3(1, 255, 0) && !live.Actors[2].Active && live.Scene.ModelParts!.Resources.Count == 1 && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77, "Caller-only RGB leaked through shared model resource or failed same-budget successor.");
         JsonElement saved = live.Capture();
         EventEngine restored = Create();
         restored.Restore(saved);
@@ -48,14 +48,14 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "RGB state changed after independent model-instance restore.");
         }
-        Require(live.Actors[0].PolygonColor is null && live.Actors[1].PolygonColor == new Vector3(64, 65, 66) && live.Actors[2].PolygonColor == new Vector3(64, 65, 66) && live.Capture().GetProperty("Variables").GetProperty("5001").GetInt32() == 88, "POLYCOLORALL skipped a retained UNUSE body, tinted only the caller or wrote the script record.");
+        Require(live.Actors[0].PolygonColor is null && live.Actors[1].PolygonColor == new Vector3(64, 65, 66) && live.Actors[2].PolygonColor == new Vector3(64, 65, 66) && CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 88, "POLYCOLORALL skipped a retained UNUSE body, tinted only the caller or wrote the script record.");
 
         foreach (int failure in new[] { 0, 1, 2 })
         {
             EventEngine blocked;
             if (failure == 0)
             {
-                blocked = new EventEngine(GameSession.CreateColdProcess(), new Dictionary<int, int>());
+                blocked = new EventEngine(GameSession.CreateColdProcess(), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
                 blocked.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.POLYCOLOR, 0), (Jsm.Opcode.RET, 8)), []);
             }
             else
@@ -63,7 +63,7 @@ internal static partial class Program
                 byte[] invalid = SyntheticObjects([1, 8 << 7], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.POLYCOLOR, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.RET, 8)]]);
                 invalid[0] = 1;
                 invalid[3] = 1;
-                blocked = new EventEngine(GameSession.CreateColdProcess(), new Dictionary<int, int>());
+                blocked = new EventEngine(GameSession.CreateColdProcess(), NativeEventMemory.FromDWords(new Dictionary<int, int>()));
                 blocked.LoadField(600, invalid, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
                 if (failure == 2)
                 {

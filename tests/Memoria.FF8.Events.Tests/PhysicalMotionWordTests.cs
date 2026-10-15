@@ -16,7 +16,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = _ => true,
@@ -35,7 +35,7 @@ internal static partial class Program
         Require(live.Actors[0].NativeScriptMovement is { Active: false } && live.Actors[0].NativeMovementCompletion542 == 2, "MOVE completion did not retain its physical word after mode0 cleanup.");
         live.Step();
         ActorState actor = live.Actors[0];
-        Require(actor.NativeScriptMovement is { Active: false } && actor.NativeMovementCompletion542 == 0 && actor.NativeLandingTriangle508 == 240 && actor.NativeDisplayOffset is { X: 3, Y: 4, Z: 5 } && !live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "DOFFSET failed its physical lowWORD508/write542=0 or MOVESYNC used stale completed motion instead.");
+        Require(actor.NativeScriptMovement is { Active: false } && actor.NativeMovementCompletion542 == 0 && actor.NativeLandingTriangle508 == 240 && actor.NativeDisplayOffset is { X: 3, Y: 4, Z: 5 } && !CapturedVariables(live.Capture()).TryGetProperty("5000", out _), "DOFFSET failed its physical lowWORD508/write542=0 or MOVESYNC used stale completed motion instead.");
         JsonElement held = live.Capture();
         JsonElement fiber = held.GetProperty("Fibers").EnumerateArray().Single(value => !value.GetProperty("Complete").GetBoolean());
         int position = fiber.GetProperty("Position").GetInt32();

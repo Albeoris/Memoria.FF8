@@ -32,11 +32,11 @@ internal static partial class Program
         {
             engine.Step();
             restored.Step();
-            Require(engine.Actors[0].DisplayOffset == value && JsonElement.DeepEquals(engine.Capture(), restored.Capture()) && !engine.Capture().GetProperty("Variables").TryGetProperty("512", out _), "Linear offset progression, restored VM or OFFSETSYNC completion ordering differs from native.");
+            Require(engine.Actors[0].DisplayOffset == value && JsonElement.DeepEquals(engine.Capture(), restored.Capture()) && !CapturedVariables(engine.Capture()).TryGetProperty("512", out _), "Linear offset progression, restored VM or OFFSETSYNC completion ordering differs from native.");
         }
         engine.Step();
         restored.Step();
-        Require(engine.Capture().GetProperty("Variables").GetProperty("512").GetInt32() == 27 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Completed explicit-start offset did not resume on its next ordinary VM callback.");
+        Require(CapturedVariables(engine.Capture()).GetProperty("512").GetInt32() == 27 && JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Completed explicit-start offset did not resume on its next ordinary VM callback.");
         JsonObject malformed = JsonNode.Parse(first.GetRawText())!.AsObject();
         malformed["Actors"]![0]!["NativeDisplayOffset"]!["StartX"] = 99;
         JsonElement before = engine.Capture();

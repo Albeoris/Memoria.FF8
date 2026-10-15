@@ -39,8 +39,8 @@ public sealed class PreviousFieldContinuationTests
         Assert.Equal(0, world.Events.Frame);
         Assert.Equal(160, session.State.PreviousFieldId);
         Assert.Equal((ushort?)160, world.Events.Scene.PreviousFieldWord84);
-        Assert.Equal(160, world.Events.Capture().GetProperty("Variables").GetProperty("84").GetInt32());
-        using var resumed = new GameWorld(new GameSession(session.State with { Variables = new Dictionary<int, int>(session.State.Variables), EventState = world.Events.Capture() }), directory);
+        Assert.Equal(160, world.Events.Variables[84]);
+        using var resumed = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
         resumed.EnsureField();
         for (int tick = 0; tick < 10; tick++)
         {

@@ -21,7 +21,7 @@ internal static partial class Program
             (Jsm.Opcode, int)[] curve = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.CSCROLLP, 0), (Jsm.Opcode.SCROLLSYNC, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] second = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 0)];
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
             engine.ResolveNativeNormalBackgroundScrollCenter = () => knownStart ? ((short)40, (short)-80) : null;
             engine.ResolveNativeActorScrollCenter = actor => actor < engine.Scene.NativeActorObjectIds.Count ? ((short)(100 * actor + engine.Frame), (short)-engine.Frame) : null;
             engine.CanSetPartyBackgroundScroll = (partySlot, actor, ticks) => certificate && ticks >= 0 && engine.Scene.NormalBackgroundScrollCenter is not null && engine.Scene.PartyBindingMemory?.At(partySlot) == actor;
@@ -51,12 +51,12 @@ internal static partial class Program
             restored.Step();
             NativeActorBackgroundScroll state = live.Scene.ActorBackgroundScroll!;
             Require(state.X == NativeCosineInterpolation.Interpolate(40, (int)live.Frame, 4, elapsed) && state.Y == NativeCosineInterpolation.Interpolate(-80, -(int)live.Frame, 4, elapsed) && state.Counter == Math.Min(elapsed + 1, 4) && state.Status == (elapsed == 4 ? 2 : 1) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "CSCROLLP froze its selected actor, changed cosine arithmetic or diverged after independent midphase restore.");
-            Require(!live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "SCROLLSYNC resumed before the following VM callback.");
+            Require(!CapturedVariables(live.Capture()).TryGetProperty("5000", out _), "SCROLLSYNC resumed before the following VM callback.");
         }
         NativeActorBackgroundScroll complete = live.Scene.ActorBackgroundScroll!;
         live.Step();
         restored.Step();
-        Require(live.Scene.ActorBackgroundScroll == complete && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Completed saved-party cosine followed a later body or added a sync wait.");
+        Require(live.Scene.ActorBackgroundScroll == complete && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Completed saved-party cosine followed a later body or added a sync wait.");
         EventEngine secondBody = Create(slot: 1);
         secondBody.Step();
         Require(secondBody.Scene.ActorBackgroundScroll is { PartySlot: 1, NativeActorId: 1, ObjectId: 1, ProjectedTargetX: 102 }, "CSCROLLP substituted the leader for a saved second body.");

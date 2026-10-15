@@ -24,7 +24,7 @@ internal static partial class Program
         session.InitializeNewGameCharacterVitals(initial);
         session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-        EventEngine engine = new(session, session.State.Variables);
+        EventEngine engine = new(session);
         ScriptCommand? holdCommand = null;
         engine.CommandExecuted += command =>
         {
@@ -48,7 +48,7 @@ internal static partial class Program
         Require(!engine.Capture().GetProperty("Scene").TryGetProperty("Holds", out _), "Removed HOLD metadata remains a duplicate saved owner.");
 
         var rejectedSession = new GameSession(new GameState { CharacterVitals = initial });
-        var rejected = new EventEngine(rejectedSession, rejectedSession.State.Variables);
+        var rejected = new EventEngine(rejectedSession);
         byte[] invalid = SyntheticObjects([0], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.HOLD, 0), (Jsm.Opcode.RET, 8)]]);
         rejected.LoadField(600, invalid, []);
         try

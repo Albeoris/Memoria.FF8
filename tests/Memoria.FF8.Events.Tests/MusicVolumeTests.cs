@@ -18,7 +18,7 @@ internal static partial class Program
         EventEngine Create(byte[]? bytes = null)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             engine.LoadField(100, bytes ?? content, []);
             return engine;
         }
@@ -60,7 +60,7 @@ internal static partial class Program
             takenOverSession.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             takenOverSession.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             takenOverSession.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
-            EventEngine takenOver = new(takenOverSession, takenOverSession.State.Variables);
+            EventEngine takenOver = new(takenOverSession);
             takenOver.LoadField(74, SyntheticProgram(steps.ToArray()), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             takenOver.Step();
             takenOver.Step();
@@ -99,7 +99,7 @@ internal static partial class Program
         ]);
         byte[] secondField = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.MUSICVOL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         GameSession session = new(new GameState());
-        EventEngine first = new(session, session.State.Variables);
+        EventEngine first = new(session);
         first.LoadField(100, firstField, []);
         first.Scene.Party.Clear();
         first.Scene.Party.AddRange([0, 3, 255]);
@@ -111,7 +111,7 @@ internal static partial class Program
         JsonElement paused = first.Capture();
         Require(first.Scene.NativeActorLayoutVersion == 0 && first.Scene.FieldPartyNativeActorIds.Count == 0 && first.Scene.PartyBindingMemory == new NativePartyBindingMemory(1, 0, 1, 255), "Field allocation confused retained global BYTE authority with current compact actor bindings.");
         GameSession restoredSession = new(new GameState());
-        EventEngine restored = new(restoredSession, restoredSession.State.Variables);
+        EventEngine restored = new(restoredSession);
         restored.LoadField(101, secondField, []);
         restored.Restore(paused);
         for (int tick = 0; tick < 5; tick++)
@@ -120,8 +120,8 @@ internal static partial class Program
             restored.Step();
             Require(JsonElement.DeepEquals(first.Capture(), restored.Capture()), "Mid-initialization restore lost retained party BYTE widths or MUSICVOL's independently unknown routing.");
         }
-        Require(first.Scene.SoundMusicVolume197 == 255 && first.Scene.MusicVolumeRequest is { ChannelId: null, BothChannels: null } && session.State.Variables[194] == 0 && session.State.Variables[195] == 1 && session.State.Variables[196] == 255, "Initialization MUSICVOL rejected proved prior binding bytes, changed them, or manufactured a channel.");
-        foreach (string property in new[] { "Version", "First" })
+        Require(first.Scene.SoundMusicVolume197 == 255 && first.Scene.MusicVolumeRequest is { ChannelId: null, BothChannels: null } && first.Variables[194] == 0 && first.Variables[195] == 1 && first.Variables[196] == 255, "Initialization MUSICVOL rejected proved prior binding bytes, changed them, or manufactured a channel.");
+        foreach (string property in new[] { "Version" })
         {
             JsonNode malformed = JsonNode.Parse(paused.GetRawText())!;
             malformed["Scene"]!["PartyBindingMemory"]![property] = 2;
@@ -135,7 +135,7 @@ internal static partial class Program
             }
         }
         restored.Restore(paused);
-        restoredSession.State.Variables[196] = 65537;
+        restoredSession.SetEventMemory(restoredSession.State.EventMemory.Write(196, 4, NativeScalarValue.Exact(65537)));
         try
         {
             restored.Step();
@@ -165,8 +165,8 @@ internal static partial class Program
                 EventEngine Create()
                 {
                     GameSession session = new(new GameState());
-                    session.State.Variables[640] = duration;
-                    EventEngine engine = new(session, session.State.Variables);
+                    session.SetEventMemory(session.State.EventMemory.Write(640, 4, NativeScalarValue.Exact(duration)));
+                    EventEngine engine = new(session);
                     engine.LoadField(100, content, []);
                     return engine;
                 }

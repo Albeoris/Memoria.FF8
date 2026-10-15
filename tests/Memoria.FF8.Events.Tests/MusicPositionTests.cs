@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Events;
@@ -27,7 +27,7 @@ internal static partial class Program
             EventEngine Create()
             {
                 GameSession session = new(new GameState());
-                EventEngine engine = new(session, session.State.Variables);
+                EventEngine engine = new(session);
                 engine.LoadField(170, content, []);
                 return engine;
             }

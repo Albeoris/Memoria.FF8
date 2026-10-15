@@ -85,9 +85,7 @@ public sealed class NativeControllerMovementTests
         GameSession session = FootSession();
         // Declared component bank, not an authentic save or reconstructed journal.
         NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
-        Dictionary<int, int> variables = [];
-        memory.ProjectVariables(variables);
-        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), Variables = variables, WorldEntryMemory = memory });
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
         using WorldMapScene scene = new(session, GameDirectory());
         GameSession independent = new(session.State);
         using WorldMapScene other = new(independent, GameDirectory());

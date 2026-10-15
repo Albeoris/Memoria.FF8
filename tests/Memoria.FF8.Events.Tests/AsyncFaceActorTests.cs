@@ -58,7 +58,7 @@ internal static partial class Program
             completedCopy.Step();
             JsonElement complete = live.Capture();
             JsonElement fiber = AsyncFaceActorCaller(live);
-            Require(complete.GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && complete.GetProperty("Variables").GetProperty("5001").GetInt32() == 78 && actor.FaceProgress == 4 && actor.FaceTargetPoint == expected && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.Direction == 0 && actor.FirstControlRotation is not null && fiber.GetProperty("Stack").GetArrayLength() == 0 && fiber.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(complete, restored.Capture()) && JsonElement.DeepEquals(complete, completedCopy.Capture()), "Actor-facing/SYNC completion changed body ownership, consumed the unrelated opaque scalar, delayed the common successor or diverged at an independently restored equality phase.");
+            Require(CapturedVariables(complete).GetProperty("5000").GetInt32() == 77 && CapturedVariables(complete).GetProperty("5001").GetInt32() == 78 && actor.FaceProgress == 4 && actor.FaceTargetPoint == expected && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.Direction == 0 && actor.FirstControlRotation is not null && fiber.GetProperty("Stack").GetArrayLength() == 0 && fiber.GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(complete, restored.Capture()) && JsonElement.DeepEquals(complete, completedCopy.Capture()), "Actor-facing/SYNC completion changed body ownership, consumed the unrelated opaque scalar, delayed the common successor or diverged at an independently restored equality phase.");
 
             JsonNode malformed = JsonNode.Parse(issued.GetRawText())!;
             malformed["Actors"]![0]!["FaceProgress"] = 5;
@@ -168,7 +168,7 @@ internal static partial class Program
             }
         }
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        EventEngine engine = new(session, session.State.Variables)
+        EventEngine engine = new(session)
         {
             LoadSoundResource = _ => SoundResourceStatus.Muted,
             AnimationFrameCount = (_, _) => 4,
@@ -209,6 +209,6 @@ internal static partial class Program
 
     private static bool HasAsyncFaceActorVariable(EventEngine engine, string address)
     {
-        return engine.Capture().GetProperty("Variables").TryGetProperty(address, out _);
+        return CapturedVariables(engine.Capture()).TryGetProperty(address, out _);
     }
 }

@@ -19,7 +19,7 @@ internal static partial class Program
             session.StartNewGame();
             session.InitializeNewGameInputConfiguration(configuration);
             session.InitializeNewGameCharacterVitals(initial.DeepCopy());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session);
             byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.KEYSCAN, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 0)]]);
             engine.LoadField(74, content, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
             engine.Step();

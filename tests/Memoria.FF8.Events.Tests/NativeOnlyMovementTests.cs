@@ -15,7 +15,7 @@ internal static partial class Program
         EventEngine Create(byte[] content)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
@@ -88,7 +88,7 @@ internal static partial class Program
         }
         Require(JsonElement.DeepEquals(stopped, independent.Capture()), "Missing world-control field restore mutated the current unknown-state VM.");
         GameSession knownControlsSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame() });
-        EventEngine knownControls = new(knownControlsSession, knownControlsSession.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+        EventEngine knownControls = new(knownControlsSession) { AnimationFrameCount = (_, _) => 4 };
         knownControls.LoadField(600, unsupportedProgram, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         JsonElement knownBefore = knownControls.Capture();
         try
@@ -127,7 +127,7 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(completed, restoredSplit.Capture()), "Completed SPLIT raw physical body failed independent native restore.");
         byte[] dialogueProgram = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 24), (Jsm.Opcode.RAMESW, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         GameSession dialogueSession = new(new GameState());
-        EventEngine dialogueEngine = new(dialogueSession, dialogueSession.State.Variables)
+        EventEngine dialogueEngine = new(dialogueSession)
         {
             AnimationFrameCount = (_, _) => 4,
             ResolveNativeTriangleHeight = (_, _, _) => 0,

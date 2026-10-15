@@ -39,9 +39,9 @@ public sealed class NativeCarFieldRenderTests
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(vm, restored.Events.Capture()));
         Assert.Equal(pixels, restored.Render(TimeSpan.Zero));
-        Assert.Equal(session.State.Variables[194], restored.Events.Scene.PartyBindingMemory!.First);
-        Assert.Equal(session.State.Variables[195], restored.Events.Scene.PartyBindingMemory.Second);
-        Assert.Equal(session.State.Variables[196], restored.Events.Scene.PartyBindingMemory.Third);
+        Assert.Equal(world.Events.Variables[194], restored.Events.Scene.PartyBindingMemory!.First);
+        Assert.Equal(world.Events.Variables[195], restored.Events.Scene.PartyBindingMemory.Second);
+        Assert.Equal(world.Events.Variables[196], restored.Events.Scene.PartyBindingMemory.Third);
         world.Apply(new PlayerAction(PlayerActionKind.Wait));
         restored.Apply(new PlayerAction(PlayerActionKind.Wait));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));

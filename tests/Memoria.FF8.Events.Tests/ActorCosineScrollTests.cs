@@ -17,7 +17,7 @@ internal static partial class Program
             (Jsm.Opcode, int)[] unused = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.RET, 0)];
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1 };
             engine.ResolveNativeNormalBackgroundScrollCenter = () => knownStart ? ((short)40, (short)-80) : null;
             engine.ResolveNativeActorScrollCenter = actor => actor < engine.Scene.NativeActorObjectIds.Count ? ((short)(100 * engine.Scene.NativeActorObjectIds[actor] + engine.Frame), (short)(-2 * engine.Frame)) : null;
             engine.CanSetNativeActorCosineBackgroundScroll = (actor, ticks) => certificate && ticks >= 0 && engine.Scene.NormalBackgroundScrollCenter is not null && actor < engine.Scene.NativeActorObjectIds.Count;
@@ -49,12 +49,12 @@ internal static partial class Program
             restored.Step();
             NativeActorBackgroundScroll state = live.Scene.ActorBackgroundScroll!;
             Require(state.X == NativeCosineInterpolation.Interpolate(40, 200 + (int)live.Frame, 4, elapsed) && state.Y == NativeCosineInterpolation.Interpolate(-80, -2 * (int)live.Frame, 4, elapsed) && state.ProjectedTargetX == 200 + live.Frame && state.ProjectedTargetY == -2 * live.Frame && state.Status == (elapsed == 4 ? 2 : 1) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Actor cosine camera froze its moving target, changed original cosine arithmetic or diverged after restore.");
-            Require(!live.Capture().GetProperty("Variables").TryGetProperty("5000", out _), "SCROLLSYNC resumed before the following VM callback.");
+            Require(!CapturedVariables(live.Capture()).TryGetProperty("5000", out _), "SCROLLSYNC resumed before the following VM callback.");
         }
         NativeActorBackgroundScroll completed = live.Scene.ActorBackgroundScroll!;
         live.Step();
         restored.Step();
-        Require(live.Scene.ActorBackgroundScroll == completed && live.Capture().GetProperty("Variables").GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Completed actor cosine camera followed a later target or inserted an extra synchronization wait.");
+        Require(live.Scene.ActorBackgroundScroll == completed && CapturedVariables(live.Capture()).GetProperty("5000").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Completed actor cosine camera followed a later target or inserted an extra synchronization wait.");
         EventEngine zero = Create(0);
         zero.Step();
         Require(zero.Scene.ActorBackgroundScroll is { Mode: 2, Duration: 0, Counter: 0, Status: 2, X: 202, Y: -4 }, "Zero-duration actor cosine did not use the actual first callback target.");

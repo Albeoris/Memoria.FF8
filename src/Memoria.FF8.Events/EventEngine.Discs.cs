@@ -29,7 +29,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeDiscAliases()
     {
-        return variables.Keys.Any(address => address <= 204 && (long)address + 4 > 204) || services.NativeVariableValues?.Any(pair => pair.Key <= 204 && (long)pair.Key + pair.Value.Width > 204) == true ? "Native disc access overlaps a second event BYTE204 owner." : null;
+        return EventMemory.Overlaps(204, 1) ? "Native disc access overlaps a second event BYTE204 owner." : null;
     }
 
     private int[] AssignNativeDisc(Fiber fiber)

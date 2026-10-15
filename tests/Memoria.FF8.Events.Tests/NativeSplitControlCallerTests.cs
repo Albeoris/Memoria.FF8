@@ -23,7 +23,7 @@ internal static partial class Program
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeJoinMovement = _ => true,
@@ -69,7 +69,7 @@ internal static partial class Program
         Require(committedPeerObserved, "SPLIT omitted ordered enabled-peer contact evaluation.");
         JsonElement pending = live.Capture();
         JsonElement heldCompanion = pending.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1 && !fiber.GetProperty("Initialization").GetBoolean());
-        Require(heldCompanion.GetProperty("WaitReason").GetString() == "Frames" && !pending.GetProperty("Variables").TryGetProperty("6101", out _), "SPLIT did not encounter its companion's live WAIT slot.");
+        Require(heldCompanion.GetProperty("WaitReason").GetString() == "Frames" && !CapturedVariables(pending).TryGetProperty("6101", out _), "SPLIT did not encounter its companion's live WAIT slot.");
         Require(pending.GetProperty("PartySplit").GetProperty("CallerObjectId").GetInt32() == 4 && pending.GetProperty("PartySplit").GetProperty("Targets").EnumerateArray().Select(target => target.GetProperty("ObjectId").GetInt32()).SequenceEqual([1, 2, 3]) && live.IsUserControlEnabled, "SPLIT still required caller to be a party leader or disabled control.");
         Require(live.Actors.Skip(1).Take(3).All(actor => actor.CollisionEnabled) && live.PlayerActor is { CharacterId: 0, X: -2980 } && live.Scene.NativePlayerPosition == new FieldFixedPosition(-2980 * 4096, 0, 0), "Enabled party peers or noncaller runtime leader pose were not committed.");
         EventEngine resumed = Create();
@@ -83,11 +83,11 @@ internal static partial class Program
             if (held)
             {
                 JsonElement companion = live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1 && !fiber.GetProperty("Initialization").GetBoolean());
-                Require(JsonElement.DeepEquals(heldCompanion, companion) && !live.Capture().GetProperty("Variables").TryGetProperty("6101", out _), "SPLIT advanced or cancelled its held companion VM instead of preserving its slot, operands and WAIT receipt.");
+                Require(JsonElement.DeepEquals(heldCompanion, companion) && !CapturedVariables(live.Capture()).TryGetProperty("6101", out _), "SPLIT advanced or cancelled its held companion VM instead of preserving its slot, operands and WAIT receipt.");
             }
         }
-        Require(live.Capture().GetProperty("PartySplit").ValueKind == JsonValueKind.Null && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 77 && live.Actors.Skip(1).Take(3).All(actor => actor.NativeMovementCompletion542 == 2), "SPLIT did not complete all physical bodies and its same-budget successor.");
-        Require(live.Capture().GetProperty("Variables").GetProperty("6101").GetInt32() == 81 && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("Sequence").GetInt64() == heldCompanion.GetProperty("Sequence").GetInt64() && fiber.GetProperty("WaitReason").GetString() == "NativeHalt"), "Completed SPLIT did not release the same companion slot to resume its expired WAIT and ordinary successor.");
+        Require(live.Capture().GetProperty("PartySplit").ValueKind == JsonValueKind.Null && CapturedVariables(live.Capture()).GetProperty("6000").GetInt32() == 77 && live.Actors.Skip(1).Take(3).All(actor => actor.NativeMovementCompletion542 == 2), "SPLIT did not complete all physical bodies and its same-budget successor.");
+        Require(CapturedVariables(live.Capture()).GetProperty("6101").GetInt32() == 81 && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("Sequence").GetInt64() == heldCompanion.GetProperty("Sequence").GetInt64() && fiber.GetProperty("WaitReason").GetString() == "NativeHalt"), "Completed SPLIT did not release the same companion slot to resume its expired WAIT and ordinary successor.");
         JsonNode malformed = JsonNode.Parse(pending.GetRawText())!;
         malformed["PartySplit"]!["Targets"]!.AsArray().RemoveAt(1);
         JsonElement before = resumed.Capture();

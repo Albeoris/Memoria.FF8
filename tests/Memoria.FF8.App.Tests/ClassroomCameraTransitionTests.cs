@@ -74,7 +74,7 @@ public sealed class ClassroomCameraTransitionTests
                 Assert.False(FieldPresentationReadiness.HasPendingInitialization(world.Events.Scene.NativeFieldInitialization));
                 JsonElement before = world.Events.Capture();
                 byte[] pixels = world.Render(TimeSpan.Zero);
-                using GameWorld restored = new(new GameSession(session.State with { Variables = session.State.Variables.ToDictionary(), EventState = before }), directory, persistReplayJournal: false);
+                using GameWorld restored = new(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = before }), directory, persistReplayJournal: false);
                 restored.EnsureField();
                 Assert.Equal(pixels, restored.Render(TimeSpan.Zero));
                 Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));

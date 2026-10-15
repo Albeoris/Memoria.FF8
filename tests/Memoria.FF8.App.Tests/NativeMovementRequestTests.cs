@@ -37,7 +37,7 @@ public sealed class NativeMovementRequestTests
         Assert.NotNull(request);
         Assert.Equal(1, request.SavedMovement.TargetNativeObjectId);
         JsonElement lower = world.Events.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Sequence").GetInt64() == request.SavedMovement.FiberSequence);
-        using var restored = new GameWorld(new GameSession(session.State with { Variables = session.State.Variables.ToDictionary(), EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
         restored.EnsureField();
         List<int> moves = [];
         world.Events.CommandExecuted += command =>

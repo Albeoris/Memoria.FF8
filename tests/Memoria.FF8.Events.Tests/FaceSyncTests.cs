@@ -23,7 +23,7 @@ internal static partial class Program
         EventEngine Create(byte[] program)
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0),
@@ -44,7 +44,7 @@ internal static partial class Program
         JsonElement waiting = live.Capture();
         JsonElement held = SyncFiber(live);
         int syncOperation = JsmProgram.Read(content).Operations.Single(operation => operation.Opcode == Jsm.Opcode.FACEDIRSYNC).Index;
-        Require(actor.FaceProgress > 0 && actor.FaceProgress < actor.FaceDuration && held.GetProperty("Position").GetInt32() == syncOperation && held.GetProperty("Stack").GetArrayLength() == 1 && held.GetProperty("Stack")[0].GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && !waiting.GetProperty("Variables").TryGetProperty("5001", out _), "FACEDIRSYNC consumed the unrelated unknown scalar, advanced its retry PC or declared completion before WORD equality.");
+        Require(actor.FaceProgress > 0 && actor.FaceProgress < actor.FaceDuration && held.GetProperty("Position").GetInt32() == syncOperation && held.GetProperty("Stack").GetArrayLength() == 1 && held.GetProperty("Stack")[0].GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && !CapturedVariables(waiting).TryGetProperty("5001", out _), "FACEDIRSYNC consumed the unrelated unknown scalar, advanced its retry PC or declared completion before WORD equality.");
         EventEngine restored = Create(content);
         restored.Restore(waiting);
         while (actor.FaceProgress < actor.FaceDuration)
@@ -52,7 +52,7 @@ internal static partial class Program
             int previous = actor.FaceProgress;
             live.Step();
             restored.Step();
-            Require(actor.FaceProgress == previous + 1 && SyncFiber(live).GetProperty("Position").GetInt32() == syncOperation && !live.Capture().GetProperty("Variables").TryGetProperty("5001", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Face sync/cosine phase changed after restore or completed before the VM observed its post-body progress.");
+            Require(actor.FaceProgress == previous + 1 && SyncFiber(live).GetProperty("Position").GetInt32() == syncOperation && !CapturedVariables(live.Capture()).TryGetProperty("5001", out _) && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Face sync/cosine phase changed after restore or completed before the VM observed its post-body progress.");
         }
         JsonElement completedBody = live.Capture();
         EventEngine completedCopy = Create(content);
@@ -60,7 +60,7 @@ internal static partial class Program
         live.Step();
         restored.Step();
         completedCopy.Step();
-        Require(live.Capture().GetProperty("Variables").GetProperty("5001").GetInt32() == 71 && SyncFiber(live).GetProperty("Stack").GetArrayLength() == 0 && SyncFiber(live).GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), completedCopy.Capture()), "FACEDIRSYNC equality inserted another callback, discarded the opaque scalar or diverged across a completion-boundary restore.");
+        Require(CapturedVariables(live.Capture()).GetProperty("5001").GetInt32() == 71 && SyncFiber(live).GetProperty("Stack").GetArrayLength() == 0 && SyncFiber(live).GetProperty("Results").GetProperty("7").GetProperty("ActorInfoOrigin").GetProperty("NativeActorIndex").GetInt32() == 255 && JsonElement.DeepEquals(live.Capture(), restored.Capture()) && JsonElement.DeepEquals(live.Capture(), completedCopy.Capture()), "FACEDIRSYNC equality inserted another callback, discarded the opaque scalar or diverged across a completion-boundary restore.");
         Require(actor.FaceDuration == 8 && actor.FaceProgress == 8 && actor.Direction == 0 && actor.X == 0 && actor.Y == 0 && actor.Z == 0 && actor.FirstControlRotation is not null, "FACEDIRSYNC changed face words, physical pose/facing or the completed joint override.");
         JsonNode malformed = JsonNode.Parse(waiting.GetRawText())!;
         JsonObject malformedFiber = malformed["Fibers"]!.AsArray().Select(node => node!.AsObject()).Single(fiber => fiber["ScriptId"]!.GetValue<int>() == 2);
@@ -83,7 +83,7 @@ internal static partial class Program
         idle.ResolveNativeActorFacing = null;
         idle.Step();
         idle.Step();
-        Require(idle.Actors[0].FaceProgress == 0 && idle.Actors[0].FaceDuration == 0 && idle.Actors[0].FirstControlRotation is null && idle.Capture().GetProperty("Variables").GetProperty("5002").GetInt32() == 77, "Fresh allocated zero face words required unused model queries, consumed the unrelated value or inserted a wait.");
+        Require(idle.Actors[0].FaceProgress == 0 && idle.Actors[0].FaceDuration == 0 && idle.Actors[0].FirstControlRotation is null && CapturedVariables(idle.Capture()).GetProperty("5002").GetInt32() == 77, "Fresh allocated zero face words required unused model queries, consumed the unrelated value or inserted a wait.");
         EventEngine unknown = Create(zero);
         unknown.Step();
         // Fault injection removes only the face owner after genuine native initialization.
@@ -97,6 +97,6 @@ internal static partial class Program
         {
         }
         JsonElement refused = unknown.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
-        Require(refused.GetProperty("Stack")[0].GetInt32() == 77 && refused.GetProperty("Position").GetInt32() == unknown.LastFault!.Operation && !unknown.Capture().GetProperty("Variables").TryGetProperty("5002", out _), "Unknown face-word admission consumed stack or advanced original instruction.");
+        Require(refused.GetProperty("Stack")[0].GetInt32() == 77 && refused.GetProperty("Position").GetInt32() == unknown.LastFault!.Operation && !CapturedVariables(unknown.Capture()).TryGetProperty("5002", out _), "Unknown face-word admission consumed stack or advanced original instruction.");
     }
 }

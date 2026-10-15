@@ -31,7 +31,7 @@ public sealed partial class EventEngine
             return $"{opcode} requires the authentic native card inventory and its required service capability; recreate the journal";
         }
         cards.Validate();
-        if (variables.Keys.Any(address => address is >= 1405 and <= 1522) || services.NativeVariableValues?.Any(pair => pair.Key <= 1522 && (long)pair.Key + pair.Value.Width > 1408) == true)
+        if (EventMemory.Overlaps(1408, 115))
         {
             return $"{opcode} overlaps a separate VM memory record; card byte ownership must be established by the authentic journal";
         }

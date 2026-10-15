@@ -22,7 +22,7 @@ internal static partial class Program
         (GameSession Session, EventEngine Engine) Create(int rawTarget = 2)
         {
             GameSession session = new(new GameState());
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 1, CanSetBackgroundScrollPosition = (layer, _, _) => layer == 0 };
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 1, CanSetBackgroundScrollPosition = (layer, _, _) => layer == 0 };
             // The synthetic host supplies a unique endpoint that changes each actual callback.
             // App projection tests separately exercise the real native camera/clamp certificate.
             engine.ResolveNativeActorScrollCenter = actor => actor < engine.Scene.NativeActorObjectIds.Count ? ((short)(100 * engine.Scene.NativeActorObjectIds[actor] + engine.Frame), (short)(-engine.Frame)) : null;
