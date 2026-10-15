@@ -63,10 +63,9 @@ internal sealed partial class GameWorld
             movieRenderer = new FieldRenderer(currentField, renderWidth, renderHeight, nativeMovieViewport: true);
             movieRendererField = currentField;
         }
-        byte[] pixels = movieRenderer.RenderMovieFrame(decodedPixels, decodedWidth, decodedHeight, camera, actors, mask);
-        NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Movie field compositing requires the actual field fade process.");
-        fade.Validate();
-        FieldColorComposite.Apply(pixels, fade.Draw);
-        return pixels;
+        //4767B0's movie branch returns before47B980 submits the field fade packets.
+        //The retained ordinary-field sample is state for the next field callback,
+        //not a movie overlay (the opening legitimately retains a black sample).
+        return movieRenderer.RenderMovieFrame(decodedPixels, decodedWidth, decodedHeight, camera, actors, mask);
     }
 }

@@ -1,0 +1,147 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
+using Memoria.FF8.Media;
+using Memoria.FF8.Rendering;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+public sealed class OpeningMoviePresentationTests
+{
+    [Fact]
+    public async Task NewGameHostPresentsVisibleOpeningMovieOnTheBackBuffer()
+    {
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
+        string root = Path.Combine(Path.GetTempPath(), "memoria-opening-host-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "requests"));
+        string capture = Path.Combine(root, "opening.png");
+        File.WriteAllText(Path.Combine(root, "requests", "001.json"), "{\"Id\":\"new-game\",\"Command\":\"new-game\"}");
+        MovieClock clock = new(GameSession.CreateColdProcess(), game, Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"));
+        ProcessStartInfo start = new(Path.Combine(AppContext.BaseDirectory, "Memoria.FF8.exe")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (string argument in new[] { "--game-dir", game, "--media-tools", clock.ToolsDirectory, "--control-dir", root, "--resolution", "320x240", "--capture-frame", capture, "--capture-after", "10", "--exit-after", "12" })
+        {
+            start.ArgumentList.Add(argument);
+        }
+        using Process process = Process.Start(start)!;
+        Task<string> output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+        Task<string> errors = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
+            while (!File.Exists(capture) && !process.HasExited)
+            {
+                await Task.Delay(20, timeout.Token);
+            }
+            string request = Path.Combine(root, "requests", "002.json");
+            File.WriteAllText(request + ".tmp", "{\"Id\":\"status\",\"Command\":\"status\",\"Compact\":true}");
+            File.Move(request + ".tmp", request);
+            await process.WaitForExitAsync(timeout.Token);
+            string stdout = await output;
+            string stderr = await errors;
+            Assert.True(process.ExitCode == 0, stdout + Environment.NewLine + stderr);
+            Assert.True(string.IsNullOrWhiteSpace(stderr), stderr);
+            Assert.Contains("movie-frame=0", stdout);
+            Assert.True(File.Exists(capture), stdout);
+            string response = Path.Combine(root, "responses", "002.json");
+            Assert.True(File.Exists(response), stdout);
+            using JsonDocument status = JsonDocument.Parse(File.ReadAllText(response));
+            Assert.True(status.RootElement.GetProperty("Ok").GetBoolean());
+            JsonElement state = status.RootElement.GetProperty("Result");
+            Assert.False(state.GetProperty("FieldFaulted").GetBoolean());
+            Assert.False(state.GetProperty("FieldRenderFaulted").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, state.GetProperty("Error").ValueKind);
+            Assert.Equal("Movie", state.GetProperty("Scene").GetString());
+            Assert.True(state.GetProperty("MoviePlayback").GetProperty("FrameIndex").GetInt32() >= 100);
+            using System.Drawing.Bitmap image = new(capture);
+            int visible = 0;
+            //Exclude letterboxing and the host's skip hint: only actual movie pixels count.
+            for (int y = 40; y < 180; y++)
+            {
+                for (int x = 20; x < 300; x++)
+                {
+                    System.Drawing.Color pixel = image.GetPixel(x, y);
+                    if (pixel.R > 16 || pixel.G > 16 || pixel.B > 16)
+                    {
+                        visible++;
+                    }
+                }
+            }
+            Assert.True(visible > 100, $"The actual host presented a black movie: {visible} visible pixels. {stdout}");
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+            }
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FreshOpeningDisplaysDecodedMovieDespiteRetainedBlackFieldFade()
+    {
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        MovieClock clock = new(session, game, Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"));
+        using GameWorld world = new(session, game, clock, persistReplayJournal: false);
+        for (int callback = 0; !session.IsMoviePlaying && callback < 60; callback++)
+        {
+            world.EnsureField();
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.True(session.IsMoviePlaying);
+        Assert.Equal(74, session.State.FieldId);
+        Assert.Equal(30, session.State.MovieIndex);
+        MovieInformation information = clock.Prepare();
+        Assert.Equal(2925, information.FrameCount);
+        world.SetRenderSize(320, 224);
+        NativeFieldFadeState fade = Assert.IsType<NativeFieldFadeState>(world.Events.FieldFade);
+        Assert.Equal(NativeFadeDrawMode.Black, fade.Draw.Mode);
+        byte[] cameraBytes = File.ReadAllBytes(MovieClock.GetCameraPath(game, clock.SourceDiscIndex, session.State.MovieIndex));
+        using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, clock.SourcePath, information: information);
+        Stopwatch timeout = Stopwatch.StartNew();
+        HashSet<int> rendered = [];
+        while (rendered.Count < 3 && timeout.Elapsed < TimeSpan.FromSeconds(15))
+        {
+            while (decoder.TryGetAudio(out _))
+            {
+            }
+            if (!decoder.TryGetNextFrame(double.MaxValue, out MovieFrame? frame))
+            {
+                Assert.Null(decoder.Error);
+                Assert.False(decoder.VideoFinished, "Opening decoder ended before the observed movie frames.");
+                Thread.Sleep(1);
+                continue;
+            }
+            int index = checked((int)frame!.Index);
+            Assert.True(world.AdvanceMovieFrame(new(index, information.FrameCount - 1, true, false, false), index / information.FramesPerSecond));
+            if (index is not (0 or 75 or 150))
+            {
+                continue;
+            }
+            Assert.True(world.CanPresentCurrentField);
+            Assert.Equal(fade, world.Events.FieldFade);
+            JsonElement before = world.Events.Capture();
+            FieldCamera camera = FieldCamera.Read(cameraBytes.AsSpan(8 + Math.Max(1, index) * 44, 40).ToArray());
+            FieldRenderer reference = new(world.Field!, 320, 224, nativeMovieViewport: true);
+            byte[] expected = reference.RenderMovieFrame(frame.Rgba, information.Width, information.Height, camera, [], null).ToArray();
+            if (index == 150)
+            {
+                Assert.Contains(Enumerable.Range(0, expected.Length / 4), pixel => expected[pixel * 4] > 16 || expected[pixel * 4 + 1] > 16 || expected[pixel * 4 + 2] > 16);
+            }
+            Assert.Equal(expected, world.RenderMovieFrame(frame.Rgba, information.Width, information.Height));
+            Assert.Equal(expected, world.RenderMovieFrame(frame.Rgba, information.Width, information.Height));
+            Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+            rendered.Add(index);
+        }
+        Assert.Equal(3, rendered.Count);
+    }
+}

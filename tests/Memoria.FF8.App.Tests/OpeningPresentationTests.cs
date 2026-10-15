@@ -43,7 +43,7 @@ public sealed class OpeningPresentationTests
 
     private static bool RenderOpeningFrame(GameWorld world)
     {
-        if (FieldPresentationReadiness.HasPendingInitialization(world.Events.Scene.NativeFieldInitialization))
+        if (FieldPresentationReadiness.HasPendingInitialization(world.Events.Scene.NativeFieldInitialization) || !world.CanPresentCurrentField)
         {
             return false;
         }
