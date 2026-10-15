@@ -38,16 +38,26 @@ internal sealed partial class GameWorld
     }
 
     /// <summary>Recomputes state under this engine from the save's authentic New Game causal history.</summary>
-    public static GameState RecreateCommittedPrefix(GameState source, string gameDirectory, string? mediaToolsDirectory = null)
+    public static GameState RecreateCommittedPrefix(GameState source, string gameDirectory, string? mediaToolsDirectory = null, ReplayRecreationMode mode = ReplayRecreationMode.Semantic)
     {
         ReplayJournal journal = source.ReplayJournal ?? throw new NotSupportedException("This checkpoint has no game-recorded committed prefix.");
         ReplayJournal prefix = journal.GetCommittedPrefix();
         ReplayJournalEntry? endpoint = prefix.Endpoint;
-        return RecreateSave(new GameState { Scene = endpoint?.ResultScene ?? SceneKind.Field, FieldId = endpoint?.ResultFieldId ?? 74, ReplayJournal = prefix }, gameDirectory, mediaToolsDirectory);
+        return RecreateSave(new GameState { Scene = endpoint?.ResultScene ?? SceneKind.Field, FieldId = endpoint?.ResultFieldId ?? 74, ReplayJournal = prefix }, gameDirectory, mediaToolsDirectory, mode);
     }
 
     /// <summary>Recomputes a complete save; incomplete histories are never accepted as successful checkpoints.</summary>
-    public static GameState RecreateSave(GameState source, string gameDirectory, string? mediaToolsDirectory = null)
+    public static GameState RecreateSave(GameState source, string gameDirectory, string? mediaToolsDirectory = null, ReplayRecreationMode mode = ReplayRecreationMode.Semantic)
+    {
+        return mode switch
+        {
+            ReplayRecreationMode.Semantic => RecreateSemanticSave(source, gameDirectory, mediaToolsDirectory),
+            ReplayRecreationMode.Strict => RecreateStrictSave(source, gameDirectory, mediaToolsDirectory),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode))
+        };
+    }
+
+    private static GameState RecreateStrictSave(GameState source, string gameDirectory, string? mediaToolsDirectory)
     {
         ReplayJournal journal = source.ReplayJournal ?? throw new NotSupportedException("This save has no game-recorded history from New Game.");
         journal.Validate();

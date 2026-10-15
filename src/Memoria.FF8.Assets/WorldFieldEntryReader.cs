@@ -8,19 +8,21 @@ public readonly record struct WorldFieldPredicateEvaluation(int Offset, ushort O
 public sealed record WorldFieldSelection(int ClauseIndex, int ClauseOffset, int InstructionOffset, WorldFieldEntry Entry, IReadOnlyList<WorldFieldPredicateEvaluation> Predicates);
 
 /// <summary>Original WMSET section 7 selection (545F10/546100/545EA0) and wm2field.tbl packets (4706B0).</summary>
-public sealed class WorldFieldEntryReader
+public sealed partial class WorldFieldEntryReader
 {
     private readonly byte[] program;
     private readonly int[] clauses;
     private readonly WorldFieldEntry[] entries;
     private readonly int firstInstruction;
+    private readonly byte[] table;
 
-    private WorldFieldEntryReader(byte[] program, int[] clauses, WorldFieldEntry[] entries, int firstInstruction)
+    private WorldFieldEntryReader(byte[] program, int[] clauses, WorldFieldEntry[] entries, int firstInstruction, byte[] table)
     {
         this.program = program;
         this.clauses = clauses;
         this.entries = entries;
         this.firstInstruction = firstInstruction;
+        this.table = table;
     }
 
     public int ClauseCount => clauses.Length;
@@ -64,7 +66,7 @@ public sealed class WorldFieldEntryReader
             ReadOnlySpan<byte> record = wm2field.Slice(index * 24, 24);
             entries[index] = new WorldFieldEntry(index, BinaryPrimitives.ReadInt16LittleEndian(record), BinaryPrimitives.ReadInt16LittleEndian(record[2..]), BinaryPrimitives.ReadUInt16LittleEndian(record[4..]), BinaryPrimitives.ReadUInt16LittleEndian(record[6..]), record[8]);
         }
-        return new WorldFieldEntryReader(section7.ToArray(), pointers.ToArray(), entries, position);
+        return new WorldFieldEntryReader(section7.ToArray(), pointers.ToArray(), entries, position, wm2field.ToArray());
     }
 
     public WorldFieldSelection? Select(WorldFieldSelectionInput input, byte terrainTextureFlags)

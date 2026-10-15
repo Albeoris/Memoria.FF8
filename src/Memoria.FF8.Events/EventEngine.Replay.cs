@@ -8,6 +8,7 @@ public sealed partial class EventEngine
 {
     private ReplayCapture? replayCapture;
     private ulong? recordedMemoryDigest;
+    public event Action<ReplayReceipt>? CausalReceiptRecorded;
 
     public void Restore(JsonElement snapshot)
     {
@@ -129,6 +130,7 @@ public sealed partial class EventEngine
                 EndPose = ReplayPose(),
                 Navigation = capture.Navigation.ToArray(),
                 Receipts = capture.Receipts.ToArray(),
+                SemanticAdmissions = capture.SemanticAdmissions.ToArray(),
                 CommandCount = capture.CommandCount,
                 CommandDigest = capture.CommandDigest,
                 MovieSourceHash = input.Code == (int)PlayerActionKind.SkipMovie && input.Kind == ReplayEntryKind.Action ? services.ReplayMovieSourceHash : input.MovieSourceHash,
@@ -166,7 +168,7 @@ public sealed partial class EventEngine
         PlayerTrigger after = NextTrigger;
         if (replayCapture is not null && (before.Kind != after.Kind || before.FieldId != after.FieldId || before.MessageId != after.MessageId))
         {
-            replayCapture.Receipts.Add(new ReplayReceipt(ReplayReceiptKind.Progress, FieldId, Frame, -1, -1, -1, (int)after.Kind, after.MessageId ?? -1));
+            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.Progress, FieldId, Frame, -1, -1, -1, (int)after.Kind, after.MessageId ?? -1));
         }
     }
 
@@ -181,10 +183,30 @@ public sealed partial class EventEngine
         {
             capture.CommandDigest = unchecked((capture.CommandDigest ^ (uint)value) * 1099511628211UL);
         }
-        if (operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L)
+        if (IsDurableReplayCommand(operation.Opcode))
         {
-            capture.Receipts.Add(new ReplayReceipt(ReplayReceiptKind.Command, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation.Index, (int)operation.Opcode, operation.Parameter));
+            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.Command, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation.Index, (int)operation.Opcode, operation.Parameter));
         }
+        if (operation.Opcode is Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2)
+        {
+            NativeFieldButtonInput input = ButtonInput ?? throw new InvalidDataException("An executed native input predicate lost its actual sampled owner.");
+            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.InputSample, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation.Index, (int)operation.Opcode, input.PhysicalHeld, Arguments: [input.RawHeld, input.RawPressed, (int?)input.Held ?? -1, (int?)input.Pressed ?? -1]));
+        }
+    }
+
+    private void RecordCausalReceipt(ReplayReceipt receipt)
+    {
+        if (replayCapture is ReplayCapture capture)
+        {
+            ReplayReceipt recorded = receipt with { Sequence = capture.NextSequence++ };
+            capture.Receipts.Add(recorded);
+            CausalReceiptRecorded?.Invoke(recorded);
+        }
+    }
+
+    private static bool IsDurableReplayCommand(Jsm.Opcode opcode)
+    {
+        return opcode is Jsm.Opcode.CLEAR or Jsm.Opcode.SETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.HOLD or Jsm.Opcode.Unknown16 or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF or Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L or Jsm.Opcode.ADDITEM or Jsm.Opcode.ADDGIL or Jsm.Opcode.ADDPASTGIL or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or Jsm.Opcode.CHANGEPARTY or Jsm.Opcode.JUNCTION or Jsm.Opcode.RESETGF or Jsm.Opcode.DYING or Jsm.Opcode.SETHP or Jsm.Opcode.REST or Jsm.Opcode.PHSPOWER or Jsm.Opcode.GETCARD or Jsm.Opcode.SETCARD or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.DRAWPOINT or Jsm.Opcode.ADDSEEDLEVEL or Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.PHSENABLE or Jsm.Opcode.SETPLACE or Jsm.Opcode.DISC or Jsm.Opcode.BATTLE or Jsm.Opcode.BATTLEMODE or Jsm.Opcode.MOVIE or Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUSAVE or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.MENUSHOP or Jsm.Opcode.MENUNAME or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.DISCJUMP or Jsm.Opcode.WORLDMAPJUMP;
     }
 
     private ulong ReplayMemoryDigest()
@@ -208,7 +230,9 @@ public sealed partial class EventEngine
 
     private sealed class ReplayCapture
     {
+        public int NextSequence { get; set; }
         public List<ReplayReceipt> Receipts { get; } = [];
+        public List<ReplaySemanticTrigger> SemanticAdmissions { get; } = [];
         public List<ReplayNavigationStimulus> Navigation { get; } = [];
         public long CommandCount { get; set; }
         public ulong CommandDigest { get; set; } = 14695981039346656037UL;

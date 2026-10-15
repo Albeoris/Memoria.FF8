@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -73,6 +73,12 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         Number(writer, nameof(value.ElapsedTicks), value.ElapsedTicks);
         Optional(writer, nameof(value.NativeSourceHash), value.NativeSourceHash);
         Optional(writer, nameof(value.BattleInput), value.BattleInput);
+        Optional(writer, nameof(value.SemanticTrigger), value.SemanticTrigger);
+        Array(writer, nameof(value.SemanticAdmissions), value.SemanticAdmissions);
+        Optional(writer, nameof(value.ScriptGoal), value.ScriptGoal);
+        Optional(writer, nameof(value.EffectArguments), value.EffectArguments);
+        Optional(writer, nameof(value.WorldAllocation), value.WorldAllocation);
+        Array(writer, nameof(value.WorldEffects), value.WorldEffects);
         writer.WriteEndObject();
     }
 

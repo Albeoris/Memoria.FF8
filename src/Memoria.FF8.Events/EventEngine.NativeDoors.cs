@@ -308,20 +308,36 @@ public sealed partial class EventEngine
         byte events = Scene.NativeDoorPendingEvents!.GetValueOrDefault(line.ObjectId);
         if (line.LineEnabled && IsUserControlEnabled)
         {
-            ValidateNativeDoorAdmission(line.ObjectId, events, line.LineContact);
-            foreach (int local in NativeDoorRequestedLocals(events, line.LineContact))
-            {
-                int priority = NativeDoorManagedPriority(local);
-                if (!RequestPriorityOccupied(line.ObjectId, 7 - priority))
-                {
-                    Fiber requested = Queue(line.ObjectId, program.Objects[line.ObjectId].Scripts[local].Id, priority, false);
-                    requested.NativeDoorSlot = (byte)(7 - priority);
-                    SelectNativeDoorRequest(requested);
-                }
-            }
+            AdmitNativeDoorEvents(line, events, line.LineContact);
         }
         Scene.NativeDoorPendingEvents!.Remove(line.ObjectId);
         line.NativeLineCrossingPending = false;
+    }
+
+    private bool AdmitNativeDoorEvents(ActorState line, byte events, bool contact, int? selectedLocal = null)
+    {
+        ValidateNativeDoorAdmission(line.ObjectId, events, contact);
+        bool admitted = false;
+        foreach (int local in NativeDoorRequestedLocals(events, contact))
+        {
+            if (selectedLocal is int selected && local != selected)
+            {
+                continue;
+            }
+            int priority = NativeDoorManagedPriority(local);
+            if (!RequestPriorityOccupied(line.ObjectId, 7 - priority))
+            {
+                Fiber requested = Queue(line.ObjectId, program!.Objects[line.ObjectId].Scripts[local].Id, priority, false);
+                requested.NativeDoorSlot = (byte)(7 - priority);
+                SelectNativeDoorRequest(requested);
+                if (!EmptyNativeLineScript(line, local))
+                {
+                    RecordSemanticAdmission(CreateSemanticTrigger(SemanticDoorKind(local), line.ObjectId, local, 7 - priority, eventBits: events, contact: contact));
+                }
+                admitted = true;
+            }
+        }
+        return admitted;
     }
 
     private bool RunNativeDoorScheduler(int objectId)

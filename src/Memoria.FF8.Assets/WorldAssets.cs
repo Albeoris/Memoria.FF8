@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Security.Cryptography;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
@@ -64,6 +65,7 @@ public sealed partial class WorldAssets : IDisposable
     public int LoadedTextureCount => textures.Count;
     public FieldModel Squall => GetFootModel(0);
     public WorldFieldEntryReader FieldEntries => fieldEntries ??= ReadFieldEntries();
+    public string AllocationProgramSha256 => Convert.ToHexString(SHA256.HashData(wmset));
 
     public FieldModel GetFootModel(byte entityType)
     {

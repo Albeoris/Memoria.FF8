@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -8,6 +8,7 @@ public sealed partial class GameSession : IEventServices
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
     private SceneKind movieReturnScene;
     private int replayCaptureDepth;
+    private ReplayJournalEntry? pendingWorldAllocation;
     private bool acceleratingMovie;
 
     public GameSession(GameState state)
@@ -128,7 +129,13 @@ public sealed partial class GameSession : IEventServices
     {
         if (State.ReplayJournal is ReplayJournal journal)
         {
-            State = State with { ReplayJournal = journal.Append(entry) };
+            ReplayJournal next = journal.Append(entry);
+            if (pendingWorldAllocation is { } allocation)
+            {
+                next = next.Append(allocation);
+                pendingWorldAllocation = null;
+            }
+            State = State with { ReplayJournal = next };
             ReplayJournalChanged?.Invoke(State.ReplayJournal!);
         }
     }
@@ -140,6 +147,7 @@ public sealed partial class GameSession : IEventServices
 
     public void MarkReplayUnavailable(string reason)
     {
+        pendingWorldAllocation = null;
         if (State.ReplayJournal is ReplayJournal journal)
         {
             State = State with { ReplayJournal = journal.MarkUnavailable(reason) };
@@ -320,7 +328,7 @@ public sealed partial class GameSession : IEventServices
         Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, State.FieldId) });
     }
 
-    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null)
+    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null, ReplayWorldAllocation? allocation = null)
     {
         ArgumentNullException.ThrowIfNull(transition);
         ArgumentNullException.ThrowIfNull(initialState);
@@ -331,6 +339,14 @@ public sealed partial class GameSession : IEventServices
         if (departure.Scene != SceneKind.Field || departure.WorldControls != expectedControls)
         {
             throw new InvalidOperationException("The prepared world entry no longer matches its normal field departure controls.");
+        }
+        if (departure.ReplayJournal is not null)
+        {
+            if (allocation is null || allocation.Packet != transition || pendingWorldAllocation is not null)
+            {
+                throw new NotSupportedException("Journalled world allocation requires its actual current prepared packet/resource provenance.");
+            }
+            allocation.Validate();
         }
         NativeSavedWorldState? saved = preparedSavedWorld ?? departure.SavedWorld;
         NativeSavedWorldState? expectedSaved = initialState.NativeCarRuntime is null ? departure.SavedWorld : departure.SavedWorld?.WithOrdinaryCarEntry(initialState.NativeCarRuntime.EntityType);
@@ -345,8 +361,24 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The field session changed during prepared world-entry validation.");
         }
+        ReplayJournalEntry? boundary = allocation is null ? null : new ReplayJournalEntry(ReplayEntryKind.WorldAllocation, SceneKind.WorldMap, departure.FieldId, initialState.Frame) { WorldAllocation = allocation, NativeSourceHash = allocation.ProgramHash, Text = allocation.ExecutableHash };
+        if (boundary is not null && candidate.ReplayJournal is not null)
+        {
+            if (IsReplayCaptureActive)
+            {
+                pendingWorldAllocation = boundary;
+            }
+            else
+            {
+                candidate = candidate with { ReplayJournal = candidate.ReplayJournal.Append(boundary) };
+            }
+        }
         Dialog = null;
         Change(candidate);
+        if (boundary is not null && !IsReplayCaptureActive && candidate.ReplayJournal is not null)
+        {
+            ReplayJournalChanged?.Invoke(candidate.ReplayJournal);
+        }
     }
 
     public void SetWorldState(WorldState state)
@@ -618,7 +650,7 @@ public sealed partial class GameSession : IEventServices
             {
                 long calls = sceneTimer.ClockCalls - timer.ClockCalls;
                 long callbacks = calls / 2;
-                if (calls % 2 != 0 || callbacks > (state.World?.Frame ?? 0))
+                if (calls % 2 != 0 || callbacks > checked((state.World?.Frame ?? 0) + CountSemanticWorldEffectCallbacks(state)))
                 {
                     throw new InvalidDataException("Frozen field timer has no matching elapsed world callback count.");
                 }

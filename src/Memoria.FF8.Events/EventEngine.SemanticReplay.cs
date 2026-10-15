@@ -1,0 +1,291 @@
+using Memoria.FF8.Runtime;
+using Albeoris.Games.FF8.Jsm;
+
+namespace Memoria.FF8.Events;
+
+public sealed partial class EventEngine
+{
+    private bool semanticInputInferred;
+    public event Action<ReplaySemanticTrigger>? SemanticTriggerAdmitted;
+
+    /// <summary>Reissues a historical external event cause through the current native admission contract. It does not reproduce a physical approach.</summary>
+    public PlayerActionResult ApplySemanticTrigger(ReplaySemanticTrigger trigger)
+    {
+        ArgumentNullException.ThrowIfNull(trigger);
+        trigger.Validate();
+        ValidateSemanticProducer(trigger);
+        return RunReplay(ReplayBoundary(ReplayEntryKind.SemanticTrigger) with { SemanticTrigger = trigger }, () =>
+        {
+            if (!CanAdmitSemanticTrigger())
+            {
+                return new PlayerActionResult(false, NextTrigger, 0, "The current native field does not admit an external event stimulus.");
+            }
+            bool previous = semanticInputInferred;
+            semanticInputInferred = trigger.Inferred;
+            try
+            {
+                bool accepted;
+                ActorState? actor = trigger.ObjectId < 0 ? null : actors[trigger.ObjectId];
+                switch (trigger.Kind)
+                {
+                    case ReplaySemanticTriggerKind.ActorInteraction:
+                        accepted = actor is { Active: true, TalkEnabled: true } && Scene.NativeActorObjectIds.Contains(actor.ObjectId) && TalkTo(actor.ObjectId);
+                        if (accepted)
+                        {
+                            QueueConfirmEdge();
+                        }
+                        break;
+                    case ReplaySemanticTriggerKind.PushContact:
+                        accepted = actor is { Active: true, PushEnabled: true } && Scene.NativeActorObjectIds.Contains(actor.ObjectId) && AdmitNativePushContact(actor);
+                        break;
+                    case ReplaySemanticTriggerKind.DoorEntry:
+                    case ReplaySemanticTriggerKind.DoorAction:
+                    case ReplaySemanticTriggerKind.DoorCrossing:
+                    case ReplaySemanticTriggerKind.DoorExit:
+                    case ReplaySemanticTriggerKind.DoorFacing:
+                    case ReplaySemanticTriggerKind.DoorContact:
+                        accepted = actor!.LineEnabled && Scene.NativeDoorDriverVersion == 2 && AdmitNativeDoorEvents(actor, trigger.EventBits, trigger.Contact, trigger.LocalScript);
+                        if (accepted && trigger.Kind == ReplaySemanticTriggerKind.DoorAction)
+                        {
+                            QueueConfirmEdge();
+                        }
+                        break;
+                    case ReplaySemanticTriggerKind.AreaEntry:
+                    case ReplaySemanticTriggerKind.AreaExit:
+                        accepted = actor!.DoorLineEnabled;
+                        if (accepted)
+                        {
+                            CommitInfAreaContact(actor, trigger.Contact, trigger.Contact, trigger.InfIndex);
+                        }
+                        break;
+                    case ReplaySemanticTriggerKind.FieldGateway:
+                        accepted = !Scene.MapJumpDisabled;
+                        if (accepted)
+                        {
+                            PrepareInfGatewayAdmission(ResolveSemanticGateway(trigger.InfIndex))();
+                        }
+                        break;
+                    default:
+                        throw new NotSupportedException("This semantic trigger belongs to a different native scene owner.");
+                }
+                return new PlayerActionResult(accepted, NextTrigger, 0);
+            }
+            finally
+            {
+                semanticInputInferred = previous;
+            }
+        });
+    }
+
+    /// <summary>Current producer metadata for explicit legacy inference. These candidates are not evidence that a past admission occurred.</summary>
+    public IReadOnlyList<ReplaySemanticTrigger> GetSemanticTriggerCandidates()
+    {
+        List<ReplaySemanticTrigger> candidates = [];
+        if (program is null || NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return candidates;
+        }
+        foreach (int objectId in Scene.NativeActorObjectIds)
+        {
+            EventObject obj = program.Objects[objectId];
+            if (obj.Scripts.Count > 2)
+            {
+                candidates.Add(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7));
+            }
+            if (obj.Scripts.Count > 3)
+            {
+                candidates.Add(CreateSemanticTrigger(ReplaySemanticTriggerKind.PushContact, objectId, 3, 6));
+            }
+        }
+        foreach (EventObject obj in program.Objects.Where(obj => obj.IsDoor))
+        {
+            for (int local = 2; local < Math.Min(8, obj.Scripts.Count); local++)
+            {
+                if (EmptyNativeLineScript(actors[obj.Index], local))
+                {
+                    continue;
+                }
+                byte bits = local switch { 2 => NativeDoorAction, 3 => NativeDoorFacing, 4 => NativeDoorCrossing, 6 => NativeDoorExit, 7 => NativeDoorEntry, _ => 0 };
+                candidates.Add(CreateSemanticTrigger(SemanticDoorKind(local), obj.Index, local, 9 - local, eventBits: bits, contact: local == 5));
+            }
+        }
+        int[] areas = program.NativeObjects.Where(id => program.Objects[id].IsArea).ToArray();
+        for (int index = 0; index < InfAreaTriggers.Count; index++)
+        {
+            InfAreaTrigger inf = InfAreaTriggers[index];
+            if (inf.NativeIndex < 0 || (uint)inf.AreaIndex >= areas.Length || program.Objects[areas[inf.AreaIndex]].Scripts.Count < 3)
+            {
+                continue;
+            }
+            candidates.Add(CreateSemanticTrigger(ReplaySemanticTriggerKind.AreaEntry, areas[inf.AreaIndex], 2, 6, inf.NativeIndex, contact: true));
+            candidates.Add(CreateSemanticTrigger(ReplaySemanticTriggerKind.AreaExit, areas[inf.AreaIndex], 2, 6, inf.NativeIndex));
+        }
+        foreach (InfGateway gateway in InfGateways)
+        {
+            if (gateway.NativeIndex >= 0 && gateway.Destination.FieldId != 0x7FFF && (gateway.Destination.FieldId < 72 || gateway.Destination.Triangle != 0xFFFF))
+            {
+                candidates.Add(CreateSemanticGateway(gateway));
+            }
+        }
+        return candidates.Select(candidate => candidate with { Inferred = true }).ToArray();
+    }
+
+    /// <summary>Pure potential exit producers from current literal bytecode/INF metadata. The current VM must still take the branch and produce the requested exit.</summary>
+    public IReadOnlyList<ReplaySemanticTrigger> GetSemanticExitCandidates(SceneKind destinationScene, int destinationFieldId)
+    {
+        return GetSemanticTriggerCandidates().Where(IsSemanticTargetEnabled).Where(candidate =>
+        {
+            if (candidate.Kind == ReplaySemanticTriggerKind.FieldGateway)
+            {
+                FieldTransition destination = ResolveSemanticGateway(candidate.InfIndex).Destination;
+                return destinationScene == SceneKind.Field && destination.FieldId == destinationFieldId || destinationScene == SceneKind.WorldMap && destination.FieldId < 72;
+            }
+            EventScript script = program!.Objects[candidate.ObjectId].Scripts[candidate.LocalScript];
+            for (int index = script.Start; index < script.End; index++)
+            {
+                JsmOperation operation = program.Operations[index];
+                if (destinationScene == SceneKind.WorldMap && operation.Opcode == Jsm.Opcode.WORLDMAPJUMP)
+                {
+                    return true;
+                }
+                int operands = operation.Opcode switch
+                {
+                    Jsm.Opcode.MAPJUMP or Jsm.Opcode.PREMAPJUMP => 4,
+                    Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.DISCJUMP => 5,
+                    Jsm.Opcode.MAPJUMPO => 2,
+                    Jsm.Opcode.PREMAPJUMP2 => 1,
+                    _ => 0
+                };
+                if (destinationScene != SceneKind.Field || operands == 0 || index - operands < script.Start)
+                {
+                    continue;
+                }
+                // Only an adjacent literal operand group is recognized. Dynamic
+                // expressions, cross-script requests and branches are not solved.
+                if (Enumerable.Range(index - operands, operands).All(position => program.Operations[position].Opcode == Jsm.Opcode.PSHN_L) && unchecked((ushort)program.Operations[index - operands].Parameter) == destinationFieldId)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }).ToArray();
+    }
+
+    private bool IsSemanticTargetEnabled(ReplaySemanticTrigger trigger)
+    {
+        if (trigger.Kind == ReplaySemanticTriggerKind.FieldGateway)
+        {
+            return !Scene.MapJumpDisabled;
+        }
+        ActorState actor = actors[trigger.ObjectId];
+        return trigger.Kind switch
+        {
+            ReplaySemanticTriggerKind.ActorInteraction => actor.Active && actor.TalkEnabled,
+            ReplaySemanticTriggerKind.PushContact => actor.Active && actor.PushEnabled,
+            ReplaySemanticTriggerKind.AreaEntry or ReplaySemanticTriggerKind.AreaExit => actor.DoorLineEnabled,
+            ReplaySemanticTriggerKind.DoorEntry or ReplaySemanticTriggerKind.DoorAction or ReplaySemanticTriggerKind.DoorCrossing or ReplaySemanticTriggerKind.DoorExit or ReplaySemanticTriggerKind.DoorFacing or ReplaySemanticTriggerKind.DoorContact => actor.LineEnabled && Scene.NativeDoorDriverVersion == 2,
+            _ => false
+        };
+    }
+
+    /// <summary>Whether this current verified producer has an unfinished original VM fiber; it neither starts nor resumes it.</summary>
+    public bool IsSemanticProducerPending(ReplayScriptGoal goal)
+    {
+        ArgumentNullException.ThrowIfNull(goal);
+        if (program is null || NativeRuntimeProfile is not { IsVerified: true } || goal.FieldId != FieldId || goal.ProgramHash != programHash || goal.ExecutableHash is string executable && executable != NativeRuntimeProfile.ExecutableHash || (uint)goal.ObjectId >= program.Objects.Count)
+        {
+            throw new InvalidDataException("Semantic producer does not belong to the current verified field program.");
+        }
+        EventScript? script = program.Objects[goal.ObjectId].Scripts.SingleOrDefault(script => script.Id == goal.ScriptId);
+        if (script is null || goal.Operation < script.Start || goal.Operation >= script.End || (int)program.Operations[goal.Operation].Opcode != goal.Code)
+        {
+            throw new InvalidDataException("Semantic producer lost its original declared operation and opcode.");
+        }
+        return fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == goal.ObjectId && fiber.Script.Id == goal.ScriptId);
+    }
+
+    private bool CanAdmitSemanticTrigger()
+    {
+        return program is not null && defaultsStarted && NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeFieldLoadVersion == 1 && !transitionRequested && LastFault is null && IsUserControlEnabled && !services.IsMoviePlaying && PartyMenu is null && PendingInteractiveBattle is null && CurrentDialogue is null && PlayerActor is { Active: true, Visible: true };
+    }
+
+    private void ValidateSemanticProducer(ReplaySemanticTrigger trigger)
+    {
+        if (program is null || NativeRuntimeProfile is not { IsVerified: true } || trigger.FieldId != FieldId || trigger.ProgramHash != programHash || !trigger.Inferred && trigger.ExecutableHash is null || trigger.ExecutableHash is string executable && executable != NativeRuntimeProfile.ExecutableHash)
+        {
+            throw new InvalidDataException("Semantic input does not identify the current verified native field program.");
+        }
+        if (trigger.Kind == ReplaySemanticTriggerKind.FieldGateway)
+        {
+            if (trigger.InfIndex < 0 || trigger != (CreateSemanticGateway(ResolveSemanticGateway(trigger.InfIndex)) with { Inferred = trigger.Inferred, ExecutableHash = trigger.ExecutableHash, Sequence = trigger.Sequence }))
+            {
+                throw new InvalidDataException("Semantic gateway lost its current original INF producer.");
+            }
+            return;
+        }
+        if ((uint)trigger.NativeObjectId >= program.NativeObjects.Count || program.NativeObjects[trigger.NativeObjectId] != trigger.ObjectId || (uint)trigger.ObjectId >= program.Objects.Count)
+        {
+            throw new InvalidDataException("Semantic input lost its original native object-table identity.");
+        }
+        EventObject obj = program.Objects[trigger.ObjectId];
+        if ((uint)trigger.LocalScript >= obj.Scripts.Count || obj.Scripts[trigger.LocalScript].Id != trigger.ScriptId)
+        {
+            throw new InvalidDataException("Semantic input does not identify a current declared native script.");
+        }
+        bool valid = trigger.Kind switch
+        {
+            ReplaySemanticTriggerKind.ActorInteraction => !obj.IsDoor && !obj.IsArea && obj.BackgroundModuleIndex is null && trigger.LocalScript == 2 && trigger.NativeSlot == 7 && trigger.InfIndex == -1 && trigger.EventBits == 0 && !trigger.Contact,
+            ReplaySemanticTriggerKind.PushContact => !obj.IsDoor && !obj.IsArea && obj.BackgroundModuleIndex is null && trigger.LocalScript == 3 && trigger.NativeSlot == 6 && trigger.InfIndex == -1 && trigger.EventBits == 0 && !trigger.Contact,
+            ReplaySemanticTriggerKind.AreaEntry or ReplaySemanticTriggerKind.AreaExit => obj.IsArea && trigger.LocalScript == 2 && trigger.NativeSlot == 6 && trigger.EventBits == 0 && trigger.Contact == (trigger.Kind == ReplaySemanticTriggerKind.AreaEntry) && trigger.InfIndex >= 0 && InfAreaTriggers.Count(item => item.NativeIndex == trigger.InfIndex) == 1 && InfAreaTriggers.Single(item => item.NativeIndex == trigger.InfIndex).AreaIndex == Array.IndexOf(program.NativeObjects.Where(id => program.Objects[id].IsArea).ToArray(), trigger.ObjectId),
+            ReplaySemanticTriggerKind.DoorEntry or ReplaySemanticTriggerKind.DoorAction or ReplaySemanticTriggerKind.DoorCrossing or ReplaySemanticTriggerKind.DoorExit or ReplaySemanticTriggerKind.DoorFacing or ReplaySemanticTriggerKind.DoorContact => obj.IsDoor && trigger.LocalScript is >= 2 and <= 7 && trigger.NativeSlot == 9 - trigger.LocalScript && trigger.Kind == SemanticDoorKind(trigger.LocalScript) && trigger.InfIndex == -1 && NativeDoorRequestedLocals(trigger.EventBits, trigger.Contact).Contains(trigger.LocalScript),
+            _ => false
+        };
+        if (!valid)
+        {
+            throw new InvalidDataException("Semantic input kind does not match its current native admission producer.");
+        }
+    }
+
+    private ReplaySemanticTrigger CreateSemanticTrigger(ReplaySemanticTriggerKind kind, int objectId, int local, int slot, int infIndex = -1, byte eventBits = 0, bool contact = false)
+    {
+        int nativeId = Array.IndexOf(program!.NativeObjects.ToArray(), objectId);
+        int scriptId = (uint)local < program.Objects[objectId].Scripts.Count ? program.Objects[objectId].Scripts[local].Id : -1;
+        return new ReplaySemanticTrigger(1, kind, FieldId, programHash!, nativeId, objectId, scriptId, slot, local, infIndex, eventBits, contact, ExecutableHash: NativeRuntimeProfile?.ExecutableHash);
+    }
+
+    private ReplaySemanticTrigger CreateSemanticGateway(InfGateway gateway)
+    {
+        return new ReplaySemanticTrigger(1, ReplaySemanticTriggerKind.FieldGateway, FieldId, programHash!, -1, -1, -1, -1, -1, gateway.NativeIndex, Inferred: gateway.NativeIndex < 0, ExecutableHash: NativeRuntimeProfile?.ExecutableHash);
+    }
+
+    private InfGateway ResolveSemanticGateway(int nativeIndex)
+    {
+        InfGateway[] matching = InfGateways.Where(gateway => gateway.NativeIndex == nativeIndex && nativeIndex >= 0).ToArray();
+        return matching.Length == 1 ? matching[0] : throw new InvalidDataException("Semantic gateway requires one current original INF index.");
+    }
+
+    private static ReplaySemanticTriggerKind SemanticDoorKind(int local)
+    {
+        return local switch
+        {
+            2 => ReplaySemanticTriggerKind.DoorAction,
+            3 => ReplaySemanticTriggerKind.DoorFacing,
+            4 => ReplaySemanticTriggerKind.DoorCrossing,
+            5 => ReplaySemanticTriggerKind.DoorContact,
+            6 => ReplaySemanticTriggerKind.DoorExit,
+            7 => ReplaySemanticTriggerKind.DoorEntry,
+            _ => throw new InvalidDataException("Unknown native direct door script.")
+        };
+    }
+
+    private void RecordSemanticAdmission(ReplaySemanticTrigger trigger)
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return;
+        }
+        ReplaySemanticTrigger admitted = trigger with { Inferred = trigger.Inferred || semanticInputInferred, Sequence = replayCapture is ReplayCapture capture ? capture.NextSequence++ : -1 };
+        replayCapture?.SemanticAdmissions.Add(admitted);
+        SemanticTriggerAdmitted?.Invoke(admitted);
+    }
+}

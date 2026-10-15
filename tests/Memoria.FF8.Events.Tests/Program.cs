@@ -82,6 +82,8 @@ internal static partial class Program
                     ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
                     ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
                     ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
+                    ["semantic-admission"] = () => SemanticAdmissionContract(selectedGameDirectory),
+                    ["semantic-salary"] = () => SemanticSalaryContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),

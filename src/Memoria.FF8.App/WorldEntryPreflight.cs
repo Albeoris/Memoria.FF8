@@ -14,12 +14,14 @@ public sealed class PreparedWorldEntry : IDisposable
         Transition = transition;
         InitialState = scene.State;
         InitialSavedWorld = savedWorld;
+        ProgramHash = scene.AllocationProgramSha256;
         this.scene = scene;
     }
 
     public WorldTransition Transition { get; }
     public WorldState InitialState { get; }
     public NativeSavedWorldState? InitialSavedWorld { get; }
+    public string ProgramHash { get; }
 
     internal void ValidateAdoption(GameState candidate)
     {

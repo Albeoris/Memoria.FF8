@@ -24,10 +24,10 @@ internal static class Program
                 LaunchOptions recreationOptions = LaunchOptions.Parse(args[4..]);
                 var watch = System.Diagnostics.Stopwatch.StartNew();
                 GameState source = GameSession.LoadReplaySource(sourcePath);
-                GameState recreated = args[0] == "--recreate-prefix" ? GameWorld.RecreateCommittedPrefix(source, recreationOptions.GameDirectory, recreationOptions.MediaToolsDirectory) : GameWorld.RecreateSave(source, recreationOptions.GameDirectory, recreationOptions.MediaToolsDirectory);
+                GameState recreated = args[0] == "--recreate-prefix" ? GameWorld.RecreateCommittedPrefix(source, recreationOptions.GameDirectory, recreationOptions.MediaToolsDirectory, recreationOptions.RecreateMode) : GameWorld.RecreateSave(source, recreationOptions.GameDirectory, recreationOptions.MediaToolsDirectory, recreationOptions.RecreateMode);
                 new GameSession(recreated).Save(targetPath);
                 string scope = args[0] == "--recreate-prefix" ? "committed prefix" : "save";
-                Console.WriteLine($"Recreated {scope} field{recreated.FieldId}/{recreated.Scene} in {watch.Elapsed.TotalSeconds:F3}s: {targetPath}");
+                Console.WriteLine($"Recreated {scope} ({recreationOptions.RecreateMode}) field{recreated.FieldId}/{recreated.Scene} in {watch.Elapsed.TotalSeconds:F3}s: {targetPath}");
                 return 0;
             }
             if (args.Length > 0 && args[0] == "--headless-play")

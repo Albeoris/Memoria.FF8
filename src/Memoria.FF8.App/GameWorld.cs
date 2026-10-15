@@ -244,7 +244,7 @@ internal sealed partial class GameWorld : IDisposable
         if (next.Information is FieldInformation information)
         {
             Events.InfGateways = information.Gateways.Select((gateway, index) => (Gateway: gateway, Index: index)).Where(item => item.Gateway.Defined || item.Gateway.DestinationField < 72).Select(item => CreateInfGateway(item.Gateway, item.Index)).ToArray();
-            Events.InfAreaTriggers = information.AreaTriggers.Where(trigger => trigger.AreaId != 255).Select(trigger => new InfAreaTrigger(trigger.Start, trigger.End, trigger.AreaId, trigger.Side)).ToArray();
+            Events.InfAreaTriggers = information.AreaTriggers.Select((trigger, index) => (Trigger: trigger, Index: index)).Where(item => item.Trigger.AreaId != 255).Select(item => new InfAreaTrigger(item.Trigger.Start, item.Trigger.End, item.Trigger.AreaId, item.Trigger.Side, item.Index)).ToArray();
         }
         if (snapshot is System.Text.Json.JsonElement saved)
         {

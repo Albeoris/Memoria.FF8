@@ -279,6 +279,8 @@ public sealed partial class EventEngine
         ValidateNativeShakeCallback();
         NativeEventRandomState? randomSample = PrepareNativeEventRandomBeforeVm();
         NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
+        bool salaryChanged = salarySample is not null && (salarySample.SeeD != services.SeeD || salarySample.Economy != services.Economy);
+        bool salaryPaid = salarySample is not null && salarySample.Economy != services.Economy;
         NativeEconomy? economySample = PrepareNativeGilBeforeVm(salarySample?.Economy ?? services.Economy);
         NativeSalaryEffects? salaryEffects = salarySample is null ? null : PrepareSalaryEffects(salarySample, services.SalaryPresentation, services.GlobalSoundProcess);
         Action? nativePlayerInput = pendingNativePlayerInput;
@@ -291,6 +293,10 @@ public sealed partial class EventEngine
         else if (economySample is not null && economySample != services.Economy)
         {
             services.SetEconomy(economySample);
+        }
+        if (salaryChanged)
+        {
+            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.PersistentEffect, FieldId, Frame, -1, -1, -1, (int)(salaryPaid ? ReplayPersistentEffectKind.SalaryPayment : ReplayPersistentEffectKind.SalaryProgress), Arguments: [checked((int)(semanticSalaryMovementUnits ?? Scene.NativeSalaryMovementUnits!.Value)), 1]));
         }
         if (salaryEffects is not null)
         {
@@ -470,6 +476,7 @@ public sealed partial class EventEngine
             Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
             action.NativeActorSlot = 7;
             SuspendNativeMovementForRequest(actor, action);
+            RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7));
         }
         else
         {

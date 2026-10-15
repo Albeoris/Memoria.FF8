@@ -27,7 +27,7 @@ public sealed partial class EventEngine
         }
         // Native529FF0 consumes the PREVIOUS body callback's scalar before VM.
         // Prepare the entire payout before changing the clock, PC or body.
-        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
+        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, semanticSalaryMovementUnits ?? Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
     }
 
     private void ValidateNativePlayerInput(ActorState player)

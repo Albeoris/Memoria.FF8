@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 public sealed record InfGateway(Vector3 Start, Vector3 End, FieldTransition Destination, int NativeIndex = -1, byte[]? NativeRecord = null);
-public sealed record InfAreaTrigger(Vector3 Start, Vector3 End, int AreaIndex, byte Side);
+public sealed record InfAreaTrigger(Vector3 Start, Vector3 End, int AreaIndex, byte Side, int NativeIndex = -1);
 
 public sealed partial class EventEngine
 {
@@ -21,8 +21,7 @@ public sealed partial class EventEngine
         Vector3 proposed = NativeInfPoint(new Vector3(proposal.X, proposal.Y, previous.Z));
         int radius = (ushort)player.PushRadius;
         int radiusSquared = radius * radius;
-        FieldTransition? destination = null;
-        InfGateway? worldGateway = null;
+        InfGateway? selectedGateway = null;
         foreach (InfGateway gateway in Scene.MapJumpDisabled ? [] : InfGateways)
         {
             if (gateway.Destination.FieldId == 0x7FFF || gateway.Destination.FieldId >= 72 && gateway.Destination.Triangle == 0xFFFF)
@@ -38,24 +37,14 @@ public sealed partial class EventEngine
             {
                 throw new NotSupportedException("Reached INF gateway requires an unproved world or sentinel arrival contract; movement and transition packet preserved.");
             }
-            destination = gateway.Destination;
-            worldGateway = destination.FieldId < 72 ? gateway : null;
+            selectedGateway = gateway;
         }
-        if (destination is not null && UnsupportedWorldControlAliases() is string unsupportedAliases)
-        {
-            throw new NotSupportedException(unsupportedAliases);
-        }
-        NativeWorldTransitionRequest? worldRequest = null;
-        Action? worldCommit = null;
-        if (worldGateway is not null)
-        {
-            worldRequest = CreateWorldTransitionRequest(ReadInfWorldPacket(worldGateway), NativeWorldTransitionOrigin.Gateway, worldGateway);
-            worldCommit = PrepareWorldTransitionCommit(worldRequest);
-        }
-        List<(ActorState Actor, bool Contact, bool Entry)> changes = [];
+        Action? gatewayCommit = selectedGateway is null ? null : PrepareInfGatewayAdmission(selectedGateway);
+        List<(ActorState Actor, bool Contact, bool Entry, int InfIndex)> changes = [];
         EventObject[] areas = program!.NativeObjects.Select(index => program.Objects[index]).Where(obj => obj.IsArea).ToArray();
-        foreach (InfAreaTrigger trigger in InfAreaTriggers)
+        for (int infIndex = 0; infIndex < InfAreaTriggers.Count; infIndex++)
         {
+            InfAreaTrigger trigger = InfAreaTriggers[infIndex];
             if (trigger.AreaIndex == 0xFF)
             {
                 continue;
@@ -89,33 +78,65 @@ public sealed partial class EventEngine
                 continue;
             }
             bool contact = mode % 2 == 0;
-            bool priorContact = changes.LastOrDefault(change => change.Actor == area, (Actor: area, Contact: area.DoorLineContact, Entry: false)).Contact;
+            bool priorContact = changes.LastOrDefault(change => change.Actor == area, (Actor: area, Contact: area.DoorLineContact, Entry: false, InfIndex: infIndex)).Contact;
             if (contact != priorContact)
             {
-                changes.Add((area, contact, contact));
+                changes.Add((area, contact, contact, trigger.NativeIndex));
             }
         }
         // Preparation and all area validation complete before committing either
         // the world packet or field contacts. The host commit is atomic.
-        worldCommit?.Invoke();
-        if (worldRequest is not null)
+        if (selectedGateway?.Destination.FieldId < 72)
         {
-            Scene.WorldTransitionRequest = worldRequest;
-            transitionRequested = true;
+            gatewayCommit?.Invoke();
         }
-        foreach ((ActorState area, bool contact, bool entry) in changes)
+        foreach ((ActorState area, bool contact, bool entry, int infIndex) in changes)
         {
-            area.DoorLineContact = contact;
-            if (entry)
+            CommitInfAreaContact(area, contact, entry, infIndex);
+        }
+        if (selectedGateway?.Destination.FieldId >= 72)
+        {
+            gatewayCommit?.Invoke();
+        }
+    }
+
+    private void CommitInfAreaContact(ActorState area, bool contact, bool entry, int infIndex)
+    {
+        area.DoorLineContact = contact;
+        if (entry)
+        {
+            area.DoorLineEntryPending = true;
+        }
+        RecordSemanticAdmission(CreateSemanticTrigger(contact ? ReplaySemanticTriggerKind.AreaEntry : ReplaySemanticTriggerKind.AreaExit, area.ObjectId, 2, 6, infIndex, contact: contact) with { Inferred = infIndex < 0 });
+    }
+
+    private Action PrepareInfGatewayAdmission(InfGateway gateway)
+    {
+        FieldTransition destination = gateway.Destination;
+        if (Scene.MapJumpDisabled || destination.FieldId == 0x7FFF || destination.FieldId is < 0 or > ushort.MaxValue || destination.Direction is < 0 or > 255 || destination.FieldId >= 72 && (destination.X == 0x7FFF || destination.Triangle is < 0 or >= 0x7FFF))
+        {
+            throw new NotSupportedException("INF gateway admission requires its current enabled original packet.");
+        }
+        if (UnsupportedWorldControlAliases() is string unsupportedAliases)
+        {
+            throw new NotSupportedException(unsupportedAliases);
+        }
+        NativeWorldTransitionRequest? request = destination.FieldId < 72 ? CreateWorldTransitionRequest(ReadInfWorldPacket(gateway), NativeWorldTransitionOrigin.Gateway, gateway) : null;
+        Action? commit = request is null ? null : PrepareWorldTransitionCommit(request);
+        return () =>
+        {
+            commit?.Invoke();
+            if (request is not null)
             {
-                area.DoorLineEntryPending = true;
+                Scene.WorldTransitionRequest = request;
             }
-        }
-        if (destination is not null && worldRequest is null)
-        {
-            services.RequestField(destination);
+            else
+            {
+                services.RequestField(destination);
+            }
             transitionRequested = true;
-        }
+            RecordSemanticAdmission(CreateSemanticGateway(gateway));
+        };
     }
 
     private void DispatchInfAreaEntry(ActorState actor)
@@ -133,7 +154,13 @@ public sealed partial class EventEngine
         {
             return;
         }
-        EventObject area = program.Objects[actor.ObjectId];
+        AdmitInfAreaEntry(actor);
+        actor.DoorLineEntryPending = false;
+    }
+
+    private bool AdmitInfAreaEntry(ActorState actor)
+    {
+        EventObject area = program!.Objects[actor.ObjectId];
         if (area.Scripts.Count < 3)
         {
             throw new InvalidDataException("Reached INF area entry has no original local script2.");
@@ -141,8 +168,9 @@ public sealed partial class EventEngine
         if (!fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.Priority == 6 && !fiber.Complete))
         {
             Queue(actor.ObjectId, area.Scripts[2].Id, 6, false);
+            return true;
         }
-        actor.DoorLineEntryPending = false;
+        return false;
     }
 
     private static bool InfFacingContact(Vector3 current, Vector3 closest, int direction)

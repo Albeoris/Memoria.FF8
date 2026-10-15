@@ -27,6 +27,8 @@ internal sealed partial class GameWorld
             throw;
         }
         preparedWorldEntry = ticket;
+        ReplayWorldAllocation allocation = new(1, request.Transition, ticket.ProgramHash, assets.NativeExecutableHash ?? throw new NotSupportedException("World allocation requires its authenticated current native executable."));
+        allocation.Validate();
         bool committed = false;
         return () =>
         {
@@ -35,7 +37,7 @@ internal sealed partial class GameWorld
                 throw new InvalidOperationException("The original prepared world request has already been used or replaced.");
             }
             ValidateWorldDeparture(request);
-            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld);
+            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld, allocation);
             worldScene = ticket.Adopt(session);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);

@@ -1,3 +1,5 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
@@ -45,15 +47,23 @@ public sealed partial class EventEngine
         }
         if (IsUserControlEnabled)
         {
-            ValidateNativePushDispatch(actor);
-            if (!fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && (fiber.NativeActorSlot == 6 || fiber.NativeActorSlot is null && fiber.Priority == 6) && !fiber.Complete))
-            {
-                Fiber requested = Queue(actor.ObjectId, program!.Objects[actor.ObjectId].Scripts[3].Id, 6, false);
-                requested.NativeActorSlot = 6;
-                SuspendNativeMovementForRequest(actor, requested);
-            }
+            AdmitNativePushContact(actor);
         }
         actor.NativePushContactPending = false;
+    }
+
+    private bool AdmitNativePushContact(ActorState actor)
+    {
+        ValidateNativePushDispatch(actor);
+        if (fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && (fiber.NativeActorSlot == 6 || fiber.NativeActorSlot is null && fiber.Priority == 6) && !fiber.Complete))
+        {
+            return false;
+        }
+        Fiber requested = Queue(actor.ObjectId, program!.Objects[actor.ObjectId].Scripts[3].Id, 6, false);
+        requested.NativeActorSlot = 6;
+        SuspendNativeMovementForRequest(actor, requested);
+        RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.PushContact, actor.ObjectId, 3, 6));
+        return true;
     }
 
     private bool RunNativeActorContactScheduler(int objectId)

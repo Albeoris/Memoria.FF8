@@ -307,7 +307,7 @@ public sealed partial class EventEngine
         branchCoverage[key] = value != 0 ? current with { TrueCount = current.TrueCount + 1 } : current with { FalseCount = current.FalseCount + 1 };
         BranchDecision decision = new(FieldId, fiber.ObjectId, fiber.Script.Id, operation, Frame, predicate, value, value != 0, jumpTarget, activeActionIndex ?? actionLog.Count);
         decisions.Add(decision);
-        replayCapture?.Receipts.Add(new ReplayReceipt(ReplayReceiptKind.Branch, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation, jumpTarget, value, predicate));
+        RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.Branch, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation, jumpTarget, value, predicate));
         BranchEvaluated?.Invoke(decision);
     }
 
@@ -315,7 +315,7 @@ public sealed partial class EventEngine
     {
         DialogueOutcome outcome = new(FieldId, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, Frame, dialogue.MessageId, choice, name, activeActionIndex ?? actionLog.Count);
         dialogueOutcomes.Add(outcome);
-        replayCapture?.Receipts.Add(new ReplayReceipt(ReplayReceiptKind.Dialogue, FieldId, Frame, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.MessageId, choice ?? -1, name));
+        RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.Dialogue, FieldId, Frame, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.MessageId, choice ?? -1, name));
         DialogueCompleted?.Invoke(outcome);
     }
 }

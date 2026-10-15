@@ -214,6 +214,7 @@ internal sealed partial class WorldMapScene : IDisposable
     }
 
     public WorldState State => session.State.World ?? LastDeparture ?? throw new InvalidOperationException("This world scene no longer has a current state.");
+    internal string AllocationProgramSha256 => assets.AllocationProgramSha256;
     public bool IsPresentationDeferred => State.NativeScriptedRuntime?.Path.Callback == 0 || State.NativeTrainRuntime?.Callback == 0;
 
     internal static void RequireUnaliasedFootAuxiliary(GameState state)
@@ -364,7 +365,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
         void RecordReplay(PlayerActionResult outcome)
         {
-            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, CameraHorizontal = action.CameraHorizontal, Frames = action.Frames, MessageId = stationChoice ? sourceDialogue!.MessageId : null, Operation = stationChoice ? sourceDialogue!.Operation : null, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray() });
+            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, CameraHorizontal = action.CameraHorizontal, Frames = action.Frames, MessageId = stationChoice ? sourceDialogue!.MessageId : null, Operation = stationChoice ? sourceDialogue!.Operation : null, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray(), WorldEffects = salary.ReplayEffects.ToArray() });
         }
     }
 
