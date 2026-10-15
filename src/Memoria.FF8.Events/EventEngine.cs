@@ -291,7 +291,6 @@ public sealed partial class EventEngine
         {
             actor.StepRotation();
         }
-        StepBackgroundShadeLoops();
         int currentGeneration = generation;
         foreach (ActorState actor in NativeCallbackActors())
         {
@@ -319,6 +318,7 @@ public sealed partial class EventEngine
             }
             if (program.Objects[actor.ObjectId].BackgroundModuleIndex is int moduleIndex)
             {
+                StepBackgroundShadeControl(moduleIndex);
                 StepBackgroundAnimation(moduleIndex);
             }
         }
@@ -340,6 +340,7 @@ public sealed partial class EventEngine
         StepNativeShake();
         StepNativeActorBackgroundScroll();
         StepNativeBackgroundScroll();
+        StepBackgroundShadeLoops();
         if (!defaultsStarted && fibers.Where(item => item.Initialization).All(item => item.Complete))
         {
             NativeFieldPartyLoad? nativeLoad = PrepareNativeFieldPartyLoad();
@@ -761,6 +762,7 @@ public sealed partial class EventEngine
         public byte? NativeActorSlot;
         public int? NativeMoveOperation;
         public int? NativeMoveTarget;
+        public int? NativeShadeOperation;
     }
 
     private bool WaitReady(Fiber fiber)
@@ -774,6 +776,7 @@ public sealed partial class EventEngine
             WaitReason.PartyJoin => true,
             WaitReason.PartySplit => true,
             WaitReason.NativeScriptMovement => true,
+            WaitReason.NativeBackgroundShade => true,
             WaitReason.NativeJump => true,
             WaitReason.NativeLadder => true,
             WaitReason.NativeLadderMode3 => true,

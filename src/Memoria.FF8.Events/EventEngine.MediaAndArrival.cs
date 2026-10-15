@@ -44,7 +44,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.IDLOCK or Jsm.Opcode.IDUNLOCK or Jsm.Opcode.POLYCOLOR or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.AXIS or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or
             Jsm.Opcode.MESVAR or Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.WINSIZE or Jsm.Opcode.MESSYNC or Jsm.Opcode.MENUNAME or Jsm.Opcode.MESMODE or
             Jsm.Opcode.SETMESSPEED or Jsm.Opcode.BGDRAW or Jsm.Opcode.BGOFF or Jsm.Opcode.BGCLEAR or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.DRAWPOINT or Jsm.Opcode.Unknown16 or Jsm.Opcode.BGANIMESPEED or Jsm.Opcode.BGANIME or Jsm.Opcode.RBGANIME or
-            Jsm.Opcode.BGANIMESYNC or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.RBGSHADELOOP or Jsm.Opcode.BGSHADE or Jsm.Opcode.BGSHADEOFF or Jsm.Opcode.DCOLADD or Jsm.Opcode.DCOLSUB or Jsm.Opcode.TCOLADD or Jsm.Opcode.TCOLSUB or Jsm.Opcode.FCOLADD or Jsm.Opcode.FCOLSUB or
+            Jsm.Opcode.BGANIMESYNC or Jsm.Opcode.RBGANIMELOOP or Jsm.Opcode.RBGSHADELOOP or Jsm.Opcode.BGSHADE or Jsm.Opcode.BGSHADESTOP or Jsm.Opcode.BGSHADEOFF or Jsm.Opcode.DCOLADD or Jsm.Opcode.DCOLSUB or Jsm.Opcode.TCOLADD or Jsm.Opcode.TCOLSUB or Jsm.Opcode.FCOLADD or Jsm.Opcode.FCOLSUB or
             Jsm.Opcode.COLSYNC or Jsm.Opcode.FADEIN or Jsm.Opcode.FADEOUT or Jsm.Opcode.FADEBLACK or Jsm.Opcode.FADENONE or Jsm.Opcode.SETVIBRATE or Jsm.Opcode.FADESYNC or Jsm.Opcode.MAPFADEOFF or
             Jsm.Opcode.MAPFADEON or Jsm.Opcode.MAPJUMPON or Jsm.Opcode.MAPJUMPOFF or Jsm.Opcode.WORLDMAPJUMP or Jsm.Opcode.TALKON or Jsm.Opcode.TALKOFF or Jsm.Opcode.PUSHON or Jsm.Opcode.PUSHOFF or Jsm.Opcode.TALKRADIUS or
             Jsm.Opcode.PUSHRADIUS or Jsm.Opcode.THROUGHON or Jsm.Opcode.THROUGHOFF or Jsm.Opcode.FOOTSTEPON or Jsm.Opcode.FOOTSTEPOFF or Jsm.Opcode.FOOTSTEP or Jsm.Opcode.FOOTSTEPCOPY or Jsm.Opcode.FOOTSTEPCUT or Jsm.Opcode.FOOTSTEPOFFALL or Jsm.Opcode.SETLINE or
@@ -396,9 +396,9 @@ public sealed partial class EventEngine
         {
             return "Unsupported RBGANIMELOOP requires an original background module entity";
         }
-        if (operation.Opcode == Jsm.Opcode.BGSHADEOFF && program?.Objects[fiber.ObjectId].BackgroundModuleIndex is null)
+        if (operation.Opcode is Jsm.Opcode.BGSHADE or Jsm.Opcode.BGSHADESTOP or Jsm.Opcode.BGSHADEOFF or Jsm.Opcode.RBGSHADELOOP)
         {
-            return "Unsupported BGSHADEOFF requires an original background module entity; PC and operands preserved";
+            return UnsupportedBackgroundShade(fiber, operation.Opcode);
         }
         ActorState caller = actors[fiber.ObjectId];
         if (operation.Opcode == Jsm.Opcode.SETROOTTRANS && (fiber.Stack.Count == 0 || FieldId < 72 || caller.ModelId < 0 || program is null || !program.NativeObjects.Take(program.NativeActorCount).Contains(fiber.ObjectId) || Scene.NativeActorLayoutVersion == 1 && !Scene.NativeActorObjectIds.Contains(fiber.ObjectId)))
@@ -642,37 +642,32 @@ public sealed partial class EventEngine
         foreach ((int module, BackgroundShade shade) in Scene.BackgroundShades)
         {
             int duration = shade.FadeFrames;
-            int elapsed = (int)Math.Clamp(Frame - shade.StartFrame, 0, Math.Max(0, duration));
-            float Channel(float first, float last) => duration == 0 ? last : (int)first + ((int)last - (int)first) * elapsed / duration;
-            colors[module] = new System.Numerics.Vector3(Channel(shade.FirstColor.X, shade.SecondColor.X), Channel(shade.FirstColor.Y, shade.SecondColor.Y), Channel(shade.FirstColor.Z, shade.SecondColor.Z));
+            int elapsed = (int)Math.Clamp(Frame - shade.StartFrame, 0, duration);
+            colors[module] = SampleBackgroundShade(shade.FirstColor, shade.SecondColor, duration, elapsed);
         }
         return colors;
     }
 
     private void StepBackgroundShadeLoops()
     {
+        if (services.IsMoviePlaying)
+        {
+            //52B3A0 selects the movie renderer instead of475480. The shade
+            //renderer clock pauses while each module's52AEF0 still runs.
+            foreach ((int module, BackgroundShade shade) in Scene.BackgroundShades.ToArray())
+            {
+                Scene.BackgroundShades[module] = shade with { StartFrame = shade.StartFrame + 1 };
+            }
+            return;
+        }
         foreach ((int module, BackgroundShadeLoop shade) in Scene.BackgroundShadeLoops.ToArray())
         {
-            if (shade.Remaining > 0)
-            {
-                int elapsed = shade.Elapsed + 1;
-                int duration = shade.FirstToSecond ? shade.FadeFirst : shade.FadeSecond;
-                System.Numerics.Vector3 from = shade.FirstToSecond ? shade.FirstColor : shade.SecondColor;
-                System.Numerics.Vector3 to = shade.FirstToSecond ? shade.SecondColor : shade.FirstColor;
-                float Channel(float first, float last) => (int)first + ((int)last - (int)first) * elapsed / duration;
-                var color = new System.Numerics.Vector3(Channel(from.X, to.X), Channel(from.Y, to.Y), Channel(from.Z, to.Z));
-                Scene.BackgroundShadeLoops[module] = shade with { Elapsed = elapsed, Remaining = shade.Remaining - 1, CurrentColor = color };
-            }
-            else if (shade.HoldRemaining > 0)
-            {
-                Scene.BackgroundShadeLoops[module] = shade with { HoldRemaining = shade.HoldRemaining - 1 };
-            }
-            else
-            {
-                bool forward = !shade.FirstToSecond;
-                int duration = forward ? shade.FadeFirst : shade.FadeSecond;
-                Scene.BackgroundShadeLoops[module] = shade with { FirstToSecond = forward, Elapsed = 0, Remaining = duration, HoldRemaining = Math.Max(0, (forward ? shade.HoldFirst : shade.HoldSecond) - 1), CurrentColor = duration == 0 ? forward ? shade.SecondColor : shade.FirstColor : shade.CurrentColor };
-            }
+            int duration = shade.Remaining == 0 ? 0 : shade.FirstToSecond ? shade.FadeFirst : shade.FadeSecond;
+            System.Numerics.Vector3 from = shade.FirstToSecond ? shade.FirstColor : shade.SecondColor;
+            System.Numerics.Vector3 to = shade.FirstToSecond ? shade.SecondColor : shade.FirstColor;
+            System.Numerics.Vector3 color = SampleBackgroundShade(from, to, duration, shade.Elapsed);
+            bool complete = duration <= shade.Elapsed;
+            Scene.BackgroundShadeLoops[module] = shade with { Elapsed = complete ? 0 : shade.Elapsed + 1, Remaining = complete ? 0 : shade.Remaining - 1, CurrentColor = color };
         }
     }
 

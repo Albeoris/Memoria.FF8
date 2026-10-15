@@ -889,12 +889,13 @@ public sealed partial class EventEngine
                 Vector3 firstShade = new((byte)args[2], (byte)args[3], (byte)args[4]);
                 Vector3 secondShade = new((byte)args[5], (byte)args[6], (byte)args[7]);
                 Scene.BackgroundShades.Remove(module);
-                Scene.BackgroundShadeLoops[module] = new BackgroundShadeLoop(fiber.ObjectId, module, (ushort)args[0], (ushort)args[1], firstShade, secondShade, (byte)args[8], (byte)args[9], true, 0, (ushort)args[0], (byte)args[8], firstShade);
+                Scene.BackgroundShadeLoops[module] = new BackgroundShadeLoop(fiber.ObjectId, module, (ushort)args[0], (ushort)args[1], firstShade, secondShade, (byte)args[8], (byte)args[9], true, 0, (ushort)args[0] == 0 ? 0 : (ushort)args[0] + 1, (byte)args[8], firstShade);
                 break;
             case Jsm.Opcode.BGSHADE:
-                args = Pop(fiber, 7);
-                Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
-                Scene.BackgroundShades[fiber.BackgroundId] = new BackgroundShade((ushort)args[0], new Vector3((byte)args[1], (byte)args[2], (byte)args[3]), new Vector3((byte)args[4], (byte)args[5], (byte)args[6]), Frame, fiber.BackgroundId);
+                args = ExecuteBackgroundShade(fiber);
+                break;
+            case Jsm.Opcode.BGSHADESTOP:
+                StopBackgroundShade(fiber.BackgroundId);
                 break;
             case Jsm.Opcode.BGSHADEOFF:
                 // Native 0x520B00 clears shade flags, timing, holds and all RGB endpoints.

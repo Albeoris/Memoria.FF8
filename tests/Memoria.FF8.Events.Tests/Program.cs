@@ -77,6 +77,7 @@ internal static partial class Program
                     ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
                     ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
+                    ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
