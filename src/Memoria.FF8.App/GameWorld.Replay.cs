@@ -182,7 +182,9 @@ internal sealed partial class GameWorld
                 ValidateDecisionReceipts(entry, rebuilt.ReplayJournal.Endpoint!);
                 if (result is not null && result.Accepted != entry.Accepted)
                 {
-                    throw new InvalidDataException($"Replay action acceptance diverged at entry {index}/{entry.Kind}/code{entry.Code}: expected {entry.Accepted} at field{entry.FieldId}/frame{entry.Frame}, actual {result.Accepted} at field{world.Events.FieldId}/frame{world.Events.Frame}/trigger{world.NextTrigger.Kind}/movement{world.Events.CanAcceptMovementInput}/fade{world.Events.FieldFade?.Physical.Mode}.");
+                    string players = JsonSerializer.Serialize(world.Events.Actors.Where(actor => actor.CharacterId == 0).Select(actor => new { actor.ObjectId, actor.Active, actor.Visible }));
+                    string pending = JsonSerializer.Serialize(world.Events.Capture().GetProperty("Fibers").EnumerateArray().Where(fiber => !fiber.GetProperty("Complete").GetBoolean() && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() != "NativeHalt").Take(8).Select(fiber => new { ObjectId = fiber.GetProperty("ObjectId").GetInt32(), ScriptId = fiber.GetProperty("ScriptId").GetInt32(), Position = fiber.GetProperty("Position").GetInt32(), WaitReason = fiber.GetProperty("WaitReason").GetRawText() }));
+                    throw new InvalidDataException($"Replay action acceptance diverged at entry {index}/{entry.Kind}/code{entry.Code}: expected {entry.Accepted} at field{entry.FieldId}/frame{entry.Frame}, actual {result.Accepted} at field{world.Events.FieldId}/frame{world.Events.Frame}/trigger{world.NextTrigger.Kind}/movement{world.Events.CanAcceptMovementInput}/control{world.Events.IsUserControlEnabled}/story{rebuilt.State.Variables.GetValueOrDefault(256)}/fade{world.Events.FieldFade?.Physical.Mode}/players{players}/pending{pending}.");
                 }
                 if (entry.ResultScene.GetValueOrDefault(entry.Scene) != entry.Scene || entry.ResultFieldId.GetValueOrDefault(entry.FieldId) != entry.FieldId)
                 {

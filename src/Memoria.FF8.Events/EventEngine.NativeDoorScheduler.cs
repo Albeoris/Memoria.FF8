@@ -9,12 +9,12 @@ public sealed record NativeDoorSchedulerState([property: JsonRequired] int Versi
 
 public sealed partial class EventEngine
 {
-    private void InitializeNativeDoorDefault(Fiber fiber)
+    private void InitializeNativeDefault(Fiber fiber)
     {
         Fiber initialization = fibers.Single(item => item.ObjectId == fiber.ObjectId && item.Initialization && item.Complete && item.Script.Id == program!.Objects[fiber.ObjectId].Scripts[0].Id);
         if (fiber.Script.Start >= fiber.Script.End || program!.Operations[fiber.Script.Start].Opcode != Jsm.Opcode.LBL)
         {
-            throw new NotSupportedException("Native door default reset requires its original entry label");
+            throw new NotSupportedException("Native default reset requires its original entry label");
         }
         //52C960 resets depth388 toFF, skips the default LBL and leaves the
         // live result bank produced by52C650 intact. No saved-result frame exists.
@@ -24,7 +24,10 @@ public sealed partial class EventEngine
         {
             fiber.Results.Add(result.Key, result.Value);
         }
-        actors[fiber.ObjectId].NativeDoorScheduler = new NativeDoorSchedulerState(1, 0, fiber.Sequence, fiber.Sequence, initialization.Sequence, null);
+        if (IsNativeDoorRequest(fiber.ObjectId))
+        {
+            actors[fiber.ObjectId].NativeDoorScheduler = new NativeDoorSchedulerState(1, 0, fiber.Sequence, fiber.Sequence, initialization.Sequence, null);
+        }
     }
 
     private NativeDoorSchedulerState RequireNativeDoorScheduler(int objectId)
@@ -173,9 +176,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved door LBL bank belongs to an unproved context");
         }
-        if (restored.Any(fiber => fiber.NativeDoorDefaultFrame && (!program!.Objects[fiber.ObjectId].IsDoor || saved.Actors[fiber.ObjectId].NativeDoorScheduler?.DefaultSequence != fiber.Sequence || fiber.Initialization || fiber.NativeResultFrameEntered)))
+        if (restored.Any(fiber => fiber.NativeDoorDefaultFrame && (fiber.Initialization || fiber.NativeResultFrameEntered || fiber.Priority != 7 || program!.Objects[fiber.ObjectId].Scripts.Count < 2 || fiber.Script.Id != program.Objects[fiber.ObjectId].Scripts[1].Id || fiber.Position <= fiber.Script.Start || !restored.Any(init => init.Initialization && init.Complete && init.ObjectId == fiber.ObjectId && init.Sequence < fiber.Sequence) || program.Objects[fiber.ObjectId].IsDoor && saved.Actors[fiber.ObjectId].NativeDoorScheduler?.DefaultSequence != fiber.Sequence)))
         {
-            throw new InvalidDataException("Saved default-without-frame marker lacks its original52C960 door reset");
+            throw new InvalidDataException("Saved default-without-frame marker lacks its original52C960 entity reset");
         }
     }
 }

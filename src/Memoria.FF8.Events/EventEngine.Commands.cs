@@ -651,8 +651,15 @@ public sealed partial class EventEngine
                 ExecuteNativeAnimationBackup(actor, opcode == Jsm.Opcode.POPANIME);
                 break;
             case Jsm.Opcode.WAIT:
+                if (synchronousFieldInitialization && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || fiber.Stack.Peek() <= 0))
+                {
+                    throw Fault(fiber, "Native synchronous WAIT requires its exact positive DWORD countdown; wraparound polling is unsupported.");
+                }
                 args = Pop(fiber, 1);
-                WaitFrames(fiber, args[0]);
+                if (!synchronousFieldInitialization)
+                {
+                    WaitFrames(fiber, args[0]);
+                }
                 break;
             case Jsm.Opcode.LOADSYNC:
                 // LoadField receives a fully loaded field and its models. There is no pending loader task.

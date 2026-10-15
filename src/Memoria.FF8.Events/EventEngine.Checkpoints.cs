@@ -174,6 +174,10 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved process audio history requires its executed field-load identity; recreate the authentic journal.");
         }
         saved.Scene.FieldCallbackClock?.Validate(saved.Frame);
+        if (saved.Scene.FieldCallbackClock is { } callbackClock && (saved.DefaultsStarted && callbackClock.InitializationTransactions != 1 || saved.Frame == 0 && callbackClock.InitializationTransactions != 0))
+        {
+            throw new InvalidDataException("Saved field callback clock lacks its executed synchronous initialization transaction.");
+        }
         saved.FieldShake?.Validate();
         if (saved.FieldShake is null && services.FieldShake is not null || saved.FieldShake is not null && !services.CanStoreFieldShake)
         {
@@ -259,7 +263,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved character appearance and vitals have different native New Game identities.");
         }
         saved.FieldButtonInput?.Validate();
-        if (saved.Frame > 0 && saved.FieldButtonInput is not null)
+        if (saved.Scene.FieldCallbackClock is { } sampledClock && (sampledClock.OrdinaryCallbacks > 0 || sampledClock.MovieCallbacks > 0) && saved.FieldButtonInput is not null)
         {
             saved.FieldButtonInput.ValidateSample(saved.FieldId, saved.Frame, saved.InputConfiguration);
         }

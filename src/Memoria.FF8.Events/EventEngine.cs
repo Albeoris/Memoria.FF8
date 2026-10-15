@@ -138,7 +138,7 @@ public sealed partial class EventEngine
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         InitializeNativeBackgroundScrollSettings();
-        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0);
+        Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0, InitializationTransactions: 0);
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
         Scene.NativeLadderSpeed490E = nativeRuntimeProfile is { IsVerified: true } ? nativeRuntimeProfile.AllocatedLadderSpeed : null;
         //471F70 normal load kinds0..2 reset BYTE1CE4907; menu resumes retain this scene in place.
@@ -256,6 +256,26 @@ public sealed partial class EventEngine
             StepPartyMenu();
             return;
         }
+        if (!defaultsStarted)
+        {
+            //Diagnostic load transaction1 has no native callback: all entities
+            //finish52C650 before any529FF0 budget, input, RNG, UI or body step.
+            NativeFieldCallbackClock initializationClock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Native synchronous initialization requires its executed allocation clock owner.");
+            if (Frame != 0 || initializationClock.InitializationTransactions != 0)
+            {
+                throw new NotSupportedException("Partial synchronous initialization requires authentic journal recreation; callback-based resume is unsupported.");
+            }
+            initializationClock.Validate(Frame);
+            Frame++;
+            Scene.FieldCallbackClock = initializationClock with { InitializationTransactions = 1 };
+            if (Scene.NativeFieldInitialization is { } initialization)
+            {
+                Scene.NativeFieldInitialization = initialization with { Stage = NativeFieldInitializationStage.Initializing };
+            }
+            RunFieldInitialization();
+            CompleteFieldInitialization();
+            return;
+        }
         ValidateNativeShakeCallback();
         NativeEventRandomState? randomSample = PrepareNativeEventRandomBeforeVm();
         NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
@@ -281,10 +301,6 @@ public sealed partial class EventEngine
         Frame++;
         SampleFieldButtons();
         CompleteNativeBattleReturnBeforeVm();
-        if (!defaultsStarted && Scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Allocated } initialization)
-        {
-            Scene.NativeFieldInitialization = initialization with { Stage = NativeFieldInitializationStage.Initializing };
-        }
         SampleMoviePlayback();
         StepInputAxis();
         foreach (ActorState actor in actors)
@@ -341,42 +357,6 @@ public sealed partial class EventEngine
         StepNativeActorBackgroundScroll();
         StepNativeBackgroundScroll();
         StepBackgroundShadeLoops();
-        if (!defaultsStarted && fibers.Where(item => item.Initialization).All(item => item.Complete))
-        {
-            NativeFieldPartyLoad? nativeLoad = PrepareNativeFieldPartyLoad();
-            if (HasOpaqueInitializationTrace() && nativeLoad is null)
-            {
-                throw new NotSupportedException("Native initialization trace requires its original automatic field-party setup before compaction and trace reads.");
-            }
-            CompactNativeActors();
-            if (nativeLoad is not null)
-            {
-                ApplyNativeFieldPartyLoad(nativeLoad);
-            }
-            else
-            {
-                ApplyPendingArrival();
-            }
-            BindNativeAnimationResources();
-            if (Scene.NativeFieldInitialization is NativeFieldInitializationProof proof)
-            {
-                Scene.NativeFieldInitialization = proof with { Stage = NativeFieldInitializationStage.Completed };
-            }
-            InitializeNativeDoorDriverAfterInitialization();
-            InitializeNativeModelParts();
-            defaultsStarted = true;
-            foreach (EventObject obj in program.Objects)
-            {
-                if ((actors[obj.Index].Active || IsNativeDoorRequest(obj.Index)) && obj.Scripts.Count > 1)
-                {
-                    Fiber queued = Queue(obj.Index, obj.Scripts[1].Id, 7, false);
-                    if (IsNativeDoorRequest(obj.Index))
-                    {
-                        InitializeNativeDoorDefault(queued);
-                    }
-                }
-            }
-        }
         fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item) && !actors.Any(actor => actor.NativeDoorScheduler?.CurrentSequence == item.Sequence));
         StepNativeNormalBackgroundScrollCenter();
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
@@ -625,7 +605,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
