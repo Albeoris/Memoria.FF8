@@ -105,7 +105,7 @@ public sealed class NativeMovieMaskRenderTests
         int visibleTotal = 0;
         int occludedTotal = 0;
         Stopwatch timeout = Stopwatch.StartNew();
-        while (session.State.MoviePlayback!.FrameIndex < 143 && timeout.Elapsed < TimeSpan.FromSeconds(30))
+        while (session.IsMoviePlaying && session.State.MoviePlayback!.FrameIndex < information.FrameCount - 1 && timeout.Elapsed < TimeSpan.FromSeconds(30))
         {
             while (decoder.TryGetAudio(out _))
             {
@@ -120,7 +120,8 @@ public sealed class NativeMovieMaskRenderTests
             {
                 continue;
             }
-            Assert.True(world.AdvanceMovieFrame(new(record, information.FrameCount - 1, true, false, false), record / information.FramesPerSecond));
+            bool stillPlaying = world.AdvanceMovieFrame(new(record, information.FrameCount - 1, true, false, false), record / information.FramesPerSecond);
+            Assert.Equal(record < information.FrameCount - 1, stillPlaying);
             if (record is not (35 or 89 or 110 or 143))
             {
                 continue;
@@ -183,9 +184,33 @@ public sealed class NativeMovieMaskRenderTests
         }
         File.WriteAllText(Path.Combine(evidence, "corridor-movie-mask-pixels.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria actual decoder/field VM", Implementation = "Current Memoria CPU CAM/MSK actor compositor", OriginalRuntimePixelParity = false, Frames = frames }, new JsonSerializerOptions { WriteIndented = true }));
         TestContext.Current.TestOutputHelper!.WriteLine($"Genuine original-script movie0 frames: retained actor pixels={visibleTotal}, MSK-occluded fragments={occludedTotal}; native runtime pixel parity is unclaimed.");
-        Assert.Equal(143, session.State.MoviePlayback.FrameIndex);
+        Assert.Equal(information.FrameCount - 1, session.State.MoviePlayback!.FrameIndex);
+        Assert.False(session.IsMoviePlaying);
         Assert.True(visibleTotal > 0);
         Assert.True(occludedTotal > 0);
+        Assert.True(world.CanPresentCurrentField);
+        world.Events.Step();
+        Assert.Equal(232, session.State.FieldId);
+        Assert.Equal(229, world.Field!.Id);
+        Assert.Equal(PlayerTriggerKind.FieldTransition, world.Events.NextTrigger.Kind);
+        Assert.False(world.CanPresentCurrentField);
+        NativeFieldModelInstance instance = world.Events.Scene.ModelParts!.Instances.First(item => world.Events.Actors[item.ObjectId].Visible);
+        NativeModelPartDraw draw = world.Events.Scene.ModelParts.Draws[instance.ObjectId];
+        Assert.Equal(world.Events.Frame - 1, draw.Frame);
+        Assert.Throws<NotSupportedException>(() => world.Events.GetNativeModelPartTranslations(instance.ObjectId));
+        Assert.Throws<NotSupportedException>(() => world.Render(TimeSpan.Zero));
+        object departure = new { VmField = world.Events.FieldId, SessionField = session.State.FieldId, Frame = world.Events.Frame, DrawFrame = draw.Frame, Trigger = world.Events.NextTrigger.Kind.ToString(), PresentationReady = world.CanPresentCurrentField };
+        Assert.True(world.EnsureField());
+        for (int callback = 0; callback < 500 && world.Events.CurrentDialogue is null; callback++)
+        {
+            world.Events.Step();
+        }
+        Assert.Equal(232, world.Field.Id);
+        Assert.True(world.CanPresentCurrentField);
+        Assert.Equal(0, world.Events.CurrentDialogue!.MessageId);
+        Assert.NotEmpty(world.Render(TimeSpan.Zero));
+        Assert.Null(world.Events.LastFault);
+        File.WriteAllText(Path.Combine(evidence, "corridor-natural-movie-departure-proof.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria genuine decoded movie0 through original MAP232", Implementation = "Current Memoria presentation readiness gate", Departure = departure, Destination = new { Field = world.Field.Id, Frame = world.Events.Frame, PresentationReady = world.CanPresentCurrentField, Message = world.Events.CurrentDialogue.MessageId }, SkinValidatorStillRefusesStaleSample = true }, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static string Repository()
