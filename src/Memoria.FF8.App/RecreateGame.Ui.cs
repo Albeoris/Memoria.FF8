@@ -27,6 +27,7 @@ internal sealed partial class RecreateGame
     {
         uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text);
         uiPreferences = UiPreferences.Load(UiPreferencesPath);
+        text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
         gameMenus.ConnectPreferences(() => uiPreferences, ApplyLiveMenuAction);
@@ -67,12 +68,20 @@ internal sealed partial class RecreateGame
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
+        data.Settings["UI font"] = uiPreferences.UiFontFamily;
+        data.Settings["UI font size"] = uiPreferences.UiFontSize.ToString();
+        data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
+        data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
         data.Settings["Battle ATB mode"] = uiPreferences.AtbMode.ToString();
         data.Settings["Battle policy"] = uiPreferences.BattlePolicy;
         data.Settings["Initiative bar"] = uiPreferences.ShowInitiative ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");
         data.SupportedActions.Add("config:Text scale");
+        data.SupportedActions.Add("config:UI font");
+        data.SupportedActions.Add("config:UI font size");
+        data.SupportedActions.Add("config:Dialogue font");
+        data.SupportedActions.Add("config:Dialogue font size");
         data.SupportedActions.Add("config:Battle ATB mode");
         data.SupportedActions.Add("config:Battle policy");
         data.SupportedActions.Add("config:Initiative bar");
@@ -107,6 +116,7 @@ internal sealed partial class RecreateGame
             UiPreferences nextPreferences = uiPreferences.WithSetting(action.SubjectId, action.Value);
             nextPreferences.Save(UiPreferencesPath);
             uiPreferences = nextPreferences;
+            text.FontFamily = uiPreferences.UiFontFamily;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
             if (ActiveBattle is not null && ActiveBattle.Mode != uiPreferences.AtbMode)
             {

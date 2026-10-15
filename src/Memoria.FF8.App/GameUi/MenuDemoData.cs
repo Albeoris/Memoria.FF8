@@ -165,6 +165,10 @@ public static class MenuSettings
         new("Vibration", "Original controller vibration.", ["On", "Off"]),
         new("Music volume", "Host music playback preference.", ["100%", "75%", "50%", "25%", "0%"]),
         new("Effect volume", "Host sound-effect playback preference.", ["100%", "75%", "50%", "25%", "0%"]),
-        new("Text scale", "Host menu text scale.", ["100%", "125%", "150%"])
+        new("Text scale", "Host menu text scale.", ["100%", "125%", "150%"]),
+        new("UI font", "Installed OS font for menus and interface text.", SystemFontCatalog.Families.ToArray()),
+        new("UI font size", "Interface font size in design pixels; Text scale applies on top.", ["18", "20", "24", "28", "32"]),
+        new("Dialogue font", "Installed OS font for field dialogue; missing scripts use OS fallback.", SystemFontCatalog.Families.ToArray()),
+        new("Dialogue font size", "Field dialogue font size in field pixels.", ["6", "7", "8", "9", "10", "12", "14", "16"])
     ];
 }

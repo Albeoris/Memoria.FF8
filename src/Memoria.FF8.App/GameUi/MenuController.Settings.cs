@@ -30,6 +30,10 @@ public sealed partial class MenuController
         return key switch
         {
             "Text scale" => preferences.TextScale + "%",
+            "UI font" => preferences.UiFontFamily,
+            "UI font size" => preferences.UiFontSize.ToString(),
+            "Dialogue font" => preferences.DialogueFontFamily,
+            "Dialogue font size" => preferences.DialogueFontSize.ToString(),
             "Music volume" => preferences.MusicVolume + "%",
             "Effect volume" => preferences.SoundVolume + "%",
             "Initiative bar" => preferences.ShowInitiative ? "On" : "Off",

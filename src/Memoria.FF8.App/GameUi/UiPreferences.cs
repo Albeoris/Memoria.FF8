@@ -9,6 +9,10 @@ internal sealed record UiPreferences
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
     public int TextScale { get; init; } = 100;
+    public string UiFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
+    public int UiFontSize { get; init; } = 24;
+    public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
+    public int DialogueFontSize { get; init; } = 8;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.Normal;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
     public bool ShowInitiative { get; init; }
@@ -26,6 +30,19 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (key is "UI font" or "Dialogue font")
+        {
+            string family = SystemFontCatalog.Families.FirstOrDefault(family => string.Equals(family, value, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Choose an installed OS font family.");
+            return key == "UI font" ? this with { UiFontFamily = family } : this with { DialogueFontFamily = family };
+        }
+        if (key is "UI font size" or "Dialogue font size")
+        {
+            if (!int.TryParse(value, out int size) || size is < 6 or > 48)
+            {
+                throw new ArgumentException("Font size must be between 6 and 48 pixels.");
+            }
+            return key == "UI font size" ? this with { UiFontSize = size } : this with { DialogueFontSize = size };
+        }
         if (key == "Battle ATB mode")
         {
             return value switch
@@ -73,7 +90,7 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
-        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || !Enum.IsDefined(AtbMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

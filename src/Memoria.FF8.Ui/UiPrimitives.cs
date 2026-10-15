@@ -101,6 +101,10 @@ public interface IUiCanvas
 {
     void Fill(UiRect bounds, UiColor color);
     void Text(string text, float fontSize, UiRect bounds, UiColor color);
+    void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily)
+    {
+        Text(text, fontSize, bounds, color);
+    }
     void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness);
     void PushClip(UiRect bounds);
     void PopClip();

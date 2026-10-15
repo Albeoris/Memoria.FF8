@@ -316,6 +316,7 @@ internal sealed partial class RecreateGame : Game
             if (world.EnsureField())
             {
                 presentedDialogue = null;
+                dialoguePages.Clear();
                 error = null;
                 fieldFaulted = false;
                 fieldRenderFaulted = false;
@@ -330,6 +331,7 @@ internal sealed partial class RecreateGame : Game
             {
                 world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, keyboard.HeldFieldButtons));
             }
+            UpdateDialoguePages(elapsed);
             DialogueState? dialogue = events!.CurrentDialogue;
             if (dialogue != presentedDialogue)
             {
@@ -342,11 +344,12 @@ internal sealed partial class RecreateGame : Game
                 {
                     selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
                 }
-                if (dialogue.CanConfirm && (input.Confirm || input.Cancel && (dialogue.CancelChoice.HasValue || !dialogue.IsNamePrompt && dialogue.FirstChoice is null)))
+                if (dialogue.CanConfirm && (input.Confirm || input.Cancel && (dialogue.CancelChoice.HasValue || !dialogue.IsNamePrompt && dialogue.FirstChoice is null)) && !AdvanceDialoguePages())
                 {
                     PlayerAction action = input.Cancel && !input.Confirm ? new PlayerAction(PlayerActionKind.Cancel) : dialogue.IsNamePrompt ? new PlayerAction(PlayerActionKind.EnterName, Text: enteredName) : dialogue.FirstChoice.HasValue ? new PlayerAction(PlayerActionKind.Choose, selectedChoice) : new PlayerAction(PlayerActionKind.Confirm);
                     if (world.Apply(action).Accepted)
                     {
+                        dialoguePages.Complete(dialogue);
                         session.SetDialogueDraft(null);
                     }
                 }
@@ -427,10 +430,12 @@ internal sealed partial class RecreateGame : Game
             if (world.EnsureField())
             {
                 presentedDialogue = null;
+                dialoguePages.Clear();
                 fieldSeconds = 0;
                 error = null;
                 Console.WriteLine($"loaded=world entry={session.State.WorldArrival}");
             }
+            UpdateDialoguePages(elapsed);
             DialogueState? dialogue = world.CurrentDialogue;
             if (dialogue != presentedDialogue)
             {
@@ -440,9 +445,10 @@ internal sealed partial class RecreateGame : Game
             if (dialogue is { FirstChoice: int first, LastChoice: int last })
             {
                 selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
-                if (input.Confirm || input.Cancel)
+                if ((input.Confirm || input.Cancel) && !AdvanceDialoguePages())
                 {
                     metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Choose, input.Cancel ? dialogue.CancelChoice ?? last : selectedChoice)).FramesAdvanced);
+                    dialoguePages.Complete(dialogue);
                     return;
                 }
             }
@@ -603,6 +609,7 @@ internal sealed partial class RecreateGame : Game
         world = null;
         session.Restore(state);
         presentedDialogue = null;
+        dialoguePages.Clear();
         fieldSeconds = 0;
         error = null;
         fieldFaulted = false;
@@ -633,6 +640,7 @@ internal sealed partial class RecreateGame : Game
             world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
         }
         presentedDialogue = null;
+        dialoguePages.Clear();
         fieldSeconds = 0;
         error = null;
         fieldFaulted = false;
@@ -897,26 +905,9 @@ internal sealed partial class RecreateGame : Game
         if (events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
-            float dialogueScale = viewport.Width / 320f;
-            float fontSize = 8 * dialogueScale;
-            IEnumerable<DialogueState> visibleDialogues = session.State.Scene == SceneKind.WorldMap ? world?.CurrentDialogue is { } stationDialogue ? [stationDialogue] : [] : events.Dialogues.OrderBy(dialogue => dialogue.Channel);
-            foreach (DialogueState dialogue in visibleDialogues)
+            foreach (DialogueState dialogue in VisibleDialogues)
             {
-                string displayed = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables);
-                if (dialogue == events.CurrentDialogue && dialogue.IsNamePrompt)
-                {
-                    displayed += "\n" + enteredName + "_  (Enter: accept)";
-                }
-                else if (dialogue == world?.CurrentDialogue && dialogue is { FirstChoice: int first, LastChoice: int last })
-                {
-                    displayed = string.Join('\n', displayed.Split('\n').Select((line, index) => index >= first && index <= last ? (index == selectedChoice ? "> " : "  ") + line : line));
-                    displayed += "\nArrows: select   Enter: confirm";
-                }
-                DialogueWindow? window = dialogue.X == 0 && dialogue.Y == 0 ? events.Scene.DialogueWindows.GetValueOrDefault(dialogue.Channel) : null;
-                float maximumWidth = Math.Clamp((window?.Width ?? 304) - 2 * DialoguePresentation.Padding, 1, 288) * dialogueScale;
-                Vector2 measured = text.MeasureWrapped(displayed, fontSize, maximumWidth);
-                PixelBounds panelBounds = DialoguePresentation.Bounds(dialogue, window, viewport, measured.X, measured.Y);
-                DrawDialogueUi(bounds, viewport, panelBounds, dialogue.Channel, displayed, measured.Y);
+                DrawDialogueUi(bounds, viewport, dialogue, gameTime.TotalGameTime.TotalSeconds);
             }
         }
         if (ActiveBattle is null && session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)

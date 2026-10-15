@@ -20,12 +20,17 @@ internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch,
 
     public void Text(string value, float size, UiRect bounds, UiColor color)
     {
+        Text(value, size, bounds, color, null);
+    }
+
+    public void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily)
+    {
         if (bounds.Width <= 0 || bounds.Height <= 0 || size <= 0 || string.IsNullOrEmpty(value))
         {
             return;
         }
         Vector2 position = new(bounds.X, bounds.Y);
-        text.DrawWrappedClipped(batch, value, size, position, bounds.Width, ColorFor(color), Rectangle.Intersect(RectangleFor(bounds), CurrentClip));
+        text.DrawWrappedClipped(batch, value, size, position, bounds.Width, ColorFor(color), Rectangle.Intersect(RectangleFor(bounds), CurrentClip), fontFamily);
     }
 
     public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)

@@ -172,7 +172,7 @@ internal sealed partial class RecreateGame
             battleSeconds = 0;
         }
         battleHud!.ShowInitiative = uiPreferences.ShowInitiative;
-        battleHud.TextScale = uiPreferences.TextScale / 100f;
+        battleHud.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
     }
 
     private void CompleteBattleResult()

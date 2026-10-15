@@ -17,9 +17,9 @@ public sealed class DialogueWindowTests
         Assert.Equal(new PixelBounds(640, 360, 168, 108), secondBounds);
         Assert.NotEqual(firstBounds, secondBounds);
         PixelBounds clamped = DialoguePresentation.Bounds(second with { X = 310, Y = 230 }, null, viewport, 120, 60);
-        Assert.Equal(new PixelBounds(928, 564, 168, 108), clamped);
+        Assert.Equal(new PixelBounds(928, 588, 168, 108), clamped);
         PixelBounds explicitWindow = DialoguePresentation.Bounds(first, new DialogueWindow(0, 40, 70, 100, 50), viewport, 1, 1);
-        Assert.Equal(new PixelBounds(280, 210, 300, 150), explicitWindow);
+        Assert.Equal(new PixelBounds(280, 210, 49, 49), explicitWindow);
     }
 
     [Theory]
@@ -40,15 +40,15 @@ public sealed class DialogueWindowTests
         Assert.Equal(top, bottom);
         Assert.True(top >= DialoguePresentation.Padding * scale);
         Assert.True(panel.Width >= textWidth + 2 * DialoguePresentation.Padding * scale);
-        Assert.True(panel.Y + panel.Height <= viewport.Y + 224 * scale + 1);
+        Assert.True(panel.Y + panel.Height <= viewport.Y + 232 * scale + 1);
     }
 
     [Fact]
-    public void Taller_script_window_keeps_its_height_and_centers_the_visible_text()
+    public void Taller_script_window_shrinks_to_its_current_page_with_equal_padding()
     {
         PixelBounds panel = DialoguePresentation.Bounds(new DialogueState(0, 10, "gyp", 0, 0), new DialogueWindow(0, 40, 70, 100, 80), new PixelBounds(0, 0, 320, 240), 30, 12);
-        Assert.Equal(80, panel.Height);
-        Assert.Equal(34, (panel.Height - 12) / 2);
+        Assert.Equal(28, panel.Height);
+        Assert.Equal(8, (panel.Height - 12) / 2);
     }
 
     [Fact]
