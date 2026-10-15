@@ -21,11 +21,12 @@ public sealed partial class EventEngine
 
     private string? UnsupportedCardOperand(Fiber fiber, Jsm.Opcode opcode)
     {
-        if (fiber.Stack.Count == 0)
+        int operandCount = opcode == Jsm.Opcode.SETCARD ? 2 : 1;
+        if (fiber.Stack.Count < operandCount)
         {
-            return $"{opcode} requires its original DWORD card ID";
+            return $"{opcode} requires its original DWORD card ID and consumed operands";
         }
-        if (services.CardInventory is not NativeCardInventory cards || opcode == Jsm.Opcode.GETCARD && !services.CanStoreCardInventory)
+        if (services.CardInventory is not NativeCardInventory cards || opcode is Jsm.Opcode.GETCARD or Jsm.Opcode.SETCARD && !services.CanStoreCardInventory)
         {
             return $"{opcode} requires the authentic native card inventory and its required service capability; recreate the journal";
         }
@@ -34,11 +35,32 @@ public sealed partial class EventEngine
         {
             return $"{opcode} overlaps a separate VM memory record; card byte ownership must be established by the authentic journal";
         }
-        if (!fiber.Stack.PeekValue().IsExact)
+        if (fiber.Stack.Capture().Take(operandCount).Any(value => !value.IsExact))
         {
-            return $"{opcode} requires its exact consumed DWORD card ID";
+            return $"{opcode} requires its exact consumed DWORD operands";
         }
-        return (uint)fiber.Stack.Peek() >= NativeCardInventory.CardCount ? $"{opcode} ID is outside the original 110 card records; native out-of-bounds memory is unsupported" : null;
+        int cardId = fiber.Stack.Peek();
+        bool validId = opcode == Jsm.Opcode.WHERECARD ? cardId < NativeCardInventory.CardCount : (uint)cardId < NativeCardInventory.CardCount;
+        return validId ? null : $"{opcode} ID is outside the original 110 card records; native out-of-bounds memory is unsupported";
+    }
+
+    private int ExecuteWhereCard(Fiber fiber)
+    {
+        int cardId = fiber.Stack.Peek();
+        int result = services.CardInventory!.Location(cardId);
+        Pop(fiber, 1);
+        fiber.Results[0] = result;
+        return cardId;
+    }
+
+    private int[] ExecuteSetCard(Fiber fiber)
+    {
+        int[] operands = fiber.Stack.Take(2).ToArray();
+        NativeCardInventory next = services.CardInventory!.Transfer(operands[0], operands[1], out int result);
+        StoreCardInventory(fiber, Jsm.Opcode.SETCARD, next);
+        Pop(fiber, 2);
+        fiber.Results[0] = result;
+        return operands;
     }
 
     private int ExecuteHowManyCard(Fiber fiber)
@@ -53,6 +75,14 @@ public sealed partial class EventEngine
     private int ExecuteGetCard(Fiber fiber)
     {
         NativeCardInventory next = services.CardInventory!.Acquire(fiber.Stack.Peek(), out int result);
+        StoreCardInventory(fiber, Jsm.Opcode.GETCARD, next);
+        int cardId = Pop(fiber, 1)[0];
+        fiber.Results[0] = result;
+        return cardId;
+    }
+
+    private void StoreCardInventory(Fiber fiber, Jsm.Opcode opcode, NativeCardInventory next)
+    {
         try
         {
             services.SetCardInventory(next);
@@ -61,11 +91,8 @@ public sealed partial class EventEngine
         {
             fiber.Position--;
             string message = $"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {fiber.Position}: native card inventory service rejected the update; PC and operand preserved.";
-            LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, "GETCARD", message);
+            LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, opcode.ToString(), message);
             throw new EventScriptException(message, exception);
         }
-        int cardId = Pop(fiber, 1)[0];
-        fiber.Results[0] = result;
-        return cardId;
     }
 }

@@ -38,6 +38,57 @@ public sealed record NativeCardInventory
         return this with { Cards = Cards.ToArray(), ObtainedRareCards = ObtainedRareCards.ToArray() };
     }
 
+    /// <summary>Native534A20 returns zero for signed IDs below77, otherwise the saved location BYTE without consulting acquisition history.</summary>
+    public int Location(int cardId)
+    {
+        Validate();
+        if (cardId < CommonCardCount)
+        {
+            return 0;
+        }
+        if (cardId >= CardCount)
+        {
+            throw new NotSupportedException("WHERECARD ID has no original card record; native out-of-bounds memory is unsupported.");
+        }
+        return Cards[cardId];
+    }
+
+    /// <summary>Native5347F0 transfers a common card toward/from full DWORD locationF0, or writes a rare location BYTE; acquisition bits are unchanged.</summary>
+    public NativeCardInventory Transfer(int cardId, int location, out int result)
+    {
+        Validate();
+        if ((uint)cardId >= CardCount)
+        {
+            throw new NotSupportedException("SETCARD ID has no original card record; native out-of-bounds memory is unsupported.");
+        }
+        NativeCardInventory next = DeepCopy();
+        result = 0;
+        if (cardId >= CommonCardCount)
+        {
+            next.Cards[cardId] = unchecked((byte)location);
+        }
+        else if (location == 0xF0)
+        {
+            if ((next.Cards[cardId] & 0x7F) >= 100)
+            {
+                result = -1;
+            }
+            else
+            {
+                next.Cards[cardId]++;
+            }
+        }
+        else if ((next.Cards[cardId] & 0x7F) == 0)
+        {
+            result = -1;
+        }
+        else
+        {
+            next.Cards[cardId]--;
+        }
+        return next;
+    }
+
     /// <summary>Native534950 distinguishes never acquired, common quantity and current rare-card location.</summary>
     public int AvailableCount(int cardId)
     {

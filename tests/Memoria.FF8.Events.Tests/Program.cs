@@ -80,6 +80,7 @@ internal static partial class Program
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
                     ["native-howmanycard"] = () => NativeHowManyCardContract(selectedGameDirectory),
+                    ["native-card-location"] = () => NativeCardLocationContract(selectedGameDirectory),
                     ["native-party-menu-enable"] = NativePartyMenuEnableContract,
                     ["native-control-readiness"] = () => NativeControlReadinessContract(selectedGameDirectory),
                     ["key-on"] = () => NativeKeyOnContract(selectedGameDirectory),

@@ -1056,6 +1056,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.HOWMANYCARD:
                 args = [ExecuteHowManyCard(fiber)];
                 break;
+            case Jsm.Opcode.WHERECARD:
+                args = [ExecuteWhereCard(fiber)];
+                break;
+            case Jsm.Opcode.SETCARD:
+                args = ExecuteSetCard(fiber);
+                break;
             case Jsm.Opcode.SETBATTLEMUSIC:
                 args = Pop(fiber, 1);
                 Scene.BattleMusic = args[0];
