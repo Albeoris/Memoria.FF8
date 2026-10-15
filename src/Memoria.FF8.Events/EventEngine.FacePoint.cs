@@ -36,6 +36,19 @@ public sealed partial class EventEngine
     private int[] ExecuteNativeFacePoint(Fiber fiber, bool asynchronous, out NativeScalarValue[]? scalarArguments)
     {
         Vector3 point = PrepareNativeFacePoint(fiber);
+        int[] args = PopNativeFaceWords(fiber, out scalarArguments);
+        ActorState actor = actors[fiber.ObjectId];
+        //527B90/527FA0 share the point WORD stores;527FA0 always returns2.
+        actor.FaceTargetPoint = point;
+        actor.FaceDuration = unchecked((ushort)args[3]);
+        actor.FaceProgress = 0;
+        actor.FaceReturning = false;
+        fiber.WaitReason = asynchronous || actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
+        return args;
+    }
+
+    private static int[] PopNativeFaceWords(Fiber fiber, out NativeScalarValue[]? scalarArguments)
+    {
         NativeScalarValue[] original = fiber.Stack.Capture().Take(4).Reverse().ToArray();
         scalarArguments = original.Any(value => !value.IsExact) ? original : null;
         int[] args = new int[4];
@@ -47,13 +60,6 @@ public sealed partial class EventEngine
             expressions[index] = fiber.StackExpressions.Pop();
         }
         fiber.LastExpressions = expressions;
-        ActorState actor = actors[fiber.ObjectId];
-        //527B90/527FA0 share the point WORD stores;527FA0 always returns2.
-        actor.FaceTargetPoint = point;
-        actor.FaceDuration = unchecked((ushort)args[3]);
-        actor.FaceProgress = 0;
-        actor.FaceReturning = false;
-        fiber.WaitReason = asynchronous || actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
         return args;
     }
 

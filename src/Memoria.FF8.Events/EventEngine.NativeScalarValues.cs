@@ -78,6 +78,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedShake(fiber, operation);
         }
+        if (operation.Opcode is Jsm.Opcode.FACEDIRI or Jsm.Opcode.RFACEDIRI)
+        {
+            return UnsupportedNativeFaceImmediate(fiber);
+        }
         if (operation.Opcode is Jsm.Opcode.FACEDIR or Jsm.Opcode.RFACEDIR)
         {
             return UnsupportedNativeFacePoint(fiber);

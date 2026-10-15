@@ -284,6 +284,10 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PDIRA:
                 args = ExecutePartyActorDirection(fiber);
                 break;
+            case Jsm.Opcode.FACEDIRI:
+            case Jsm.Opcode.RFACEDIRI:
+                args = ExecuteNativeFaceImmediate(fiber, opcode == Jsm.Opcode.RFACEDIRI, out scalarArgs);
+                break;
             case Jsm.Opcode.FACEDIR:
             case Jsm.Opcode.RFACEDIR:
                 args = ExecuteNativeFacePoint(fiber, opcode == Jsm.Opcode.RFACEDIR, out scalarArgs);
