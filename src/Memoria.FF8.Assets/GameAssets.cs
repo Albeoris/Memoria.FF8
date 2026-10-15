@@ -197,7 +197,7 @@ public sealed class GameAssets : IDisposable
         byte[] mimBytes = Read(nested, name + ".mim");
         MapFile map = MapFile.Read(mapBytes);
         MimFile mim = MimFile.Read(mimBytes);
-        BackgroundTile[] tiles = map.Tiles.Select(tile => new BackgroundTile(tile.X, tile.Y, unchecked((ushort)tile.Z), tile.Parameter, tile.State, tile.PackedLayer >> 1, tile.BlendMode, ((tile.PackedTexture >> 5) & 3) != 0, (tile.PackedTexture & 0x10) != 0, FieldBackgroundTileDecoder.Decode(mim, tile))).ToArray();
+        BackgroundTile[] tiles = map.Tiles.Select(tile => new BackgroundTile(tile.X, tile.Y, unchecked((ushort)tile.Z), tile.Parameter, tile.State, tile.PackedLayer >> 1, tile.BlendMode, ((tile.PackedTexture >> 5) & 3) != 0, (tile.PackedTexture & 0x10) != 0, FieldBackgroundTileDecoder.Decode(mim, tile)) { PackedPalette = tile.PackedPalette }).ToArray();
         byte[] one = Read(nested, "chara.one");
         IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, ReadMainCharacter);
         IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));

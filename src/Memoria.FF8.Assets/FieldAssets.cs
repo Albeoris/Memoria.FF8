@@ -31,7 +31,10 @@ public sealed record FieldAssets(int Id, string Name, byte[] Jsm, IReadOnlyList<
     }
 }
 
-public sealed record BackgroundTile(int X, int Y, int Z, int AnimationId, int AnimationState, int Layer, MapBlendMode BlendMode, bool Blend, bool Draw, PixelImage Image);
+public sealed record BackgroundTile(int X, int Y, int Z, int AnimationId, int AnimationState, int Layer, MapBlendMode BlendMode, bool Blend, bool Draw, PixelImage Image)
+{
+    public ushort PackedPalette { get; init; }
+}
 public readonly record struct ProjectedPoint(float X, float Y, float Depth);
 
 public sealed record FieldCamera(Vector3 AxisX, Vector3 AxisY, Vector3 AxisZ, Vector3 Translation, Vector2 Pan, float FocalLength)

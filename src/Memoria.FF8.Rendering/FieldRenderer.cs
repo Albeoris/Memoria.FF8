@@ -26,7 +26,6 @@ public sealed partial class FieldRenderer
     private readonly FieldAssets field;
     private readonly byte[] pixels;
     private readonly float[] depth;
-    private readonly bool[] actorWritten;
     private readonly float scale;
     private readonly float verticalScale;
     private readonly float offsetX;
@@ -44,6 +43,8 @@ public sealed partial class FieldRenderer
     private TileRaster[] renderBackground;
     private Dictionary<int, Vector2> backgroundScrollOffsets = [];
     private FieldNativeBackgroundWrapFrame? backgroundWrapFrame;
+    private int backgroundCameraIndex;
+    private Vector2 backgroundJitter;
     private Vector2 actorScrollOffset;
     private ProjectedPoint[] projected = [];
 
@@ -64,7 +65,6 @@ public sealed partial class FieldRenderer
         OutputHeight = outputHeight;
         pixels = new byte[checked(outputWidth * outputHeight * 4)];
         depth = new float[outputWidth * outputHeight];
-        actorWritten = new bool[outputWidth * outputHeight];
         int presentationHeight = nativeMovieViewport ? NativeDrawingHeight : Height;
         scale = Math.Min(outputWidth / (float)Width, outputHeight / (float)presentationHeight);
         // Native 471F70 installs a 320x224 DRAWENV. 45B6F0 scales that
@@ -78,8 +78,8 @@ public sealed partial class FieldRenderer
         clipTop = Math.Clamp((int)MathF.Ceiling(offsetY - 0.5f), 0, outputHeight);
         clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, outputWidth);
         clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + presentationHeight * scale - 0.5f), 0, outputHeight);
-        background = field.Background.OrderByDescending(tile => tile.Z).Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
-        renderBackground = background;
+        background = field.Background.Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
+        renderBackground = PrepareBackgroundRasters(EmptyScrollOffsets, null, Vector2.Zero);
     }
 
     public int OutputWidth { get; }
@@ -113,16 +113,17 @@ public sealed partial class FieldRenderer
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
         this.actorScrollOffset = actorScrollOffset + jitter;
-        if (this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame))
+        if (this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter)
         {
-            TileRaster[] nextBackground = nextOffsets.Count == 0 && nativeWrapFrame is null ? background : PrepareBackgroundRasters(nextOffsets, nativeWrapFrame);
+            TileRaster[] nextBackground = PrepareBackgroundRasters(nextOffsets, nativeWrapFrame, jitter);
             this.backgroundScrollOffsets = nextOffsets.ToDictionary(pair => pair.Key, pair => pair.Value);
             backgroundWrapFrame = nativeWrapFrame;
+            backgroundCameraIndex = cameraIndex;
+            backgroundJitter = jitter;
             renderBackground = nextBackground;
         }
         MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
         Array.Fill(depth, float.PositiveInfinity);
-        Array.Clear(actorWritten);
         List<TileRaster> blendedBackground = [];
         foreach (TileRaster raster in renderBackground)
         {
@@ -146,12 +147,11 @@ public sealed partial class FieldRenderer
                 DrawActor(actor);
             }
         }
-        // Native MAP and model primitives share the ordering table. Nearer
-        // semitransparent MAP texels blend over the actor fragments, rather
-        // than becoming opaque depth occluders in the background prepass.
+        // Native45D080 draws opaque primitives before the translucent pass.
+        // STP texels test the completed opaque/model depth without writing it.
         foreach (TileRaster raster in blendedBackground)
         {
-            DrawTile(raster, actorOverlay: true);
+            DrawTile(raster, translucentPass: true);
         }
         return pixels;
     }
@@ -177,12 +177,24 @@ public sealed partial class FieldRenderer
         return first.NativeNormalVersion == second.NativeNormalVersion && first.FieldId == second.FieldId && first.ProgramHash == second.ProgramHash && first.Left == second.Left && first.Right == second.Right && first.Top == second.Top && first.Bottom == second.Bottom && first.Layers.SequenceEqual(second.Layers) && (first.LayerCurrents.IsDefault == second.LayerCurrents.IsDefault && (first.LayerCurrents.IsDefault || first.LayerCurrents.SequenceEqual(second.LayerCurrents)));
     }
 
-    private TileRaster[] PrepareBackgroundRasters(IReadOnlyDictionary<int, Vector2> offsets, FieldNativeBackgroundWrapFrame? frame)
+    private TileRaster[] PrepareBackgroundRasters(IReadOnlyDictionary<int, Vector2> offsets, FieldNativeBackgroundWrapFrame? frame, Vector2 jitter)
     {
         List<TileRaster> rasters = [];
+        FieldBounds screen = field.Information is { ScreenBounds.Count: > 0 } information ? information.ScreenBounds[0] : new FieldBounds(0, NativeDrawingHeight, Width, 0);
+        int halfWidth = (screen.Right - screen.Left) / 2;
+        int halfHeight = (screen.Bottom - screen.Top) / 2;
+        Dictionary<ushort, int> paletteOrders = [];
+        int previousDepth = background.Length == 0 ? 0 : background[0].Tile.Z;
+        if (background.Length != 0)
+        {
+            // 475480 seeds the first MAP depth/CLUT before scanning, even if
+            // that first tile subsequently fails origin culling.
+            paletteOrders.Add(background[0].Tile.PackedPalette, 0);
+        }
         foreach (TileRaster raster in background)
         {
             BackgroundTile tile = raster.Tile;
+            Vector2 scrollOffset = offsets.GetValueOrDefault(tile.Layer);
             FieldNativeBackgroundWrapLayer? wrapping = frame?.Layers.Where(layer => layer.Layer == tile.Layer).Select(layer => (FieldNativeBackgroundWrapLayer?)layer).FirstOrDefault();
             if (frame is not null && wrapping is FieldNativeBackgroundWrapLayer layer)
             {
@@ -191,18 +203,42 @@ public sealed partial class FieldRenderer
                     throw new NotSupportedException("Native wrapped tile origin exceeds its original signed-word coordinates.");
                 }
                 FieldNativeBackgroundTileOrigin? origin = FieldNativeBackgroundTileProbe.Relocate((short)tile.X, (short)tile.Y, layer, frame);
-                if (origin is FieldNativeBackgroundTileOrigin placed)
+                if (origin is not FieldNativeBackgroundTileOrigin placed)
                 {
-                    Vector2 shared = offsets.GetValueOrDefault(tile.Layer);
-                    rasters.Add(CreateTileRaster(tile, new Vector2(placed.X - tile.X, placed.Y - tile.Y) + shared));
+                    continue;
                 }
+                scrollOffset += new Vector2(placed.X - tile.X, placed.Y - tile.Y);
             }
-            else
+            // 475480 culls raw origins against C-PAN+[-192,176] / [-144,128]
+            // before assigning CLUT depths. C and PAN cancel against the
+            // common DRAWENV displacement; shake never enters this window.
+            Vector2 originInWindow = new Vector2(tile.X, tile.Y) + scrollOffset - jitter;
+            if (originInWindow.X <= -halfWidth - 32 || originInWindow.X >= halfWidth + 16 || originInWindow.Y <= -halfHeight - 32 || originInWindow.Y >= halfHeight + 16)
             {
-                rasters.Add(CreateTileRaster(tile, offsets.GetValueOrDefault(tile.Layer)));
+                continue;
             }
+            if (tile.Z != previousDepth)
+            {
+                paletteOrders.Clear();
+                previousDepth = tile.Z;
+            }
+            if (!paletteOrders.TryGetValue(tile.PackedPalette, out int paletteOrder))
+            {
+                paletteOrder = paletteOrders.Count;
+                if (paletteOrder >= 16)
+                {
+                    throw new NotSupportedException("Native MAP depth group exceeds its sixteen CLUT slots.");
+                }
+                paletteOrders.Add(tile.PackedPalette, paletteOrder);
+            }
+            // Original PC quad depth is proportional to 16*MAPZ+CLUT ordinal.
+            // Model camera Z uses four units per MAP ordering-table slot.
+            TileRaster placedRaster = scrollOffset == Vector2.Zero ? raster : CreateTileRaster(tile, scrollOffset);
+            rasters.Add(placedRaster with { Depth = tile.Z * 4f + paletteOrder / 4f });
         }
-        return rasters.ToArray();
+        // 45C870 prepends to the OT slot;45D310 traverses that chain. Preserve
+        // reverse file order within equal Z, independently of layer/CLUT.
+        return rasters.AsEnumerable().Reverse().OrderByDescending(raster => raster.Tile.Z).ToArray();
     }
 
     private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset)
@@ -243,12 +279,12 @@ public sealed partial class FieldRenderer
         return runs.ToArray();
     }
 
-    private void DrawTile(TileRaster raster, bool actorOverlay = false)
+    private void DrawTile(TileRaster raster, bool translucentPass = false)
     {
         BackgroundTile tile = raster.Tile;
         // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
         Vector3 shade = moduleColors is not null && tile.AnimationId != 255 && moduleColors.TryGetValue(tile.AnimationId, out Vector3 moduleShade) ? moduleShade : backgroundColor;
-        float tileDepth = tile.Z * 4f;
+        float tileDepth = raster.Depth;
         Span<uint> packedPixels = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
         foreach (RasterRun row in raster.Rows)
         {
@@ -261,7 +297,7 @@ public sealed partial class FieldRenderer
                     continue;
                 }
                 MapBlendMode blend = tile.Blend && color.A == 128 ? tile.BlendMode : MapBlendMode.None;
-                if (actorOverlay && blend == MapBlendMode.None)
+                if (translucentPass != (blend != MapBlendMode.None))
                 {
                     continue;
                 }
@@ -270,24 +306,36 @@ public sealed partial class FieldRenderer
                 {
                     int index = y * OutputWidth + column.Start;
                     int length = column.End - column.Start;
-                    if (blend == MapBlendMode.None)
+                    if (!translucentPass)
                     {
-                        packedPixels.Slice(index, length).Fill(packed);
+                        if (tileDepth == tile.Z * 4f)
+                        {
+                            // The nearest CLUT ordinal cannot fail against
+                            // any earlier far-to-near background primitive.
+                            packedPixels.Slice(index, length).Fill(packed);
+                            depth.AsSpan(index, length).Fill(tileDepth);
+                            continue;
+                        }
+                        for (int x = 0; x < length; x++)
+                        {
+                            // Native PC ZFUNC is LESSEQUAL. A later palette
+                            // group must not overwrite an earlier group's Z.
+                            if (tileDepth <= depth[index + x])
+                            {
+                                packedPixels[index + x] = packed;
+                                depth[index + x] = tileDepth;
+                            }
+                        }
                     }
                     else
                     {
                         for (int x = 0; x < length; x++)
                         {
-                            if (!actorOverlay || actorWritten[index + x] && tileDepth < depth[index + x])
+                            if (tileDepth <= depth[index + x])
                             {
                                 WritePixel(index + x, color, blend);
                             }
                         }
-                    }
-                    // MAP stores ordering-table depth; native model insertion uses camera Z >> 2.
-                    if (blend == MapBlendMode.None)
-                    {
-                        depth.AsSpan(index, length).Fill(tileDepth);
                     }
                 }
             }
@@ -295,7 +343,10 @@ public sealed partial class FieldRenderer
     }
 
     private readonly record struct RasterRun(int Start, int End, int Source);
-    private sealed record TileRaster(BackgroundTile Tile, RasterRun[] Columns, RasterRun[] Rows);
+    private sealed record TileRaster(BackgroundTile Tile, RasterRun[] Columns, RasterRun[] Rows)
+    {
+        public float Depth { get; init; }
+    }
 
     private void DrawActor(ActorVisual actor)
     {
@@ -392,7 +443,6 @@ public sealed partial class FieldRenderer
                 }
                 WritePixel(index, color, MapBlendMode.None);
                 depth[index] = z;
-                actorWritten[index] = true;
             }
         }
     }

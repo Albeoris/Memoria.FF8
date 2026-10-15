@@ -94,7 +94,6 @@ public sealed partial class FieldRenderer
                 // Preserve this primitive's ordering depth for foreground MAP
                 // blending, while subsequent nearer model fragments still win.
                 depth[index] = orderingDepth;
-                actorWritten[index] = true;
             }
         }
     }

@@ -26,7 +26,6 @@ public sealed partial class FieldRenderer
         Array.Clear(pixels);
         CopyMovieFrame(moviePixels, movieWidth, movieHeight);
         Array.Fill(depth, float.PositiveInfinity);
-        Array.Clear(actorWritten);
         if (mask is not null)
         {
             foreach (FieldMovieMaskTriangle triangle in mask.Triangles)

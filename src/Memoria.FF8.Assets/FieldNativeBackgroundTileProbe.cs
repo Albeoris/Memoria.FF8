@@ -15,11 +15,8 @@ public static class FieldNativeBackgroundTileProbe
         ArgumentNullException.ThrowIfNull(frame);
         short x = unchecked((short)(tileX + layer.OffsetX));
         short y = unchecked((short)(tileY + layer.OffsetY));
-        if (layer.PeriodX == 0 && layer.PeriodY == 0)
-        {
-            // 475480 bypasses relocation and strict origin culling when this layer's INF mask bit is clear.
-            return new FieldNativeBackgroundTileOrigin(x, y);
-        }
+        // A clear INF mask skips period relocation, but native475480 still
+        // reaches the same strict origin culling before assigning CLUT ranks.
         if (layer.PeriodX != 0 && x < frame.Left)
         {
             x = unchecked((short)(x + layer.PeriodX));
