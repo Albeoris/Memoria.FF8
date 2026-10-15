@@ -159,6 +159,7 @@ internal static partial class Program
                     ["cosine-scroll-zero"] = NativeLayerZeroCosineScrollContract,
                     ["native-jump"] = NativeJumpContract,
                     ["native-jump3"] = NativeJump3Contract,
+                    ["native-party-jump"] = () => NativePartyJumpContract(selectedGameDirectory),
                     ["native-ladder"] = NativeLadderContract,
                     ["native-ladder-reverse"] = NativeLadderReverseAndRestoreContract,
                     ["native-ladder-followers"] = NativeLadderFollowerContract,
@@ -2299,7 +2300,7 @@ internal static partial class Program
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(scriptsOffset + index * 2), checked((ushort)operationIndex));
             foreach ((Jsm.Opcode opcode, int parameter) in scripts[index])
             {
-                int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+                int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
                 BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(operationsOffset + operationIndex++ * 4), encoded);
             }
         }
@@ -2319,7 +2320,7 @@ internal static partial class Program
         for (int index = 0; index < operations.Length; index++)
         {
             (Jsm.Opcode opcode, int parameter) = operations[index];
-            int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+            int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16 + index * 4), encoded);
         }
         return bytes;

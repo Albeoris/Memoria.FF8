@@ -255,6 +255,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.JUMP3:
                 args = ExecuteNativeJump(fiber, parameter, true);
                 break;
+            case Jsm.Opcode.PJUMPA:
+                args = ExecuteNativeJump(fiber, parameter, partyTarget: true);
+                break;
             case Jsm.Opcode.LADDERUP:
             case Jsm.Opcode.LADDERDOWN:
                 args = ExecuteNativeLadderMode3(fiber, parameter, opcode == Jsm.Opcode.LADDERUP, out scalarArgs);
