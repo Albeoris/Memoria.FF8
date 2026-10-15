@@ -471,6 +471,7 @@ public sealed partial class EventEngine
             }
             Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
             action.NativeActorSlot = 7;
+            SelectNativeActorRequest(action);
             SuspendNativeMovementForRequest(actor, action);
         }
         else
@@ -564,6 +565,10 @@ public sealed partial class EventEngine
 
     private int Run(Fiber fiber, int instructionBudget)
     {
+        if (instructionBudget == 0)
+        {
+            return 0;
+        }
         if (fiber.WaitReason != WaitReason.None)
         {
             if (!WaitReady(fiber))
@@ -607,7 +612,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedNativeActorReturn(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
@@ -627,6 +632,16 @@ public sealed partial class EventEngine
             catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or InvalidDataException or ArithmeticException or NotSupportedException)
             {
                 throw Fault(fiber, $"{operation.Opcode}: {exception.Message}", exception);
+            }
+            if (!transitionRequested && (IsNativeSelfRequest(fiber, operation) || fiber.Complete && operation.Opcode == Jsm.Opcode.RET && IsNativeActorRequest(fiber.ObjectId)))
+            {
+                Fiber? selected = SelectScheduledFiber(fiber.ObjectId);
+                if (selected is not null && selected != fiber)
+                {
+                    //REQ/RET return4 transfers the physical PC without yielding
+                    //or replenishing529FF0's single sixteen-op entity budget.
+                    return count + 1 + Run(selected, instructionBudget - count - 1);
+                }
             }
             if (fiber.Complete || fiber.WaitReason != WaitReason.None || transitionRequested || NativeRequestEndsTurn(fiber, operation))
             {

@@ -61,6 +61,7 @@ public sealed partial class EventEngine
         }
         Fiber requested = Queue(actor.ObjectId, program!.Objects[actor.ObjectId].Scripts[3].Id, 6, false);
         requested.NativeActorSlot = 6;
+        SelectNativeActorRequest(requested);
         SuspendNativeMovementForRequest(actor, requested);
         return true;
     }

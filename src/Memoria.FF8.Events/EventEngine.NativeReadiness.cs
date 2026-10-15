@@ -15,10 +15,10 @@ public sealed partial class EventEngine
         {
             return SelectNativeDoorScheduledFiber(objectId);
         }
-        if (fibers.Any(item => item.ObjectId == objectId && item.NativeActorSlot is not null))
+        if (IsNativeActorRequest(objectId))
         {
             // Native51CD60 selects the highest occupied actor slot; slot0 retains the default.
-            return pending.OrderByDescending(item => item.NativeActorSlot ?? (item.Priority == 7 ? 0 : item.Priority)).ThenBy(item => item.Sequence).FirstOrDefault();
+            return pending.OrderByDescending(NativeActorRequestSlot).ThenBy(item => item.Sequence).FirstOrDefault();
         }
         return pending.OrderBy(item => item.Priority).ThenBy(item => item.Sequence).FirstOrDefault();
     }

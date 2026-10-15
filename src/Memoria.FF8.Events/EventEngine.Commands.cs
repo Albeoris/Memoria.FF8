@@ -22,6 +22,10 @@ public sealed partial class EventEngine
                     {
                         EnterNativeDoorResultFrame(fiber);
                     }
+                    else
+                    {
+                        EnterNativeActorResultFrame(fiber);
+                    }
                     fiber.NativeResultFrameEntered = true;
                 }
                 break;
@@ -33,6 +37,7 @@ public sealed partial class EventEngine
                     throw Fault(fiber, "Script returned with an unbalanced operand stack.");
                 }
                 CompleteNativeDoorRequest(fiber, parameter);
+                CompleteNativeActorResultFrame(fiber);
                 CompleteNativeMovementRequest(fiber, parameter);
                 fiber.Complete = true;
                 break;
@@ -1229,6 +1234,7 @@ public sealed partial class EventEngine
             if (IsNativeActorRequest(objectId))
             {
                 requested.NativeActorSlot = (byte)priority;
+                SelectNativeActorRequest(requested);
             }
             // Original door records lack the physical actor movement-backup flag.
             SuspendNativeMovementForRequest(actors[objectId], requested);
@@ -1270,6 +1276,7 @@ public sealed partial class EventEngine
         if (IsNativeActorRequest(target.ObjectId))
         {
             requested.NativeActorSlot = (byte)priority;
+            SelectNativeActorRequest(requested);
         }
         // Native51D1F0/51D360/51D530 use the same physical mode1 backup
         // as51CD60/51CED0/51D060. Saved party selection does not change ownership.

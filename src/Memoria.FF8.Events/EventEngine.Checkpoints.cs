@@ -300,7 +300,7 @@ public sealed partial class EventEngine
         ValidateFieldSoundCheckpoint(saved);
         ValidateParticleCheckpoint(saved);
         ValidateWorldEntryMemoryCheckpoint(saved);
-        if (NativeRuntimeProfile is { IsVerified: true } && (saved.Fibers.Any(fiber => fiber.Results.Keys.Any(index => (uint)index >= 8) || !fiber.NativeResultFrameEntered && !fiber.NativeDoorDefaultFrame && (fiber.Stack.Length != 0 || fiber.Results.Count != 0 && saved.Actors[fiber.ObjectId].NativeDoorScheduler?.CurrentSequence != fiber.Sequence || fiber.Position != program!.Objects[fiber.ObjectId].Scripts.Single(script => script.Id == fiber.ScriptId).Start)) || saved.Fibers.Where(fiber => !fiber.Complete && (fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame)).GroupBy(fiber => fiber.ObjectId).Any(group => group.Sum(fiber => fiber.Stack.Length + (fiber.NativeResultFrameEntered ? 8 : 0)) > 80)))
+        if (NativeRuntimeProfile is { IsVerified: true } && (saved.Fibers.Any(fiber => fiber.Results.Keys.Any(index => (uint)index >= 8) || !fiber.NativeResultFrameEntered && !fiber.NativeDoorDefaultFrame && (fiber.Stack.Length != 0 || fiber.Results.Count != 0 && !IsSavedNativeResultCurrent(saved, fiber) || fiber.Position != program!.Objects[fiber.ObjectId].Scripts.Single(script => script.Id == fiber.ScriptId).Start)) || saved.Fibers.Where(fiber => !fiber.Complete && (fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame)).GroupBy(fiber => fiber.ObjectId).Any(group => group.Sum(fiber => fiber.Stack.Length + (fiber.NativeResultFrameEntered ? 8 : 0)) > 80)))
         {
             throw new InvalidDataException("Saved native operand/result banks require represented in-bank writes; unchecked physical memory aliases are unsupported.");
         }

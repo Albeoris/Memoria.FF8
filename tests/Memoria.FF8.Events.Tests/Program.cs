@@ -20,6 +20,7 @@ internal static partial class Program
                     ["actor-mode"] = AdditionalActorControlAndGuard,
                     ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
                     ["native-async-party-turn"] = () => NativeAsyncPartyTurnContract(selectedGameDirectory),
+                    ["native-self-request"] = () => NativeSelfRequestContract(selectedGameDirectory),
                     ["message-variable"] = NativeMessageVariableContract,
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
                     ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,

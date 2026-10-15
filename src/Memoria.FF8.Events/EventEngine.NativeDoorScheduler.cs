@@ -172,9 +172,17 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved door request lost its actual LBL bank or unentered current live-result ownership");
             }
         }
-        if (restored.Any(fiber => fiber.NativeDoorSavedResults is not null && (fiber.Initialization || !program!.Objects[fiber.ObjectId].IsDoor || !fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame)))
+        foreach (Fiber fiber in restored.Where(fiber => !fiber.Initialization && !program!.Objects[fiber.ObjectId].IsDoor))
         {
-            throw new InvalidDataException("Saved door LBL bank belongs to an unproved context");
+            bool nativeContext = saved.Scene.NativeActorLayoutVersion == 1 && program!.NativeObjects.Contains(fiber.ObjectId) && (saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || program.Objects[fiber.ObjectId].IsArea || program.Objects[fiber.ObjectId].BackgroundModuleIndex is not null);
+            if (nativeContext && (fiber.NativeDoorDefaultFrame ? fiber.NativeDoorSavedResults is not null : fiber.NativeResultFrameEntered ? fiber.NativeDoorSavedResults is not { Length: 8 } : fiber.NativeDoorSavedResults is not null))
+            {
+                throw new InvalidDataException("Saved native actor request lost its actual LBL bank or default-without-frame ownership; migrate the save explicitly.");
+            }
+        }
+        if (restored.Any(fiber => fiber.NativeDoorSavedResults is not null && (fiber.Initialization || !fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame || !program!.NativeObjects.Contains(fiber.ObjectId))))
+        {
+            throw new InvalidDataException("Saved native LBL bank belongs to an unproved context");
         }
         if (restored.Any(fiber => fiber.NativeDoorDefaultFrame && (fiber.Initialization || fiber.NativeResultFrameEntered || fiber.Priority != 7 || program!.Objects[fiber.ObjectId].Scripts.Count < 2 || fiber.Script.Id != program.Objects[fiber.ObjectId].Scripts[1].Id || fiber.Position <= fiber.Script.Start || !restored.Any(init => init.Initialization && init.Complete && init.ObjectId == fiber.ObjectId && init.Sequence < fiber.Sequence) || program.Objects[fiber.ObjectId].IsDoor && saved.Actors[fiber.ObjectId].NativeDoorScheduler?.DefaultSequence != fiber.Sequence)))
         {

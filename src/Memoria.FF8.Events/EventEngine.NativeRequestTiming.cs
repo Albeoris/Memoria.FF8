@@ -6,12 +6,14 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedNativeRequestTiming(Fiber fiber, JsmOperation operation)
     {
-        if (NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && operation.Opcode == Jsm.Opcode.REQ && (uint)operation.Parameter < program!.NativeObjects.Count && program.NativeObjects[operation.Parameter] == fiber.ObjectId)
+        if (NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && operation.Opcode == Jsm.Opcode.REQ && (uint)operation.Parameter < program!.NativeObjects.Count && program.NativeObjects[operation.Parameter] == fiber.ObjectId && !IsNativeSelfRequest(fiber, operation))
         {
-            return "Native self REQ requires proved current-slot switching within the remaining instruction budget";
+            return "Native self REQ outside a retained physical actor requires its original dense BYTE598 identity comparison";
         }
         return null;
     }
+
+    private bool IsNativeSelfRequest(Fiber fiber, JsmOperation operation) => NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && operation.Opcode == Jsm.Opcode.REQ && (uint)operation.Parameter < program!.NativeActorCount && program.NativeObjects[operation.Parameter] == fiber.ObjectId && Scene.NativeActorObjectIds.Contains(fiber.ObjectId);
 
     private bool NativeRequestEndsTurn(Fiber fiber, JsmOperation operation)
     {
@@ -29,9 +31,9 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        // Native51CD60 returns3 even for a dropped/null cross-entity request.
-        // The self-request slot-transfer path is refused before consuming operands.
-        return true;
+        //51CD60 advances the self caller PC itself and returns4, even for
+        //an occupied slot. Cross-entity/null requests return3 and yield.
+        return !IsNativeSelfRequest(fiber, operation);
     }
 
     private IEnumerable<ActorState> NativeCallbackActors()

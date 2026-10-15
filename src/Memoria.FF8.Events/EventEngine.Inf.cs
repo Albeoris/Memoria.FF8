@@ -173,7 +173,9 @@ public sealed partial class EventEngine
         }
         if (!fibers.Any(fiber => fiber.ObjectId == actor.ObjectId && fiber.Priority == 6 && !fiber.Complete))
         {
-            Queue(actor.ObjectId, area.Scripts[2].Id, 6, false);
+            Fiber requested = Queue(actor.ObjectId, area.Scripts[2].Id, 6, false);
+            requested.NativeActorSlot = 6;
+            SelectNativeActorRequest(requested);
             return true;
         }
         return false;
