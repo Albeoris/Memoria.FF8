@@ -19,7 +19,6 @@ public sealed partial class MenuController
     private string _recipeId = "";
     private string _exchangeId = "";
     private string _junctionSlot = "HP";
-    private string _mappingId = "Confirm";
     private string _saveSlotId = "";
     private string _battleTargetId = "";
     private string _battleCommand = "Attack";
@@ -59,7 +58,6 @@ public sealed partial class MenuController
     public MenuBattleTarget? BattleTarget => Data.BattleTargets.FirstOrDefault(t => t.Id == _battleTargetId) ?? Data.BattleTargets.FirstOrDefault();
     public string BattleCommand => _battleCommand;
     public string JunctionSlot => _junctionSlot;
-    public string MappingId => _mappingId;
     public int CommandSlot => _commandSlot;
     public int AbilitySlot => _abilitySlot;
     public int TestQuestion => _testQuestion;
@@ -78,6 +76,7 @@ public sealed partial class MenuController
 
     public void Open(string screenId = "main", bool demo = false)
     {
+        CancelControlsCapture();
         if (!_screens.ContainsKey(screenId))
         {
             throw new ArgumentException($"Unknown menu screen '{screenId}'.", nameof(screenId));
@@ -96,6 +95,14 @@ public sealed partial class MenuController
         }
         IsOpen = true;
         ScreenId = screenId;
+        if (screenId.StartsWith("config-controller", StringComparison.Ordinal))
+        {
+            _controlsDevice = ControlDevice.Controller;
+        }
+        else if (screenId.StartsWith("config-keyboard", StringComparison.Ordinal))
+        {
+            _controlsDevice = ControlDevice.Keyboard;
+        }
         _history.Clear();
         if (demo && CurrentScreen.Layout == MenuLayout.BattleHud && Character?.InParty != true)
         {
@@ -107,6 +114,7 @@ public sealed partial class MenuController
 
     public void Close()
     {
+        CancelControlsCapture();
         IsOpen = false;
         _view = null;
         _history.Clear();
@@ -114,7 +122,7 @@ public sealed partial class MenuController
 
     public void Navigate(MenuInput input)
     {
-        if (!IsOpen)
+        if (!IsOpen || IsCapturingControls)
         {
             return;
         }
@@ -205,6 +213,11 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (IsCapturingControls)
+        {
+            CancelControlsCapture();
+            return;
+        }
         if (_history.TryPop(out var previous))
         {
             ScreenId = previous;
@@ -276,6 +289,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteControlsAction(action))
+        {
+            return;
+        }
         switch (action.Kind)
         {
             case "open-battle-debug":
@@ -312,9 +329,6 @@ public sealed partial class MenuController
                 return;
             case "select-slot":
                 _junctionSlot = action.SubjectId;
-                return;
-            case "select-mapping":
-                _mappingId = action.SubjectId;
                 return;
             case "select-save-slot":
                 _saveSlotId = action.SubjectId;

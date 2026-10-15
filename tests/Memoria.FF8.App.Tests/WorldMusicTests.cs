@@ -167,7 +167,7 @@ public sealed class WorldMusicTests
         Console.WriteLine($"Native world music selected{loaded.RequestedMusic}, resource{loaded.Resource.Section}/track{loaded.Music}, bank{loaded.PriorBank}->{loaded.Bank}, backend0->127/60ms; cold state/pixels/nextWait and actual DirectMusic verified.");
     }
 
-    private static void ReachGardenGate(GameWorld world, GameSession session)
+    internal static void ReachGardenGate(GameWorld world, GameSession session)
     {
         int centering = 0;
         for (int input = 0; input < 8000; input++)

@@ -69,21 +69,23 @@ public sealed class OpeningCorridorMovementTests
         FieldCamera camera = world.Field.GetCamera(world.Events.Scene.CameraIndex);
         ProjectedPoint origin = camera.Project(new Vector3(player.X, player.Y, player.Z));
         Console.WriteLine($"Original229 baseline ({player.X},{player.Y},{player.Z})/triangle{player.WalkmeshTriangle}; native{world.Events.Scene.NativePlayerPosition}; camera{camera}.");
-        foreach ((float horizontal, float vertical) in new[] { (-1f, 0f), (1f, 0f), (0f, -1f), (0f, 1f) })
+        foreach ((float horizontal, float vertical, int direction) in new[] { (-1f, 0f, 128), (1f, 0f, 0), (0f, -1f, 192), (0f, 1f, 64), (-0.25f, -1f, 182), (0.25f, -1f, 202) })
         {
             using var probe = new GameWorld(new GameSession(state), directory);
             probe.EnsureField();
             ActorState moving = Assert.Single(probe.Events.Actors, actor => actor.Active && actor.CharacterId == 0);
-            int direction = horizontal > 0 ? 0 : horizontal < 0 ? 128 : vertical > 0 ? 64 : 192;
             FieldNativeMovementResult ground = FieldNativeMovementProbe.Resolve(probe.Field!.Walkmesh, new FieldNativeMovementRequest(moving.WalkmeshTriangle, (int)(moving.X * 4096), (int)(moving.Y * 4096), (int)(moving.Z * 4096), (byte)direction, 2696, 48, true, false, 0, true), probe.Events.Scene.LockedTriangles);
             Assert.True(ground.Status == FieldNativeMovementStatus.Accepted, $"Original229 ({horizontal},{vertical}) from ({moving.X},{moving.Y},{moving.Z})/{moving.WalkmeshTriangle} direction{direction}: {ground.Status}, retry{ground.RetryCount}, reason{ground.UnsupportedReason}; camera{camera}.");
             Assert.True(probe.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical)).Accepted);
+            Assert.Equal(direction, moving.Direction);
+            Assert.Equal(horizontal, probe.Events.ActionLog[^1].Action.Horizontal);
+            Assert.Equal(vertical, probe.Events.ActionLog[^1].Action.Vertical);
             ProjectedPoint projected = camera.Project(new Vector3(moving.X, moving.Y, moving.Z));
-            if (horizontal != 0)
+            if (horizontal != 0 && vertical == 0)
             {
                 Assert.Equal(-Math.Sign(horizontal), Math.Sign(projected.X - origin.X));
             }
-            else
+            else if (horizontal == 0)
             {
                 Assert.Equal(Math.Sign(vertical), Math.Sign(projected.Y - origin.Y));
             }

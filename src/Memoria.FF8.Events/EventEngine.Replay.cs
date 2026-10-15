@@ -62,6 +62,10 @@ public sealed partial class EventEngine
     public PlayerActionResult Apply(PlayerAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        if (action.CameraHorizontal != 0)
+        {
+            throw new NotSupportedException("Manual camera input belongs to the ordinary world motor; field cameras require their executed script contract.");
+        }
         if (action.Kind == PlayerActionKind.BuyShopItem && (action.Value is < 0 or > byte.MaxValue || action.Quantity is null or < 1 or > byte.MaxValue))
         {
             throw new ArgumentException("Shop purchase requires a BYTE item and an explicit positive BYTE quantity.", nameof(action));

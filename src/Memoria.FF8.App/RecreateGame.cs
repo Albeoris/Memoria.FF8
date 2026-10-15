@@ -5,6 +5,7 @@ using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
@@ -45,6 +46,7 @@ internal sealed partial class RecreateGame : Game
     private readonly GameLoopMetrics metrics = new();
     private string? saveNotice;
     private double saveNoticeSeconds;
+    private bool userPaused;
 
     public RecreateGame(LaunchOptions options, GameSession session)
     {
@@ -86,7 +88,29 @@ internal sealed partial class RecreateGame : Game
     protected override void Update(GameTime gameTime)
     {
         long updateStarted = Stopwatch.GetTimestamp();
-        InputFrame input = keyboard.Read(IsActive);
+        KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+        Microsoft.Xna.Framework.Input.GamePadState pad = Microsoft.Xna.Framework.Input.GamePad.GetState(PlayerIndex.One, Microsoft.Xna.Framework.Input.GamePadDeadZone.None);
+        bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
+        keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
+        InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
+        if (capturing)
+        {
+            UpdateControlsCapturePointer();
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
+        if (keyboard.PauseRequested && !saveMenu.IsOpen && gameMenus?.IsOpen != true)
+        {
+            userPaused = !userPaused;
+            SynchronizeUiMoviePause();
+        }
+        if (userPaused)
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (keyboard.SpeedToggleRequested)
         {
             gameplayClock.ToggleSpeed();
@@ -414,7 +438,7 @@ internal sealed partial class RecreateGame : Game
             while (fieldSeconds + 1e-9 >= 1d / WorldMapScene.SimulationFps)
             {
                 fieldSeconds -= 1d / WorldMapScene.SimulationFps;
-                PlayerAction action = input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical) : new PlayerAction(PlayerActionKind.Wait);
+                PlayerAction action = input.Horizontal != 0 || input.Vertical != 0 ? new PlayerAction(PlayerActionKind.Move, Horizontal: input.Horizontal, Vertical: input.Vertical, CameraHorizontal: input.CameraHorizontal) : new PlayerAction(PlayerActionKind.Wait, CameraHorizontal: input.CameraHorizontal);
                 metrics.Simulate(world.Apply(action).FramesAdvanced);
                 if (session.State.Scene != SceneKind.WorldMap)
                 {
@@ -890,6 +914,10 @@ internal sealed partial class RecreateGame : Game
             DrawNoticeUi(bounds, saveNotice, false);
         }
         DrawGameUi(bounds);
+        if (userPaused)
+        {
+            DrawNoticeUi(bounds, "Paused — " + keyboard.BindingHint(ControlAction.Pause) + ": resume", true);
+        }
         DrawBattleDebugUi(bounds);
         batch.End();
         string? capturePath = pendingCapture ?? (!frameCaptured && gameTime.TotalGameTime.TotalSeconds >= options.CaptureAfterSeconds ? options.CaptureFramePath : null);

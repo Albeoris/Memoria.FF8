@@ -248,7 +248,8 @@ public sealed partial class MenuController
 
     private UiElement Footer()
     {
-        return Panel(null, Label($"{(IsDemo ? "DEMO · " : "")}{Data.Location}    H/G: character    X/Enter: confirm    C/Esc: back    F2: Debug Room", 14));
+        string text = IsCapturingControls ? "Release all to apply · Escape or click Cancel to cancel" : IsControlsScreen ? "Arrow keys: select · Enter: confirm · Escape: back · Mouse supported" : $"{(IsDemo ? "DEMO · " : "")}{Data.Location}    Confirm: {BindingText(ControlAction.Confirm, ControlDevice.Keyboard)}    Back: {BindingText(ControlAction.Cancel, ControlDevice.Keyboard)}    Menu: {BindingText(ControlAction.Menu, ControlDevice.Keyboard)}";
+        return Panel(null, Label(text, 14));
     }
 
     private UiElement Commands(float rowHeight, float fontSize)
