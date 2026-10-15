@@ -99,6 +99,7 @@ internal static partial class Program
             Require(refused.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == slot && refused.Scene.Party.SequenceEqual([0, 255, 5]), "Rejected GETPARTY consumed operands or compressed slots.");
         }
         NativeSparsePartyRequestContract(initial);
+        NativeInactivePartyRequestContract(assets);
         NativePartyRequestPreemptionContract(initial);
         Console.WriteLine("Native raw3 party: sparse GET/ISPARTY, allFF/leadingFF SETPARTY, combat1,0,2, lowBYTE SUBPARTY, firstFF ADDPARTY, independent restore/field persistence and malformed snapshot atomic refusal passed.");
     }
@@ -143,6 +144,59 @@ internal static partial class Program
             }
             Require(sessions[live].State.Variables[700] == 1 && sessions[live].State.Variables[701] == 1 && live.Scene.Party.SequenceEqual([0, 255, 5]), "Absent PREQ slot did not consume/drop and continue after its original yield.");
         }
+    }
+
+    private static void NativeInactivePartyRequestContract(GameAssets assets)
+    {
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.PREQ, Jsm.Opcode.PREQSW, Jsm.Opcode.PREQEW })
+        {
+            foreach (bool refreshAfterUnuse in new[] { false, true })
+            {
+                List<(Jsm.Opcode, int)> caller = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0)];
+                if (refreshAfterUnuse)
+                {
+                    caller.Add((Jsm.Opcode.REFRESHPARTY, 0));
+                }
+                caller.AddRange([(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (opcode, 2), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 720), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
+                byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 2], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.RET, 8)], caller.ToArray(), [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 5), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.POPM_B, 721), (Jsm.Opcode.RET, 8)]]);
+                EventEngine Create()
+                {
+                    GameSession session = GameSession.CreateColdProcess();
+                    session.StartNewGame();
+                    session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+                    session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+                    session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
+                    session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
+                    EventEngine engine = new(session, session.EventMemory) { AnimationFrameCount = (_, _) => 1 };
+                    engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+                    return engine;
+                }
+                EventEngine live = Create();
+                bool issued = false;
+                live.CommandExecuted += command => issued |= command.Name == opcode.ToString();
+                while (!issued && live.Frame < 12)
+                {
+                    live.Step();
+                }
+                JsonElement pending = live.Capture();
+                Require(issued && !live.Actors[2].Active && live.Scene.NativeActorObjectIds.SequenceEqual([0, 1, 2]) && live.Scene.PartyBindingMemory?.Third == 2 && !CapturedVariables(pending).TryGetProperty("720", out _) && !CapturedVariables(pending).TryGetProperty("721", out _), "Inactive PREQ target was reactivated, removed, rebound, or lost the native issue yield.");
+                if (opcode == Jsm.Opcode.PREQEW)
+                {
+                    Require(pending.GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("WaitReason").GetString() == nameof(WaitReason.RequestEnd)), "PREQEW did not wait for the retained inactive target's requested script.");
+                }
+                EventEngine restored = Create();
+                restored.Restore(pending);
+                for (int tick = 0; tick < 12; tick++)
+                {
+                    live.Step();
+                    restored.Step();
+                    Require(JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Inactive party request pending ownership diverged after restore.");
+                }
+                JsonElement complete = live.Capture();
+                Require(!live.Actors[2].Active && CapturedVariables(complete).GetProperty("720").GetInt32() == 1 && CapturedVariables(complete).GetProperty("721").GetInt32() == 1, "Retained inactive target did not execute and complete its party request without USE.");
+            }
+        }
+        Console.WriteLine("Native inactive party requests: PREQ/PREQSW/PREQEW before/after explicit refresh, retained identity, issue yield, end wait and independent pending restore passed.");
     }
 
     private static void NativePartyRequestPreemptionContract(NativeCharacterVitals initial)

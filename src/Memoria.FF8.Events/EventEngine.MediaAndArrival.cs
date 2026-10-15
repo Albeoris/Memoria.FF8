@@ -602,10 +602,8 @@ public sealed partial class EventEngine
         }
         int priority = fiber.Stack.Skip(1).First();
         ActorState? target = ResolveJoinPartyActor(operation.Parameter);
-        if (target is not null && !target.Active)
-        {
-            return $"Unsupported {operation.Opcode} refreshed inactive party actor requires further native execution evidence";
-        }
+        // Native51D1F0/51D360/51D530 address the retained body through B194,
+        // without testing active bit352:2. Later UNUSE leaves its VM scheduled.
         if (target is null || RequestPriorityOccupied(target.ObjectId, priority))
         {
             return null;

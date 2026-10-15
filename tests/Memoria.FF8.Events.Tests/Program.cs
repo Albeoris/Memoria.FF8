@@ -80,6 +80,11 @@ internal static partial class Program
                     ["world-transition"] = () => NativeWorldTransitionTransaction(selectedGameDirectory),
                     ["minimal-menu"] = () => MinimalMenuCompletionContract(selectedGameDirectory),
                     ["party-query"] = () => NativePartyQueryContract(selectedGameDirectory),
+                    ["inactive-party-request"] = () =>
+                    {
+                        using GameAssets assets = new(selectedGameDirectory);
+                        NativeInactivePartyRequestContract(assets);
+                    },
                     ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
                     ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
