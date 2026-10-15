@@ -90,193 +90,96 @@ public sealed class FieldNativeCameraProbeTests
         Assert.Equal(new FieldNativeCameraCenter(1, 0), wordAssignment.Center);
     }
 
-    [Fact]
-    public void MatrixMagicAddTieCanBeCertifiedByFinalLogicalDivision()
-    {
-        FieldCamera matrixTie = Camera() with { AxisX = new Vector3(0.5f, 0, 0) };
-        FieldNativeCameraResult matrix = FieldNativeCameraProbe.Resolve(matrixTie, Information(), 1 << 12, 0, 0);
-        Assert.True(matrix.Supported, matrix.UnsupportedReason);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), matrix.Center);
-        Assert.Null(matrix.Diagnostics!.Transformed);
-        Assert.Equal(new FieldNativeCameraPoint(0, 0, 1000), matrix.Diagnostics.TransformedLow);
-        Assert.Equal(new FieldNativeCameraPoint(1, 0, 1000), matrix.Diagnostics.TransformedHigh);
-        Assert.Equal(1000, matrix.Diagnostics.ProjectionDepth);
-    }
-
-    [Fact]
-    public void AllEightMatrixCornerOutcomesCanHaveOneFinalCenter()
-    {
-        FieldCamera camera = Camera() with { AxisX = new Vector3(0.5f, 0, 0), AxisY = new Vector3(0.5f, 0, 0), AxisZ = new Vector3(0.5f, 0, 0) };
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(camera, Information(), 1 << 12, 0, 0);
-        Assert.True(result.Supported, result.UnsupportedReason);
-        Assert.Null(result.Diagnostics!.Transformed);
-        Assert.Null(result.Diagnostics.ProjectionDepth);
-        Assert.Equal(new FieldNativeCameraPoint(0, 0, 1000), result.Diagnostics.TransformedLow);
-        Assert.Equal(new FieldNativeCameraPoint(1, 1, 1001), result.Diagnostics.TransformedHigh);
-        Assert.Equal(1000, result.Diagnostics.ProjectionDepthLow);
-        Assert.Equal(1001, result.Diagnostics.ProjectionDepthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(1, 1), result.Diagnostics.ProjectedEighthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), result.Center);
-    }
-
     [Theory]
-    [InlineData(1, 14, 14, 15, 7, 8)]
-    [InlineData(-1, -14, -15, -14, -8, -7)]
-    public void MatrixIntervalRefusesDistinctCentersAndAdmitsForcedClamp(int x, int translation, int low, int high, int projectedLow, int projectedHigh)
+    [InlineData(1, 14, 14, 7, 0)]
+    [InlineData(-1, -14, -14, -7, 0)]
+    [InlineData(3, 14, 16, 8, 1)]
+    [InlineData(-3, -14, -16, -8, -1)]
+    public void MatrixHalfTiesUseNativeNearestEvenBeforeTranslation(int x, int translation, int transformed, int projected, int center)
     {
         FieldCamera camera = Camera() with { AxisX = new Vector3(0.5f, 0, 0), Translation = new Vector3(translation, 0, 1600) };
         FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(camera, Information(), x << 12, 0, 0);
-        Assert.False(result.Supported);
-        Assert.Contains("different final", result.UnsupportedReason);
-        Assert.Null(result.Diagnostics!.Transformed);
-        Assert.Equal(new FieldNativeCameraPoint(low, 0, 1600), result.Diagnostics.TransformedLow);
-        Assert.Equal(new FieldNativeCameraPoint(high, 0, 1600), result.Diagnostics.TransformedHigh);
-        Assert.Equal(new FieldNativeCameraCenter(projectedLow, 0), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(projectedHigh, 0), result.Diagnostics.ProjectedEighthHigh);
-        FieldNativeCameraResult clamped = FieldNativeCameraProbe.Resolve(camera, Information() with { CameraBounds = [new FieldBounds(-10, 10, 10, -10)] }, x << 12, 0, 0);
-        Assert.True(clamped.Supported, clamped.UnsupportedReason);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), clamped.Center);
-    }
-
-    [Fact]
-    public void MatrixIntervalSupportsProjectedSaturationAndNegativeDepthButRefusesTransformSaturationOrZeroDenominator()
-    {
-        FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-10, 10, 10, -10)] };
-        FieldNativeCameraResult saturation = FieldNativeCameraProbe.Resolve(Camera() with { AxisX = new Vector3(0.5f, 0, 0), Translation = new Vector3(32767, 0, 1000) }, information, 1 << 12, 0, 0);
-        Assert.False(saturation.Supported);
-        Assert.Contains("signed-WORD saturation", saturation.UnsupportedReason);
-        FieldNativeCameraResult projected = FieldNativeCameraProbe.Resolve(Camera() with { AxisX = new Vector3(0.5f, 0, 0), Translation = new Vector3(16368, 0, 1600) }, information, 1 << 12, 0, 0);
-        Assert.True(projected.Supported, projected.UnsupportedReason);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), projected.Center);
-        FieldNativeCameraResult negative = FieldNativeCameraProbe.Resolve(Camera() with { AxisZ = new Vector3(-0.5f, 0, 0), Translation = Vector3.Zero }, information, 1 << 12, 0, 0);
-        Assert.True(negative.Supported, negative.UnsupportedReason);
-        Assert.Equal(50, negative.Diagnostics!.ProjectionDepth);
-        FieldNativeCameraResult zero = FieldNativeCameraProbe.Resolve(Camera() with { AxisZ = new Vector3(0.5f, 0, 0), Translation = Vector3.Zero, FocalLength = 1 }, information, 1 << 12, 0, 0);
-        Assert.False(zero.Supported);
-        Assert.Contains("denominator", zero.UnsupportedReason);
-    }
-
-    [Fact]
-    public void ReachedQuad18539MatrixIntervalHasOneFinalNativeCameraCenter()
-    {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
-        Assert.SkipUnless(Directory.Exists(directory), "Installed selected field corpus is required.");
-        using GameAssets assets = new(directory);
-        FieldAssets field = assets.LoadField(185);
-        // Genuine field185/frame39 SHA e25236336118d79e7b287ade72c72c9a36ce714fde938d5117b40ea00a25aed6.
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(field.Camera, field.Information!, 6230412, 564653, 2289664);
         Assert.True(result.Supported, result.UnsupportedReason);
-        Assert.Null(result.Diagnostics!.Transformed);
-        Assert.Equal(new FieldNativeCameraPoint(1521, 137, 759), result.Diagnostics.Anchor);
-        Assert.Equal(new FieldNativeCameraPoint(2562, -2331, 9625), result.Diagnostics.TransformedLow);
-        Assert.Equal(new FieldNativeCameraPoint(2562, -2330, 9625), result.Diagnostics.TransformedHigh);
-        Assert.Equal(9625, result.Diagnostics.ProjectionDepth);
-        Assert.Equal(new FieldNativeCameraCenter(1365, -1242), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(1365, -1241), result.Diagnostics.ProjectedEighthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(170, -155), result.Diagnostics.UnclampedCenter);
-        Assert.Equal(new FieldNativeCameraCenter(80, -72), result.Center);
+        Assert.Equal(new FieldNativeCameraPoint(transformed, 0, 1600), result.Diagnostics!.Transformed);
+        Assert.Equal(new FieldNativeCameraCenter(projected, 0), result.Diagnostics.ProjectedEighth);
+        Assert.Equal(new FieldNativeCameraCenter(center, 0), result.Center);
     }
 
     [Theory]
-    [InlineData(1, 0, 1)]
-    [InlineData(-1, -1, 0)]
-    public void PerspectiveAmbiguityCanBeCertifiedBySignedDivision(int x, int low, int high)
+    [InlineData(1, 0, 0)]
+    [InlineData(-1, 0, 0)]
+    [InlineData(15, 8, 1)]
+    [InlineData(-15, -8, -1)]
+    [InlineData(31, 16, 2)]
+    [InlineData(-31, -16, -2)]
+    public void PerspectiveHalfTiesHaveOneDeterministicCenter(int x, int projected, int center)
     {
         FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 1600) }, Information(), x << 12, 0, 0);
         Assert.True(result.Supported, result.UnsupportedReason);
-        Assert.Null(result.Diagnostics!.ProjectedEighth);
-        Assert.Equal(new FieldNativeCameraCenter(low, 0), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(high, 0), result.Diagnostics.ProjectedEighthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), result.Diagnostics.UnclampedCenter);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), result.Center);
-    }
-
-    [Theory]
-    [InlineData(31, 15, 16, 1)]
-    [InlineData(-31, -16, -15, -1)]
-    public void PerspectiveAmbiguityCanBeCertifiedByNativeClamp(int x, int low, int high, int clamped)
-    {
-        FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-100, 100, 11, -11)] };
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 1600) }, information, x << 12, 0, 0);
-        Assert.True(result.Supported, result.UnsupportedReason);
-        Assert.Null(result.Diagnostics!.ProjectedEighth);
-        Assert.Null(result.Diagnostics.UnclampedCenter);
-        Assert.Equal(new FieldNativeCameraCenter(low, 0), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(high, 0), result.Diagnostics.ProjectedEighthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(clamped, 0), result.Center);
-    }
-
-    [Theory]
-    [InlineData(15, 7, 8)]
-    [InlineData(-15, -8, -7)]
-    public void PerspectiveAmbiguityStillRefusesWhenFinalLogicalCenterChanges(int x, int low, int high)
-    {
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 1600) }, Information(), x << 12, 0, 0);
-        Assert.False(result.Supported);
-        Assert.Null(result.Center);
-        Assert.Null(result.Diagnostics!.ProjectedEighth);
-        Assert.Null(result.Diagnostics.UnclampedCenter);
-        Assert.Equal(new FieldNativeCameraCenter(low, 0), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(high, 0), result.Diagnostics.ProjectedEighthHigh);
-        Assert.Contains("different final", result.UnsupportedReason);
+        Assert.Equal(new FieldNativeCameraCenter(projected, 0), result.Diagnostics!.ProjectedEighth);
+        Assert.Equal(new FieldNativeCameraCenter(center, 0), result.Center);
     }
 
     [Fact]
-    public void ReachedFirstFloor245ProjectionIntervalHasOneNativeCameraCenter()
+    public void NativeRawTransformRegistersSurviveDiagnosticWordSaturationAndDepthClampsToUnsignedWord()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
-        Assert.SkipUnless(Directory.Exists(directory), "Installed selected field corpus is required.");
-        using GameAssets assets = new(directory);
-        FieldAssets field = assets.LoadField(165);
-        // Exact raw position from genuine245 SHA c5bb787330e25eeabfec9cfb925ef576b8dc9fbc5f802b39bce1f7ec7b62f4d3.
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(field.Camera, field.Information!, -9329120, -22734368, 2322432);
-        Assert.True(result.Supported, result.UnsupportedReason);
-        Assert.Equal(new FieldNativeCameraPoint(-2278, -5551, 767), result.Diagnostics!.Anchor);
-        Assert.Equal(new FieldNativeCameraPoint(-2121, -911, 9661), result.Diagnostics.Transformed);
-        Assert.Equal(9661, result.Diagnostics.ProjectionDepth);
-        Assert.Null(result.Diagnostics.ProjectedEighth);
-        Assert.Equal(new FieldNativeCameraCenter(-1205, -518), result.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(-1205, -517), result.Diagnostics.ProjectedEighthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(-150, -64), result.Diagnostics.UnclampedCenter);
-        Assert.Equal(new FieldNativeCameraCenter(-24, -64), result.Center);
-    }
-
-    [Fact]
-    public void ProjectedSaturationAndNegativeDepthUseNativeArithmeticEvenWithForcedZeroBounds()
-    {
-        FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-10, 10, 10, -10)] };
-        FieldNativeCameraResult transformed = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(32768, 0, 1000) }, information, 0, 0, 0);
-        Assert.False(transformed.Supported);
-        Assert.Contains("signed-WORD saturation", transformed.UnsupportedReason);
-        FieldNativeCameraResult projected = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 100) }, information, 2000 << 12, 0, 0);
-        Assert.True(projected.Supported, projected.UnsupportedReason);
-        Assert.Equal(new FieldNativeCameraCenter(8184, 0), projected.Diagnostics!.ProjectedEighth);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), projected.Center);
-        FieldNativeCameraResult ambiguousSaturation = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, 1600) }, information, 16369 << 12, 0, 0);
-        Assert.True(ambiguousSaturation.Supported, ambiguousSaturation.UnsupportedReason);
-        Assert.Equal(new FieldNativeCameraCenter(8184, 0), ambiguousSaturation.Diagnostics!.ProjectedEighth);
-        Assert.Equal(new FieldNativeCameraCenter(8184, 0), ambiguousSaturation.Diagnostics.ProjectedEighthLow);
-        Assert.Equal(new FieldNativeCameraCenter(8184, 0), ambiguousSaturation.Diagnostics.ProjectedEighthHigh);
-        Assert.Equal(new FieldNativeCameraCenter(0, 0), ambiguousSaturation.Center);
-        FieldNativeCameraResult negative = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, -1) }, information, 0, 0, 0);
-        Assert.True(negative.Supported, negative.UnsupportedReason);
-        Assert.Equal(50, negative.Diagnostics!.ProjectionDepth);
-    }
-
-    [Fact]
-    public void NegativeDepthUsesZeroThenNearClampAndSaturatesBothProjectedAxes()
-    {
-        FieldCamera camera = Camera() with { Translation = new Vector3(0, 0, -1), FocalLength = 101 };
         FieldInformation information = Information() with { CameraBounds = [new FieldBounds(-2000, 2000, 2000, -2000)] };
-        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(camera, information, 2000 << 12, -2000 << 12, 0);
-        Assert.True(result.Supported, result.UnsupportedReason);
-        Assert.Equal(-1, result.Diagnostics!.Transformed!.Value.Z);
-        Assert.Equal(50, result.Diagnostics.ProjectionDepth);
-        Assert.Equal(new FieldNativeCameraCenter(8184, -8192), result.Diagnostics.ProjectedEighth);
-        Assert.Equal(new FieldNativeCameraCenter(1023, -1024), result.Center);
+        FieldNativeCameraResult wide = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(40000, -40000, 100000) }, information, 0, 0, 0);
+        Assert.True(wide.Supported, wide.UnsupportedReason);
+        Assert.Equal(new FieldNativeCameraPoint(40000, -40000, 100000), wide.Diagnostics!.Transformed);
+        Assert.Equal(65535, wide.Diagnostics.ProjectionDepth);
+        Assert.Equal(new FieldNativeCameraCenter(488, -488), wide.Diagnostics.ProjectedEighth);
+        Assert.Equal(new FieldNativeCameraCenter(61, -61), wide.Center);
+        FieldNativeCameraResult negative = FieldNativeCameraProbe.Resolve(Camera() with { Translation = new Vector3(0, 0, -1), FocalLength = 101 }, information, 2000 << 12, -2000 << 12, 0);
+        Assert.True(negative.Supported, negative.UnsupportedReason);
+        Assert.Equal(50, negative.Diagnostics!.ProjectionDepth);
+        Assert.Equal(new FieldNativeCameraCenter(8184, -8192), negative.Diagnostics.ProjectedEighth);
+        Assert.Equal(new FieldNativeCameraCenter(1023, -1024), negative.Center);
     }
 
+    [Theory]
+    [InlineData(102, -2715648, -1605632, 0)]
+    [InlineData(102, -2818048, -1495040, 0)]
+    [InlineData(102, -2572288, -1720320, 0)]
+    [InlineData(185, 6230412, 564653, 2289664)]
+    [InlineData(165, -9329120, -22734368, 2322432)]
+    public void ReachedAndNearbyDoorRoundingBoundariesAlwaysHaveOneCenter(int fieldId, int x, int y, int z)
+    {
+        using GameAssets assets = InstalledAssets();
+        FieldAssets field = assets.LoadField(fieldId);
+        FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(field.Camera, field.Information!, x, y, z);
+        Assert.True(result.Supported, result.UnsupportedReason);
+        Assert.NotNull(result.Diagnostics!.Transformed);
+        Assert.NotNull(result.Diagnostics.ProjectedEighth);
+        if (fieldId == 102 && x == -2715648)
+        {
+            Assert.Equal(new FieldNativeCameraPoint(-591, 77, 1154), result.Diagnostics.Transformed);
+            Assert.Equal(new FieldNativeCameraCenter(-1540, 201), result.Diagnostics.ProjectedEighth);
+            Assert.Equal(new FieldNativeCameraCenter(-80, 25), result.Center);
+        }
+    }
+
+    [Fact]
+    public void BalambDoorNeighborhoodHasNoPositionDependentProjectionRefusal()
+    {
+        using GameAssets assets = InstalledAssets();
+        FieldAssets field = assets.LoadField(102);
+        for (int x = -906; x <= -394; x++)
+        {
+            for (int y = -634; y <= -122; y++)
+            {
+                FieldNativeCameraResult result = FieldNativeCameraProbe.Resolve(field.Camera, field.Information!, x << 12, y << 12, 0);
+                Assert.True(result.Supported, $"Anchor({x},{y},0): {result.UnsupportedReason}");
+            }
+        }
+    }
+
+    private static GameAssets InstalledAssets()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
+        return new GameAssets(directory);
+    }
     [Fact]
     public void UnsupportedCameraMetadataAndNonzeroSelectedSlotHaveNoInventedCenter()
     {

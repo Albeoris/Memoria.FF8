@@ -4,7 +4,7 @@ namespace Memoria.FF8.Assets;
 
 public readonly record struct FieldNativeCameraPoint(int X, int Y, int Z);
 public readonly record struct FieldNativeCameraCenter(int X, int Y);
-public sealed record FieldNativeCameraDiagnostics(FieldNativeCameraPoint Anchor, FieldNativeCameraPoint? Transformed = null, int? ProjectionDepth = null, FieldNativeCameraCenter? ProjectedEighth = null, FieldNativeCameraCenter? UnclampedCenter = null, FieldNativeCameraCenter? ProjectedEighthLow = null, FieldNativeCameraCenter? ProjectedEighthHigh = null, FieldNativeCameraPoint? TransformedLow = null, FieldNativeCameraPoint? TransformedHigh = null, int? ProjectionDepthLow = null, int? ProjectionDepthHigh = null);
+public sealed record FieldNativeCameraDiagnostics(FieldNativeCameraPoint Anchor, FieldNativeCameraPoint? Transformed = null, int? ProjectionDepth = null, FieldNativeCameraCenter? ProjectedEighth = null, FieldNativeCameraCenter? UnclampedCenter = null);
 public sealed record FieldNativeCameraResult(FieldNativeCameraCenter? Center, FieldNativeCameraDiagnostics? Diagnostics, string? UnsupportedReason)
 {
     public bool Supported => Center.HasValue && UnsupportedReason is null;
@@ -47,65 +47,28 @@ public static class FieldNativeCameraProbe
 
         FieldNativeCameraPoint anchor = new(unchecked((short)(fixedX >> 12)), unchecked((short)(fixedY >> 12)), unchecked((short)((fixedZ >> 12) + information.CameraHeight)));
         diagnostics = new FieldNativeCameraDiagnostics(anchor);
-        (int xLow, int xHigh) = TransformInterval(axisX, anchor, translation.X);
-        (int yLow, int yHigh) = TransformInterval(axisY, anchor, translation.Y);
-        (int zLow, int zHigh) = TransformInterval(axisZ, anchor, translation.Z);
-        FieldNativeCameraPoint transformedLow = new(xLow, yLow, zLow);
-        FieldNativeCameraPoint transformedHigh = new(xHigh, yHigh, zHigh);
-        diagnostics = diagnostics with { Transformed = transformedLow == transformedHigh ? transformedLow : null, TransformedLow = transformedLow, TransformedHigh = transformedHigh };
-        if (xLow < short.MinValue || xHigh > short.MaxValue || yLow < short.MinValue || yHigh > short.MaxValue || zLow < short.MinValue || zHigh > short.MaxValue)
-        {
-            return Unsupported("Native transformed signed-WORD saturation is outside this bounded projection contract.");
-        }
+        FieldNativeCameraPoint transformed = new(Transform(axisX, anchor, translation.X), Transform(axisY, anchor, translation.Y), Transform(axisZ, anchor, translation.Z));
+        diagnostics = diagnostics with { Transformed = transformed };
         int focal = (ushort)camera.FocalLength;
         // 0x45FAA0 checks the raw signed depth as unsigned against65535.
         // Negative depth becomes0 (not a wrapped ushort), then uses the H/2 near clamp.
         // 0x475E60 retains the flags but still consumes the projected camera center.
-        int depthLow = Math.Max(Math.Max(zLow, 0), focal >> 1);
-        int depthHigh = Math.Max(Math.Max(zHigh, 0), focal >> 1);
-        diagnostics = diagnostics with { ProjectionDepth = depthLow == depthHigh ? depthLow : null, ProjectionDepthLow = depthLow, ProjectionDepthHigh = depthHigh };
-        if (depthLow == 0)
+        int depth = Math.Max(Math.Clamp(transformed.Z, 0, ushort.MaxValue), focal >> 1);
+        diagnostics = diagnostics with { ProjectionDepth = depth };
+        if (depth == 0)
         {
             return Unsupported("Native projection has no positive denominator after the near clamp.");
         }
-        int lowX = int.MaxValue;
-        int highX = int.MinValue;
-        int lowY = int.MaxValue;
-        int highY = int.MinValue;
-        // Signed coordinate/depth projection is monotone in each coordinate
-        // and in positive depth (with direction depending on coordinate sign).
-        // At most eight integer XYZ corners enclose every transform outcome.
-        foreach (int x in Endpoints(xLow, xHigh))
-        {
-            foreach (int y in Endpoints(yLow, yHigh))
-            {
-                foreach (int z in Endpoints(zLow, zHigh))
-                {
-                    int depth = Math.Max(Math.Max(z, 0), focal >> 1);
-                    (int projectedXLow, int projectedXHigh) = ProjectInterval(x, focal, depth);
-                    (int projectedYLow, int projectedYHigh) = ProjectInterval(y, focal, depth);
-                    lowX = Math.Min(lowX, projectedXLow);
-                    highX = Math.Max(highX, projectedXHigh);
-                    lowY = Math.Min(lowY, projectedYLow);
-                    highY = Math.Max(highY, projectedYHigh);
-                }
-            }
-        }
-        FieldNativeCameraCenter projectedLow = new(lowX, lowY);
-        FieldNativeCameraCenter projectedHigh = new(highX, highY);
-        diagnostics = diagnostics with { ProjectedEighth = projectedLow == projectedHigh ? projectedLow : null, ProjectedEighthLow = projectedLow, ProjectedEighthHigh = projectedHigh };
+        // 0x45FBA3..0x45FC3B saturates diagnostic IR words only. Projection
+        // consumes the raw ESI/EBP transform results, not those saturated words.
+        double ratio = focal / (double)depth;
+        FieldNativeCameraCenter projected = new(Project(transformed.X, ratio), Project(transformed.Y, ratio));
+        diagnostics = diagnostics with { ProjectedEighth = projected };
 
         // 0x475E60 uses signed IDIV by8, after signed-WORD projection storage.
-        FieldNativeCameraCenter centerLow = new(lowX / 8, lowY / 8);
-        FieldNativeCameraCenter centerHigh = new(highX / 8, highY / 8);
-        diagnostics = diagnostics with { UnclampedCenter = centerLow == centerHigh ? centerLow : null };
-        FieldNativeCameraCenter clampedLow = Clamp(centerLow, information, selectedCameraIndex);
-        FieldNativeCameraCenter clampedHigh = Clamp(centerHigh, information, selectedCameraIndex);
-        if (clampedLow != clampedHigh)
-        {
-            return Unsupported("Native eighth-pixel rounding interval reaches different final camera centers.");
-        }
-        return new FieldNativeCameraResult(clampedLow, diagnostics, null);
+        FieldNativeCameraCenter center = new(projected.X / 8, projected.Y / 8);
+        diagnostics = diagnostics with { UnclampedCenter = center };
+        return new FieldNativeCameraResult(Clamp(center, information, selectedCameraIndex), diagnostics, null);
     }
 
     private static FieldNativeCameraCenter Clamp(FieldNativeCameraCenter center, FieldInformation information, int selectedCameraIndex)
@@ -138,46 +101,30 @@ public static class FieldNativeCameraProbe
         return new FieldNativeCameraCenter(centerX, centerY);
     }
 
-    private static (int Low, int High) TransformInterval(FieldNativeCameraPoint axis, FieldNativeCameraPoint point, int translation)
+    private static int Transform(FieldNativeCameraPoint axis, FieldNativeCameraPoint point, int translation)
     {
         long numerator = (long)axis.X * point.X + (long)axis.Y * point.Y + (long)axis.Z * point.Z;
-        // Original WORD products divided by4096 are exact binary rationals in binary64 and x87.
-        double value = numerator / 4096.0;
-        (int low, int high) = RoundInterval(Math.BitDecrement(value), Math.BitIncrement(value));
-        return (low + translation, high + translation);
+        // Every WORD product and partial sum divided by4096 is exact at
+        // native precision53. 45FB19..45FB98 rounds before DWORD translation.
+        return unchecked(RoundNative(numerator / 4096.0) + translation);
     }
 
-    private static IEnumerable<int> Endpoints(int low, int high)
+    private static int Project(int coordinate, double ratio)
     {
-        yield return low;
-        if (high != low)
-        {
-            yield return high;
-        }
+        // Preserve 45FCB3/45FD0C LEA DWORD wrapping and the separately rounded
+        // FDIV, FMUL, FADD and binary64 store at native precision53.
+        double value = unchecked(8 * coordinate) * ratio;
+        return Math.Clamp(RoundNative(value), -8192, 8184);
     }
 
-    private static (int Low, int High) ProjectInterval(int coordinate, int focal, int depth)
+    private static int RoundNative(double value)
     {
-        // 0x45FAA0 retains H/depth in x87 before multiplying the exact integer8*coordinate.
-        double ratio = focal / (double)depth;
-        double ratioLow = Math.BitDecrement(ratio);
-        double ratioHigh = Math.BitIncrement(ratio);
-        int multiplier = 8 * coordinate;
-        double low = Math.BitDecrement(multiplier * (multiplier < 0 ? ratioHigh : ratioLow));
-        double high = Math.BitIncrement(multiplier * (multiplier < 0 ? ratioLow : ratioHigh));
-        const double magicAddError = 1.0 / 4096;
-        // 0x45FAA0 saturates each projected eighth coordinate before WORD storage.
-        return (Math.Clamp((int)Math.Round(low - magicAddError, MidpointRounding.ToEven), -8192, 8184), Math.Clamp((int)Math.Round(high + magicAddError, MidpointRounding.ToEven), -8192, 8184));
-    }
-
-    private static (int Low, int High) RoundInterval(double low, double high)
-    {
-        // Native addition of2^52+2^31 can round first to x87 extended precision, then binary64.
-        // Preserve both possible integers instead of assigning a portable tie rule to native code.
-        const double magicAddError = 1.0 / 4096;
-        int lowInteger = (int)Math.Round(low - magicAddError, MidpointRounding.ToEven);
-        int highInteger = (int)Math.Round(high + magicAddError, MidpointRounding.ToEven);
-        return (lowInteger, highInteger);
+        // Original B693D8 magic double under the PC nearest-even precision53
+        // control word027F. Decode the stored low DWORD exactly as45FAA0 does;
+        // converting to int first would lose native wrap outside signed range.
+        const double magic = 4503601774854144.0; // 2^52 + 2^31.
+        double stored = value + magic;
+        return unchecked((int)BitConverter.DoubleToInt64Bits(stored) + int.MinValue);
     }
 
     private static bool TryAxis(Vector3 value, out FieldNativeCameraPoint axis)
