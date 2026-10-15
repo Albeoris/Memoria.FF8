@@ -100,7 +100,7 @@ public sealed class BattleIntegrationTests
     [Fact]
     public void ReturnMovieResumesRequestedMovie()
     {
-        byte[] source = EncodeProgram([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.RET, 0)]);
+        byte[] source = EncodeProgram([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
         (GameSession session, EventEngine engine) = Fixture(source);
         engine.Step();
         engine.Step();
@@ -186,7 +186,7 @@ public sealed class BattleIntegrationTests
 
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[] afterBattle)
     {
-        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), .. afterBattle, (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), .. afterBattle, (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         return EncodeProgram(operations);
     }
 

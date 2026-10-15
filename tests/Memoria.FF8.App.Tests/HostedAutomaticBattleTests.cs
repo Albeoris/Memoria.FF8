@@ -146,7 +146,7 @@ public sealed class HostedAutomaticBattleTests
 
     private static byte[] Program(int encounter = 512)
     {
-        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, encounter), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 42), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, encounter), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 42), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), .. operations];
         operations[2] = (Jsm.Opcode.LBL, 1);
         const int operationsOffset = 16;
