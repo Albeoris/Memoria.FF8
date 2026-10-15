@@ -190,6 +190,7 @@ public sealed partial class EventEngine
             {
                 actors[^1].NativePartyFlags = new NativeActorPartyFlags(false, false);
                 actors[^1].NativeSavedCollisionDisabled16 = false;
+                actors[^1].NativeActorWord398 = 0;
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
                 actors[^1].PolygonColor = new Vector3(128);
@@ -601,7 +602,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
@@ -724,6 +725,7 @@ public sealed partial class EventEngine
         public int Position = script.Start;
         public bool Complete;
         public bool Started;
+        public bool NativeResultFrameEntered;
         public NativeOperandStack Stack { get; } = new();
         public Stack<string> StackExpressions { get; } = new();
         public string[] LastExpressions = [];

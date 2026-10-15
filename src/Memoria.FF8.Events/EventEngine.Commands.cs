@@ -16,6 +16,11 @@ public sealed partial class EventEngine
         switch (opcode)
         {
             case Jsm.Opcode.LBL:
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    fiber.NativeResultFrameEntered = true;
+                }
+                break;
             case Jsm.Opcode.NOP:
                 break;
             case Jsm.Opcode.RET:
@@ -1156,10 +1161,19 @@ public sealed partial class EventEngine
         {
             throw Fault(caller, $"Request targets inactive object {objectId}; behavior requires further evidence.");
         }
-        bool busy = RequestPriorityOccupied(objectId, priority);
+        string? unsupportedSlot = UnsupportedRequestSlot(objectId, priority, opcode, out int nativePriority, out bool busy);
+        if (unsupportedSlot is not null)
+        {
+            throw Fault(caller, unsupportedSlot);
+        }
+        priority = nativePriority;
         if (busy && (opcode == Jsm.Opcode.REQ || NativeRuntimeProfile is { IsVerified: true }))
         {
             return;
+        }
+        if (NativeRuntimeProfile is { IsVerified: true })
+        {
+            scriptId = unchecked((ushort)scriptId);
         }
         Fiber requested = Queue(objectId, scriptId, priority, false);
         if (IsNativeActorRequest(objectId))

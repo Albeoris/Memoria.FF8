@@ -71,6 +71,10 @@ public sealed class ActorState
     [JsonInclude]
     [JsonRequired]
     public bool? NativeSavedCollisionDisabled16 { get; internal set; }
+    /// <summary>Physical actor WORD398, cleared by the authenticated 52BC00 allocation and read by out-of-slot native REQ priority21.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public ushort? NativeActorWord398 { get; internal set; }
     [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
     [JsonInclude]

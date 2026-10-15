@@ -509,14 +509,18 @@ public sealed partial class EventEngine
                 // Native null table slots consume their two operands and return3.
                 return null;
             }
-            int requestPriority = fiber.Stack.Skip(1).First();
-            int scriptId = fiber.Stack.Peek();
-            if ((uint)requestPriority >= 8 || !actors[targetId].Active)
+            int rawPriority = fiber.Stack.Skip(1).First();
+            int scriptId = NativeRuntimeProfile is { IsVerified: true } ? unchecked((ushort)(int)fiber.Stack.Peek()) : fiber.Stack.Peek();
+            if (!actors[targetId].Active)
             {
                 return $"Unsupported {operation.Opcode} priority or inactive target requires further native evidence";
             }
-            bool occupied = RequestPriorityOccupied(targetId, requestPriority);
-            if (!(occupied && operation.Opcode == Jsm.Opcode.REQ) && !program.Objects[targetId].Scripts.Any(script => script.Id == scriptId))
+            string? unsupportedSlot = UnsupportedRequestSlot(targetId, rawPriority, operation.Opcode, out int requestPriority, out bool occupied);
+            if (unsupportedSlot is not null)
+            {
+                return unsupportedSlot;
+            }
+            if (!(occupied && (operation.Opcode == Jsm.Opcode.REQ || NativeRuntimeProfile is { IsVerified: true })) && !program.Objects[targetId].Scripts.Any(script => script.Id == scriptId))
             {
                 return $"Unsupported {operation.Opcode} native target {operation.Parameter} (object {targetId}) has no script label {scriptId}";
             }
