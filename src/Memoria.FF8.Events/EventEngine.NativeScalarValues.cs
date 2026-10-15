@@ -82,6 +82,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeFaceReturn(fiber);
         }
+        if (operation.Opcode is Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.PARTICLESET)
+        {
+            return UnsupportedParticle(fiber, operation.Opcode);
+        }
         if (operation.Opcode is Jsm.Opcode.SEPOS or Jsm.Opcode.SEPOSTRANS)
         {
             return UnsupportedSoundPosition(fiber, operation);

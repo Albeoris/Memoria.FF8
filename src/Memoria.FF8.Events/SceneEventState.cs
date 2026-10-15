@@ -209,7 +209,7 @@ public sealed class SceneEventState
     public List<SoundRequest> SoundRequests { get; } = [];
     public List<GlobalSoundRequest> GlobalSoundRequests { get; } = [];
     public List<NativeFieldSoundRequest> NativeFieldSoundRequests { get; } = [];
-    /// <summary>Only executed ON/OFF writes are known. Missing slots do not imply disabled emitters or an absent-PMD reset.</summary>
+    /// <summary>Only executed ON/OFF/SET bytes are known, including SET's dense-instance attachment. Missing slots do not imply disabled emitters or an absent-PMD reset.</summary>
     public Dictionary<int, byte> NativeParticleSlots { get; } = [];
     public List<NativeParticleRequest> NativeParticleRequests { get; } = [];
     [JsonInclude]

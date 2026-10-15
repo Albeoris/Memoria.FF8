@@ -567,7 +567,8 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.PARTICLEON:
             case Jsm.Opcode.PARTICLEOFF:
-                args = ExecuteParticle(fiber, operation.Opcode == Jsm.Opcode.PARTICLEON);
+            case Jsm.Opcode.PARTICLESET:
+                args = ExecuteParticle(fiber, operation.Opcode);
                 break;
             case Jsm.Opcode.BASEANIME:
                 args = Pop(fiber, 2);
