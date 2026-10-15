@@ -56,9 +56,12 @@ public sealed partial class EventEngine
         }
         int operandCount = partyTarget ? 2 : includesZ ? 4 : 3;
         bool replacingRequest = IsNativeMovementRequestIssue(actor, fiber);
-        if (Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || fiber.Stack.Count < operandCount || !replacingRequest && (actor.NativeScriptMovement is { Active: true } && actor.NativeMovementCompletion542 < 2 || actor.MovementTarget is not null) || actor.MovementActorId is not null || actor.RotationTarget is not null || ReadNativeScriptPosition(actor) is null || ResolveNativeTriangleHeight is null)
+        bool replacingAsync = actor.NativeScriptMovement is { Active: true, Asynchronous: true, Suspended: false } movement && movement.FiberSequence == fiber.Sequence && movement.ScriptId == fiber.Script.Id;
+        // Native525740 preserves independent turn580; native4789A0 samples it before mode2 flight.
+        // The issuing slot may replace its running asynchronous mode1; JUMP retains flags20000/40000.
+        if (Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || fiber.Stack.Count < operandCount || !replacingRequest && !replacingAsync && (actor.NativeScriptMovement is { Active: true } && actor.NativeMovementCompletion542 < 2 || actor.MovementTarget is not null) || actor.MovementActorId is not null || actor.RotationTarget is not null && !actor.RotationUsesNativeCosine && !actor.RotationUsesNativeLinear || ReadNativeScriptPosition(actor) is null || ResolveNativeTriangleHeight is null)
         {
-            return $"Native JUMP requires {operandCount} original operands, a retained idle body, preserved fixed placement and the original explicit-triangle plane";
+            return $"Native JUMP requires {operandCount} original operands, a retained idle or replaceable native body, preserved fixed placement and the original explicit-triangle plane";
         }
         if (fiber.Stack.Capture().Take(operandCount).Any(value => !value.IsExact))
         {

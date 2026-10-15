@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,6 +9,12 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
+    private static GameSession CreateNativeJumpSession()
+    {
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        return CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
+    }
+
     private static void NativeJump3Contract()
     {
         (Jsm.Opcode Opcode, int Parameter)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
@@ -15,7 +22,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([1], [init, main]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateNativeJumpSession();
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4, ResolveNativeTriangleHeight = (triangle, x, y) => triangle == 333 && x == 400 && y == 5 ? 4 : null };
             engine.LoadField(100, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
@@ -77,7 +84,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([1], [init, main]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateNativeJumpSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

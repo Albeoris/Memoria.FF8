@@ -178,6 +178,8 @@ internal static partial class Program
                     ["native-ladder-reverse"] = NativeLadderReverseAndRestoreContract,
                     ["native-ladder-followers"] = NativeLadderFollowerContract,
                     ["native-jump-request"] = NativeJumpMovementRequestContract,
+                    ["native-jump-turn"] = () => NativeJumpTurnContract(selectedGameDirectory),
+                    ["native-dollet-jump"] = () => NativeDolletJumpContract(selectedGameDirectory),
                     ["native-cmove"] = NativeHeldFacingCmoveContract,
                     ["native-change-party"] = NativeChangePartyContract,
                     ["party-follow"] = NativePartyBackgroundScrollContract,

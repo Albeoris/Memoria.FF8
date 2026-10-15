@@ -24,7 +24,7 @@ internal static partial class Program
             byte[] content = SyntheticObjects([5, (16 << 7) | 1], [actor, lower, [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 3), (Jsm.Opcode.RET, 8)], upper.ToArray(), [(Jsm.Opcode.LBL, 5), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)], controller]);
             EventEngine Create()
             {
-                var session = new GameSession(new GameState());
+                var session = CreateNativeJumpSession();
                 var result = new EventEngine(session)
                 {
                     AnimationFrameCount = (_, _) => 4,
