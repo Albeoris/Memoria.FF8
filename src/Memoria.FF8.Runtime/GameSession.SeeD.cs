@@ -11,7 +11,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(state);
         state.Validate();
-        ValidateEventMemoryOwners(State with { SeeD = state }, State.EventMemory);
+        ValidateLiveEventMemoryOwners(State with { SeeD = state }, State.EventMemory);
         State = State with { SeeD = state };
     }
 

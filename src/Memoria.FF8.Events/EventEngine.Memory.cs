@@ -12,57 +12,59 @@ public sealed partial class EventEngine
     public NativeEventMemory EventMemory => services.CanStoreEventMemory ? services.EventMemory : componentMemory;
     public IReadOnlyDictionary<int, int> Variables => CreateVariableView();
 
-    private static List<NativeEventMemoryRegion> SceneMemoryRegions(SceneEventState scene)
+    private static NativeEventSceneMemoryOwners SceneMemoryOwners(SceneEventState scene)
     {
-        List<NativeEventMemoryRegion> regions = [];
+        NativeEventSceneMemoryOwners owners = NativeEventSceneMemoryOwners.None;
         if (scene.PreviousFieldWord84 is not null)
         {
-            regions.Add(new(84, 2, NativeEventMemoryOwner.PreviousField));
+            owners |= NativeEventSceneMemoryOwners.PreviousField;
         }
         if (scene.PreviousWorldEntityByte86 is not null)
         {
-            regions.Add(new(86, 1, NativeEventMemoryOwner.PreviousWorldEntity));
+            owners |= NativeEventSceneMemoryOwners.PreviousWorldEntity;
         }
         if (scene.MusicChannel108 is not null)
         {
-            regions.Add(new(108, 4, NativeEventMemoryOwner.MusicChannels));
-            regions.Add(new(199, 1, NativeEventMemoryOwner.MusicChannels));
+            owners |= NativeEventSceneMemoryOwners.PrimaryChannel;
         }
         if (scene.MusicChannel112 is not null)
         {
-            regions.Add(new(112, 4, NativeEventMemoryOwner.MusicChannels));
-            regions.Add(new(200, 1, NativeEventMemoryOwner.MusicChannels));
+            owners |= NativeEventSceneMemoryOwners.SecondaryChannel;
         }
         if (scene.PartyBindingMemory is not null)
         {
-            regions.Add(new(194, 3, NativeEventMemoryOwner.PartyBindings));
+            owners |= NativeEventSceneMemoryOwners.PartyBindings;
         }
         if (scene.SoundMusicVolume197 is not null)
         {
-            regions.Add(new(197, 1, NativeEventMemoryOwner.SoundVolume));
+            owners |= NativeEventSceneMemoryOwners.MusicVolume;
         }
         if (scene.SoundMusicVolume198 is not null)
         {
-            regions.Add(new(198, 1, NativeEventMemoryOwner.SoundVolume));
+            owners |= NativeEventSceneMemoryOwners.SoundVolume;
         }
         if (scene.MusicProcess is not null)
         {
-            regions.Add(new(201, 2, NativeEventMemoryOwner.MusicProcess));
-            regions.Add(new(213, 2, NativeEventMemoryOwner.MusicProcess));
+            owners |= NativeEventSceneMemoryOwners.MusicProcess;
         }
         if (scene.WorldMusicSelection is not null)
         {
-            regions.Add(new(268, 1, NativeEventMemoryOwner.WorldMusicSelection));
+            owners |= NativeEventSceneMemoryOwners.WorldMusicSelection;
         }
         if (scene.DrawPointFieldStateVersion == 1)
         {
-            regions.Add(new(240, 2, NativeEventMemoryOwner.DrawPoints));
+            owners |= NativeEventSceneMemoryOwners.DrawPointDisplay;
         }
         if (scene.DrawPointIndex is not null)
         {
-            regions.Add(new(242, 1, NativeEventMemoryOwner.DrawPoints));
+            owners |= NativeEventSceneMemoryOwners.DrawPointIndex;
         }
-        return regions;
+        return owners;
+    }
+
+    private static List<NativeEventMemoryRegion> SceneMemoryRegions(SceneEventState scene)
+    {
+        return [.. NativeEventMemoryOwnership.SceneRegions(SceneMemoryOwners(scene))];
     }
 
     private List<NativeEventMemoryRegion> MemoryRegions()

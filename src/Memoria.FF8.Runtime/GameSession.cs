@@ -417,7 +417,7 @@ public sealed partial class GameSession : IEventServices
     {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
-        ValidateEventMemoryOwners(State with { WorldControls = controls }, State.EventMemory);
+        ValidateLiveEventMemoryOwners(State with { WorldControls = controls }, State.EventMemory);
         State = State with { WorldControls = controls };
     }
 
@@ -458,7 +458,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Native economy and character owners have different initialization provenance.");
         }
         GameState candidate = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom, VibrationProcess = vibrationProcess ?? State.VibrationProcess, FieldFade = fieldFade ?? State.FieldFade, EventMemory = nextMemory };
-        ValidateEventMemoryOwners(candidate, nextMemory);
+        ValidateLiveEventMemoryOwners(candidate, nextMemory);
         State = candidate;
     }
 
@@ -466,7 +466,7 @@ public sealed partial class GameSession : IEventServices
     {
         ArgumentNullException.ThrowIfNull(timer);
         timer.Validate();
-        ValidateEventMemoryOwners(State with { ExamTimer = timer }, State.EventMemory);
+        ValidateLiveEventMemoryOwners(State with { ExamTimer = timer }, State.EventMemory);
         State = State with { ExamTimer = timer };
     }
 
@@ -482,7 +482,7 @@ public sealed partial class GameSession : IEventServices
     public void SetCharacterVitals(NativeCharacterVitals vitals)
     {
         vitals.Validate();
-        ValidateEventMemoryOwners(State with { CharacterVitals = vitals }, State.EventMemory);
+        ValidateLiveEventMemoryOwners(State with { CharacterVitals = vitals }, State.EventMemory);
         State = State with { CharacterVitals = vitals.DeepCopy() };
     }
 
@@ -505,7 +505,7 @@ public sealed partial class GameSession : IEventServices
     public void SetEventMemory(NativeEventMemory memory)
     {
         ArgumentNullException.ThrowIfNull(memory);
-        ValidateEventMemoryOwners(State, memory);
+        ValidateLiveEventMemoryOwners(State, memory);
         State = State with { EventMemory = memory };
     }
 
@@ -541,6 +541,7 @@ public sealed partial class GameSession : IEventServices
 
     public void Save(string path, bool registerJournalReference = true)
     {
+        ValidateLiveEventMemoryOwners(State, State.EventMemory);
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";
@@ -555,12 +556,16 @@ public sealed partial class GameSession : IEventServices
 
     public void SetEventState(JsonElement? state)
     {
-        State = State with { EventState = state?.Clone() };
+        GameState candidate = State with { EventState = state?.Clone() };
+        ValidateLiveEventMemoryOwners(candidate, candidate.EventMemory);
+        State = candidate;
     }
 
     public void SetDepartingFieldState(JsonElement? state)
     {
-        State = State with { DepartingFieldState = state?.Clone() };
+        GameState candidate = State with { DepartingFieldState = state?.Clone() };
+        ValidateLiveEventMemoryOwners(candidate, candidate.EventMemory);
+        State = candidate;
     }
 
     public void SetDialogueDraft(DialogueDraft? draft)

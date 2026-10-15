@@ -135,17 +135,16 @@ internal static partial class Program
             }
         }
         restored.Restore(paused);
-        restoredSession.SetEventMemory(restoredSession.State.EventMemory.Write(196, 4, NativeScalarValue.Exact(65537)));
+        JsonElement beforeAlias = restored.Capture();
         try
         {
-            restored.Step();
-            restored.Step();
+            restoredSession.SetEventMemory(restoredSession.State.EventMemory.Write(196, 4, NativeScalarValue.Exact(65537)));
             throw new InvalidOperationException("Retained binding receipt admitted a bare disagreeing mixed-width alias.");
         }
-        catch (EventScriptException) when (restored.LastFault?.Opcode == "MUSICVOL")
+        catch (InvalidDataException)
         {
         }
-        Require(restored.Scene.MusicVolumeRequest is null && restored.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 5 && restored.Capture().GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([511, 0]), "Refused mixed-width alias consumed the initialization MUSICVOL PC or operands.");
+        Require(JsonElement.DeepEquals(beforeAlias, restored.Capture()), "Refused mixed-width alias changed the VM before initialization MUSICVOL.");
     }
 
     private static void NativeMusicVolumeTransitionContract()

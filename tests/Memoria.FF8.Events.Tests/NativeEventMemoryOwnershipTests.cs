@@ -26,6 +26,13 @@ internal static partial class Program
             ExpectMemoryOwnershipFailure<InvalidDataException>(() => NativeEventMemoryOwnership.Validate(duplicate, discAndSeeD), "An equal-valued generic cell duplicated canonical owner bytes.");
         }
         ExpectMemoryOwnershipFailure<InvalidDataException>(() => NativeEventMemoryOwnership.Validate(NativeEventMemory.Empty, [new(204, 1, NativeEventMemoryOwner.Disc), new(204, 1, NativeEventMemoryOwner.Disc)]), "Duplicate canonical registrations were accepted.");
+        NativeExamTimerState inactiveTimer = NativeExamTimerState.FromColdProcess() with { Event182Mask4 = false };
+        GameSession inactiveTimerSession = new(new GameState { ExamTimer = inactiveTimer });
+        IReadOnlyList<NativeEventMemoryRegion> inactiveTimerRegions = NativeEventMemoryOwnership.RootRegions(inactiveTimerSession.State);
+        Require(NativeEventMemoryOwnership.Resolve(182, 2, inactiveTimerRegions) == NativeEventMemoryOwner.Timer && NativeEventMemoryOwnership.Resolve(205, 2, inactiveTimerRegions) == NativeEventMemoryOwner.Generic && inactiveTimerRegions.SequenceEqual(NativeEventMemoryOwnership.RootRegions(inactiveTimerSession)), "Known false timer flags failed to reserve WORD182 independently of missing inactive timer WORD205.");
+        inactiveTimerSession.SetEventMemory(inactiveTimerSession.EventMemory.Write(205, 2, 7));
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => inactiveTimerSession.SetEventMemory(inactiveTimerSession.EventMemory.Write(182, 1, 0)), "An inactive timer's known false flag accepted a duplicate generic BYTE182.");
+        Require(inactiveTimerSession.EventMemory.Read(205, 2).RequireExact() == 7 && !inactiveTimerSession.EventMemory.Overlaps(182, 2), "Timer flag alias refusal changed the independently generic inactive WORD205.");
 
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x123456), (Jsm.Opcode.POPM_L, 512), (Jsm.Opcode.PSHN_L, 0xAB), (Jsm.Opcode.POPM_B, 513), (Jsm.Opcode.PSHN_L, 0xCDEF), (Jsm.Opcode.POPM_W, 514), (Jsm.Opcode.PSHM_L, 512), (Jsm.Opcode.POPM_L, 1000), (Jsm.Opcode.PSHM_B, 513), (Jsm.Opcode.POPM_B, 1004), (Jsm.Opcode.PSHSM_W, 514), (Jsm.Opcode.POPM_L, 1008), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_W, 514), (Jsm.Opcode.POPM_W, 1012), (Jsm.Opcode.RET, 0));
         EventEngine component = new(new EventMemoryComponentServices());
@@ -86,6 +93,60 @@ internal static partial class Program
         NativeFieldFadeState? fadeBefore = native.FieldFade;
         ExpectMemoryOwnershipFailure<NotSupportedException>(() => nativeEngine.LoadField(74, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En), "New Game music initialization adopted an unproved generic BYTE201 alias.");
         Require(nativeEngine.FieldId == 0 && nativeEngine.Frame == 0 && nativeEngine.NativeRuntimeProfile is null && nativeEngine.Actors.Count == 0 && ReferenceEquals(nativeEngine.Scene, sceneBefore) && ReferenceEquals(nativeBefore, native.EventMemory) && native.FieldFade == fadeBefore, "Music ownership refusal changed loaded-field metadata, scene, fade or memory before rejection.");
+        GameSession musicSession = CreateNativeMusicSession();
+        EventEngine musicEngine = new(musicSession);
+        musicEngine.LoadField(74, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        JsonElement musicBefore = musicEngine.Capture();
+        NativeEventMemory musicMemoryBefore = musicSession.EventMemory;
+        Require(musicEngine.Scene.MusicProcess is { Bank201: 0 }, "The scene-ownership fixture lacks its executed New Game music owner.");
+        GameSession prospectiveScene = new(new GameState { EventMemory = NativeEventMemory.Empty.Write(201, 1, 0) });
+        GameState prospectiveBefore = prospectiveScene.State;
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => prospectiveScene.SetEventState(musicBefore), "Publishing a typed Scene claim accepted a preexisting generic music byte.");
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => prospectiveScene.SetDepartingFieldState(musicBefore), "Publishing a departing typed Scene claim accepted a preexisting generic music byte.");
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => new GameSession(prospectiveBefore with { EventState = held, DepartingFieldState = musicBefore }), "An unrelated current VM hid a conflicting departing Scene memory owner.");
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => new GameSession(prospectiveBefore with { EventState = musicBefore, DepartingFieldState = held }), "An unrelated departing VM hid a conflicting current Scene memory owner.");
+        Require(ReferenceEquals(prospectiveBefore, prospectiveScene.State) && prospectiveScene.State.EventState is null, "Conflicting Scene publication changed the original root checkpoint.");
+        NativeEventSceneMemoryOwners prospectiveOwners = NativeEventSceneMemoryOwners.None;
+        prospectiveScene.BindEventMemorySceneOwners(() => prospectiveOwners);
+        prospectiveOwners = NativeEventSceneMemoryOwners.MusicProcess;
+        string refusedOwnershipSave = Path.Combine(Path.GetTempPath(), $"ff8-event-memory-refused-{Guid.NewGuid():N}.json");
+        try
+        {
+            ExpectMemoryOwnershipFailure<InvalidDataException>(() => prospectiveScene.Save(refusedOwnershipSave, registerJournalReference: false), "Save published a generic byte claimed by its live canonical Scene.");
+            Require(!File.Exists(refusedOwnershipSave) && ReferenceEquals(prospectiveBefore, prospectiveScene.State), "Refused Scene ownership validation published a save or changed its root checkpoint.");
+        }
+        finally
+        {
+            File.Delete(refusedOwnershipSave);
+        }
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => musicSession.SetEventMemory(musicSession.EventMemory.Write(201, 1, 0)), "The public memory setter accepted a duplicate active Scene music byte before capture.");
+        Require(ReferenceEquals(musicMemoryBefore, musicSession.EventMemory) && JsonElement.DeepEquals(musicBefore, musicEngine.Capture()), "Live Scene alias refusal changed memory or captured metadata.");
+        JsonNode forgedCapturedMemory = JsonNode.Parse(musicBefore.GetRawText())!;
+        forgedCapturedMemory["EventMemory"]!["Cells"]!["201"] = new JsonObject { ["Width"] = 1, ["Value"] = 0 };
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => musicSession.SetEventState(JsonSerializer.SerializeToElement(forgedCapturedMemory)), "Publishing a VM accepted an alias inside its own captured event memory bank.");
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => musicSession.SetDepartingFieldState(JsonSerializer.SerializeToElement(forgedCapturedMemory)), "Publishing a departing VM accepted an alias inside its own captured event memory bank.");
+        Require(musicSession.State.EventState is null && musicSession.State.DepartingFieldState is null && JsonElement.DeepEquals(musicBefore, musicEngine.Capture()), "Rejected captured-memory aliases changed root snapshot metadata or the active VM.");
+        musicSession.SetEventState(musicBefore);
+        NativeEventMemory forgedMusicMemory = musicSession.EventMemory.Write(201, 1, 0);
+        ExpectMemoryOwnershipFailure<InvalidDataException>(() => new GameSession(musicSession.State with { EventMemory = forgedMusicMemory }), "A root checkpoint accepted memory aliasing its captured canonical Scene.");
+        string ownershipSave = Path.Combine(Path.GetTempPath(), $"ff8-event-memory-scene-{Guid.NewGuid():N}.json");
+        try
+        {
+            musicSession.Save(ownershipSave, registerJournalReference: false);
+            GameState savedMusic = GameSession.Load(ownershipSave);
+            Require(savedMusic.EventMemory.Cells.Count == musicMemoryBefore.Cells.Count, "Saving and loading a canonical Scene changed its generic memory bank.");
+            JsonNode forgedMusicSave = JsonNode.Parse(File.ReadAllText(ownershipSave))!;
+            JsonNode alias = new JsonObject { ["Width"] = 1, ["Value"] = 0 };
+            forgedMusicSave["EventMemory"]!["Cells"]!["201"] = alias.DeepClone();
+            forgedMusicSave["EventState"]!["EventMemory"]!["Cells"]!["201"] = alias.DeepClone();
+            File.WriteAllText(ownershipSave, forgedMusicSave.ToJsonString());
+            ExpectMemoryOwnershipFailure<InvalidDataException>(() => GameSession.Load(ownershipSave), "Matching forged root/VM memory banks bypassed captured Scene ownership during file loading.");
+            Require(JsonElement.DeepEquals(musicBefore, musicEngine.Capture()) && ReferenceEquals(musicMemoryBefore, musicSession.EventMemory), "A forged saved-memory load changed the active game or VM.");
+        }
+        finally
+        {
+            File.Delete(ownershipSave);
+        }
         Console.WriteLine("Native event memory ownership: resolver spans, equal-value alias refusal, typed opcode overlap, independent restore/continuation, read-only views, timer refusal/provenance and root-owner/New Game preflight verified against synthetic execution baselines.");
     }
 

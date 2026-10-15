@@ -10,7 +10,7 @@ public sealed partial class GameSession
     public void SetDiscProcess(NativeDiscProcessState disc)
     {
         disc.Validate();
-        ValidateEventMemoryOwners(State with { DiscProcess = disc }, State.EventMemory);
+        ValidateLiveEventMemoryOwners(State with { DiscProcess = disc }, State.EventMemory);
         State = State with { DiscProcess = disc };
     }
 

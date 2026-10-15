@@ -35,6 +35,7 @@ public sealed partial class EventEngine
         }
         if (services is GameSession session)
         {
+            session.BindEventMemorySceneOwners(() => SceneMemoryOwners(Scene));
             session.MovieCompleting += CompleteNativeMovieActors;
         }
     }

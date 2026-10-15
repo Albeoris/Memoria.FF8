@@ -347,6 +347,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.CLEAR:
                 SetEventMemory(EventMemory.Clear(256, 1280));
                 ClearWorldEntryMemory();
+                Scene.WorldMusicSelection = null;
                 break;
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;

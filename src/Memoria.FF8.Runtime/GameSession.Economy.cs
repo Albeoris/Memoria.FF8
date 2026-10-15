@@ -20,7 +20,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(economy);
         NativeEconomy next = economy.DeepCopy();
-        ValidateEventMemoryOwners(State with { Economy = next }, State.EventMemory);
+        ValidateLiveEventMemoryOwners(State with { Economy = next }, State.EventMemory);
         if (State.CharacterVitals is not null && next.InitOutSha256 != State.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("Economy and character records have different executed New Game templates.");

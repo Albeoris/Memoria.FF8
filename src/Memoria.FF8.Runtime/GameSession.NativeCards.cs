@@ -11,7 +11,7 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(inventory);
         GameState candidate = State with { CardInventory = inventory.DeepCopy() };
-        ValidateEventMemoryOwners(candidate, State.EventMemory);
+        ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = candidate;
     }
 

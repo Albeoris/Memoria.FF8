@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class WorldEntryTransactionTests
 {
     [Fact]
-    public void PreparedHostEntryAdoptsItsBackendAndPersistsLoaderControlsBeforeWorldMovement()
+    public void PreparedHostEntryAdoptsItsBackendAndLoaderControlsBeforeWorldMovement()
     {
         string directory = GameDirectory();
         var session = new GameSession(GameSession.Load(Source()));
@@ -35,7 +35,16 @@ public sealed class WorldEntryTransactionTests
         Assert.True(host.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted);
         Assert.Equal(1, session.State.World!.Frame);
         Assert.NotEqual(24576, session.State.World.X);
-        session.SetEventState(host.Events.Capture());
+    }
+
+    [Fact]
+    public void AuthenticWorldDepartureSaveReloadPreservesWorldMovementAndPixels()
+    {
+        string directory = GameDirectory();
+        var session = new GameSession(GameSession.Load(Source("world-current.json")));
+        using var host = new GameWorld(session, directory);
+        host.EnsureField();
+        host.SetRenderSize(320, 224);
         string saved = Path.Combine(Path.GetTempPath(), "ff8-prepared-world-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
@@ -75,18 +84,17 @@ public sealed class WorldEntryTransactionTests
     }
 
     [Theory]
-    [InlineData(273, 256)]
     [InlineData(17, 257)]
     [InlineData(17, 264)]
     [InlineData(17, 263)]
     [InlineData(17, 209)]
-    public void StoryUpperByteAndAmbiguousAliasesRefuseBeforeLoadingResources(int story, int alias)
+    public void GenericAliasesOfOwnedBytesRefuseBeforeLoadingResources(int story, int alias)
     {
         NativeWorldEntryMemory selected = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, story);
-        NativeEventMemory generic = alias == 256 ? NativeEventMemory.Empty : NativeEventMemory.Empty.Write(alias, 4, NativeScalarValue.Exact(alias == 263 ? 256 : 1));
+        NativeEventMemory generic = NativeEventMemory.Empty.Write(alias, 4, NativeScalarValue.Exact(alias == 263 ? 256 : 1));
         var departure = new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = selected, EventMemory = generic };
         string before = JsonSerializer.Serialize(departure);
-        if (alias is 256 or 209)
+        if (alias == 209)
         {
             Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(0, 0, 0)));
         }
@@ -97,14 +105,26 @@ public sealed class WorldEntryTransactionTests
         Assert.Equal(before, JsonSerializer.Serialize(departure));
     }
 
-    private static string Source()
+    [Fact]
+    public void RepresentedStoryUpperByteRemainsKnownUntilResourceFailure()
+    {
+        NativeWorldEntryMemory selected = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 273);
+        var departure = new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = selected };
+        Assert.Equal((ushort)273, WorldEntryVariables.Read(departure).StoryWord);
+        string before = JsonSerializer.Serialize(departure);
+        string missing = Path.Combine(Path.GetTempPath(), "ff8-missing-world-" + Guid.NewGuid().ToString("N"));
+        Assert.Throws<DirectoryNotFoundException>(() => WorldEntryPreflight.Prepare(departure, missing, new WorldTransition(0, 0, 0)));
+        Assert.Equal(before, JsonSerializer.Serialize(departure));
+    }
+
+    private static string Source(string file = "gate-current.json")
     {
         DirectoryInfo? repository = new(AppContext.BaseDirectory);
         while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
         {
             repository = repository.Parent;
         }
-        return Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        return Path.Combine(repository!.FullName, "../fixtures", file);
     }
 
     private static string GameDirectory()
