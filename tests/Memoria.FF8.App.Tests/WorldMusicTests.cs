@@ -56,6 +56,8 @@ public sealed class WorldMusicTests
         Action commit = engine.PrepareWorldMusic(packet, assets.ReadMusicResource);
         session.RequestWorld(packet);
         commit();
+        Assert.All(new[] { 201, 202, 213, 214 }, address => Assert.False(session.State.Variables.ContainsKey(address)));
+        session.SetNativeVariableValues(null);
         NativeWorldMusicLoad loaded = Assert.IsType<NativeWorldMusicLoad>(engine.Scene.WorldMusicLoad);
         Assert.Equal(expected, loaded.Operation);
         Assert.Equal(actualMusic < 0 ? null : (byte?)actualMusic, loaded.Music);
@@ -139,6 +141,12 @@ public sealed class WorldMusicTests
         string path = Path.Combine(repository, "../fixtures/external-fixture.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         session.Save(path, registerJournalReference: false);
+        GameState ordinaryLoaded = GameSession.Load(path);
+        using (var ordinaryWorld = new GameWorld(new GameSession(ordinaryLoaded), game, persistReplayJournal: false))
+        {
+            ordinaryWorld.EnsureField();
+            Assert.Null(ordinaryWorld.Events.LastFault);
+        }
         GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(path), game);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })));
         using var restored = new GameWorld(new GameSession(recreated), game, persistReplayJournal: false);

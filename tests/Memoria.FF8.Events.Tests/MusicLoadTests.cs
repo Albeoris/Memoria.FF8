@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,14 +9,23 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
+    private static GameSession CreateNativeMusicSession()
+    {
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        return session;
+    }
+
     private static void NativeMusicLoadContract()
     {
         NativeMusicSkipContract();
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.FADENONE, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         (GameSession Session, EventEngine Engine) Fresh(byte[]? bytes = null)
         {
-            GameSession session = GameSession.CreateColdProcess();
-            session.StartNewGame();
+            GameSession session = CreateNativeMusicSession();
             EventEngine engine = new(session, session.State.Variables);
             engine.LoadField(74, bytes ?? content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
@@ -25,6 +35,7 @@ internal static partial class Program
         first.Step();
         Require(first.Scene.MusicLoadRequest is { RawMusic: 300, Music: 44, PriorSecondChannel: -1, Loaded: true } && first.Scene.MusicPlayRequest is { ConsumedPending: true, Music: 44, PriorBank: 0, Bank: 1, PriorKeepBit400: true, Channel: 0 } && session.WorldControls is { EventFlags104: 0x18, MusicKeep207: 0 } && first.Scene.MusicProcess is { Pending: false, Requested213: 44, Complete214: 1, Bank201: 1 } && first.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 44 } && first.Scene.MusicChannel112 is { ChannelId: -1, MusicId: 255 }, "Native pending load, byte narrowing, primary play or independent second-channel state changed.");
         Require(!session.State.Variables.ContainsKey(500), "Native MUSICCHANGE return3 failed to yield the caller.");
+        Require(new[] { 201, 202, 213, 214 }.All(address => !session.State.Variables.ContainsKey(address)), "Music process bytes were duplicated as untyped memory owners.");
         Require(first.FieldFade is { Physical.Mode: 0, Saved.Mode: 0 }, "Proved music BYTE213 was mistaken for an overlapping fade WORD alias.");
         JsonElement snapshot = first.Capture();
         (GameSession resumedSession, EventEngine resumed) = Fresh();
@@ -66,6 +77,39 @@ internal static partial class Program
         {
         }
         Require(before == first.Capture().GetRawText(), "Music bank refusal mutated the current VM.");
+        foreach ((int address, string property) in new[] { (201, "Bank201"), (202, "Bank202"), (213, "Requested213"), (214, "Complete214") })
+        {
+            JsonNode duplicate = JsonNode.Parse(before)!;
+            duplicate["Variables"]![address.ToString()] = duplicate["Scene"]!["MusicProcess"]![property]!.GetValue<int>();
+            try
+            {
+                first.Restore(JsonSerializer.SerializeToElement(duplicate));
+                throw new InvalidOperationException($"Equal duplicate music owner BYTE{address} was restored.");
+            }
+            catch (InvalidDataException)
+            {
+            }
+            Require(before == first.Capture().GetRawText(), "Duplicate music owner refusal mutated the VM.");
+        }
+        foreach ((int address, int width) in new[] { (202, 1), (212, 2) })
+        {
+            JsonNode duplicate = JsonNode.Parse(before)!;
+            duplicate["NativeVariableValues"] = JsonSerializer.SerializeToNode(new Dictionary<int, NativeMemoryValue> { [address] = new(width, NativeScalarValue.Exact(0)) });
+            try
+            {
+                first.Restore(JsonSerializer.SerializeToElement(duplicate));
+                throw new InvalidOperationException("Overlapping typed music owner was restored.");
+            }
+            catch (InvalidDataException exception) when (exception.Message.Contains("Native music process bytes", StringComparison.Ordinal))
+            {
+            }
+            Require(before == first.Capture().GetRawText(), "Typed music owner refusal mutated the VM.");
+        }
+
+        byte[] reads = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHM_B, 201), (Jsm.Opcode.POPM_B, 510), (Jsm.Opcode.PSHSM_B, 202), (Jsm.Opcode.POPM_L, 511), (Jsm.Opcode.PSHM_B, 213), (Jsm.Opcode.POPM_B, 515), (Jsm.Opcode.PSHM_B, 214), (Jsm.Opcode.POPM_B, 516), (Jsm.Opcode.RET, 0));
+        first.LoadField(102, reads, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        first.Step();
+        Require(session.State.Variables[510] == first.Scene.MusicProcess!.Bank201 && session.State.Variables[511] == -1 && session.State.Variables[515] == 44 && session.State.Variables[516] == 1, "Virtual music reads lost their owner or signed BYTE202 projection.");
 
         byte[] pending = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 26), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.RET, 0));
         (GameSession pendingSession, EventEngine pendingEngine) = Fresh(pending);
@@ -87,7 +131,7 @@ internal static partial class Program
         catch (EventScriptException) when (mixedEngine.LastFault?.Opcode == "POPM_W")
         {
         }
-        Require(mixedSession.State.Variables[213] == 26 && mixedEngine.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 4, "Rejected mixed-width music store consumed its operand or byte receipt.");
+        Require(mixedEngine.Scene.MusicProcess?.Requested213 == 26 && !mixedSession.State.Variables.ContainsKey(213) && mixedEngine.Capture().GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == 4, "Rejected mixed-width music store consumed its operand or canonical music byte.");
 
         GameSession ambiguousFadeSession = new(new GameState());
         ambiguousFadeSession.State.Variables[213] = 26;
@@ -204,6 +248,41 @@ internal static partial class Program
     {
         public bool Reject { get; set; }
         public bool IsMoviePlaying => false;
+        public NativeCharacterVitals? CharacterVitals => session.CharacterVitals;
+        public void SetCharacterVitals(NativeCharacterVitals state) => session.SetCharacterVitals(state);
+        public NativeMenuRandomState? MenuRandom => session.MenuRandom;
+        public bool CanStoreMenuRandom => true;
+        public void SetMenuRandom(NativeMenuRandomState state) => session.SetMenuRandom(state);
+        public NativeFieldButtonInput? FieldButtonInput => session.FieldButtonInput;
+        public bool CanStoreFieldButtonInput => true;
+        public void SetFieldButtonInput(NativeFieldButtonInput state) => session.SetFieldButtonInput(state);
+        public NativeEconomy? Economy => session.Economy;
+        public bool CanStoreEconomy => true;
+        public void SetEconomy(NativeEconomy state) => session.SetEconomy(state);
+        public NativeFieldShake? FieldShake => session.FieldShake;
+        public bool CanStoreFieldShake => true;
+        public void SetFieldShake(NativeFieldShake state) => session.SetFieldShake(state);
+        public NativeFieldFadeState? FieldFade => session.FieldFade;
+        public bool CanStoreFieldFade => true;
+        public void SetFieldFade(NativeFieldFadeState state) => session.SetFieldFade(state);
+        public NativeDiscProcessState? DiscProcess => session.DiscProcess;
+        public bool CanStoreDiscProcess => true;
+        public void SetDiscProcess(NativeDiscProcessState state) => session.SetDiscProcess(state);
+        public NativeEventRandomState? EventRandom => session.EventRandom;
+        public bool CanStoreEventRandom => true;
+        public void SetEventRandom(NativeEventRandomState state) => session.SetEventRandom(state);
+        public NativeVibrationProcessState? VibrationProcess => session.VibrationProcess;
+        public bool CanStoreVibrationProcess => true;
+        public void SetVibrationProcess(NativeVibrationProcessState state) => session.SetVibrationProcess(state);
+        public NativeGlobalSoundProcess? GlobalSoundProcess => session.GlobalSoundProcess;
+        public bool CanStoreGlobalSoundProcess => true;
+        public void SetGlobalSoundProcess(NativeGlobalSoundProcess state) => session.SetGlobalSoundProcess(state);
+        public NativeSalaryPresentation? SalaryPresentation => session.SalaryPresentation;
+        public bool CanStoreSalaryPresentation => true;
+        public void SetSalaryPresentation(NativeSalaryPresentation state) => session.SetSalaryPresentation(state);
+        public NativeWorldEntryMemory? WorldEntryMemory => session.WorldEntryMemory;
+        public bool CanStoreWorldEntryMemory => true;
+        public void SetWorldEntryMemory(NativeWorldEntryMemory state) => session.SetWorldEntryMemory(state);
         public NativeWorldControlState? WorldControls => session.WorldControls;
         public NativeExamTimerState? ExamTimer => session.ExamTimer;
         public NativeSeeDState? SeeD => session.SeeD;

@@ -44,6 +44,10 @@ public sealed partial class EventEngine
         ArgumentNullException.ThrowIfNull(resolveResource);
         NativeWorldMusicSelection selection = Scene.WorldMusicSelection ?? throw new NotSupportedException("World music needs its executed BYTE268 selection; recreate the authentic journal.");
         NativeMusicProcessState process = Scene.MusicProcess ?? throw new NotSupportedException("World music requires the current native music process.");
+        if (UnsupportedNativeMusicAliases(variables, services.NativeVariableValues) is string aliases)
+        {
+            throw new NotSupportedException(aliases);
+        }
         if (services.ReplayScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Pending != false || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || !variables.TryGetValue(268, out int selected) || selected != selection.Music || services.NativeVariableValues?.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268) == true || variables.Keys.Any(address => address is >= 265 and <= 267))
         {
             throw new NotSupportedException("World music requires authenticated native bank, channel, consumed field preload and unaliased BYTE268 authority.");
@@ -104,7 +108,6 @@ public sealed partial class EventEngine
                 Scene.MusicPlaying = false;
             }
             variables[199] = music ?? 255;
-            variables[201] = nextBank;
             Scene.WorldMusicLoad = request;
             AudioCommandExecuted?.Invoke(request);
         };

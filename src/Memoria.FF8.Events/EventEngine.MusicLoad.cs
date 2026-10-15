@@ -51,10 +51,21 @@ public sealed partial class EventEngine
 
     private void ValidateNativeMusicFieldLoad(NativeFieldRuntimeProfile? profile)
     {
+        if (profile is { IsVerified: true } && UnsupportedNativeMusicAliases(variables, services.NativeVariableValues) is string aliases)
+        {
+            throw new NotSupportedException(aliases);
+        }
         if (profile is { IsVerified: true } && variables.ContainsKey(207))
         {
             throw new NotSupportedException("Native music field reset intersects a separate B207 memory alias; canonical event ownership is required.");
         }
+    }
+
+    private static string? UnsupportedNativeMusicAliases(IDictionary<int, int> values, IReadOnlyDictionary<int, NativeMemoryValue>? memory)
+    {
+        // These are physical BYTEs owned by MusicProcess, not DWORD entries in Variables.
+        // Readers project the owner directly; even equal scalar copies create a second owner.
+        return values.Keys.Any(address => address is 201 or 202 or 213 or 214) || memory?.Any(pair => pair.Key <= 202 && (long)pair.Key + pair.Value.Width > 201 || pair.Key <= 214 && (long)pair.Key + pair.Value.Width > 213) == true ? "Native music process bytes overlap a second memory owner; recreate authentic history." : null;
     }
 
     private bool TryReadNativeMusicByte(int address, out int value)
@@ -74,6 +85,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedMusicLoad(Fiber fiber, JsmOperation operation)
     {
+        if (Scene.MusicProcess is not null && UnsupportedNativeMusicAliases(variables, services.NativeVariableValues) is string musicAliases)
+        {
+            return musicAliases;
+        }
         if (UnsupportedWorldMusicSelection(fiber, operation) is string selection)
         {
             return selection;
@@ -154,7 +169,6 @@ public sealed partial class EventEngine
         }
         int[] args = Pop(fiber, 1);
         Scene.MusicProcess = prior with { Pending = load, Requested213 = music, Complete214 = load ? (byte)1 : prior.Complete214 };
-        variables[213] = music;
         Scene.LoadedMusic = music;
         Scene.MusicLoadRequest = new NativeMusicLoadRequest(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, args[0], music, channel, priorKeep, load, GlobalSoundBackendStatus.Muted);
         // Native52CD10 is synchronous in this executable and writes completion1.
@@ -231,13 +245,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native music process disagrees with its executed bank/load authority.");
         }
-        foreach (int address in new[] { 201, 202, 213, 214 })
+        if (process is not null && UnsupportedNativeMusicAliases(saved.Variables, saved.NativeVariableValues) is string aliases)
         {
-            byte? known = address == 201 ? process?.Bank201 : address == 202 ? process?.Bank202 : address == 213 ? process?.Requested213 : process?.Complete214;
-            if (saved.Variables.TryGetValue(address, out int alias) && known is byte value && alias != value)
-            {
-                throw new InvalidDataException("Saved native music byte disagrees with its exact alias.");
-            }
+            throw new InvalidDataException(aliases);
         }
         if (saved.Scene.MusicLoadRequest is NativeMusicLoadRequest load)
         {
