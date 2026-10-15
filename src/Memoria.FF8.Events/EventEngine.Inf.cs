@@ -49,15 +49,6 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            if ((uint)trigger.AreaIndex >= areas.Length)
-            {
-                throw new InvalidDataException("INF area index is outside the original JSM area group range.");
-            }
-            ActorState area = actors[areas[trigger.AreaIndex].Index];
-            if (!area.DoorLineEnabled)
-            {
-                continue;
-            }
             int distance = NativeInfDistance(trigger.Start, trigger.End, current, out Vector3 closest);
             bool nearby = distance != -1 && distance < radiusSquared;
             bool coincident = current.X == closest.X && current.Y == closest.Y;
@@ -74,6 +65,23 @@ public sealed partial class EventEngine
                 mode = trigger.Side is 2 or 4 ? 1 : trigger.Side is 3 or 5 ? 0 : -1;
             }
             if (mode is < 0 or > 5)
+            {
+                continue;
+            }
+            if ((uint)trigger.AreaIndex >= areas.Length)
+            {
+                // 47B610 evaluates geometry before 47B500 reads the physical gate.
+                // 52BC00 places modules directly after the 396-byte area records:
+                // index == area count aliases the first module's WORD392 position.
+                EventObject? firstModule = program.Objects.FirstOrDefault(obj => obj.BackgroundModuleIndex == 0);
+                if (trigger.AreaIndex == areas.Length && firstModule is not null && backgroundAnimations.TryGetValue(0, out BackgroundAnimation? animation) && unchecked((byte)animation.Position) != 1)
+                {
+                    continue;
+                }
+                throw new NotSupportedException("Reached INF area overflow requires its proved physical gate and out-of-range contact latch; movement and contacts preserved.");
+            }
+            ActorState area = actors[areas[trigger.AreaIndex].Index];
+            if (!area.DoorLineEnabled)
             {
                 continue;
             }

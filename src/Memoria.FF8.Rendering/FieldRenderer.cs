@@ -136,7 +136,7 @@ public sealed partial class FieldRenderer
             DrawTile(raster);
             if (tile.Blend && tile.BlendMode != MapBlendMode.None)
             {
-                translucent.Add((raster.Depth, () => DrawTile(raster, translucentPass: true)));
+                translucent.Add((raster.Tile.Z * 4f, () => DrawTile(raster, translucentPass: true)));
             }
         }
         foreach (ActorVisual actor in preparedActors)
@@ -434,8 +434,12 @@ public sealed partial class FieldRenderer
             {
                 float wA = Edge(b, c, x + 0.5f, y + 0.5f) / area;
                 float wB = Edge(c, a, x + 0.5f, y + 0.5f) / area;
-                float wC = 1 - wA - wB;
+                float wC = primitiveTransparencyEnabled ? Edge(a, b, x + 0.5f, y + 0.5f) / area : 1 - wA - wB;
                 if (wA < 0 || wB < 0 || wC < 0)
+                {
+                    continue;
+                }
+                if (primitiveTransparencyEnabled && ((wA == 0 && !OwnsRasterEdge(b, c, area)) || (wB == 0 && !OwnsRasterEdge(c, a, area)) || (wC == 0 && !OwnsRasterEdge(a, b, area))))
                 {
                     continue;
                 }
@@ -445,7 +449,7 @@ public sealed partial class FieldRenderer
                 float inverseDepth = depthA + depthB + depthC;
                 float z = 1 / inverseDepth;
                 int index = y * OutputWidth + x;
-                if (z >= depth[index])
+                if (primitiveTransparencyEnabled ? z > depth[index] : z >= depth[index])
                 {
                     continue;
                 }
@@ -462,6 +466,15 @@ public sealed partial class FieldRenderer
                 }
             }
         }
+    }
+
+    private static bool OwnsRasterEdge(ProjectedPoint start, ProjectedPoint end, float area)
+    {
+        if (area < 0)
+        {
+            (start, end) = (end, start);
+        }
+        return end.Y > start.Y || (end.Y == start.Y && end.X < start.X);
     }
 
     private Rgba32 SampleTexture(PixelImage texture, Vector2 uv)
