@@ -46,6 +46,8 @@ public sealed record NativeFootWorldRuntimeState
     public NativeWorldTrainDismountReceipt? TrainDismount { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeStationTrainProcess? StationTrainProcess { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeNormalFootObjectProcess? NormalObjects { get; init; }
 
     public static NativeFootWorldRuntimeState CreateTrainDismount(NativeTrainWorldRuntimeState train, NativeWorldTrainStation station, short cameraPitch)
     {
@@ -128,9 +130,10 @@ public sealed record NativeFootWorldRuntimeState
         Forest?.Validate();
         GroundCache?.Validate();
         StationTrains?.Validate();
+        NormalObjects?.Validate();
         if (Rule == TrainDismountRule)
         {
-            if (StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant != 0 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetY != 0 || CameraOffsetZ != StationTrains.CameraGeometry.OffsetZ)
+            if (NormalObjects is not null || StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant != 0 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetY != 0 || CameraOffsetZ != StationTrains.CameraGeometry.OffsetZ)
             {
                 throw new InvalidDataException("Native foot dismount lost its retained train allocation or executed station transition.");
             }
@@ -144,6 +147,10 @@ public sealed record NativeFootWorldRuntimeState
         else if (CameraOffsetY != -341 || CameraOffsetZ != -7168)
         {
             throw new InvalidDataException("Native ordinary foot loader lost its original camera-space offsets.");
+        }
+        if (NormalObjects is not null && EntityType != 0)
+        {
+            throw new InvalidDataException("Native normal object allocation requires its actual controlled shape0 body.");
         }
         if (PreviousHorizontalInput is < -1 or > 1 || GroundYaw is < -1120 or > 1120)
         {

@@ -32,6 +32,8 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
     //neither the completed callback nor a serialized bank carries an unresolved endpoint candidate.
     [JsonIgnore]
     internal NativeTrainRailBank? CallbackSource { get; init; }
+    [JsonIgnore]
+    internal int? SelectedCallbackSpeed { get; init; }
 
     public static NativeTrainRailBank Create(NativeWorldScriptedPathDefinition definition, sbyte direction)
     {
@@ -55,7 +57,7 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         if (CallbackSource is { } sourceBank)
         {
             sourceBank.Validate(definition);
-            NativeWorldRailAdvance expected = NativeWorldScriptedPathState.AdvanceRail(definition, sourceBank.Nodes, sourceBank.Direction, sourceBank.Pause, sourceBank.Speed, 100, 2, sourceBank.Status, sourceBank.StopCounter);
+            NativeWorldRailAdvance expected = NativeWorldScriptedPathState.AdvanceRail(definition, sourceBank.Nodes, sourceBank.Direction, sourceBank.Pause, sourceBank.Speed, 100, 2, sourceBank.Status, sourceBank.StopCounter, sourceBank.SelectedCallbackSpeed);
             if (!expected.Endpoint || ContactReversal is not null || Direction != sourceBank.Direction || Pause != expected.Pause || Speed != expected.Speed || Status != expected.Status || StopCounter != expected.StopCounter || !Nodes.SequenceEqual(expected.Nodes))
             {
                 throw new InvalidDataException("Native in-progress train endpoint lost its executed pre-contact rail phase.");
@@ -126,11 +128,11 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         return Step(definition, callback, camera, origin, project, null, out _);
     }
 
-    public NativeTrainRailBank Step(NativeWorldScriptedPathDefinition definition, long callback, NativeWorldPathCamera camera, NativeWorldPathPosition origin, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> project, bool? stopAtEndpoint, out bool endpoint, Func<NativeTrainRailBank, NativeTrainRailBank>? contact = null)
+    public NativeTrainRailBank Step(NativeWorldScriptedPathDefinition definition, long callback, NativeWorldPathCamera camera, NativeWorldPathPosition origin, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> project, bool? stopAtEndpoint, out bool endpoint, Func<NativeTrainRailBank, NativeTrainRailBank>? contact = null, int? selectedSpeed = null)
     {
         Validate(definition);
-        NativeWorldRailAdvance phase = NativeWorldScriptedPathState.AdvanceRail(definition, Nodes, Direction, Pause, Speed, 100, 2, Status, StopCounter);
-        NativeTrainRailBank next = this with { Pause = phase.Pause, Speed = phase.Speed, Nodes = phase.Nodes, Status = phase.Status, StopCounter = phase.StopCounter, ContactReversal = null, CallbackSource = phase.Endpoint ? this : null };
+        NativeWorldRailAdvance phase = NativeWorldScriptedPathState.AdvanceRail(definition, Nodes, Direction, Pause, Speed, 100, 2, Status, StopCounter, selectedSpeed);
+        NativeTrainRailBank next = this with { Pause = phase.Pause, Speed = phase.Speed, Nodes = phase.Nodes, Status = phase.Status, StopCounter = phase.StopCounter, ContactReversal = null, SelectedCallbackSpeed = null, CallbackSource = phase.Endpoint ? this with { SelectedCallbackSpeed = selectedSpeed } : null };
         next = next.Project(callback, camera, origin, project);
         if (phase.Status == 1 && phase.StopCounter != StopCounter && phase.Pause > 0 && TrackIndex == 1)
         {

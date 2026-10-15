@@ -46,7 +46,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!scripted && !stationFoot && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 290))
+        if (!scripted && !stationFoot && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 348))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -171,6 +171,10 @@ internal sealed partial class WorldMapScene : IDisposable
                     NativeFootRuntime = initialFootRuntime,
                     NativeCarRuntime = initialCarRuntime
                 };
+                if (!car)
+                {
+                    initial = InitializeNormalFootObjects(initial, inputs);
+                }
                 EnsureContactCertificate(initial);
                 session.SetWorldState(initial);
             }
@@ -188,6 +192,10 @@ internal sealed partial class WorldMapScene : IDisposable
                     assets.ValidateNativeGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
                 }
                 EnsureContactCertificate(State);
+                if (State.NativeFootRuntime?.NormalObjects is not null)
+                {
+                    ValidateNormalFootObjects(State, true);
+                }
                 if (stationFoot)
                 {
                     ValidateStationTrainResources(State.NativeFootRuntime!);
@@ -371,7 +379,7 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldCamera camera = FootCamera(state);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
-        IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? [new NativeWorldStaticModelDraw(assets.ExamCar, new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(state.BodyYaw - 1024)), 0)))] : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : null;
+        IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? [new NativeWorldStaticModelDraw(assets.ExamCar, new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(state.BodyYaw - 1024)), 0)))] : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : state.NativeFootRuntime?.NormalObjects is not null ? ReadNormalFootObjectModels(state) : null;
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
@@ -438,11 +446,15 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             foot = StepStationTrains(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         }
+        else if (foot.NormalObjects is not null)
+        {
+            foot = StepNormalFootObjects(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+        }
         inputProposal = new ReplayWorldNavigationStimulus(x, z);
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : null);
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null);
         x = ground.X;
         z = ground.Z;
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
@@ -458,6 +470,10 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             nativeHeight = NativeWorldTerrain.ResolveHeight(foot.EntityType, -(int)accepted.Height, accepted.Triangle.GroundType, before.NativeHeight).Height;
             groundType = accepted.Triangle.GroundType;
+        }
+        if (foot.NormalObjects is not null)
+        {
+            foot = CompleteNormalFootObjectCallback(foot, x, z, nativeHeight);
         }
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsMoveZ);
         return before with
@@ -499,6 +515,11 @@ internal sealed partial class WorldMapScene : IDisposable
         if (state.NativeFootRuntime?.StationTrains is not null)
         {
             ValidateStationTrainProcess(state.NativeFootRuntime);
+            return;
+        }
+        if (state.NativeFootRuntime?.NormalObjects is not null)
+        {
+            ValidateNormalFootObjects(state);
             return;
         }
         WorldCamera camera = FootCamera(state);

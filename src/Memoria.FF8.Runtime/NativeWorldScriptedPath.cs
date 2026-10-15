@@ -371,10 +371,10 @@ public sealed record NativeWorldScriptedPathState
     }
 
     /// <summary>The shared545480/545B20 phase, before node projection and contact handling.</summary>
-    public static NativeWorldRailAdvance AdvanceRail(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> source, sbyte direction, short pause, int speed, int maximumSpeed, int multiplier, byte? status = null, byte stopCounter = 0)
+    public static NativeWorldRailAdvance AdvanceRail(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> source, sbyte direction, short pause, int speed, int maximumSpeed, int multiplier, byte? status = null, byte stopCounter = 0, int? selectedSpeed = null)
     {
         definition.Validate();
-        if (direction is not (1 or -1) || pause < -1 || speed < 0 || source.IsDefaultOrEmpty || multiplier != 2)
+        if (direction is not (1 or -1) || pause < -1 || speed < 0 || source.IsDefaultOrEmpty || multiplier != 2 || selectedSpeed is < 0 || selectedSpeed > maximumSpeed)
         {
             throw new InvalidDataException("Native rail advance requires its current physical bank and callback multiplier.");
         }
@@ -385,7 +385,7 @@ public sealed record NativeWorldScriptedPathState
         var nodes = source.ToArray();
         if (pause == 0)
         {
-            speed = unchecked((speed == 0 ? 16 : speed) + 4);
+            speed = selectedSpeed ?? unchecked((speed == 0 ? 16 : speed) + 4);
             int leading = direction == 1 ? source[0].Segment : definition.Points.Length - source[^1].Segment - 1;
             int remaining = direction == 1 ? definition.Points.Length - leading : leading;
             ImmutableArray<byte> stops = direction == 1 ? definition.ForwardStops : definition.ReverseStops;
@@ -397,7 +397,7 @@ public sealed record NativeWorldScriptedPathState
                     remaining = Math.Min(remaining, distance);
                 }
             }
-            if (remaining <= 3)
+            if (selectedSpeed is null && remaining <= 3)
             {
                 speed = Math.Min(speed, Math.Max(10, maximumSpeed + 4 * (5 * remaining - 15)));
             }
