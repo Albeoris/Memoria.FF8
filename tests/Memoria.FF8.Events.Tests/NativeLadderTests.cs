@@ -9,7 +9,7 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static EventEngine CreateNativeLadder(bool up = false, int? speed = null, bool followers = false)
+    private static EventEngine CreateNativeLadder(bool up = false, int? speed = null, bool followers = false, bool automatic = false)
     {
         (Jsm.Opcode, int)[] Initialize(int label, int character)
         {
@@ -22,6 +22,10 @@ internal static partial class Program
             return initialization.ToArray();
         }
         List<(Jsm.Opcode, int)> main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.INITTRACE, 0)];
+        if (automatic)
+        {
+            main.Add((Jsm.Opcode.UCOFF, 0));
+        }
         if (speed is int speedOperand)
         {
             main.Add((Jsm.Opcode.PSHN_L, speedOperand));
@@ -132,6 +136,7 @@ internal static partial class Program
             StepBoth(0);
             Require(actor.NativeLadder is not { Active: true } && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73, "Ladder completion return2 failed to execute its immediate successor within the same VM budget.");
         }
+        NativeLadderAutomaticContract();
         Console.WriteLine("Native mode4 ladder: fullDWORD coordinates, old-counter phases, direction masks/priority, mapped held input, triangle transfer, return2 successor and independent restore passed.");
     }
 
