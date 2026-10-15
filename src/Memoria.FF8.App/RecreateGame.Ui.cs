@@ -75,6 +75,7 @@ internal sealed partial class RecreateGame
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
         data.Settings["Battle ATB mode"] = uiPreferences.AtbMode.ToString();
         data.Settings["Battle policy"] = uiPreferences.BattlePolicy;
+        data.Settings["Random encounters"] = uiPreferences.RandomEncounters ? "On" : "Off";
         data.Settings["Initiative bar"] = uiPreferences.ShowInitiative ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");
@@ -85,6 +86,7 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Dialogue font size");
         data.SupportedActions.Add("config:Battle ATB mode");
         data.SupportedActions.Add("config:Battle policy");
+        data.SupportedActions.Add("config:Random encounters");
         data.SupportedActions.Add("config:Initiative bar");
         data.SaveAvailable = session.State.Scene != SceneKind.Title && !fieldFaulted;
         if (data.SaveAvailable)
@@ -117,6 +119,16 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (NativeJunctionMenuProjection.IsAction(action))
+        {
+            PlayerActionResult result = world!.Apply(NativeJunctionMenuProjection.PlayerAction(action));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail ?? "The current game state cannot accept a menu action.");
+            }
+            fieldSeconds = 0;
+            return;
+        }
         if (action.Kind == "shop-buy" && IsNativeShopActive)
         {
             PlayerActionResult result = world!.Apply(NativeShopMenuProjection.PurchaseAction(action));

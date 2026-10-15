@@ -27,6 +27,8 @@ public sealed class BattleDebugController
     private readonly Action<BattleDefinition, BattleAtbMode> start;
     private readonly Action<BattleAtbMode, string, bool> settings;
     private readonly Action close;
+    public Func<bool?>? ReadCurrentEncounters { get; init; }
+    public Action<bool>? ChangeCurrentEncounters { get; init; }
     private readonly List<BattleCombatantDefinition> party;
     private readonly List<BattleCombatantDefinition> enemies;
     private readonly UiView view;
@@ -182,6 +184,18 @@ public sealed class BattleDebugController
             Policy = Policy == "ResearchInstantVictory" ? "NewGameFullCombat" : "ResearchInstantVictory";
             settings(Mode, Policy, ShowInitiative);
         }));
+        if (ReadCurrentEncounters is not null && ChangeCurrentEncounters is not null)
+        {
+            bool? current = ReadCurrentEncounters();
+            rows.Add(new("Current save random battles", current is null ? "No playthrough" : current.Value ? "On" : "Off", "Explicitly change this playthrough's encounter setting. This is recorded in its session journal.", _ =>
+            {
+                bool? enabled = ReadCurrentEncounters();
+                if (enabled is not null)
+                {
+                    ChangeCurrentEncounters(!enabled.Value);
+                }
+            }));
+        }
         rows.Add(new("Battle stage", stageId?.ToString() ?? "None", "Cycle installed battle stage identities.", direction =>
         {
             if (catalog.StageIds.Length == 0)

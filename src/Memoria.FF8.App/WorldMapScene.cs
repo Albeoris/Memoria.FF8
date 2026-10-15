@@ -22,6 +22,8 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<WorldFieldSelection, WorldState, short, NativeWorldSalaryState, Action>? PrepareFieldEntry { get; set; }
     public Func<NativeSalaryResult, NativeSalaryPresentation?, NativeGlobalSoundProcess?, NativeSalaryEffects>? PrepareSalaryEffects { get; set; }
     public Action<NativeSalaryEffects>? PublishSalaryEffects { get; set; }
+    public Func<WorldState, uint, WorldState>? ProcessRandomEncounters { get; set; }
+    public Func<bool>? HasPendingBattle { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
     public WorldMapScene(GameSession session, string gameDirectory)
@@ -215,6 +217,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     public WorldState State => session.State.World ?? LastDeparture ?? throw new InvalidOperationException("This world scene no longer has a current state.");
     internal string AllocationProgramSha256 => assets.AllocationProgramSha256;
+    internal NativeWorldEncounterDefinition? ReadRandomEncounterDefinition(WorldState state) => assets.ReadRandomEncounterDefinition(state.X, state.Z, state.GroundType ?? throw new NotSupportedException("Encounters require native ground."), session.State.DiscProcess!.SavedDisc204);
     public bool IsPresentationDeferred => State.NativeScriptedRuntime?.Path.Callback == 0 || State.NativeTrainRuntime?.Callback == 0;
 
     internal static void RequireUnaliasedFootAuxiliary(GameState state)
@@ -251,6 +254,14 @@ internal sealed partial class WorldMapScene : IDisposable
         if (action.Frames is < 1 or > 30000)
         {
             throw new ArgumentOutOfRangeException(nameof(action), "World action duration must be between one and 30000 simulation frames.");
+        }
+        if (NativeJunctionMenuInput.IsMenuAction(action.Kind))
+        {
+            return ApplyJunctionMenuAction(action);
+        }
+        if (HasPendingBattle?.Invoke() == true)
+        {
+            return new PlayerActionResult(false, new PlayerTrigger(PlayerTriggerKind.Battle, session.State.FieldId, State.Frame, null, null), 0, "A random battle owns this world scene.");
         }
         if (!float.IsFinite(action.Horizontal) || !float.IsFinite(action.Vertical) || !float.IsFinite(action.CameraHorizontal) || Math.Abs(action.Horizontal) > 1 || Math.Abs(action.Vertical) > 1 || Math.Abs(action.CameraHorizontal) > 1)
         {
@@ -323,6 +334,14 @@ internal sealed partial class WorldMapScene : IDisposable
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
                 salaryRequests.AddRange(effects.Requests);
                 advanced++;
+                if (fieldEntry is null && ProcessRandomEncounters is not null)
+                {
+                    candidate = ProcessRandomEncounters(candidate, movementUnits);
+                    if (HasPendingBattle?.Invoke() == true)
+                    {
+                        break;
+                    }
+                }
                 if (fieldEntry is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice)
                 {
                     break;

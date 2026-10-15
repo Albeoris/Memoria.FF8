@@ -16,6 +16,7 @@ internal sealed record UiPreferences
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.Normal;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
     public bool ShowInitiative { get; init; }
+    public bool RandomEncounters { get; init; } = true;
 
     public static UiPreferences Load(string path)
     {
@@ -42,6 +43,15 @@ internal sealed record UiPreferences
                 throw new ArgumentException("Font size must be between 6 and 48 pixels.");
             }
             return key == "UI font size" ? this with { UiFontSize = size } : this with { DialogueFontSize = size };
+        }
+        if (key == "Random encounters")
+        {
+            return value switch
+            {
+                "On" => this with { RandomEncounters = true },
+                "Off" => this with { RandomEncounters = false },
+                _ => throw new ArgumentException("Random encounters requires On or Off.")
+            };
         }
         if (key == "Battle ATB mode")
         {

@@ -50,6 +50,7 @@ internal sealed partial class GameWorld
     {
         scene.PrepareSalaryEffects = Events.PrepareSalaryEffects;
         scene.PublishSalaryEffects = Events.PublishSalaryEffects;
+        ConfigureWorldRandomEncounters(scene);
     }
 
     private Action PrepareNativeWorldFieldEntry(WorldFieldSelection selection, WorldState finalWorld, short mapLocationId, NativeWorldSalaryState salary)

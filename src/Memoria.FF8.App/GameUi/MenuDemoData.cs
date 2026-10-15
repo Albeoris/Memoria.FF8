@@ -155,6 +155,7 @@ public static class MenuSettings
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
         new("Battle ATB mode", "Normal advances continuously. TurnBased advances idle gauges with Advance Turn.", ["Normal", "TurnBased"]),
         new("Battle policy", "Policy for the next New Game. ResearchInstantVictory automatically wins research battles.", ["ResearchInstantVictory", "NewGameFullCombat"]),
+        new("Random encounters", "Random battles for the next full-combat New Game. Existing saves retain their own setting.", ["On", "Off"]),
         new("Initiative bar", "Show living party and enemy heads on the battle initiative bar.", ["On", "Off"]),
         new("Battle speed", "Original battle speed slider.", ["1", "2", "3", "4", "5"]),
         new("Battle message", "Original battle message speed slider.", ["1", "2", "3", "4", "5"]),

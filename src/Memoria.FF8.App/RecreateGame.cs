@@ -671,6 +671,7 @@ internal sealed partial class RecreateGame : Game
         {
             world = CreateWorld();
             world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
+            world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: uiPreferences.RandomEncounters));
         }
         presentedDialogue = null;
         dialoguePages.Clear();

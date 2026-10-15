@@ -57,6 +57,7 @@ internal sealed partial class GameWorld : IDisposable
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session);
         ConfigureBattleHost();
+        ConfigureRandomEncounterHost();
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
@@ -103,7 +104,7 @@ internal sealed partial class GameWorld : IDisposable
     public FieldAssets? Field { get; private set; }
     public WorldMapScene? WorldScene => worldScene;
     public DialogueState? CurrentDialogue => session.State.Scene == SceneKind.WorldMap ? worldScene?.CurrentDialogue : Events.CurrentDialogue;
-    public PlayerTrigger NextTrigger => worldScene is not null && session.State.Scene == SceneKind.WorldMap ? worldScene.CurrentDialogue is { } dialogue ? new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, worldScene.State.Frame, dialogue.MessageId, dialogue.Text) : new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
+    public PlayerTrigger NextTrigger => session.State.RandomEncounters?.Pending is { } random ? new(PlayerTriggerKind.Battle, random.FieldId, random.Frame, null, null) : worldScene is not null && session.State.Scene == SceneKind.WorldMap ? worldScene.CurrentDialogue is { } dialogue ? new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, worldScene.State.Frame, dialogue.MessageId, dialogue.Text) : new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
 
     public bool EnsureField()
     {
@@ -293,6 +294,10 @@ internal sealed partial class GameWorld : IDisposable
             }
         }
         Field = next;
+        if (snapshot is null && session.State.RandomEncounters is { } encounter)
+        {
+            session.SetRandomEncounters(encounter with { Native = encounter.Native with { WorldInitialized = false } });
+        }
         ValidateBattleHostState();
         renderer = new FieldRenderer(next, renderWidth, renderHeight);
     }

@@ -84,5 +84,6 @@ public sealed partial class EventEngine
         {
             Scene.NativeSalaryMovementUnits = accepted ? NativePlayerWalking ? (byte)3 : (byte)5 : (byte)0;
         }
+        NativePlayerMovementProcessed?.Invoke(accepted);
     }
 }
