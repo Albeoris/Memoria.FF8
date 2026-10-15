@@ -9,7 +9,7 @@ public sealed class ReplaySemanticJournalTests
     private const string Hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     [Fact]
-    public void Completed_visit_retains_admissions_decisions_poll_and_media_without_physical_cadence()
+    public void Completed_visit_retains_admissions_decisions_poll_and_media_without_physical_paths()
     {
         GameSession session = Start();
         session.AppendReplayEntry(Load(74));
@@ -23,7 +23,7 @@ public sealed class ReplaySemanticJournalTests
         session.AppendReplayEntry(Load(74));
         session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 74, 1) { Code = 4, Horizontal = -1 });
         ReplayJournal journal = session.ReplayJournal!;
-        ReplayCompletedVisit visit = Assert.Single(journal.CompletedVisits);
+        ReplayCompletedVisit visit = WithoutDelayMarkers(Assert.Single(journal.CompletedVisits));
         Assert.Equal(0, visit.Ordinal);
         Assert.Equal(74, visit.Exit.FieldId);
         Assert.Equal(Hash, visit.EntryFieldLoad!.NativeSourceHash);
@@ -48,7 +48,7 @@ public sealed class ReplaySemanticJournalTests
             regenerated.AppendReplayEntry(intent);
         }
         regenerated.AppendReplayEntry(Load(74));
-        ReplayCompletedVisit secondGeneration = Assert.Single(regenerated.ReplayJournal!.CompletedVisits);
+        ReplayCompletedVisit secondGeneration = WithoutDelayMarkers(Assert.Single(regenerated.ReplayJournal!.CompletedVisits));
         Assert.Equal(visit.Intents.Select(entry => entry.Kind), secondGeneration.Intents.Select(entry => entry.Kind));
         Assert.Equal(new[] { 25, 1 }, Assert.Single(secondGeneration.Intents.Single(entry => entry.Kind == ReplayEntryKind.PersistentEffect).Receipts).Arguments);
         ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(journal))!;
@@ -69,7 +69,7 @@ public sealed class ReplaySemanticJournalTests
         Assert.Equal(1, legacy.Version);
         Assert.Equal(1, legacy.Entries[2].Horizontal);
         ReplayJournal semantic = legacy.GetSemanticProjection();
-        ReplayCompletedVisit visit = Assert.Single(semantic.CompletedVisits);
+        ReplayCompletedVisit visit = WithoutDelayMarkers(Assert.Single(semantic.CompletedVisits));
         Assert.True(visit.Inferred);
         Assert.Equal(new[] { ReplayEntryKind.Action, ReplayEntryKind.ScriptGoal }, visit.Intents.Select(entry => entry.Kind));
         Assert.Equal(8, visit.Intents[0].Code);
@@ -101,7 +101,7 @@ public sealed class ReplaySemanticJournalTests
         ReplayJournal legacy = ReadLegacy([Load(240), confirm, rejected, Load(237), activeConfirm]);
         string original = JsonSerializer.Serialize(legacy);
         ReplayJournal projection = legacy.GetSemanticProjection();
-        ReplayCompletedVisit visit = Assert.Single(projection.CompletedVisits);
+        ReplayCompletedVisit visit = WithoutDelayMarkers(Assert.Single(projection.CompletedVisits));
         Assert.True(visit.Inferred);
         ReplayJournalEntry retained = Assert.Single(visit.Intents);
         Assert.Equal(ReplayEntryKind.Action, retained.Kind);
@@ -143,15 +143,15 @@ public sealed class ReplaySemanticJournalTests
         Sample(0, 0);
         Sample(0, 0);
         session.AppendReplayEntry(Load(76));
-        ReplayCompletedVisit first = session.ReplayJournal!.CompletedVisits[0];
+        ReplayCompletedVisit first = WithoutDelayMarkers(session.ReplayJournal!.CompletedVisits[0]);
         Assert.All(first.Intents, entry => Assert.Equal(ReplayEntryKind.InputSample, entry.Kind));
         Assert.Equal(new[] { 128, 0, 0, 256 }, first.Intents.Select(entry => entry.Value));
         Assert.Equal(new ushort[] { 0, 0, 0x40, 0 }, first.Intents.Select(entry => entry.MappedPulse));
-        ReplayJournalEntry release = Assert.Single(session.ReplayJournal.CompletedVisits[1].Intents);
+        ReplayJournalEntry release = Assert.Single(WithoutDelayMarkers(session.ReplayJournal.CompletedVisits[1]).Intents);
         Assert.Equal(0, release.Value);
         Assert.Equal((ushort)0, release.MappedPulse);
         ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(session.ReplayJournal))!;
-        Assert.Equal((ushort)0x40, restored.CompletedVisits[0].Intents[2].MappedPulse);
+        Assert.Equal((ushort)0x40, WithoutDelayMarkers(restored.CompletedVisits[0]).Intents[2].MappedPulse);
         Assert.Throws<InvalidDataException>(() => (first.Intents[2] with { MappedPulse = 1 }).Validate());
         Assert.Throws<InvalidDataException>(() => (new ReplayJournalEntry(ReplayEntryKind.Step, SceneKind.Field, 74, 1) { MappedPulse = 0x40 }).Validate());
         field = 76;
@@ -161,7 +161,7 @@ public sealed class ReplaySemanticJournalTests
         Sample(0, 0);
         Sample(0, 0);
         session.AppendReplayEntry(Load(77));
-        Assert.Equal(new[] { ReplayEntryKind.NativeTraversal, ReplayEntryKind.InputSample }, session.ReplayJournal!.CompletedVisits[2].Intents.Select(entry => entry.Kind));
+        Assert.Equal(new[] { ReplayEntryKind.NativeTraversal, ReplayEntryKind.InputSample }, WithoutDelayMarkers(session.ReplayJournal!.CompletedVisits[2]).Intents.Select(entry => entry.Kind));
         Assert.Throws<InvalidDataException>(() => (new ReplayJournalEntry(ReplayEntryKind.InputPulse, SceneKind.Field, 76, 1) { ScriptGoal = producer }).Validate());
 
         void Sample(int physical, ushort pulse)
@@ -185,7 +185,7 @@ public sealed class ReplaySemanticJournalTests
         session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 809, 4) { Code = 5, Frames = 470, Advanced = 470, Receipts = [completion] });
         session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 809, 474) { Code = 8 });
         session.AppendReplayEntry(Load(810));
-        ReplayJournalEntry intent = Assert.Single(Assert.Single(session.ReplayJournal!.CompletedVisits).Intents);
+        ReplayJournalEntry intent = Assert.Single(WithoutDelayMarkers(Assert.Single(session.ReplayJournal!.CompletedVisits)).Intents);
         Assert.Equal(ReplayEntryKind.NativeTraversal, intent.Kind);
         ReplayNativeTraversal traversal = Assert.IsType<ReplayNativeTraversal>(intent.NativeTraversal);
         Assert.Equal((byte)4, traversal.Mode);
@@ -199,9 +199,9 @@ public sealed class ReplaySemanticJournalTests
         next.AppendReplayEntry(Load(809));
         next.AppendReplayEntry(intent with { Receipts = [completion with { Frame = 50 }] });
         next.AppendReplayEntry(Load(810));
-        Assert.Equal(traversal, Assert.Single(Assert.Single(next.ReplayJournal!.CompletedVisits).Intents).NativeTraversal);
+        Assert.Equal(traversal, Assert.Single(WithoutDelayMarkers(Assert.Single(next.ReplayJournal!.CompletedVisits)).Intents).NativeTraversal);
         ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(next.ReplayJournal))!;
-        Assert.Equal(traversal, Assert.Single(Assert.Single(restored.CompletedVisits).Intents).NativeTraversal);
+        Assert.Equal(traversal, Assert.Single(WithoutDelayMarkers(Assert.Single(restored.CompletedVisits)).Intents).NativeTraversal);
     }
 
     [Fact]
@@ -220,7 +220,7 @@ public sealed class ReplaySemanticJournalTests
             Assert.Empty(session.ReplayJournal!.CompletedVisits);
             session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 74, 0) { Code = 3, Value = 4 });
         }
-        ReplayCompletedVisit field = Assert.Single(session.ReplayJournal!.CompletedVisits);
+        ReplayCompletedVisit field = WithoutDelayMarkers(Assert.Single(session.ReplayJournal!.CompletedVisits));
         Assert.Equal(3, Assert.Single(field.Intents).Code);
         Assert.Equal(ReplayEntryKind.WorldAllocation, Assert.Single(session.ReplayJournal.ActiveEntries).Kind);
         ReplayWorldEffectCause cause = new(0, 10, 80, null, 2, true);
@@ -236,6 +236,63 @@ public sealed class ReplaySemanticJournalTests
         Assert.Throws<NotSupportedException>(() => session.ApplySemanticWorldEffect(input with { Code = (int)ReplayPersistentEffectKind.WorldBattle }, (_, _, _) => throw new InvalidOperationException()));
         Assert.Same(after, session.State);
         Assert.Equal(ReplayEntryKind.WorldAllocation, JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(session.ReplayJournal))!.ActiveEntries[0].Kind);
+    }
+
+    [Fact]
+    public void Delay_anchors_retain_meaningful_input_timing_without_paths_and_reproject_old_semantic_history()
+    {
+        ReplayJournalEntry choice = new(ReplayEntryKind.Action, SceneKind.Field, 74, 70) { Code = 1, Value = 2, MessageId = 8 };
+        ReplayJournal legacy = ReadLegacy([Load(74), new(ReplayEntryKind.Action, SceneKind.Field, 74, 1) { Code = 4, Horizontal = 1, Frames = 40, Advanced = 40 }, new(ReplayEntryKind.Action, SceneKind.Field, 74, 41) { Code = 5, Frames = 9, Advanced = 9 }, new(ReplayEntryKind.Step, SceneKind.Field, 74, 50) { Advanced = 1, Receipts = [new ReplayReceipt(ReplayReceiptKind.Command, 74, 51, 0, 1, 20, 11, 1048)] }, choice, new(ReplayEntryKind.Action, SceneKind.Field, 74, 90) { Code = 3, Value = 4 }, Load(75), choice with { FieldId = 75, Frame = 4 }, Load(76)]);
+        string original = JsonSerializer.Serialize(legacy);
+        ReplayJournal projected = legacy.GetSemanticProjection();
+        Assert.Equal(new[] { ReplayEntryKind.ScriptGoal, ReplayEntryKind.Delay, ReplayEntryKind.Action, ReplayEntryKind.Action }, projected.CompletedVisits[0].Intents.Select(entry => entry.Kind));
+        Assert.Equal(new long[] { 70 }, projected.CompletedVisits[0].Intents.Where(entry => entry.Kind == ReplayEntryKind.Delay).Select(entry => entry.Frame));
+        Assert.Equal(4, projected.CompletedVisits[1].Intents[0].Frame);
+        Assert.All(projected.CompletedVisits.SelectMany(visit => visit.Intents), entry =>
+        {
+            Assert.Equal(0, entry.Horizontal);
+            Assert.Equal(0, entry.Vertical);
+            Assert.Equal(1, entry.Frames);
+            Assert.Equal(0, entry.Advanced);
+            Assert.Empty(entry.Navigation);
+        });
+        Assert.Equal(original, JsonSerializer.Serialize(legacy));
+        ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(projected))!;
+        Assert.Equal(new long[] { 70 }, restored.CompletedVisits[0].Intents.Where(entry => entry.Kind == ReplayEntryKind.Delay).Select(entry => entry.Frame));
+        ReplayJournal oldSemantic = ReadCurrent(projected.CompletedVisits.Select(WithoutDelayMarkers).ToArray(), projected.ActiveEntries.ToArray());
+        string oldSemanticCapsule = JsonSerializer.Serialize(oldSemantic);
+        ReplayJournal retimed = oldSemantic.GetSemanticProjection();
+        Assert.Equal(new long[] { 70 }, retimed.CompletedVisits[0].Intents.Where(entry => entry.Kind == ReplayEntryKind.Delay).Select(entry => entry.Frame));
+        Assert.Equal(oldSemanticCapsule, JsonSerializer.Serialize(oldSemantic));
+        Assert.Equal(JsonSerializer.Serialize(oldSemantic.ActiveEntries), JsonSerializer.Serialize(retimed.ActiveEntries));
+        Assert.Same(retimed, retimed.GetSemanticProjection());
+        GameSession current = Start();
+        current.AppendReplayEntry(Load(74));
+        current.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Delay, SceneKind.Field, 74, 70));
+        current.AppendReplayEntry(choice);
+        current.AppendReplayEntry(choice with { Code = 3, Value = 4, Frame = 90 });
+        current.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.SemanticTrigger, SceneKind.Field, 74, 100) { SemanticTrigger = new ReplaySemanticTrigger(1, ReplaySemanticTriggerKind.ActorInteraction, 74, Hash, 4, 4, 8, 7, 2, ExecutableHash: Hash) });
+        current.AppendReplayEntry(Load(75));
+        Assert.Single(current.ReplayJournal!.CompletedVisits[0].Intents, entry => entry.Kind == ReplayEntryKind.Delay);
+        Assert.Throws<InvalidDataException>(() => new ReplayJournalEntry(ReplayEntryKind.Delay, SceneKind.Field, 74, -1).Validate());
+        Assert.Throws<InvalidDataException>(() => new ReplayJournalEntry(ReplayEntryKind.Delay, SceneKind.Field, 74, 70) { Frames = 2 }.Validate());
+        Assert.Throws<InvalidDataException>(() => new ReplayJournalEntry(ReplayEntryKind.Delay, SceneKind.Field, 74, 70) { Horizontal = 1 }.Validate());
+    }
+
+    private static ReplayJournal ReadCurrent(ReplayCompletedVisit[] visits, ReplayJournalEntry[] active)
+    {
+        using MemoryStream compressed = new();
+        using (BrotliStream stream = new(compressed, CompressionLevel.Optimal, true))
+        {
+            JsonSerializer.Serialize(stream, new { CompletedVisits = visits, ActiveEntries = active });
+        }
+        string capsule = JsonSerializer.Serialize(new { Version = 2, Root = ReplayJournal.NewGameRoot, RandomSeed = 0, SessionId = "0123456789abcdef0123456789abcdef", EntryCount = active.Length + visits.Sum(visit => visit.Intents.Length + (visit.EntryFieldLoad is null ? 0 : 1)), IsComplete = true, Data = Convert.ToBase64String(compressed.ToArray()) });
+        return JsonSerializer.Deserialize<ReplayJournal>(capsule)!;
+    }
+
+    private static ReplayCompletedVisit WithoutDelayMarkers(ReplayCompletedVisit visit)
+    {
+        return visit with { Intents = visit.Intents.Where(entry => entry.Kind != ReplayEntryKind.Delay).ToArray() };
     }
 
     private static GameSession Start()

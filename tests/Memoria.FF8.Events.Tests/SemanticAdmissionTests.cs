@@ -12,7 +12,7 @@ internal static partial class Program
     private static void SemanticAdmissionContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        (EventEngine Engine, GameSession Session, JsmProgram Program) Create(int distance, bool disableGateway = false, bool requestChain = false, bool autonomous = false, bool inactiveRequestTarget = false)
+        (EventEngine Engine, GameSession Session, JsmProgram Program) Create(int distance, bool disableGateway = false, bool requestChain = false, bool autonomous = false, bool inactiveRequestTarget = false, bool haltTalk = false)
         {
             (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.RET, 8)];
             if (disableGateway)
@@ -27,6 +27,10 @@ internal static partial class Program
             }
             (Jsm.Opcode, int)[] targetIdle = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] talk = [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5002), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 8)];
+            if (haltTalk)
+            {
+                talk = [.. talk.Take(talk.Length - 1), (Jsm.Opcode.HALT, 0), talk[^1]];
+            }
             (Jsm.Opcode, int)[] push = [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.RET, 8)];
             List<(Jsm.Opcode, int)[]> scripts = [player, idle, target, targetIdle, talk, push];
             ushort[] groups = [1, (16 << 7) | 3];
@@ -81,9 +85,15 @@ internal static partial class Program
         Require(near.Engine.Apply(new PlayerAction(PlayerActionKind.Interact, 1)).Accepted, "Nearby ordinary actor interaction was not admitted.");
         Require(physical is [{ Kind: ReplaySemanticTriggerKind.ActorInteraction, NativeObjectId: 1, ObjectId: 1, ScriptId: 18, NativeSlot: 7, LocalScript: 2, Inferred: false }], "Ordinary talk did not capture its actual native producer without inference.");
         Require(near.Session.ReplayJournal!.Endpoint!.SemanticAdmissions.SequenceEqual(physical), "Ordinary admission did not enter its game-owned input transaction.");
+        Require(near.Engine.HasSemanticAdmissionWork(physical[0]), "An admitted native slot was not work before its first actual scheduler turn.");
         near.Engine.Step();
         Require(near.Session.State.Variables.GetValueOrDefault(5000) == 7 && near.Session.State.Variables.GetValueOrDefault(5002) == 1, "Ordinary request did not execute the actual target script and current KEYON edge.");
         Require(near.Session.ReplayJournal!.Endpoint!.Receipts.Any(receipt => receipt.Kind == ReplayReceiptKind.InputSample && receipt.ObjectId == 1 && receipt.ScriptId == 18 && receipt.Code == (int)Jsm.Opcode.KEYON), "Current native KEYON consumption did not retain its authenticated input sample site.");
+        var halted = Create(100, haltTalk: true);
+        ReplaySemanticTrigger haltedTrigger = halted.Engine.GetSemanticTriggerCandidates().Single(trigger => trigger.Kind == ReplaySemanticTriggerKind.ActorInteraction && trigger.ObjectId == 1);
+        Require(halted.Engine.ApplySemanticTrigger(haltedTrigger).Accepted && halted.Engine.HasSemanticAdmissionWork(haltedTrigger), "Queued admission work was lost before its HALT script ran.");
+        halted.Engine.Step();
+        Require(halted.Engine.IsSemanticAdmissionPending(haltedTrigger) && !halted.Engine.HasSemanticAdmissionWork(haltedTrigger), "Native HALT slot occupancy was confused with runnable admission work.");
         var far = Create(10000);
         JsonElement beforeCandidates = far.Engine.Capture();
         ReplaySemanticTrigger candidate = far.Engine.GetSemanticTriggerCandidates().Single(trigger => trigger.Kind == ReplaySemanticTriggerKind.ActorInteraction && trigger.ObjectId == 1);

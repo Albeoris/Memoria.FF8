@@ -23,7 +23,12 @@ public sealed partial class ReplayJournal
     {
         if (Version == CurrentVersion)
         {
-            return this;
+            ReplayCompletedVisit[] timedVisits = visits.Select(visit => visit with { Intents = AddSemanticDelayAnchors(visit.Intents) }).ToArray();
+            if (timedVisits.Select((visit, index) => visit.Intents.SequenceEqual(visits[index].Intents)).All(unchanged => unchanged))
+            {
+                return this;
+            }
+            return Restore(CurrentVersion, SessionId, timedVisits, ActiveEntries.ToArray(), IsComplete, UnavailableReason);
         }
         ReplayJournal projected = StartNewGame(SessionId);
         foreach (ReplayJournalEntry entry in Entries)
@@ -172,7 +177,33 @@ public sealed partial class ReplayJournal
                 compact.Add(intent);
             }
         }
-        return compact.ToArray();
+        return AddSemanticDelayAnchors(compact);
+    }
+
+    private static ReplayJournalEntry[] AddSemanticDelayAnchors(IEnumerable<ReplayJournalEntry> intents)
+    {
+        List<ReplayJournalEntry> anchored = [];
+        long minimumFrame = -1;
+        foreach (ReplayJournalEntry intent in intents)
+        {
+            if (intent.Kind == ReplayEntryKind.Delay)
+            {
+                if (intent.Frame > minimumFrame)
+                {
+                    anchored.Add(intent);
+                    minimumFrame = intent.Frame;
+                }
+                continue;
+            }
+            bool timedInput = intent.Kind is ReplayEntryKind.Action or ReplayEntryKind.WorldAction && intent.Code != 3 || intent.Kind is ReplayEntryKind.Dialogue or ReplayEntryKind.BattleInput or ReplayEntryKind.InputSample or ReplayEntryKind.NativeTraversal;
+            if (timedInput && intent.Frame > minimumFrame)
+            {
+                anchored.Add(new ReplayJournalEntry(ReplayEntryKind.Delay, intent.Scene, intent.FieldId, intent.Frame));
+                minimumFrame = intent.Frame;
+            }
+            anchored.Add(intent);
+        }
+        return anchored.ToArray();
     }
 
     private static bool RetainInputSample(ReplayJournalEntry entry, ref int representedHeld)

@@ -105,6 +105,17 @@ public sealed partial class EventEngine
     /// <summary>Whether this admitted producer still owns pending entry work or an unfinished native request slot. It does not dispatch or advance that work.</summary>
     public bool IsSemanticAdmissionPending(ReplaySemanticTrigger trigger)
     {
+        return HasSemanticAdmissionContext(trigger, false);
+    }
+
+    /// <summary>Actual queued or running admission work, excluding a halted but still occupied native slot.</summary>
+    public bool HasSemanticAdmissionWork(ReplaySemanticTrigger trigger)
+    {
+        return HasSemanticAdmissionContext(trigger, true);
+    }
+
+    private bool HasSemanticAdmissionContext(ReplaySemanticTrigger trigger, bool requireWork)
+    {
         ArgumentNullException.ThrowIfNull(trigger);
         trigger.Validate();
         if (program is null || trigger.FieldId != FieldId || trigger.ProgramHash != programHash)
@@ -120,7 +131,7 @@ public sealed partial class EventEngine
         {
             return true;
         }
-        return fibers.Any(fiber => !fiber.Complete && !fiber.Initialization && fiber.ObjectId == trigger.ObjectId && fiber.Script.Id == trigger.ScriptId && NativeActorRequestSlot(fiber) == trigger.NativeSlot);
+        return fibers.Any(fiber => !fiber.Complete && !fiber.Initialization && fiber.ObjectId == trigger.ObjectId && fiber.Script.Id == trigger.ScriptId && NativeActorRequestSlot(fiber) == trigger.NativeSlot && (!requireWork || fiber.WaitReason != WaitReason.NativeHalt));
     }
 
     /// <summary>Potential current external causes of a retained producer, including literal native request chains. This is inferred reachability metadata, not a forced branch or proof of a past admission.</summary>

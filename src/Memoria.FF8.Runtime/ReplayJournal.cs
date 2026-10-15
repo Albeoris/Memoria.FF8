@@ -21,7 +21,8 @@ public enum ReplayEntryKind
     PersistentEffect,
     WorldAllocation,
     NativeTraversal,
-    InputPulse
+    InputPulse,
+    Delay
 }
 
 public enum ReplayReceiptKind
@@ -93,6 +94,10 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
 
     public void Validate()
     {
+        if (Kind == ReplayEntryKind.Delay && (Code != 0 || Value != 0 || Frames != 1 || Advanced != 0 || Repeat != 1 || Horizontal != 0 || Vertical != 0 || CameraHorizontal != 0 || ElapsedTicks != 0 || StartPose is not null || EndPose is not null || Navigation is not { Length: 0 } || WorldNavigation is not { Length: 0 }))
+        {
+            throw new InvalidDataException("Semantic delay stores only its minimum absolute visit callback Frame, without a physical path or repeated duration.");
+        }
         if ((MappedPulse & ~0x50) != 0 || MappedPulse != 0 && Kind is not (ReplayEntryKind.InputSample or ReplayEntryKind.InputPulse) || Kind == ReplayEntryKind.InputPulse && MappedPulse == 0 || Kind == ReplayEntryKind.InputSample && Value is < 0 or > ushort.MaxValue)
         {
             throw new InvalidDataException("Native samples and explicit pulse queues require the implemented mapped Confirm/Cancel pulse flags.");

@@ -77,6 +77,7 @@ internal sealed partial class GameWorld
         private ReplayCompletedVisit? currentVisit;
         private JsmProgram? currentProgram;
         private ushort deferredLegacyPulse;
+        private long timingOffset;
 
         public SemanticRecreation(GameWorld world, GameSession session, string gameDirectory)
         {
@@ -111,6 +112,7 @@ internal sealed partial class GameWorld
             legacyProducerHints.Clear();
             pendingLegacyInvocations.Clear();
             deferredLegacyPulse = 0;
+            timingOffset = 0;
             consumedAdmissions.Clear();
             receipts.Clear();
             consumedReceipts.Clear();
@@ -125,7 +127,14 @@ internal sealed partial class GameWorld
                         ValidateDepartedVisitRemainder(visit, index);
                         break;
                     }
+                    int admissionCount = admissions.Count;
+                    long inputFrame = CurrentReplayFrame();
                     ApplyIntent(intent, false);
+                    if (inferredVisit && intent.Kind != ReplayEntryKind.Delay && admissions.Count > admissionCount)
+                    {
+                        long origin = intent.Kind == ReplayEntryKind.Action && intent.Code == (int)PlayerActionKind.Interact ? inputFrame : CurrentReplayFrame();
+                        timingOffset = origin - intent.Frame;
+                    }
                 }
                 catch (SemanticVisitDepartureException)
                 {
@@ -184,9 +193,10 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidDataException($"The current native event departed to {session.State.Scene}/{session.State.FieldId} instead of the retained next location {visit.Exit.Scene}/{visit.Exit.FieldId}.");
             }
-            if (visit.Intents.Skip(index).Any(entry => entry.Kind != ReplayEntryKind.ScriptGoal))
+            ReplayJournalEntry? remaining = visit.Intents.Skip(index).FirstOrDefault(entry => entry.Kind is not (ReplayEntryKind.ScriptGoal or ReplayEntryKind.Delay) && !(entry.Kind == ReplayEntryKind.Action && entry.Code == (int)PlayerActionKind.Confirm && entry.MessageId is not null));
+            if (remaining is not null)
             {
-                throw new InvalidDataException("The current native event departed before a retained external input could be applied.");
+                throw new InvalidDataException($"Semantic visit{visit.Ordinal}/{visit.FieldId} departed before retained {remaining.Kind}/code{remaining.Code}/value{remaining.Value}/frame{remaining.Frame}/message{remaining.MessageId}/producer{remaining.ScriptGoal?.ObjectId}/{remaining.ScriptGoal?.ScriptId}/{remaining.ScriptGoal?.Operation}.");
             }
         }
 
@@ -245,6 +255,9 @@ internal sealed partial class GameWorld
         {
             switch (entry.Kind)
             {
+                case ReplayEntryKind.Delay:
+                    ApplyDelay(entry);
+                    break;
                 case ReplayEntryKind.FieldLoad:
                 case ReplayEntryKind.WorldAllocation:
                     break;
@@ -348,6 +361,13 @@ internal sealed partial class GameWorld
             {
                 deferredLegacyPulse |= 0x40;
             }
+            else if (entry.Kind != ReplayEntryKind.WorldAction && kind == PlayerActionKind.Confirm && entry.MessageId is not null && !physicalTail)
+            {
+                if (world.CurrentDialogue is { CanConfirm: true, FirstChoice: null, IsNamePrompt: false })
+                {
+                    world.Apply(new PlayerAction(PlayerActionKind.Confirm));
+                }
+            }
             else if (entry.Kind == ReplayEntryKind.WorldAction)
             {
                 world.Apply(new PlayerAction(kind, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames, entry.Quantity, entry.CameraHorizontal));
@@ -398,6 +418,47 @@ internal sealed partial class GameWorld
             }
         }
 
+        private void ApplyDelay(ReplayJournalEntry entry)
+        {
+            bool Departed() => currentVisit is { Scene: SceneKind.WorldMap } visit ? session.State.Scene != SceneKind.WorldMap || session.State.FieldId != visit.FieldId : HasDepartedCurrentVisit();
+            long target = checked(entry.Frame + timingOffset);
+            while (!Departed() && CurrentReplayFrame() < target && !HasExternalDecisionBoundary())
+            {
+                if (session.State.Scene == SceneKind.WorldMap)
+                {
+                    world.Apply(new PlayerAction(PlayerActionKind.Wait));
+                }
+                else
+                {
+                    world.Events.Step();
+                    world.PublishReplayDeparture();
+                }
+            }
+            if (Departed())
+            {
+                throw new SemanticVisitDepartureException();
+            }
+            RecordCurrentDelay();
+        }
+
+        private void RecordCurrentDelay()
+        {
+            long frame = CurrentReplayFrame();
+            session.RecordReplayEntry(new ReplayJournalEntry(ReplayEntryKind.Delay, session.State.Scene, session.State.FieldId, frame)
+            {
+                ResultScene = session.State.Scene,
+                ResultFieldId = session.State.FieldId,
+                ResultFrame = frame,
+                Trigger = (int)world.NextTrigger.Kind,
+                ResultTrigger = (int)world.NextTrigger.Kind
+            });
+        }
+
+        private long CurrentReplayFrame()
+        {
+            return session.State.Scene == SceneKind.WorldMap ? session.State.World?.Frame ?? 0 : world.Events.Frame;
+        }
+
         private void ApplyDecision(ReplayJournalEntry entry, PlayerActionKind kind)
         {
             if (inferredVisit && entry.ObjectId is int objectId && entry.ScriptId is int scriptId && entry.Operation is int operation && !MatchesDecision(entry))
@@ -433,17 +494,18 @@ internal sealed partial class GameWorld
                     return true;
                 }
             }
-            ReplaySemanticTrigger[] precedingEvents = admissions.Where(admission => SameAdmission(admission, trigger) || admission.ObjectId != trigger.ObjectId && admission.Kind is ReplaySemanticTriggerKind.ActorInteraction or ReplaySemanticTriggerKind.DoorEntry or ReplaySemanticTriggerKind.DoorAction).ToArray();
-            Seek(() => precedingEvents.All(admission => !world.Events.IsSemanticAdmissionPending(admission)) || producerHint && HasExternalDecisionBoundary(), "preceding native event completion");
+            ReplaySemanticTrigger[] precedingEvents = admissions.Where(admission => SameAdmission(admission, trigger)).ToArray();
+            Seek(() => precedingEvents.All(admission => !world.Events.HasSemanticAdmissionWork(admission)) || producerHint && HasExternalDecisionBoundary(), "preceding native event completion");
             Seek(() => world.Events.CanAdmitSemanticInput || producerHint && HasExternalDecisionBoundary(), "semantic native admission");
             if (producerHint && HasExternalDecisionBoundary())
             {
                 return false;
             }
+            RecordCurrentDelay();
             PlayerActionResult result = world.Events.ApplySemanticTrigger(trigger);
             if (!result.Accepted)
             {
-                throw new InvalidDataException("The current native dispatcher rejected a retained semantic admission.");
+                throw new InvalidDataException($"The current native dispatcher rejected {trigger.Kind}/object{trigger.ObjectId}/script{trigger.ScriptId}/local{trigger.LocalScript}/inf{trigger.InfIndex}: {result.Detail ?? result.Trigger.Kind.ToString()}.");
             }
             world.PublishReplayDeparture();
             knownProducers.Add((trigger.ObjectId, trigger.ScriptId));
@@ -505,6 +567,11 @@ internal sealed partial class GameWorld
                 DrainProducer(goal);
                 return true;
             }
+            if (!repeatedInvocation && admissions.Any(admission => world.Events.IsSemanticAdmissionProducerAncestor(admission, goal)))
+            {
+                DrainProducer(goal);
+                return true;
+            }
             ReplaySemanticTrigger[] targets = world.Events.GetSemanticProducerCandidates(goal).ToArray();
             if (targets.Length == 0)
             {
@@ -519,11 +586,6 @@ internal sealed partial class GameWorld
                     DrainProducer(goal);
                     return !repeatedInvocation;
                 }
-            }
-            if (!repeatedInvocation && targets.Any(target => admissions.Any(admission => SameAdmission(target, admission))))
-            {
-                DrainProducer(goal);
-                return true;
             }
             if (targets.Length > 1)
             {
@@ -643,6 +705,10 @@ internal sealed partial class GameWorld
 
         private void ApplyLegacyButtons(ReplayJournalEntry entry)
         {
+            if (entry.Value != 0 && entry.ObjectId is int objectId && entry.ScriptId is int scriptId && entry.Operation is int operation)
+            {
+                ReachProducer(world.Events.GetSemanticProducerGoal(objectId, scriptId, operation));
+            }
             int firstReceipt = receipts.Count;
             world.Events.Apply(new PlayerAction(PlayerActionKind.FieldButtons, entry.Value));
             if (entry.Value == 0 && !world.Events.HasPendingSemanticButtonConsumer)
@@ -747,6 +813,11 @@ internal sealed partial class GameWorld
 
         private void CompleteFieldVisit(ReplayCompletedVisit visit)
         {
+            if (!HasDepartedCurrentVisit() && admissions.Any(world.Events.HasSemanticAdmissionWork))
+            {
+                world.Events.Step();
+                world.PublishReplayDeparture();
+            }
             bool exitAdmitted = false;
             for (int callback = 0; callback < MaximumReadinessCallbacks; callback++)
             {
@@ -763,6 +834,15 @@ internal sealed partial class GameWorld
                     }
                     else
                     {
+                        if (visit.Inferred)
+                        {
+                            // Potential bytecode exits are not historical causes.
+                            // Do not invent a second invocation of an event already
+                            // consumed by this visit's retained producer hints.
+                            // Explicit actor interactions survive v1 projection;
+                            // merely leaving a field cannot invent another talk.
+                            exits = exits.Where(exit => exit.Kind != ReplaySemanticTriggerKind.ActorInteraction && !admissions.Any(admission => SameAdmission(exit, admission))).ToArray();
+                        }
                         if (exits.Length == 1 || exits.Length > 1 && (world.Events.AreSemanticExitCandidatesEquivalent(exits) || visit.Inferred && (world.Events.CanCanonicalizeLegacyGatewayEntries(exits) || world.Events.CanCanonicalizeLegacySpatialExits(exits, visit.Exit.Scene, visit.Exit.FieldId) || world.Events.CanCanonicalizeLegacyPresentationExits(exits, visit.Exit.Scene, visit.Exit.FieldId))))
                         {
                             Admit(exits[0]);

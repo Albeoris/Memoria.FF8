@@ -12,7 +12,7 @@ internal static partial class Program
     private static void SemanticExitEquivalenceContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        EventEngine Create(bool writeState, bool conditionalWriter = false, int story = 0, bool conditionalDestination = false, bool presentation = false, int postPresentation = 0, int conditionalStop = 0)
+        EventEngine Create(bool writeState, bool conditionalWriter = false, int story = 0, bool conditionalDestination = false, bool presentation = false, int postPresentation = 0, int conditionalStop = 0, bool spatialRequest = false, int childFault = 0)
         {
             (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.RET, 8)];
             player = [.. player.Take(player.Length - 1), (Jsm.Opcode.PSHN_L, story), (Jsm.Opcode.POPM_W, 256), player[^1]];
@@ -21,6 +21,20 @@ internal static partial class Program
                 player = [.. player.Take(player.Length - 1), (Jsm.Opcode.PSHN_L, story), (Jsm.Opcode.POPM_B, 530), player[^1]];
             }
             List<(Jsm.Opcode, int)[]> scripts = [player, [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]];
+            if (spatialRequest)
+            {
+                List<(Jsm.Opcode, int)> child = [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.PSHN_L, 7936), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.CAL, 5), (Jsm.Opcode.PSHN_L, 273), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.THROUGHON, 0)];
+                if (childFault == 1)
+                {
+                    child.AddRange([(Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000)]);
+                }
+                if (childFault == 2)
+                {
+                    child.AddRange([(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQEW, 0)]);
+                }
+                child.Add((Jsm.Opcode.RET, 8));
+                scripts.Add(child.ToArray());
+            }
             foreach (int label in new[] { 16, 32 })
             {
                 scripts.Add([(Jsm.Opcode.LBL, label), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)]);
@@ -29,6 +43,10 @@ internal static partial class Program
                     scripts.Add(local == 1 ? [(Jsm.Opcode.LBL, label + local), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)] : [(Jsm.Opcode.LBL, label + local), (Jsm.Opcode.RET, 8)]);
                 }
                 List<(Jsm.Opcode, int)> exit = [(Jsm.Opcode.LBL, label + 7), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.LINEOFF, 0)];
+                if (spatialRequest)
+                {
+                    exit.AddRange([(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQEW, 0)]);
+                }
                 if (conditionalStop != 0)
                 {
                     exit.AddRange([(Jsm.Opcode.PSHM_B, 530), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.CAL, 12), (Jsm.Opcode.JPF, 3), (Jsm.Opcode.LINEOFF, 0), (conditionalStop == 1 ? Jsm.Opcode.HALT : Jsm.Opcode.RET, conditionalStop == 1 ? 0 : 8)]);
@@ -62,7 +80,7 @@ internal static partial class Program
                 exit.AddRange([(Jsm.Opcode.PSHN_L, 175), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 64), (Jsm.Opcode.MAPJUMP, 0), (Jsm.Opcode.RET, 8)]);
                 scripts.Add(exit.ToArray());
             }
-            byte[] content = SyntheticObjects([(16 << 7) | 7, (32 << 7) | 7, 1], scripts);
+            byte[] content = SyntheticObjects([(16 << 7) | 7, (32 << 7) | 7, (ushort)(spatialRequest ? 2 : 1)], scripts);
             content[1] = 2;
             content[3] = 1;
             GameSession session = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
@@ -179,6 +197,30 @@ internal static partial class Program
         {
             JsonElement beforeUnknownProof = unknownExit.Capture();
             Require(unknownExit.GetSemanticExitCandidates(SceneKind.Field, 175).Count == 3 && JsonElement.DeepEquals(beforeUnknownProof, unknownExit.Capture()), "A reached unknown state-writing prefix was mistaken for a proven no-exit branch.");
+        }
+        EventEngine requestExit = Create(writeState: false, spatialRequest: true);
+        requestExit.InfGateways = [first];
+        using (requestExit.BeginSemanticSpatialReplay())
+        {
+            ReplaySemanticTrigger[] candidates = requestExit.GetSemanticExitCandidates(SceneKind.Field, 175).ToArray();
+            JsonElement beforeRequestProof = requestExit.Capture();
+            Require(!requestExit.AreSemanticExitCandidatesEquivalent(candidates) && requestExit.CanCanonicalizeLegacySpatialExits(candidates, SceneKind.Field, 175) && JsonElement.DeepEquals(beforeRequestProof, requestExit.Capture()), "Literal spatial request closure changed strict equivalence, failed legacy policy or mutated current VM state.");
+            Require(requestExit.ApplySemanticTrigger(candidates.First(candidate => candidate.Kind != ReplaySemanticTriggerKind.FieldGateway)).Accepted, "Proved spatial request exit did not use actual native admission.");
+            for (int callback = 0; callback < 8 && requestExit.NextTrigger.Kind != PlayerTriggerKind.FieldTransition; callback++)
+            {
+                requestExit.Step();
+            }
+            Require(requestExit.LastFault is null && requestExit.NextTrigger.Kind == PlayerTriggerKind.FieldTransition && requestExit.Actors[0].X == -60 && requestExit.Actors[0].Y == 273 && !requestExit.Actors[0].Visible, "Selected exit skipped actual native request execution or lost its current spatial child effects.");
+        }
+        foreach (int childFault in new[] { 1, 2 })
+        {
+            EventEngine unknownChild = Create(writeState: false, spatialRequest: true, childFault: childFault);
+            unknownChild.InfGateways = [first];
+            using (unknownChild.BeginSemanticSpatialReplay())
+            {
+                JsonElement beforeChildProof = unknownChild.Capture();
+                Require(!unknownChild.CanCanonicalizeLegacySpatialExits(unknownChild.GetSemanticExitCandidates(SceneKind.Field, 175), SceneKind.Field, 175) && JsonElement.DeepEquals(beforeChildProof, unknownChild.Capture()), "A persistent-writing or recursive request child was admitted or executed by exit metadata proof.");
+            }
         }
         Console.WriteLine("Semantic exit equivalence: current enabled native door bodies match excluding only their LBL identity, pure query preserves state, state-writer and script/INF equivalence are refused PASS.");
     }
