@@ -62,7 +62,7 @@ internal static class BattleStageCameraReader
                 throw new InvalidDataException($"Stage {stageId} camera group exceeds its directory.");
             }
             reader.BaseStream.Position = groupOffset;
-            int[] tracks = Enumerable.Range(0, 8).Select(_ => groupOffset + 2 * reader.ReadUInt16()).ToArray();
+            int[] tracks = Enumerable.Range(0, 8).Select(_ => groupOffset + 2 * reader.ReadInt16()).ToArray();
             for (int track = 0; track < tracks.Length; track++)
             {
                 if (tracks[track] < groupOffset + 16 || tracks[track] > geometryOffset - 2)
@@ -86,17 +86,24 @@ internal static class BattleStageCameraReader
         Vector3? target = null;
         int focal = 512;
         int roll = 0;
-        for (int record = 0; record < 256 && reader.BaseStream.Position <= end - 2; record++)
+        while (reader.BaseStream.Position <= end - 2)
         {
             ushort flags = reader.ReadUInt16();
             if (flags == ushort.MaxValue)
             {
                 return eye is Vector3 position && target is Vector3 subject && position != subject && focal > 0 && roll == 0 ? new BattleStageCamera(position, subject, focal) : null;
             }
+            int lensMode = flags >> 6 & 3;
+            int rollMode = flags >> 8 & 3;
+            int parameterWords = Math.Max(0, lensMode - 1) + Math.Max(0, rollMode - 1);
+            if (reader.BaseStream.Position > end - parameterWords * 2)
+            {
+                throw new InvalidDataException("Battle camera lens/roll parameters exceed their resource.");
+            }
             // Native503C70: mode0 retains the current value,1 selects its default,2 reads one WORD,
             // and3 reads both interpolation endpoints. Only the final endpoint belongs to this view.
-            focal = ReadEndValue(reader, flags >> 6 & 3, focal, 512);
-            roll = ReadEndValue(reader, flags >> 8 & 3, roll, 0);
+            focal = ReadEndValue(reader, lensMode, focal, 512);
+            roll = ReadEndValue(reader, rollMode, roll, 0);
             int knots = 0;
             while (reader.BaseStream.Position <= end - 2 && reader.ReadInt16() >= 0)
             {

@@ -10,7 +10,7 @@ public sealed class DebugRoomSettingsTests
     public void LaboratoryContainsOnlyScenarioControlsAndChangingItsAtbModeIsLocal()
     {
         BattleDebugController debug = Controller();
-        Assert.DoesNotContain(debug.Rows, row => row.Label.Contains("policy", StringComparison.OrdinalIgnoreCase) || row.Label.Contains("random", StringComparison.OrdinalIgnoreCase) || row.Label.Contains("Initiative", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(debug.Rows, row => row.Label.Contains("policy", StringComparison.OrdinalIgnoreCase) || row.Label.Contains("random", StringComparison.OrdinalIgnoreCase));
         Activate(debug, "ATB mode");
         Assert.Equal(BattleAtbMode.TurnBased, debug.Mode);
     }
@@ -110,7 +110,6 @@ public sealed class DebugRoomSettingsTests
         Assert.Equal("Dummy", dummy.Combatants[1].Name);
         Assert.Equal(-1, dummy.Combatants[1].ModelId);
         _ = new BattleSession(dummy, BattleAtbMode.Normal);
-        Assert.False(new UiPreferences().ShowInitiative);
     }
 
     [Fact]

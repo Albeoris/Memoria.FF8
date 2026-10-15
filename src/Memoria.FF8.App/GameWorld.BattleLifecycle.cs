@@ -24,7 +24,7 @@ internal sealed partial class GameWorld
             ObserveBattleOccurrence();
             if (Events.PendingHostedBattle is { Backend: NativeBattleBackend.AutomaticVictory } && session.State.PendingBattleEncounter is { } occurrence)
             {
-                ReplayBattleOutcome result = CaptureAutomaticBattleOutcome(occurrence);
+                BattleResult result = CaptureAutomaticBattleOutcome(occurrence);
                 Events.ReturnFromHostedBattle(0, () => ApplyBattleResult(occurrence, result));
             }
         }
@@ -51,15 +51,15 @@ internal sealed partial class GameWorld
         int field = scripted?.FieldId ?? random!.FieldId;
         long frame = scripted?.Frame ?? random!.Frame;
         string source = scripted?.ProgramHash ?? random!.SourceHash;
-        ReplayScriptedBattleOwner? owner = scripted is null ? null : new(scripted.FieldId, scripted.ObjectId, scripted.ScriptId, scripted.Operation, scripted.Flags, scripted.ProgramHash);
-        ReplayBattleEncounter occurrence = new(Guid.NewGuid().ToString("N"), formation, BattleResources.FormationSourceHash(formation), scene, field, frame, source, owner);
+        ScriptedBattleOwner? owner = scripted is null ? null : new(scripted.FieldId, scripted.ObjectId, scripted.ScriptId, scripted.Operation, scripted.Flags, scripted.ProgramHash);
+        BattleEncounterOccurrence occurrence = new(Guid.NewGuid().ToString("N"), formation, BattleResources.FormationSourceHash(formation), scene, field, frame, source, owner);
         session.SetPendingBattleEncounter(occurrence);
     }
 
-    private void CompleteRecordedBattle(BattleSession active)
+    private void CompleteBattle(BattleSession active)
     {
-        ReplayBattleEncounter occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
-        ReplayBattleOutcome result = CaptureBattleOutcome(active, occurrence);
+        BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
+        BattleResult result = CaptureBattleOutcome(active, occurrence);
         if (occurrence.ScriptedOwner is not null)
         {
             Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => ApplyBattleResult(occurrence, result));

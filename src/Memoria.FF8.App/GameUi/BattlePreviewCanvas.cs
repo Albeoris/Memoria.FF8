@@ -2,7 +2,6 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -104,20 +103,6 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
             throw new InvalidOperationException("Unbalanced battle preview clipping.");
         }
         graphics.Restore(clips.Pop());
-    }
-
-    public void DrawImage(PixelImage image, UiRect bounds)
-    {
-        byte[] pixels = new byte[checked(image.Width * image.Height * 4)];
-        for (int index = 0; index < image.Pixels.Length; index++)
-        {
-            Rgba32 color = image.Pixels[index];
-            pixels[index * 4] = color.R;
-            pixels[index * 4 + 1] = color.G;
-            pixels[index * 4 + 2] = color.B;
-            pixels[index * 4 + 3] = color.A;
-        }
-        DrawRgba(pixels, image.Width, image.Height, bounds);
     }
 
     public void DrawRgba(byte[] rgba, int width, int height, UiRect bounds)

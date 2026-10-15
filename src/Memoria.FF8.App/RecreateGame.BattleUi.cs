@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Memoria.FF8;
 
-internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? ShowInitiative = null, bool? RandomEncounters = null);
+internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDefinition? Definition = null, BattleAtbMode? Mode = null, MenuInput? MenuInput = null, string? Policy = null, bool? RandomEncounters = null);
 
 internal sealed partial class RecreateGame
 {
@@ -19,7 +19,6 @@ internal sealed partial class RecreateGame
     private BattleDebugController? battleDebug;
     private BattleScenePresentation? battleScene;
     private Texture2D? battleTexture;
-    private readonly Dictionary<string, Texture2D> battleHeads = [];
     private double battleSeconds;
     private bool previousBattleMouse;
     private BattleSession? presentedBattle;
@@ -168,11 +167,9 @@ internal sealed partial class RecreateGame
             battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input));
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
-            battleHud.HeadRenderer = DrawBattleHead;
             battleSeconds = 0;
         }
-        battleHud!.ShowInitiative = uiPreferences.ShowInitiative;
-        battleHud.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
+        battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
     }
 
     private void CompleteBattleResult()
@@ -293,9 +290,9 @@ internal sealed partial class RecreateGame
         SynchronizeUiMoviePause();
     }
 
-    private void ApplyBattleDebugSettings(BattleAtbMode mode, string policy, bool initiative, bool? randomEncounters)
+    private void ApplyBattleDebugSettings(BattleAtbMode mode, string policy, bool? randomEncounters)
     {
-        UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting("Battle policy", policy) with { AtbMode = mode, ShowInitiative = initiative };
+        UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting("Battle policy", policy) with { AtbMode = mode };
         ApplyCurrentBattleSettings(nextPreferences, "Battle policy");
         if (randomEncounters is bool enabled)
         {
@@ -338,19 +335,6 @@ internal sealed partial class RecreateGame
         view.Draw(uiCanvas!, uiTheme);
     }
 
-    private void DrawBattleHead(BattleCombatant actor, IUiCanvas canvas, UiRect bounds)
-    {
-        string key = $"{actor.IsPlayer}:{actor.ModelId}:{actor.Costume}";
-        if (!battleHeads.TryGetValue(key, out Texture2D? head))
-        {
-            var image = battleScene!.Head(actor);
-            head = new Texture2D(GraphicsDevice, image.Width, image.Height);
-            head.SetData(image.Pixels.Select(color => new Color(color.R, color.G, color.B, color.A)).ToArray());
-            battleHeads.Add(key, head);
-        }
-        batch.Draw(head, new Rectangle((int)bounds.X, (int)bounds.Y, (int)bounds.Width, (int)bounds.Height), actor.IsPlayer ? Color.White : new Color(255, 210, 210));
-    }
-
     private void DrawBattleDebugUi(Rectangle bounds)
     {
         if (battleDebug is not null)
@@ -365,7 +349,7 @@ internal sealed partial class RecreateGame
     private object? BattleStatus()
     {
         BattleSession? active = ActiveBattle;
-        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, RecentEvents = active.Events.TakeLast(12).ToArray(), uiPreferences.ShowInitiative, uiPreferences.BattlePolicy, DebugMenuOpen = battleDebug is not null };
+        return active is null ? null : new { IsDebug = debugBattle is not null, active.Mode, active.Frame, active.Outcome, active.Name, active.Combatants, active.ActiveAction, active.QueuedActions, RecentEvents = active.Events.TakeLast(12).ToArray(), uiPreferences.BattlePolicy, DebugMenuOpen = battleDebug is not null };
     }
 
     private object DispatchBattleControl(ControlRequest request)
@@ -381,7 +365,7 @@ internal sealed partial class RecreateGame
                 ApplyBattleCommand(command.Input ?? throw new ArgumentException("Battle Input is required."));
                 break;
             case "battle-settings":
-                ApplyBattleDebugSettings(command.Mode ?? currentPreferences.AtbMode, command.Policy ?? currentPreferences.BattlePolicy, command.ShowInitiative ?? currentPreferences.ShowInitiative, command.RandomEncounters);
+                ApplyBattleDebugSettings(command.Mode ?? currentPreferences.AtbMode, command.Policy ?? currentPreferences.BattlePolicy, command.RandomEncounters);
                 break;
             case "battle-debug-open":
                 OpenBattleDebug();
@@ -409,11 +393,6 @@ internal sealed partial class RecreateGame
 
     private void DisposeBattleTextures()
     {
-        foreach (Texture2D head in battleHeads.Values)
-        {
-            head.Dispose();
-        }
-        battleHeads.Clear();
         battleTexture?.Dispose();
         battleTexture = null;
         battleScene = null;

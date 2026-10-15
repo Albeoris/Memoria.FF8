@@ -17,7 +17,6 @@ internal sealed record UiPreferences
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
     [System.Text.Json.Serialization.JsonIgnore]
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
-    public bool ShowInitiative { get; init; }
     public bool RandomEncounters { get; init; } = true;
 
     public BattleInput[] CreateBattleSettingsInputs()
@@ -77,15 +76,6 @@ internal sealed record UiPreferences
                 "Instant victory" or "ResearchInstantVictory" => this with { BattlePolicy = "ResearchInstantVictory" },
                 "Full combat" or "NewGameFullCombat" => this with { BattlePolicy = "NewGameFullCombat" },
                 _ => throw new ArgumentException("Unsupported battle policy.")
-            };
-        }
-        if (key == "Initiative bar")
-        {
-            return value switch
-            {
-                "On" => this with { ShowInitiative = true },
-                "Off" => this with { ShowInitiative = false },
-                _ => throw new ArgumentException("Initiative bar requires On or Off.")
             };
         }
         if (!int.TryParse(value.TrimEnd('%'), out int number))

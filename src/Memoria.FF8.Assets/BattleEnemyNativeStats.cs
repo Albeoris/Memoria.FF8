@@ -64,54 +64,11 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
 
     public static int LevelRandomByteCount(byte sceneLevel)
     {
-        return sceneLevel <= 100 || sceneLevel == 254 ? 0 : sceneLevel is 251 or 253 ? 2 : 1;
+        return Memoria.FF8.Runtime.NativeBattleEnemyLevelRules.RandomByteCount(sceneLevel);
     }
 
     public static int ResolveLevel(byte sceneLevel, ReadOnlySpan<byte> presentPartyLevels, byte originalBattleRoll, byte? secondBattleRoll = null)
     {
-        if (sceneLevel <= 100)
-        {
-            return sceneLevel;
-        }
-        if (LevelRandomByteCount(sceneLevel) == 2 && secondBattleRoll is null)
-        {
-            throw new InvalidDataException("Native enemy level code requires its second original battle random byte.");
-        }
-        if (presentPartyLevels.Length is < 1 or > 3)
-        {
-            throw new InvalidDataException("Native enemy level requires the actual one-to-three present battle party levels.");
-        }
-        int sum = 0;
-        foreach (byte level in presentPartyLevels)
-        {
-            if (level is < 1 or > 100)
-            {
-                throw new InvalidDataException("Native present battle party levels must be1..100.");
-            }
-            sum += level;
-        }
-        int average = sum / presentPartyLevels.Length;
-        if (sceneLevel == 254)
-        {
-            return average;
-        }
-        // Original48BBD0 dispatches48BFA0/48C020/48C0A0/48C140; preserve their byte consumption.
-        int varied = Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? average / 5 : average / -5), 1, 100);
-        if (sceneLevel <= 200)
-        {
-            return Math.Min(sceneLevel - 100, varied);
-        }
-        if (sceneLevel <= 250)
-        {
-            return Math.Min(100, varied + sceneLevel - 200);
-        }
-        return sceneLevel switch
-        {
-            251 => Math.Clamp(average + ((originalBattleRoll & 1) != 0 ? secondBattleRoll!.Value & 3 : -(secondBattleRoll!.Value & 3)), 1, 65),
-            252 => originalBattleRoll % 100 + 1,
-            253 => Math.Max(1, secondBattleRoll!.Value % varied),
-            255 => varied,
-            _ => throw new InvalidDataException("Invalid native level dispatch.")
-        };
+        return Memoria.FF8.Runtime.NativeBattleEnemyLevelRules.Resolve(sceneLevel, presentPartyLevels, originalBattleRoll, secondBattleRoll);
     }
 }

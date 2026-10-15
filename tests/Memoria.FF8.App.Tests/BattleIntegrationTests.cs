@@ -8,7 +8,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-// Synthetic component programs exercise the current interactive battle/replay host contract.
+// Synthetic component programs exercise the current interactive battle/standalone-state host contract.
 // Installed initial vitals are authentic inputs; these tests do not claim an original field journey or native combat parity.
 public sealed class BattleIntegrationTests
 {
@@ -170,6 +170,7 @@ public sealed class BattleIntegrationTests
         session.Restore(session.State with { FieldId = FixtureField, FieldName = "synthetic-interactive-battle-component" });
         EventEngine engine = CreateEngine(session);
         engine.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
         return (session, engine);
     }
 
@@ -178,7 +179,8 @@ public sealed class BattleIntegrationTests
         return new EventEngine(session)
         {
             UseInteractiveBattle = (_, _) => true,
-            ValidateInteractiveBattle = (_, _) => null
+            ValidateInteractiveBattle = (_, _) => null,
+            ReadMovieCameraFlags = (disc, movie) => NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory, disc, movie)))
         };
     }
 
@@ -190,12 +192,18 @@ public sealed class BattleIntegrationTests
 
     private static byte[] EncodeProgram((Jsm.Opcode Opcode, int Parameter)[] operations)
     {
-        const int operationsOffset = 14;
+        // Script0 is the native synchronous initializer; yielding BATTLE/MOVIEREADY belongs to
+        // script1 on an ordinary callback, exactly as in HostedAutomaticBattleTests.
+        operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), .. operations];
+        operations[2] = (Jsm.Opcode.LBL, 1);
+        const int operationsOffset = 16;
         byte[] bytes = new byte[operationsOffset + operations.Length * 4];
         bytes[3] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), operationsOffset);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), checked((ushort)operations.Length));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), checked((ushort)operations.Length));
         for (int index = 0; index < operations.Length; index++)
         {
             (Jsm.Opcode opcode, int parameter) = operations[index];

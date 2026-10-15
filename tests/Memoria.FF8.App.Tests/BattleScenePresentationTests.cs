@@ -70,9 +70,27 @@ public sealed class BattleScenePresentationTests
     }
 
     [Fact]
+    public void Inactive_information_only_reserve_waits_for_activation_before_graphics_are_required()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
+        using BattleAssets assets = new(directory);
+        BattleDefinition original = ReadyBattle().Capture().Definition;
+        BattleDefinition definition = original with { Combatants = [.. original.Combatants, new() { Id = "reserve", Name = "Inactive information-only reserve", ModelId = 127, SceneSlot = 7, InitialActive = false }] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleScenePresentation scene = new(assets, definition, false);
+        Assert.NotEmpty(scene.Render(session, 320, 240));
+        BattleSnapshot snapshot = session.Capture();
+        BattleSnapshot activated = snapshot with { Combatants = snapshot.Combatants.Select(actor => actor.Id == "reserve" ? actor with { NativeParticipant = actor.NativeParticipant! with { Active = true, ActorIndex = 4 } } : actor).ToArray() };
+        Assert.Throws<NotSupportedException>(() => scene.Render(BattleSession.Restore(activated), 320, 240));
+        Assert.False(session.Combatants.Single(actor => actor.Id == "reserve").IsActive);
+    }
+
+    [Fact]
     public void Hit_feedback_uses_committed_events_survives_restore_and_expires_without_mutation()
     {
         BattleSession session = ReadyBattle();
+        int previousHp = session.Combatants.Single(actor => actor.Id == "enemy").CurrentHp;
         session.QueueAttack("party", "enemy");
         Tick(session, BattleSession.AttackWindupFrames);
         Assert.Empty(BattleImpactPresentation.Collect(session));
@@ -80,7 +98,8 @@ public sealed class BattleScenePresentationTests
         BattleImpactCue impact = Assert.Single(BattleImpactPresentation.Collect(session));
         Assert.True(impact.IsPhysical);
         Assert.Equal(0, impact.Age);
-        Assert.Equal(60, impact.Event.Amount);
+        Assert.True(impact.Event.Amount > 0);
+        Assert.Equal(previousHp - session.Combatants.Single(actor => actor.Id == "enemy").CurrentHp, impact.Event.Amount);
         string before = JsonSerializer.Serialize(session.Capture());
         BattleSession restored = BattleSession.Restore(session.Capture());
         Assert.Equal(BattleImpactPresentation.Collect(session), BattleImpactPresentation.Collect(restored));

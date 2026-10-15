@@ -28,7 +28,7 @@ public sealed class BattleRewardTests
             session.Tick();
         }
         Assert.Equal(BattleOutcome.Victory, session.Outcome);
-        ReplayBattleEnemyDefeat fact = Assert.Single(session.EnemyDefeats);
+        BattleEnemyDefeat fact = Assert.Single(session.EnemyDefeats);
         Assert.Equal((2, (byte)8, expected, (byte?)0, gf is int id ? (byte?)id : null), (fact.Slot, fact.Level, fact.Credit, fact.KillerRow, fact.GuardianForceId));
         Assert.True(fact.CardSelected);
         Assert.InRange(fact.DropSelection, (sbyte)0, (sbyte)3);

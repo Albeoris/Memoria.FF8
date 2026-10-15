@@ -35,7 +35,7 @@ public sealed class NativeBattleRewardDistributionTests
         NativeCharacterVital[] records = vitals.Records.ToArray();
         records[0] = records[0] with { Status = 1, HitPoints = new(0, 0) };
         vitals = vitals with { Records = records };
-        ReplayBattleEnemyDefeat[] defeats = [new(0, level, BattleDefeatCredit.Unattributed, null, null, false, -1)];
+        BattleEnemyDefeat[] defeats = [new(0, level, BattleDefeatCredit.Unattributed, null, null, false, -1)];
         Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() };
         BattleExperienceAwards ko = NativeBattleRewardDistribution.Experience(defeats, vitals, definitions, false);
         Assert.Empty(ko.Characters);
@@ -62,7 +62,7 @@ public sealed class NativeBattleRewardDistributionTests
         cards.Cards[0] = 0x80 | 99;
         string beforeEconomy = JsonSerializer.Serialize(economy);
         string beforeCards = JsonSerializer.Serialize(cards);
-        ReplayBattleEnemyDefeat[] defeats = [new(0, 8, BattleDefeatCredit.Character, 0, null, true, 0)];
+        BattleEnemyDefeat[] defeats = [new(0, 8, BattleDefeatCredit.Character, 0, null, true, 0)];
         Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() };
         BattleLootOwners rewards = NativeBattleRewardDistribution.Loot(defeats, definitions, economy, cards);
         Assert.Equal(100, rewards.Economy.Items[potion].Count);

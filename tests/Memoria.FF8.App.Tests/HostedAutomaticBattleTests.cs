@@ -37,6 +37,11 @@ public sealed class HostedAutomaticBattleTests
         Assert.Equal(0, world.Battle.Frame);
         Assert.Equal(fieldFrame, world.Events.Frame);
         Assert.Empty(session.State.AppliedBattleResultIds);
+        GameState snapshot = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        GameSession restored = new(snapshot);
+        Assert.Equal(BattleOutcome.Victory, restored.State.Battle!.Outcome);
+        Assert.False(restored.State.FullBattlePlaythrough == true);
+        Assert.NotNull(restored.State.PendingBattleEncounter);
         world.ApplyBattleInput(new BattleInput(BattleInputKind.Return));
         Assert.Null(world.Battle);
         Assert.Equal(42, session.State.Variables[800]);
@@ -112,12 +117,12 @@ public sealed class HostedAutomaticBattleTests
         world.Events.Step();
         world.Events.Step();
         Assert.NotNull(world.Events.PendingInteractiveBattle);
-        ReplayBattleEncounter random = session.State.PendingBattleEncounter! with { ScriptedOwner = null };
+        BattleEncounterOccurrence random = session.State.PendingBattleEncounter! with { ScriptedOwner = null };
         session.SetPendingBattleEncounter(random);
         NativeCharacterVitals vitals = session.State.CharacterVitals!;
-        ReplayBattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new ReplayBattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
+        BattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
         using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
-        ReplayBattleOutcome result = new(random, BattleOutcome.Victory, party, [], assets.LoadEncounter(random.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), [], true, BattleRewardPolicy.DebugNoRewards, []);
+        BattleResult result = new(random, BattleOutcome.Victory, party, [], assets.LoadEncounter(random.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), [], true, BattleRewardPolicy.DebugNoRewards, []);
         string before = JsonSerializer.Serialize(session.State);
         Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(random, result));
         Assert.Equal(before, JsonSerializer.Serialize(session.State));

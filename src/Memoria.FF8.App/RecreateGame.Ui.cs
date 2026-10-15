@@ -77,7 +77,6 @@ internal sealed partial class RecreateGame
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode.ToString();
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
-        data.Settings["Initiative bar"] = uiPreferences.ShowInitiative ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");
         data.SupportedActions.Add("config:Text scale");
@@ -88,7 +87,6 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Battle ATB mode");
         data.SupportedActions.Add("config:Battle policy");
         data.SupportedActions.Add("config:Random encounters");
-        data.SupportedActions.Add("config:Initiative bar");
         data.SaveAvailable = session.State.Scene != SceneKind.Title && !fieldFaulted;
         if (data.SaveAvailable)
         {

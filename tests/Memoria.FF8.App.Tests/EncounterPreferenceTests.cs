@@ -5,6 +5,27 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class EncounterPreferenceTests
 {
+    [Fact]
+    public void EnablingEncountersBeforeFullCombatOnTheWorldMapInitializesTheCurrentProcessClock()
+    {
+        GameSession initialized = GameSession.CreateColdProcess();
+        GameSession session = new(initialized.State with
+        {
+            Scene = SceneKind.WorldMap,
+            WorldArrival = new WorldTransition(0, 0, 0),
+            WorldProcess = initialized.State.WorldProcess!.AdvanceMainLoopCallbacks(371)
+        });
+        using GameWorld world = new(session, InstalledGame());
+        world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: true));
+        Assert.True(session.State.RandomEncounters!.Enabled);
+        Assert.False(session.State.RandomEncounters.Native.WorldInitialized);
+        world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
+        Assert.True(session.State.RandomEncounters.Native.WorldInitialized);
+        Assert.Equal((byte)115, session.State.RandomEncounters.Native.WorldFormationIndex);
+        Assert.Equal((byte)115, session.State.RandomEncounters.Native.WorldFormationOffset);
+        Assert.Equal(371u, session.State.WorldProcess!.MainLoopCounter);
+    }
+
     [Theory]
     [InlineData("Full combat", true)]
     [InlineData("Instant victory", false)]

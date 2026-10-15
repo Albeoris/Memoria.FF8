@@ -2,8 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private readonly List<ReplayBattleEnemyDefeat> enemyDefeats = [];
-    public IReadOnlyList<ReplayBattleEnemyDefeat> EnemyDefeats => enemyDefeats.AsReadOnly();
+    private readonly List<BattleEnemyDefeat> enemyDefeats = [];
+    public IReadOnlyList<BattleEnemyDefeat> EnemyDefeats => enemyDefeats.AsReadOnly();
 
     private void ObserveEnemyDefeat(BattleCombatant? actor, BattleCombatant target)
     {
@@ -15,6 +15,11 @@ public sealed partial class BattleSession
         int slot = source.RewardSlot ?? throw new InvalidDataException("Native enemy reward inputs require their actual formation slot.");
         if (enemyDefeats.Any(defeat => defeat.Slot == slot))
         {
+            if (source.NativeAi is not null)
+            {
+                // Native494410 retains actor flag0x40000 through AI revival; do not award twice.
+                return;
+            }
             throw new NotSupportedException("Repeated enemy revival rewards require the native per-actor rewarded flag contract.");
         }
         byte? row = actor?.IsPlayer == true ? byte.Parse(actor.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture) : null;
@@ -28,7 +33,7 @@ public sealed partial class BattleSession
         // Native494410 grants card486750, then drop486650 before accruing EXP/AP494AF0.
         bool card = rewards.SelectCard(checked((byte)NextRandomByte()));
         sbyte selection = rewards.SelectDrop(checked((byte)NextRandomByte())) ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
-        ReplayBattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection);
+        BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection);
         fact.Validate();
         enemyDefeats.Add(fact);
     }

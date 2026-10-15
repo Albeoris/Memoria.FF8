@@ -63,7 +63,7 @@ public sealed partial class GameSession : IEventServices
         NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
         NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
         NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        Change(new GameState { DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
+        Change(new GameState { BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
     }
 
     public void Restore(GameState state)
@@ -539,12 +539,13 @@ public sealed partial class GameSession : IEventServices
 
     private static void Validate(GameState state)
     {
+        ValidateBattleFactsCheckpoint(state);
         if (state.Battle is not null)
         {
             _ = BattleSession.Restore(state.Battle);
-            if (state.Scene != SceneKind.Field || state.FullBattlePlaythrough != true)
+            if (state.Scene is not (SceneKind.Field or SceneKind.WorldMap))
             {
-                throw new InvalidDataException("Saved interactive combat requires its full-combat field playthrough.");
+                throw new InvalidDataException("Saved interactive combat requires its field or world-map scene.");
             }
         }
         if (state.PreviousFieldId is < 0 or > ushort.MaxValue)

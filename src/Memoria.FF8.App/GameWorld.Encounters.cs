@@ -107,7 +107,7 @@ internal sealed partial class GameWorld
                     {
                         throw new InvalidOperationException("Only victory can return to its suspended exploration scene.");
                     }
-                    CompleteRecordedBattle(active);
+                    CompleteBattle(active);
                     battle = null;
                 }
                 else

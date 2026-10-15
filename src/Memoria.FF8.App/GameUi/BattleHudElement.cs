@@ -3,7 +3,7 @@ using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>Procedural FF8-style command panels with a shared initiative rail above the battle scene.</summary>
+/// <summary>Procedural FF8-style command panels and party ATB gauges.</summary>
 internal sealed class BattleHudElement : UiElement
 {
     private readonly BattleHudController controller;
@@ -30,10 +30,6 @@ internal sealed class BattleHudElement : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
-        if (controller.ShowInitiative)
-        {
-            DrawTimeline(canvas, theme);
-        }
         BattleSession session = controller.Session;
         theme.Panel(canvas, Rect(16, 494, 252, 130));
         theme.Panel(canvas, Rect(280, 494, 664, 130));
@@ -104,63 +100,6 @@ internal sealed class BattleHudElement : UiElement
                 theme.Pointer(canvas, Left + 32 * Scale, Top + (y + 5) * Scale, 10 * Scale);
             }
             Text(canvas, theme, actor.Name, 52, y, 198, 24, 17);
-        }
-    }
-
-    private void DrawTimeline(IUiCanvas canvas, UiTheme theme)
-    {
-        theme.Panel(canvas, Rect(16, 14, 928, 116));
-        Text(canvas, theme, "INITIATIVE · estimated time to ready", 30, 23, 506, 22, 15);
-        Text(canvas, theme, controller.Session.Mode == BattleAtbMode.TurnBased ? "TURN BASED" : "NORMAL ATB", 746, 23, 178, 22, 15);
-        canvas.Fill(Rect(72, 109, 818, 4), new UiColor(27, 27, 30));
-        canvas.Fill(Rect(776, 109, 114, 4), new UiColor(184, 166, 111));
-        var estimates = controller.Session.Combatants.Where(actor => actor.IsAlive).Select(actor => new { Actor = actor, Frames = controller.Session.EstimatedReadyFrames(actor.Id) ?? 0 }).OrderByDescending(item => item.Frames).ThenBy(item => item.Actor.Id, StringComparer.Ordinal).ToArray();
-        int horizon = Math.Max(60, (int)Math.Ceiling(estimates.Select(item => item.Frames).DefaultIfEmpty(0).Max() / 60.0) * 60);
-        Text(canvas, theme, $"{horizon / BattleSession.FramesPerSecond}s", 30, 107, 44, 22, 12);
-        Text(canvas, theme, "NOW", 898, 107, 42, 22, 12);
-        float[] positions = new float[estimates.Length];
-        for (int index = 0; index < estimates.Length; index++)
-        {
-            float desired = 74 + (1 - estimates[index].Frames / (float)horizon) * 770;
-            positions[index] = index == 0 ? desired : Math.Max(desired, positions[index - 1] + 48);
-        }
-        if (positions.Length > 0)
-        {
-            positions[^1] = Math.Min(positions[^1], 850);
-            for (int index = positions.Length - 2; index >= 0; index--)
-            {
-                positions[index] = Math.Min(positions[index], positions[index + 1] - 48);
-            }
-        }
-        for (int index = 0; index < estimates.Length; index++)
-        {
-            BattleCombatant actor = estimates[index].Actor;
-            float x = positions[index];
-            float railX = 74 + (1 - estimates[index].Frames / (float)horizon) * 770;
-            string name = actor.Name.Length <= 7 ? actor.Name : actor.Name[..4] + "…" + actor.Name[^2..];
-            Text(canvas, theme, name, x - 3, 44, 46, 17, 11);
-            UiRect portrait = Rect(x, 61, 36, 36);
-            canvas.Fill(new UiRect(portrait.X - 2 * Scale, portrait.Y - 2 * Scale, portrait.Width + 4 * Scale, portrait.Height + 4 * Scale), actor.IsPlayer ? new UiColor(124, 169, 220) : new UiColor(197, 110, 96));
-            if (controller.HeadRenderer is not null)
-            {
-                controller.HeadRenderer(actor, canvas, portrait);
-            }
-            else
-            {
-                var fallback = new UiPortrait { Seed = actor.ModelId, Initials = actor.Name.Length == 0 ? "?" : actor.Name[..1] };
-                fallback.Arrange(portrait);
-                fallback.Draw(canvas, theme);
-            }
-            canvas.Line(portrait.X + portrait.Width / 2, portrait.Bottom, Left + (railX + 18) * Scale, Top + 111 * Scale, actor.IsPlayer ? new UiColor(124, 169, 220) : new UiColor(197, 110, 96), Scale);
-            string state = controller.Session.ActiveAction?.ActorId == actor.Id ? "ACT" : actor.IsBusy ? "QUEUE" : actor.IsReady ? "READY" : "";
-            if (state.Length > 0)
-            {
-                canvas.Fill(Rect(x - 3, 94, 46, 13), new UiColor(38, 38, 43));
-                Text(canvas, theme, state, x - 1, 94, 44, 16, 9);
-            }
-            string time = actor.IsReady ? "NOW" : $"{estimates[index].Frames / (float)BattleSession.FramesPerSecond:0.0}s";
-            canvas.Fill(Rect(x - 3, 114, 46, 14), new UiColor(38, 38, 43));
-            Text(canvas, theme, time, x - 1, 114, 44, 16, 10);
         }
     }
 

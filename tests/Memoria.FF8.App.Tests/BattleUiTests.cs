@@ -41,39 +41,6 @@ public sealed class BattleUiTests
     }
 
     [Fact]
-    public void Initiative_draws_all_living_actor_heads_and_can_be_hidden()
-    {
-        BattleSession session = new(Definition(), BattleAtbMode.Normal);
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { });
-        hud.ShowInitiative = true;
-        List<string> heads = [];
-        hud.HeadRenderer = (actor, _, _) => heads.Add(actor.Id);
-        UiView view = hud.BuildView();
-        view.Resize(1280, 720);
-        view.Draw(new TestCanvas(), new UiTheme());
-        Assert.Equal(session.Combatants.Select(actor => actor.Id).Order(), heads.Order());
-        heads.Clear();
-        hud.ShowInitiative = false;
-        view.Draw(new TestCanvas(), new UiTheme());
-        Assert.Empty(heads);
-    }
-
-    [Fact]
-    public void Initiative_places_equal_gauges_by_time_to_ready_when_actor_speeds_differ()
-    {
-        BattleDefinition definition = Definition();
-        definition = definition with { Combatants = [definition.Combatants[0] with { InitialAtb = 0, Speed = 200 }, definition.Combatants[1] with { Speed = 50 }, definition.Combatants[2] with { Speed = 100 }] };
-        BattleSession session = new(definition, BattleAtbMode.Normal);
-        BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { });
-        hud.ShowInitiative = true;
-        Dictionary<string, float> positions = [];
-        hud.HeadRenderer = (actor, _, bounds) => positions[actor.Id] = bounds.X;
-        hud.BuildView().Draw(new TestCanvas(), new UiTheme());
-        Assert.True(positions["party-0"] > positions["enemy-1"]);
-        Assert.True(positions["enemy-1"] > positions["enemy-0"]);
-    }
-
-    [Fact]
     public void Debug_scenario_changes_do_not_mutate_source_definition_and_preserve_stage_identity()
     {
         BattleDefinition original = Definition() with { StageId = 7, EncounterId = 42 };
@@ -152,21 +119,6 @@ public sealed class BattleUiTests
     }
 
     [Fact]
-    public void Timeline_draws_each_living_participants_name()
-    {
-        BattleDefinition definition = Definition();
-        definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { Name = "Soldier" }, definition.Combatants[2] with { Name = "Goblin" }] };
-        BattleHudController hud = new(new BattleSession(definition, BattleAtbMode.Normal), (_, _) => { }, () => { }, () => { });
-        hud.ShowInitiative = true;
-        TestCanvas canvas = new();
-        hud.BuildView().Draw(canvas, new UiTheme());
-        foreach (BattleCombatantDefinition actor in definition.Combatants)
-        {
-            Assert.Contains(actor.Name, canvas.Texts);
-        }
-    }
-
-    [Fact]
     public void Debug_weapons_are_filtered_by_character_and_enemy_rows_cannot_select_them()
     {
         BattleDebugCatalog catalog = new()
@@ -206,7 +158,7 @@ public sealed class BattleUiTests
         string path = Path.Combine(Path.GetTempPath(), "ff8-battle-ui-" + Guid.NewGuid().ToString("N"), "ui-settings.json");
         try
         {
-            UiPreferences preferences = new UiPreferences().WithSetting("Battle ATB mode", "TurnBased").WithSetting("Battle policy", "NewGameFullCombat").WithSetting("Initiative bar", "Off");
+            UiPreferences preferences = new UiPreferences().WithSetting("Battle ATB mode", "TurnBased").WithSetting("Battle policy", "NewGameFullCombat");
             preferences.Save(path);
             Assert.Equal(preferences, UiPreferences.Load(path));
             Assert.Throws<ArgumentException>(() => preferences.WithSetting("Battle ATB mode", "Wait"));

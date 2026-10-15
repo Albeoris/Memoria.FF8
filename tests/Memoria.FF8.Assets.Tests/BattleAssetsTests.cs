@@ -41,10 +41,6 @@ public sealed class BattleAssetsTests
         Assert.Equal(idle, renderer.Render(stage, actors));
         actors[0] = actors[0] with { AttackOffset = new Vector3(8, 0, 0) };
         Assert.NotEqual(idle, renderer.Render(stage, actors));
-        var portrait = renderer.RenderPortrait(player);
-        Assert.Same(portrait, renderer.RenderPortrait(player));
-        Assert.Contains(portrait.Pixels, pixel => pixel.A > 0);
-        Assert.Contains(portrait.Pixels, pixel => pixel.A == 0);
         Assert.NotEqual(player.Pose(0, 0).SelectMany(mesh => mesh), player.Pose(0, 1).SelectMany(mesh => mesh));
     }
 

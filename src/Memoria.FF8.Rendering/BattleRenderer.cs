@@ -30,7 +30,6 @@ public sealed class BattleRenderer
 {
     private readonly byte[] pixels;
     private readonly float[] depth;
-    private readonly Dictionary<(BattleModel Model, int Size), PixelImage> portraits = [];
     private Matrix4x4 view;
     private float focal;
     private float centerY;
@@ -67,7 +66,7 @@ public sealed class BattleRenderer
 
     public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null)
     {
-        Begin(camera ?? BattleCamera.NativeInitial, true);
+        Begin(camera ?? BattleCamera.NativeInitial);
         foreach (BattleMesh mesh in stage.Meshes)
         {
             Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1);
@@ -79,34 +78,7 @@ public sealed class BattleRenderer
         return pixels;
     }
 
-    public PixelImage RenderPortrait(BattleModel model, int size = 64)
-    {
-        if (portraits.TryGetValue((model, size), out PixelImage? cached))
-        {
-            return cached;
-        }
-        IReadOnlyList<Vector3[]> pose = model.Pose(0, 0);
-        Vector3[] positions = pose.SelectMany(mesh => mesh).ToArray();
-        Vector3 minimum = new(positions.Min(vertex => vertex.X), positions.Min(vertex => vertex.Y), positions.Min(vertex => vertex.Z));
-        Vector3 maximum = new(positions.Max(vertex => vertex.X), positions.Max(vertex => vertex.Y), positions.Max(vertex => vertex.Z));
-        float height = maximum.Y - minimum.Y;
-        Vector3 target = new((minimum.X + maximum.X) / 2, maximum.Y - height * 0.09f, (minimum.Z + maximum.Z) / 2);
-        // TODO(TD-009): The initiative portrait crops the upper model bounds until native head/bone ownership is researched
-        BattleRenderer portrait = new(size, size);
-        portrait.Begin(new BattleCamera(target + new Vector3(0, height * 0.015f, -height * 0.35f), target, 0.72f), false);
-        portrait.DrawActor(new BattleActorDraw(model, Vector3.Zero));
-        Rgba32[] rgba = new Rgba32[size * size];
-        for (int index = 0; index < rgba.Length; index++)
-        {
-            int pixel = index * 4;
-            rgba[index] = new Rgba32(portrait.pixels[pixel], portrait.pixels[pixel + 1], portrait.pixels[pixel + 2], portrait.pixels[pixel + 3]);
-        }
-        PixelImage result = new(size, size, rgba);
-        portraits.Add((model, size), result);
-        return result;
-    }
-
-    private void Begin(BattleCamera camera, bool background)
+    private void Begin(BattleCamera camera)
     {
         if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1)
         {
@@ -118,15 +90,12 @@ public sealed class BattleRenderer
         Array.Clear(pixels);
         Array.Fill(depth, float.NegativeInfinity);
         DrawnTriangles = 0;
-        if (background)
+        for (int index = 0; index < pixels.Length; index += 4)
         {
-            for (int index = 0; index < pixels.Length; index += 4)
-            {
-                pixels[index] = 17;
-                pixels[index + 1] = 20;
-                pixels[index + 2] = 29;
-                pixels[index + 3] = 255;
-            }
+            pixels[index] = 17;
+            pixels[index + 1] = 20;
+            pixels[index + 2] = 29;
+            pixels[index + 3] = 255;
         }
     }
 

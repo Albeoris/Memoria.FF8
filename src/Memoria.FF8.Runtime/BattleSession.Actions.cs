@@ -168,16 +168,21 @@ public sealed partial class BattleSession
             }
             foreach (BattleStatusKind status in action.Statuses ?? [])
             {
-                recipient.Effects.RemoveAll(effect => effect.Definition.Kind == status);
-                if (action.Effect is BattleActionEffect.Status or BattleActionEffect.Damage)
-                {
-                    // TODO(TD-009): Duration and periodic magnitude are bounded scaffold status tuning
-                    BattleStatusEffectDefinition effect = new() { Kind = status, DurationFrames = 300, TickIntervalFrames = 30, Magnitude = Math.Max(1, recipient.MaximumHp / 20), Permanent = status != BattleStatusKind.Sleep };
-                    recipient.Effects.Add(new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames));
-                }
-                Log("Status", actor.Id, recipient.Id, 0, $"{action.Name}: {status}.");
+                ApplyProjectedStatus(actor, recipient, status, action.Name, action.Effect);
             }
         }
+    }
+
+    private void ApplyProjectedStatus(BattleCombatant actor, BattleCombatant recipient, BattleStatusKind status, string name, BattleActionEffect effectKind)
+    {
+        recipient.Effects.RemoveAll(effect => effect.Definition.Kind == status);
+        if (effectKind is BattleActionEffect.Status or BattleActionEffect.Damage)
+        {
+            // TODO(TD-009): Duration and periodic magnitude are bounded scaffold status tuning
+            BattleStatusEffectDefinition effect = new() { Kind = status, DurationFrames = 300, TickIntervalFrames = 30, Magnitude = Math.Max(1, recipient.MaximumHp / 20), Permanent = status != BattleStatusKind.Sleep };
+            recipient.Effects.Add(new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames));
+        }
+        Log("Status", actor.Id, recipient.Id, 0, $"{name}: {status}.");
     }
 
     private void ApplySignedDamage(BattleCombatant actor, BattleCombatant target, int damage, string source)

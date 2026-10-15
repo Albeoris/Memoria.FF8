@@ -18,7 +18,7 @@ public sealed partial class MenuController
     internal IReadOnlyList<MenuEntry> BattleSettingsEntries()
     {
         bool active = _hasActiveBattle?.Invoke() == true;
-        return [.. HostSettingsEntries("Battle policy", "Random encounters", "Battle ATB mode", "Initiative bar"),
+        return [.. HostSettingsEntries("Battle policy", "Random encounters", "Battle ATB mode"),
             new MenuEntry("instant-victory", "Instant victory", "Immediately defeat all enemies in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Victory"), Enabled: active),
             new MenuEntry("instant-defeat", "Instant defeat", "Immediately defeat the party in the current game battle or laboratory battle.", Action: new MenuAction("battle-debug-outcome", Value: "Defeat"), Enabled: active)];
     }
@@ -52,7 +52,6 @@ public sealed partial class MenuController
             "Dialogue font size" => preferences.DialogueFontSize.ToString(),
             "Music volume" => preferences.MusicVolume + "%",
             "Effect volume" => preferences.SoundVolume + "%",
-            "Initiative bar" => preferences.ShowInitiative ? "On" : "Off",
             "Battle ATB mode" => preferences.AtbMode.ToString(),
             "Battle policy" => preferences.BattlePolicyLabel,
             "Random encounters" => preferences.RandomEncounters ? "On" : "Off",

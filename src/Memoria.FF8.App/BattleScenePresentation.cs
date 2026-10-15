@@ -1,5 +1,4 @@
 using System.Numerics;
-using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
@@ -11,19 +10,22 @@ namespace Memoria.FF8;
 internal sealed class BattleScenePresentation
 {
     private readonly BattleStage stage;
+    private readonly BattleAssets assets;
+    private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
     private readonly Dictionary<string, BattleModel?> weapons = [];
     private readonly Dictionary<string, float> groundOffsets = [];
     private readonly Dictionary<string, Vector3> positions = [];
     private readonly Dictionary<string, float> heights = [];
     private readonly Dictionary<string, BattleAnimationPresentation> animations = [];
-    private readonly BattleRenderer portraitRenderer = new(64, 64);
     private readonly BattleImpactTimeline impactTimeline = new();
     private readonly BattleCamera camera;
     private BattleRenderer? renderer;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
+        this.assets = assets;
+        definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
         BattleCombatantDefinition[] party = definition.Combatants.Where(actor => actor.IsPlayer).ToArray();
         BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer).ToArray();
@@ -45,24 +47,38 @@ internal sealed class BattleScenePresentation
             BattleCombatantDefinition actor = enemies[index];
             positions[actor.Id] = encounter is null ? BattleFormationPresentation.DebugEnemyPosition(index, enemies.Length) : encounter.Slots.Single(slot => slot.Slot == (actor.SceneSlot ?? throw new NotSupportedException("An original battle participant requires its scene slot identity."))).Position;
         }
-        foreach (BattleCombatantDefinition actor in definition.Combatants)
+        foreach (BattleCombatantDefinition actor in definition.Combatants.Where(actor => actor.InitialActive))
         {
-            BattleModel model = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : actor.ModelId == -1 ? BattleDebugModels.CreateDummy() : assets.LoadEnemy(actor.ModelId);
-            models.Add(actor.Id, model);
-            BattleSequenceSet? sequences = actor.IsPlayer ? assets.LoadPlayerSequences(actor.ModelId, actor.WeaponId, model) : model.Sequences;
-            BattleWeaponDefinition? equipped = actor.IsPlayer ? actor.WeaponId is int equippedId ? assets.WeaponDefinitions.Single(weapon => weapon.Id == equippedId) : assets.WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == actor.ModelId) : null;
-            animations.Add(actor.Id, new BattleAnimationPresentation(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequence = actor.IsPlayer ? 13 : actor.ModelId == -1 ? 0 : assets.ReadEnemyAttackSequence(actor.ModelId) });
-            groundOffsets.Add(actor.Id, model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y));
-            heights.Add(actor.Id, model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - groundOffsets[actor.Id]);
-            if (!actor.IsPlayer && actor.WeaponId is not null)
-            {
-                throw new NotSupportedException("Enemy weapon replacement requires its own battle model attachment contract.");
-            }
-            weapons.Add(actor.Id, actor.IsPlayer && actor.WeaponId is int weapon ? assets.ResolveWeaponModel(actor.ModelId, weapon, model) : null);
+            EnsureActorResources(actor.Id);
         }
     }
 
     internal BattleCamera Camera => camera;
+
+    private void EnsureActorResources(string actorId)
+    {
+        if (models.ContainsKey(actorId))
+        {
+            return;
+        }
+        BattleCombatantDefinition actor = definitions[actorId];
+        BattleModel model = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : actor.ModelId == -1 ? BattleDebugModels.CreateDummy() : assets.LoadEnemy(actor.ModelId);
+        BattleSequenceSet? sequences = actor.IsPlayer ? assets.LoadPlayerSequences(actor.ModelId, actor.WeaponId, model) : model.Sequences;
+        BattleWeaponDefinition? equipped = actor.IsPlayer ? actor.WeaponId is int equippedId ? assets.WeaponDefinitions.Single(weapon => weapon.Id == equippedId) : assets.WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == actor.ModelId) : null;
+        if (!actor.IsPlayer && actor.WeaponId is not null)
+        {
+            throw new NotSupportedException("Enemy weapon replacement requires its own battle model attachment contract.");
+        }
+        BattleModel? weapon = actor.IsPlayer && actor.WeaponId is int weaponId ? assets.ResolveWeaponModel(actor.ModelId, weaponId, model) : null;
+        float ground = model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
+        float height = model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - ground;
+        BattleAnimationPresentation animation = new(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequence = actor.IsPlayer ? 13 : actor.ModelId == -1 ? 0 : assets.ReadEnemyAttackSequence(actor.ModelId) };
+        models.Add(actor.Id, model);
+        animations.Add(actor.Id, animation);
+        groundOffsets.Add(actor.Id, ground);
+        heights.Add(actor.Id, height);
+        weapons.Add(actor.Id, weapon);
+    }
 
     public byte[] Render(BattleSession session, int width, int height)
     {
@@ -78,6 +94,7 @@ internal sealed class BattleScenePresentation
             {
                 continue;
             }
+            EnsureActorResources(actor.Id);
             BattleEvent? action = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
             Vector3 target = action?.TargetId is string targetId ? positions[targetId] : positions[actor.Id];
             BattleAnimationSample pose = animations[actor.Id].Sample(session, actor, positions[actor.Id], target);
@@ -107,6 +124,11 @@ internal sealed class BattleScenePresentation
             foreach (BattleImpactCue cue in impactTimeline.Collect(session))
             {
                 string target = cue.Event.TargetId!;
+                BattleCombatant actor = session.Combatants.Single(actor => actor.Id == target);
+                if (!actor.IsActive || actor.Hidden)
+                {
+                    continue;
+                }
                 Vector3 anchor = positions[target] + Vector3.UnitY * heights[target] * 0.65f;
                 if (!renderer.TryProject(anchor, out Vector2 projected))
                 {
@@ -149,8 +171,5 @@ internal sealed class BattleScenePresentation
 
     public IReadOnlyList<BattleSequenceSoundCue> CollectSounds(BattleSession session) => animations.Values.SelectMany(animation => animation.CollectSounds(session)).ToArray();
 
-    public PixelImage Head(BattleCombatant actor, int size = 64)
-    {
-        return portraitRenderer.RenderPortrait(models[actor.Id], size);
-    }
+
 }

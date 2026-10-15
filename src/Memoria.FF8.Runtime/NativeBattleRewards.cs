@@ -18,7 +18,7 @@ public enum BattleDefeatCredit
 }
 
 /// <summary>Observed death and selected reward branches, without action history or random samples.</summary>
-public sealed record ReplayBattleEnemyDefeat([property: JsonRequired] int Slot, [property: JsonRequired] byte Level, [property: JsonRequired] BattleDefeatCredit Credit, [property: JsonRequired] byte? KillerRow, [property: JsonRequired] byte? GuardianForceId, [property: JsonRequired] bool CardSelected, [property: JsonRequired] sbyte DropSelection)
+public sealed record BattleEnemyDefeat([property: JsonRequired] int Slot, [property: JsonRequired] byte Level, [property: JsonRequired] BattleDefeatCredit Credit, [property: JsonRequired] byte? KillerRow, [property: JsonRequired] byte? GuardianForceId, [property: JsonRequired] bool CardSelected, [property: JsonRequired] sbyte DropSelection)
 {
     public void Validate()
     {
@@ -71,12 +71,12 @@ public static class NativeBattleRewardDistribution
         return ((merged | formationFlags & 0xEF) & 8) != 0;
     }
 
-    public static BattleLootOwners Loot(IReadOnlyList<ReplayBattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards)
+    public static BattleLootOwners Loot(IReadOnlyList<BattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards)
     {
         NativeEconomy nextEconomy = economy.DeepCopy();
         NativeCardInventory? nextCards = cards?.DeepCopy();
         List<BattleStock> gathered = [];
-        foreach (ReplayBattleEnemyDefeat defeat in defeats.Where(defeat => defeat.DropSelection >= 0))
+        foreach (BattleEnemyDefeat defeat in defeats.Where(defeat => defeat.DropSelection >= 0))
         {
             BattleStock stock = definitions[defeat.Slot].Drop(defeat.Level, defeat.DropSelection);
             // Original4A6680 stops at the first zero item in the native reward bank.
@@ -110,7 +110,7 @@ public static class NativeBattleRewardDistribution
             }
         }
         List<byte> grantedCards = [];
-        foreach (ReplayBattleEnemyDefeat defeat in defeats.Where(defeat => defeat.CardSelected))
+        foreach (BattleEnemyDefeat defeat in defeats.Where(defeat => defeat.CardSelected))
         {
             byte id = definitions[defeat.Slot].CardId;
             if (id == 255)
@@ -127,7 +127,7 @@ public static class NativeBattleRewardDistribution
         return new BattleLootOwners(nextEconomy, nextCards, granted.ToArray(), grantedCards.ToArray());
     }
 
-    public static BattleExperienceAwards Experience(IReadOnlyList<ReplayBattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience)
+    public static BattleExperienceAwards Experience(IReadOnlyList<BattleEnemyDefeat> defeats, NativeCharacterVitals vitals, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, bool noExperience)
     {
         vitals.Validate();
         byte[] party = vitals.CombatParty.Where(row => row != 255).ToArray();
@@ -139,7 +139,7 @@ public static class NativeBattleRewardDistribution
         Dictionary<byte, ushort> personal = [];
         Dictionary<byte, ushort> guardian = [];
         ushort shared = 0;
-        foreach (ReplayBattleEnemyDefeat defeat in defeats)
+        foreach (BattleEnemyDefeat defeat in defeats)
         {
             defeat.Validate();
             BattleEnemyRewardDefinition definition = definitions[defeat.Slot];

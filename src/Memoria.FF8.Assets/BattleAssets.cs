@@ -12,6 +12,7 @@ public sealed partial class BattleAssets : IDisposable
     private readonly Dictionary<string, IFlArchiveEntry> entries;
     private readonly Dictionary<string, BattleModel> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, BattleStage> stages = [];
+    private readonly Dictionary<string, byte[]> resourceBytes = new(StringComparer.OrdinalIgnoreCase);
     private readonly byte[] encounters;
     private readonly BattlePlayerStatReader playerStats;
     private readonly Albeoris.Games.FF8.KernelBin.KernelData battleKernel;
@@ -316,6 +317,10 @@ public sealed partial class BattleAssets : IDisposable
 
     private byte[] Read(string name)
     {
+        if (resourceBytes.TryGetValue(name, out byte[]? cached))
+        {
+            return cached;
+        }
         if (!entries.TryGetValue(name, out IFlArchiveEntry? entry))
         {
             throw new FileNotFoundException($"Original battle resource {name} is absent.", name);
@@ -323,7 +328,9 @@ public sealed partial class BattleAssets : IDisposable
         using Stream input = entry.OpenForRead();
         using MemoryStream output = new(checked((int)entry.Size));
         input.CopyTo(output);
-        return output.ToArray();
+        byte[] bytes = output.ToArray();
+        resourceBytes.Add(name, bytes);
+        return bytes;
     }
 
     public void Dispose() => archive.Dispose();

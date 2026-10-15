@@ -68,6 +68,7 @@ public sealed record BattleCombatantDefinition
     public bool InitialUntargetable { get; init; }
     public bool InitialSuspended { get; init; }
     public NativeBattleAiDefinition? NativeAi { get; init; }
+    public NativeBattleEnemyTemplate? NativeTemplate { get; init; }
     public string Id { get; init; } = "";
     public string Name { get; init; } = "";
     public bool IsPlayer { get; init; }
@@ -102,6 +103,7 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public uint[]? PersistentAiVariables { get; init; }
     public string Name { get; init; } = "Debug battle";
     public int? StageId { get; init; }
     public int? EncounterId { get; init; }
@@ -143,17 +145,18 @@ public sealed record BattleSnapshot
     public BattleEvent[] Events { get; init; } = [];
     public BattleStock[] Items { get; init; } = [];
     [System.Text.Json.Serialization.JsonRequired]
-    public ReplayBattleEnemyDefeat[] EnemyDefeats { get; init; } = [];
+    public BattleEnemyDefeat[] EnemyDefeats { get; init; } = [];
 
     public NativeBattleRandomState? Random { get; init; }
     public uint[]? NativeAiVariables { get; init; }
+    public uint[]? PersistentAiVariables { get; init; }
     public BattleStock[] ScriptedRewards { get; init; } = [];
     public BattleStatusKind[] CustomHandlers { get; init; } = [];
 }
 
 public sealed class BattleCombatant
 {
-    private readonly BattleCombatantDefinition definition;
+    private BattleCombatantDefinition definition;
     internal readonly List<BattleStatusState> Effects;
 
     internal BattleCombatant(BattleCombatantDefinition definition)
@@ -167,6 +170,7 @@ public sealed class BattleCombatant
         Hidden = definition.InitialHidden;
         Untargetable = definition.InitialUntargetable;
         Suspended = definition.InitialSuspended;
+        ResolvedNativeLevel = definition.NativeTemplate is not null && definition.InitialActive ? definition.Level : null;
     }
 
     public string Id => definition.Id;
@@ -186,6 +190,20 @@ public sealed class BattleCombatant
     internal BattleAbility? LastAttackerAbility { get; set; }
     internal bool AiDeathHandled { get; set; }
     internal int NativeIndex { get; set; } = -1;
+    internal int? ResolvedNativeLevel { get; set; }
+
+    internal void BindNativeLevel(int level)
+    {
+        NativeBattleEnemyTemplate template = definition.NativeTemplate ?? throw new InvalidDataException("Native reserve allocation lacks its installed level template.");
+        if ((uint)level >= template.Levels.Length)
+        {
+            throw new InvalidDataException("Native reserve level exceeds its installed projection catalog.");
+        }
+        NativeBattleEnemyLevel projection = template.Levels[level];
+        definition = definition with { Level = level, MaximumHp = projection.MaximumHp, Attack = projection.Strength, Defense = projection.Vitality, Magic = projection.Magic, Spirit = projection.Spirit, Speed = Math.Max(1, projection.Speed), ElementDefenses = projection.ElementDefenses, DrawSpells = projection.DrawSpells, DrawGuardianForces = projection.DrawGuardianForces, NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = projection.AiLevelBand } };
+        ResolvedNativeLevel = level;
+    }
+    internal NativeBattleEnemyTemplate? NativeTemplate => definition.NativeTemplate;
     public int MaximumHp => definition.MaximumHp;
     public int CurrentHp { get; internal set; }
     public int Speed => definition.Speed;
@@ -211,7 +229,7 @@ public sealed class BattleCombatant
     public int Atb { get; internal set; }
     public bool IsBusy { get; internal set; }
     public bool IsAlive => IsActive && CurrentHp > 0;
-    public bool IsReady => IsAlive && !IsBusy && Atb == BattleSession.AtbMaximum;
+    public bool IsReady => IsAlive && !Suspended && !IsBusy && Atb == BattleSession.AtbMaximum;
 }
 
 internal sealed class BattleStatusState(BattleStatusEffectDefinition definition, int remainingFrames, int untilTickFrames)

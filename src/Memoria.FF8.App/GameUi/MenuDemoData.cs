@@ -156,7 +156,6 @@ public static class MenuSettings
         new("Battle ATB mode", "Normal advances continuously. TurnBased advances idle gauges with Advance Turn.", ["Normal", "TurnBased"]),
         new("Battle policy", "Apply immediately: instant victory wins encounters automatically; full combat enables playable battles.", ["Instant victory", "Full combat"]),
         new("Random encounters", "Enable or disable random encounters immediately in the running game.", ["On", "Off"]),
-        new("Initiative bar", "Show living party and enemy heads on the battle initiative bar.", ["On", "Off"]),
         new("Battle speed", "Original battle speed slider.", ["1", "2", "3", "4", "5"]),
         new("Battle message", "Original battle message speed slider.", ["1", "2", "3", "4", "5"]),
         new("Field message", "Original field message speed slider.", ["1", "2", "3", "4", "5"]),

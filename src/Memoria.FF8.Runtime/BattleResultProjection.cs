@@ -6,7 +6,7 @@ public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, N
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
 public static class BattleResultProjection
 {
-    public static BattleResultOwners Apply(ReplayBattleOutcome result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience)
+    public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience)
     {
         result.Validate();
         sourceVitals.Validate();
@@ -23,7 +23,7 @@ public static class BattleResultProjection
         NativeCharacterVitals vitals = sourceVitals.DeepCopy();
         NativeEconomy economy = sourceEconomy.DeepCopy();
         NativeCharacterVital[] records = vitals.Records.ToArray();
-        foreach (ReplayBattlePartyResult member in result.Party)
+        foreach (BattlePartyResult member in result.Party)
         {
             NativeCharacterVital record = records[member.Row];
             if (record.CharacterId != member.CharacterId || record.HitPoints.Minimum != member.HitPointsBefore || record.HitPoints.Maximum != member.HitPointsBefore || record.Status != member.StatusBefore)
@@ -31,7 +31,7 @@ public static class BattleResultProjection
                 throw new InvalidDataException("Battle result HP/status effect operands disagree with their current canonical owner.");
             }
             NativeMagicStock[] stocks = record.MagicInventory.ToArray();
-            foreach (ReplayBattleMagicChange change in member.MagicChanges)
+            foreach (BattleMagicChange change in member.MagicChanges)
             {
                 int slot = Array.FindIndex(stocks, stock => stock.SpellId == change.SpellId);
                 int before = slot < 0 ? 0 : stocks[slot].Count;
@@ -51,13 +51,13 @@ public static class BattleResultProjection
             }
             records[member.Row] = record with { HitPoints = new NativeHpWord(member.HitPointsAfter, member.HitPointsAfter), Status = member.StatusAfter, MagicInventory = stocks };
         }
-        foreach (ReplayBattleEnemyDefeat defeat in result.EnemyDefeats.Where(defeat => defeat.Credit == BattleDefeatCredit.Character))
+        foreach (BattleEnemyDefeat defeat in result.EnemyDefeats.Where(defeat => defeat.Credit == BattleDefeatCredit.Character))
         {
             byte row = defeat.KillerRow!.Value;
             records[row] = records[row] with { KillCount = unchecked((ushort)(records[row].KillCount + 1)) };
         }
         NativeItemStock[] items = economy.Items.ToArray();
-        foreach (ReplayBattleItemConsumption consumption in result.ItemConsumptions)
+        foreach (BattleItemConsumption consumption in result.ItemConsumptions)
         {
             int slot = Array.FindIndex(items, stock => stock.ItemId == consumption.ItemId);
             if (slot < 0 || items[slot].Count != consumption.CountBefore)
@@ -74,6 +74,19 @@ public static class BattleResultProjection
             experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
             loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards);
+            List<BattleStock> granted = [.. loot.ItemsGranted];
+            foreach (BattleStock reward in result.ScriptedItems)
+            {
+                int before = loot.Economy.Items.FirstOrDefault(item => item.ItemId == reward.Id)?.Count ?? 0;
+                NativeEconomy next = loot.Economy.AddItem(reward.Id, reward.Count, out _);
+                int after = next.Items.FirstOrDefault(item => item.ItemId == reward.Id)?.Count ?? 0;
+                if (after > before)
+                {
+                    granted.Add(new BattleStock(reward.Id, after - before));
+                }
+                loot = loot with { Economy = next };
+            }
+            loot = loot with { ItemsGranted = granted.GroupBy(item => item.Id).Select(items => new BattleStock(items.Key, items.Sum(item => item.Count))).ToArray() };
         }
         int[] eligible = result.Outcome == BattleOutcome.Victory && !result.DebugVictory ? EligibleGuardianForces(vitals) : [];
         if (!eligible.Order().SequenceEqual(result.RewardEligibleGuardianForceIds.Order()))

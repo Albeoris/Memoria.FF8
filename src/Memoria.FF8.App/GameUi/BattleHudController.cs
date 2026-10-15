@@ -38,8 +38,6 @@ public sealed class BattleHudController
     public bool SelectingTarget { get; private set; }
     public string Message { get; private set; } = "Choose a command when a character is ready.";
     public float TextScale { get; set; } = 1;
-    public bool ShowInitiative { get; set; }
-    public Action<BattleCombatant, IUiCanvas, UiRect>? HeadRenderer { get; set; }
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleAbility> Commands => SelectedActor?.Abilities ?? [];
     public BattleAbility SelectedCommand => Commands.Count == 0 ? BattleAbility.Attack : Commands[Math.Clamp(commandIndex, 0, Commands.Count - 1)];

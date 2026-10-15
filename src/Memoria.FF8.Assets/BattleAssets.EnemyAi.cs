@@ -6,6 +6,26 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
+    private readonly Dictionary<(int Model, byte SceneLevel), NativeBattleEnemyTemplate> enemyTemplates = [];
+    public NativeBattleEnemyTemplate ReadEnemyTemplate(int modelId, byte sceneLevel)
+    {
+        if (enemyTemplates.TryGetValue((modelId, sceneLevel), out NativeBattleEnemyTemplate? cached))
+        {
+            return cached;
+        }
+        BattleEnemyNativeStats stats = ReadEnemyNativeStats(modelId);
+        NativeBattleEnemyLevel[] levels = new NativeBattleEnemyLevel[101];
+        for (int level = 0; level < levels.Length; level++)
+        {
+            BattleEnemyNativeProjection projection = stats.Project(level);
+            NativeBattleAiDefinition ai = ReadEnemyAi(modelId, level);
+            levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), ReadEnemyDrawSpells(modelId, level), ReadEnemyDrawGuardianForces(modelId, level), ai.LevelBand);
+        }
+        NativeBattleEnemyTemplate template = new(sceneLevel, levels);
+        enemyTemplates.Add((modelId, sceneLevel), template);
+        return template;
+    }
+
     public int[] ReadEnemyDrawGuardianForces(int modelId, int level)
     {
         byte[] bytes = Read($"c0m{modelId:000}.dat");
@@ -26,13 +46,14 @@ public sealed partial class BattleAssets
     public NativeBattleAiDefinition ReadEnemyAi(int modelId, int level)
     {
         byte[] bytes = Read($"c0m{modelId:000}.dat");
-        if (bytes.Length < 48 || BinaryPrimitives.ReadInt32LittleEndian(bytes) != 11)
+        int sections = bytes.Length >= 16 ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : 0;
+        if (sections is not (2 or 11))
         {
             throw new NotSupportedException("Enemy AI requires its original eleven-section monster directory.");
         }
-        int information = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
-        int section = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(32));
-        int end = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(36));
+        int information = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 28 : 4));
+        int section = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 32 : 8));
+        int end = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 36 : 12));
         if (information < 0 || information > bytes.Length - 246 || section < 0 || end > bytes.Length || end - section < 16 || BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section)) != 3)
         {
             throw new InvalidDataException("Enemy AI requires its original bounded script/text directory.");
@@ -90,7 +111,7 @@ public sealed partial class BattleAssets
                     throw new InvalidDataException("Enemy AI ability references an absent original kernel attack.");
                 }
                 var attack = battleKernel.EnemyAttacks[id];
-                abilities[index] = new(command, sequence, id, attack.AttackType, attack.AttackPower, (int)attack.Element, attack.Statuses0, attack.Statuses1);
+                abilities[index] = new(command, sequence, id, attack.AttackType, attack.AttackPower, (int)attack.Element, attack.Statuses0, attack.Statuses1, attack.StatusAttack);
             }
             else
             {

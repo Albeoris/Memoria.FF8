@@ -268,18 +268,6 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void InitiativeEstimateUsesSharedRateAndOutstandingPresentationTime()
-    {
-        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum) with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Haste }] }, Enemy(speed: 1)), BattleAtbMode.TurnBased);
-        Assert.Equal(200, session.AtbGainPerFrame(session.Combatants[0]));
-        Assert.Equal(0, session.EstimatedReadyFrames("player"));
-        session.QueueAttack("player", "enemy");
-        Assert.Equal(75, session.EstimatedReadyFrames("player"));
-        session.Tick();
-        Assert.Equal(74, session.EstimatedReadyFrames("player"));
-    }
-
-    [Fact]
     public void KillingTargetCancelsOtherQueuedAttacksAndRoundTripsRecovery()
     {
         BattleCombatantDefinition ally = Player(initialAtb: BattleSession.AtbMaximum) with { Id = "ally", Name = "Ally" };
