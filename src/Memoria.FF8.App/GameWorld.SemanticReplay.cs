@@ -62,6 +62,7 @@ internal sealed partial class GameWorld
         private readonly GameSession session;
         private readonly string gameDirectory;
         private readonly HashSet<(int ObjectId, int ScriptId)> knownProducers = [];
+        private readonly Dictionary<(int ObjectId, int ScriptId), long> producerExecutions = [];
         private readonly List<ReplaySemanticTrigger> admissions = [];
         private readonly HashSet<int> consumedAdmissions = [];
         private readonly List<ReplayReceipt> receipts = [];
@@ -77,16 +78,23 @@ internal sealed partial class GameWorld
             this.world = world;
             this.session = session;
             this.gameDirectory = gameDirectory;
-            world.Events.CommandExecuted += command => knownProducers.Add((command.ObjectId, command.ScriptId));
+            world.Events.CommandExecuted += command => ObserveProducer(command.ObjectId, command.ScriptId);
             world.Events.SemanticTriggerAdmitted += trigger => admissions.Add(trigger);
             world.Events.CausalReceiptRecorded += receipt =>
             {
                 receipts.Add(receipt);
                 if (receipt.Kind is ReplayReceiptKind.Command or ReplayReceiptKind.InputSample or ReplayReceiptKind.NativeTraversal)
                 {
-                    knownProducers.Add((receipt.ObjectId, receipt.ScriptId));
+                    ObserveProducer(receipt.ObjectId, receipt.ScriptId);
                 }
             };
+        }
+
+        private void ObserveProducer(int objectId, int scriptId)
+        {
+            (int, int) producer = (objectId, scriptId);
+            knownProducers.Add(producer);
+            producerExecutions[producer] = producerExecutions.GetValueOrDefault(producer) + 1;
         }
 
         public void RecreateVisit(ReplayCompletedVisit visit)
@@ -95,6 +103,7 @@ internal sealed partial class GameWorld
             inferredVisit = visit.Inferred;
             admissions.Clear();
             knownProducers.Clear();
+            producerExecutions.Clear();
             consumedAdmissions.Clear();
             receipts.Clear();
             consumedReceipts.Clear();
@@ -133,6 +142,10 @@ internal sealed partial class GameWorld
                 try
                 {
                     CompleteFieldVisit(visit);
+                }
+                catch (SemanticVisitDepartureException)
+                {
+                    ValidateDepartedVisitRemainder(visit, visit.Intents.Length);
                 }
                 catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or EventScriptException)
                 {
@@ -174,6 +187,7 @@ internal sealed partial class GameWorld
                 {
                     admissions.Clear();
                     knownProducers.Clear();
+                    producerExecutions.Clear();
                     consumedAdmissions.Clear();
                     receipts.Clear();
                     consumedReceipts.Clear();
@@ -324,7 +338,7 @@ internal sealed partial class GameWorld
                     {
                         throw new InvalidDataException("The historical interaction has no unique current actor producer.");
                     }
-                    Admit(targets[0]);
+                    Admit(targets[0] with { Approach = entry.Approach ?? targets[0].Approach });
                 }
             }
             else if (kind == PlayerActionKind.SkipMovie)
@@ -393,6 +407,48 @@ internal sealed partial class GameWorld
             ReplaySemanticTrigger[] precedingEvents = admissions.Where(admission => admission.ObjectId != trigger.ObjectId && admission.Kind is ReplaySemanticTriggerKind.ActorInteraction or ReplaySemanticTriggerKind.DoorEntry or ReplaySemanticTriggerKind.DoorAction).ToArray();
             Seek(() => precedingEvents.All(admission => !world.Events.IsSemanticAdmissionPending(admission)), "preceding native event completion");
             Seek(() => world.Events.CanAdmitSemanticInput, "semantic native admission");
+            if (trigger.Kind == ReplaySemanticTriggerKind.ActorInteraction && trigger.Approach is not null)
+            {
+                int approaches = 0;
+                long previousExecution = producerExecutions.GetValueOrDefault((trigger.ObjectId, trigger.ScriptId));
+                int previousAdmissionCount = admissions.Count;
+                while (true)
+                {
+                    bool approached = world.ApproachSemanticActor(trigger);
+                    if (HasDepartedCurrentVisit())
+                    {
+                        throw new SemanticVisitDepartureException();
+                    }
+                    for (int index = previousAdmissionCount; index < admissions.Count; index++)
+                    {
+                        if (SameAdmission(admissions[index], trigger))
+                        {
+                            consumedAdmissions.Add(index);
+                            return;
+                        }
+                    }
+                    if (producerExecutions.GetValueOrDefault((trigger.ObjectId, trigger.ScriptId)) > previousExecution)
+                    {
+                        return;
+                    }
+                    if (!approached && trigger.Approach is { Inferred: true } && admissions.Count > previousAdmissionCount && (!world.Events.IsUserControlEnabled || world.CurrentDialogue is not null || world.Events.PartyMenu is not null || world.Events.PendingInteractiveBattle is not null || session.IsMoviePlaying))
+                    {
+                        // The current native story event took over the generated approach.
+                        // Its actual admission remains in the new journal; the obsolete
+                        // accepted result of the historical talk is not forced afterward.
+                        return;
+                    }
+                    if (approached)
+                    {
+                        break;
+                    }
+                    if (++approaches > MaximumReadinessCallbacks)
+                    {
+                        throw new InvalidDataException("Current events repeatedly interrupted the retained actor approach.");
+                    }
+                    Seek(() => world.Events.CanAdmitSemanticInput && world.Events.CanAcceptMovementInput, "current actor approach completion");
+                }
+            }
             PlayerActionResult result = world.Events.ApplySemanticTrigger(trigger);
             if (!result.Accepted)
             {

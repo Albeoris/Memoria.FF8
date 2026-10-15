@@ -12,7 +12,7 @@ internal static partial class Program
     private static void SemanticAdmissionContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        (EventEngine Engine, GameSession Session, JsmProgram Program) Create(int distance, bool disableGateway = false, bool requestChain = false, bool autonomous = false, bool inactiveRequestTarget = false)
+        (EventEngine Engine, GameSession Session, JsmProgram Program) Create(int distance, bool disableGateway = false, bool requestChain = false, bool autonomous = false, bool inactiveRequestTarget = false, byte inputAxis = 0)
         {
             (Jsm.Opcode, int)[] player = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 128), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.RET, 8)];
             if (disableGateway)
@@ -59,6 +59,7 @@ internal static partial class Program
             Require(session.ReplayJournal is { IsComplete: true }, $"Semantic fixture initializer invalidated its journal: {session.ReplayJournal?.UnavailableReason}.");
             EventEngine engine = new(session, session.State.Variables)
             {
+                InitInputAxisDirection = inputAxis,
                 AnimationFrameCount = (_, _) => 1,
                 ResolveNativeTriangleHeight = (_, _, _) => 0,
                 ResolvePartyTraceTriangle = (_, _, _) => 0
@@ -70,19 +71,34 @@ internal static partial class Program
         }
 
         var near = Create(100);
+        Require(near.Engine.GetSemanticTriggerCandidates().All(candidate => candidate.Approach is null), "Pure producer candidates fabricated an observed actor approach from current body geometry.");
         List<ReplaySemanticTrigger> physical = [];
         near.Engine.SemanticTriggerAdmitted += physical.Add;
         Require(near.Engine.Apply(new PlayerAction(PlayerActionKind.Interact, 1)).Accepted, "Nearby ordinary actor interaction was not admitted.");
         Require(physical is [{ Kind: ReplaySemanticTriggerKind.ActorInteraction, NativeObjectId: 1, ObjectId: 1, ScriptId: 18, NativeSlot: 7, LocalScript: 2, Inferred: false }], "Ordinary talk did not capture its actual native producer without inference.");
+        Require(physical[0].Approach is { Horizontal: 0, Vertical: 1 }, "Ordinary actor admission did not capture its normalized current incoming direction.");
         Require(near.Session.ReplayJournal!.Endpoint!.SemanticAdmissions.SequenceEqual(physical), "Ordinary admission did not enter its game-owned input transaction.");
         near.Engine.Step();
         Require(near.Session.State.Variables.GetValueOrDefault(5000) == 7 && near.Session.State.Variables.GetValueOrDefault(5002) == 1, "Ordinary request did not execute the actual target script and current KEYON edge.");
         Require(near.Session.ReplayJournal!.Endpoint!.Receipts.Any(receipt => receipt.Kind == ReplayReceiptKind.InputSample && receipt.ObjectId == 1 && receipt.ScriptId == 18 && receipt.Code == (int)Jsm.Opcode.KEYON), "Current native KEYON consumption did not retain its authenticated input sample site.");
+        var rotated = Create(100, inputAxis: 64);
+        ReplaySemanticTrigger? rotatedAdmission = null;
+        rotated.Engine.SemanticTriggerAdmitted += admission => rotatedAdmission = admission;
+        Require(rotated.Engine.Apply(new PlayerAction(PlayerActionKind.Interact, 1)).Accepted && rotatedAdmission?.Approach is ReplayActorApproach rotatedApproach && MathF.Abs(rotatedApproach.Horizontal - 1) < 0.000001f && MathF.Abs(rotatedApproach.Vertical) < 0.000001f, "Captured actor approach did not invert the actual current field input-axis rotation.");
+        var scoped = Create(100);
+        List<ReplaySemanticTrigger> scopedAdmissions = [];
+        scoped.Engine.SemanticTriggerAdmitted += scopedAdmissions.Add;
+        ReplaySemanticTrigger withoutSide = scoped.Engine.GetSemanticTriggerCandidates().Single(candidate => candidate.ObjectId == 1 && candidate.Kind == ReplaySemanticTriggerKind.ActorInteraction);
+        Require(scoped.Engine.SelectInteractionTarget() == 1 && scoped.Engine.ApplySemanticTrigger(withoutSide).Accepted && scopedAdmissions is [{ Approach: null }], "A no-side historical input acquired an observed side merely because its current bodies happened to be close.");
+        scoped.Engine.Step();
+        Require(scoped.Engine.Apply(new PlayerAction(PlayerActionKind.Interact, 1)).Accepted && scopedAdmissions is [{ Approach: null }, { Approach: not null }], "The no-side semantic capture scope leaked into a subsequent ordinary native interaction.");
+        var coincident = Create(0);
+        Require(coincident.Engine.GetSemanticTriggerCandidates().Single(candidate => candidate.ObjectId == 1 && candidate.Kind == ReplaySemanticTriggerKind.ActorInteraction).Approach is null, "Coincident actor geometry fabricated an incoming direction.");
 
         var far = Create(10000);
         JsonElement beforeCandidates = far.Engine.Capture();
         ReplaySemanticTrigger candidate = far.Engine.GetSemanticTriggerCandidates().Single(trigger => trigger.Kind == ReplaySemanticTriggerKind.ActorInteraction && trigger.ObjectId == 1);
-        Require(candidate.Inferred && !far.Engine.IsSemanticAdmissionPending(candidate) && JsonElement.DeepEquals(beforeCandidates, far.Engine.Capture()) && far.Engine.SelectInteractionTarget() is null, "Current producer discovery mutated the VM or fabricated physical eligibility or pending work.");
+        Require(candidate.Inferred && candidate.Approach is null && !far.Engine.IsSemanticAdmissionPending(candidate) && JsonElement.DeepEquals(beforeCandidates, far.Engine.Capture()) && far.Engine.SelectInteractionTarget() is null, "Current producer discovery mutated the VM or fabricated observed approach, physical eligibility or pending work.");
         Require(!far.Engine.Apply(new PlayerAction(PlayerActionKind.Interact, 1)).Accepted, "Distant ordinary interaction bypassed the native geometry selector.");
         float x = far.Engine.Actors[0].X;
         float y = far.Engine.Actors[0].Y;
@@ -90,7 +106,7 @@ internal static partial class Program
         List<ReplaySemanticTrigger> semantic = [];
         far.Engine.SemanticTriggerAdmitted += semantic.Add;
         Require(far.Engine.ApplySemanticTrigger(candidate).Accepted && far.Engine.IsSemanticAdmissionPending(candidate) && far.Engine.Frame == frame && far.Engine.Actors[0].X == x && far.Engine.Actors[0].Y == y && !far.Session.State.Variables.ContainsKey(5000), "Historical event input lost its pending request, moved the player, advanced time or executed a script outside its scheduler.");
-        Require(semantic is [{ Inferred: true, ScriptId: 18, NativeSlot: 7 }] && far.Session.ReplayJournal!.Endpoint is { Kind: ReplayEntryKind.SemanticTrigger, SemanticTrigger.Inferred: true } semanticEntry && semanticEntry.SemanticAdmissions.SequenceEqual(semantic), "Inferred historical input lost its provenance or fresh admission journal.");
+        Require(semantic is [{ Inferred: true, ScriptId: 18, NativeSlot: 7, Approach: null }] && far.Session.ReplayJournal!.Endpoint is { Kind: ReplayEntryKind.SemanticTrigger, SemanticTrigger.Inferred: true } semanticEntry && semanticEntry.SemanticAdmissions.SequenceEqual(semantic), "Inferred historical input lost its provenance, fabricated an unobserved approach or lost its fresh admission journal.");
         far.Engine.Step();
         Require(far.Session.State.Variables.GetValueOrDefault(5000) == 7 && far.Session.State.Variables.GetValueOrDefault(5002) == 1 && !far.Engine.IsSemanticAdmissionPending(candidate) && far.Engine.Actors[0].X == x && far.Engine.Actors[0].Y == y, "Historical event did not complete through the same current VM/request/input path without a position patch.");
         ReplaySemanticTrigger pushCandidate = far.Engine.GetSemanticTriggerCandidates().Single(trigger => trigger.Kind == ReplaySemanticTriggerKind.PushContact && trigger.ObjectId == 1);

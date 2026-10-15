@@ -1,11 +1,13 @@
 using Memoria.FF8.Runtime;
 using Albeoris.Games.FF8.Jsm;
+using System.Numerics;
 
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
     private bool semanticInputInferred;
+    private bool semanticInputApproachUnknown;
     public event Action<ReplaySemanticTrigger>? SemanticTriggerAdmitted;
     public bool CanAdmitSemanticInput => CanAdmitSemanticTrigger();
 
@@ -22,7 +24,9 @@ public sealed partial class EventEngine
                 return new PlayerActionResult(false, NextTrigger, 0, "The current native field does not admit an external event stimulus.");
             }
             bool previous = semanticInputInferred;
+            bool previousApproachUnknown = semanticInputApproachUnknown;
             semanticInputInferred = trigger.Inferred;
+            semanticInputApproachUnknown = trigger.Kind == ReplaySemanticTriggerKind.ActorInteraction && trigger.Approach is null;
             try
             {
                 bool accepted;
@@ -74,6 +78,7 @@ public sealed partial class EventEngine
             finally
             {
                 semanticInputInferred = previous;
+                semanticInputApproachUnknown = previousApproachUnknown;
             }
         });
     }
@@ -400,11 +405,33 @@ public sealed partial class EventEngine
         }
     }
 
-    private ReplaySemanticTrigger CreateSemanticTrigger(ReplaySemanticTriggerKind kind, int objectId, int local, int slot, int infIndex = -1, byte eventBits = 0, bool contact = false)
+    private ReplaySemanticTrigger CreateSemanticTrigger(ReplaySemanticTriggerKind kind, int objectId, int local, int slot, int infIndex = -1, byte eventBits = 0, bool contact = false, bool captureApproach = false)
     {
         int nativeId = Array.IndexOf(program!.NativeObjects.ToArray(), objectId);
         int scriptId = (uint)local < program.Objects[objectId].Scripts.Count ? program.Objects[objectId].Scripts[local].Id : -1;
-        return new ReplaySemanticTrigger(1, kind, FieldId, programHash!, nativeId, objectId, scriptId, slot, local, infIndex, eventBits, contact, ExecutableHash: NativeRuntimeProfile?.ExecutableHash);
+        ReplayActorApproach? approach = captureApproach && kind == ReplaySemanticTriggerKind.ActorInteraction ? CaptureSemanticActorApproach(objectId) : null;
+        return new ReplaySemanticTrigger(1, kind, FieldId, programHash!, nativeId, objectId, scriptId, slot, local, infIndex, eventBits, contact, ExecutableHash: NativeRuntimeProfile?.ExecutableHash, Approach: approach);
+    }
+
+    private ReplayActorApproach? CaptureSemanticActorApproach(int objectId)
+    {
+        if (PlayerActor is not ActorState leader)
+        {
+            return null;
+        }
+        ActorState target = actors[objectId];
+        Vector2 towardTarget = new(target.X - leader.X, target.Y - leader.Y);
+        if (!float.IsFinite(towardTarget.X) || !float.IsFinite(towardTarget.Y) || towardTarget.LengthSquared() == 0)
+        {
+            return null;
+        }
+        Vector2 axes = Vector2.Transform(Vector2.Normalize(towardTarget), Matrix3x2.CreateRotation(-InputAxisDirection * MathF.Tau / 256));
+        // Quantize the normalized advisory vector inside its unit bound rather than retain float roundoff above one.
+        while ((double)axes.X * axes.X + (double)axes.Y * axes.Y > 1)
+        {
+            axes *= MathF.BitDecrement(1f);
+        }
+        return new ReplayActorApproach(axes.X, axes.Y);
     }
 
     private ReplaySemanticTrigger CreateSemanticGateway(InfGateway gateway)

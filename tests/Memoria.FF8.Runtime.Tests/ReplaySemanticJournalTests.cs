@@ -86,6 +86,42 @@ public sealed class ReplaySemanticJournalTests
     }
 
     [Fact]
+    public void Legacy_interaction_keeps_only_incoming_direction_with_codec_and_visit_boundaries()
+    {
+        ReplayJournalEntry interaction = new(ReplayEntryKind.Action, SceneKind.Field, 129, 20) { Code = 3, Value = 9 };
+        ReplayJournalEntry movement = new(ReplayEntryKind.Action, SceneKind.Field, 129, 1) { Code = 4, Horizontal = 0.6f, Vertical = -0.8f, Frames = 19, Advanced = 19 };
+        ReplayJournal legacy = ReadLegacy([Load(129), movement, new(ReplayEntryKind.Action, SceneKind.Field, 129, 20) { Code = 5, Frames = 8, Advanced = 8 }, movement with { Horizontal = 0, Vertical = 0 }, movement with { Horizontal = -1, Vertical = 0, Accepted = false }, interaction, Load(130), interaction with { FieldId = 130 }, Load(131)]);
+        string original = JsonSerializer.Serialize(legacy);
+        ReplayJournal projected = legacy.GetSemanticProjection();
+        ReplayJournalEntry retained = Assert.Single(projected.CompletedVisits[0].Intents);
+        ReplayActorApproach approach = Assert.IsType<ReplayActorApproach>(retained.Approach);
+        Assert.True(approach.Inferred);
+        Assert.Equal(0.6f, approach.Horizontal, 5);
+        Assert.Equal(-0.8f, approach.Vertical, 5);
+        Assert.Equal(0, retained.Horizontal);
+        Assert.Equal(0, retained.Vertical);
+        Assert.Equal(1, retained.Frames);
+        Assert.Null(Assert.Single(projected.CompletedVisits[1].Intents).Approach);
+        ReplayJournal differentCadence = ReadLegacy([Load(129), movement with { Frame = 99, Frames = 1, Advanced = 1 }, interaction with { Frame = 100 }, Load(130)]).GetSemanticProjection();
+        Assert.Equal(approach, Assert.Single(differentCadence.CompletedVisits[0].Intents).Approach);
+        ReplayJournal restored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(projected))!;
+        Assert.Equal(approach, Assert.Single(restored.CompletedVisits[0].Intents).Approach);
+        Assert.True(Assert.Single(restored.CompletedVisits[0].Intents).Approach!.Inferred);
+        Assert.Equal(original, JsonSerializer.Serialize(legacy));
+        GameSession current = Start();
+        current.AppendReplayEntry(Load(129));
+        ReplaySemanticTrigger admission = new(1, ReplaySemanticTriggerKind.ActorInteraction, 129, Hash, 4, 4, 8, 6, 2, Approach: approach with { Inferred = false });
+        current.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.SemanticTrigger, SceneKind.Field, 129, 1) { SemanticTrigger = admission, SemanticAdmissions = [admission with { Approach = new ReplayActorApproach(1, 0), Sequence = 0 }] });
+        current.AppendReplayEntry(Load(130));
+        ReplayJournal currentRestored = JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(current.ReplayJournal))!;
+        Assert.Equal(admission, Assert.Single(currentRestored.CompletedVisits[0].Intents).SemanticTrigger);
+        Assert.False(Assert.Single(currentRestored.CompletedVisits[0].Intents).SemanticTrigger!.Approach!.Inferred);
+        Assert.Throws<InvalidDataException>(() => new ReplayActorApproach(float.NaN, 0).Validate());
+        Assert.Throws<InvalidDataException>(() => new ReplayActorApproach(0, 0).Validate());
+        Assert.Throws<InvalidDataException>(() => new ReplayActorApproach(1, 1).Validate());
+    }
+
+    [Fact]
     public void Input_projection_keeps_fresh_mapped_pulse_and_one_release_but_omits_idle_zero_polls()
     {
         GameSession session = Start();

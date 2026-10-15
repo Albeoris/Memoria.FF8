@@ -473,10 +473,11 @@ public sealed partial class EventEngine
             {
                 throw new NotSupportedException(suspension);
             }
+            bool captureApproach = !semanticInputApproachUnknown && Scene.NativeFieldLoadVersion == 1 && SelectInteractionTarget() == objectId;
             Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
             action.NativeActorSlot = 7;
             SuspendNativeMovementForRequest(actor, action);
-            RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7));
+            RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7, captureApproach: captureApproach));
         }
         else
         {
