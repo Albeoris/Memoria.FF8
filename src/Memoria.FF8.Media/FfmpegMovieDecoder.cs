@@ -9,7 +9,7 @@ public sealed record MovieInformation(int Width, int Height, double FramesPerSec
 public sealed record MovieFrame(long Index, byte[] Rgba);
 
 /// <summary>Read-only decoding of installed AVI files. FFmpeg is a separate cached tool, not a runtime recompiler dependency.</summary>
-public sealed class FfmpegMovieDecoder : IDisposable
+public sealed partial class FfmpegMovieDecoder : IDisposable
 {
     private readonly Process video;
     private readonly Process audio;
@@ -59,7 +59,7 @@ public sealed class FfmpegMovieDecoder : IDisposable
 
     public static MovieInformation Probe(string toolsDirectory, string moviePath)
     {
-        using Process probe = Start(Path.Combine(toolsDirectory, "ffprobe.exe"), "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_entries", "stream=width,height,avg_frame_rate,nb_frames,nb_read_frames:format=duration", "-of", "json", moviePath);
+        using Process probe = Start(Path.Combine(toolsDirectory, "ffprobe.exe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height,avg_frame_rate:format=duration", "-of", "json", moviePath);
         string json = probe.StandardOutput.ReadToEnd();
         probe.WaitForExit();
         if (probe.ExitCode != 0)
@@ -71,14 +71,7 @@ public sealed class FfmpegMovieDecoder : IDisposable
         string[] rate = stream.GetProperty("avg_frame_rate").GetString()!.Split('/');
         double fps = double.Parse(rate[0], CultureInfo.InvariantCulture) / double.Parse(rate[1], CultureInfo.InvariantCulture);
         double duration = double.Parse(document.RootElement.GetProperty("format").GetProperty("duration").GetString()!, CultureInfo.InvariantCulture);
-        int frameCount = 0;
-        foreach (string property in new[] { "nb_read_frames", "nb_frames" })
-        {
-            if (stream.TryGetProperty(property, out JsonElement count) && int.TryParse(count.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out frameCount) && frameCount > 0)
-            {
-                break;
-            }
-        }
+        int frameCount = stream.GetProperty("codec_name").GetString() == "vp8" ? CountVp8DisplayFrames(toolsDirectory, moviePath, stream.GetProperty("width").GetInt32(), stream.GetProperty("height").GetInt32()) : CountDecodedFrames(toolsDirectory, moviePath);
         if (frameCount <= 0)
         {
             throw new InvalidDataException("FFprobe could not determine the movie's decoded frame count.");
