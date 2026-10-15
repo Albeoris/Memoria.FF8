@@ -14,7 +14,8 @@ internal static class HeadlessControlHost
             throw new ArgumentException("Headless control requires --state <standalone.json> and --control-dir <queue-directory> for a field, world or movie checkpoint.");
         }
         GameSession session = new(options.InitialState);
-        using GameWorld world = new(session, options.GameDirectory);
+        using GameResourceHost resources = new(options.GameDirectory);
+        using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources);
         world.EnsureField();
         bool running = true;
         bool faulted = world.Events.LastFault is not null;
@@ -119,6 +120,7 @@ internal static class HeadlessControlHost
         Console.WriteLine($"Headless control ready {session.State.FieldId}/{world.Events.Frame}");
         while (running)
         {
+            resources.Pump();
             queue.Poll();
             if (running)
             {
