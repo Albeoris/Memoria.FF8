@@ -11,14 +11,16 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
     public Vector3? TargetPosition { get; init; }
     public WorldCameraFrame? ScriptedFrame { get; init; }
     public int? NativeOffsetZ { get; init; }
+    public int? NativeOffsetY { get; init; }
     public short? NativePitch { get; init; }
     public bool NativeProjection => NativeFoot || ScriptedFrame.HasValue;
 
     public static WorldCamera ScriptedPath(NativeWorldPathCamera camera, float farDistance, int skyIndex = 0)
     {
-        int dx = unchecked((short)(camera.Target.X - camera.Eye.X));
-        int dy = unchecked((short)(camera.Target.Y - camera.Eye.Y));
-        int dz = unchecked((short)(camera.Target.Z - camera.Eye.Z));
+        NativeWorldPathPosition nativeEye = camera.Eye ?? throw new InvalidDataException("Scripted render camera has no executed eye.");
+        int dx = unchecked((short)(camera.Target.X - nativeEye.X));
+        int dy = unchecked((short)(camera.Target.Y - nativeEye.Y));
+        int dz = unchecked((short)(camera.Target.Z - nativeEye.Z));
         long squared = (long)dx * dx + (long)dy * dy + (long)dz * dz;
         long horizontal = (long)dx * dx + (long)dz * dz;
         if (squared is <= 0 or > int.MaxValue || horizontal > int.MaxValue)
@@ -57,7 +59,7 @@ public readonly record struct WorldCamera(float Heading, float Distance, float H
         Matrix4x4 rotation = Matrix4x4.CreateRotationX((NativePitch ?? -112) * MathF.Tau / 4096) * Matrix4x4.CreateRotationY(Heading);
         static Vector3 Canonical(Vector3 native) => new(native.X, -native.Y, -native.Z);
         Vector3 target = TargetPosition ?? playerPosition + Vector3.UnitY * 256;
-        Vector3 eye = target + Canonical(Vector3.Transform(new Vector3(0, -341, -7168), rotation));
+        Vector3 eye = target + Canonical(Vector3.Transform(new Vector3(0, NativeOffsetY ?? -341, NativeOffsetZ ?? -7168), rotation));
         Vector3 forward = Canonical(Vector3.TransformNormal(Vector3.UnitZ, rotation));
         Vector3 up = -Canonical(Vector3.TransformNormal(Vector3.UnitY, rotation));
         return new WorldCameraFrame(eye, forward, up);

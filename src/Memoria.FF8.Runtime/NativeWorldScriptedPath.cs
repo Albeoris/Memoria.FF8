@@ -6,7 +6,11 @@ namespace Memoria.FF8.Runtime;
 public readonly record struct NativeWorldPathPosition(int X, int Y, int Z);
 public sealed record NativeWorldRailPoint(int X, int Y, int Z, int Opaque);
 public sealed record NativeWorldPathCameraRecord(short Deadline, byte EyeMode, byte TargetMode, byte Interpolation, NativeWorldPathPosition EyeOffset, NativeWorldPathPosition TargetOffset);
-public sealed record NativeWorldPathCamera(NativeWorldPathPosition Eye, NativeWorldPathPosition Target);
+public sealed record NativeWorldPathCamera(NativeWorldPathPosition? Eye, NativeWorldPathPosition Target)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldFootCameraState? FootState { get; init; }
+}
 public sealed record NativeWorldPathAngles(short Pitch, short Yaw, short Roll);
 public readonly record struct NativeWorldPathWords(short X, short Y, short Z);
 
@@ -367,10 +371,10 @@ public sealed record NativeWorldScriptedPathState
     }
 
     /// <summary>The shared545480/545B20 phase, before node projection and contact handling.</summary>
-    public static NativeWorldRailAdvance AdvanceRail(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> source, sbyte direction, short pause, int speed, int maximumSpeed, int multiplier)
+    public static NativeWorldRailAdvance AdvanceRail(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> source, sbyte direction, short pause, int speed, int maximumSpeed, int multiplier, byte? status = null, byte stopCounter = 0)
     {
         definition.Validate();
-        if (direction is not (1 or -1) || pause < 0 || speed < 0 || source.IsDefaultOrEmpty || multiplier != 2)
+        if (direction is not (1 or -1) || pause < -1 || speed < 0 || source.IsDefaultOrEmpty || multiplier != 2)
         {
             throw new InvalidDataException("Native rail advance requires its current physical bank and callback multiplier.");
         }
@@ -406,27 +410,52 @@ public sealed record NativeWorldScriptedPathState
             }
         }
         bool endpoint = false;
+        if (pause == 0)
+        {
+            status = 0;
+        }
         for (int index = 0; index < nodes.Length; index++)
         {
-            NativeWorldScriptedPathNode old = source[index];
-            nodes[index] = ResolveNode(definition, nodes[index], direction, out bool complete);
-            endpoint |= complete;
-            if (pause == 0 && index == (direction == 1 ? 0 : nodes.Length - 1))
+            bool leading = index == (direction == 1 ? 0 : nodes.Length - 1);
+            bool stopped = false;
+            void EnterSegment(short segment)
             {
-                foreach (byte stop in direction == 1 ? definition.ForwardStops : definition.ReverseStops)
+                if (pause == 0 && leading)
                 {
-                    int segment = direction == 1 ? stop : definition.Points.Length - stop - 1;
-                    if (old.Segment < segment && nodes[index].Segment >= segment)
+                    foreach (byte stop in direction == 1 ? definition.ForwardStops : definition.ReverseStops)
                     {
-                        throw new NotSupportedException("Native rail reached its original station stop; stop-camera/contact continuation is not yet implemented.");
+                        int originalSegment = direction == 1 ? segment : definition.Points.Length - segment - 1;
+                        if (originalSegment == stop)
+                        {
+                            pause = 30;
+                            speed = 0;
+                            stopCounter = unchecked((byte)(stopCounter + 1));
+                            stopped = true;
+                        }
                     }
                 }
             }
+            nodes[index] = ResolveNode(definition, nodes[index], direction, out bool complete, EnterSegment);
+            if (complete)
+            {
+                stopCounter = unchecked((byte)(stopCounter + 1));
+                status = 2;
+                endpoint = true;
+            }
+            else if (stopped)
+            {
+                status = 1;
+            }
         }
-        return new NativeWorldRailAdvance(pause, speed, nodes.ToImmutableArray(), endpoint);
+        return new NativeWorldRailAdvance(pause, speed, nodes.ToImmutableArray(), endpoint) { Status = status, StopCounter = stopCounter };
     }
 
     public static NativeWorldPathCamera EvaluateCamera(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> nodes, sbyte direction, int counter)
+    {
+        return EvaluateCamera(definition, nodes, direction, counter, -1, out _);
+    }
+
+    public static NativeWorldPathCamera EvaluateCamera(NativeWorldScriptedPathDefinition definition, ImmutableArray<NativeWorldScriptedPathNode> nodes, sbyte direction, int counter, int station, out ushort nextCounter)
     {
         definition.Validate();
         if (direction is not (1 or -1) || counter is < 0 or > short.MaxValue || nodes.IsDefault || nodes.Length is not (3 or 5) || nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0))
@@ -440,12 +469,37 @@ public sealed record NativeWorldScriptedPathState
                 throw new InvalidDataException("Native scripted camera source differs from its actual signed rail interpolation.");
             }
         }
-        int index = 0;
-        int previous = 0;
-        while (definition.CameraRecords[index].Deadline != -1 && (definition.CameraRecords[index].Deadline == -2 || counter > definition.CameraRecords[index].Deadline))
+        if (station is < -1 or > 2)
         {
-            previous = definition.CameraRecords[index].Deadline;
-            index++;
+            throw new InvalidDataException("Native camera station selector is outside548BF0's signed result.");
+        }
+        int index = 0;
+        int weight = 4096;
+        nextCounter = checked((ushort)(counter + 1));
+        if (station is 0 or 2)
+        {
+            //54BCB0 selects the first -2 record while the train is at a station;552AD0 increments its rewritten WORD afterwards.
+            while (definition.CameraRecords[index].Deadline is not (-1 or -2))
+            {
+                index++;
+            }
+            if (definition.CameraRecords[index].Deadline == -2)
+            {
+                nextCounter = checked((ushort)definition.CameraRecords[index + 1].Deadline);
+            }
+        }
+        else
+        {
+            int previous = 0;
+            while (definition.CameraRecords[index].Deadline != -1 && (definition.CameraRecords[index].Deadline == -2 || counter > definition.CameraRecords[index].Deadline))
+            {
+                previous = definition.CameraRecords[index].Deadline;
+                index++;
+            }
+            if (definition.CameraRecords[index].Deadline != -1)
+            {
+                weight = Math.Clamp(checked((counter - previous) << 12) / (definition.CameraRecords[index].Deadline - previous), 0, 4096);
+            }
         }
         NativeWorldPathCameraRecord record = definition.CameraRecords[index];
         NativeWorldPathPosition eye = CameraPosition(nodes, direction, record.EyeMode, record.EyeOffset);
@@ -454,7 +508,6 @@ public sealed record NativeWorldScriptedPathState
         {
             return new NativeWorldPathCamera(eye, targetPosition);
         }
-        int weight = Math.Clamp(checked((counter - previous) << 12) / (record.Deadline - previous), 0, 4096);
         NativeWorldPathCameraRecord target = definition.CameraRecords[index + 1];
         return new NativeWorldPathCamera(Blend(eye, CameraPosition(nodes, direction, target.EyeMode, target.EyeOffset), weight), Blend(targetPosition, CameraPosition(nodes, direction, target.TargetMode, target.TargetOffset), weight));
     }
@@ -488,6 +541,11 @@ public sealed record NativeWorldScriptedPathState
 
     public static NativeWorldScriptedPathNode ResolveNode(NativeWorldScriptedPathDefinition definition, NativeWorldScriptedPathNode original, int direction, out bool completed)
     {
+        return ResolveNode(definition, original, direction, out completed, null);
+    }
+
+    private static NativeWorldScriptedPathNode ResolveNode(NativeWorldScriptedPathDefinition definition, NativeWorldScriptedPathNode original, int direction, out bool completed, Action<short>? enterSegment)
+    {
         int segment = original.Segment;
         int distance = original.Distance;
         completed = false;
@@ -506,6 +564,7 @@ public sealed record NativeWorldScriptedPathState
             }
             distance -= length;
             segment++;
+            enterSegment?.Invoke((short)segment);
         }
         completed = true;
         // 545B20 returns2 before the coordinate stores on this branch.
@@ -513,7 +572,11 @@ public sealed record NativeWorldScriptedPathState
     }
 }
 
-public sealed record NativeWorldRailAdvance(short Pause, int Speed, ImmutableArray<NativeWorldScriptedPathNode> Nodes, bool Endpoint);
+public sealed record NativeWorldRailAdvance(short Pause, int Speed, ImmutableArray<NativeWorldScriptedPathNode> Nodes, bool Endpoint)
+{
+    public byte? Status { get; init; }
+    public byte StopCounter { get; init; }
+}
 
 public static class NativeWorldScriptedPathMath
 {

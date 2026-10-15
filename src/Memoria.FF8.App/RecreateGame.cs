@@ -395,6 +395,21 @@ internal sealed partial class RecreateGame : Game
                 error = null;
                 Console.WriteLine($"loaded=world entry={session.State.WorldArrival}");
             }
+            DialogueState? dialogue = world.CurrentDialogue;
+            if (dialogue != presentedDialogue)
+            {
+                presentedDialogue = dialogue;
+                selectedChoice = dialogue?.InitialChoice ?? 0;
+            }
+            if (dialogue is { FirstChoice: int first, LastChoice: int last })
+            {
+                selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
+                if (input.Confirm || input.Cancel)
+                {
+                    metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Choose, input.Cancel ? dialogue.CancelChoice ?? last : selectedChoice)).FramesAdvanced);
+                    return;
+                }
+            }
             fieldSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;
             while (fieldSeconds + 1e-9 >= 1d / WorldMapScene.SimulationFps)
             {
@@ -622,7 +637,7 @@ internal sealed partial class RecreateGame : Game
         }
         else if (request.Command.Equals("draft", StringComparison.OrdinalIgnoreCase))
         {
-            if (events?.CurrentDialogue is not DialogueState dialogue)
+            if (world?.CurrentDialogue is not DialogueState dialogue)
             {
                 throw new InvalidOperationException("No dialogue is open.");
             }
@@ -719,9 +734,9 @@ internal sealed partial class RecreateGame : Game
             Battle = BattleStatus(),
             DebugActionLog = world?.DebugActions,
             Trigger = world?.NextTrigger is PlayerTrigger trigger ? trigger with { Text = trigger.Text is string triggerText ? DialogueTextFormatter.Format(triggerText, events!.Scene.Names, events.MessageVariables) : null } : null,
-            Dialogue = events?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events.Scene.Names, events.MessageVariables) } : null,
-            Dialogues = events?.Dialogues.OrderBy(dialogue => dialogue.Channel).Select(dialogue => dialogue with { Text = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables) }).ToArray(),
-            RawDialogueText = events?.CurrentDialogue?.Text,
+            Dialogue = world?.CurrentDialogue is DialogueState current ? current with { Text = DialogueTextFormatter.Format(current.Text, events!.Scene.Names, events.MessageVariables) } : null,
+            Dialogues = session.State.Scene == SceneKind.WorldMap ? world?.CurrentDialogue is { } worldDialogue ? new[] { worldDialogue } : [] : events?.Dialogues.OrderBy(dialogue => dialogue.Channel).Select(dialogue => dialogue with { Text = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables) }).ToArray(),
+            RawDialogueText = world?.CurrentDialogue?.Text,
             IsUserControlEnabled = session.State.Scene == SceneKind.WorldMap || events?.IsUserControlEnabled == true,
             CameraIndex = events?.Scene.CameraIndex,
             WorldRenderTarget = world is null ? null : new { Width = world.RenderWidth, Height = world.RenderHeight, Limit = options.WorldRenderLimit },
@@ -825,19 +840,20 @@ internal sealed partial class RecreateGame : Game
             PixelBounds fit = ViewportLayout.Fit(fieldTexture.Width, fieldTexture.Height, bounds.Width, bounds.Height);
             batch.Draw(fieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
         }
-        if (events is not null && field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.DebugView?.DialogueVisible != false)
+        if (events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
             float dialogueScale = viewport.Width / 320f;
             float fontSize = 8 * dialogueScale;
-            foreach (DialogueState dialogue in events.Dialogues.OrderBy(dialogue => dialogue.Channel))
+            IEnumerable<DialogueState> visibleDialogues = session.State.Scene == SceneKind.WorldMap ? world?.CurrentDialogue is { } stationDialogue ? [stationDialogue] : [] : events.Dialogues.OrderBy(dialogue => dialogue.Channel);
+            foreach (DialogueState dialogue in visibleDialogues)
             {
                 string displayed = DialogueTextFormatter.Format(dialogue.Text, events.Scene.Names, events.MessageVariables);
                 if (dialogue == events.CurrentDialogue && dialogue.IsNamePrompt)
                 {
                     displayed += "\n" + enteredName + "_  (Enter: accept)";
                 }
-                else if (dialogue == events.CurrentDialogue && dialogue is { FirstChoice: int first, LastChoice: int last })
+                else if (dialogue == world?.CurrentDialogue && dialogue is { FirstChoice: int first, LastChoice: int last })
                 {
                     displayed = string.Join('\n', displayed.Split('\n').Select((line, index) => index >= first && index <= last ? (index == selectedChoice ? "> " : "  ") + line : line));
                     displayed += "\nArrows: select   Enter: confirm";

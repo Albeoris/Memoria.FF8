@@ -75,7 +75,8 @@ public sealed class NativeScriptedWorldStateTests
         Assert.Equal(new NativeSavedWorldPose(0, 0, 0, 0), receipt.Pose0);
         Assert.NotEqual(receipt.Pose0.X, endpoint.X);
         Assert.Throws<InvalidDataException>(() => (receipt with { StoryWord = 290 }).Validate());
-        Assert.Equal((ushort)NativeWorldScriptedPathMath.NativeAngle(unchecked((short)(path.Camera.Target.X - path.Camera.Eye.X)), unchecked((short)(path.Camera.Target.Z - path.Camera.Eye.Z))), receipt.CameraYaw96);
+        Assert.True(path.Camera.Eye.HasValue);
+        Assert.Equal((ushort)NativeWorldScriptedPathMath.NativeAngle(unchecked((short)(path.Camera.Target.X - path.Camera.Eye.Value.X)), unchecked((short)(path.Camera.Target.Z - path.Camera.Eye.Value.Z))), receipt.CameraYaw96);
         Assert.Throws<InvalidDataException>(() => (receipt with { CameraYaw96 = (ushort)(receipt.CameraYaw96 ^ 1) }).Validate());
         GameState restored = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         var restoredSession = new GameSession(restored);

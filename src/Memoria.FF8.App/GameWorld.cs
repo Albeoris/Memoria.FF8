@@ -90,7 +90,8 @@ internal sealed partial class GameWorld : IDisposable
     public EventEngine Events { get; }
     public FieldAssets? Field { get; private set; }
     public WorldMapScene? WorldScene => worldScene;
-    public PlayerTrigger NextTrigger => worldScene is not null && session.State.Scene == SceneKind.WorldMap ? new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
+    public DialogueState? CurrentDialogue => session.State.Scene == SceneKind.WorldMap ? worldScene?.CurrentDialogue : Events.CurrentDialogue;
+    public PlayerTrigger NextTrigger => worldScene is not null && session.State.Scene == SceneKind.WorldMap ? worldScene.CurrentDialogue is { } dialogue ? new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, worldScene.State.Frame, dialogue.MessageId, dialogue.Text) : new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
 
     public bool EnsureField()
     {

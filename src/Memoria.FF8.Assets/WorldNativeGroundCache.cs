@@ -73,13 +73,14 @@ public sealed partial class WorldAssets
         }
     }
 
-    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false)
+    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false, Func<int, int, int, bool>? contact = null)
     {
         bool foot = entityType < 10 || entityType == 128;
         bool car = entityType is >= 32 and <= 40 or 132;
-        if (!foot && !car || selectedGroup is < 0 or > 1 || moveX is < short.MinValue or > short.MaxValue || graphicsMoveZ is < short.MinValue or > short.MaxValue)
+        bool train = entityType is >= 16 and <= 22;
+        if (!foot && !car && !train || selectedGroup is < 0 or > 1 || moveX is < short.MinValue or > short.MaxValue || graphicsMoveZ is < short.MinValue or > short.MaxValue)
         {
-            throw new NotSupportedException("Native ground query requires the supported normal foot/car entity and exact signed-WORD velocity.");
+            throw new NotSupportedException("Native ground query requires the supported normal foot/car/train entity and exact signed-WORD velocity.");
         }
         int radius = NativeWorldTerrain.ProbeRadius(entityType);
         byte permission = NativeWorldTerrain.PermissionMask(entityType);
@@ -125,7 +126,8 @@ public sealed partial class WorldAssets
                                 continue;
                             }
                             probe.Selected = ResolveNativeGroundProbe(probe, previousGroundHeight, oldType, cache, replacements);
-                            probe.Status = probe.Selected is not null && (probe.Selected.Ground.Triangle.VertexFlags & permission) != 0 ? 0 : 1;
+                            //53E6B0 has no permission bit for16..22: those native entities return1.
+                            probe.Status = probe.Selected is not null && (permission == 0 || (probe.Selected.Ground.Triangle.VertexFlags & permission) != 0) ? 0 : 1;
                         }
                         if (candidate.All(probe => probe.Status == 0))
                         {
@@ -170,14 +172,25 @@ public sealed partial class WorldAssets
                     bool blocked = acceptedIndex < 0;
                     NativeGroundProbe? acceptedProbe = blocked ? null : groups[chosen][acceptedIndex][0];
                     WorldGroundSelection? selected = acceptedProbe?.Selected;
-                    var outcome = (X: acceptedProbe?.X ?? beforeX, Z: acceptedProbe?.Z ?? beforeZ, Yaw: blocked ? 0 : acceptedIndex * (chosen == 0 ? -160 : 160), Blocked: blocked);
-                    if (physical is not null && physical.Value != outcome || center is not null && selected is not null && (center.Ground.Height != selected.Ground.Height || center.Ground.Triangle.GroundType != selected.Ground.Triangle.GroundType || center.Ground.Triangle.TextureFlags != selected.Ground.Triangle.TextureFlags))
+                    bool contactBlocked = false;
+                    if (selected is not null && contact is not null)
+                    {
+                        //53BB90 commits the candidate height to all five probes before548CD0.
+                        //A blocking contact skips the XYZ/ground-pointer commit, without selecting a later fan.
+                        int currentHeight = unchecked((short)(-previousGroundHeight + (oldType <= 5 ? 320 : 0)));
+                        int height = NativeWorldTerrain.ResolveHeight(entityType, -(int)selected.Ground.Height, selected.Ground.Triangle.GroundType, currentHeight).Height;
+                        contactBlocked = contact(acceptedProbe!.X, acceptedProbe.Z, height);
+                    }
+                    bool rejected = blocked || contactBlocked;
+                    WorldGroundSelection? committed = rejected ? null : selected;
+                    var outcome = (X: rejected ? beforeX : acceptedProbe!.X, Z: rejected ? beforeZ : acceptedProbe!.Z, Yaw: rejected ? 0 : acceptedIndex * (chosen == 0 ? -160 : 160), Blocked: rejected);
+                    if (physical is not null && physical.Value != outcome || center is not null && committed is not null && (center.Ground.Height != committed.Ground.Height || center.Ground.Triangle.GroundType != committed.Ground.Triangle.GroundType || center.Ground.Triangle.TextureFlags != committed.Ground.Triangle.TextureFlags))
                     {
                         throw new NotSupportedException("Retained native world cache/input alternatives disagree on the physical ground result.");
                     }
                     physical ??= outcome;
-                    center ??= selected;
-                    NativeWorldGroundAlternative nextAlternative = new(chosen, cache.ToArray(), selected?.Identity ?? alternative.CurrentGround, blocked ? alternative.PreviousGround : alternative.CurrentGround) { FailedSelections = blocked ? alternative.FailedSelections is int failures ? unchecked(failures + 1) : null : 0 };
+                    center ??= committed;
+                    NativeWorldGroundAlternative nextAlternative = new(contactBlocked ? selection : chosen, cache.ToArray(), committed?.Identity ?? alternative.CurrentGround, rejected ? alternative.PreviousGround : alternative.CurrentGround) { FailedSelections = blocked ? alternative.FailedSelections is int failures ? unchecked(failures + 1) : null : 0 };
                     if (!alternatives.Any(existing => existing.PreferredGroup == nextAlternative.PreferredGroup && existing.FailedSelections == nextAlternative.FailedSelections && existing.CurrentGround == nextAlternative.CurrentGround && existing.PreviousGround == nextAlternative.PreviousGround && existing.Entries.SequenceEqual(nextAlternative.Entries)))
                     {
                         alternatives.Add(nextAlternative);

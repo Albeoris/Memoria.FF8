@@ -8,6 +8,7 @@ public sealed record NativeFootWorldRuntimeState
     public const int CurrentProofVersion = 1;
     public const string FirstLoadRule = "ff8-en-first-foot-542b90-548080-save110-v1";
     public const string SavedReloadRule = "ff8-en-foot-entry62-548080-54a0d0-v1";
+    public const string TrainDismountRule = "ff8-en-foot-train-dismount-548af0-retained-process-v1";
 
     [JsonRequired]
     public required int ProofVersion { get; init; }
@@ -22,6 +23,11 @@ public sealed record NativeFootWorldRuntimeState
     /// <summary>Native C75CF8 controls the world map display; native 549E80 normalizes fullscreen mode3 to saved0.</summary>
     [JsonRequired]
     public required byte MapDisplayMode { get; init; }
+    /// <summary>Native camera-space203ED04 signed offsets, written by557250 or552EB0 and retained by548AF0.</summary>
+    [JsonRequired]
+    public required short CameraOffsetY { get; init; }
+    [JsonRequired]
+    public required short CameraOffsetZ { get; init; }
     [JsonRequired]
     public required long? ReloadSourceWorldFrame { get; init; }
 
@@ -33,6 +39,45 @@ public sealed record NativeFootWorldRuntimeState
     public int? PreviousHorizontalInput { get; init; }
     [JsonRequired]
     public NativeWorldForestState? Forest { get; init; }
+    /// <summary>548AF0 keeps both existing train banks and the selected section9 allocation alive.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeTrainWorldRuntimeState? StationTrains { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldTrainDismountReceipt? TrainDismount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeStationTrainProcess? StationTrainProcess { get; init; }
+
+    public static NativeFootWorldRuntimeState CreateTrainDismount(NativeTrainWorldRuntimeState train, NativeWorldTrainStation station, short cameraPitch)
+    {
+        NativeWorldTrainDismountReceipt receipt = NativeWorldTrainDismountReceipt.Create(train, station);
+        if (station.Index != 0 || train.Primary.TrackIndex != 0)
+        {
+            throw new NotSupportedException("Native train dismount currently represents the reached track0/station0 continuation.");
+        }
+        //548AF0 changes entity/control/position and clears body orientation. It does not
+        //run53E200/53F310/557250, so ground selection, random process and camera survive.
+        var state = new NativeFootWorldRuntimeState
+        {
+            ProofVersion = CurrentProofVersion,
+            Rule = TrainDismountRule,
+            EntityType = train.ControlledObjectEntityType,
+            AnimationVariant = 0,
+            MapDisplayMode = train.Load.MapDisplayMode,
+            CameraOffsetY = 0,
+            CameraOffsetZ = train.CameraGeometry.OffsetZ,
+            ReloadSourceWorldFrame = null,
+            GroundCache = train.GroundCache,
+            GroundYaw = train.GroundYaw,
+            PreviousHorizontalInput = 0,
+            Forest = train.Forest with { CameraPitch = cameraPitch },
+            StationTrains = train,
+            TrainDismount = receipt,
+            StationTrainProcess = NativeStationTrainProcess.Create(train)
+        };
+        state.RequireNativeGroundState();
+        state.RequireSupportedNormalFoot();
+        return state;
+    }
 
     public static NativeFootWorldRuntimeState CreateFirstNormalLoad(NativeSavedWorldState savedWorld, byte entityType = 0)
     {
@@ -45,6 +90,8 @@ public sealed record NativeFootWorldRuntimeState
             EntityType = entityType,
             AnimationVariant = 0,
             MapDisplayMode = mapDisplayMode,
+            CameraOffsetY = -341,
+            CameraOffsetZ = -7168,
             ReloadSourceWorldFrame = null,
             GroundCache = null,
             GroundYaw = 0,
@@ -65,6 +112,8 @@ public sealed record NativeFootWorldRuntimeState
             EntityType = receipt.EntityType105,
             AnimationVariant = receipt.AnimationVariant108!.Value,
             MapDisplayMode = receipt.MapDisplayMode110!.Value,
+            CameraOffsetY = -341,
+            CameraOffsetZ = -7168,
             ReloadSourceWorldFrame = receipt.SourceWorldFrame,
             GroundCache = null,
             GroundYaw = 0,
@@ -78,11 +127,29 @@ public sealed record NativeFootWorldRuntimeState
     {
         Forest?.Validate();
         GroundCache?.Validate();
+        StationTrains?.Validate();
+        if (Rule == TrainDismountRule)
+        {
+            if (StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant != 0 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetY != 0 || CameraOffsetZ != StationTrains.CameraGeometry.OffsetZ)
+            {
+                throw new InvalidDataException("Native foot dismount lost its retained train allocation or executed station transition.");
+            }
+            TrainDismount.Validate(StationTrains);
+            StationTrainProcess.Validate(StationTrains);
+        }
+        else if (StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null)
+        {
+            throw new InvalidDataException("Native foot loader cannot acquire station trains without an executed dismount.");
+        }
+        else if (CameraOffsetY != -341 || CameraOffsetZ != -7168)
+        {
+            throw new InvalidDataException("Native ordinary foot loader lost its original camera-space offsets.");
+        }
         if (PreviousHorizontalInput is < -1 or > 1 || GroundYaw is < -1120 or > 1120)
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

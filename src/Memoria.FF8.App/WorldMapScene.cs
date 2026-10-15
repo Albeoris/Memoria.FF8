@@ -32,9 +32,10 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
         bool car = unchecked((sbyte)arrival.Mode) == 33;
-        bool ridingTrain = IsRidingTrainPacket(arrival);
+        bool stationFoot = session.State.World?.NativeFootRuntime?.StationTrains is not null;
+        bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
         bool scripted = IsSupportedScriptedPacket(arrival) || ridingTrain;
-        byte footEntityType = unchecked((byte)arrival.Mode);
+        byte footEntityType = stationFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
         if (footEntityType is not (0 or 1) && !car && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
@@ -45,7 +46,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!scripted && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 290))
+        if (!scripted && !stationFoot && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 290))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -187,6 +188,10 @@ internal sealed partial class WorldMapScene : IDisposable
                     assets.ValidateNativeGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
                 }
                 EnsureContactCertificate(State);
+                if (stationFoot)
+                {
+                    ValidateStationTrainResources(State.NativeFootRuntime!);
+                }
             }
         }
         catch
@@ -238,7 +243,13 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Movement axes must be finite and between -1 and 1.");
         }
-        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait;
+        DialogueState? sourceDialogue = CurrentDialogue;
+        bool stationChoice = action.Kind == PlayerActionKind.Choose && sourceDialogue is not null;
+        if (stationChoice && action.Value is not (1 or 2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(action), "Native world station choices use visible lines1 and2.");
+        }
+        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice;
         int advanced = 0;
         int sourceField = session.State.FieldId;
         long sourceFrame = State.Frame;
@@ -258,6 +269,12 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, priorGraphics, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed);
+                if (stationChoice)
+                {
+                    NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
+                    int station = TrainStation(train.Primary);
+                    candidate = action.Value == 1 ? CreateTrainDismount(candidate, station) : (train with { Primary = train.Primary with { Pause = 0 }, StationDeclines = train.StationDeclines.Add(train.Callback) }).ToWorldState(candidate);
+                }
                 salary = salary.WithGraphicsSpeed(graphicsSpeed);
                 if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
                 {
@@ -288,7 +305,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 salaryRequests.AddRange(effects.Requests);
                 navigation.Add(proposal);
                 advanced++;
-                if (fieldEntry is not null)
+                if (fieldEntry is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice)
                 {
                     break;
                 }
@@ -319,14 +336,14 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             session.SetWorldState(candidate);
         }
-        PlayerTrigger trigger = new(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null);
+        PlayerTrigger trigger = CurrentDialogue is { } dialogue ? new(PlayerTriggerKind.Dialogue, session.State.FieldId, State.Frame, dialogue.MessageId, dialogue.Text) : new(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null);
         PlayerActionResult result = new(accepted, trigger, advanced, accepted ? null : "This original world action is not implemented.");
         RecordReplay(result);
         return result;
 
         void RecordReplay(PlayerActionResult outcome)
         {
-            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray() });
+            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames, MessageId = stationChoice ? sourceDialogue!.MessageId : null, Operation = stationChoice ? sourceDialogue!.Operation : null, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray() });
         }
     }
 
@@ -338,6 +355,10 @@ internal sealed partial class WorldMapScene : IDisposable
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
         WorldState state = State;
+        if (state.NativeFootRuntime is { StationTrains: { } source, StationTrainProcess.ProjectionCamera: null })
+        {
+            return RenderTrainRide(source.ToWorldState(state));
+        }
         if (state.NativeTrainRuntime is not null)
         {
             return RenderTrainRide(state);
@@ -350,7 +371,7 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldCamera camera = FootCamera(state);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
-        IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? [new NativeWorldStaticModelDraw(assets.ExamCar, new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(state.BodyYaw - 1024)), 0)))] : null;
+        IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? [new NativeWorldStaticModelDraw(assets.ExamCar, new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(state.BodyYaw - 1024)), 0)))] : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : null;
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
@@ -413,11 +434,15 @@ internal sealed partial class WorldMapScene : IDisposable
         int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;
         int x = WrapCoordinate(before.X + moveX, 262144);
         int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
+        if (foot.StationTrains is not null)
+        {
+            foot = StepStationTrains(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+        }
         inputProposal = new ReplayWorldNavigationStimulus(x, z);
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null);
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : null);
         x = ground.X;
         z = ground.Z;
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
@@ -471,6 +496,11 @@ internal sealed partial class WorldMapScene : IDisposable
             EnsureCarContactCertificate(state);
             return;
         }
+        if (state.NativeFootRuntime?.StationTrains is not null)
+        {
+            ValidateStationTrainProcess(state.NativeFootRuntime);
+            return;
+        }
         WorldCamera camera = FootCamera(state);
         double eyeX = camera.FootFrame(new Vector3(state.X, -state.NativeHeight, state.Z)).Eye.X;
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
@@ -485,7 +515,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private static WorldCamera FootCamera(WorldState state)
     {
-        return WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch };
+        return WorldCamera.Foot(state.CameraYaw, 2048) with { TargetPosition = new Vector3(state.CameraTargetX, -state.CameraTargetNativeHeight, state.CameraTargetZ), NativePitch = state.NativeFootRuntime?.Forest?.CameraPitch, NativeOffsetY = state.NativeFootRuntime?.CameraOffsetY, NativeOffsetZ = state.NativeFootRuntime?.CameraOffsetZ };
     }
 
     private static int FollowCamera(int velocity, int delta, bool damping)

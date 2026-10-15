@@ -34,14 +34,14 @@ internal sealed partial class WorldMapScene
         NativeWorldPathCamera camera = NativeWorldScriptedPathState.EvaluateCamera(definition, primary.Nodes, direction, 0);
         ushort mask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte);
         IReadOnlyDictionary<int, int> selectedReplacements = WorldTerrainSelection.Replacements(mask);
-        _ = assets.LookupNativeGround(body.X, -body.Z, selectedReplacements, []) ?? throw new NotSupportedException("Native mode3 loader has no actual53EB80 ground polygon.");
+        WorldGroundSelection ground = assets.LookupNativeGround(body.X, -body.Z, selectedReplacements, []) ?? throw new NotSupportedException("Native mode3 loader has no actual53EB80 ground polygon.");
         var train = new NativeTrainWorldRuntimeState
         {
             Version = 1, Rule = NativeTrainWorldRuntimeState.RuntimeRule, Packet = packet, Load = load, Callback = 0, Primary = primary, Alternate = alternate, CameraListIndex = list, CameraCounter = 1,
-            Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, direction, primary.Nodes), BodyPosition = body, Forest = forest
+            Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, direction, primary.Nodes), BodyPosition = body, Forest = forest, StationDeclines = [], GroundCache = NativeWorldGroundCacheState.CreateFresh(ground.Identity, previous.NativeFootRuntime?.GroundCache ?? previous.NativeCarRuntime?.GroundCache ?? previous.NativeTrainRuntime?.GroundCache), GroundYaw = 0, CameraGeometry = NativeTrainCameraGeometry.Evaluate(camera)
         };
         ValidateTrainRide(train);
-        return train.ToWorldState() with { ReplacementMask = mask };
+        return train.ToWorldState() with { ReplacementMask = mask, GroundType = ground.Ground.Triangle.GroundType };
     }
 
     private void ValidateTrainRide(NativeTrainWorldRuntimeState train)
@@ -49,14 +49,33 @@ internal sealed partial class WorldMapScene
         train.Validate();
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(train.Primary.TrackIndex, train.CameraListIndex);
         sbyte initialDirection = unchecked((byte)train.Packet.EntryIndex) % 2 == 0 ? (sbyte)1 : (sbyte)-1;
-        ImmutableArray<NativeWorldScriptedPathNode> cameraNodes = train.Primary.ValidateCallbackPhase(definition, train.Callback, initialDirection);
+        ushort counter = 1;
+        NativeWorldPathCamera? expectedCamera = null;
+        int expectedCounter = 0;
+        NativeTrainRailBank previousBank = NativeTrainRailBank.Create(definition, initialDirection);
+        ImmutableArray<NativeWorldScriptedPathNode> cameraNodes = train.Primary.ValidateCallbackPhase(definition, train.Callback, initialDirection, (callback, bank) =>
+        {
+            expectedCounter = counter;
+            expectedCamera = NativeWorldScriptedPathState.EvaluateCamera(definition, previousBank.Nodes, previousBank.Direction, counter, TrainStation(previousBank), out counter);
+            bank = PrepareTrainStationPrompt(bank);
+            if (train.StationDeclines.Contains(callback))
+            {
+                if (bank.Pause != -1)
+                {
+                    throw new InvalidDataException("Native train decision has no actual pending station choice.");
+                }
+                bank = bank with { Pause = 0 };
+            }
+            previousBank = bank;
+            return bank;
+        });
         train.Alternate?.ValidateCallbackPhase(assets.ReadScriptedPath(train.Alternate.TrackIndex), train.Callback, initialDirection);
         if (!train.CameraReceipt.Nodes.SequenceEqual(cameraNodes) || train.CameraReceipt.Direction != initialDirection)
         {
             throw new InvalidDataException("Native mode3 saved camera lost this callback's actual pre-movement nodes.");
         }
         NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(train.Load.Allocation.Story, train.Load.Allocation.EventFlags103);
-        if (train.Load.Allocation.ProgramHash != actual.ProgramHash || train.Load.Allocation.CoordinateHash != actual.CoordinateHash || !train.Load.Allocation.ClauseWords.SequenceEqual(actual.ClauseWords) || train.Camera != NativeWorldScriptedPathState.EvaluateCamera(definition, train.CameraReceipt.Nodes, train.CameraReceipt.Direction, train.CameraReceipt.Counter))
+        if (train.Load.Allocation.ProgramHash != actual.ProgramHash || train.Load.Allocation.CoordinateHash != actual.CoordinateHash || !train.Load.Allocation.ClauseWords.SequenceEqual(actual.ClauseWords) || train.Callback > 0 && (train.Camera != expectedCamera || train.CameraCounter != counter || train.CameraReceipt.Counter != expectedCounter))
         {
             throw new InvalidDataException("Native mode3 restored resource selection or camera differs from its original callback source.");
         }
@@ -84,18 +103,15 @@ internal sealed partial class WorldMapScene
     private WorldState StepTrainRide(WorldState before, float horizontal, float vertical, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed)
     {
         NativeTrainWorldRuntimeState train = before.NativeTrainRuntime!;
-        ValidateTrainRide(train);
+        train.Validate();
         //548080 retains original packet entity16..22.5573C0/559140 clear its movement axes even though544860 selects the independent foot object for C76640.
         long callback = checked(train.Callback + 1);
         NativeWorldPathPosition origin = train.Primary.Nodes[2].Position;
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(train.Primary.TrackIndex, train.CameraListIndex);
-        if (train.Primary.Status is 1 or 2 && train.Primary.StopCounter == 1)
-        {
-            throw new NotSupportedException("Native train reached its actual station-camera marker.");
-        }
-        NativeWorldPathCamera camera = NativeWorldScriptedPathState.EvaluateCamera(definition, train.Primary.Nodes, train.Primary.Direction, train.CameraCounter);
+        NativeWorldPathCamera camera = NativeWorldScriptedPathState.EvaluateCamera(definition, train.Primary.Nodes, train.Primary.Direction, train.CameraCounter, TrainStation(train.Primary), out ushort counter);
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.Create(camera, origin, train.EntityType);
         NativeTrainRailBank primary = train.Primary.Step(definition, callback, camera, origin, (node, cam, body) => context.ProjectNode(node));
+        primary = PrepareTrainStationPrompt(primary);
         NativeTrainRailBank? alternate = train.Alternate;
         if (alternate is not null)
         {
@@ -103,19 +119,20 @@ internal sealed partial class WorldMapScene
             alternate = alternate.Step(other, callback, camera, origin, (node, cam, body) => context.ProjectNode(node));
         }
         //549B40 excludes global entities16..22;5472C0 hides the selected normal-foot model, and550070 emits no normal-foot effect for that global entity.
-        NativeTrainWorldRuntimeState next = train with { Callback = callback, Primary = primary, Alternate = alternate, CameraCounter = checked((ushort)(train.CameraCounter + 1)), Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, callback, train.CameraCounter, train.Primary.Direction, train.Primary.Nodes), BodyPosition = origin };
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(origin.X, -origin.Z, 0, 0, -unchecked((short)(origin.Y - (before.GroundType is <= 5 ? 320 : 0))), null, train.GroundCache, replacements, train.EntityType);
+        NativeTrainWorldRuntimeState next = train with { Callback = callback, Primary = primary, Alternate = alternate, CameraCounter = counter, Camera = camera, CameraReceipt = new NativeWorldPathCameraReceipt(1, callback, train.CameraCounter, train.Primary.Direction, train.Primary.Nodes), BodyPosition = origin, GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, CameraGeometry = NativeTrainCameraGeometry.Evaluate(camera) };
         next.Validate();
         fieldEntry = null;
         movementUnits = 0;
         graphicsSpeed = 0;
         proposal = new ReplayWorldNavigationStimulus(origin.X, -origin.Z);
-        return next.ToWorldState(before);
+        return next.ToWorldState(before) with { GroundType = ground.Center?.Ground.Triangle.GroundType ?? before.GroundType };
     }
 
     private byte[] RenderTrainRide(WorldState state)
     {
         NativeTrainWorldRuntimeState train = state.NativeTrainRuntime!;
-        ValidateTrainRide(train);
+        train.Validate();
         if (train.Callback == 0)
         {
             throw new NativeWorldPresentationDeferredException("Native train allocation awaits its first actual draw callback.");

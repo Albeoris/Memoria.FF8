@@ -31,22 +31,30 @@ public sealed class NativeWorldPathProjectionCertificate
         originSector = Sector(origin);
         NativeWorldPathWords localOrigin = Local(origin);
         sectorBase = new NativeWorldPathPosition(origin.X - localOrigin.X, 0, origin.Z - localOrigin.Z);
-        int dx = unchecked((short)(camera.Target.X - camera.Eye.X));
-        int dy = unchecked((short)(camera.Target.Y - camera.Eye.Y));
-        int dz = unchecked((short)(camera.Target.Z - camera.Eye.Z));
-        long total = (long)dx * dx + (long)dy * dy + (long)dz * dz;
-        long horizontal = (long)dx * dx + (long)dz * dz;
-        if (total > int.MaxValue || horizontal > int.MaxValue || total == 0)
+        short pitch;
+        short yaw;
+        short offsetY;
+        short offsetZ;
+        if (camera.FootState is { } foot)
         {
-            throw new NotSupportedException("Native scripted camera square-root overflow or coincident eye/target is outside the projection certificate.");
+            foot.Validate();
+            if (camera.Eye is not null)
+            {
+                throw new InvalidDataException("Native projection camera cannot have both scripted eye and explicit foot words.");
+            }
+            pitch = foot.Pitch;
+            yaw = checked((short)foot.Yaw);
+            offsetY = foot.OffsetY;
+            offsetZ = foot.OffsetZ;
         }
-        int distance = (int)Math.Sqrt(total);
-        if (distance > short.MaxValue)
+        else
         {
-            throw new NotSupportedException("Native scripted camera offset exceeds its supported signed-WORD distance.");
+            NativeTrainCameraGeometry geometry = NativeTrainCameraGeometry.Evaluate(camera);
+            pitch = geometry.Pitch;
+            yaw = geometry.Yaw;
+            offsetY = 0;
+            offsetZ = geometry.OffsetZ;
         }
-        short pitch = unchecked((short)NativeWorldScriptedPathMath.NativeAngle(-dy, (int)Math.Sqrt(horizontal)));
-        short yaw = unchecked((short)NativeWorldScriptedPathMath.NativeAngle(dx, dz));
         Range sp = Trig(pitch, false);
         Range cp = Trig(pitch, true);
         Range sy = Trig(yaw, false);
@@ -67,7 +75,7 @@ public sealed class NativeWorldPathProjectionCertificate
             }
         }
         NativeWorldPathWords targetLocal = Relative(camera.Target);
-        Range[] eyeLocal = Rotate(rotation, [Range.Exact(0), Range.Exact(0), Range.Exact(-distance)]);
+        Range[] eyeLocal = Rotate(rotation, [Range.Exact(0), Range.Exact(offsetY), Range.Exact(offsetZ)]);
         eyeLocal[0] = Add(eyeLocal[0], Range.Exact(targetLocal.X));
         eyeLocal[1] = Add(eyeLocal[1], Range.Exact(targetLocal.Y));
         eyeLocal[2] = Add(eyeLocal[2], Range.Exact(targetLocal.Z));
@@ -97,6 +105,15 @@ public sealed class NativeWorldPathProjectionCertificate
             throw new NotSupportedException("Scripted projection requires its actual wrapped native player origin.");
         }
         return new NativeWorldPathProjectionCertificate(camera, callbackEntityOrigin);
+    }
+
+    public static NativeWorldPathProjectionCertificate CreateFoot(WorldState state) => CreateFoot(NativeWorldFootCameraState.Create(state));
+
+    public static NativeWorldPathProjectionCertificate CreateFoot(NativeWorldFootCameraState state)
+    {
+        state.Validate();
+        NativeWorldPathCamera camera = new(null, new NativeWorldPathPosition(state.TargetX, state.TargetNativeHeight, -state.TargetRawZ)) { FootState = state };
+        return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ));
     }
 
     public NativeWorldPathNodeProjection? ProjectNode(NativeWorldPathPosition node)
@@ -152,6 +169,18 @@ public sealed class NativeWorldPathProjectionCertificate
     }
 
     public NativeWorldPathNodeProjection? Project(NativeWorldPathPosition node) => ProjectNode(node);
+
+    public NativeWorldPathWords RelativeWords(NativeWorldPathPosition position) => Relative(position);
+
+    public bool IsNear(NativeWorldPathPosition position)
+    {
+        (bool allNear, bool allFar) = Proximity(position);
+        if (!allNear && !allFar)
+        {
+            throw new NotSupportedException("Native camera rounding interval crosses its object proximity boundary.");
+        }
+        return allNear;
+    }
 
     public Vector3 CanonicalModelAnchor(NativeWorldPathNodeProjection projection)
     {

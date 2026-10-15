@@ -52,6 +52,10 @@ public static class NativeWorldTerrain
     public static int ProbeRadius(int entityType)
     {
         // Native53BB90 chooses the five-point53D8A0 movement footprint.
+        if (entityType is >= 16 and <= 22)
+        {
+            return 32;
+        }
         RequireHeightEntity(entityType);
         if (entityType == 50)
         {

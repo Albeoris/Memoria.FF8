@@ -147,6 +147,10 @@ internal sealed partial class GameWorld
                         world.Events.ConfirmDialogue(entry.Code == 1 ? entry.Value : null, entry.Code == 2 ? entry.Text : null);
                         break;
                     case ReplayEntryKind.WorldAction:
+                        if (entry.Code == (int)PlayerActionKind.Choose && (world.CurrentDialogue is not { } worldDialogue || worldDialogue.MessageId != entry.MessageId || worldDialogue.Operation != entry.Operation))
+                        {
+                            throw new InvalidDataException("Recorded world choice differs from the actual current native message producer.");
+                        }
                         result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
                         break;
                     case ReplayEntryKind.MovieSample:

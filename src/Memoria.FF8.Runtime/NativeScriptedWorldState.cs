@@ -17,7 +17,7 @@ public sealed record NativeScriptedWorldFootRecord([property: JsonRequired] int 
 }
 
 /// <summary>Actual scripted loader auxiliaries, retained body global and independent original static foot/vehicle records.</summary>
-public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] long SourceWorldFrame, [property: JsonRequired] ushort RetainedBodyYaw, [property: JsonRequired] NativeScriptedWorldFootRecord FootRecord0, [property: JsonRequired] NativeSavedWorldVehicleSlot Slot4, [property: JsonRequired] NativeSavedWorldVehicleSlot Slot5, [property: JsonRequired] byte AnimationVariant, [property: JsonRequired] byte MapDisplayMode)
+public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] long SourceWorldFrame, [property: JsonRequired] ushort RetainedBodyYaw, [property: JsonRequired] NativeScriptedWorldFootRecord FootRecord0, [property: JsonRequired] NativeSavedWorldVehicleSlot Slot4, [property: JsonRequired] NativeSavedWorldVehicleSlot Slot5, [property: JsonRequired] byte AnimationVariant, [property: JsonRequired] byte MapDisplayMode, [property: JsonRequired] int RetainedCameraVelocity)
 {
     public const string LoadRule = "ff8-en-scripted-mode1-2-load-542b90-548080-static-foot-record0-v1";
 
@@ -27,7 +27,7 @@ public sealed record NativeScriptedWorldLoadReceipt([property: JsonRequired] int
         (long sourceFrame, ushort bodyYaw, byte mapDisplay) = ResolveRetained(saved, previousWorld);
         // 548080 mode1/2 replaces position from the selected rail and retains body yaw;
         // it reads current saved BYTE110. Executed 542B90 resets animation variant0.
-        var receipt = new NativeScriptedWorldLoadReceipt(1, LoadRule, sourceFrame, bodyYaw, footRecord, saved.Slot4, saved.Slot5, 0, mapDisplay);
+        var receipt = new NativeScriptedWorldLoadReceipt(1, LoadRule, sourceFrame, bodyYaw, footRecord, saved.Slot4, saved.Slot5, 0, mapDisplay, previousWorld.CameraVelocity);
         receipt.Validate();
         return receipt;
     }
@@ -117,8 +117,9 @@ public sealed record NativeSavedWorldScriptedReturn([property: JsonRequired] int
     public static ushort CameraYaw(NativeWorldPathCamera camera)
     {
         // 552EB0 uses signed WORD target-minus-eye; HIWORD203ED00 is atan2(dx,dz).
-        int dx = unchecked((short)(camera.Target.X - camera.Eye.X));
-        int dz = unchecked((short)(camera.Target.Z - camera.Eye.Z));
+        NativeWorldPathPosition eye = camera.Eye ?? throw new InvalidDataException("Native scripted saved camera has no executed eye.");
+        int dx = unchecked((short)(camera.Target.X - eye.X));
+        int dz = unchecked((short)(camera.Target.Z - eye.Z));
         return unchecked((ushort)NativeWorldScriptedPathMath.NativeAngle(dx, dz));
     }
 
@@ -149,6 +150,6 @@ public sealed record NativeScriptedWorldRuntimeState([property: JsonRequired] in
     public WorldState ToWorldState(WorldState? previous = null)
     {
         Validate();
-        return (previous ?? new WorldState()) with { Frame = Path.Callback, X = Path.EntityPosition.X, Z = unchecked(-Path.EntityPosition.Z), NativeHeight = Path.EntityPosition.Y, BodyYaw = Load.RetainedBodyYaw, CameraYaw = NativeSavedWorldScriptedReturn.CameraYaw(Path.Camera), NativeFootRuntime = null, NativeCarRuntime = null, NativeScriptedRuntime = this, GroundType = null };
+        return (previous ?? new WorldState()) with { Frame = Path.Callback, X = Path.EntityPosition.X, Z = unchecked(-Path.EntityPosition.Z), NativeHeight = Path.EntityPosition.Y, BodyYaw = Load.RetainedBodyYaw, CameraYaw = NativeSavedWorldScriptedReturn.CameraYaw(Path.Camera), CameraVelocity = Load.RetainedCameraVelocity, NativeFootRuntime = null, NativeCarRuntime = null, NativeScriptedRuntime = this, GroundType = null };
     }
 }

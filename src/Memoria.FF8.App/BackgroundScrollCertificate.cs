@@ -41,23 +41,10 @@ public static class BackgroundScrollCertificate
 
     public static bool CanSetForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)
     {
-        if (field.Information is { BackgroundWrapMask: > 0 })
-        {
-            return NativeWrappedBackgroundScrollCertificate.CanSetSettings(field, scene, layer, settings);
-        }
-        if (!CanSet(field, layer, settings, scene.CameraIndex))
-        {
-            return false;
-        }
-        try
-        {
-            BackgroundScrollFrame? current = NormalCameraCertificate.Prepare(field, scene, actors);
-            return current is not null && BackgroundParallaxPlacement.TryOffset((int)-current.ActorOffset.X, (int)-current.ActorOffset.Y, settings, out _);
-        }
-        catch (NotSupportedException)
-        {
-            return false;
-        }
+        //5213D0 and521460 own the same offset/ratio words and leave the camera
+        //mode/current/previous phase untouched. Both consume the renderer's actual
+        //selected normal, direct or actor camera, including a same-callback DSCROLL.
+        return CanSetRatioForState(field, scene, actors, layer, settings);
     }
 
     public static bool CanSetRatioForState(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, int layer, BackgroundScrollSettings settings)

@@ -228,7 +228,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
         }
-        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || departure.WorldArrival is not WorldTransition arrival || unchecked((sbyte)arrival.Mode) is not (0 or 1) || departure.SavedWorld is null || departure.WorldControls is null)
+        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || departure.WorldArrival is null || finalWorldState.NativeFootRuntime is not NativeFootWorldRuntimeState activeFoot || activeFoot.EntityType is not (0 or 1) || departure.SavedWorld is null || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
         }
@@ -238,7 +238,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new ArgumentOutOfRangeException(nameof(transition), "Native world-to-field destination must fit its unsigned WORD.");
         }
-        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.EntityType105 != unchecked((byte)arrival.Mode) || finalWorldState.NativeFootRuntime is NativeFootWorldRuntimeState foot && receipt.EntityType105 != foot.EntityType)
+        if (receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorldState.Frame || receipt.Pose0 != new NativeSavedWorldPose(finalWorldState.X, finalWorldState.Z, checked((short)finalWorldState.NativeHeight), checked((ushort)finalWorldState.BodyYaw)) || receipt.CameraYaw96 != finalWorldState.CameraYaw || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.EntityType105 != activeFoot.EntityType)
         {
             throw new InvalidOperationException("The prepared foot save no longer matches the current native world departure.");
         }
@@ -747,7 +747,7 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != foot.EntityType))
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType)))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }
@@ -805,7 +805,8 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("Prepared field entry must preserve the complete ordinary world action prefix.");
         }
         WorldActionRecord tail = finalWorld.Actions[^1];
-        if (tail is null || tail.Index != liveWorld.Actions.Count + 1 || tail.Frame != finalWorld.Frame || tail.Kind is not "Move" and not "Wait" || !float.IsFinite(tail.Horizontal) || !float.IsFinite(tail.Vertical) || Math.Abs(tail.Horizontal) > 1 || Math.Abs(tail.Vertical) > 1 || tail.RequestedFrames is < 1 or > 30000 || tail.AdvancedFrames < 0 || tail.AdvancedFrames > tail.RequestedFrames || liveWorld.Frame > long.MaxValue - tail.AdvancedFrames || finalWorld.Frame != liveWorld.Frame + tail.AdvancedFrames || tail.X != finalWorld.X || tail.Z != finalWorld.Z || tail.NativeHeight != finalWorld.NativeHeight)
+        bool stationChoice = tail?.Kind == "Choose" && liveWorld.NativeTrainRuntime?.Primary.Pause == -1 && tail.AdvancedFrames == 1 && tail.Horizontal == 0 && tail.Vertical == 0 && (finalWorld.NativeFootRuntime?.TrainDismount?.SourceCallback == finalWorld.Frame || finalWorld.NativeTrainRuntime is { Primary.Pause: 0 } continued && continued.StationDeclines.Contains(finalWorld.Frame));
+        if (tail is null || tail.Index != liveWorld.Actions.Count + 1 || tail.Frame != finalWorld.Frame || tail.Kind is not "Move" and not "Wait" && !stationChoice || !float.IsFinite(tail.Horizontal) || !float.IsFinite(tail.Vertical) || Math.Abs(tail.Horizontal) > 1 || Math.Abs(tail.Vertical) > 1 || tail.RequestedFrames is < 1 or > 30000 || tail.AdvancedFrames < 0 || tail.AdvancedFrames > tail.RequestedFrames || liveWorld.Frame > long.MaxValue - tail.AdvancedFrames || finalWorld.Frame != liveWorld.Frame + tail.AdvancedFrames || tail.X != finalWorld.X || tail.Z != finalWorld.Z || tail.NativeHeight != finalWorld.NativeHeight)
         {
             throw new InvalidOperationException("Prepared field entry must retain its exact final ordinary world action record.");
         }
