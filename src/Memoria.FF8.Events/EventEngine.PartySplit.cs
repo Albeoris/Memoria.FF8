@@ -52,10 +52,8 @@ public sealed partial class EventEngine
             {
                 return "Native SPLIT requires its actual preserved WORD474 before target issue";
             }
-            if (actor.ObjectId != fiber.ObjectId && fibers.Any(other => other.ObjectId == actor.ObjectId && !other.Complete && other.WaitReason != WaitReason.NativeHalt))
-            {
-                return "Native SPLIT competing companion scripts need original suspension support";
-            }
+            //525090 holds each noncaller through actor352 bit1. StepCore
+            //retains its VM slots and waits while continuing animation/mode1.
             if (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.ModelId, animation) is not > 0))
             {
                 return "Native SPLIT requires original full idle/walk/run animation metadata";
