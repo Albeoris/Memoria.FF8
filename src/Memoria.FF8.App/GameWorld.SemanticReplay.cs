@@ -69,6 +69,8 @@ internal sealed partial class GameWorld
         private string? movieHash;
         private bool movieFinished;
         private int movieCallbackFrame = -1;
+        private bool inferredVisit;
+        private ReplayCompletedVisit? currentVisit;
 
         public SemanticRecreation(GameWorld world, GameSession session, string gameDirectory)
         {
@@ -77,11 +79,20 @@ internal sealed partial class GameWorld
             this.gameDirectory = gameDirectory;
             world.Events.CommandExecuted += command => knownProducers.Add((command.ObjectId, command.ScriptId));
             world.Events.SemanticTriggerAdmitted += trigger => admissions.Add(trigger);
-            world.Events.CausalReceiptRecorded += receipt => receipts.Add(receipt);
+            world.Events.CausalReceiptRecorded += receipt =>
+            {
+                receipts.Add(receipt);
+                if (receipt.Kind is ReplayReceiptKind.Command or ReplayReceiptKind.InputSample or ReplayReceiptKind.NativeTraversal)
+                {
+                    knownProducers.Add((receipt.ObjectId, receipt.ScriptId));
+                }
+            };
         }
 
         public void RecreateVisit(ReplayCompletedVisit visit)
         {
+            currentVisit = visit;
+            inferredVisit = visit.Inferred;
             admissions.Clear();
             knownProducers.Clear();
             consumedAdmissions.Clear();
@@ -93,7 +104,17 @@ internal sealed partial class GameWorld
                 ReplayJournalEntry intent = visit.Intents[index];
                 try
                 {
+                    if (HasDepartedCurrentVisit())
+                    {
+                        ValidateDepartedVisitRemainder(visit, index);
+                        break;
+                    }
                     ApplyIntent(intent, false);
+                }
+                catch (SemanticVisitDepartureException)
+                {
+                    ValidateDepartedVisitRemainder(visit, index);
+                    break;
                 }
                 catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or EventScriptException)
                 {
@@ -109,16 +130,44 @@ internal sealed partial class GameWorld
             }
             else
             {
-                CompleteFieldVisit(visit);
+                try
+                {
+                    CompleteFieldVisit(visit);
+                }
+                catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or EventScriptException)
+                {
+                    throw new InvalidDataException($"Semantic visit{visit.Ordinal} Field/{visit.FieldId} departure→{visit.Exit.Scene}/{visit.Exit.FieldId}, current{session.State.Scene}/{session.State.FieldId}/frame{world.Events.Frame}: {exception.Message}", exception);
+                }
             }
             if (session.State.Scene != visit.Exit.Scene || session.State.FieldId != visit.Exit.FieldId)
             {
                 throw new InvalidDataException($"Semantic visit {visit.Ordinal} did not reach its next recorded location: expected {visit.Exit.Scene}/{visit.Exit.FieldId}, actual {session.State.Scene}/{session.State.FieldId}.");
             }
+            currentVisit = null;
         }
+
+        private bool HasDepartedCurrentVisit()
+        {
+            return currentVisit is { Scene: not SceneKind.WorldMap } visit && (session.State.FieldId != visit.FieldId || session.State.Scene == SceneKind.WorldMap || world.Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition);
+        }
+
+        private void ValidateDepartedVisitRemainder(ReplayCompletedVisit visit, int index)
+        {
+            if (session.State.Scene != visit.Exit.Scene || session.State.FieldId != visit.Exit.FieldId)
+            {
+                throw new InvalidDataException($"The current native event departed to {session.State.Scene}/{session.State.FieldId} instead of the retained next location {visit.Exit.Scene}/{visit.Exit.FieldId}.");
+            }
+            if (visit.Intents.Skip(index).Any(entry => entry.Kind != ReplayEntryKind.ScriptGoal))
+            {
+                throw new InvalidDataException("The current native event departed before a retained external input could be applied.");
+            }
+        }
+
+        private sealed class SemanticVisitDepartureException : Exception;
 
         public void RecreateActiveVisit(IReadOnlyList<ReplayJournalEntry> entries)
         {
+            inferredVisit = false;
             foreach (ReplayJournalEntry entry in entries)
             {
                 if (entry.Kind is ReplayEntryKind.FieldLoad or ReplayEntryKind.WorldAllocation)
@@ -176,6 +225,16 @@ internal sealed partial class GameWorld
                     break;
                 case ReplayEntryKind.InputSample:
                     SampleInput(entry);
+                    break;
+                case ReplayEntryKind.InputPulse:
+                    ReplayScriptGoal pulseProducer = entry.ScriptGoal ?? throw new InvalidDataException("Input pulse lost its current producer.");
+                    if (world.Events.IsSemanticProducerPending(pulseProducer))
+                    {
+                        world.Events.QueueSemanticInputPulse(pulseProducer, entry.MappedPulse);
+                    }
+                    break;
+                case ReplayEntryKind.NativeTraversal:
+                    ApplyTraversal(entry.NativeTraversal ?? throw new InvalidDataException("Native traversal lost its issuing producer."));
                     break;
                 case ReplayEntryKind.PersistentEffect:
                     ApplyEffect(entry);
@@ -259,6 +318,7 @@ internal sealed partial class GameWorld
             {
                 if (entry.Accepted)
                 {
+                    Seek(() => world.Events.CanAdmitSemanticInput, "current interaction admission owner");
                     ReplaySemanticTrigger[] targets = world.Events.GetSemanticTriggerCandidates().Where(candidate => candidate.Kind == ReplaySemanticTriggerKind.ActorInteraction && candidate.ObjectId == entry.Value).ToArray();
                     if (targets.Length != 1)
                     {
@@ -272,6 +332,10 @@ internal sealed partial class GameWorld
                 Seek(() => session.IsMoviePlaying, "movie skip");
                 world.ReplayMovieSkip(entry);
                 movieFinished = true;
+            }
+            else if (kind == PlayerActionKind.FieldButtons && inferredVisit && !physicalTail)
+            {
+                ApplyLegacyButtons(entry);
             }
             else if (world.Events.PartyMenu is not null || kind is PlayerActionKind.SelectPartySlot or PlayerActionKind.SelectPartyMember or PlayerActionKind.BuyShopItem)
             {
@@ -326,7 +390,9 @@ internal sealed partial class GameWorld
                     return;
                 }
             }
-            Seek(() => world.Events.IsUserControlEnabled && world.CurrentDialogue is null && world.Events.PartyMenu is null, "semantic native admission");
+            ReplaySemanticTrigger[] precedingEvents = admissions.Where(admission => admission.ObjectId != trigger.ObjectId && admission.Kind is ReplaySemanticTriggerKind.ActorInteraction or ReplaySemanticTriggerKind.DoorEntry or ReplaySemanticTriggerKind.DoorAction).ToArray();
+            Seek(() => precedingEvents.All(admission => !world.Events.IsSemanticAdmissionPending(admission)), "preceding native event completion");
+            Seek(() => world.Events.CanAdmitSemanticInput, "semantic native admission");
             PlayerActionResult result = world.Events.ApplySemanticTrigger(trigger);
             if (!result.Accepted)
             {
@@ -342,16 +408,33 @@ internal sealed partial class GameWorld
 
         private static bool SameAdmission(ReplaySemanticTrigger left, ReplaySemanticTrigger right)
         {
-            return left.Kind == right.Kind && left.FieldId == right.FieldId && left.ProgramHash == right.ProgramHash && left.NativeObjectId == right.NativeObjectId && left.ObjectId == right.ObjectId && left.ScriptId == right.ScriptId && left.LocalScript == right.LocalScript && left.InfIndex == right.InfIndex && left.EventBits == right.EventBits && left.Contact == right.Contact;
+            return left.Kind == right.Kind && left.FieldId == right.FieldId && left.ProgramHash == right.ProgramHash && left.NativeObjectId == right.NativeObjectId && left.ObjectId == right.ObjectId && left.ScriptId == right.ScriptId && left.NativeSlot == right.NativeSlot && left.LocalScript == right.LocalScript && left.InfIndex == right.InfIndex && left.EventBits == right.EventBits && left.Contact == right.Contact && (right.ExecutableHash is null || left.ExecutableHash == right.ExecutableHash);
         }
 
         private void ReachProducer(ReplayScriptGoal goal)
         {
-            if (knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || world.Events.IsSemanticProducerPending(goal))
+            bool pending = world.Events.IsSemanticProducerPending(goal);
+            if (knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || pending)
             {
                 return;
             }
-            ReplaySemanticTrigger[] targets = world.Events.GetSemanticTriggerCandidates().Where(candidate => candidate.ObjectId == goal.ObjectId && candidate.ScriptId == goal.ScriptId).ToArray();
+            ReplaySemanticTrigger[] targets = world.Events.GetSemanticProducerCandidates(goal).ToArray();
+            if (targets.Length == 0)
+            {
+                if (world.Events.IsAutonomousSemanticProducer(goal))
+                {
+                    return;
+                }
+                Seek(() => knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || world.Events.IsSemanticProducerPending(goal) || (targets = world.Events.GetSemanticProducerCandidates(goal).ToArray()).Length > 0 || world.Events.IsAutonomousSemanticProducer(goal), $"current producer admission {goal.FieldId}/{goal.ObjectId}/{goal.ScriptId}");
+                if (knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || world.Events.IsSemanticProducerPending(goal) || targets.Length == 0 && world.Events.IsAutonomousSemanticProducer(goal))
+                {
+                    return;
+                }
+            }
+            if (targets.Any(target => admissions.Any(admission => SameAdmission(target, admission))))
+            {
+                return;
+            }
             if (targets.Length > 1)
             {
                 throw new InvalidDataException("The retained script producer has multiple current native admissions.");
@@ -361,27 +444,31 @@ internal sealed partial class GameWorld
                 Admit(targets[0]);
                 return;
             }
-            Seek(() => knownProducers.Contains((goal.ObjectId, goal.ScriptId)) || world.Events.IsSemanticProducerPending(goal), $"script producer {goal.FieldId}/{goal.ObjectId}/{goal.ScriptId}");
         }
 
         private void SampleInput(ReplayJournalEntry entry)
         {
             ReplayScriptGoal goal = entry.ScriptGoal ?? throw new InvalidDataException("Input sample lost its native poll producer.");
-            bool ConsumeSample() => ConsumeReceipt(receipt => receipt.Kind == ReplayReceiptKind.InputSample && receipt.FieldId == goal.FieldId && receipt.ObjectId == goal.ObjectId && receipt.ScriptId == goal.ScriptId && receipt.Operation == goal.Operation && receipt.Code == goal.Code && receipt.Value == entry.Value);
+            bool pending = world.Events.IsSemanticProducerPending(goal);
+            bool ConsumeSample() => ConsumeReceipt(receipt => receipt.Kind == ReplayReceiptKind.InputSample && receipt.FieldId == goal.FieldId && receipt.ObjectId == goal.ObjectId && receipt.ScriptId == goal.ScriptId && receipt.Operation == goal.Operation && receipt.Code == goal.Code && receipt.Value == entry.Value && (receipt.Arguments is { Length: >= 5 } arguments ? arguments[4] : 0) == entry.MappedPulse);
             if (ConsumeSample())
             {
                 return;
             }
-            world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, entry.Value));
-            if (!world.Events.IsSemanticProducerPending(goal))
+            if (!pending && knownProducers.Contains((goal.ObjectId, goal.ScriptId)))
             {
-                ReplaySemanticTrigger[] targets = world.Events.GetSemanticTriggerCandidates().Where(candidate => candidate.ObjectId == goal.ObjectId && candidate.ScriptId == goal.ScriptId).ToArray();
-                if (targets.Length == 1)
-                {
-                    Admit(targets[0]);
-                }
+                return;
             }
-            Seek(ConsumeSample, "retained native input poll");
+            world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, entry.Value));
+            if (!pending)
+            {
+                ReachProducer(goal);
+            }
+            if (entry.MappedPulse != 0 && world.Events.IsSemanticProducerPending(goal))
+            {
+                world.Events.QueueSemanticInputPulse(goal, entry.MappedPulse);
+            }
+            Seek(() => ConsumeSample() || knownProducers.Contains((goal.ObjectId, goal.ScriptId)) && !world.Events.IsSemanticProducerPending(goal), "retained native input consumer");
         }
 
         private bool ConsumeReceipt(Func<ReplayReceipt, bool> matches)
@@ -395,6 +482,59 @@ internal sealed partial class GameWorld
                 }
             }
             return false;
+        }
+
+        private void ApplyTraversal(ReplayNativeTraversal traversal)
+        {
+            traversal.Validate();
+            ReplayScriptGoal producer = traversal.Producer;
+            world.Events.IsSemanticProducerPending(producer);
+            bool ConsumeCompletion() => ConsumeReceipt(receipt => receipt.Kind == ReplayReceiptKind.NativeTraversal && receipt.FieldId == producer.FieldId && receipt.ObjectId == producer.ObjectId && receipt.ScriptId == producer.ScriptId && receipt.Operation == producer.Operation && receipt.Code == producer.Code && receipt.Value == (traversal.Forward ? 1 : -1) && receipt.Arguments is { Length: >= 2 } arguments && arguments[0] == traversal.Mode);
+            if (ConsumeCompletion())
+            {
+                return;
+            }
+            ReachProducer(producer);
+            Seek(() => world.Events.CanApplySemanticTraversal(traversal), "current native traversal owner");
+            PlayerActionResult result = world.Events.ApplySemanticNativeTraversal(traversal);
+            if (!result.Accepted)
+            {
+                throw new InvalidDataException("The current native ladder rejected its retained endpoint direction.");
+            }
+            Seek(ConsumeCompletion, "current native traversal endpoint");
+            world.Events.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 0));
+            world.PublishReplayDeparture();
+        }
+
+        private void ApplyLegacyButtons(ReplayJournalEntry entry)
+        {
+            int firstReceipt = receipts.Count;
+            world.Events.Apply(new PlayerAction(PlayerActionKind.FieldButtons, entry.Value));
+            if (entry.Value == 0 && !world.Events.HasPendingSemanticButtonConsumer)
+            {
+                return;
+            }
+            for (int callback = 0; callback < MaximumReadinessCallbacks; callback++)
+            {
+                if (world.Events.PendingSemanticTraversal is not null)
+                {
+                    if (world.Events.ResolvePendingSemanticTraversal(entry.Value) is { } traversal)
+                    {
+                        ApplyTraversal(traversal);
+                    }
+                    return;
+                }
+                if (receipts.Skip(firstReceipt).Any(receipt => receipt.Kind == ReplayReceiptKind.InputSample) || world.CurrentDialogue is { CanConfirm: true } or { FirstChoice: not null } or { IsNamePrompt: true } || world.Events.PartyMenu is not null || world.Events.PendingInteractiveBattle is not null || session.IsMoviePlaying || world.Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
+                {
+                    return;
+                }
+                if (callback > 0 && !world.Events.HasPendingSemanticButtonConsumer)
+                {
+                    return;
+                }
+                Advance();
+            }
+            throw new InvalidDataException("Legacy button inference did not reach a current native input consumer.");
         }
 
         private void ApplyEffect(ReplayJournalEntry entry)
@@ -482,7 +622,7 @@ internal sealed partial class GameWorld
                     {
                         exitAdmitted = true;
                     }
-                    else if (exits.Length == 1)
+                    else if (exits.Length == 1 || exits.Length > 1 && (world.Events.AreSemanticExitCandidatesEquivalent(exits) || visit.Inferred && world.Events.CanCanonicalizeLegacyGatewayEntries(exits)))
                     {
                         Admit(exits[0]);
                         exitAdmitted = true;
@@ -501,6 +641,10 @@ internal sealed partial class GameWorld
         {
             for (int callback = 0; callback < MaximumReadinessCallbacks; callback++)
             {
+                if (HasDepartedCurrentVisit())
+                {
+                    throw new SemanticVisitDepartureException();
+                }
                 if (ready())
                 {
                     return;

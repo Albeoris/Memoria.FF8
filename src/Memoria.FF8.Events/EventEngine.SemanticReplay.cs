@@ -7,6 +7,7 @@ public sealed partial class EventEngine
 {
     private bool semanticInputInferred;
     public event Action<ReplaySemanticTrigger>? SemanticTriggerAdmitted;
+    public bool CanAdmitSemanticInput => CanAdmitSemanticTrigger();
 
     /// <summary>Reissues a historical external event cause through the current native admission contract. It does not reproduce a physical approach.</summary>
     public PlayerActionResult ApplySemanticTrigger(ReplaySemanticTrigger trigger)
@@ -188,19 +189,172 @@ public sealed partial class EventEngine
         };
     }
 
+    /// <summary>Proves identical bounded door-exit bytecode or equal current INF destination packets. It never equates scripts to physical gateways.</summary>
+    public bool AreSemanticExitCandidatesEquivalent(IReadOnlyList<ReplaySemanticTrigger> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        if (candidates.Count < 2 || program is null || NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return false;
+        }
+        (Jsm.Opcode Opcode, int Parameter)[]? expected = null;
+        FieldTransition? gatewayDestination = null;
+        ReplaySemanticTrigger first = candidates[0];
+        foreach (ReplaySemanticTrigger candidate in candidates)
+        {
+            if (candidate is null || candidate.Kind == ReplaySemanticTriggerKind.WorldFieldEntry)
+            {
+                return false;
+            }
+            try
+            {
+                candidate.Validate();
+                ValidateSemanticProducer(candidate);
+            }
+            catch (InvalidDataException)
+            {
+                return false;
+            }
+            if (first.Kind == ReplaySemanticTriggerKind.FieldGateway)
+            {
+                if (candidate.Kind != first.Kind || !IsSemanticTargetEnabled(candidate))
+                {
+                    return false;
+                }
+                FieldTransition destination = ResolveSemanticGateway(candidate.InfIndex).Destination;
+                if (gatewayDestination is not null && destination != gatewayDestination)
+                {
+                    return false;
+                }
+                gatewayDestination ??= destination;
+                continue;
+            }
+            if (candidate.Kind == ReplaySemanticTriggerKind.FieldGateway)
+            {
+                return false;
+            }
+            if (!IsSemanticTargetEnabled(candidate) || candidate.Kind != first.Kind || candidate.LocalScript != first.LocalScript || candidate.NativeSlot != first.NativeSlot || candidate.EventBits != first.EventBits || candidate.Contact != first.Contact || !program.Objects[candidate.ObjectId].IsDoor)
+            {
+                return false;
+            }
+            EventScript script = program.Objects[candidate.ObjectId].Scripts[candidate.LocalScript];
+            if (program.Operations[script.Start].Opcode != Jsm.Opcode.LBL || program.Operations[script.Start].Parameter != script.Id)
+            {
+                return false;
+            }
+            (Jsm.Opcode Opcode, int Parameter)[] body = Enumerable.Range(script.Start + 1, script.End - script.Start - 1).Select(index => (program.Operations[index].Opcode, program.Operations[index].Parameter)).ToArray();
+            if (expected is not null && !expected.SequenceEqual(body) || !HasPureCurrentExitPrefix(candidate.ObjectId, script))
+            {
+                return false;
+            }
+            expected ??= body;
+        }
+        return true;
+    }
+
+    private bool HasPureCurrentExitPrefix(int objectId, EventScript script)
+    {
+        // Only these existing Execute cases return after operating on the detached
+        // operand stack. They do not emit CommandExecuted or publish event owners.
+        Fiber probe = new(objectId, script, 0, 0, false) { Position = script.Start + 1 };
+        try
+        {
+            while (probe.Position > script.Start && probe.Position < script.End)
+            {
+                int index = probe.Position;
+                JsmOperation operation = program!.Operations[index];
+                if (operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.CAL)
+                {
+                    if (UnsupportedNativeScalarAccess(probe, operation) is not null)
+                    {
+                        return false;
+                    }
+                    probe.Position++;
+                    Execute(probe, operation);
+                    if (probe.Stack.HasUncertainty)
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+                if (operation.Opcode is Jsm.Opcode.JPF or Jsm.Opcode.JMP)
+                {
+                    long target = (long)index + operation.Parameter;
+                    if (operation.Parameter <= 0 || target <= script.Start || target >= script.End)
+                    {
+                        return false;
+                    }
+                    bool jump = operation.Opcode == Jsm.Opcode.JMP || Pop(probe, 1)[0] == 0;
+                    probe.Position = jump ? (int)target : index + 1;
+                    continue;
+                }
+                if (operation.Opcode is Jsm.Opcode.NOP or Jsm.Opcode.UCOFF or Jsm.Opcode.LINEOFF)
+                {
+                    probe.Position++;
+                    continue;
+                }
+                int operands = operation.Opcode switch
+                {
+                    Jsm.Opcode.MAPJUMP => 4,
+                    Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.DISCJUMP => 5,
+                    Jsm.Opcode.MAPJUMPO => 2,
+                    Jsm.Opcode.WORLDMAPJUMP when !Scene.MapJumpDisabled => 3,
+                    _ => 0
+                };
+                // Reached writes, requests, UI, RNG, actor-local inputs and RET
+                // before departure are unsupported proof paths, not executed.
+                return operands != 0 && probe.Stack.Count >= operands;
+            }
+        }
+        catch (Exception exception) when (exception is EventScriptException or InvalidOperationException or InvalidDataException or ArgumentException or ArithmeticException or NotSupportedException)
+        {
+            return false;
+        }
+        return false;
+    }
+
+    /// <summary>Legacy-only policy proof for choosing a current arrival packet after physical approach was discarded. This is not packet equivalence.</summary>
+    public bool CanCanonicalizeLegacyGatewayEntries(IReadOnlyList<ReplaySemanticTrigger> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        if (candidates.Count < 2 || program is null || NativeRuntimeProfile is not { IsVerified: true } || Scene.MapJumpDisabled)
+        {
+            return false;
+        }
+        FieldTransition? first = null;
+        foreach (ReplaySemanticTrigger candidate in candidates)
+        {
+            if (candidate is not { Kind: ReplaySemanticTriggerKind.FieldGateway, Inferred: true })
+            {
+                return false;
+            }
+            try
+            {
+                candidate.Validate();
+                ValidateSemanticProducer(candidate);
+            }
+            catch (InvalidDataException)
+            {
+                return false;
+            }
+            FieldTransition destination = ResolveSemanticGateway(candidate.InfIndex).Destination;
+            if (destination.FieldId is < 72 or > ushort.MaxValue or 0x7FFF || destination.DiscJump is not null || !float.IsFinite(destination.X) || !float.IsFinite(destination.Y) || destination.X is < short.MinValue or > short.MaxValue || destination.Y is < short.MinValue or > short.MaxValue || destination.X != MathF.Truncate(destination.X) || destination.Y != MathF.Truncate(destination.Y) || destination.Triangle is < 0 or > short.MaxValue || destination.Direction is < 0 or > byte.MaxValue)
+            {
+                return false;
+            }
+            if (first is not null && (destination.FieldId != first.FieldId || destination.NativeExtraWord != first.NativeExtraWord || (destination.Triangle == short.MaxValue) != (first.Triangle == short.MaxValue)))
+            {
+                return false;
+            }
+            first ??= destination;
+        }
+        return true;
+    }
+
     /// <summary>Whether this current verified producer has an unfinished original VM fiber; it neither starts nor resumes it.</summary>
     public bool IsSemanticProducerPending(ReplayScriptGoal goal)
     {
-        ArgumentNullException.ThrowIfNull(goal);
-        if (program is null || NativeRuntimeProfile is not { IsVerified: true } || goal.FieldId != FieldId || goal.ProgramHash != programHash || goal.ExecutableHash is string executable && executable != NativeRuntimeProfile.ExecutableHash || (uint)goal.ObjectId >= program.Objects.Count)
-        {
-            throw new InvalidDataException("Semantic producer does not belong to the current verified field program.");
-        }
-        EventScript? script = program.Objects[goal.ObjectId].Scripts.SingleOrDefault(script => script.Id == goal.ScriptId);
-        if (script is null || goal.Operation < script.Start || goal.Operation >= script.End || (int)program.Operations[goal.Operation].Opcode != goal.Code)
-        {
-            throw new InvalidDataException("Semantic producer lost its original declared operation and opcode.");
-        }
+        ValidateSemanticScriptGoal(goal);
         return fibers.Any(fiber => !fiber.Complete && fiber.ObjectId == goal.ObjectId && fiber.Script.Id == goal.ScriptId);
     }
 

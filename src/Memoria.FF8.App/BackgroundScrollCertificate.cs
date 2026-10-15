@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 
@@ -59,7 +59,7 @@ public static class BackgroundScrollCertificate
         }
         try
         {
-            BackgroundScrollFrame? current = ActorBackgroundScrollCertificate.Prepare(field, scene) ?? DirectBackgroundScrollCertificate.Prepare(field, scene) ?? NormalCameraCertificate.Prepare(field, scene, actors);
+            BackgroundScrollFrame? current = DirectBackgroundScrollCertificate.PreparePendingDirectForNextDraw(field, scene) ?? ActorBackgroundScrollCertificate.Prepare(field, scene) ?? DirectBackgroundScrollCertificate.Prepare(field, scene) ?? NormalCameraCertificate.Prepare(field, scene, actors);
             return current is not null && (layer == 0 || BackgroundParallaxPlacement.TryOffset((int)-current.ActorOffset.X, (int)-current.ActorOffset.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out _));
         }
         catch (NotSupportedException)

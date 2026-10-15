@@ -167,6 +167,7 @@ internal static partial class Program
 
         NativeLadderMode3Refusals(vitals, economy, input);
         NativeLadderMode3PartyOverlap(vitals, economy, input);
+        NativeTraversalSemanticContract(vitals, economy, input);
         EventEngine mode4 = CreateNativeLadder(up: true);
         ReachNativeLadderClimb(mode4);
         NativeLadderButtons(mode4, 0x2000);

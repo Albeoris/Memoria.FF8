@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 using System.Text.Json;
 
@@ -190,7 +190,9 @@ public sealed partial class EventEngine
         if (operation.Opcode is Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2)
         {
             NativeFieldButtonInput input = ButtonInput ?? throw new InvalidDataException("An executed native input predicate lost its actual sampled owner.");
-            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.InputSample, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation.Index, (int)operation.Opcode, input.PhysicalHeld, Arguments: [input.RawHeld, input.RawPressed, (int?)input.Held ?? -1, (int?)input.Pressed ?? -1]));
+            ushort extraRaw = (ushort)(input.RawHeld & ~input.PhysicalHeld);
+            ushort mappedPulse = extraRaw == 0 ? (ushort)0 : services.InputConfiguration?.Map(extraRaw) ?? throw new NotSupportedException("Native input pulse capture requires its actual current input mapping.");
+            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.InputSample, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation.Index, (int)operation.Opcode, input.PhysicalHeld, Arguments: [input.RawHeld, input.RawPressed, (int?)input.Held ?? -1, (int?)input.Pressed ?? -1, mappedPulse]));
         }
     }
 

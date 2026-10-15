@@ -19,7 +19,9 @@ public enum ReplayEntryKind
     ScriptGoal,
     InputSample,
     PersistentEffect,
-    WorldAllocation
+    WorldAllocation,
+    NativeTraversal,
+    InputPulse
 }
 
 public enum ReplayReceiptKind
@@ -29,7 +31,8 @@ public enum ReplayReceiptKind
     Dialogue,
     Progress,
     InputSample,
-    PersistentEffect
+    PersistentEffect,
+    NativeTraversal
 }
 
 public sealed record ReplayPlayerPose(int FieldId, float X, float Y, float Z, int Triangle, int Direction, int? FixedX = null, int? FixedY = null, int? FixedZ = null);
@@ -42,6 +45,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
 {
     public int Code { get; init; }
     public int Value { get; init; }
+    public ushort MappedPulse { get; init; }
     public int? Quantity { get; init; }
     public string? Text { get; init; }
     public float Horizontal { get; init; }
@@ -84,10 +88,20 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
     public ReplayScriptGoal? ScriptGoal { get; init; }
     public int[]? EffectArguments { get; init; }
     public ReplayWorldAllocation? WorldAllocation { get; init; }
+    public ReplayNativeTraversal? NativeTraversal { get; init; }
     public ReplayWorldEffectCause[] WorldEffects { get; init; } = [];
 
     public void Validate()
     {
+        if ((MappedPulse & ~0x50) != 0 || MappedPulse != 0 && Kind is not (ReplayEntryKind.InputSample or ReplayEntryKind.InputPulse) || Kind == ReplayEntryKind.InputPulse && MappedPulse == 0 || Kind == ReplayEntryKind.InputSample && Value is < 0 or > ushort.MaxValue)
+        {
+            throw new InvalidDataException("Native samples and explicit pulse queues require the implemented mapped Confirm/Cancel pulse flags.");
+        }
+        NativeTraversal?.Validate();
+        if ((Kind == ReplayEntryKind.NativeTraversal) != (NativeTraversal is not null) || NativeTraversal is not null && NativeTraversal.Producer.FieldId != FieldId)
+        {
+            throw new InvalidDataException("Native traversal input requires its exact current producer payload.");
+        }
         WorldAllocation?.Validate();
         if ((Kind == ReplayEntryKind.WorldAllocation) != (WorldAllocation is not null) || EffectArguments is not null && (Kind != ReplayEntryKind.PersistentEffect || EffectArguments.Length > 256) || WorldEffects is null || WorldEffects.Length > 30000)
         {
@@ -98,7 +112,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
             ReplayWorldEffectCause.FromArguments(cause.ToArguments());
         }
         SemanticTrigger?.Validate();
-        if ((Kind == ReplayEntryKind.SemanticTrigger) != (SemanticTrigger is not null) || (Kind is ReplayEntryKind.ScriptGoal or ReplayEntryKind.InputSample) != (ScriptGoal is not null) || SemanticAdmissions is null || SemanticAdmissions.Length > 262144)
+        if ((Kind == ReplayEntryKind.SemanticTrigger) != (SemanticTrigger is not null) || (Kind is ReplayEntryKind.ScriptGoal or ReplayEntryKind.InputSample or ReplayEntryKind.InputPulse) != (ScriptGoal is not null) || SemanticAdmissions is null || SemanticAdmissions.Length > 262144)
         {
             throw new InvalidDataException("Semantic replay inputs require their exact typed payload.");
         }

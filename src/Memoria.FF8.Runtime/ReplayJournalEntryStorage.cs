@@ -27,6 +27,7 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         writer.WriteNumber(nameof(value.Frame), value.Frame);
         Number(writer, nameof(value.Code), value.Code);
         Number(writer, nameof(value.Value), value.Value);
+        Number(writer, nameof(value.MappedPulse), value.MappedPulse);
         Optional(writer, nameof(value.Quantity), value.Quantity);
         Optional(writer, nameof(value.Text), value.Text);
         Number(writer, nameof(value.Horizontal), value.Horizontal);
@@ -78,6 +79,7 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         Optional(writer, nameof(value.ScriptGoal), value.ScriptGoal);
         Optional(writer, nameof(value.EffectArguments), value.EffectArguments);
         Optional(writer, nameof(value.WorldAllocation), value.WorldAllocation);
+        Optional(writer, nameof(value.NativeTraversal), value.NativeTraversal);
         Array(writer, nameof(value.WorldEffects), value.WorldEffects);
         writer.WriteEndObject();
     }

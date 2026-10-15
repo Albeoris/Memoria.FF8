@@ -49,18 +49,50 @@ public sealed partial class ReplayJournal
         }
     }
 
-    private static ReplayJournalEntry[] ProjectVisit(ReplayJournalEntry[] entries, bool inferred)
+    private ReplayJournalEntry[] ProjectVisit(ReplayJournalEntry[] entries, bool inferred)
     {
         List<ReplayJournalEntry> intents = [];
+        const int traversalReleaseNeeded = -1;
+        int representedHeld = 0;
+        bool foundHeld = false;
+        for (int visitIndex = visits.Length - 1; visitIndex >= 0 && !foundHeld; visitIndex--)
+        {
+            foreach (ReplayJournalEntry previous in visits[visitIndex].Intents.Reverse())
+            {
+                if (previous.Kind == ReplayEntryKind.InputSample || previous.Kind == ReplayEntryKind.Action && previous.Code == 8)
+                {
+                    representedHeld = previous.Value;
+                    foundHeld = true;
+                    break;
+                }
+                if (previous.Kind == ReplayEntryKind.NativeTraversal)
+                {
+                    representedHeld = traversalReleaseNeeded;
+                    foundHeld = true;
+                    break;
+                }
+            }
+        }
         ReplayJournalEntry? allocation = entries.FirstOrDefault(entry => entry.Kind == ReplayEntryKind.FieldLoad);
         for (int inputIndex = 0; inputIndex < entries.Length; inputIndex++)
         {
             ReplayJournalEntry entry = entries[inputIndex];
-            bool cadence = entry.Kind is ReplayEntryKind.FieldLoad or ReplayEntryKind.WorldAllocation or ReplayEntryKind.Step or ReplayEntryKind.Update || entry.Kind is ReplayEntryKind.Action or ReplayEntryKind.WorldAction && entry.Code is 4 or 5;
+            bool cadence = entry.Kind is ReplayEntryKind.FieldLoad or ReplayEntryKind.WorldAllocation or ReplayEntryKind.InputPulse or ReplayEntryKind.Step or ReplayEntryKind.Update || entry.Kind is ReplayEntryKind.Action or ReplayEntryKind.WorldAction && entry.Code is 4 or 5;
             bool representedInteraction = entry.Kind == ReplayEntryKind.Action && entry.Code is 0 or 3 && entry.SemanticAdmissions.Any(admission => admission.Kind == ReplaySemanticTriggerKind.ActorInteraction);
-            if (!cadence && !representedInteraction && RetainExplicitInput(entry, entries, inputIndex))
+            if (!cadence && !representedInteraction && RetainExplicitInput(entry, entries, inputIndex, inferred))
             {
-                intents.Add(WithoutPhysicalDiagnostics(entry));
+                if (entry.Kind != ReplayEntryKind.InputSample || RetainInputSample(entry, ref representedHeld))
+                {
+                    intents.Add(WithoutPhysicalDiagnostics(entry));
+                    if (entry.Kind == ReplayEntryKind.Action && entry.Code == 8)
+                    {
+                        representedHeld = entry.Value;
+                    }
+                    else if (entry.Kind == ReplayEntryKind.NativeTraversal)
+                    {
+                        representedHeld = traversalReleaseNeeded;
+                    }
+                }
             }
             List<(int Sequence, int Order, ReplayJournalEntry Intent)> outcomes = [];
             foreach (ReplayWorldEffectCause cause in entry.WorldEffects)
@@ -88,7 +120,7 @@ public sealed partial class ReplayJournal
                     outcomes.Add((receipt.Sequence, outcomes.Count, new ReplayJournalEntry(ReplayEntryKind.PersistentEffect, entry.Scene, receipt.FieldId, receipt.Frame) { Code = receipt.Code, Frames = receipt.Arguments is { Length: >= 2 } arguments && arguments[1] is > 0 and <= 30000 ? arguments[1] : throw new InvalidDataException("Persistent effect receipt lacks its explicit causal callback count."), EffectArguments = receipt.Arguments is null ? null : (int[])receipt.Arguments.Clone(), Receipts = [receipt] }));
                     continue;
                 }
-                if (receipt.Kind is not (ReplayReceiptKind.InputSample or ReplayReceiptKind.Command))
+                if (receipt.Kind is not (ReplayReceiptKind.InputSample or ReplayReceiptKind.Command or ReplayReceiptKind.NativeTraversal))
                 {
                     continue;
                 }
@@ -98,10 +130,32 @@ public sealed partial class ReplayJournal
                     continue;
                 }
                 ReplayScriptGoal goal = new(receipt.FieldId, hash, allocation?.Text, receipt.ObjectId, receipt.ScriptId, receipt.Operation, receipt.Code, inferred);
-                outcomes.Add((receipt.Sequence, outcomes.Count, new ReplayJournalEntry(receipt.Kind == ReplayReceiptKind.InputSample ? ReplayEntryKind.InputSample : ReplayEntryKind.ScriptGoal, entry.Scene, receipt.FieldId, receipt.Frame) { ScriptGoal = goal, Value = receipt.Kind == ReplayReceiptKind.InputSample ? receipt.Value : 0 }));
+                if (receipt.Kind == ReplayReceiptKind.NativeTraversal)
+                {
+                    if (receipt.Arguments is not { Length: 3 } traversalArguments || traversalArguments[0] is not (3 or 4) || traversalArguments[1] is not (-1 or 1) || traversalArguments[2] is < 0 or > ushort.MaxValue)
+                    {
+                        throw new InvalidDataException("Native traversal completion lost its actual mode/direction provenance.");
+                    }
+                    ReplayNativeTraversal traversal = new(1, goal, (byte)traversalArguments[0], traversalArguments[1] == 1, inferred);
+                    if (entry.NativeTraversal is { } inputTraversal && inputTraversal.Mode == traversal.Mode && inputTraversal.Forward == traversal.Forward && inputTraversal.Producer == traversal.Producer)
+                    {
+                        continue;
+                    }
+                    outcomes.Add((receipt.Sequence, outcomes.Count, new ReplayJournalEntry(ReplayEntryKind.NativeTraversal, entry.Scene, receipt.FieldId, receipt.Frame) { NativeTraversal = traversal }));
+                    continue;
+                }
+                outcomes.Add((receipt.Sequence, outcomes.Count, new ReplayJournalEntry(receipt.Kind == ReplayReceiptKind.InputSample ? ReplayEntryKind.InputSample : ReplayEntryKind.ScriptGoal, entry.Scene, receipt.FieldId, receipt.Frame) { ScriptGoal = goal, Value = receipt.Kind == ReplayReceiptKind.InputSample ? receipt.Value : 0, MappedPulse = receipt.Kind == ReplayReceiptKind.InputSample ? ReadMappedPulseCause(receipt) : (ushort)0 }));
             }
             foreach (var outcome in outcomes.OrderBy(value => value.Sequence < 0 ? int.MaxValue : value.Sequence).ThenBy(value => value.Order))
             {
+                if (outcome.Intent.Kind == ReplayEntryKind.InputSample && !RetainInputSample(outcome.Intent, ref representedHeld))
+                {
+                    continue;
+                }
+                if (outcome.Intent.Kind == ReplayEntryKind.NativeTraversal)
+                {
+                    representedHeld = traversalReleaseNeeded;
+                }
                 intents.Add(outcome.Intent);
             }
         }
@@ -121,15 +175,50 @@ public sealed partial class ReplayJournal
         return compact.ToArray();
     }
 
-    private static bool RetainExplicitInput(ReplayJournalEntry entry, ReplayJournalEntry[] visit, int index)
+    private static bool RetainInputSample(ReplayJournalEntry entry, ref int representedHeld)
+    {
+        bool retain = entry.Value != 0 || entry.MappedPulse != 0 || representedHeld != 0;
+        representedHeld = entry.Value;
+        return retain;
+    }
+
+    private static ushort ReadMappedPulseCause(ReplayReceipt receipt)
+    {
+        if (receipt.Arguments is not { Length: >= 4 } arguments)
+        {
+            throw new InvalidDataException("Native input sample lost its physical/mapped cause audit.");
+        }
+        if (arguments.Length < 5)
+        {
+            if ((arguments[0] & ~receipt.Value) != 0)
+            {
+                throw new NotSupportedException("This native input sample predates the retained logical pulse cause; recreate its authentic source history.");
+            }
+            return 0;
+        }
+        int pulse = arguments[4];
+        if ((pulse & ~0x50) != 0)
+        {
+            throw new InvalidDataException("Native input sample contains an unrepresented logical pulse cause.");
+        }
+        return (ushort)pulse;
+    }
+
+    private static bool RetainExplicitInput(ReplayJournalEntry entry, ReplayJournalEntry[] visit, int index, bool inferred)
     {
         if (entry.Kind is not (ReplayEntryKind.Action or ReplayEntryKind.WorldAction))
         {
             return true;
         }
-        if (!entry.Accepted || entry.Code == 8)
+        if (!entry.Accepted)
         {
             return false;
+        }
+        if (entry.Code == 8)
+        {
+            //Version1 lacks traversal-completion receipts. Its explicit held-input
+            //intent is retained under the visit's inferred provenance, without cadence.
+            return inferred;
         }
         if (entry.Code != 0 || entry.MessageId is not null || entry.Trigger is 2 or 8 or 9 || entry.Receipts.Any(receipt => receipt.Kind is ReplayReceiptKind.Command or ReplayReceiptKind.Dialogue or ReplayReceiptKind.PersistentEffect))
         {
@@ -152,7 +241,7 @@ public sealed partial class ReplayJournal
 
     private static ReplayJournalEntry WithoutPhysicalDiagnostics(ReplayJournalEntry entry)
     {
-        return entry with { Horizontal = 0, Vertical = 0, CameraHorizontal = 0, Frames = entry.Kind == ReplayEntryKind.PersistentEffect ? entry.Frames : 1, Advanced = 0, Repeat = 1, StartPose = null, EndPose = null, Navigation = [], WorldNavigation = [], CommandCount = 0, CommandDigest = 0, SemanticAdmissions = [], WorldEffects = [], Receipts = entry.Receipts.Where(receipt => receipt.Kind is not (ReplayReceiptKind.Branch or ReplayReceiptKind.InputSample) && (receipt.Kind != ReplayReceiptKind.PersistentEffect || entry.Kind == ReplayEntryKind.PersistentEffect)).ToArray() };
+        return entry with { Horizontal = 0, Vertical = 0, CameraHorizontal = 0, Frames = entry.Kind == ReplayEntryKind.PersistentEffect ? entry.Frames : 1, Advanced = 0, Repeat = 1, StartPose = null, EndPose = null, Navigation = [], WorldNavigation = [], CommandCount = 0, CommandDigest = 0, SemanticAdmissions = [], WorldEffects = [], Receipts = entry.Receipts.Where(receipt => receipt.Kind is not (ReplayReceiptKind.Branch or ReplayReceiptKind.InputSample or ReplayReceiptKind.NativeTraversal) && (receipt.Kind != ReplayReceiptKind.PersistentEffect || entry.Kind == ReplayEntryKind.PersistentEffect)).ToArray() };
     }
 
     internal static ReplayJournal Restore(int version, string sessionId, ReplayCompletedVisit[] visits, ReplayJournalEntry[] active, bool complete, string? reason)

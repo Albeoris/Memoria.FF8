@@ -84,6 +84,7 @@ internal static partial class Program
                     ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
                     ["semantic-admission"] = () => SemanticAdmissionContract(selectedGameDirectory),
                     ["semantic-salary"] = () => SemanticSalaryContract(selectedGameDirectory),
+                    ["semantic-exit-equivalence"] = () => SemanticExitEquivalenceContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),

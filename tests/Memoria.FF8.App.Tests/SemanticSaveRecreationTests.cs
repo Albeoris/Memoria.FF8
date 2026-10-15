@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Events;
 using Memoria.FF8.Media;
 using Memoria.FF8.Runtime;
@@ -76,6 +78,60 @@ public sealed class SemanticSaveRecreationTests
         AssertMeaningfulStateEqual(rebuilt, repeated);
         Assert.Equal(rebuilt.X, repeated.X);
         Assert.Equal(rebuilt.Y, repeated.Y);
+        Assert.True(repeated.ReplayJournal!.IsComplete);
+    }
+
+    [Fact]
+    public void Actual_legacy_departure_reaches_next_field_before_its_final_departed_cleanup_hint()
+    {
+        using Opening opening = new();
+        string sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_LEGACY_CLEANUP_SOURCE") ?? Path.Combine("../fixtures/external-fixture.json");
+        Assert.SkipUnless(File.Exists(sourcePath), "The preserved authentic legacy opening journal is required.");
+        GameState authentic = GameSession.LoadReplaySource(sourcePath);
+        ReplayJournal journal = Assert.IsType<ReplayJournal>(authentic.ReplayJournal);
+        Assert.Equal(1, journal.Version);
+        ReplayJournalEntry[] entries = journal.GetCommittedPrefix().Entries.ToArray();
+        int departingLoad = Array.FindIndex(entries, entry => entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 232);
+        Assert.True(departingLoad >= 0);
+        int nextLoad = Array.FindIndex(entries, departingLoad + 1, entry => entry.Kind == ReplayEntryKind.FieldLoad);
+        Assert.True(nextLoad > departingLoad);
+        Assert.Equal(139, entries[nextLoad].FieldId);
+
+        using JsonDocument sourceDocument = JsonDocument.Parse(File.ReadAllBytes(sourcePath));
+        JsonElement sourceCapsule = sourceDocument.RootElement.GetProperty("ReplayJournal");
+        using MemoryStream compressed = new(Convert.FromBase64String(sourceCapsule.GetProperty("Data").GetString()!));
+        using BrotliStream decompressor = new(compressed, CompressionMode.Decompress);
+        using JsonDocument literalInputs = JsonDocument.Parse(decompressor);
+        Assert.Equal(journal.EntryCount, literalInputs.RootElement.GetArrayLength());
+        JsonElement[] preservedPrefix = literalInputs.RootElement.EnumerateArray().Take(nextLoad + 1).Select(entry => entry.Clone()).ToArray();
+        using MemoryStream encodedPrefix = new();
+        using (BrotliStream compressor = new(encodedPrefix, CompressionLevel.Optimal, true))
+        {
+            JsonSerializer.Serialize(compressor, preservedPrefix);
+        }
+        JsonObject capsule = JsonNode.Parse(sourceCapsule.GetRawText())!.AsObject();
+        capsule["Data"] = Convert.ToBase64String(encodedPrefix.ToArray());
+        capsule["EntryCount"] = preservedPrefix.Length;
+        capsule["IsComplete"] = true;
+        capsule.Remove("UnavailableReason");
+        ReplayJournal prefix = capsule.Deserialize<ReplayJournal>()!;
+        prefix.Validate();
+        Assert.Equal(journal.SessionId, prefix.SessionId);
+        Assert.Equal(JsonSerializer.Serialize(entries.Take(nextLoad + 1)), JsonSerializer.Serialize(prefix.Entries));
+        ReplayCompletedVisit departed = prefix.GetSemanticProjection().CompletedVisits.Single(visit => visit.FieldId == 232);
+        Assert.Equal(new ReplayVisitExit(SceneKind.Field, 139), departed.Exit);
+        Assert.Equal(ReplayEntryKind.ScriptGoal, departed.Intents[^1].Kind);
+        Assert.Equal((21, 197, 3720), (departed.Intents[^1].ScriptGoal!.ObjectId, departed.Intents[^1].ScriptGoal!.ScriptId, departed.Intents[^1].ScriptGoal!.Operation));
+
+        //This shell supplies only the authenticated prefix endpoint; every input and receipt above is an unchanged actual journal entry.
+        GameState source = new() { Scene = SceneKind.Field, FieldId = 139, ReplayJournal = prefix };
+        GameState rebuilt = GameWorld.RecreateSave(source, opening.Directory, opening.Clock.ToolsDirectory);
+        Assert.Equal(SceneKind.Field, rebuilt.Scene);
+        Assert.Equal(139, rebuilt.FieldId);
+        Assert.Equal(17, rebuilt.Variables.GetValueOrDefault(256));
+        Assert.True(rebuilt.ReplayJournal!.IsComplete);
+        GameState repeated = GameWorld.RecreateSave(rebuilt, opening.Directory, opening.Clock.ToolsDirectory);
+        AssertMeaningfulStateEqual(rebuilt, repeated);
         Assert.True(repeated.ReplayJournal!.IsComplete);
     }
 

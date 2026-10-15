@@ -1,9 +1,16 @@
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
 /// <summary>Native mode4 owns DWORD400..456 and shared WORD472/474/508/538/542 until its issuing instruction returns2.</summary>
-public sealed record NativeLadderState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, bool Up, int FixedX, int FixedY, int FixedZ, int Triangle, FieldFixedPosition Entry, FieldFixedPosition Approach, FieldFixedPosition ClimbingEnd, FieldFixedPosition Exit, short Duration, [property: System.Text.Json.Serialization.JsonRequired] bool AutomaticCompletion = false);
+public sealed record NativeLadderState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, bool Up, int FixedX, int FixedY, int FixedZ, int Triangle, FieldFixedPosition Entry, FieldFixedPosition Approach, FieldFixedPosition ClimbingEnd, FieldFixedPosition Exit, short Duration, [property: System.Text.Json.Serialization.JsonRequired] bool AutomaticCompletion = false)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ReplayNativeTraversal? ReplayCompletion { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ushort? ReplayPhysicalHeld { get; init; }
+}
 
 public sealed partial class EventEngine
 {
@@ -300,6 +307,15 @@ public sealed partial class EventEngine
                 if (actor.NativeTurnAccumulator474 >= current.Duration)
                 {
                     actor.NativeMovementCompletion542 = 2;
+                    if (current.ReplayCompletion is { } completion)
+                    {
+                        if (completion.Mode != 4 || completion.Producer.ObjectId != actor.ObjectId || completion.Producer.ScriptId != current.ScriptId || completion.Producer.Operation != current.Operation)
+                        {
+                            throw new InvalidDataException("Controlled mode4 completion lost its actual issuing owner.");
+                        }
+                        RecordNativeTraversalCompletion(completion, current.ReplayPhysicalHeld ?? throw new InvalidDataException("Controlled mode4 completion lost its sampled causal input."));
+                        current = current with { ReplayCompletion = null, ReplayPhysicalHeld = null };
+                    }
                 }
                 actor.NativeLadder = current;
                 continue;
@@ -322,6 +338,10 @@ public sealed partial class EventEngine
                 else if (stage == 1)
                 {
                     actor.NativeMovementCompletion542 = direction > 0 ? (ushort)4 : (ushort)5;
+                    if (IsNativePartyPlayerBody(actor))
+                    {
+                        current = current with { ReplayCompletion = CreateNativeTraversal(actor, current.ScriptId, current.Operation, 4, direction > 0), ReplayPhysicalHeld = ButtonInput!.PhysicalHeld };
+                    }
                 }
                 else
                 {
