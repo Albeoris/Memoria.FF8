@@ -806,6 +806,10 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("Prepared field entry must preserve the complete ordinary world action prefix.");
         }
         WorldActionRecord tail = finalWorld.Actions[^1];
+        if (!float.IsFinite(tail.CameraHorizontal) || Math.Abs(tail.CameraHorizontal) > 1 || tail.CameraHorizontal != 0 && tail.Kind is not ("Move" or "Wait"))
+        {
+            throw new InvalidDataException("Manual world camera input requires an ordinary finite Move/Wait axis between -1 and 1.");
+        }
         bool stationChoice = tail?.Kind == "Choose" && liveWorld.NativeTrainRuntime?.Primary.Pause == -1 && tail.AdvancedFrames == 1 && tail.Horizontal == 0 && tail.Vertical == 0 && (finalWorld.NativeFootRuntime?.TrainDismount?.SourceCallback == finalWorld.Frame || finalWorld.NativeTrainRuntime is { Primary.Pause: 0 } continued && continued.StationDeclines.Contains(finalWorld.Frame));
         if (tail is null || tail.Index != liveWorld.Actions.Count + 1 || tail.Frame != finalWorld.Frame || tail.Kind is not "Move" and not "Wait" && !stationChoice || !float.IsFinite(tail.Horizontal) || !float.IsFinite(tail.Vertical) || Math.Abs(tail.Horizontal) > 1 || Math.Abs(tail.Vertical) > 1 || tail.RequestedFrames is < 1 or > 30000 || tail.AdvancedFrames < 0 || tail.AdvancedFrames > tail.RequestedFrames || liveWorld.Frame > long.MaxValue - tail.AdvancedFrames || finalWorld.Frame != liveWorld.Frame + tail.AdvancedFrames || tail.X != finalWorld.X || tail.Z != finalWorld.Z || tail.NativeHeight != finalWorld.NativeHeight)
         {

@@ -21,7 +21,6 @@ internal sealed partial class RecreateGame
     private readonly Dictionary<string, Texture2D> battleHeads = [];
     private double battleSeconds;
     private bool previousBattleMouse;
-    private GamePadState previousBattlePad;
     private BattleSession? presentedBattle;
     private BattleDefinition? debugBattleDefinition;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
@@ -124,23 +123,6 @@ internal sealed partial class RecreateGame
 
     private void NavigateBattleView(Action<MenuInput> navigate, InputFrame input)
     {
-        GamePadState pad = GamePad.GetState(PlayerIndex.One);
-        bool PadPressed(Buttons button)
-        {
-            return IsActive && pad.IsButtonDown(button) && previousBattlePad.IsButtonUp(button);
-        }
-        foreach ((Buttons button, MenuInput action) in new[] { (Buttons.DPadUp, MenuInput.Up), (Buttons.DPadDown, MenuInput.Down), (Buttons.DPadLeft, MenuInput.Left), (Buttons.DPadRight, MenuInput.Right), (Buttons.LeftShoulder, MenuInput.PageLeft), (Buttons.RightShoulder, MenuInput.PageRight), (Buttons.A, MenuInput.Confirm), (Buttons.B, MenuInput.Cancel) })
-        {
-            if (PadPressed(button))
-            {
-                navigate(action);
-            }
-        }
-        if (PadPressed(Buttons.X) && ActiveBattle?.Mode == BattleAtbMode.TurnBased && ActiveBattle.Outcome == BattleOutcome.Active && battleDebug is null)
-        {
-            battleHud!.AdvanceTurn();
-        }
-        previousBattlePad = pad;
         if (input.MenuVertical != 0)
         {
             navigate(input.MenuVertical < 0 ? MenuInput.Up : MenuInput.Down);

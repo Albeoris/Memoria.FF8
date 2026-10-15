@@ -12,14 +12,14 @@ public sealed class GameUiHostTests
         Assert.Equal(new Microsoft.Xna.Framework.Color(128, 128, 128, 128), MonoGameUiCanvas.ColorFor(new Memoria.FF8.Ui.UiColor(255, 255, 255, 128)));
     }
     [Fact]
-    public void Debug_room_and_menu_keys_are_edges_and_do_not_invent_player_actions()
+    public void Debug_room_and_menu_keys_are_edges_and_X_is_native_confirm()
     {
         var keyboard = new KeyboardInput();
         var input = keyboard.Read(new KeyboardState(Keys.F2, Keys.V, Keys.X), true);
         Assert.True(keyboard.DebugRoomRequested);
         Assert.True(keyboard.GameMenuRequested);
         Assert.True(keyboard.UiConfirmRequested);
-        Assert.False(input.Confirm);
+        Assert.True(input.Confirm);
         Assert.False(input.Save);
         keyboard.Read(new KeyboardState(Keys.F2, Keys.V, Keys.X), true);
         Assert.False(keyboard.DebugRoomRequested);

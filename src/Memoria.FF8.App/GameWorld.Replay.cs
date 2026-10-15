@@ -151,7 +151,7 @@ internal sealed partial class GameWorld
                         {
                             throw new InvalidDataException("Recorded world choice differs from the actual current native message producer.");
                         }
-                        result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames));
+                        result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames, CameraHorizontal: entry.CameraHorizontal));
                         break;
                     case ReplayEntryKind.MovieSample:
                         rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State.MovieIndex, gameDirectory));

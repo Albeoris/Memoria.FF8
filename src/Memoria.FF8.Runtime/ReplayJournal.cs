@@ -39,6 +39,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
     public string? Text { get; init; }
     public float Horizontal { get; init; }
     public float Vertical { get; init; }
+    public float CameraHorizontal { get; init; }
     public int Frames { get; init; } = 1;
     public int Advanced { get; init; }
     public int Repeat { get; init; } = 1;
@@ -74,6 +75,10 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
     public void Validate()
     {
         BattleInput?.Validate();
+        if (!float.IsFinite(CameraHorizontal) || Math.Abs(CameraHorizontal) > 1 || CameraHorizontal != 0 && (Kind != ReplayEntryKind.WorldAction || Code is not (4 or 5)))
+        {
+            throw new InvalidDataException("Manual camera input requires a finite world Move/Wait axis between -1 and 1.");
+        }
         if (Kind == ReplayEntryKind.BattleInput ? BattleInput is null : BattleInput is not null)
         {
             throw new InvalidDataException("Battle replay input must belong to a battle transaction.");

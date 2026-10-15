@@ -8,6 +8,7 @@ internal sealed partial class RecreateGame
 {
     private readonly Dictionary<int, (string Key, UiView View)> dialogueUiViews = [];
     private UiView? movieHintUi;
+    private string? movieHintBindings;
     private UiView? timerUi;
     private UiLabel? timerUiText;
 
@@ -34,10 +35,11 @@ internal sealed partial class RecreateGame
 
     private void DrawMovieHintUi(Rectangle bounds)
     {
-        if (movieHintUi is null)
+        if (movieHintUi is null || movieHintBindings != keyboard.BindingHint(ControlAction.SkipMovie))
         {
             var root = new UiAnchorPanel();
-            root.Children.Add(new UiLabel { Anchors = new UiAnchors(0.025f, 0.94f, 0.975f, 0.99f), Text = "Escape / Space: skip", FontSize = 16, Muted = true });
+            movieHintBindings = keyboard.BindingHint(ControlAction.SkipMovie);
+            root.Children.Add(new UiLabel { Anchors = new UiAnchors(0.025f, 0.94f, 0.975f, 0.99f), Text = movieHintBindings + ": skip", FontSize = 16, Muted = true });
             movieHintUi = CreateWindowView(root);
         }
         DrawWindowView(movieHintUi, bounds);

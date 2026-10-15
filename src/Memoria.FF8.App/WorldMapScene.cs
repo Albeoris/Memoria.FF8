@@ -247,9 +247,13 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "World action duration must be between one and 30000 simulation frames.");
         }
-        if (!float.IsFinite(action.Horizontal) || !float.IsFinite(action.Vertical) || Math.Abs(action.Horizontal) > 1 || Math.Abs(action.Vertical) > 1)
+        if (!float.IsFinite(action.Horizontal) || !float.IsFinite(action.Vertical) || !float.IsFinite(action.CameraHorizontal) || Math.Abs(action.Horizontal) > 1 || Math.Abs(action.Vertical) > 1 || Math.Abs(action.CameraHorizontal) > 1)
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Movement axes must be finite and between -1 and 1.");
+        }
+        if (action.CameraHorizontal != 0 && action.Kind is not (PlayerActionKind.Move or PlayerActionKind.Wait))
+        {
+            throw new ArgumentException("Manual world camera input requires an ordinary Move or Wait action.", nameof(action));
         }
         DialogueState? sourceDialogue = CurrentDialogue;
         bool stationChoice = action.Kind == PlayerActionKind.Choose && sourceDialogue is not null;
@@ -276,7 +280,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     salary = salary.PrepareCarVibration(car.EntityType, assets.VibrationBank);
                 }
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, priorGraphics, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed);
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed);
                 if (stationChoice)
                 {
                     NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
@@ -319,7 +323,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
             }
         }
-        List<WorldActionRecord> actions = [.. candidate.Actions, new WorldActionRecord(candidate.Actions.Count + 1, candidate.Frame, action.Kind.ToString(), action.Horizontal, action.Vertical, action.Frames, advanced, candidate.X, candidate.Z, candidate.NativeHeight)];
+        List<WorldActionRecord> actions = [.. candidate.Actions, new WorldActionRecord(candidate.Actions.Count + 1, candidate.Frame, action.Kind.ToString(), action.Horizontal, action.Vertical, action.Frames, advanced, candidate.X, candidate.Z, candidate.NativeHeight, action.CameraHorizontal)];
         candidate = candidate with { Actions = actions };
         if (fieldEntry is not null)
         {
@@ -351,7 +355,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
         void RecordReplay(PlayerActionResult outcome)
         {
-            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, Frames = action.Frames, MessageId = stationChoice ? sourceDialogue!.MessageId : null, Operation = stationChoice ? sourceDialogue!.Operation : null, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray() });
+            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, CameraHorizontal = action.CameraHorizontal, Frames = action.Frames, MessageId = stationChoice ? sourceDialogue!.MessageId : null, Operation = stationChoice ? sourceDialogue!.Operation : null, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray() });
         }
     }
 
@@ -383,7 +387,7 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (before.NativeTrainRuntime is not null)
         {
@@ -398,6 +402,8 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (before.NativeCarRuntime is not null)
         {
+            // The certified car loader retains animation variant0. Original5573C0
+            // admits manual vehicle camera offset14 only for variant1.
             return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, out salaryMovementUnits, out graphicsSpeed);
         }
         fieldEntry = null;
@@ -405,10 +411,9 @@ internal sealed partial class WorldMapScene : IDisposable
         foot.RequireNativeGroundState();
         NativeWorldForestState forest = foot.Forest!;
         int inputX = Math.Sign(horizontal);
-        int inputZ = -Math.Sign(vertical);
-        int magnitude = inputX != 0 && inputZ != 0 ? 90 : 127;
-        int localX = (16 * inputX * magnitude) >> 6;
-        int localZ = (16 * inputZ * magnitude) >> 6;
+        (int componentX, int componentZ) = ReadFootMovementComponents(horizontal, vertical);
+        int localX = (16 * componentX) >> 6;
+        int localZ = (16 * componentZ) >> 6;
         (int moveX, int graphicsMoveZ) = Rotate(localX, localZ, before.CameraYaw);
         bool moving = moveX != 0 || graphicsMoveZ != 0;
         int bodyYaw = before.BodyYaw;
@@ -427,7 +432,8 @@ internal sealed partial class WorldMapScene : IDisposable
                 dampCamera = true;
             }
         }
-        int velocity = FollowCamera(before.CameraVelocity, YawDelta(bodyYaw, before.CameraYaw), dampCamera);
+        // Native557A90 offset14 takes precedence over automatic follow/damping.
+        int velocity = cameraHorizontal == 0 ? FollowCamera(before.CameraVelocity, YawDelta(bodyYaw, before.CameraYaw), dampCamera) : Math.Clamp(before.CameraVelocity + Math.Sign(cameraHorizontal) * 8, -128, 128);
         int cameraYaw = WrapYaw(before.CameraYaw + (velocity >> 3));
         int targetX = (before.X + NearWrapped(before.CameraTargetX, before.X, 262144)) >> 1;
         int targetZ = (before.Z + NearWrapped(before.CameraTargetZ, before.Z, 196608)) >> 1;
@@ -560,6 +566,26 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         return Math.Clamp(next, -128, 128);
     }
+
+    private static (int X, int Z) ReadFootMovementComponents(float horizontal, float vertical)
+    {
+        if (horizontal is -1 or 0 or 1 && vertical is -1 or 0 or 1)
+        {
+            // Original5573C0 gives digital diagonals90 and cardinals127.
+            int magnitude = horizontal != 0 && vertical != 0 ? 90 : 127;
+            return ((int)horizontal * magnitude, -(int)vertical * magnitude);
+        }
+        Vector2 axes = new(horizontal, vertical);
+        if (axes.LengthSquared() > 1)
+        {
+            axes = Vector2.Normalize(axes);
+        }
+        // The same5573C0 motor accepts signed analogue WORD components;
+        // 557A90 applies its existing integer scale, rotation and ground query.
+        return (ReadSignedMovementComponent(axes.X), ReadSignedMovementComponent(-axes.Y));
+    }
+
+    private static int ReadSignedMovementComponent(float axis) => (int)(axis * 127);
 
     private static (int X, int Z) Rotate(int x, int z, int yaw)
     {

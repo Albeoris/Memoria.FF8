@@ -31,12 +31,12 @@ internal sealed partial class WorldMapScene
         NativeCarWorldRuntimeState car = before.NativeCarRuntime!;
         car.Validate();
         fieldEntry = null;
-        // Ordinary Move: horizontal selects right/left steering, negative vertical
-        // holds native0x80 forward throttle, positive vertical holds native0x10 reverse.
-        int steering = -127 * Math.Sign(horizontal);
+        // Original5573C0 supplies signed steering/throttle bytes to557A90.
+        // Full digital input retains127; fractional input keeps stick magnitude.
+        int steering = ReadSignedMovementComponent(-horizontal);
         int turnShift = Math.Abs(YawDelta(before.BodyYaw, before.CameraYaw)) > 511 ? 3 : 2;
         int bodyYaw = WrapYaw(before.BodyYaw + (-steering >> turnShift));
-        int throttle = -127 * Math.Sign(vertical);
+        int throttle = ReadSignedMovementComponent(-vertical);
         int speed = throttle == 0 ? Math.Abs(car.Speed) <= 4 ? 0 : car.Speed + (car.Speed > 0 ? -4 : 4) : Math.Clamp(car.Speed + throttle / 48, -64, 64);
         (int moveX, int graphicsZ) = Rotate(0, speed, bodyYaw);
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsZ);

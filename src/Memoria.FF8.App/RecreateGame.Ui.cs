@@ -16,12 +16,12 @@ internal sealed partial class RecreateGame
     private readonly UiTheme uiTheme = new();
     private UiPreferences uiPreferences = new();
     private bool uiMovieSuspended;
-    private GamePadState previousUiPad;
     private LiveMenuCatalog? liveMenuCatalog;
     private bool previousUiMousePressed;
     private bool uiControlPointerPressed;
     private bool drainUiButtons;
     private string UiPreferencesPath => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "ui-settings.json");
+    private string ControlsPreferencesPath => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "controls.json");
 
     private void InitializeGameUi()
     {
@@ -29,6 +29,12 @@ internal sealed partial class RecreateGame
         uiPreferences = UiPreferences.Load(UiPreferencesPath);
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
+        gameMenus.ConnectControls(() => keyboard.Profile, profile =>
+        {
+            profile.Save(ControlsPreferencesPath);
+            keyboard.Profile = profile;
+        });
         gameMenus.BattleDebugRequested += OpenBattleDebug;
         if (options.DebugUiScreen is string screen)
         {
@@ -115,7 +121,6 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
-        GamePadState pad = GamePad.GetState(PlayerIndex.One);
         if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
         {
             gameMenus.Open(IsNativeWeaponShopActive ? "shop-junk" : IsNativeShopActive ? "shop-buy" : "main", false);
@@ -126,8 +131,7 @@ internal sealed partial class RecreateGame
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         bool mousePressEdge = mousePressed && !previousUiMousePressed;
         previousUiMousePressed = mousePressed;
-        bool PadPressed(Buttons button) => IsActive && pad.IsButtonDown(button) && previousUiPad.IsButtonUp(button);
-        bool openMenu = keyboard.GameMenuRequested || PadPressed(Buttons.Start);
+        bool openMenu = keyboard.GameMenuRequested;
         if (keyboard.DebugRoomRequested && !saveMenu.IsOpen)
         {
             if (gameMenus.IsOpen)
@@ -161,7 +165,6 @@ internal sealed partial class RecreateGame
         SynchronizeUiMoviePause();
         if (!gameMenus.IsOpen)
         {
-            previousUiPad = pad;
             if (CompleteNativeNormalMenu(nativeMainWasOpen))
             {
                 return true;
@@ -178,19 +181,19 @@ internal sealed partial class RecreateGame
             SynchronizeUiMoviePause();
             return false;
         }
-        if (input.MenuVertical < 0 || PadPressed(Buttons.DPadUp))
+        if (input.MenuVertical < 0)
         {
             gameMenus.Navigate(MenuInput.Up);
         }
-        if (input.MenuVertical > 0 || PadPressed(Buttons.DPadDown))
+        if (input.MenuVertical > 0)
         {
             gameMenus.Navigate(MenuInput.Down);
         }
-        if (input.MenuHorizontal < 0 || PadPressed(Buttons.DPadLeft))
+        if (input.MenuHorizontal < 0)
         {
             gameMenus.Navigate(MenuInput.Left);
         }
-        if (input.MenuHorizontal > 0 || PadPressed(Buttons.DPadRight))
+        if (input.MenuHorizontal > 0)
         {
             gameMenus.Navigate(MenuInput.Right);
         }
@@ -198,11 +201,11 @@ internal sealed partial class RecreateGame
         {
             gameMenus.Navigate(input.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
         }
-        if (keyboard.UiCharacterPage < 0 || PadPressed(Buttons.LeftShoulder))
+        if (keyboard.UiCharacterPage < 0)
         {
             gameMenus.Navigate(MenuInput.PageLeft);
         }
-        if (keyboard.UiCharacterPage > 0 || PadPressed(Buttons.RightShoulder))
+        if (keyboard.UiCharacterPage > 0)
         {
             gameMenus.Navigate(MenuInput.PageRight);
         }
@@ -210,11 +213,11 @@ internal sealed partial class RecreateGame
         {
             gameMenus.Navigate(MenuInput.Alternate);
         }
-        if (input.Confirm || keyboard.UiConfirmRequested || PadPressed(Buttons.A))
+        if (input.Confirm || keyboard.UiConfirmRequested)
         {
             gameMenus.Navigate(MenuInput.Confirm);
         }
-        if (input.Cancel || keyboard.UiCancelRequested || PadPressed(Buttons.B))
+        if (input.Cancel || keyboard.UiCancelRequested)
         {
             gameMenus.Navigate(MenuInput.Cancel);
         }
@@ -238,8 +241,17 @@ internal sealed partial class RecreateGame
             UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene), default);
         }
         SynchronizeUiMoviePause();
-        previousUiPad = pad;
         return true;
+    }
+
+    private void UpdateControlsCapturePointer()
+    {
+        MouseState mouse = Mouse.GetState();
+        bool pressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
+        UiView view = gameMenus!.BuildView();
+        view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
+        view.Pointer(mouse.X, mouse.Y, pressed && !previousUiMousePressed);
+        previousUiMousePressed = pressed;
     }
 
     private bool IsNativeNormalMenuActive => events?.PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
@@ -265,7 +277,7 @@ internal sealed partial class RecreateGame
 
     private void SynchronizeUiMoviePause()
     {
-        bool pause = gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null;
+        bool pause = userPaused || gameMenus?.IsOpen == true || drainUiButtons || battleDebug is not null || debugBattle is not null;
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();

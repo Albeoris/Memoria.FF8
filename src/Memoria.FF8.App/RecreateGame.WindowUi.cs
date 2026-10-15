@@ -8,6 +8,7 @@ internal sealed partial class RecreateGame
 {
     private UiView? titleWindowUi;
     private int titleWindowSelection = -1;
+    private ControlsProfile? titleControlsProfile;
     private UiView? savesWindowUi;
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
@@ -20,7 +21,7 @@ internal sealed partial class RecreateGame
     private void DrawTitleUi(Rectangle bounds)
     {
         batch.Draw(pixel, bounds, new Color(22, 22, 22));
-        if (titleWindowUi is null || titleWindowSelection != titleSelection)
+        if (titleWindowUi is null || titleWindowSelection != titleSelection || titleControlsProfile != keyboard.Profile)
         {
             UiAnchorPanel root = new();
             root.Children.Add(new UiSigil { Seed = 8, Anchors = new UiAnchors(0.39f, 0.05f, 0.61f, 0.31f) });
@@ -30,9 +31,10 @@ internal sealed partial class RecreateGame
             UiList choices = new() { Items = new List<string> { "New Game", "Continue" }, SelectedIndex = titleSelection, RowHeight = 56, FontSize = 28 };
             menu.Children.Add(choices);
             root.Children.Add(menu);
-            root.Children.Add(new UiLabel { Text = "Arrows: select    Enter: confirm    F10: load", FontSize = 16, Muted = true, Anchors = new UiAnchors(0.05f, 0.91f, 0.95f, 0.98f), HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center });
+            root.Children.Add(new UiLabel { Text = $"Confirm: {keyboard.BindingHint(ControlAction.Confirm)}    Menu: {keyboard.BindingHint(ControlAction.Menu)}\nLoad: {keyboard.BindingHint(ControlAction.LoadMenu)}", FontSize = 16, Muted = true, Anchors = new UiAnchors(0.05f, 0.87f, 0.95f, 0.98f), HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center });
             titleWindowUi = CreateWindowView(root);
             titleWindowSelection = titleSelection;
+            titleControlsProfile = keyboard.Profile;
         }
 
         DrawWindowView(titleWindowUi, bounds);
@@ -48,7 +50,7 @@ internal sealed partial class RecreateGame
         }
 
         entries.AddRange(saveMenu.VisibleEntries);
-        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.CanRecreate, saveMenu.Message, saveMenu.RecreateUnavailableReason, string.Join(";", entries));
+        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.CanRecreate, saveMenu.Message, saveMenu.RecreateUnavailableReason, string.Join(";", entries), keyboard.Profile.GetHashCode());
         if (savesWindowUi is null || savesWindowKey != key)
         {
             UiAnchorPanel root = new();
@@ -66,10 +68,10 @@ internal sealed partial class RecreateGame
             UiList rows = new() { GridRow = 2, RowHeight = 50, Items = entries.Select(FormatPlayerSaveRow).ToList(), SelectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == saveMenu.SelectedSlot)) };
             content.Children.Add(rows);
             bool loading = saveMenu.Mode == PlayerSaveMenuMode.Load;
-            content.Children.Add(new UiLabel { GridRow = 3, Text = loading ? "R: Recreate selected save from start" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose a save slot", FontSize = 18, Muted = loading && !saveMenu.CanRecreate });
-            string detail = saveMenu.Message ?? (loading ? saveMenu.RecreateUnavailableReason ?? "Rebuild saved progress with this engine, then replace and load this slot after success." : "Enter: save to the selected slot. Existing saves require overwrite confirmation.");
+            content.Children.Add(new UiLabel { GridRow = 3, Text = loading ? keyboard.BindingHint(ControlAction.RecreateSave) + ": Recreate selected save from start" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose a save slot", FontSize = 18, Muted = loading && !saveMenu.CanRecreate });
+            string detail = saveMenu.Message ?? (loading ? saveMenu.RecreateUnavailableReason ?? "Rebuild saved progress with this engine, then replace and load this slot after success." : "Confirm saves to the selected slot. Existing saves require overwrite confirmation.");
             content.Children.Add(new UiLabel { GridRow = 4, Text = detail, FontSize = 15 });
-            content.Children.Add(new UiLabel { GridRow = 5, Text = "Up/Down: select   Left/Right: bank   PgUp/PgDn: page\nEnter: confirm   Escape: cancel\nF5: quick save   F9: quick load   F6: save   F10: load", FontSize = 16, Muted = true });
+            content.Children.Add(new UiLabel { GridRow = 5, Text = $"Movement: select / bank    Page: {keyboard.BindingHint(ControlAction.UiPageUp)} / {keyboard.BindingHint(ControlAction.UiPageDown)}\nConfirm: {keyboard.BindingHint(ControlAction.Confirm)}    Cancel: {keyboard.BindingHint(ControlAction.Cancel)}\nConfigure shortcuts in Menu > Config.", FontSize = 16, Muted = true });
             panel.Children.Add(content);
             root.Children.Add(panel);
             savesWindowUi = CreateWindowView(root);

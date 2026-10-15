@@ -33,4 +33,4 @@ public sealed record WorldState
     public List<WorldActionRecord> Actions { get; init; } = [];
 }
 
-public sealed record WorldActionRecord(long Index, long Frame, string Kind, float Horizontal, float Vertical, int RequestedFrames, int AdvancedFrames, int X, int Z, int NativeHeight);
+public sealed record WorldActionRecord(long Index, long Frame, string Kind, float Horizontal, float Vertical, int RequestedFrames, int AdvancedFrames, int X, int Z, int NativeHeight, float CameraHorizontal = 0);
