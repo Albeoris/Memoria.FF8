@@ -121,6 +121,8 @@ public sealed record NativeWorldScriptedPathState
     [JsonRequired]
     public required long? EndpointCallback { get; init; }
     [JsonRequired]
+    public required NativeWorldPathPosition? EndpointPriorEntityPosition { get; init; }
+    [JsonRequired]
     public required int Fade { get; init; }
 
     [JsonIgnore]
@@ -172,7 +174,7 @@ public sealed record NativeWorldScriptedPathState
         {
             Version = 1, Rule = LoadRule, Packet = packet, ChunkHash = definition.ChunkHash, CameraHash = definition.CameraHash, EntityType = entity,
             Callback = 0, Direction = 1, Pause = 30, StopAtEndpoint = stopAtEndpoint, Speed = 0, CameraCounter = 1, Nodes = nodes, EntityPosition = nodes[nodeCount / 2].Position,
-            Camera = EvaluateCamera(definition, nodes, 1, 0), CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, 1, nodes), Presentation = Enumerable.Range(0, nodeCount).Select(_ => new NativeWorldPathNodePresentation(null, null, null)).ToImmutableArray(), EndpointRequested = false, EndpointCallback = null, Fade = 0
+            Camera = EvaluateCamera(definition, nodes, 1, 0), CameraReceipt = new NativeWorldPathCameraReceipt(1, 0, 0, 1, nodes), Presentation = Enumerable.Range(0, nodeCount).Select(_ => new NativeWorldPathNodePresentation(null, null, null)).ToImmutableArray(), EndpointRequested = false, EndpointCallback = null, EndpointPriorEntityPosition = null, Fade = 0
         };
         state.Validate(definition);
         return state;
@@ -184,6 +186,14 @@ public sealed record NativeWorldScriptedPathState
         if (Version != 1 || Rule != LoadRule || Packet is null || ChunkHash != definition.ChunkHash || CameraHash != definition.CameraHash || unchecked((byte)Packet.EntryIndex) != definition.TrackIndex || unchecked((byte)Packet.Mode) != EntityType || EntityType is not (65 or 66) && EntityType is not (>= 16 and <= 22) || Callback < 0 || Direction != (EndpointRequested ? -1 : 1) || Presentation.IsDefault || Presentation.Length != NodeCount || Presentation.Any(pose => pose is null) || Nodes.IsDefault || Nodes.Length != NodeCount || Nodes.Any(node => node is null || node.Segment < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0) || Speed < 0 || Speed > MaximumSpeed || Speed > 16 + 4 * Callback || Fade is < 0 or > 256 || Fade % 16 != 0 || !EndpointRequested && (Pause is null or < 0 or > 30 || Fade != 0) || EndpointRequested && Pause != (StopAtEndpoint is null ? null : StopAtEndpoint.Value ? -1 : 30))
         {
             throw new InvalidDataException("Native scripted path snapshot has inconsistent packet, resource or driver phase.");
+        }
+        if (EndpointRequested != (EndpointPriorEntityPosition is not null) || EndpointRequested && (EndpointCallback is null or < 30 || Callback != EndpointCallback + Fade / 16) || !EndpointRequested && EndpointCallback is not null)
+        {
+            throw new InvalidDataException("Native scripted endpoint lost its prior committed body witness or save/fade callback phase.");
+        }
+        if (EndpointRequested)
+        {
+            ValidateEndpointBodyWitness(definition);
         }
         foreach (NativeWorldScriptedPathNode node in Nodes)
         {
@@ -303,6 +313,33 @@ public sealed record NativeWorldScriptedPathState
         }
     }
 
+    private void ValidateEndpointBodyWitness(NativeWorldScriptedPathDefinition definition)
+    {
+        NativeWorldScriptedPathState initial = Create(definition, Packet, StopAtEndpoint);
+        ImmutableArray<NativeWorldScriptedPathNode> nodes = initial.Nodes;
+        NativeWorldPathPosition committedBody = initial.EntityPosition;
+        short pause = initial.Pause!.Value;
+        int speed = initial.Speed;
+        for (long callback = 1; callback <= EndpointCallback!.Value; callback++)
+        {
+            NativeWorldPathPosition currentBody = nodes[CentralNode].Position;
+            NativeWorldRailAdvance advance = AdvanceRail(definition, nodes, 1, pause, speed, MaximumSpeed, NativeMovementMultiplier);
+            if (advance.Endpoint)
+            {
+                if (callback != EndpointCallback || committedBody != EndpointPriorEntityPosition || currentBody != EntityPosition || !nodes.SequenceEqual(CameraReceipt.Nodes))
+                {
+                    throw new InvalidDataException("Native scripted saved body witness differs from the actual forward rail callbacks before549E80.");
+                }
+                return;
+            }
+            committedBody = currentBody;
+            nodes = advance.Nodes;
+            pause = advance.Pause;
+            speed = advance.Speed;
+        }
+        throw new InvalidDataException("Native scripted endpoint callback precedes the actual forward rail completion.");
+    }
+
     /// <param name="projectNode">Actual native5470E0 transformed WORDs and visibility. Null never establishes raw-position angle authority.</param>
     public NativeWorldScriptedPathState Step(NativeWorldScriptedPathDefinition definition, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
     {
@@ -364,7 +401,7 @@ public sealed record NativeWorldScriptedPathState
         var next = this with
         {
             Callback = checked(Callback + 1), Direction = direction, Pause = retainedPause, Speed = speed, CameraCounter = endpoint ? (ushort)0 : checked((ushort)(CameraCounter + 1)), Nodes = nodes.ToImmutableArray(),
-            EntityPosition = callbackOrigin, Camera = callbackCamera, CameraReceipt = cameraReceipt, Presentation = presentation.ToImmutableArray(), EndpointRequested = endpoint, EndpointCallback = endpoint ? Callback + 1 : null
+            EntityPosition = callbackOrigin, Camera = callbackCamera, CameraReceipt = cameraReceipt, Presentation = presentation.ToImmutableArray(), EndpointRequested = endpoint, EndpointCallback = endpoint ? Callback + 1 : null, EndpointPriorEntityPosition = endpoint ? EntityPosition : null
         };
         next.Validate(definition);
         return next;

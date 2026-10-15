@@ -14,7 +14,7 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld ?? throw new NotSupportedException("Scripted entry has no authentic saved-world state.");
         WorldState previous = session.State.DepartingWorldState ?? throw new NotSupportedException("Scripted entry has no preceding native world globals.");
         RequireUnaliasedFootAuxiliary(session.State);
-        NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(inputs.StoryWord);
+        NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(inputs.StoryWord, inputs.EventFlags265);
         NativeScriptedWorldLoadReceipt load = NativeScriptedWorldLoadReceipt.Create(saved, previous, foot);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)arrival.EntryIndex));
         if (unchecked((byte)arrival.Extra) >= assets.FieldEntries.Entries.Count)
@@ -34,7 +34,7 @@ internal sealed partial class WorldMapScene
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)scripted.Path.Packet.EntryIndex));
         scripted.Path.Validate(definition);
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        NativeScriptedWorldFootRecord actualFoot = assets.ReadScriptedFootRecord(inputs.StoryWord);
+        NativeScriptedWorldFootRecord actualFoot = assets.ReadScriptedFootRecord(inputs.StoryWord, inputs.EventFlags265);
         if (scripted.Load.FootRecord0 != actualFoot || scripted.Path.StopAtEndpoint != ((inputs.EventFlags265 & 64) != 0))
         {
             throw new InvalidDataException("Restored scripted static foot allocation differs from the installed original resources.");

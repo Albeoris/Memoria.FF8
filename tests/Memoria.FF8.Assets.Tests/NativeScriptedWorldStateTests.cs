@@ -12,10 +12,10 @@ public sealed class NativeScriptedWorldStateTests
     public void OriginalScriptedModesSaveAtEndpointAndAtomicallyPublishRowAfterSixteenFadeCallbacks(int track, byte entity, ushort story, int destination)
     {
         using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
-        NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(story);
+        NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(story, 0);
         Assert.Equal(new NativeSavedWorldPose(0, 0, 0, 0), foot.Pose);
-        Assert.Equal((byte)0, assets.ReadScriptedFootRecord(33).ShapeId);
-        Assert.Throws<NotSupportedException>(() => assets.ReadScriptedFootRecord(290));
+        Assert.Equal((byte)0, assets.ReadScriptedFootRecord(33, 0).ShapeId);
+        Assert.Throws<NotSupportedException>(() => assets.ReadScriptedFootRecord(290, 0));
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
         WorldState previous;
         NativeSavedWorldState saved;
@@ -45,9 +45,13 @@ public sealed class NativeScriptedWorldStateTests
         NativeWorldScriptedPathState path = NativeWorldScriptedPathState.Create(definition, packet, null);
         var boat = new NativeScriptedWorldRuntimeState(1, NativeScriptedWorldRuntimeState.RuntimeRule, path, load, null);
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600);
-        var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, FieldId = 123, WorldArrival = packet, World = boat.ToWorldState(), DepartingWorldState = previous, SavedWorld = saved, WorldControls = NativeWorldControlState.CreateNewGame(), Variables = new() { [256] = story }, ExamTimer = timer });
+        // Explicit saved-world component, without a historical player journal.
+        NativeWorldEntryMemory selectedMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, story);
+        var session = new GameSession(new GameState { Scene = SceneKind.WorldMap, FieldId = 123, WorldArrival = packet, World = boat.ToWorldState(), DepartingWorldState = previous, SavedWorld = saved, WorldControls = NativeWorldControlState.CreateNewGame(), WorldEntryMemory = selectedMemory, WorldProcess = NativeWorldProcess.FromColdProcess(), Variables = new() { [256] = story }, ExamTimer = timer });
+        NativeWorldPathPosition previousBody = path.EntityPosition;
         for (int callback = 0; !path.EndpointRequested && callback < 5000; callback++)
         {
+            previousBody = path.EntityPosition;
             path = path.Step(definition, (_, _, _) => null);
         }
         Assert.True(path.EndpointRequested);
@@ -72,8 +76,9 @@ public sealed class NativeScriptedWorldStateTests
         Assert.Equal(saved.Slot4, session.State.SavedWorld.Slot4);
         Assert.Equal(saved.Slot5, session.State.SavedWorld.Slot5);
         Assert.Equal(entity, receipt.EntityType105);
-        Assert.Equal(new NativeSavedWorldPose(0, 0, 0, 0), receipt.Pose0);
-        Assert.NotEqual(receipt.Pose0.X, endpoint.X);
+        NativeSavedWorldPose expectedSavedFoot = path.Mode == 1 ? foot.Pose : new(previousBody.X, -previousBody.Z, checked((short)previousBody.Y), load.RetainedBodyYaw);
+        Assert.Equal(expectedSavedFoot, receipt.Pose0);
+        Assert.NotEqual(receipt.Pose0, new NativeSavedWorldPose(endpoint.X, endpoint.Z, checked((short)endpoint.NativeHeight), checked((ushort)endpoint.BodyYaw)));
         Assert.Throws<InvalidDataException>(() => (receipt with { StoryWord = 290 }).Validate());
         Assert.True(path.Camera.Eye.HasValue);
         Assert.Equal((ushort)NativeWorldScriptedPathMath.NativeAngle(unchecked((short)(path.Camera.Target.X - path.Camera.Eye.Value.X)), unchecked((short)(path.Camera.Target.Z - path.Camera.Eye.Value.Z))), receipt.CameraYaw96);

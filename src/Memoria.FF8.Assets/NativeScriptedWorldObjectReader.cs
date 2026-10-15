@@ -5,20 +5,23 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class WorldAssets
 {
-    private readonly Dictionary<ushort, NativeScriptedWorldFootRecord> scriptedFootRecords = [];
+    private readonly Dictionary<(ushort Story, byte EventFlags265), NativeScriptedWorldFootRecord> scriptedFootRecords = [];
 
-    public NativeScriptedWorldFootRecord ReadScriptedFootRecord(ushort story)
+    public NativeScriptedWorldFootRecord ReadScriptedFootRecord(ushort story, byte eventFlags265)
     {
-        NativeWorldFootAllocation allocation = ReadFootAllocation(story is >= 34 and < 205 ? (byte)1 : (byte)0, story);
-        if (scriptedFootRecords.TryGetValue(story, out NativeScriptedWorldFootRecord? retained))
+        if (scriptedFootRecords.TryGetValue((story, eventFlags265), out NativeScriptedWorldFootRecord? retained))
         {
             return retained;
         }
-        ReadOnlySpan<byte> program = wmset.AsSpan(sections[9], sections[10] - sections[9]);
-        ReadOnlySpan<byte> coordinate = wmset.AsSpan(sections[10], 16);
-        var result = new NativeScriptedWorldFootRecord(1, NativeScriptedWorldFootRecord.AllocationRule, Convert.ToHexString(SHA256.HashData(program)), Convert.ToHexString(SHA256.HashData(coordinate)), allocation.ShapeId, allocation.MinimumStory, allocation.MaximumStory, allocation.Pose);
+        NativeTrainWorldAllocation allocation = ReadTrainWorldAllocation(story, eventFlags265);
+        if (allocation.Objects.Length != 1 || allocation.ControlledObjectIndex != 0 || allocation.Objects[0].ShapeId is not (0 or 4) || allocation.Objects[0].CoordinateIndex != 0)
+        {
+            throw new NotSupportedException("Native scripted world requires the selected single coordinate0 foot allocation; additional dense records need their actual object contract.");
+        }
+        NativeTrainWorldObject foot = allocation.Objects[0];
+        var result = new NativeScriptedWorldFootRecord(1, NativeScriptedWorldFootRecord.AllocationRule, allocation.ProgramHash, Convert.ToHexString(SHA256.HashData(foot.CoordinateBytes.AsSpan())), foot.ShapeId, allocation.MinimumStory, allocation.MaximumStory, foot.Pose);
         result.Validate();
-        scriptedFootRecords.Add(story, result);
+        scriptedFootRecords.Add((story, eventFlags265), result);
         return result;
     }
 }

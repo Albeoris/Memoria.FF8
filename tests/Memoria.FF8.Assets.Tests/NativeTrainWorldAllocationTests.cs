@@ -56,9 +56,9 @@ public sealed class NativeTrainWorldAllocationTests
         using WorldAssets assets = new(GameDirectory);
         NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(story, 0);
         Assert.Equal(shape, Assert.Single(allocation.Objects).ShapeId);
-        Assert.Equal(assets.ReadScriptedFootRecord(story).Pose, allocation.Objects[0].Pose);
+        Assert.Equal(assets.ReadScriptedFootRecord(story, 0).Pose, allocation.Objects[0].Pose);
         Assert.Equal(assets.ReadFootAllocation(shape == 4 ? (byte)1 : (byte)0, story).ShapeId, shape);
-        Assert.Throws<NotSupportedException>(() => assets.ReadScriptedFootRecord(290));
+        Assert.Throws<NotSupportedException>(() => assets.ReadScriptedFootRecord(290, 0));
         Assert.Throws<NotSupportedException>(() => assets.ReadFootAllocation(0, 290));
     }
 
