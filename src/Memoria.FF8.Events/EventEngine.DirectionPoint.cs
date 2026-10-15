@@ -68,6 +68,7 @@ public sealed partial class EventEngine
             actor.MovementIgnoresWalkmesh = false;
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
+            actor.NativeCopiedPosition = null;
             actor.NativeJump = null;
             actor.NativeLadder = null;
             actor.NativeLadderMode3 = null;

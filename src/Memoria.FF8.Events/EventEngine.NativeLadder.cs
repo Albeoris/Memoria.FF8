@@ -81,6 +81,7 @@ public sealed partial class EventEngine
             actor.NativeLadderMode3 = null;
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
+            actor.NativeCopiedPosition = null;
         }
         else if (actor.NativeMovementCompletion542 == 2)
         {

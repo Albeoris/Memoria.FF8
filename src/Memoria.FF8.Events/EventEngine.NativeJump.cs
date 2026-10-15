@@ -114,6 +114,7 @@ public sealed partial class EventEngine
             actor.NativeMovementCompletion542 = 0;
             actor.NativeLandingTriangle508 = unchecked((ushort)triangle);
             actor.NativeJoinedPosition = null;
+            actor.NativeCopiedPosition = null;
             actor.MovementTarget = null;
             // JUMP3/PJUMPA target444 is overwritten by the same mode2 plane evaluation before velocity is calculated.
             actor.NativeJump = new NativeJumpState(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw.X, raw.Y, raw.Z, target.X, target.Y, target.Z, unchecked((short)operands[^1]), 0, asyncFlag, animationFlag);

@@ -96,6 +96,7 @@ public sealed partial class EventEngine
             actor.NativeLadder = null;
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
+            actor.NativeCopiedPosition = null;
             actor.NativeLadderMode3 = new NativeLadderMode3State(1, true, fiber.Sequence, fiber.Script.Id, fiber.Position - 1, up, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, raw, new FieldFixedPosition(unchecked(args[0] << 12), unchecked(args[1] << 12), unchecked(args[2] << 12)), 0, Scene.NativeLadderSpeed490E!.Value);
             actor.NativeLandingTriangle508 = unchecked((ushort)triangle);
             actor.NativeMovementCompletion542 = 0;

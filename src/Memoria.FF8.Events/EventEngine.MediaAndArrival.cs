@@ -54,6 +54,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.ALLSEVOLTRANS or Jsm.Opcode.ALLSEVOL or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.LSCROLL2 or Jsm.Opcode.LSCROLL or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.PARTICLESET or Jsm.Opcode.MODELDOOROPEN or Jsm.Opcode.MODELDOORCLOSE or Jsm.Opcode.COFFSET or Jsm.Opcode.COFFSETS or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
         Jsm.Opcode.PUSHANIME or Jsm.Opcode.POPANIME => true,
         Jsm.Opcode.Unknown13 => true,
+            Jsm.Opcode.COPYINFO => true,
         _ => false
     };
 
@@ -127,6 +128,10 @@ public sealed partial class EventEngine
         if (actorInfo is not null)
         {
             return actorInfo;
+        }
+        if (operation.Opcode == Jsm.Opcode.COPYINFO)
+        {
+            return UnsupportedNativeCopyInfo(fiber);
         }
         if (operation.Opcode == Jsm.Opcode.SETHP)
         {

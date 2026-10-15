@@ -161,6 +161,10 @@ public sealed partial class EventEngine
         {
             return new FieldFixedPosition(completedSplit.FixedX, completedSplit.FixedY, completedSplit.FixedZ);
         }
+        if (actor.NativeCopiedPosition is { } copied && actor.X == copied.FixedX / 4096f && actor.Y == copied.FixedY / 4096f && actor.Z == copied.FixedZ / 4096f && actor.WalkmeshTriangle == copied.Triangle)
+        {
+            return new FieldFixedPosition(copied.FixedX, copied.FixedY, copied.FixedZ);
+        }
         if (!float.IsFinite(actor.X) || !float.IsFinite(actor.Y) || !float.IsFinite(actor.Z) || actor.X != MathF.Truncate(actor.X) || actor.Y != MathF.Truncate(actor.Y) || actor.Z != MathF.Truncate(actor.Z) || actor.X is < short.MinValue or > short.MaxValue || actor.Y is < short.MinValue or > short.MaxValue || actor.Z is < short.MinValue or > short.MaxValue)
         {
             return null;
@@ -232,6 +236,7 @@ public sealed partial class EventEngine
             }
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
+            actor.NativeCopiedPosition = null;
             actor.NativeJump = null;
             actor.NativeLadder = null;
             actor.NativeLadderMode3 = null;

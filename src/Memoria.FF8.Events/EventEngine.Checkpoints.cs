@@ -497,6 +497,7 @@ public sealed partial class EventEngine
         ValidateNativeMovementRequests(saved, restored);
         ValidateBackgroundShades(saved);
         ValidateNativeJoinedPositions(saved);
+        ValidateNativeCopiedPositions(saved);
         ValidateWorldTransitionCheckpoint(saved, bySequence);
         ValidateMinimalMenuCheckpoint(saved, bySequence);
         ValidatePartyMenuCheckpoint(saved, bySequence);

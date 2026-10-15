@@ -199,6 +199,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.GETINFO:
                 args = ExecuteNativeActorInfo(fiber, false);
                 break;
+            case Jsm.Opcode.COPYINFO:
+                args = ExecuteNativeCopyInfo(fiber);
+                break;
             case Jsm.Opcode.INITTRACE:
                 InitializeNativePartyTrace(fiber);
                 break;
@@ -438,6 +441,7 @@ public sealed partial class EventEngine
                 args = Pop(fiber, 3);
                 actor.NativeJoinedPosition = null;
                 actor.NativeSplitPosition = null;
+                actor.NativeCopiedPosition = null;
                 actor.X = args[0];
                 actor.Y = args[1];
                 actor.Z = args[2];
