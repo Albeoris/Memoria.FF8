@@ -74,6 +74,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativePartyFace(fiber);
         }
+        if (operation.Opcode is Jsm.Opcode.FACEDIRA or Jsm.Opcode.RFACEDIRA)
+        {
+            return UnsupportedNativeActorFace(fiber);
+        }
         if (operation.Opcode is Jsm.Opcode.FACEDIROFF or Jsm.Opcode.RFACEDIROFF)
         {
             return UnsupportedNativeFaceReturn(fiber);

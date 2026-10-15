@@ -11,9 +11,12 @@ internal static partial class Program
 {
     private static void NativeAsyncFacePointContract()
     {
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         byte[] Content(int duration, bool replacement, bool consumedUnknown = false)
         {
-            (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)];
             List<(Jsm.Opcode, int)> main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, 100 + 65536), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100)];
             main.Add(consumedUnknown ? (Jsm.Opcode.PSHI_L, 0) : (Jsm.Opcode.PSHN_L, duration));
             main.AddRange([(Jsm.Opcode.RFACEDIR, 0), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0)]);
@@ -26,7 +29,7 @@ internal static partial class Program
         }
         EventEngine Create(byte[] program)
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session, session.State.Variables)
             {
                 AnimationFrameCount = (_, _) => 4,

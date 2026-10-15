@@ -11,15 +11,18 @@ internal static partial class Program
 {
     private static void NativeFaceSyncContract()
     {
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         byte[] content = SyntheticObjects([2, (8 << 7) | 1], [
-            [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)],
+            [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.FACEDIR, 0), (Jsm.Opcode.PSHN_L, 70), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.FACEDIRSYNC, 0), (Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHN_L, 71), (Jsm.Opcode.POPM_B, 5001), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 8), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.RET, 8)],
             [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
-        EventEngine Create(byte[] program, bool native = true)
+        EventEngine Create(byte[] program)
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session, session.State.Variables)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -28,7 +31,7 @@ internal static partial class Program
                 LoadSoundResource = _ => SoundResourceStatus.Muted,
                 ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY)
             };
-            engine.LoadField(600, program, [], nativeRuntimeProfile: native ? NativeFieldRuntimeProfile.FF8En : null);
+            engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
         EventEngine live = Create(content);
@@ -73,7 +76,7 @@ internal static partial class Program
         }
         Require(JsonElement.DeepEquals(before, restored.Capture()), "Malformed face sync restore changed VM or native owners.");
 
-        byte[] zero = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FACEDIRSYNC, 0), (Jsm.Opcode.POPM_B, 5002), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        byte[] zero = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.FACEDIRSYNC, 0), (Jsm.Opcode.POPM_B, 5002), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         EventEngine idle = Create(zero);
         idle.ReadFaceBaseline = null;
         idle.ReadFaceAnchorHeight = null;
@@ -81,10 +84,12 @@ internal static partial class Program
         idle.Step();
         idle.Step();
         Require(idle.Actors[0].FaceProgress == 0 && idle.Actors[0].FaceDuration == 0 && idle.Actors[0].FirstControlRotation is null && idle.Capture().GetProperty("Variables").GetProperty("5002").GetInt32() == 77, "Fresh allocated zero face words required unused model queries, consumed the unrelated value or inserted a wait.");
-        EventEngine unknown = Create(zero, native: false);
+        EventEngine unknown = Create(zero);
+        unknown.Step();
+        // Fault injection removes only the face owner after genuine native initialization.
+        typeof(ActorState).GetProperty(nameof(ActorState.FaceStateVersion))!.SetValue(unknown.Actors[0], 0);
         try
         {
-            unknown.Step();
             unknown.Step();
             throw new InvalidOperationException("Face sync inferred native completion without allocation provenance.");
         }

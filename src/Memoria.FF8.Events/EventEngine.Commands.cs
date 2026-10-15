@@ -298,26 +298,8 @@ public sealed partial class EventEngine
                 args = ExecuteNativePartyFace(fiber, out scalarArgs);
                 break;
             case Jsm.Opcode.FACEDIRA:
-                args = Pop(fiber, 2);
-                if (program is null || (uint)args[0] >= program.NativeObjects.Count)
-                {
-                    throw Fault(fiber, "FACEDIRA targets an unknown native object ID.");
-                }
-                ActorState faceTarget = actors[program.NativeObjects[args[0]]];
-                float headHeight = ReadFaceAnchorHeight?.Invoke(faceTarget) ?? throw Fault(fiber, "FACEDIRA requires the target model's declared control-node height.");
-                if (!float.IsFinite(headHeight))
-                {
-                    throw Fault(fiber, "Model face anchor height is not finite.");
-                }
-                if (actor.FaceStateVersion != 1)
-                {
-                    throw Fault(fiber, "FACEDIRA requires executed native face initialization; recreate the authentic journal.");
-                }
-                actor.FaceReturning = false;
-                actor.FaceDuration = (ushort)args[1];
-                actor.FaceProgress = 0;
-                actor.FaceTargetPoint = new Vector3((short)(int)faceTarget.X, (short)(int)faceTarget.Y, (short)((int)faceTarget.Z + (int)headHeight));
-                fiber.WaitReason = actor.FaceDuration == 0 ? WaitReason.None : WaitReason.FaceDirection;
+            case Jsm.Opcode.RFACEDIRA:
+                args = ExecuteNativeActorFace(fiber, opcode == Jsm.Opcode.RFACEDIRA, out scalarArgs);
                 break;
             case Jsm.Opcode.FACEDIROFF:
             case Jsm.Opcode.RFACEDIROFF:

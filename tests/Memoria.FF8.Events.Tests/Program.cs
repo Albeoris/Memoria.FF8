@@ -116,6 +116,7 @@ internal static partial class Program
                     ["native-movement-animation"] = NativeMovementAnimationDisplacementContract,
                     ["native-face-sync"] = NativeFaceSyncContract,
                     ["native-rfacedir"] = NativeAsyncFacePointContract,
+                    ["native-rfacedira"] = () => NativeAsyncFaceActorContract(selectedGameDirectory),
                     ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,
                     ["native-face-angles"] = FaceDirectionAnglesAndResume,
                     ["native-dirp"] = () => NativeDirectionPointContract(selectedGameDirectory),
@@ -684,21 +685,30 @@ internal static partial class Program
 
     private static void FaceDirectionAnglesAndResume()
     {
-        (Jsm.Opcode, int)[] source = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHAC, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.FACEDIRA, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-        byte[] program = SyntheticObjects([0, 16 << 7], [source, target]);
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session, session.State.Variables) { ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0), ReadFaceAnchorHeight = _ => 0, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
-        engine.LoadField(100, program, []);
-        // The target must have run its original SET3 before the caller captures it.
-        engine.Step();
-        engine.Step();
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        (Jsm.Opcode, int)[] source = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] face = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHAC, 1), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.FACEDIRA, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.POPM_W, 512), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)];
+        byte[] program = SyntheticObjects([1, (16 << 7) | 1], [source, face, target, [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
+        EventEngine Create(GameSession current)
+        {
+            EventEngine result = new(current, current.State.Variables) { AnimationFrameCount = (_, _) => 4, ReadFaceBaseline = _ => new FaceDirectionBaseline(0, 0), ReadFaceAnchorHeight = _ => 0, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
+            result.LoadField(100, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            return result;
+        }
+        GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
+        EventEngine engine = Create(session);
+        while (engine.Actors[0].FaceTargetPoint is null && engine.Frame < 8)
+        {
+            engine.Step();
+        }
         Require(engine.Actors[0].FaceProgress == 1 && !session.State.Variables.ContainsKey(512), "FACEDIRA did not block its source fiber or advance the control-node driver.");
         Require(engine.Actors[0].FirstControlRotation is System.Numerics.Vector3 firstRotation && Math.Abs(firstRotation.Y - MathF.Tau / 256) < 0.00001 && Math.Abs(firstRotation.Z + MathF.Tau / 256) < 0.00001, "Native first cosine sample did not truncate to pitch1/yaw1.");
         var snapshot = engine.Capture();
-        GameSession otherSession = new(new GameState());
-        EventEngine restored = new(otherSession, otherSession.State.Variables) { ReadFaceBaseline = engine.ReadFaceBaseline, ReadFaceAnchorHeight = engine.ReadFaceAnchorHeight, ResolveNativeActorFacing = engine.ResolveNativeActorFacing };
-        restored.LoadField(100, program, []);
+        GameSession otherSession = CreateDirectedLinearTurnSession(vitals, economy);
+        EventEngine restored = Create(otherSession);
         restored.Restore(snapshot);
         Require(snapshot.GetRawText() == restored.Capture().GetRawText(), "Face transition snapshot changed its captured point, override or cosine phase.");
         while (engine.Actors[0].FaceProgress < 4)
