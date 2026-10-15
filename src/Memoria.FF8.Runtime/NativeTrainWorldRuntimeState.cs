@@ -24,10 +24,14 @@ public sealed record NativeTrainWorldLoadReceipt([property: JsonRequired] long S
 
 public sealed record NativeTrainRailContactReversal([property: JsonRequired] int Version, [property: JsonRequired] long Callback, [property: JsonRequired] sbyte SourceDirection, [property: JsonRequired] byte SourceStopCounter, [property: JsonRequired] ImmutableArray<NativeWorldScriptedPathNode> SourceNodes);
 
+public sealed record NativeTrainRailEndpointProjection([property: JsonRequired] int Version, [property: JsonRequired] long Callback, [property: JsonRequired] NativeTrainRailBank SourceBank, [property: JsonRequired] int? SelectedSpeed, [property: JsonRequired] bool StopAtEndpoint);
+
 public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex, [property: JsonRequired] string ChunkHash, [property: JsonRequired] sbyte Direction, [property: JsonRequired] short Pause, [property: JsonRequired] int Speed, [property: JsonRequired] byte? Status, [property: JsonRequired] byte StopCounter, [property: JsonRequired] ImmutableArray<NativeWorldScriptedPathNode> Nodes, [property: JsonRequired] ImmutableArray<NativeWorldPathNodePresentation> Presentation)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeTrainRailContactReversal? ContactReversal { get; init; }
+    [JsonRequired]
+    public NativeTrainRailEndpointProjection? EndpointProjection { get; init; }
     //An endpoint545B20 returns2 before its XYZ stores. This owner exists only inside Step's contact phase;
     //neither the completed callback nor a serialized bank carries an unresolved endpoint candidate.
     [JsonIgnore]
@@ -58,15 +62,16 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
         {
             sourceBank.Validate(definition);
             NativeWorldRailAdvance expected = NativeWorldScriptedPathState.AdvanceRail(definition, sourceBank.Nodes, sourceBank.Direction, sourceBank.Pause, sourceBank.Speed, 100, 2, sourceBank.Status, sourceBank.StopCounter, sourceBank.SelectedCallbackSpeed);
-            if (!expected.Endpoint || ContactReversal is not null || Direction != sourceBank.Direction || Pause != expected.Pause || Speed != expected.Speed || Status != expected.Status || StopCounter != expected.StopCounter || !Nodes.SequenceEqual(expected.Nodes))
+            if (!expected.Endpoint || ContactReversal is not null || EndpointProjection is not null || Direction != sourceBank.Direction || Pause != expected.Pause || Speed != expected.Speed || Status != expected.Status || StopCounter != expected.StopCounter || !Nodes.SequenceEqual(expected.Nodes))
             {
                 throw new InvalidDataException("Native in-progress train endpoint lost its executed pre-contact rail phase.");
             }
+            ValidateProjectionSources(Nodes);
             return;
         }
         if (ContactReversal is { } reversal)
         {
-            if (reversal.Version != 1 || reversal.Callback < 1 || reversal.SourceDirection is not (1 or -1) || Direction != -reversal.SourceDirection || StopCounter != unchecked((byte)(definition.ForwardStops.Length - reversal.SourceStopCounter)) || Pause != 15 || Speed != 0 || reversal.SourceNodes.IsDefault || reversal.SourceNodes.Length != 5)
+            if (reversal.Version != 1 || reversal.Callback < 1 || reversal.SourceDirection is not (1 or -1) || Direction != -reversal.SourceDirection || StopCounter != unchecked((byte)(definition.ForwardStops.Length - reversal.SourceStopCounter)) || Pause != 15 || Speed != 0 || reversal.SourceNodes.IsDefault || reversal.SourceNodes.Length != 5 || EndpointProjection is not null)
             {
                 throw new InvalidDataException("Native contact reversal lost its executed source phase.");
             }
@@ -78,6 +83,7 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
                     throw new InvalidDataException("Native contact reversal differs from its retained previous-node XYZ and reversed rail words.");
                 }
             }
+            ValidateProjectionSources(Nodes);
             return;
         }
         foreach (NativeWorldScriptedPathNode node in Nodes)
@@ -85,6 +91,46 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
             if (node is null || node.Segment is < 0 || node.Segment >= definition.Points.Length - 1 || node.Distance < 0 || NativeWorldScriptedPathState.ResolveNode(definition, node, Direction, out bool complete) != node || complete)
             {
                 throw new InvalidDataException("Native train node lost its actual signed rail interpolation.");
+            }
+        }
+        ImmutableArray<NativeWorldScriptedPathNode> projectedNodes = EndpointProjection is null ? Nodes : ValidateEndpointProjection(definition);
+        ValidateProjectionSources(projectedNodes);
+    }
+
+    public void ValidateProjectionPhase(long callback, bool stopAtEndpoint)
+    {
+        if (EndpointProjection is { } receipt && (receipt.Callback != callback || receipt.StopAtEndpoint != stopAtEndpoint))
+        {
+            throw new InvalidDataException("Native endpoint projection lost its actual callback or executed stop-flag owner.");
+        }
+    }
+
+    private ImmutableArray<NativeWorldScriptedPathNode> ValidateEndpointProjection(NativeWorldScriptedPathDefinition definition)
+    {
+        NativeTrainRailEndpointProjection receipt = EndpointProjection!;
+        NativeTrainRailBank source = receipt.SourceBank;
+        if (receipt.Version != 1 || receipt.Callback < 1 || source is null || source.EndpointProjection is not null || source.CallbackSource is not null || source.TrackIndex != TrackIndex || source.ChunkHash != ChunkHash)
+        {
+            throw new InvalidDataException("Native endpoint projection lost its independently retained pre-callback physical bank.");
+        }
+        source.Validate(definition);
+        NativeWorldRailAdvance advance = NativeWorldScriptedPathState.AdvanceRail(definition, source.Nodes, source.Direction, source.Pause, source.Speed, 100, 2, source.Status, source.StopCounter, receipt.SelectedSpeed);
+        sbyte reversed = checked((sbyte)-source.Direction);
+        ImmutableArray<NativeWorldScriptedPathNode> reset = NativeWorldScriptedPathState.InitialDistances(definition, 5, reversed).Select(distance => NativeWorldScriptedPathState.ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), reversed, out _)).ToImmutableArray();
+        if (!advance.Endpoint || advance.Pause != 0 || advance.Status != 2 || Direction != reversed || Pause != (receipt.StopAtEndpoint ? -1 : 30) || Speed != 0 || Status != 2 || StopCounter != 0 || !Nodes.SequenceEqual(reset))
+        {
+            throw new InvalidDataException("Native endpoint projection differs from the executed rail advance and subsequent physical reset.");
+        }
+        return advance.Nodes;
+    }
+
+    private void ValidateProjectionSources(ImmutableArray<NativeWorldScriptedPathNode> projectedNodes)
+    {
+        for (int index = 0; index < Presentation.Length; index++)
+        {
+            if (Presentation[index].Projection is { } projection && projection.Source != projectedNodes[index].Position)
+            {
+                throw new InvalidDataException("Native train projection differs from its independently validated physical callback phase.");
             }
         }
     }
@@ -132,7 +178,7 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
     {
         Validate(definition);
         NativeWorldRailAdvance phase = NativeWorldScriptedPathState.AdvanceRail(definition, Nodes, Direction, Pause, Speed, 100, 2, Status, StopCounter, selectedSpeed);
-        NativeTrainRailBank next = this with { Pause = phase.Pause, Speed = phase.Speed, Nodes = phase.Nodes, Status = phase.Status, StopCounter = phase.StopCounter, ContactReversal = null, SelectedCallbackSpeed = null, CallbackSource = phase.Endpoint ? this with { SelectedCallbackSpeed = selectedSpeed } : null };
+        NativeTrainRailBank next = this with { Pause = phase.Pause, Speed = phase.Speed, Nodes = phase.Nodes, Status = phase.Status, StopCounter = phase.StopCounter, ContactReversal = null, EndpointProjection = null, SelectedCallbackSpeed = null, CallbackSource = phase.Endpoint ? this with { SelectedCallbackSpeed = selectedSpeed } : null };
         next = next.Project(callback, camera, origin, project);
         if (phase.Status == 1 && phase.StopCounter != StopCounter && phase.Pause > 0 && TrackIndex == 1)
         {
@@ -153,7 +199,7 @@ public sealed record NativeTrainRailBank([property: JsonRequired] int TrackIndex
             sbyte reversed = checked((sbyte)-next.Direction);
             ImmutableArray<NativeWorldScriptedPathNode> reset = NativeWorldScriptedPathState.InitialDistances(definition, 5, reversed).Select(distance => NativeWorldScriptedPathState.ResolveNode(definition, new NativeWorldScriptedPathNode(0, distance, default), reversed, out _)).ToImmutableArray();
             //545480 resets nodes after its second projection and retains the actual prior draw words.
-            next = next with { Direction = reversed, Pause = stopAtEndpoint.Value ? (short)-1 : (short)30, Speed = 0, StopCounter = 0, Nodes = reset, CallbackSource = null };
+            next = next with { Direction = reversed, Pause = stopAtEndpoint.Value ? (short)-1 : (short)30, Speed = 0, StopCounter = 0, Nodes = reset, CallbackSource = null, EndpointProjection = new NativeTrainRailEndpointProjection(1, callback, this, selectedSpeed, stopAtEndpoint.Value) };
         }
         if (next.CallbackSource is not null)
         {

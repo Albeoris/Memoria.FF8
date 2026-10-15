@@ -58,17 +58,22 @@ public static class WorldStationContactCertificate
         for (int index = 0; index < bank.Nodes.Length; index++)
         {
             int link = NativeTrainRailBank.Link(index);
-            if (link == 0 || !proximity(bank.Nodes[index].Position))
+            if (link == 0)
             {
                 continue;
             }
             NativeWorldPathNodePresentation pose = bank.Presentation[index];
-            NativeWorldPathNodeProjection current = pose.Projection ?? throw new NotSupportedException("Native train contact needs this callback's actual5470E0 words.");
-            NativeWorldPathNodeProjection linked = bank.Presentation[index + link].Projection ?? throw new NotSupportedException("Native train height contact needs its actual linked-node transformed words.");
-            if (current.Source != bank.Nodes[index].Position || linked.Source != bank.Nodes[index + link].Position)
+            if (pose.Projection is null && !proximity(bank.Nodes[index].Position))
             {
-                throw new InvalidDataException("Native train contact projections differ from the current physical nodes.");
+                continue;
             }
+            NativeWorldPathNodeProjection current = pose.Projection ?? throw new NotSupportedException("Native train contact needs this callback's actual5470E0 words.");
+            // 548CD0/549B40 consume retained proximity48 and transformed words after an endpoint reset.
+            if (!proximity(current.Source))
+            {
+                continue;
+            }
+            NativeWorldPathNodeProjection linked = bank.Presentation[index + link].Projection ?? throw new NotSupportedException("Native train height contact needs its actual linked-node transformed words.");
             NativeWorldContactShape shape = assets.ReadNativeContactShape(bank.Shape(definition, index));
             if (playerHeight < Math.Min(current.Words.Y, linked.Words.Y) - shape.Height - padding || OutsideBroadPhase(player, current.Words))
             {

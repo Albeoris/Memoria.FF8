@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Runtime.Tests;
@@ -142,6 +144,34 @@ public sealed class NativeTrainRailStopTests
         Assert.True(actualEndpoint);
         Assert.Equal(stopAtEndpoint ? (short)-1 : (short)30, unblocked.Pause);
         Assert.Equal((byte)0, unblocked.StopCounter);
+        NativeTrainRailEndpointProjection receipt = Assert.IsType<NativeTrainRailEndpointProjection>(unblocked.EndpointProjection);
+        Assert.Equal(100, receipt.Callback);
+        Assert.Same(before, receipt.SourceBank);
+        Assert.Equal(stopAtEndpoint, receipt.StopAtEndpoint);
+        Assert.Null(receipt.SelectedSpeed);
+        Assert.NotEqual(unblocked.Nodes[0].Position, unblocked.Presentation[0].Projection!.Source);
+        NativeWorldRailAdvance projectedPhase = NativeWorldScriptedPathState.AdvanceRail(definition, before.Nodes, before.Direction, before.Pause, before.Speed, 100, 2, before.Status, before.StopCounter);
+        Assert.Equal(projectedPhase.Nodes.Select(node => node.Position), unblocked.Presentation.Select(pose => pose.Projection!.Source));
+        unblocked.Validate(definition);
+        unblocked.ValidateProjectionPhase(100, stopAtEndpoint);
+        Assert.Throws<InvalidDataException>(() => unblocked.ValidateProjectionPhase(101, stopAtEndpoint));
+        Assert.Throws<InvalidDataException>(() => unblocked.ValidateProjectionPhase(100, !stopAtEndpoint));
+        Assert.Throws<InvalidDataException>(() => (unblocked with { EndpointProjection = null }).Validate(definition));
+        Assert.Throws<InvalidDataException>(() => (unblocked with { EndpointProjection = receipt with { SelectedSpeed = 0 } }).Validate(definition));
+        NativeWorldPathNodePresentation forged = unblocked.Presentation[0] with { Projection = unblocked.Presentation[0].Projection! with { Source = unblocked.Presentation[0].Projection!.Source with { X = 123 } } };
+        Assert.Throws<InvalidDataException>(() => (unblocked with { Presentation = unblocked.Presentation.SetItem(0, forged) }).Validate(definition));
+        NativeTrainRailBank forgedSource = before with { Nodes = before.Nodes.SetItem(0, before.Nodes[0] with { Position = forged.Projection!.Source }) };
+        Assert.Throws<InvalidDataException>(() => (unblocked with { EndpointProjection = receipt with { SourceBank = forgedSource }, Presentation = unblocked.Presentation.SetItem(0, forged) }).Validate(definition));
+        NativeTrainRailBank independent = JsonSerializer.Deserialize<NativeTrainRailBank>(JsonSerializer.Serialize(unblocked))!;
+        independent.Validate(definition);
+        NativeTrainRailBank following = unblocked.Step(definition, 101, camera, origin, Project);
+        NativeTrainRailBank independentFollowing = independent.Step(definition, 101, camera, origin, Project);
+        Assert.Null(following.EndpointProjection);
+        Assert.Equal(JsonSerializer.Serialize(following), JsonSerializer.Serialize(independentFollowing));
+        Assert.Equal(following.Nodes.Select(node => node.Position), following.Presentation.Select(pose => pose.Projection!.Source));
+        JsonObject missing = JsonNode.Parse(JsonSerializer.Serialize(unblocked))!.AsObject();
+        missing.Remove(nameof(NativeTrainRailBank.EndpointProjection));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeTrainRailBank>(missing));
     }
 
     private static ImmutableArray<NativeWorldScriptedPathNode> Nodes(NativeWorldScriptedPathDefinition definition, int[] distances, int direction = 1)

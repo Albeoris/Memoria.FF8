@@ -190,6 +190,61 @@ public sealed class NativeNormalFootObjectTests
         Assert.Throws<NotSupportedException>(() => new WorldMapScene(following, LaunchOptions.DefaultGameDirectory));
     }
 
+    [Fact]
+    public void NormalTrainEndpointRetainsContactMinimumAndDrawProjectionThroughItsPhysicalReset()
+    {
+        GameSession session = ComponentSession(story: 352, replacementFlags: 8, spawn: 8);
+        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        PlayerAction wait = new(PlayerActionKind.Wait);
+        for (int callback = 0; callback < 2000 && world.State.NativeFootRuntime!.NormalObjects!.Alternate!.EndpointProjection is null; callback++)
+        {
+            Assert.True(world.Apply(wait).Accepted);
+        }
+        NativeNormalFootObjectProcess process = world.State.NativeFootRuntime!.NormalObjects!;
+        NativeTrainRailBank endpoint = process.Alternate!;
+        NativeTrainRailEndpointProjection receipt = Assert.IsType<NativeTrainRailEndpointProjection>(endpoint.EndpointProjection);
+        Assert.Equal(world.State.Frame, receipt.Callback);
+        Assert.NotEqual(endpoint.Nodes[0].Position, endpoint.Presentation[0].Projection!.Source);
+        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(endpoint.TrackIndex);
+        endpoint.Validate(definition);
+        NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(process.Camera);
+        NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(world.State.X, world.State.NativeHeight, -world.State.Z));
+        uint retainedMinimum = Minimum(false);
+        Assert.Equal(retainedMinimum, process.AlternateDistanceSquared);
+        Assert.NotEqual(retainedMinimum, Minimum(true));
+        byte[] pixels = world.Render(320, 224);
+        GameSession independentSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        Assert.Equal(pixels, independent.Render(320, 224));
+        PlayerAction move = new(PlayerActionKind.Move, Horizontal: 1, Vertical: 0);
+        Assert.Equal(world.Apply(move), independent.Apply(move));
+        Assert.Equal(JsonSerializer.Serialize(session.State.World), JsonSerializer.Serialize(independentSession.State.World));
+        Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
+        NativeTrainRailBank following = world.State.NativeFootRuntime!.NormalObjects!.Alternate!;
+        Assert.Null(following.EndpointProjection);
+        Assert.Equal(following.Nodes.Select(node => node.Position), following.Presentation.Select(pose => pose.Projection!.Source));
+
+        uint Minimum(bool useResetPositions)
+        {
+            uint minimum = uint.MaxValue;
+            for (int index = 0; index < endpoint.Presentation.Length; index++)
+            {
+                NativeWorldPathNodeProjection projection = endpoint.Presentation[index].Projection!;
+                if (!context.IsNear(useResetPositions ? endpoint.Nodes[index].Position : projection.Source))
+                {
+                    continue;
+                }
+                NativeWorldPathWords words = useResetPositions ? context.RelativeWords(endpoint.Nodes[index].Position) : projection.Words;
+                short dx = unchecked((short)(player.X - words.X));
+                short dy = unchecked((short)(player.Y - words.Y));
+                short dz = unchecked((short)(player.Z - words.Z));
+                minimum = Math.Min(minimum, unchecked((uint)(dx * dx + dy * dy + dz * dz)));
+            }
+            return minimum;
+        }
+    }
+
     private static GameSession ComponentSession(byte eventFlags265 = 0, ushort story = 315, byte replacementFlags = 0, byte spawn = 5)
     {
         GameSession initialized = GameSession.CreateColdProcess();

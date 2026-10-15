@@ -51,6 +51,7 @@ internal sealed partial class WorldMapScene
         {
             NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(bank.TrackIndex);
             bank.Validate(definition);
+            bank.ValidateProjectionPhase(process.Callback, (inputs.EventFlags265 & 64) != 0);
             if (process.Callback == 0)
             {
                 NativeTrainRailBank initial = NativeTrainRailBank.Create(definition, 1);

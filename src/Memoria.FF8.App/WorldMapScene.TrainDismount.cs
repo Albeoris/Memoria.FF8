@@ -50,6 +50,7 @@ internal sealed partial class WorldMapScene
         foreach (NativeTrainRailBank bank in new[] { process.Primary, process.Alternate }.OfType<NativeTrainRailBank>())
         {
             bank.Validate(assets.ReadScriptedPath(bank.TrackIndex));
+            bank.ValidateProjectionPhase(process.Callback, (WorldEntryVariables.Read(session.State).EventFlags265 & 64) != 0);
         }
     }
 
