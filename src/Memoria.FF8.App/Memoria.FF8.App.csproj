@@ -8,6 +8,7 @@
     <RootNamespace>Memoria.FF8</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <Using Include="System.IO" />
     <PackageReference Include="MonoGame.Framework.WindowsDX" />
     <PackageReference Include="SDL3-CS" />

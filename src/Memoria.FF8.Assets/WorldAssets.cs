@@ -4,6 +4,7 @@ using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -38,14 +39,21 @@ public sealed partial class WorldAssets : IDisposable
     private readonly int[] sections;
     private readonly Dictionary<(int, int), WorldSegment> segments = [];
     private readonly Dictionary<(int, int), PixelImage> textures = [];
+    private readonly Dictionary<(int, int), AssetHandle<TextureValue>> textureHandles = [];
+    private readonly ResourceService? resources;
+    private readonly AssetTextureScope textureScope;
+    private AssetHandle<TextureValue>? roadHandle;
+    private AssetHandle<TextureValue>? waterHandle;
     private byte[]? texl;
     private PixelImage? roads;
     private PixelImage? water;
     private readonly Dictionary<byte, FieldModel> footModels = [];
     private WorldFieldEntryReader? fieldEntries;
 
-    public WorldAssets(string gameDirectory)
+    public WorldAssets(string gameDirectory, ResourceService? resources = null)
     {
+        this.resources = resources;
+        textureScope = new AssetTextureScope(resources);
         this.gameDirectory = gameDirectory;
         archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "world.fs"), FlArchiveRepresentation.Files);
         terrain = Entry("wmx.obj");
@@ -79,6 +87,7 @@ public sealed partial class WorldAssets : IDisposable
         if (!footModels.TryGetValue(entityType, out FieldModel? model))
         {
             model = WorldAssetReader.ReadWorldCharacter(Read("chara.one"), shape);
+            model = model with { Textures = textureScope.RegisterList(new ResourceKey("world/chara.one"), model.Textures, "classic-model", $"model/{shape}/texture") };
             footModels.Add(entityType, model);
         }
         return model;
@@ -187,11 +196,21 @@ public sealed partial class WorldAssets : IDisposable
     {
         if (triangle.Road)
         {
-            return roads ??= CreateRoadAtlas();
+            if (roads is null)
+            {
+                roads = CreateRoadAtlas();
+                roadHandle = textureScope.Register(new TextureKey(new ResourceKey("world/wmsetus.obj"), "roads"), roads, "classic-world-roads");
+            }
+            return roadHandle?.Value.Image ?? roads;
         }
         if (triangle.Water)
         {
-            return water ??= CreateWaterAtlas();
+            if (water is null)
+            {
+                water = CreateWaterAtlas();
+                waterHandle = textureScope.Register(new TextureKey(new ResourceKey("world/wmsetus.obj"), "water"), water, "classic-world-water");
+            }
+            return waterHandle?.Value.Image ?? water;
         }
         if (!textures.TryGetValue((triangle.TexturePage, triangle.Palette), out PixelImage? image))
         {
@@ -199,8 +218,13 @@ public sealed partial class WorldAssets : IDisposable
             TimImage tim = WorldAssetReader.ReadTim(texl, triangle.TexturePage * 0x12800).Image;
             image = tim.Decode(triangle.Palette);
             textures.Add((triangle.TexturePage, triangle.Palette), image);
+            AssetHandle<TextureValue>? handle = textureScope.Register(new TextureKey(new ResourceKey("world/texl.obj"), $"texl/{triangle.TexturePage}", triangle.Palette), image, "classic-world-texl", new TextureSourceRegion(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8), palette => tim.Decode(palette), tim.Palettes.Count);
+            if (handle is not null)
+            {
+                textureHandles.Add((triangle.TexturePage, triangle.Palette), handle);
+            }
         }
-        return image;
+        return textureHandles.TryGetValue((triangle.TexturePage, triangle.Palette), out AssetHandle<TextureValue>? current) ? current.Value.Image : image;
     }
 
     private PixelImage CreateRoadAtlas()
@@ -246,6 +270,10 @@ public sealed partial class WorldAssets : IDisposable
 
     private byte[] Read(string name)
     {
+        if (resources is not null)
+        {
+            return resources.Read(new ResourceKey("world/" + name));
+        }
         IFlArchiveEntry entry = Entry(name);
         using Stream source = entry.OpenForRead();
         byte[] bytes = new byte[checked((int)entry.Size)];
@@ -255,6 +283,7 @@ public sealed partial class WorldAssets : IDisposable
 
     public void Dispose()
     {
+        textureScope.Dispose();
         archive.Dispose();
     }
 }

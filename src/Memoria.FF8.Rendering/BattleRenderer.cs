@@ -114,7 +114,8 @@ public sealed class BattleRenderer
         Vector3[] transformed = positions.Select(position => Vector3.Transform(position, view)).ToArray();
         foreach (BattleFace face in mesh.Faces)
         {
-            Vertex At(int index) => new(transformed[face.Vertices[index]], face.Uv[index]);
+            Vector2 textureScale = ResourceTextureList.PhysicalScale(textures, face.Texture);
+            Vertex At(int index) => new(transformed[face.Vertices[index]], face.Uv[index] * textureScale);
             // Native50FDF0/510680 accepts positive projected winding for both triangles and quads.
             // The camera-space plane test is equivalent before near clipping; use the original first three corners.
             Vector3 first = At(0).Position;

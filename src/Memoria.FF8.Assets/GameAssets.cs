@@ -6,6 +6,7 @@ using Albeoris.Games.FF8.Msd;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
 using System.Collections.Concurrent;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -18,6 +19,9 @@ public sealed class GameAssets : IDisposable
     private readonly Dictionary<int, FieldAssets> fields = [];
     private readonly Dictionary<int, FieldSoundEffectTable> fieldSoundEffects = [];
     private readonly IAssetOverrideSource? overrides;
+    private readonly ResourceService? resources;
+    private readonly AssetTextureScope textureScope;
+    private readonly Dictionary<IFlArchive, string> archiveIdentities = [];
     private IFlArchive? mainCharacters;
     private NativeVibrationBank? nativeVibrationBank;
     private NativeShopDefinitions? nativeShopDefinitions;
@@ -25,8 +29,10 @@ public sealed class GameAssets : IDisposable
     private NativeDrawPointCatalog? nativeDrawPointCatalog;
     private NativeEncounterTables? nativeEncounterTables;
 
-    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null)
+    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null)
     {
+        this.resources = resources;
+        textureScope = new AssetTextureScope(resources);
         this.overrides = overrides;
         GameDirectory = Path.GetFullPath(gameDirectory);
         string executable = Path.Combine(GameDirectory, "FF8_EN.exe");
@@ -40,6 +46,7 @@ public sealed class GameAssets : IDisposable
             });
         }
         outer = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "field.fs"), FlArchiveRepresentation.Files);
+        archiveIdentities[outer] = "field";
         using IFlArchive mapData = OpenNested("mapdata");
         fieldNames = System.Text.Encoding.ASCII.GetString(Read(mapData, "maplist")).Replace("\r", "").Split('\n');
     }
@@ -210,8 +217,13 @@ public sealed class GameAssets : IDisposable
         MapFile map = MapFile.Read(mapBytes);
         MimFile mim = MimFile.Read(mimBytes);
         BackgroundTile[] tiles = map.Tiles.Select(tile => new BackgroundTile(tile.X, tile.Y, unchecked((ushort)tile.Z), tile.Parameter, tile.State, tile.PackedLayer >> 1, tile.BlendMode, ((tile.PackedTexture >> 5) & 3) != 0, (tile.PackedTexture & 0x10) != 0, FieldBackgroundTileDecoder.Decode(mim, tile)) { PackedPalette = tile.PackedPalette }).ToArray();
+        for (int index = 0; index < tiles.Length; index++)
+        {
+            BackgroundTile tile = tiles[index];
+            tiles[index] = tile with { Texture = textureScope.Register(new TextureKey(new ResourceKey($"field/{name}/{name}.mim"), $"tile/{index}", map.Tiles[index].PaletteId), tile.Image, "classic-field-tile") };
+        }
         byte[] one = Read(nested, "chara.one");
-        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, ReadMainCharacter);
+        IReadOnlyList<FieldModel> models = FieldModelReader.Read(one, ReadMainCharacter).Select((model, index) => model with { Textures = textureScope.RegisterList(new ResourceKey($"field/{name}/chara.one"), model.Textures, "classic-model", $"model/{index}/texture") }).ToArray();
         IReadOnlyList<FieldCamera> cameras = FieldCamera.ReadAll(Read(nested, name + ".ca"));
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");
@@ -266,7 +278,9 @@ public sealed class GameAssets : IDisposable
 
     private IFlArchive OpenNested(string name)
     {
-        return FlArchive.Open(new MemoryStream(Read(outer, name + ".fl"), false), new MemoryStream(Read(outer, name + ".fi"), false), new MemoryStream(Read(outer, name + ".fs"), false), false, FlArchiveRepresentation.Files);
+        IFlArchive result = FlArchive.Open(new MemoryStream(Read(outer, name + ".fl"), false), new MemoryStream(Read(outer, name + ".fi"), false), new MemoryStream(Read(outer, name + ".fs"), false), false, FlArchiveRepresentation.Files);
+        archiveIdentities[result] = "field/" + name;
+        return result;
     }
 
     private byte[] Read(IFlArchive archive, string basename)
@@ -277,6 +291,10 @@ public sealed class GameAssets : IDisposable
         {
             return content;
         }
+        if (resources is not null && archiveIdentities.TryGetValue(archive, out string? identity))
+        {
+            return resources.Read(new ResourceKey(identity + "/" + basename));
+        }
         using Stream source = entry.OpenForRead();
         using MemoryStream result = new(checked((int)entry.Size));
         source.CopyTo(result);
@@ -285,6 +303,7 @@ public sealed class GameAssets : IDisposable
 
     public void Dispose()
     {
+        textureScope.Dispose();
         mainCharacters?.Dispose();
         outer.Dispose();
     }

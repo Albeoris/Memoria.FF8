@@ -53,6 +53,9 @@ internal static class MenuPreview
             throw new ArgumentException("Menu preview requires --output <PNG>, optional --screen <screen-id|battle-debug>, --expanded and --resolution WxH.");
         }
         UiView view;
+        using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false);
+        mods.PreparePending(true);
+        mods.CommitPending();
         if (screen == "battle-debug")
         {
             MenuData fixture = MenuDemoData.Create();
@@ -70,6 +73,7 @@ internal static class MenuPreview
         {
             UiPreferences preferences = new();
             MenuController menus = new();
+            menus.ConnectMods(mods);
             menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
             Dictionary<int, string> names = Enumerable.Range(0, 43).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);
             menus.ConnectNaming(() => names.Select(pair => new DebugNameTarget(pair.Key, pair.Value, pair.Key is >= 16 and <= 31 ? "GF" : "Character")).ToArray(), (subject, name) => names[subject] = name);

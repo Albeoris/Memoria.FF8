@@ -3,6 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="BCnEncoder.Net" Version="2.3.0" />
     <PackageVersion Include="MonoGame.Framework.WindowsDX" Version="3.8.5.1" />
     <PackageVersion Include="SDL3-CS" Version="3.4.18" />
     <PackageVersion Include="SDL3-CS.Windows" Version="3.4.18" />

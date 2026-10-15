@@ -112,7 +112,8 @@ internal static class HeadlessPlayer
         }
         Directory.CreateDirectory(outputDirectory);
         var session = new GameSession(options.InitialState);
-        using var world = new GameWorld(session, options.GameDirectory);
+        using var resourceHost = new GameResourceHost(options.GameDirectory);
+        using var world = new GameWorld(session, options.GameDirectory, resources: resourceHost.Resources);
         world.EnsureField();
         world.SetRenderSize(options.Width, options.Height);
         List<PlayerActionResult> results = [];
@@ -123,6 +124,7 @@ internal static class HeadlessPlayer
         PlayerAction? attempted = null;
         for (int index = 0; index < (worldTarget is null && fieldPath is null ? actions.Length : worldBudget); index++)
         {
+            resourceHost.Pump();
             WorldState? before = session.State.World;
             PlayerAction action;
             if (fieldPath is not null)

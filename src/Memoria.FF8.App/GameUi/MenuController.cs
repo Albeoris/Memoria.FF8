@@ -306,6 +306,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteModAction(action))
+        {
+            return;
+        }
         if (ExecuteNamingAction(action))
         {
             return;

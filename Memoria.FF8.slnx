@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
+    <Project Path="src/Memoria.FF8.Mods/Memoria.FF8.Mods.csproj" />
     <Project Path="src/Memoria.FF8.Ui/Memoria.FF8.Ui.csproj" />
     <Project Path="src/Memoria.FF8.App/Memoria.FF8.App.csproj" />
     <Project Path="src/Memoria.FF8.Music/Memoria.FF8.Music.csproj" />
@@ -10,6 +12,7 @@
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Memoria.FF8.Mods.Tests/Memoria.FF8.Mods.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Battle.Tests/Memoria.FF8.Battle.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Ui.Tests/Memoria.FF8.Ui.Tests.csproj" />
     <Project Path="tests/Memoria.FF8.Acceptance/Memoria.FF8.Acceptance.csproj" />

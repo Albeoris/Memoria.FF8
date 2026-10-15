@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Memoria.FF8.Resources/Memoria.FF8.Resources.csproj" />
     <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
     <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.KernelBin/Albeoris.Games.FF8.KernelBin.csproj" />
     <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.FlArchives/Albeoris.Games.FF8.FlArchives.csproj" />

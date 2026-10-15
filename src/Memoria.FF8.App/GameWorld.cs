@@ -3,6 +3,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 
@@ -11,15 +12,17 @@ internal sealed partial class GameWorld : IDisposable
 {
     private readonly GameSession session;
     private readonly GameAssets assets;
+    private readonly ResourceService? resources;
     private FieldRenderer? renderer;
     private WorldMapScene? worldScene;
     private int renderWidth = FieldRenderer.Width;
     private int renderHeight = FieldRenderer.Height;
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null)
     {
         this.session = session;
-        assets = new GameAssets(gameDirectory);
+        this.resources = resources;
+        assets = new GameAssets(gameDirectory, resources: resources);
         bool initializedNativeParty = false;
         if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
@@ -128,7 +131,7 @@ internal sealed partial class GameWorld : IDisposable
             {
                 throw new NotSupportedException("World restoration requires its executed native music-loader receipt; migrate this save explicitly.");
             }
-            worldScene = new WorldMapScene(session, assets.GameDirectory);
+            worldScene = new WorldMapScene(session, assets.GameDirectory, resources);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)

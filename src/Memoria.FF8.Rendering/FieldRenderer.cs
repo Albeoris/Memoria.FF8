@@ -40,6 +40,8 @@ public sealed partial class FieldRenderer
     private FieldCamera camera;
     private readonly ModelTextureSampling modelTextureSampling;
     private readonly TileRaster[] background;
+    private readonly Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>? backgroundPublication;
+    private long backgroundTextureGeneration;
     private TileRaster[] renderBackground;
     private Dictionary<int, Vector2> backgroundScrollOffsets = [];
     private FieldNativeBackgroundWrapFrame? backgroundWrapFrame;
@@ -79,6 +81,8 @@ public sealed partial class FieldRenderer
         clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, outputWidth);
         clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + presentationHeight * scale - 0.5f), 0, outputHeight);
         background = field.Background.Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
+        backgroundPublication = field.Background.Select(tile => tile.Texture).FirstOrDefault(texture => texture is not null);
+        backgroundTextureGeneration = backgroundPublication?.Generation ?? 0;
         renderBackground = PrepareBackgroundRasters(EmptyScrollOffsets, null, Vector2.Zero);
     }
 
@@ -113,7 +117,22 @@ public sealed partial class FieldRenderer
         backgroundColor = backgroundShade ?? new Vector3(128);
         moduleColors = backgroundModuleShades;
         this.actorScrollOffset = actorScrollOffset + jitter;
-        if (this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter)
+        bool layoutChanged = false;
+        if (backgroundPublication is not null && backgroundPublication.Generation != backgroundTextureGeneration)
+        {
+            for (int index = 0; index < background.Length; index++)
+            {
+                TileRaster raster = background[index];
+                PixelImage image = raster.Tile.ResolvedImage;
+                if (image.Width != raster.SourceWidth || image.Height != raster.SourceHeight)
+                {
+                    background[index] = CreateTileRaster(raster.Tile, Vector2.Zero);
+                    layoutChanged = true;
+                }
+            }
+            backgroundTextureGeneration = backgroundPublication.Generation;
+        }
+        if (layoutChanged || this.backgroundScrollOffsets.Count != nextOffsets.Count || nextOffsets.Any(pair => !this.backgroundScrollOffsets.TryGetValue(pair.Key, out Vector2 previous) || previous != pair.Value) || !SameWrapFrame(backgroundWrapFrame, nativeWrapFrame) || backgroundCameraIndex != cameraIndex || backgroundJitter != jitter)
         {
             TileRaster[] nextBackground = PrepareBackgroundRasters(nextOffsets, nativeWrapFrame, jitter);
             this.backgroundScrollOffsets = nextOffsets.ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -243,6 +262,7 @@ public sealed partial class FieldRenderer
 
     private TileRaster CreateTileRaster(BackgroundTile tile, Vector2 scrollOffset)
     {
+        PixelImage image = tile.ResolvedImage;
         // Cover sample centers in [origin, origin + 16). Adjacent MAP tiles
         // share an edge, so fractional scaling must not blend that row twice.
         int startX = Math.Clamp((int)MathF.Ceiling(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale - 0.5f), clipLeft, clipRight);
@@ -252,12 +272,12 @@ public sealed partial class FieldRenderer
         RasterRun[] columns = CreateRuns(startX, endX, destinationX =>
         {
             float logicalX = (destinationX + 0.5f - offsetX) / scale - tile.X - drawingOrigin.X - scrollOffset.X;
-            return Math.Clamp((int)(logicalX * tile.Image.Width / 16), 0, tile.Image.Width - 1);
+            return Math.Clamp((int)(logicalX * image.Width / 16), 0, image.Width - 1);
         });
         RasterRun[] rows = CreateRuns(startY, endY, destinationY =>
         {
             float logicalY = (destinationY + 0.5f - offsetY) / verticalScale - tile.Y - drawingOrigin.Y - scrollOffset.Y;
-            return Math.Clamp((int)(logicalY * tile.Image.Height / 16), 0, tile.Image.Height - 1);
+            return Math.Clamp((int)(logicalY * image.Height / 16), 0, image.Height - 1);
         });
         return new TileRaster(tile, columns, rows);
     }
@@ -282,16 +302,17 @@ public sealed partial class FieldRenderer
     private void DrawTile(TileRaster raster, bool translucentPass = false)
     {
         BackgroundTile tile = raster.Tile;
+        PixelImage image = tile.ResolvedImage;
         // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
         Vector3 shade = moduleColors is not null && tile.AnimationId != 255 && moduleColors.TryGetValue(tile.AnimationId, out Vector3 moduleShade) ? moduleShade : backgroundColor;
         float tileDepth = raster.Depth;
         Span<uint> packedPixels = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
         foreach (RasterRun row in raster.Rows)
         {
-            int sourceRow = row.Source * tile.Image.Width;
+            int sourceRow = row.Source * image.Width;
             foreach (RasterRun column in raster.Columns)
             {
-                Rgba32 color = Shade(tile.Image.Pixels[sourceRow + column.Source], shade);
+                Rgba32 color = Shade(image.Pixels[sourceRow + column.Source], shade);
                 if (color.A == 0)
                 {
                     continue;
@@ -345,6 +366,8 @@ public sealed partial class FieldRenderer
     private readonly record struct RasterRun(int Start, int End, int Source);
     private sealed record TileRaster(BackgroundTile Tile, RasterRun[] Columns, RasterRun[] Rows)
     {
+        public int SourceWidth { get; } = Tile.ResolvedImage.Width;
+        public int SourceHeight { get; } = Tile.ResolvedImage.Height;
         public float Depth { get; init; }
     }
 
@@ -384,10 +407,11 @@ public sealed partial class FieldRenderer
                 continue;
             }
             PixelImage texture = model.Textures[face.Texture];
-            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
+            Vector2 textureScale = ResourceTextureList.PhysicalScale(model.Textures, face.Texture);
+            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
             if (face.Quad)
             {
-                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
+                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
             }
         }
     }

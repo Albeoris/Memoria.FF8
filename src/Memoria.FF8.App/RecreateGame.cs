@@ -14,6 +14,7 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame : Game
 {
     private readonly LaunchOptions options;
+    private GameResourceHost? resourceHost;
     private readonly GameSession session;
     private readonly GraphicsDeviceManager graphics;
     private readonly KeyboardInput keyboard = new();
@@ -76,6 +77,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void LoadContent()
     {
+        resourceHost = new GameResourceHost(options.GameDirectory);
         controller = new ControllerDevice();
         controllerFeedback = new ControllerFeedback(controller.SetVibration);
         batch = new SpriteBatch(GraphicsDevice);
@@ -97,6 +99,8 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        resourceHost?.Pump();
+        gameMenus?.RefreshModView();
         try
         {
             UpdateGameFrame(gameTime);
@@ -256,7 +260,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;
@@ -626,7 +630,7 @@ internal sealed partial class RecreateGame : Game
         var candidateSession = new GameSession(state);
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory));
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory), resourceHost?.Resources);
             candidate.EnsureField();
         }
     }
@@ -1016,6 +1020,7 @@ internal sealed partial class RecreateGame : Game
             fieldAudio?.Dispose();
             movie?.Dispose();
             world?.Dispose();
+            resourceHost?.Dispose();
             DisposeBattlePresentation();
             fieldTexture?.Dispose();
             uiCanvas?.Dispose();

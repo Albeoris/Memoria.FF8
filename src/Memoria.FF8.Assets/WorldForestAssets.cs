@@ -52,6 +52,7 @@ public sealed partial class WorldAssets
 {
     private NativeWorldForestTables? forestTables;
     private readonly Dictionary<(byte Type, int Frame), PixelImage> forestTextures = [];
+    private readonly Dictionary<(byte Type, int Frame), Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>> forestTextureHandles = [];
     private TimImage? forestTim;
     public NativeWorldForestTables ForestTables => forestTables ??= new NativeWorldForestTables(gameDirectory);
 
@@ -64,7 +65,7 @@ public sealed partial class WorldAssets
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(frame, effect.Frames);
         if (forestTextures.TryGetValue((type, frame), out PixelImage? cached))
         {
-            return cached;
+            return forestTextureHandles.TryGetValue((type, frame), out var current) ? current.Value.Image : cached;
         }
         forestTim ??= WorldAssetReader.InnerPointers(wmset, sections[37]).Select(pointer => WorldAssetReader.ReadTim(wmset, sections[37] + pointer).Image).Single(tim => tim.X == 880 && tim.Y == 96 && tim.WidthInWords == 16 && tim.Height == 16);
         if (forestTim.PixelMode != TimPixelMode.Indexed4 || forestTim.Clut is not { X: 832, Y: 226, Width: 16, Height: 6 })
@@ -78,6 +79,11 @@ public sealed partial class WorldAssets
             atlas.Pixels.AsSpan(row * atlas.Width + frame * 16, 16).CopyTo(texture.Pixels.AsSpan(row * 16, 16));
         }
         forestTextures.Add((type, frame), texture);
-        return texture;
+        var handle = textureScope.Register(new Memoria.FF8.Resources.TextureKey(new Memoria.FF8.Resources.ResourceKey("world/wmsetus.obj"), $"forest/{type}/{frame}"), texture, "classic-world-sprite");
+        if (handle is not null)
+        {
+            forestTextureHandles.Add((type, frame), handle);
+        }
+        return handle?.Value.Image ?? texture;
     }
 }

@@ -275,7 +275,7 @@ public sealed class WorldTerrainRenderer
         foreach (ModelFace face in model.Faces)
         {
             PixelImage texture = model.Textures[face.Texture];
-            Vector2 size = new(texture.Width, texture.Height);
+            Vector2 size = ResourceTextureList.LogicalSize(model.Textures, face.Texture);
             Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size);
             Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size);
             Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size);
@@ -296,7 +296,7 @@ public sealed class WorldTerrainRenderer
         foreach (WorldStaticFace face in model.Faces)
         {
             PixelImage texture = model.Textures[face.Palette];
-            Vector2 size = new(texture.Width, texture.Height);
+            Vector2 size = ResourceTextureList.LogicalSize(model.Textures, face.Palette);
             Vertex a = new(vertices[face.Vertices[0]], face.TextureCoordinates[0] / size);
             Vertex b = new(vertices[face.Vertices[1]], face.TextureCoordinates[1] / size);
             Vertex c = new(vertices[face.Vertices[2]], face.TextureCoordinates[2] / size);

@@ -41,6 +41,7 @@ public sealed partial class WorldAssets
                 throw new InvalidDataException("Scripted static texture leaves its original WMSET section.");
             }
             model = WorldStaticModelReader.Read(shape, wmset.AsSpan(modelStart, sections[16] - modelStart), texture.Image);
+            model = model with { Textures = textureScope.RegisterList(new Memoria.FF8.Resources.ResourceKey("world/wmsetus.obj"), model.Textures, "classic-model", $"static/{shape}/palette") };
             scriptedStaticModels.Add(shape, model);
         }
         return model;

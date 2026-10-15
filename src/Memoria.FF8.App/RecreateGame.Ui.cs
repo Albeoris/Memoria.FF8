@@ -30,6 +30,7 @@ internal sealed partial class RecreateGame
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        gameMenus.ConnectMods(resourceHost!.Mods);
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
         gameMenus.ConnectBattleSettings(() => ActiveBattle?.Outcome == BattleOutcome.Active, victory => ApplyBattleCommand(new BattleInput(victory ? BattleInputKind.InstantVictory : BattleInputKind.InstantDefeat)));

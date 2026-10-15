@@ -13,7 +13,7 @@ internal sealed partial class GameWorld
 
     public BattleSession? Battle => battle;
     public BattleRewardSummary? LastBattleRewards { get; private set; }
-    public BattleAssets BattleResources => battleAssets ??= new BattleAssets(assets.GameDirectory);
+    public BattleAssets BattleResources => battleAssets ??= new BattleAssets(assets.GameDirectory, resources);
 
     private void ConfigureBattleHost()
     {

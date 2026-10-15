@@ -2,6 +2,7 @@ using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.TextEncoding;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
@@ -16,9 +17,13 @@ public sealed partial class BattleAssets : IDisposable
     private readonly byte[] encounters;
     private readonly BattlePlayerStatReader playerStats;
     private readonly Albeoris.Games.FF8.KernelBin.KernelData battleKernel;
+    private readonly ResourceService? resources;
+    private readonly AssetTextureScope textureScope;
 
-    public BattleAssets(string gameDirectory)
+    public BattleAssets(string gameDirectory, ResourceService? resources = null)
     {
+        this.resources = resources;
+        textureScope = new AssetTextureScope(resources);
         archive = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "battle.fs"), FlArchiveRepresentation.Files);
         entries = archive.Entries.ToDictionary(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1], StringComparer.OrdinalIgnoreCase);
         using (IFlArchive main = FlArchive.OpenForRead(Path.Combine(gameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files))
@@ -116,6 +121,7 @@ public sealed partial class BattleAssets : IDisposable
         if (!stages.TryGetValue(stageId, out BattleStage? stage))
         {
             stage = BattleResourceReader.ReadStage(stageId, Read($"a0stg{stageId:000}.x"));
+            stage = stage with { Textures = textureScope.RegisterList(new ResourceKey($"battle/a0stg{stageId:000}.x"), stage.Textures, "classic-battle") };
             stages.Add(stageId, stage);
         }
         return stage;
@@ -300,6 +306,7 @@ public sealed partial class BattleAssets : IDisposable
         if (!models.TryGetValue(key, out BattleModel? model))
         {
             model = BattleResourceReader.ReadWeapon(name, Read(name), character);
+            model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(key, model);
         }
         return model;
@@ -310,6 +317,7 @@ public sealed partial class BattleAssets : IDisposable
         if (!models.TryGetValue(name, out BattleModel? model))
         {
             model = BattleResourceReader.ReadModel(name, Read(name));
+            model = model with { Textures = textureScope.RegisterList(new ResourceKey("battle/" + name), model.Textures, "classic-battle") };
             models.Add(name, model);
         }
         return model;
@@ -320,6 +328,12 @@ public sealed partial class BattleAssets : IDisposable
         if (resourceBytes.TryGetValue(name, out byte[]? cached))
         {
             return cached;
+        }
+        if (resources is not null)
+        {
+            byte[] content = resources.Read(new ResourceKey("battle/" + name));
+            resourceBytes.Add(name, content);
+            return content;
         }
         if (!entries.TryGetValue(name, out IFlArchiveEntry? entry))
         {
@@ -333,5 +347,9 @@ public sealed partial class BattleAssets : IDisposable
         return bytes;
     }
 
-    public void Dispose() => archive.Dispose();
+    public void Dispose()
+    {
+        textureScope.Dispose();
+        archive.Dispose();
+    }
 }

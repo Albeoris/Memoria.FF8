@@ -3,6 +3,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Resources;
 
 namespace Memoria.FF8;
 
@@ -27,7 +28,7 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<bool>? HasPendingBattle { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
-    public WorldMapScene(GameSession session, string gameDirectory)
+    public WorldMapScene(GameSession session, string gameDirectory, ResourceService? resources = null)
     {
         this.session = session;
         if (session.State.Scene != SceneKind.WorldMap || session.State.WorldArrival is not WorldTransition arrival)
@@ -111,7 +112,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
             }
         }
-        assets = new WorldAssets(gameDirectory);
+        assets = new WorldAssets(gameDirectory, resources);
         try
         {
             storyByte = inputs.StoryByte;

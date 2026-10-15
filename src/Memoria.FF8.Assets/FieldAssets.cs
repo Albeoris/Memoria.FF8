@@ -35,6 +35,8 @@ public sealed record FieldAssets(int Id, string Name, byte[] Jsm, IReadOnlyList<
 public sealed record BackgroundTile(int X, int Y, int Z, int AnimationId, int AnimationState, int Layer, MapBlendMode BlendMode, bool Blend, bool Draw, PixelImage Image)
 {
     public ushort PackedPalette { get; init; }
+    public Memoria.FF8.Resources.AssetHandle<Memoria.FF8.Resources.TextureValue>? Texture { get; init; }
+    public PixelImage ResolvedImage => Texture?.Value.Image ?? Image;
 }
 public readonly record struct ProjectedPoint(float X, float Y, float Depth);
 
