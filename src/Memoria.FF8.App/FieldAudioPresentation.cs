@@ -56,6 +56,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
     }
 
     public string? Error { get; private set; }
+    internal bool IsMidiPlaying => music?.IsPlaying == true;
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameDirectory);
     private DirectSoundOutput Sound => sound ??= new DirectSoundOutput(window);
     private DirectMusicOutput Music => music ??= new DirectMusicOutput(window, Path.Combine(gameDirectory, "Data", "Music", "dmusic"));

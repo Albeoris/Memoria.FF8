@@ -107,6 +107,7 @@ internal static partial class Program
                     ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
                     ["native-facedir"] = NativeFacePointContract,
+                    ["native-facedirp"] = NativePartyFaceContract,
                     ["native-face-sync"] = NativeFaceSyncContract,
                     ["native-rfacedir"] = NativeAsyncFacePointContract,
                     ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,
@@ -216,6 +217,7 @@ internal static partial class Program
             NativeSeeDContract(gameDirectory);
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
+            NativePartyFaceContract();
             NativePlayerScriptHandoffContract(gameDirectory);
             NativeEmptyPartyModelContract();
             NativeVibrationContract();

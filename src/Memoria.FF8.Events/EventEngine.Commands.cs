@@ -289,6 +289,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.FACEDIRSYNC:
                 ExecuteNativeFaceSync(fiber);
                 break;
+            case Jsm.Opcode.FACEDIRP:
+                args = ExecuteNativePartyFace(fiber, out scalarArgs);
+                break;
             case Jsm.Opcode.FACEDIRA:
                 args = Pop(fiber, 2);
                 if (program is null || (uint)args[0] >= program.NativeObjects.Count)

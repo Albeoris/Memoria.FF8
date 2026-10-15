@@ -66,6 +66,10 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeFacePoint(fiber);
         }
+        if (operation.Opcode == Jsm.Opcode.FACEDIRP)
+        {
+            return UnsupportedNativePartyFace(fiber);
+        }
         if (operation.Opcode is Jsm.Opcode.FACEDIROFF or Jsm.Opcode.RFACEDIROFF)
         {
             return UnsupportedNativeFaceReturn(fiber);

@@ -5,6 +5,45 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    private ActorState? ResolveNativeIndexedPartyBody(int operand, out int bankAddress, out byte nativeActor)
+    {
+        bankAddress = -1;
+        nativeActor = 0;
+        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || Scene.NativeActorObjectIds.Count is < 1 or > 255 || Scene.NativeActorObjectIds.Any(id => (uint)id >= actors.Count) || Scene.NativeActorObjectIds.Distinct().Count() != Scene.NativeActorObjectIds.Count)
+        {
+            throw new NotSupportedException("Native indexed party lookup requires its authenticated compact body table.");
+        }
+        long address = 194L + operand;
+        if (address is < 0 or >= 248)
+        {
+            throw new NotSupportedException("Native indexed party byte lies outside the retained event bank.");
+        }
+        bankAddress = (int)address;
+        int index;
+        if (bankAddress is >= 194 and <= 196 && Scene.PartyBindingMemory is { Version: 1 } memory)
+        {
+            index = memory.At(bankAddress - 194);
+        }
+        else if (TryReadNativeMusicByte(bankAddress, out int music))
+        {
+            index = music;
+        }
+        else if (TryReadSoundVolumeByte(bankAddress, out int volume))
+        {
+            index = volume;
+        }
+        else
+        {
+            throw new NotSupportedException("Native indexed party lookup requires an executed owner for its event-bank byte.");
+        }
+        if (variables.TryGetValue(bankAddress, out int alias) && alias != index)
+        {
+            throw new NotSupportedException("Native indexed party byte differs from its canonical owner.");
+        }
+        nativeActor = checked((byte)index);
+        return nativeActor < Scene.NativeActorObjectIds.Count ? actors[Scene.NativeActorObjectIds[nativeActor]] : null;
+    }
+
     private ActorState? ResolveNativeActorInfoBody(Fiber fiber, bool party, out int bankAddress, out byte nativeActor)
     {
         bankAddress = -1;
@@ -13,48 +52,20 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native actor information requires authenticated field body allocation.");
         }
-        ActorState actor;
+        ActorState? actor;
         if (party)
         {
-            if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || Scene.NativeActorLayoutVersion != 1 || Scene.NativeActorObjectIds.Count is < 1 or > 255 || Scene.NativeActorObjectIds.Any(id => (uint)id >= actors.Count) || Scene.NativeActorObjectIds.Distinct().Count() != Scene.NativeActorObjectIds.Count)
+            if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact)
             {
-                throw new NotSupportedException("PGETINFO requires its exact original DWORD operand and native compact body table.");
+                throw new NotSupportedException("PGETINFO requires its exact original DWORD operand.");
             }
-            long address = 194L + fiber.Stack.Peek();
-            if (address is < 0 or >= 248)
+            actor = ResolveNativeIndexedPartyBody(fiber.Stack.Peek(), out bankAddress, out nativeActor);
+            if (actor is null)
             {
-                throw new NotSupportedException("PGETINFO indexed byte lies outside the retained native event bank.");
-            }
-            bankAddress = (int)address;
-            int index;
-            if (bankAddress is >= 194 and <= 196 && Scene.PartyBindingMemory is { Version: 1 } memory)
-            {
-                index = memory.At(bankAddress - 194);
-            }
-            else if (TryReadNativeMusicByte(bankAddress, out int music))
-            {
-                index = music;
-            }
-            else if (TryReadSoundVolumeByte(bankAddress, out int volume))
-            {
-                index = volume;
-            }
-            else
-            {
-                throw new NotSupportedException("PGETINFO requires an executed owner for its indexed native event-bank byte.");
-            }
-            if (variables.TryGetValue(bankAddress, out int alias) && alias != index)
-            {
-                throw new NotSupportedException("PGETINFO indexed byte differs from its canonical native owner.");
-            }
-            nativeActor = checked((byte)index);
-            if (nativeActor >= Scene.NativeActorObjectIds.Count)
-            {
-                // Native51EEB0 still reads base+612*index. No retained body supplies
-                // those bytes; preserve unknown results rather than select another actor.
+                // Native51EEB0 still reads base+612*index. Preserve unknown results
+                // when no retained body supplies those bytes.
                 return null;
             }
-            actor = actors[Scene.NativeActorObjectIds[nativeActor]];
         }
         else
         {

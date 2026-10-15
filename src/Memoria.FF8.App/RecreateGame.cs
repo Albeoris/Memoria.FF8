@@ -793,7 +793,7 @@ internal sealed partial class RecreateGame : Game
     protected override void Draw(GameTime gameTime)
     {
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
+        if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.Field is not null && (session.State.Scene == SceneKind.Field || session.State.Scene == SceneKind.Movie && movie?.HasFrame != true)))
         {
             try
             {

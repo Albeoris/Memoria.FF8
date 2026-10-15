@@ -275,9 +275,10 @@ internal sealed partial class GameWorld
         {
             return;
         }
-        // A recorded decision owns its visible script site, not the old interpreter's callback latency.
+        // An accepted decision owns its visible script site, not the old interpreter's callback latency.
+        // A rejected attempt must retain its current site without waiting for acceptance or advancing the VM.
         // Only real autonomous callbacks run here; no input, answer or snapshot value is injected.
-        for (int callback = 0; engine.CurrentDialogue is null || !engine.CurrentDialogue.CanConfirm; callback++)
+        for (int callback = 0; entry.Accepted && (engine.CurrentDialogue is null || !engine.CurrentDialogue.CanConfirm); callback++)
         {
             if (callback == 30000 || engine.FieldId != entry.FieldId || engine.LastFault is not null || engine.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Movie)
             {

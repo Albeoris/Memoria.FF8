@@ -165,7 +165,7 @@ public sealed class IfritCausalRecreationTests
         return session.IsMoviePlaying ? new PlayerAction(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue?.FirstChoice is int first ? new PlayerAction(PlayerActionKind.Choose, first) : dialogue is { CanConfirm: true } ? new PlayerAction(PlayerActionKind.Confirm) : new PlayerAction(PlayerActionKind.Wait);
     }
 
-    internal static void WalkGateway(GameWorld world, GameSession session, int destination, bool worldExit = false)
+    internal static void WalkGateway(GameWorld world, GameSession session, int destination, bool worldExit = false, int? lineObjectId = null)
     {
         int source = session.State.FieldId;
         DriveUntil(world, session, () => world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable);
@@ -176,7 +176,7 @@ public sealed class IfritCausalRecreationTests
         if (gateways.Length == 0)
         {
             ActorState current = Player(world);
-            ActorState? line = world.Events.Actors.Where(actor => actor.LineEnabled && actor.LineStart is not null && actor.LineEnd is not null).MaxBy(actor => Vector2.DistanceSquared(new Vector2(current.X, current.Y), new Vector2((actor.LineStart!.Value.X + actor.LineEnd!.Value.X) / 2, (actor.LineStart.Value.Y + actor.LineEnd.Value.Y) / 2)));
+            ActorState? line = world.Events.Actors.Where(actor => actor.LineEnabled && actor.LineStart is not null && actor.LineEnd is not null && (lineObjectId is null || actor.ObjectId == lineObjectId)).MaxBy(actor => Vector2.DistanceSquared(new Vector2(current.X, current.Y), new Vector2((actor.LineStart!.Value.X + actor.LineEnd!.Value.X) / 2, (actor.LineStart.Value.Y + actor.LineEnd.Value.Y) / 2)));
             if (line is null)
             {
                 throw new NotSupportedException($"Field{source} has no advisory INF gateway or executed SETLINE to{destination}.");
@@ -269,6 +269,37 @@ public sealed class IfritCausalRecreationTests
             ApplyGuidedMove(world, new PlayerAction(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y), ref unchanged);
         }
         throw new NotSupportedException($"Direct advisory interaction in field{world.Events.FieldId}/actor{target} stalled at {Player(world).X},{Player(world).Y}.");
+    }
+
+    internal static void WalkRoutedToInteraction(GameWorld world, GameSession session, int target)
+    {
+        DriveUntil(world, session, () => world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable);
+        FieldAssets field = world.Field!;
+        ActorState actor = world.Events.Actors[target];
+        ActorState player = Player(world);
+        Vector2 destination = new(actor.X, actor.Y);
+        int triangle = ReachableTriangles(field, player.WalkmeshTriangle, world.Events.Scene.LockedTriangles).MinBy(index => Vector2.DistanceSquared(Center(field, index), destination));
+        foreach (int next in TriangleRoute(field, player.WalkmeshTriangle, triangle, world.Events.Scene.LockedTriangles).Skip(1))
+        {
+            Vector2 point = Center(field, next);
+            int unchanged = 0;
+            for (int tick = 0; tick < 3000; tick++)
+            {
+                if (world.Events.SelectInteractionTarget() == target)
+                {
+                    return;
+                }
+                player = Player(world);
+                Vector2 delta = point - new Vector2(player.X, player.Y);
+                if (delta.Length() <= 33)
+                {
+                    break;
+                }
+                Vector2 axes = Vector2.Transform(Vector2.Normalize(delta), Matrix3x2.CreateRotation(-world.Events.InputAxisDirection * MathF.Tau / 256));
+                ApplyGuidedMove(world, new PlayerAction(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y), ref unchanged);
+            }
+        }
+        WalkDirectToInteraction(world, session, target);
     }
 
     private static void WalkAdvisoryPoint(GameWorld world, GameSession session, Vector2 point)
