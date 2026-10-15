@@ -200,6 +200,23 @@ public sealed partial class EventEngine
             fiber.WaitReason = WaitReason.PartyJoin;
             return;
         }
+        bool completed = partyJoin.Targets.All(target => actors[target.ObjectId].NativeMovementCompletion542 == 2);
+        (PartyTraceState Trace, FieldFixedPosition LeaderPosition)? preparedTrace = null;
+        if (completed)
+        {
+            try
+            {
+                preparedTrace = PrepareJoinedPartyTrace();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or InvalidDataException or ArithmeticException or NotSupportedException)
+            {
+                // Run has advanced this held JOIN before dispatch. Post-VM JOIN
+                // movement faults use FreezeJoin without this command rewind.
+                fiber.Position--;
+                fiber.WaitReason = WaitReason.PartyJoin;
+                throw FreezeJoin(exception.Message);
+            }
+        }
         foreach (PartyJoinTarget target in partyJoin.Targets)
         {
             ActorState actor = actors[target.ObjectId];
@@ -208,13 +225,15 @@ public sealed partial class EventEngine
                 SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationHold);
             }
         }
-        if (partyJoin.Targets.Any(target => actors[target.ObjectId].NativeMovementCompletion542 != 2))
+        if (!completed)
         {
             fiber.Position--;
             fiber.WaitReason = WaitReason.PartyJoin;
             return;
         }
-        BuildJoinedPartyTrace();
+        Scene.PartyTrace = preparedTrace!.Value.Trace;
+        Scene.NativePlayerPosition = preparedTrace.Value.LeaderPosition;
+        Scene.NativePartyTraceVersion = 1;
         foreach (PartyJoinTarget target in partyJoin.Targets)
         {
             ActorState actor = actors[target.ObjectId];
@@ -374,16 +393,16 @@ public sealed partial class EventEngine
         }
     }
 
-    private void BuildJoinedPartyTrace()
+    private (PartyTraceState Trace, FieldFixedPosition LeaderPosition) PrepareJoinedPartyTrace()
     {
+        ActorState leader = ResolveJoinPartyActor(0)!;
+        FieldFixedPosition leaderPosition = ReadNativeJoinLeaderPosition(leader) ?? throw new NotSupportedException("Native JOIN leader lost its preserved raw position");
         PartyTraceSample?[] first = ResetTraceFlags(Scene.PartyTrace?.FirstTrail);
         PartyTraceSample?[] second = ResetTraceFlags(Scene.PartyTrace?.SecondTrail);
-        BuildJoinedTrail(first, ResolveJoinPartyActor(1));
-        BuildJoinedTrail(second, ResolveJoinPartyActor(2));
-        Scene.PartyTrace = new PartyTraceState(0, 15, 30, first, second);
-        ActorState leader = ResolveJoinPartyActor(0)!;
-        Scene.NativePlayerPosition = ReadNativeJoinLeaderPosition(leader) ?? throw FreezeJoin("Native JOIN leader lost its preserved raw position");
-        Scene.NativePartyTraceVersion = 1;
+        int? triangleWinner = null;
+        BuildJoinedTrail(first, ResolveJoinPartyActor(1), ref triangleWinner);
+        BuildJoinedTrail(second, ResolveJoinPartyActor(2), ref triangleWinner);
+        return (new PartyTraceState(0, 15, 30, first, second), leaderPosition);
     }
 
     private static PartyTraceSample?[] ResetTraceFlags(PartyTraceSample?[]? previous)
@@ -391,7 +410,7 @@ public sealed partial class EventEngine
         return Enumerable.Range(0, 64).Select(index => previous is { Length: 64 } && previous[index] is PartyTraceSample sample ? sample with { FirstFlag = 1, SecondFlag = 1 } : null).ToArray();
     }
 
-    private void BuildJoinedTrail(PartyTraceSample?[] trail, ActorState? follower)
+    private void BuildJoinedTrail(PartyTraceSample?[] trail, ActorState? follower, ref int? triangleWinner)
     {
         if (follower is null)
         {
@@ -401,7 +420,7 @@ public sealed partial class EventEngine
             return;
         }
         ActorState leader = ResolveJoinPartyActor(0)!;
-        FieldFixedPosition leaderPosition = ReadNativeJoinLeaderPosition(leader) ?? throw FreezeJoin("Native JOIN trace leader lost its preserved raw position");
+        FieldFixedPosition leaderPosition = ReadNativeJoinLeaderPosition(leader) ?? throw new NotSupportedException("Native JOIN trace leader lost its preserved raw position");
         PartyJoinTarget fixedFollower = partyJoin!.Targets.Single(target => target.ObjectId == follower.ObjectId);
         int followerX = fixedFollower.FixedX / 4096;
         int followerY = fixedFollower.FixedY / 4096;
@@ -426,7 +445,18 @@ public sealed partial class EventEngine
             int sampleX = step < count ? x / 4096 : followerX;
             int sampleY = step < count ? y / 4096 : followerY;
             int sampleZ = step < count ? leaderZ - step * ((unchecked(leaderPosition.Z - fixedFollower.FixedZ)) / 4096) / count : followerZ;
-            int triangle = ResolvePartyTraceTriangle?.Invoke(sampleX, sampleY, step < count ? leaderZ : followerZ) ?? throw FreezeJoin("Native JOIN trace triangle lookup has no containing original geometry");
+            int? candidate = ResolvePartyTraceTriangle?.Invoke(sampleX, sampleY, step < count ? leaderZ : followerZ);
+            if (candidate is int selected)
+            {
+                triangleWinner = selected;
+            }
+            else if (NativeRuntimeProfile is not { IsVerified: true } || triangleWinner is null)
+            {
+                throw new NotSupportedException("Native JOIN trace triangle lookup has no containing original geometry");
+            }
+            //47ACE0's four lookup sites share477B00's winner WORD at the same stack address.
+            //Only a real hit seeds it; a later miss retains it across both rings, never across JOIN calls.
+            int triangle = triangleWinner!.Value;
             trail[63 - step] = new PartyTraceSample((short)sampleX, (short)sampleY, (short)sampleZ, triangle, direction, step < count ? 0 : 2);
             if (step < count)
             {

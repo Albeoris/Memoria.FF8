@@ -123,6 +123,7 @@ internal static partial class Program
                     ["native-face-angles"] = FaceDirectionAnglesAndResume,
                     ["native-dirp"] = () => NativeDirectionPointContract(selectedGameDirectory),
                     ["native-join-direction-limit"] = () => NativeJoinDirectionLimitContract(selectedGameDirectory),
+                    ["native-join-triangle-carry"] = () => NativeJoinTriangleCarryContract(selectedGameDirectory),
                     ["native-meaningful-contact"] = NativeMeaningfulContactContract,
                     ["native-rmovea"] = NativeRmMoveActorContract,
                     ["positive-cosine-turn"] = NativePositiveCosineTurnContract,
