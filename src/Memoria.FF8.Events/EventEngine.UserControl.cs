@@ -4,7 +4,7 @@ public sealed partial class EventEngine
 {
     private void ExecuteNativeUserControlOff()
     {
-        if (!userControlEnabled)
+        if (userControlSequenceDisabled)
         {
             return;
         }
@@ -47,11 +47,12 @@ public sealed partial class EventEngine
             }
         }
         IsUserControlEnabled = false;
+        userControlSequenceDisabled = true;
     }
 
     private void ExecuteNativeUserControlOn()
     {
-        if (userControlEnabled)
+        if (!userControlSequenceDisabled)
         {
             return;
         }
@@ -82,5 +83,6 @@ public sealed partial class EventEngine
             }
         }
         IsUserControlEnabled = true;
+        userControlSequenceDisabled = false;
     }
 }

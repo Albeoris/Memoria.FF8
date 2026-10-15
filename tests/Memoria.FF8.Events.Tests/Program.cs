@@ -18,6 +18,7 @@ internal static partial class Program
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["actor-mode"] = AdditionalActorControlAndGuard,
+                    ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
                     ["message-variable"] = NativeMessageVariableContract,
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
                     ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,

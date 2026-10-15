@@ -881,6 +881,11 @@ public sealed partial class EventEngine
                 Scene.BackgroundShadeLoops.Remove(fiber.BackgroundId);
                 Scene.BackgroundShades[fiber.BackgroundId] = new BackgroundShade(0, Vector3.Zero, Vector3.Zero, Frame, fiber.BackgroundId);
                 break;
+            case Jsm.Opcode.KEY:
+                args = Pop(fiber, 1);
+                //51E0B0 writes only global input-disable BYTE1CE4775, independently of UCOFF's sequence guard.
+                IsUserControlEnabled = args[0] != 0;
+                break;
             case Jsm.Opcode.KEYSCAN:
             case Jsm.Opcode.KEYSCAN2:
             case Jsm.Opcode.KEYON:

@@ -44,6 +44,7 @@ public sealed partial class EventEngine
     public int FieldId { get; private set; }
     public long Frame { get; private set; }
     private bool userControlEnabled = true;
+    private bool userControlSequenceDisabled;
     public bool IsUserControlEnabled
     {
         get => partyMenu is null && userControlEnabled && (NativeRuntimeProfile is not { IsVerified: true } || defaultsStarted);
@@ -131,6 +132,7 @@ public sealed partial class EventEngine
         defaultsStarted = false;
         transitionRequested = false;
         IsUserControlEnabled = true;
+        userControlSequenceDisabled = false;
         preparedMovie = -1;
         movieProgressExpected = false;
         CurrentMoviePlayback = null;
