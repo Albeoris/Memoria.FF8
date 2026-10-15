@@ -11,7 +11,7 @@ internal sealed record UiPreferences
     public int TextScale { get; init; } = 100;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.Normal;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
-    public bool ShowInitiative { get; init; } = true;
+    public bool ShowInitiative { get; init; }
 
     public static UiPreferences Load(string path)
     {

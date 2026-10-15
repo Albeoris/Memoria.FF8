@@ -69,6 +69,33 @@ public sealed class BattleAssetsTests
     }
 
     [Fact]
+    public void CroppedModelTimTexturesKeepTheirPageRelativeUvsAndVisibleBladeHighlights()
+    {
+        using BattleAssets assets = new(GameDirectory);
+        BattleModel squall = assets.LoadPlayer(0);
+        BattleModel revolver = assets.LoadWeapon(0, 0, squall);
+        foreach (BattleModel model in new[] { squall, revolver })
+        {
+            foreach (BattleFace face in model.Meshes.SelectMany(mesh => mesh.Faces))
+            {
+                var texture = model.Textures[face.Texture];
+                Assert.All(face.Uv, uv =>
+                {
+                    Assert.InRange(uv.X, 0, texture.Width - 1);
+                    Assert.InRange(uv.Y, 0, texture.Height - 1);
+                });
+            }
+        }
+        // Original d0c000 head TIM begins at VRAM Y128; d0w000 begins at Y96.
+        // The previous cropped-image lookup clamped every one of these faces to its final row.
+        Assert.Contains(squall.Meshes.SelectMany(mesh => mesh.Faces).Where(face => face.Texture == 1).SelectMany(face => face.Uv), uv => uv.Y < 32);
+        BattleRenderer renderer = new(256, 256);
+        byte[] pixels = renderer.Render(new BattleStage(0, [], []), [new BattleActorDraw(revolver, Vector3.Zero)], new BattleCamera(new Vector3(0, 12, -32), new Vector3(0, 12, 0)));
+        int highlights = Enumerable.Range(0, pixels.Length / 4).Count(index => pixels[index * 4] > 160 && pixels[index * 4 + 1] > 160 && pixels[index * 4 + 2] > 160);
+        Assert.True(highlights > 30, $"Expected the installed blade's silver highlights, got {highlights} bright pixels.");
+    }
+
+    [Fact]
     public void InformationOnlyEnemyAndEmptyWeaponDoNotFabricateGraphics()
     {
         using BattleAssets assets = new(GameDirectory);

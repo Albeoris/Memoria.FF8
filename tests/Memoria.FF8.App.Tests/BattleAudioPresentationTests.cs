@@ -3,6 +3,7 @@ using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.GameUi;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -59,6 +60,26 @@ public sealed class BattleAudioPresentationTests
     }
 
     [Fact]
+    public void NativeSequenceCuesDeduplicateAndRestoredHistoryIsSilent()
+    {
+        BattleSession battle = Battle();
+        List<int> played = [];
+        BattleAudioPresentation output = new(() => { }, _ => { }, _ => { }, (_, cue) => played.Add(cue.SoundId));
+        BattleSequenceSoundCue old = new("party", 0, 0, 2, true, 0);
+        output.Update(battle, [old]);
+        BattleSequenceSoundCue current = new("party", 1, 0, 3, true, 0);
+        output.Update(battle, [old, current]);
+        output.Update(battle, [current]);
+        Assert.Equal(new[] { 3 }, played);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        output.Update(restored);
+        output.Update(restored, [old, current]);
+        Assert.Equal(new[] { 3 }, played);
+        output.Update(restored, [new("party", 2, 0, 10, false, 0)]);
+        Assert.Equal(new[] { 3, 10 }, played);
+    }
+
+    [Fact]
     public void InstalledActorSoundsAndMusicResolveThroughOriginalTables()
     {
         string directory = InstalledGame();
@@ -80,6 +101,16 @@ public sealed class BattleAudioPresentationTests
         }
         Assert.Throws<ArgumentOutOfRangeException>(() => catalog.BattleActorSound(160, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => catalog.BattleActorSound(0, 7));
+        Assert.Equal(1u, catalog.MenuSound((int)MenuSound.Move));
+        Assert.Equal(1u, catalog.MenuSound((int)MenuSound.Confirm));
+        Assert.Equal(9u, catalog.MenuSound((int)MenuSound.Cancel));
+        foreach (MenuSound cue in Enum.GetValues<MenuSound>())
+        {
+            PcmAudio pcm = PcmAudioDecoder.ReadSample(directory, EventEngine.MapGlobalSoundSample(catalog.MenuSound((int)cue)));
+            Assert.NotEmpty(pcm.Bytes);
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => catalog.MenuSound(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => catalog.MenuSound(48));
     }
 
     [Fact]
@@ -103,6 +134,10 @@ public sealed class BattleAudioPresentationTests
                 presentation.PlayBattleImpact(17);
                 Assert.Null(presentation.Error);
                 presentation.PlayBattleImpact(38);
+                Assert.Null(presentation.Error);
+                presentation.PlayUiSound(MenuSound.Move);
+                presentation.PlayUiSound(MenuSound.Confirm);
+                presentation.PlayUiSound(MenuSound.Cancel);
                 Assert.Null(presentation.Error);
                 presentation.PlayBattleMusic(1);
                 Assert.Null(presentation.Error);

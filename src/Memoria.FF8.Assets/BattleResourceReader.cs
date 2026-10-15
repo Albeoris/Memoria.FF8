@@ -7,6 +7,8 @@ namespace Memoria.FF8.Assets;
 /// <summary>Bounded original DAT skeleton, geometry, compressed animation and X static-stage decoder.</summary>
 internal static class BattleResourceReader
 {
+    private sealed record ModelTexture(TimImage Tim, PixelImage Image);
+
     private static BinaryReader Reader(byte[] bytes) => new(new MemoryStream(bytes, false));
     private static int Count(int count, int maximum, string name)
     {
@@ -53,10 +55,13 @@ internal static class BattleResourceReader
             bones[index] = new BattleBone(parent == ushort.MaxValue ? -1 : parent, length / 2048f);
         }
         int textureSection = textureSectionOverride ?? (offsets.Length == 11 ? 10 : offsets.Length is 9 or 10 ? 8 : 5);
-        IReadOnlyList<PixelImage> textures = Textures(reader, bytes, offsets[textureSection]);
-        IReadOnlyList<BattleMesh> meshes = Geometry(reader, offsets[1], bones.Length, textures.Count);
+        IReadOnlyList<ModelTexture> textures = Textures(reader, bytes, offsets[textureSection]);
+        IReadOnlyList<BattleMesh> meshes = Geometry(reader, offsets[1], bones.Length, textures);
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
-        return new BattleModel(name, bones, meshes, textures, animations, scale);
+        return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
+        {
+            Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
+        };
     }
 
     public static BattleModel ReadWeapon(string name, byte[] bytes, BattleModel character)
@@ -65,17 +70,27 @@ internal static class BattleResourceReader
         int[] offsets = Directory(reader);
         if (offsets.Length is 7 or 8)
         {
-            return ReadModel(name, bytes, 6);
+            return ReadModel(name, bytes, 6) with { Sequences = Sequences(bytes, offsets, 3) };
         }
         if (offsets.Length != 5)
         {
             throw new NotSupportedException($"{name}: independent animated weapons require their own skeleton binding.");
         }
-        IReadOnlyList<PixelImage> textures = Textures(reader, bytes, offsets[4]);
-        return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures.Count), textures, character.Animations, character.Scale);
+        IReadOnlyList<ModelTexture> textures = Textures(reader, bytes, offsets[4]);
+        return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures), textures.Select(texture => texture.Image).ToArray(), character.Animations, character.Scale)
+        {
+            Sequences = Sequences(bytes, offsets, 1)
+        };
     }
 
-    private static IReadOnlyList<BattleMesh> Geometry(BinaryReader reader, int offset, int boneCount, int textureCount)
+    private static BattleSequenceSet Sequences(byte[] bytes, int[] offsets, int section)
+    {
+        int start = offsets[section];
+        int end = offsets.Where(offset => offset > start).DefaultIfEmpty(bytes.Length).Min();
+        return new BattleSequenceSet(bytes[start..end]);
+    }
+
+    private static IReadOnlyList<BattleMesh> Geometry(BinaryReader reader, int offset, int boneCount, IReadOnlyList<ModelTexture> textures)
     {
         reader.BaseStream.Position = offset;
         int count = Count(reader.ReadInt32(), 256, "objects");
@@ -130,18 +145,32 @@ internal static class BattleResourceReader
                 {
                     uv2 = Uv(reader);
                 }
-                reader.ReadUInt16();
+                ushort page = reader.ReadUInt16();
                 if (quad)
                 {
                     uv2 = Uv(reader);
                     uv3 = Uv(reader);
                 }
                 int[] indices = quad ? [a, b, c, d] : [c, a, b];
-                if (texture >= textureCount || indices.Any(vertex => vertex >= vertices.Count))
+                if (texture >= textures.Count || indices.Any(vertex => vertex >= vertices.Count))
                 {
                     throw new InvalidDataException("Battle polygon references an absent texture or vertex.");
                 }
-                faces.Add(new BattleFace(indices, quad ? [uv0, uv1, uv2, uv3] : [uv0, uv1, uv2], texture, new Rgba32(128, 128, 128, 255)));
+                ModelTexture material = textures[texture];
+                if (((page >> 7) & 3) != (int)material.Tim.PixelMode || material.Tim.PixelMode == TimPixelMode.Direct24)
+                {
+                    throw new NotSupportedException("Battle polygon texture page and TIM pixel modes disagree or are unsupported.");
+                }
+                // DAT UVs address the PSX texture page, whereas Decode returns only the TIM rectangle.
+                // Page X is in 64-word units; each word contains 4, 2 or 1 indexed/direct texels.
+                int pixelsPerWord = 4 >> (int)material.Tim.PixelMode;
+                Vector2 origin = new(((page & 15) * 64 - material.Tim.X) * pixelsPerWord, ((page & 16) * 16) - material.Tim.Y);
+                Vector2[] uv = quad ? [uv0, uv1, uv2, uv3] : [uv0, uv1, uv2];
+                for (int corner = 0; corner < uv.Length; corner++)
+                {
+                    uv[corner] += origin;
+                }
+                faces.Add(new BattleFace(indices, uv, texture, new Rgba32(128, 128, 128, 255)));
             }
             meshes.Add(new BattleMesh(vertices, faces));
         }
@@ -150,12 +179,12 @@ internal static class BattleResourceReader
 
     private static Vector2 Uv(BinaryReader reader) => new(reader.ReadByte(), reader.ReadByte());
 
-    private static IReadOnlyList<PixelImage> Textures(BinaryReader reader, byte[] bytes, int offset)
+    private static IReadOnlyList<ModelTexture> Textures(BinaryReader reader, byte[] bytes, int offset)
     {
         reader.BaseStream.Position = offset;
         int count = Count(reader.ReadInt32(), 16, "textures");
         int[] pointers = Enumerable.Range(0, count).Select(_ => checked(offset + reader.ReadInt32())).ToArray();
-        return pointers.Select(pointer => ReadTim(bytes, pointer).Images[0].Decode()).ToArray();
+        return pointers.Select(pointer => ReadTim(bytes, pointer).Images[0]).Select(tim => new ModelTexture(tim, tim.Decode())).ToArray();
     }
 
     private static TimFile ReadTim(byte[] bytes, int offset)

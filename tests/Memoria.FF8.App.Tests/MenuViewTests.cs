@@ -56,7 +56,7 @@ public sealed class MenuViewTests
             MainCommand = true,
             BuildContent = (_, root) => root.Children.Add(new UiButton { Id = "mod-action", Width = 300, Height = 60, HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center, Text = "Apply", Click = () => invoked = true })
         });
-        menus.Open("debug-room", true);
+        menus.Open("debug-gallery", true);
         Assert.Contains(menus.Entries, entry => entry.Destination == "mod-settings");
         menus.Open("main", true);
         Assert.Contains(menus.Entries, entry => entry.Destination == "mod-settings");

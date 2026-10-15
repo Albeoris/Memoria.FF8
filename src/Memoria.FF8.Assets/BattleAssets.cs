@@ -118,6 +118,36 @@ public sealed class BattleAssets : IDisposable
 
     public BattleModel LoadEnemy(int modelId) => LoadModel($"c0m{modelId:000}.dat");
 
+    public int ReadEnemyAttackSequence(int modelId)
+    {
+        byte[] bytes = Read($"c0m{modelId:000}.dat");
+        using BinaryReader reader = new(new MemoryStream(bytes, false));
+        int sections = reader.ReadInt32();
+        if (sections != 11)
+        {
+            throw new NotSupportedException("A renderable enemy requires its original eleven-section monster directory.");
+        }
+        reader.BaseStream.Position = 28;
+        int information = reader.ReadInt32();
+        int informationEnd = reader.ReadInt32();
+        if (information < 0 || informationEnd > bytes.Length || informationEnd - information < 244)
+        {
+            throw new InvalidDataException("Enemy ability records exceed their original information section.");
+        }
+        // Native487DF0 reads command/sequence/id at info+52+4*(16*levelBand+ability),
+        // preserving byte+53 as48D200's enemy sequence argument. Command8 selects enemy attacks.
+        // TODO(TD-009): The scaffold presents the first installed enemy-attack entry, not native AI/level-band selection
+        for (int ability = 0; ability < 48; ability++)
+        {
+            int offset = information + 52 + ability * 4;
+            if (bytes[offset] == 8)
+            {
+                return bytes[offset + 1];
+            }
+        }
+        throw new NotSupportedException($"Enemy model {modelId} has no installed enemy-attack sequence binding.");
+    }
+
     public BattleModel LoadPlayer(int characterId, int costume = 0)
     {
         IReadOnlyList<string> names = PlayerModelNames(characterId);
@@ -155,13 +185,38 @@ public sealed class BattleAssets : IDisposable
         return characterId is 1 or 9 ? null : model;
     }
 
+    public BattleSequenceSet LoadPlayerSequences(int characterId, int? savedWeaponId, BattleModel character)
+    {
+        if (character.Sequences is BattleSequenceSet own)
+        {
+            return own;
+        }
+        IReadOnlyList<int> installed = WeaponModelIds(characterId);
+        if (installed.Count == 0)
+        {
+            throw new NotSupportedException($"Character {characterId} has no installed battle sequence owner.");
+        }
+        int index = 0;
+        if (savedWeaponId is int id)
+        {
+            BattleWeaponDefinition[] choices = WeaponDefinitions.Where(weapon => weapon.CharacterId == characterId).ToArray();
+            index = Array.FindIndex(choices, weapon => weapon.Id == id);
+            if (choices.Length != installed.Count || index < 0)
+            {
+                throw new NotSupportedException($"Weapon {id} has no installed character {characterId} battle sequence binding.");
+            }
+        }
+        return LoadWeapon(characterId, installed[index], character).Sequences ?? throw new NotSupportedException($"Character {characterId} weapon has no original battle sequence section.");
+    }
+
     public BattleModel LoadWeapon(int characterId, int weaponModelId, BattleModel character)
     {
         string name = $"d{characterId:X}w{weaponModelId:000}.dat";
-        if (!models.TryGetValue(name, out BattleModel? model))
+        string key = $"{name}|{character.Name}";
+        if (!models.TryGetValue(key, out BattleModel? model))
         {
             model = BattleResourceReader.ReadWeapon(name, Read(name), character);
-            models.Add(name, model);
+            models.Add(key, model);
         }
         return model;
     }

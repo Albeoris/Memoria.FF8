@@ -20,7 +20,10 @@ public sealed record BattleDebugCatalog
 public sealed class BattleDebugController
 {
     private readonly BattleDebugCatalog catalog;
-    private readonly BattleDefinition initial;
+    private BattleDefinition initial;
+    private readonly BattleDefinition defaults;
+    private readonly BattleDebugPresets presets;
+    private readonly HashSet<string> expanded = [];
     private readonly Action<BattleDefinition, BattleAtbMode> start;
     private readonly Action<BattleAtbMode, string, bool> settings;
     private readonly Action close;
@@ -29,11 +32,15 @@ public sealed class BattleDebugController
     private readonly UiView view;
     private readonly List<BattleDebugRow> rows = [];
     private int? stageId;
+    private int presetSlot;
+    private bool toggleExpansion = true;
 
-    public BattleDebugController(BattleDefinition initial, BattleDebugCatalog catalog, BattleAtbMode mode, string policy, bool showInitiative, Action<BattleDefinition, BattleAtbMode> start, Action<BattleAtbMode, string, bool> settings, Action close)
+    public BattleDebugController(BattleDefinition initial, BattleDebugCatalog catalog, BattleAtbMode mode, string policy, bool showInitiative, Action<BattleDefinition, BattleAtbMode> start, Action<BattleAtbMode, string, bool> settings, Action close, BattleDebugPresets? presets = null)
     {
         this.catalog = catalog;
         this.initial = BattleSession.CloneDefinition(initial);
+        defaults = BattleSession.CloneDefinition(initial);
+        this.presets = presets ?? new BattleDebugPresets();
         stageId = initial.StageId;
         this.start = start;
         this.settings = settings;
@@ -43,12 +50,13 @@ public sealed class BattleDebugController
         Mode = mode;
         Policy = policy;
         ShowInitiative = showInitiative;
-        view = new UiView(new BattleDebugElement(this)) { DesignWidth = 960, DesignHeight = 672, Cancel = close };
+        view = new UiView(new BattleDebugElement(this)) { DesignWidth = 960, DesignHeight = 672, Cancel = Close };
         RebuildRows();
         view.Resize(960, 672);
     }
 
     public BattleAtbMode Mode { get; private set; }
+    public event Action<MenuSound>? SoundRequested;
     public string Policy { get; private set; }
     public bool ShowInitiative { get; private set; }
     public int SelectedIndex { get; private set; }
@@ -71,22 +79,27 @@ public sealed class BattleDebugController
     {
         if (input == MenuInput.Cancel)
         {
-            close();
+            Close();
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown)
         {
             int step = input is MenuInput.PageUp or MenuInput.PageDown ? 12 : 1;
-            SelectedIndex = Math.Clamp(SelectedIndex + (input is MenuInput.Up or MenuInput.PageUp ? -step : step), 0, rows.Count - 1);
+            Select(SelectedIndex + (input is MenuInput.Up or MenuInput.PageUp ? -step : step), false);
         }
         else if (input is MenuInput.Left or MenuInput.Right or MenuInput.Confirm)
         {
-            Adjust(input == MenuInput.Left ? -1 : 1);
+            Adjust(input == MenuInput.Left ? -1 : 1, input == MenuInput.Confirm);
         }
     }
 
     public void Select(int index, bool adjust)
     {
-        SelectedIndex = Math.Clamp(index, 0, rows.Count - 1);
+        int next = Math.Clamp(index, 0, rows.Count - 1);
+        if (SelectedIndex != next)
+        {
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
+        SelectedIndex = next;
         if (adjust)
         {
             Adjust(1);
@@ -98,6 +111,7 @@ public sealed class BattleDebugController
         try
         {
             start(Definition, Mode);
+            SoundRequested?.Invoke(MenuSound.Confirm);
         }
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IOException)
         {
@@ -105,9 +119,28 @@ public sealed class BattleDebugController
         }
     }
 
-    private void Adjust(int direction)
+    private void Close()
     {
-        rows[SelectedIndex].Adjust(direction);
+        SoundRequested?.Invoke(MenuSound.Cancel);
+        close();
+    }
+
+    private void Adjust(int direction, bool toggleDetails = true)
+    {
+        toggleExpansion = toggleDetails;
+        BattleDebugRow selected = rows[SelectedIndex];
+        try
+        {
+            selected.Adjust(direction);
+            if (selected.Label is not ("Return" or "Start scenario"))
+            {
+                SoundRequested?.Invoke(MenuSound.Confirm);
+            }
+        }
+        catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            Message = "Cannot apply change: " + error.Message;
+        }
         RebuildRows();
         SelectedIndex = Math.Clamp(SelectedIndex, 0, rows.Count - 1);
     }
@@ -116,6 +149,29 @@ public sealed class BattleDebugController
     {
         rows.Clear();
         rows.Add(new("Start scenario", "Start", "Create a fresh battle from this scenario. Existing research state is preserved.", _ => Start()));
+        rows.Add(new("Preset slot", $"{presetSlot + 1} · {(presets.Read(presetSlot) is null ? "Empty" : "Saved")}", "Choose one of three local scenario presets. Save and Load below are explicit actions.", direction => presetSlot = (presetSlot + direction + 3) % 3));
+        rows.Add(new("Save preset", $"Slot {presetSlot + 1}", "Store this party, enemies, stage, statistics and ATB mode. Replaces only the selected local preset.", _ =>
+        {
+            presets.Save(presetSlot, Definition, Mode);
+            Message = $"Preset {presetSlot + 1} saved.";
+        }));
+        rows.Add(new("Load preset", $"Slot {presetSlot + 1}", "Restore the selected local preset into this editor. The running battle and game save are unchanged.", _ =>
+        {
+            BattleDebugPreset? preset = presets.Read(presetSlot);
+            if (preset is null)
+            {
+                Message = $"Preset {presetSlot + 1} is empty.";
+                return;
+            }
+            ReplaceScenario(preset.Definition);
+            Mode = preset.Mode;
+            Message = $"Preset {presetSlot + 1} loaded.";
+        }));
+        rows.Add(new("Current party + last enemy", "Reset", "Restore the current-party default captured when this editor opened. With no encounter history, the opponent is Dummy.", _ =>
+        {
+            ReplaceScenario(defaults);
+            Message = "Current party and last enemy restored.";
+        }));
         rows.Add(new("ATB mode", Mode.ToString(), "Normal runs ATB continuously. TurnBased holds idle gauges until Advance Turn; actions still animate.", _ =>
         {
             Mode = Mode == BattleAtbMode.Normal ? BattleAtbMode.TurnBased : BattleAtbMode.Normal;
@@ -124,11 +180,6 @@ public sealed class BattleDebugController
         rows.Add(new("Next New Game policy", Policy, "NewGameFullCombat enables combat for the next New Game. ResearchInstantVictory preserves the research default.", _ =>
         {
             Policy = Policy == "ResearchInstantVictory" ? "NewGameFullCombat" : "ResearchInstantVictory";
-            settings(Mode, Policy, ShowInitiative);
-        }));
-        rows.Add(new("Initiative bar", ShowInitiative ? "On" : "Off", "Display all living actors on the shared ATB rail.", _ =>
-        {
-            ShowInitiative = !ShowInitiative;
             settings(Mode, Policy, ShowInitiative);
         }));
         rows.Add(new("Battle stage", stageId?.ToString() ?? "None", "Cycle installed battle stage identities.", direction =>
@@ -151,7 +202,18 @@ public sealed class BattleDebugController
         {
             AddActor(enemies, index, catalog.Enemies, "Enemy");
         }
-        rows.Add(new("Return to battle", "Back", "Close the scenario builder without starting a new battle.", _ => close()));
+        rows.Add(new("Return", "Back", "Close the scenario builder without starting a new battle.", _ => Close()));
+    }
+
+    private void ReplaceScenario(BattleDefinition definition)
+    {
+        initial = BattleSession.CloneDefinition(definition);
+        stageId = initial.StageId;
+        party.Clear();
+        party.AddRange(initial.Combatants.Where(actor => actor.IsPlayer));
+        enemies.Clear();
+        enemies.AddRange(initial.Combatants.Where(actor => !actor.IsPlayer));
+        expanded.Clear();
     }
 
     private void AddCount(string label, List<BattleCombatantDefinition> actors, BattleCombatantDefinition[] choices, bool player, int maximum)
@@ -160,6 +222,7 @@ public sealed class BattleDebugController
         {
             if (direction < 0 && actors.Count > 1)
             {
+                expanded.Remove($"{(player ? "Party" : "Enemy")} {actors.Count}");
                 actors.RemoveAt(actors.Count - 1);
             }
             else if (direction > 0 && actors.Count < maximum)
@@ -178,6 +241,23 @@ public sealed class BattleDebugController
     private void AddActor(List<BattleCombatantDefinition> actors, int index, BattleCombatantDefinition[] choices, string side)
     {
         BattleCombatantDefinition actor = actors[index];
+        string key = $"{side} {index + 1}";
+        bool isExpanded = expanded.Contains(key);
+        rows.Add(new(key, $"{(isExpanded ? "−" : "+")} {actor.Name}", $"{actor.Name} · HP {actor.CurrentHp}/{actor.MaximumHp}. Confirm toggles details; Right expands and Left collapses. Edit the model, statistics, equipment and effects inside.", direction =>
+        {
+            if (direction < 0 || toggleExpansion && expanded.Contains(key))
+            {
+                expanded.Remove(key);
+            }
+            else
+            {
+                expanded.Add(key);
+            }
+        }));
+        if (!isExpanded)
+        {
+            return;
+        }
         string prefix = $"{side} {index + 1} · ";
         rows.Add(new(prefix + "Character / model", actor.Name, actor.IsPlayer ? "Cycle installed model choices. The selected prototype supplies explicit scenario statistics." : "Cycle installed enemy models. Enemy weapons belong to the model. The selected prototype supplies explicit scenario statistics.", direction =>
         {
@@ -187,7 +267,8 @@ public sealed class BattleDebugController
                 return;
             }
             int current = Array.FindIndex(choices, choice => choice.ModelId == actor.ModelId);
-            actors[index] = choices[(Math.Max(0, current) + direction + choices.Length) % choices.Length] with { IsPlayer = actor.IsPlayer };
+            int next = current < 0 ? direction > 0 ? 0 : choices.Length - 1 : (current + direction + choices.Length) % choices.Length;
+            actors[index] = choices[next] with { IsPlayer = actor.IsPlayer };
         }));
         if (actor.IsPlayer)
         {

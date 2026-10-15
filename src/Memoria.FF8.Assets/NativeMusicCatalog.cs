@@ -47,6 +47,14 @@ public sealed class NativeMusicCatalog
     public int SoundPan(int pan) => Table(0xB7ED10, pan);
     public int MusicVolume(int volume) => Table(0xB7F92C, volume);
 
+    /// <summary>Original4B92A0/4B92C0 translate menu cue numbers through byte_B87D28.</summary>
+    public uint MenuSound(int number)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(number);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(number, 48);
+        return image[Offset(0xB87D28) + number];
+    }
+
     /// <summary>Original5015A0/501640 select one of seven original sound identities for each battle actor.</summary>
     public uint BattleActorSound(int actorId, int soundNumber)
     {

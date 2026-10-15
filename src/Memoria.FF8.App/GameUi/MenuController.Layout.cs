@@ -8,6 +8,10 @@ public sealed partial class MenuController
     {
         get
         {
+            if (IsHostSettingsScreen || ScreenId == "debug-room" || UseHostControls)
+            {
+                return (_readPreferences?.Invoke().TextScale ?? 100) / 100f;
+            }
             string value = Data.Settings.GetValueOrDefault("Text scale", "100%").TrimEnd('%');
             return float.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out float percent) ? Math.Clamp(percent / 100, 1, 1.5f) : 1;
         }

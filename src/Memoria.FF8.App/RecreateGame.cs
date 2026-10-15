@@ -134,6 +134,7 @@ internal sealed partial class RecreateGame : Game
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
         if (UpdateBattleDebugUi(input))
         {
+            fieldAudio?.Update();
             base.Update(gameTime);
             metrics.Update(updateStarted);
             return;
@@ -165,10 +166,16 @@ internal sealed partial class RecreateGame : Game
         {
             if (input.MenuVertical != 0)
             {
-                titleSelection = input.MenuVertical > 0 ? 1 : 0;
+                int nextSelection = input.MenuVertical > 0 ? 1 : 0;
+                if (titleSelection != nextSelection)
+                {
+                    fieldAudio?.PlayUiSound(GameUi.MenuSound.Move);
+                }
+                titleSelection = nextSelection;
             }
             if (input.Confirm)
             {
+                fieldAudio?.PlayUiSound(GameUi.MenuSound.Confirm);
                 if (titleSelection == 0)
                 {
                     StartNewGameSession();

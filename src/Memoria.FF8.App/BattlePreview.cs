@@ -14,7 +14,7 @@ internal sealed record BattlePreviewScenario
 {
     public BattleDefinition Definition { get; init; } = new();
     public BattleAtbMode Mode { get; init; } = BattleAtbMode.Normal;
-    public bool ShowInitiative { get; init; } = true;
+    public bool ShowInitiative { get; init; }
     public int TextScale { get; init; } = 100;
     public bool UseEncounter { get; init; }
 }
@@ -119,7 +119,7 @@ internal static class BattlePreview
             scene.DrawEffects(session, canvas, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
             BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn())
             {
-                ShowInitiative = scenario?.ShowInitiative ?? true,
+                ShowInitiative = scenario?.ShowInitiative ?? false,
                 TextScale = (scenario?.TextScale ?? 100) / 100f,
                 HeadRenderer = (actor, _, bounds) => canvas.DrawImage(scene.Head(actor), bounds)
             };

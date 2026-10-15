@@ -11,16 +11,19 @@ public sealed record BattlePose(Vector3 Translation, IReadOnlyList<Vector3> Rota
 public sealed record BattleAnimation(IReadOnlyList<BattlePose> Frames);
 public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures, IReadOnlyList<BattleAnimation> Animations, float Scale)
 {
-    public IReadOnlyList<Vector3[]> Pose(int animation, float frame)
+    public BattleSequenceSet? Sequences { get; init; }
+
+    public IReadOnlyList<Vector3[]> Pose(int animation, float frame, bool loop = true)
     {
         if ((uint)animation >= Animations.Count)
         {
             throw new NotSupportedException($"Battle model {Name} has no animation {animation}.");
         }
         IReadOnlyList<BattlePose> frames = Animations[animation].Frames;
-        int current = (int)MathF.Floor(Math.Max(0, frame)) % frames.Count;
-        int next = (current + 1) % frames.Count;
-        float blend = frame - MathF.Floor(frame);
+        float position = loop ? Math.Max(0, frame) : Math.Clamp(frame, 0, frames.Count - 1);
+        int current = (int)MathF.Floor(position) % frames.Count;
+        int next = loop ? (current + 1) % frames.Count : Math.Min(current + 1, frames.Count - 1);
+        float blend = position - MathF.Floor(position);
         Matrix4x4[] transforms = Transforms(frames[current]);
         Matrix4x4[] nextTransforms = Transforms(frames[next]);
         return Meshes.Select(mesh => mesh.Vertices.Select(vertex => Vector3.Lerp(Vector3.Transform(vertex.Position, transforms[vertex.Bone]), Vector3.Transform(vertex.Position, nextTransforms[vertex.Bone]), blend) * Scale).ToArray()).ToArray();

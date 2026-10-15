@@ -17,8 +17,9 @@ public sealed partial class MenuController
 
     public bool IsCapturingControls => _captureControls;
     public bool IsControlsScreen => ScreenId.StartsWith("config-controller", StringComparison.Ordinal) || ScreenId.StartsWith("config-keyboard", StringComparison.Ordinal) || ScreenId.StartsWith("config-controls", StringComparison.Ordinal);
-    private ControlsProfile CurrentControls => IsDemo ? _demoControls : _readControls?.Invoke() ?? _demoControls;
-    private bool CanWriteControls => IsDemo || _writeControls is not null;
+    private bool IsDemoControls => IsDemo && !UseHostControls;
+    private ControlsProfile CurrentControls => IsDemoControls ? _demoControls : _readControls?.Invoke() ?? _demoControls;
+    private bool CanWriteControls => IsDemoControls || _writeControls is not null;
     private string ControlsDeviceName => _controlsDevice == ControlDevice.Keyboard ? "Keyboard" : "Controller";
     private string ControlsActionName => ControlsLabel(_controlsAction);
     private string ControlsMapping => BindingText(_controlsAction, _controlsDevice);
@@ -73,7 +74,7 @@ public sealed partial class MenuController
             Title = "Restore defaults",
             Help = "Restore every binding for the selected device.",
             Entries = _ => [new("keep", "Keep current bindings", "Return without changing bindings.", Action: new("menu-back")), new("reset", "Restore device defaults", "Restore every native and extended action for this device.", Action: new("controls-reset-confirm"))],
-            Details = c => [$"Device: {c.ControlsDeviceName}", "All bindings for this device will reset.", "The other device keeps its bindings.", c.IsDemo ? "Changes stay in this menu demo." : "Changes save automatically."]
+            Details = c => [$"Device: {c.ControlsDeviceName}", "All bindings for this device will reset.", "The other device keeps its bindings.", c.IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."]
         });
     }
 
@@ -86,7 +87,7 @@ public sealed partial class MenuController
     private IReadOnlyList<string> ControlsListDetails(ControlDevice device)
     {
         ControlActionDefinition? selected = ControlsProfile.Definitions.FirstOrDefault(definition => definition.Action.ToString() == SelectedEntry?.Id);
-        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Confirm: change binding", "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemo ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
+        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Confirm: change binding", "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemoControls ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
         return details.Where(line => line.Length != 0).ToArray();
     }
 
@@ -105,7 +106,7 @@ public sealed partial class MenuController
         {
             return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.DisplayName ?? "Waiting for input...", "Escape or click Cancel to cancel.", "Gameplay input is paused."];
         }
-        return [ControlsActionName, $"Device: {ControlsDeviceName}", $"Current: {ControlsMapping}", "Capture replaces this action's bindings.", "Hold combination buttons together.", "Confirm and Cancel must stay bound.", IsDemo ? "Changes stay in this menu demo." : "Changes save automatically."];
+        return [ControlsActionName, $"Device: {ControlsDeviceName}", $"Current: {ControlsMapping}", "Capture replaces this action's bindings.", "Hold combination buttons together.", "Confirm and Cancel must stay bound.", IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."];
     }
 
     private IReadOnlyList<string> ControlsConflictDetails()
@@ -199,7 +200,7 @@ public sealed partial class MenuController
         try
         {
             ControlsProfile next = update();
-            if (IsDemo)
+            if (IsDemoControls)
             {
                 _demoControls = next;
             }
@@ -207,7 +208,7 @@ public sealed partial class MenuController
             {
                 _writeControls!(next);
             }
-            Message = IsDemo ? "Demo binding updated." : "Binding saved.";
+            Message = IsDemoControls ? "Demo binding updated." : "Binding saved.";
             _view = null;
             return true;
         }

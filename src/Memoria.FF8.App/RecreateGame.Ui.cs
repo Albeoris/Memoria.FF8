@@ -29,6 +29,8 @@ internal sealed partial class RecreateGame
         uiPreferences = UiPreferences.Load(UiPreferencesPath);
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        gameMenus.ConnectPreferences(() => uiPreferences, ApplyLiveMenuAction);
+        gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
         gameMenus.ConnectControls(() => keyboard.Profile, profile =>
         {

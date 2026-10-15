@@ -13,6 +13,7 @@ internal sealed record BattleControlCommand(BattleInput? Input = null, BattleDef
 internal sealed partial class RecreateGame
 {
     private BattleAssets? presentationBattleAssets;
+    private BattleDebugCatalog? presentationBattleCatalog;
     private BattleSession? debugBattle;
     private BattleHudController? battleHud;
     private BattleDebugController? battleDebug;
@@ -22,7 +23,7 @@ internal sealed partial class RecreateGame
     private double battleSeconds;
     private bool previousBattleMouse;
     private BattleSession? presentedBattle;
-    private BattleDefinition? debugBattleDefinition;
+    private BattleDebugPresets? battleDebugPresets;
     private BattleSession? ActiveBattle => debugBattle ?? world?.Battle;
     private BattleAssets PresentationBattleResources => presentationBattleAssets ??= new BattleAssets(options.GameDirectory);
 
@@ -166,6 +167,7 @@ internal sealed partial class RecreateGame
             presentedBattle = active;
             battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult);
+            battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleHud.HeadRenderer = DrawBattleHead;
             battleSeconds = 0;
         }
@@ -229,12 +231,16 @@ internal sealed partial class RecreateGame
 
     private BattleDebugCatalog ReadBattleDebugCatalog()
     {
+        if (presentationBattleCatalog is not null)
+        {
+            return presentationBattleCatalog with { Players = presentationBattleCatalog.Players.Select(actor => actor with { Name = LiveMenuData.CharacterName(session.State, checked((byte)actor.ModelId), events?.Scene.Names, liveMenuCatalog) }).ToArray() };
+        }
         _ = ReadLiveMenuData();
         BattleAssets resources = PresentationBattleResources;
-        return new BattleDebugCatalog
+        return presentationBattleCatalog = new BattleDebugCatalog
         {
             Players = resources.PlayerCharacterIds.Select(id => new BattleCombatantDefinition { Id = $"player-{id}", Name = LiveMenuData.CharacterName(session.State, checked((byte)id), events?.Scene.Names, liveMenuCatalog), IsPlayer = true, ModelId = id, MaximumHp = 1000, CurrentHp = 1000, Speed = 100, Attack = 80, Defense = 20 }).ToArray(),
-            Enemies = resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 }).ToArray(),
+            Enemies = [BattleDebugDefaults.Dummy, .. resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 })],
             Weapons = resources.WeaponDefinitions.Select(weapon => new BattleDebugEquipment(weapon.Id, weapon.Name, weapon.CharacterId)).ToArray(),
             Equipment = Enumerable.Range(0, 16).Select(id => new BattleDebugEquipment(id, liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}")).ToArray(),
             StageIds = resources.StageIds.ToArray(),
@@ -246,7 +252,16 @@ internal sealed partial class RecreateGame
     {
         gameMenus?.Close();
         BattleDebugCatalog catalog = ReadBattleDebugCatalog();
-        BattleDefinition scenario = ActiveBattle?.Capture().Definition ?? debugBattleDefinition ?? new BattleDefinition { StageId = catalog.StageIds.First(), Combatants = [catalog.Enemies.First() with { Id = "enemy-0" }] };
+        BattleDefinition? activeEncounter = world?.Battle?.Capture().Definition;
+        BattleCombatantDefinition? lastEnemy = activeEncounter?.Combatants.FirstOrDefault(actor => !actor.IsPlayer);
+        int stageId = activeEncounter?.StageId ?? catalog.StageIds.First();
+        if (lastEnemy is null && events?.Scene.NativeBattleCompletions?.LastOrDefault(completion => !completion.Suppressed) is { } completion)
+        {
+            BattleEncounter encounter = PresentationBattleResources.LoadEncounter(completion.Encounter);
+            BattleEnemyPlacement enemy = encounter.Enemies.First(placement => !placement.Hidden && !placement.Untargetable);
+            lastEnemy = catalog.Enemies.Single(actor => actor.ModelId == enemy.ModelId);
+            stageId = encounter.StageId;
+        }
         BattleCombatantDefinition[] currentParty;
         if (session.State.Scene == SceneKind.Title)
         {
@@ -257,8 +272,10 @@ internal sealed partial class RecreateGame
         {
             currentParty = world?.CreateBattleParty() ?? throw new NotSupportedException("Battle laboratory requires the current game-owned party.");
         }
-        BattleDefinition initial = BattleDebugController.InitializeParty(scenario, currentParty, world?.Battle);
-        battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, uiPreferences.BattlePolicy, uiPreferences.ShowInitiative, StartDebugBattle, ApplyBattleDebugSettings, () => battleDebug = null);
+        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle);
+        battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
+        battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, uiPreferences.BattlePolicy, uiPreferences.ShowInitiative, StartDebugBattle, ApplyBattleDebugSettings, () => battleDebug = null, battleDebugPresets);
+        battleDebug.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         SynchronizeUiMoviePause();
     }
 
@@ -278,7 +295,6 @@ internal sealed partial class RecreateGame
         BattleSession next = new(definition, mode);
         _ = PresentationBattleResources.LoadStage(definition.StageId ?? throw new ArgumentException("A debug battle needs a stage ID."));
         _ = new BattleScenePresentation(PresentationBattleResources, definition, false);
-        debugBattleDefinition = BattleSession.CloneDefinition(definition);
         debugBattle = next;
         battleDebug = null;
         gameMenus?.Close();

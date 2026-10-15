@@ -27,10 +27,11 @@ public sealed class BattleHudController
     }
 
     public BattleSession Session => session;
+    public event Action<MenuSound>? SoundRequested;
     public bool SelectingTarget { get; private set; }
     public string Message { get; private set; } = "Choose Attack when a character is ready.";
     public float TextScale { get; set; } = 1;
-    public bool ShowInitiative { get; set; } = true;
+    public bool ShowInitiative { get; set; }
     public Action<BattleCombatant, IUiCanvas, UiRect>? HeadRenderer { get; set; }
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleCombatant> Targets => session.Combatants.Where(actor => !actor.IsPlayer && actor.IsAlive).ToArray();
@@ -96,11 +97,21 @@ public sealed class BattleHudController
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
             if (SelectingTarget)
             {
+                string? before = SelectedTarget?.Id;
                 selectedTargetId = Cycle(Targets, selectedTargetId, direction);
+                if (before != selectedTargetId)
+                {
+                    SoundRequested?.Invoke(MenuSound.Move);
+                }
             }
             else
             {
+                string? before = SelectedActor?.Id;
                 selectedActorId = Cycle(Party.Where(actor => actor.IsReady && actor.IsAlive && !actor.IsBusy).ToArray(), selectedActorId, direction);
+                if (before != selectedActorId)
+                {
+                    SoundRequested?.Invoke(MenuSound.Move);
+                }
             }
         }
     }
@@ -116,6 +127,7 @@ public sealed class BattleHudController
         {
             SelectingTarget = true;
             Message = "Select an enemy. Confirm: Attack   Cancel: Return";
+            SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
         if (SelectedTarget is not BattleCombatant target)
@@ -123,6 +135,7 @@ public sealed class BattleHudController
             return;
         }
         attack(actor.Id, target.Id);
+        SoundRequested?.Invoke(MenuSound.Confirm);
         SelectingTarget = false;
         Message = $"{actor.Name}: Attack → {target.Name}";
         selectedActorId = null;
@@ -132,6 +145,10 @@ public sealed class BattleHudController
     {
         if (Party.Any(actor => actor.Id == actorId && actor.IsReady && actor.IsAlive && !actor.IsBusy))
         {
+            if (SelectedActor?.Id != actorId)
+            {
+                SoundRequested?.Invoke(MenuSound.Move);
+            }
             selectedActorId = actorId;
         }
     }
@@ -140,6 +157,10 @@ public sealed class BattleHudController
     {
         if (Targets.Any(actor => actor.Id == targetId))
         {
+            if (SelectedTarget?.Id != targetId)
+            {
+                SoundRequested?.Invoke(MenuSound.Move);
+            }
             selectedTargetId = targetId;
             if (confirm && SelectingTarget)
             {
@@ -153,11 +174,13 @@ public sealed class BattleHudController
         if (session.Mode == BattleAtbMode.TurnBased && session.Outcome == BattleOutcome.Active)
         {
             advanceTurn();
+            SoundRequested?.Invoke(MenuSound.Confirm);
         }
     }
 
     public void OpenDebug()
     {
+        SoundRequested?.Invoke(MenuSound.Confirm);
         openDebug();
     }
 
@@ -165,12 +188,17 @@ public sealed class BattleHudController
     {
         if (session.Outcome != BattleOutcome.Active)
         {
+            SoundRequested?.Invoke(MenuSound.Confirm);
             complete?.Invoke();
         }
     }
 
     private void CancelTarget()
     {
+        if (SelectingTarget)
+        {
+            SoundRequested?.Invoke(MenuSound.Cancel);
+        }
         SelectingTarget = false;
         Message = "Choose Attack when a character is ready.";
     }

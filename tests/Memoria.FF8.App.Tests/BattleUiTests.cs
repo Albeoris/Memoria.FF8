@@ -45,6 +45,7 @@ public sealed class BattleUiTests
     {
         BattleSession session = new(Definition(), BattleAtbMode.Normal);
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { });
+        hud.ShowInitiative = true;
         List<string> heads = [];
         hud.HeadRenderer = (actor, _, _) => heads.Add(actor.Id);
         UiView view = hud.BuildView();
@@ -64,6 +65,7 @@ public sealed class BattleUiTests
         definition = definition with { Combatants = [definition.Combatants[0] with { InitialAtb = 0, Speed = 200 }, definition.Combatants[1] with { Speed = 50 }, definition.Combatants[2] with { Speed = 100 }] };
         BattleSession session = new(definition, BattleAtbMode.Normal);
         BattleHudController hud = new(session, (_, _) => { }, () => { }, () => { });
+        hud.ShowInitiative = true;
         Dictionary<string, float> positions = [];
         hud.HeadRenderer = (actor, _, bounds) => positions[actor.Id] = bounds.X;
         hud.BuildView().Draw(new TestCanvas(), new UiTheme());
@@ -77,6 +79,7 @@ public sealed class BattleUiTests
         BattleDefinition original = Definition() with { StageId = 7, EncounterId = 42 };
         BattleDefinition? started = null;
         BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, "ResearchInstantVictory", true, (definition, _) => started = definition, (_, _, _) => { }, () => { });
+        SelectRow(debug, "Party 1");
         int attackRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Attack").index;
         debug.Select(attackRow, true);
         debug.Start();
@@ -123,8 +126,11 @@ public sealed class BattleUiTests
             "argument" => new ArgumentException("Invalid definition"),
             _ => new IOException("Cannot read model")
         }, (_, _, _) => { }, () => { });
+        List<MenuSound> sounds = [];
+        debug.SoundRequested += sounds.Add;
         debug.Start();
         Assert.StartsWith("Cannot start scenario: ", debug.Message);
+        Assert.Empty(sounds);
         Assert.Equal(before.Frame, session.Frame);
         Assert.Equal(before.Outcome, session.Outcome);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before), JsonSerializer.SerializeToElement(session.Capture())));
@@ -138,6 +144,7 @@ public sealed class BattleUiTests
         BattleDefinition initial = Definition();
         BattleDebugCatalog catalog = new() { PlayerCostumes = new Dictionary<int, int[]> { [initial.Combatants[0].ModelId] = [0, 2, 4] } };
         BattleDebugController debug = new(initial, catalog, BattleAtbMode.Normal, "ResearchInstantVictory", true, (_, _) => { }, (_, _, _) => { }, () => { });
+        SelectRow(debug, "Party 1");
         int costumeRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Costume").index;
         debug.Select(costumeRow, true);
         Assert.Equal(2, debug.Definition.Combatants[0].Costume);
@@ -150,6 +157,7 @@ public sealed class BattleUiTests
         BattleDefinition definition = Definition();
         definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { Name = "Soldier" }, definition.Combatants[2] with { Name = "Goblin" }] };
         BattleHudController hud = new(new BattleSession(definition, BattleAtbMode.Normal), (_, _) => { }, () => { }, () => { });
+        hud.ShowInitiative = true;
         TestCanvas canvas = new();
         hud.BuildView().Draw(canvas, new UiTheme());
         foreach (BattleCombatantDefinition actor in definition.Combatants)
@@ -166,6 +174,7 @@ public sealed class BattleUiTests
             Weapons = [new BattleDebugEquipment(7, "Compatible", 0), new BattleDebugEquipment(9, "Other character", 1)]
         };
         BattleDebugController debug = new(Definition(), catalog, BattleAtbMode.Normal, "ResearchInstantVictory", true, (_, _) => { }, (_, _, _) => { }, () => { });
+        SelectRow(debug, "Party 1");
         Assert.DoesNotContain(debug.Rows, row => row.Label == "Enemy 1 · Weapon");
         int weaponRow = debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == "Party 1 · Weapon").index;
         debug.Select(weaponRow, true);
@@ -224,6 +233,11 @@ public sealed class BattleUiTests
                 new() { Id = "enemy-1", Name = "Bite Bug B" }
             ]
         };
+    }
+
+    private static void SelectRow(BattleDebugController debug, string label)
+    {
+        debug.Select(debug.Rows.Select((row, index) => (row, index)).Single(pair => pair.row.Label == label).index, true);
     }
 
     private sealed class TestCanvas : IUiCanvas

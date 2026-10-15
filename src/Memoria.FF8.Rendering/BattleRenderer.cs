@@ -10,7 +10,7 @@ public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float Fi
     public static BattleCamera Overview => new(new Vector3(-65, 32, -52), new Vector3(0, 6, 0), VerticalCenter: 0.46f);
 }
 
-public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0);
+public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0, bool LoopAnimation = true);
 
 /// <summary>Perspective-correct CPU battle renderer for original stage and skeletal DAT assets.</summary>
 public sealed class BattleRenderer
@@ -119,7 +119,7 @@ public sealed class BattleRenderer
 
     private void DrawActor(BattleActorDraw actor)
     {
-        IReadOnlyList<Vector3[]> pose = actor.Model.Pose(actor.Animation, actor.Frame);
+        IReadOnlyList<Vector3[]> pose = actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
         Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.Facing) * Matrix4x4.CreateTranslation(actor.Position + actor.AttackOffset - Vector3.UnitY * actor.GroundOffset);
         for (int mesh = 0; mesh < actor.Model.Meshes.Count; mesh++)
         {

@@ -1,3 +1,5 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
@@ -10,8 +12,9 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        battleAudio ??= new BattleAudioPresentation(fieldAudio.StopAll, fieldAudio.PlayBattleMusic, fieldAudio.PlayBattleImpact);
-        if (battleAudio.Update(ActiveBattle))
+        battleAudio ??= new BattleAudioPresentation(fieldAudio.StopAll, fieldAudio.PlayBattleMusic, fieldAudio.PlayBattleImpact, fieldAudio.PlayBattleSequenceSound);
+        BattleSession? active = ActiveBattle;
+        if (battleAudio.Update(active, active is not null && presentedBattle == active ? battleScene?.CollectSounds(active) : null))
         {
             resumeFieldMusic = true;
         }

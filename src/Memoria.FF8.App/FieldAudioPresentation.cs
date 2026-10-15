@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
@@ -22,6 +23,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
     private float streamVolume = 127;
     private int musicPreference = 100;
     private int soundPreference = 100;
+    private int battleVoice;
 
     internal static int OutputGain(int nativeGain, int percentage)
     {
@@ -211,12 +213,51 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             {
                 return;
             }
-            int sample = EventEngine.MapGlobalSoundSample(effect);
-            GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Battle sound {effect} requires an unsupported audio format.");
             // TODO(TD-009): Centered maximum-gain contact at scaffold damage timing; native sequence/camera spatialization remains deferred
             // The negative voice is device-only and cannot collide with native field voices0..31 or create a VM receipt.
-            PlaySoundSample(sample, -1, 127, 64, resource.LoopPolicy);
+            PlayPresentationSound(effect, -1);
         });
+    }
+
+    public void PlayUiSound(GameUi.MenuSound cue)
+    {
+        TryOutput(() =>
+        {
+            if (!Enum.IsDefined(cue))
+            {
+                throw new ArgumentOutOfRangeException(nameof(cue));
+            }
+            // Native4C0A30/4C0A80 use menu1 for cursor motion;4AD8D0 uses2/3 for confirm/cancel.
+            PlayPresentationSound(Catalog.MenuSound((int)cue), -2);
+        });
+    }
+
+    public void PlayBattleSequenceSound(BattleCombatant actor, BattleSequenceSoundCue cue)
+    {
+        TryOutput(() =>
+        {
+            if (actor.ModelId < 0)
+            {
+                return;
+            }
+            int actorId = actor.IsPlayer ? actor.ModelId : checked(actor.ModelId + 16);
+            uint effect = cue.ActorSound ? Catalog.BattleActorSound(actorId, cue.SoundId) : checked((uint)cue.SoundId);
+            if (effect == 0)
+            {
+                return;
+            }
+            // TODO(TD-009): Preserve the cue's sound identity; scheduling/spatialization still use presentation tuning
+            // A bounded device-only voice pool lets swing and impact tails overlap without owning field VM voices.
+            int voice = -10 - battleVoice++ % 16;
+            PlayPresentationSound(effect, voice);
+        });
+    }
+
+    private void PlayPresentationSound(uint effect, int voice)
+    {
+        int sample = EventEngine.MapGlobalSoundSample(effect);
+        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Presentation sound {effect} requires an unsupported audio format.");
+        PlaySoundSample(sample, voice, 127, 64, resource.LoopPolicy);
     }
 
     private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false)

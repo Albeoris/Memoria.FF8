@@ -144,7 +144,7 @@ public sealed class MenuControllerTests
         controller.Register(new MenuScreenDefinition { Id = "extension", Title = "Extension", Help = "Test extension", MainCommand = true, Entries = _ => [] });
         controller.Open("main", demo: true);
         Assert.Contains(controller.Entries, e => e.Id == "extension");
-        controller.Open("debug-room", demo: true);
+        controller.Open("debug-gallery", demo: true);
         Assert.Contains(controller.Entries, e => e.Id == "extension");
         controller.Open("extension", demo: true);
         Assert.NotNull(controller.BuildView());

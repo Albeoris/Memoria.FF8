@@ -54,7 +54,7 @@ public sealed class BattlePreviewCanvasTests
             view.Draw(canvas, new UiTheme());
         }
         Assert.True(hud.SelectingTarget);
-        Assert.NotEqual(Color.Black.ToArgb(), bitmap.GetPixel(20, 20).ToArgb());
+        Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(20, 20).ToArgb());
         Assert.NotEqual(Color.Black.ToArgb(), bitmap.GetPixel(20, 500).ToArgb());
         Assert.Equal(0, session.Frame);
         Assert.Empty(session.QueuedActions);

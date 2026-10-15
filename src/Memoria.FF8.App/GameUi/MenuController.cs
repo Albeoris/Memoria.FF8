@@ -37,6 +37,7 @@ public sealed partial class MenuController
 
     public bool IsOpen { get; private set; }
     public event Action? BattleDebugRequested;
+    public event Action<MenuSound>? SoundRequested;
     public bool BattleDebugAvailable => BattleDebugRequested is not null;
     public bool IsDemo { get; private set; }
     public string ScreenId { get; private set; } = "main";
@@ -155,7 +156,7 @@ public sealed partial class MenuController
                 Select(SelectedIndex + columns, entries.Count);
                 break;
             case MenuInput.Left:
-                if (ScreenId == "config")
+                if (ScreenId == "config" || IsHostSettingsScreen)
                 {
                     ChangeSetting(-1);
                 }
@@ -165,7 +166,7 @@ public sealed partial class MenuController
                 }
                 break;
             case MenuInput.Right:
-                if (ScreenId == "config")
+                if (ScreenId == "config" || IsHostSettingsScreen)
                 {
                     ChangeSetting(1);
                 }
@@ -213,6 +214,7 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        SoundRequested?.Invoke(MenuSound.Cancel);
         if (IsCapturingControls)
         {
             CancelControlsCapture();
@@ -232,7 +234,12 @@ public sealed partial class MenuController
 
     private void Select(int index, int count)
     {
-        _selections[ScreenId] = count == 0 ? 0 : (index % count + count) % count;
+        int next = count == 0 ? 0 : (index % count + count) % count;
+        if (next != SelectedIndex)
+        {
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
+        _selections[ScreenId] = next;
         _view = null;
     }
 
@@ -271,6 +278,10 @@ public sealed partial class MenuController
         {
             Push(entry.Destination);
         }
+        if (entry.Action?.Kind != "menu-back")
+        {
+            SoundRequested?.Invoke(MenuSound.Confirm);
+        }
         _view = null;
     }
 
@@ -281,14 +292,19 @@ public sealed partial class MenuController
         {
             return;
         }
-        var current = Data.Settings.GetValueOrDefault(setting.Id);
+        var current = IsHostSettingsScreen ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id);
         var index = Array.IndexOf(setting.Values, current);
-        Execute(new MenuAction("config", setting.Id, Value: setting.Values[(index + direction + setting.Values.Length) % setting.Values.Length]));
+        Execute(new MenuAction(IsHostSettingsScreen ? "host-config" : "config", setting.Id, Value: setting.Values[(index + direction + setting.Values.Length) % setting.Values.Length]));
+        SoundRequested?.Invoke(MenuSound.Move);
     }
 
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteHostSettingsAction(action))
+        {
+            return;
+        }
         if (ExecuteControlsAction(action))
         {
             return;

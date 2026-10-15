@@ -16,6 +16,7 @@ internal sealed class BattleScenePresentation
     private readonly Dictionary<string, float> groundOffsets = [];
     private readonly Dictionary<string, Vector3> positions = [];
     private readonly Dictionary<string, float> heights = [];
+    private readonly Dictionary<string, BattleAnimationPresentation> animations = [];
     private readonly BattleRenderer portraitRenderer = new(64, 64);
     private readonly BattleImpactTimeline impactTimeline = new();
     private readonly List<Vector3> restingVertices = [];
@@ -38,8 +39,11 @@ internal sealed class BattleScenePresentation
         }
         foreach (BattleCombatantDefinition actor in definition.Combatants)
         {
-            BattleModel model = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : assets.LoadEnemy(actor.ModelId);
+            BattleModel model = actor.IsPlayer ? assets.LoadPlayer(actor.ModelId, actor.Costume) : actor.ModelId == -1 ? BattleDebugModels.CreateDummy() : assets.LoadEnemy(actor.ModelId);
             models.Add(actor.Id, model);
+            BattleSequenceSet? sequences = actor.IsPlayer ? assets.LoadPlayerSequences(actor.ModelId, actor.WeaponId, model) : model.Sequences;
+            BattleWeaponDefinition? equipped = actor.IsPlayer ? actor.WeaponId is int equippedId ? assets.WeaponDefinitions.Single(weapon => weapon.Id == equippedId) : assets.WeaponDefinitions.FirstOrDefault(weapon => weapon.CharacterId == actor.ModelId) : null;
+            animations.Add(actor.Id, new BattleAnimationPresentation(model, sequences, actor) { Melee = equipped?.Melee == true, AttackSequence = actor.IsPlayer ? 13 : actor.ModelId == -1 ? 0 : assets.ReadEnemyAttackSequence(actor.ModelId) });
             groundOffsets.Add(actor.Id, model.Pose(0, 0).SelectMany(mesh => mesh).Min(vertex => vertex.Y));
             heights.Add(actor.Id, model.Pose(0, 0).SelectMany(mesh => mesh).Max(vertex => vertex.Y) - groundOffsets[actor.Id]);
             if (!actor.IsPlayer && actor.WeaponId is not null)
@@ -67,27 +71,15 @@ internal sealed class BattleScenePresentation
             camera = OverviewCamera(width / (float)height);
         }
         List<BattleActorDraw> actors = [];
-        IReadOnlyList<BattleImpactCue> impacts = impactTimeline.Collect(session);
+        impactTimeline.Collect(session);
         foreach (BattleCombatant actor in session.Combatants)
         {
-            Vector3 offset = Vector3.Zero;
-            // TODO(TD-009): Approach/recoil remain bounded presentation motion, pending native action sequences
-            if (session.ActiveAction is BattleActionPresentation action && action.ActorId == actor.Id)
-            {
-                float progress = action.Phase == BattleActionPhase.Windup ? 1 - action.RemainingFrames / (float)BattleSession.AttackWindupFrames : action.RemainingFrames / (float)BattleSession.AttackRecoveryFrames;
-                offset = (positions[action.TargetId] - positions[actor.Id]) * Math.Clamp(progress, 0, 1) * 0.7f;
-            }
-            BattleImpactCue hit = impacts.LastOrDefault(cue => cue.IsPhysical && cue.Event.TargetId == actor.Id && cue.Age < 8);
-            if (hit.Event is not null)
-            {
-                Vector3 away = positions[actor.Id] - positions[hit.Event.ActorId!];
-                if (away.LengthSquared() > 0)
-                {
-                    offset += Vector3.Normalize(away) * MathF.Sin(hit.Age / 8f * MathF.PI) * 0.8f;
-                }
-            }
+            BattleEvent? action = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
+            Vector3 target = action?.TargetId is string targetId ? positions[targetId] : positions[actor.Id];
+            BattleAnimationSample pose = animations[actor.Id].Sample(session, actor, positions[actor.Id], target);
+            float ground = animations[actor.Id].GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // TODO(TD-009): Reflected facing matches the current model/formation basis; original502070 writes party yaw0/enemy2048. Complete native stage/model basis reconciliation remains open
-            BattleActorDraw drawing = new(models[actor.Id], positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Frame: session.Frame / 2f, AttackOffset: offset, Opacity: actor.IsAlive ? 1 : 0.25f, GroundOffset: groundOffsets[actor.Id]);
+            BattleActorDraw drawing = new(models[actor.Id], positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop);
             actors.Add(drawing);
             if (weapons[actor.Id] is BattleModel weapon)
             {
@@ -173,7 +165,13 @@ internal sealed class BattleScenePresentation
     public void AdvancePresentation(TimeSpan elapsed)
     {
         impactTimeline.Advance(elapsed);
+        foreach (BattleAnimationPresentation animation in animations.Values)
+        {
+            animation.Advance(elapsed);
+        }
     }
+
+    public IReadOnlyList<BattleSequenceSoundCue> CollectSounds(BattleSession session) => animations.Values.SelectMany(animation => animation.CollectSounds(session)).ToArray();
 
     public PixelImage Head(BattleCombatant actor, int size = 64)
     {
