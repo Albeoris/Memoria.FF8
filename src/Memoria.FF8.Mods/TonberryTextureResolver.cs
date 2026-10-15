@@ -93,13 +93,13 @@ public sealed class TonberryTextureResolver : ITextureReplacementResolver
 
     public TextureReplacement? Resolve(TextureBuildContext context)
     {
-        if (context.Source.Edition != GameDataEdition.Classic || context.Layout is not ("classic-world-texl" or "tonberry-classic-page" or "classic-world-roads"))
+        if (context.Source.Edition != GameDataEdition.Classic || context.Layout is not ("classic-world-texl" or "tonberry-classic-page" or "classic-world-road-region"))
         {
             return null;
         }
-        if (context.Layout == "classic-world-roads")
+        if (context.Layout == "classic-world-road-region")
         {
-            return ResolveRoads(context);
+            return ResolveRoadRegion(context);
         }
         TonberrySignatures signatures = recognition.Get(context, () => Project(context));
         TonberryRule? rule = tables.Match(signatures);
@@ -162,61 +162,43 @@ public sealed class TonberryTextureResolver : ITextureReplacementResolver
         return canvas;
     }
 
-    private TextureReplacement? ResolveRoads(TextureBuildContext context)
+    private TextureReplacement? ResolveRoadRegion(TextureBuildContext context)
     {
         if (context.EncodedSource is null)
         {
             return null;
         }
         TonberryWorldTextureSource world = recognition.GetWorld(context);
-        List<(TimImage Tim, ModFile File, PixelImage Image)> matches = [];
-        for (int i = 0; i < world.Roads.Count; i++)
+        string[] subresource = context.Key.Subresource.Split('/');
+        if (subresource.Length != 2 || subresource[0] != "roads" || !int.TryParse(subresource[1], out int index) || (uint)index >= world.Roads.Count)
         {
-            TimImage tim = world.Roads[i];
-            TextureBuildContext pageContext = new(context.Key with { Subresource = context.Key.Subresource + "/source/" + i }, context.Source, context.Revision, "tonberry-classic-page", 256, 256, () => world.Page(tim));
-            TonberryRule? rule = tables.Match(recognition.Get(pageContext, () => pageContext.Original));
-            ModFile? file = rule is null ? null : tables.FindImage(rule.Name);
-            if (file is null)
-            {
-                continue;
-            }
-            PixelImage image = ModImageDecoder.Decode(file).Image;
-            if (image.Width % 256 != 0 || image.Height != image.Width)
-            {
-                throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("The replacement must preserve its 256x256 logical world canvas."));
-            }
-            matches.Add((tim, file, image));
+            throw new InvalidDataException("A world road region requires its exact source TIM ordinal.");
         }
-        if (matches.Count == 0)
+        TimImage tim = world.Roads[index];
+        if (context.Region.X != tim.X || context.Region.Y != tim.Y || context.Region.BitsPerPixel != 4 || context.LogicalWidth != tim.PixelWidth || context.LogicalHeight != tim.Height || context.Region.CanvasWidth != 256 || context.Region.CanvasHeight != 256)
+        {
+            throw new InvalidDataException("World road region metadata differs from its original source TIM.");
+        }
+        TonberryRule? rule = tables.Match(recognition.Get(context, () => world.Page(tim)));
+        ModFile? file = rule is null ? null : tables.FindImage(rule.Name);
+        if (file is null)
         {
             return null;
         }
-        int scale = matches.Max(match => match.Image.Width / 256);
-        PixelImage original = context.Original;
-        PixelImage atlas = new(original.Width * scale, original.Height * scale);
-        for (int y = 0; y < atlas.Height; y++)
+        PixelImage image = ModImageDecoder.Decode(file).Image;
+        if (image.Width % 256 != 0 || image.Height != image.Width)
         {
-            for (int x = 0; x < atlas.Width; x++)
-            {
-                atlas[x, y] = original[x / scale, y / scale];
-            }
+            throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException("The replacement must preserve its 256x256 logical world canvas."));
         }
-        foreach ((TimImage tim, ModFile file, PixelImage image) in matches)
+        int scale = image.Width / 256;
+        int sourceX = tim.X % 64 * 4 * scale;
+        int sourceY = tim.Y % 256 * scale;
+        PixelImage region = new(tim.PixelWidth * scale, tim.Height * scale);
+        for (int y = 0; y < region.Height; y++)
         {
-            int targetX = (tim.X - 832) * 4;
-            int targetY = tim.Y - 256;
-            int sourceX = tim.X % 64 * 4;
-            int sourceY = tim.Y % 256;
-            int sourceScale = image.Width / 256;
-            for (int y = 0; y < tim.Height * scale; y++)
-            {
-                for (int x = 0; x < tim.PixelWidth * scale; x++)
-                {
-                    atlas[targetX * scale + x, targetY * scale + y] = image[sourceX * sourceScale + x * sourceScale / scale, sourceY * sourceScale + y * sourceScale / scale];
-                }
-            }
+            image.Pixels.AsSpan((sourceY + y) * image.Width + sourceX, region.Width).CopyTo(region.Pixels.AsSpan(y * region.Width, region.Width));
         }
-        return new TextureReplacement(atlas, $"Tonberry native world road regions {matches.Count}/{world.Roads.Count}: {string.Join(", ", matches.Select(match => match.File.PackageId + "/" + match.File.RelativePath).Distinct())}", context.LogicalWidth, context.LogicalHeight);
+        return new TextureReplacement(region, $"{file.PackageId}/{file.RelativePath} (original world road region {index}; rule {rule!.Table.PackageId}/{rule.Table.RelativePath}:{rule.Row})", context.LogicalWidth, context.LogicalHeight);
     }
 
     private static string SelectInterfaceVariant(string name, PixelImage original)

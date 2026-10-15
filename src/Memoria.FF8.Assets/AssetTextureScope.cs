@@ -16,9 +16,11 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
         {
             return null;
         }
-        bool retain = keys.Add(key);
+        bool retain = !keys.Contains(key);
         ResourceContent encoded = resources.Get(key.Owner);
-        return resources.GetTexture(new TextureBuildContext(key, resources.Source, encoded.Revision, layout, image.Width, image.Height, () => image, region, palettes, paletteCount, encoded), retain);
+        AssetHandle<TextureValue> handle = resources.GetTexture(new TextureBuildContext(key, resources.Source, encoded.Revision, layout, image.Width, image.Height, () => image, region, palettes, paletteCount, encoded), retain);
+        keys.Add(key);
+        return handle;
     }
 
     public IReadOnlyList<PixelImage> RegisterList(ResourceKey owner, IReadOnlyList<PixelImage> images, string layout, string prefix = "texture")
@@ -29,6 +31,18 @@ internal sealed class AssetTextureScope(ResourceService? resources) : IDisposabl
         }
         AssetHandle<TextureValue>[] handles = images.Select((image, index) => Register(new TextureKey(owner, $"{prefix}/{index}"), image, layout)!).ToArray();
         return new ResourceTextureList(handles);
+    }
+
+    public AssetHandle<TextureValue>? RegisterAtlas(TextureKey key, IReadOnlyList<TextureKey> dependencies, IReadOnlyList<(int X, int Y)> positions, int width, int height)
+    {
+        if (resources is null)
+        {
+            return null;
+        }
+        bool retain = !keys.Contains(key);
+        AssetHandle<TextureValue> handle = resources.GetTransformedTexture(new TextureTransformContext(key, [.. dependencies], images => TextureAtlasBuilder.Build(images, positions, width, height)), retain);
+        keys.Add(key);
+        return handle;
     }
 
     public void Dispose()

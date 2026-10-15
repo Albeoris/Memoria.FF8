@@ -50,6 +50,9 @@ public interface ITextureReplacementResolver
     TextureReplacement? Resolve(TextureBuildContext context);
 }
 
+/// <summary>A native preparation step applied to already resolved source textures.</summary>
+public sealed record TextureTransformContext(TextureKey Key, ImmutableArray<TextureKey> Dependencies, Func<IReadOnlyList<TextureValue>, TextureValue> Build);
+
 public sealed class AssetHandle<T> where T : class
 {
     private Func<T> read;

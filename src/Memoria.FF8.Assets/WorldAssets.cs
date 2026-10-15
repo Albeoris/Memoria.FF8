@@ -44,6 +44,8 @@ public sealed partial class WorldAssets : IDisposable
     private readonly AssetTextureScope textureScope;
     private AssetHandle<TextureValue>? roadHandle;
     private AssetHandle<TextureValue>? waterHandle;
+    private bool roadsPrepared;
+    private bool waterPrepared;
     private byte[]? texl;
     private PixelImage? roads;
     private PixelImage? water;
@@ -196,21 +198,21 @@ public sealed partial class WorldAssets : IDisposable
     {
         if (triangle.Road)
         {
-            if (roads is null)
+            if (!roadsPrepared)
             {
                 roads = CreateRoadAtlas();
-                roadHandle = textureScope.Register(new TextureKey(new ResourceKey("world/wmsetus.obj"), "roads"), roads, "classic-world-roads");
+                roadsPrepared = true;
             }
-            return roadHandle?.Value.Image ?? roads;
+            return roadHandle?.Value.Image ?? roads!;
         }
         if (triangle.Water)
         {
-            if (water is null)
+            if (!waterPrepared)
             {
                 water = CreateWaterAtlas();
-                waterHandle = textureScope.Register(new TextureKey(new ResourceKey("world/wmsetus.obj"), "water"), water, "classic-world-water");
+                waterPrepared = true;
             }
-            return waterHandle?.Value.Image ?? water;
+            return waterHandle?.Value.Image ?? water!;
         }
         if (!textures.TryGetValue((triangle.TexturePage, triangle.Palette), out PixelImage? image))
         {
@@ -227,40 +229,41 @@ public sealed partial class WorldAssets : IDisposable
         return textureHandles.TryGetValue((triangle.TexturePage, triangle.Palette), out AssetHandle<TextureValue>? current) ? current.Value.Image : image;
     }
 
-    private PixelImage CreateRoadAtlas()
+    private PixelImage? CreateRoadAtlas()
     {
-        PixelImage atlas = new(256, 256);
-        foreach (int pointer in WorldAssetReader.InnerPointers(wmset, sections[38]))
-        {
-            TimImage tim = WorldAssetReader.ReadTim(wmset, sections[38] + pointer).Image;
-            Copy(tim.Decode(), atlas, (tim.X - 832) * 4, tim.Y - 256);
-        }
-        return atlas;
+        return CreateSourceAtlas(38, null, "roads", "classic-world-road-region", 256, 256, out roadHandle);
     }
 
-    private PixelImage CreateWaterAtlas()
+    private PixelImage? CreateWaterAtlas()
     {
-        PixelImage atlas = new(256, 128);
-        int[] pointers = WorldAssetReader.InnerPointers(wmset, sections[37]);
-        int[] images = [23, 16, 21, 22, 17, 18, 19, 20];
-        for (int i = 0; i < images.Length; i++)
-        {
-            TimImage tim = WorldAssetReader.ReadTim(wmset, sections[37] + pointers[images[i]]).Image;
-            Copy(tim.Decode(), atlas, i % 4 * 64, i / 4 * 64);
-        }
-        return atlas;
+        return CreateSourceAtlas(37, [23, 16, 21, 22, 17, 18, 19, 20], "water", "classic-world-water-region", 256, 128, out waterHandle);
     }
 
-    private static void Copy(PixelImage source, PixelImage target, int x, int y)
+    private PixelImage? CreateSourceAtlas(int section, int[]? selected, string name, string layout, int width, int height, out AssetHandle<TextureValue>? handle)
     {
-        if (x < 0 || y < 0 || x + source.Width > target.Width || y + source.Height > target.Height)
+        int[] pointers = WorldAssetReader.InnerPointers(wmset, sections[section]);
+        int[] members = selected ?? Enumerable.Range(0, pointers.Length).ToArray();
+        List<TextureKey> dependencies = [];
+        List<(int X, int Y)> positions = [];
+        List<TextureValue> original = [];
+        ResourceKey owner = new("world/wmsetus.obj");
+        for (int index = 0; index < members.Length; index++)
         {
-            throw new InvalidDataException("World texture lies outside its VRAM atlas.");
+            int member = members[index];
+            TimImage tim = WorldAssetReader.ReadTim(wmset, sections[section] + pointers[member]).Image;
+            PixelImage decoded = tim.Decode();
+            TextureKey key = new(owner, $"{name}/{member}");
+            TextureSourceRegion region = new(tim.X, tim.Y, tim.PixelMode == TimPixelMode.Indexed4 ? 4 : 8);
+            textureScope.Register(key, decoded, layout, region, palette => tim.Decode(palette), tim.Palettes.Count);
+            dependencies.Add(key);
+            positions.Add(selected is null ? ((tim.X - 832) * 4, tim.Y - 256) : (index % 4 * 64, index / 4 * 64));
+            if (resources is null)
+            {
+                original.Add(new TextureValue(decoded, decoded.Width, decoded.Height, "classic"));
+            }
         }
-        for (int row = 0; row < source.Height; row++)
-        {
-            source.Pixels.AsSpan(row * source.Width, source.Width).CopyTo(target.Pixels.AsSpan((y + row) * target.Width + x, source.Width));
-        }
+        handle = textureScope.RegisterAtlas(new TextureKey(owner, name + "-atlas"), dependencies, positions, width, height);
+        return handle is null ? TextureAtlasBuilder.Build(original, positions, width, height).Image : null;
     }
 
     private IFlArchiveEntry Entry(string name)

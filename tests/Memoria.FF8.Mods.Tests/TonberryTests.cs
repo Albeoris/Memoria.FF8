@@ -7,7 +7,6 @@ using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Mods;
 using Memoria.FF8.Resources;
-using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Mods.Tests;
 
@@ -173,7 +172,7 @@ public sealed class TonberryTests
     }
 
     [Fact]
-    public void InstalledRoadRegionsMatchOriginalNativePageAndKeepUnmatchedPixels()
+    public void InstalledRoadRegionsMatchBeforePackingAndReturnOnlyTheirSourceRectangle()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
         string package = Path.Combine(directory, "Mods", "Tonberry", "HorizonPackRemaster_v1-0");
@@ -181,27 +180,46 @@ public sealed class TonberryTests
         ModFile[] files = Directory.EnumerateFiles(package, "*", SearchOption.AllDirectories).OrderBy(path => path, StringComparer.OrdinalIgnoreCase).Select(path => new ModFile("Tonberry/HorizonPackRemaster_v1-0", ModFormat.Tonberry, Path.GetRelativePath(package, path), 1, () => File.ReadAllBytes(path))).ToArray();
         TonberryRecognitionCache cache = new();
         TonberryTextureResolver resolver = Assert.IsType<TonberryTextureResolver>(TonberryTextureResolver.Create(Classic, Catalog(files), out _, cache));
-        using WorldAssets assets = new(directory);
-        WorldTriangle road = new(default, default, default, default, default, default, 0, 0, 0, 0x20, 0);
-        PixelImage original = assets.GetTexture(road);
         using IFlArchive archive = FlArchive.OpenForRead(Path.Combine(directory, "Data", "lang-en", "world.fs"), FlArchiveRepresentation.Files);
         IFlArchiveEntry entry = archive.Entries.Single(entry => entry.RelativePath.EndsWith("wmsetus.obj", StringComparison.OrdinalIgnoreCase));
+        using Stream source = entry.OpenForRead();
+        using MemoryStream data = new();
+        source.CopyTo(data);
+        byte[] bytes = data.ToArray();
         ResourceKey owner = new("world/wmsetus.obj");
-        ResourceContent content = new(owner, "wmset", 1, "in-memory-backed archive", entry.OpenForRead);
-        TextureBuildContext context = new(new TextureKey(owner, "roads"), Classic, 1, "classic-world-roads", 256, 256, () => original, encodedSource: content);
-        TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(context));
-        Assert.Equal(1024, replacement.Image.Width);
-        Assert.Contains("12/13", replacement.Provenance);
-        Assert.Contains("hp_texpg_39.png", replacement.Provenance);
-        for (int y = 16; y < 32; y++)
+        ResourceContent content = new(owner, "wmset", 1, "memory source", () => new MemoryStream(bytes, false));
+        int section = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(38 * 4));
+        PixelImage replacementPage = ModImageDecoder.Decode(files.Single(file => file.RelativePath.Replace('\\', '/').EndsWith("/hp_texpg_39.png", StringComparison.OrdinalIgnoreCase))).Image;
+        int matched = 0;
+        for (int index = 0; index < 13; index++)
         {
-            for (int x = 64; x < 96; x++)
+            int offset = section + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(section + index * 4));
+            int position = offset + 8;
+            if ((BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 4)) & 8) != 0)
             {
-                Assert.Equal(original[x, y], replacement.Image[x * 4, y * 4]);
+                position += BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(position));
             }
+            int end = position + BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(position));
+            TimImage tim = TimFile.Read(bytes.AsSpan(offset, end - offset)).Images.Single();
+            TextureBuildContext context = new(new TextureKey(owner, $"roads/{index}"), Classic, 1, "classic-world-road-region", tim.PixelWidth, tim.Height, () => throw new InvalidOperationException("Recognition must use original encoded source, before decoded atlas packing."), new TextureSourceRegion(tim.X, tim.Y, 4), encodedSource: content);
+            TextureReplacement? replacement = resolver.Resolve(context);
+            if (index == 7)
+            {
+                Assert.Null(replacement);
+                Assert.Null(resolver.Resolve(context));
+                continue;
+            }
+            matched++;
+            Assert.NotNull(replacement);
+            Assert.Contains("hp_texpg_39.png", replacement.Provenance);
+            Assert.Equal(tim.PixelWidth, replacement.LogicalWidth);
+            Assert.Equal(tim.Height, replacement.LogicalHeight);
+            Assert.Equal(tim.PixelWidth * 4, replacement.Image.Width);
+            Assert.Equal(tim.Height * 4, replacement.Image.Height);
+            Assert.Equal(replacementPage[tim.X % 64 * 4 * 4, tim.Y % 256 * 4], replacement.Image[0, 0]);
+            Assert.NotNull(resolver.Resolve(context));
         }
-        Assert.Equal(13, cache.CalculationCount);
-        Assert.NotNull(resolver.Resolve(context));
+        Assert.Equal(12, matched);
         Assert.Equal(13, cache.CalculationCount);
     }
 

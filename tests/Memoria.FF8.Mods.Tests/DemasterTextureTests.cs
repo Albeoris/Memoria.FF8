@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using Albeoris.Games.FF8.Imaging;
 using ImageMagick;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods.Tests;
@@ -80,7 +81,7 @@ public sealed class DemasterTextureTests
         ModFile cloud = MetadataFile("Demaster/Mixed", "textures/world/dat/wmset/wmset_014_0.png");
         ModFile model = MetadataFile("Demaster/ModelsOnly", "textures/field.fs/field_hd/d000_0.png");
         ModCatalogSnapshot catalog = new(1, [], [terrain, road, cloud, model]);
-        DemasterInspection result = DemasterTextureResolver.Inspect(new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-roads"]), catalog);
+        DemasterInspection result = DemasterTextureResolver.Inspect(new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-road-region"]), catalog);
         Assert.Equal(2, result.UsablePackageIds.Count);
         Assert.Contains("Demaster/Mixed", result.UsablePackageIds);
         Assert.Contains("Demaster/Roads", result.UsablePackageIds);
@@ -129,7 +130,8 @@ public sealed class DemasterTextureTests
         Assert.Empty(DemasterTextureResolver.CandidatePaths(Context("world/texl.obj", "texl/0", "unknown-layout")));
         Assert.Empty(DemasterTextureResolver.CandidatePaths(Context("world/wmsetus.obj", "water", "classic-world-water")));
         Assert.Empty(DemasterTextureResolver.CandidatePaths(Context("battle/c0m001.dat", "0", "classic-model")));
-        Assert.EndsWith("wmset_029_0.dds", DemasterTextureResolver.CandidatePaths(Context("world/wmsetus.obj", "roads", "classic-world-roads"))[0]);
+        Assert.Empty(DemasterTextureResolver.CandidatePaths(Context("world/wmsetus.obj", "roads", "classic-world-roads")));
+        Assert.EndsWith("wmset_029_0.dds", DemasterTextureResolver.CandidatePaths(RoadContext())[0]);
         Assert.EndsWith("wmset0_029_0.dds", DemasterTextureResolver.CandidatePaths(Context("world/wmsetus.obj", "29", "demaster-world-wmset0"))[0]);
         Assert.EndsWith("wmset_014_0.dds", DemasterTextureResolver.CandidatePaths(Context("world/wmsetus.obj", "14", "demaster-world-wmset"))[0]);
     }
@@ -168,6 +170,47 @@ public sealed class DemasterTextureTests
         Assert.EndsWith("field_hd/d000_1.dds", DemasterTextureResolver.FieldModelCandidates(97, 1)[0]);
         Assert.EndsWith("field_hd_new/p000_0.dds", DemasterTextureResolver.FieldModelCandidates(3097, 0)[2]);
         Assert.EndsWith("d1c002_0.dds", DemasterTextureResolver.BattleCharacterCandidates(4199, 0)[0]);
+    }
+
+    [Fact]
+    public void RoadReplacementCropsNativeTimRegionBeforeEngineAtlasPacking()
+    {
+        using MemoryStream pixels = new();
+        foreach (int size in new[] { 512, 256 })
+        {
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    pixels.Write([(byte)(x * 256 / size), (byte)(y * 256 / size), 0, 255]);
+                }
+            }
+        }
+        byte[] dds = Dds(512, 512, 0x30315844, pixels.ToArray(), dxgi: 28, mips: 2);
+        ModFile file = new("Demaster/Roads", ModFormat.Demaster, "textures/world/dat/wmset/wmset_029_0.dds", 1, () => dds);
+        DemasterTextureResolver resolver = new(new(1, [], [file]));
+        TextureReplacement replacement = Assert.IsType<TextureReplacement>(resolver.Resolve(RoadContext(x: 848, y: 272)));
+        Assert.Equal(128, replacement.LogicalWidth);
+        Assert.Equal(16, replacement.LogicalHeight);
+        Assert.Equal(256, replacement.Image.Width);
+        Assert.Equal(32, replacement.Image.Height);
+        Assert.Equal(new Rgba32(64, 16, 0), replacement.Image[0, 0]);
+        Assert.Equal(new Rgba32(191, 31, 0), replacement.Image[255, 31]);
+        Assert.Equal(2, replacement.MipLevels!.Count);
+        Assert.Equal(128, replacement.MipLevels[1].Width);
+        Assert.Equal(16, replacement.MipLevels[1].Height);
+        Assert.Equal(new Rgba32(64, 16, 0), replacement.MipLevels[1][0, 0]);
+    }
+
+    [Theory]
+    [InlineData(831, 256)]
+    [InlineData(896, 256)]
+    [InlineData(832, 255)]
+    [InlineData(832, 512)]
+    [InlineData(880, 256)]
+    public void RoadRegionOutsideNativePageCannotSelectTrackReplacement(int x, int y)
+    {
+        Assert.Empty(DemasterTextureResolver.CandidatePaths(RoadContext(x, y)));
     }
 
     [Theory]
@@ -262,9 +305,46 @@ public sealed class DemasterTextureTests
             terrainCount++;
         }
         Assert.Equal(19, terrainCount);
-        Assert.Equal(1024, Assert.IsType<TextureReplacement>(resolver.Resolve(Context("world/wmsetus.obj", "roads", "classic-world-roads"))).Image.Width);
+        TextureReplacement road = Assert.IsType<TextureReplacement>(resolver.Resolve(RoadContext()));
+        Assert.Equal(512, road.Image.Width);
+        Assert.Equal(64, road.Image.Height);
+        Assert.Equal(128, road.LogicalWidth);
+        Assert.Equal(16, road.LogicalHeight);
         // Native Demaster cloud addressing is available to a future source-published page, with no invented Classic cloud renderer.
         Assert.Equal(1024, Assert.IsType<TextureReplacement>(resolver.Resolve(Context("world/wmsetus.obj", "14", "demaster-world-wmset"))).Image.Width);
+    }
+
+    [Fact]
+    public void InstalledClassicRoadsResolveUnmodifiedTimRegionsBeforeDerivedAtlas()
+    {
+        string? package = Environment.GetEnvironmentVariable("FF8_DEMASTER_PACKAGE");
+        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(package) && Directory.Exists(game), "Installed Classic source and FF8_DEMASTER_PACKAGE are required.");
+        string path = Path.Combine(package!, "textures", "world", "dat", "wmset", "wmset_029_0.png");
+        ModFile file = new("Demaster/HorizonPack-Remastered", ModFormat.Demaster, "textures/world/dat/wmset/wmset_029_0.png", 1, () => File.ReadAllBytes(path));
+        DemasterTextureResolver adapter = new(new(1, [], [file]));
+        using ClassicGameDataSource source = new(game);
+        ResourceService resources = new(source);
+        List<(TextureBuildContext Context, TextureReplacement Replacement)> regions = [];
+        resources.Prepare(new RecordingRoadResolver(adapter, regions)).Commit();
+        using WorldAssets world = new(game, resources);
+        PixelImage atlas = world.GetTexture(new(default, default, default, default, default, default, 0, 0, 0, 0x20, 0));
+        Assert.Equal(1024, atlas.Width);
+        Assert.Equal(1024, atlas.Height);
+        Assert.NotEmpty(regions);
+        PixelImage page = ModImageDecoder.Decode(file).Image;
+        foreach ((TextureBuildContext context, TextureReplacement replacement) in regions)
+        {
+            Assert.Equal("classic-world-road-region", context.Layout);
+            Assert.StartsWith("roads/", context.Key.Subresource);
+            Assert.Equal(context.LogicalWidth, context.Original.Width);
+            Assert.Equal(context.LogicalHeight, context.Original.Height);
+            Assert.Equal(4, context.Region.BitsPerPixel);
+            Assert.NotSame(context.Original, replacement.Image);
+            Assert.Equal(context.LogicalWidth * 4, replacement.Image.Width);
+            Assert.Equal(context.LogicalHeight * 4, replacement.Image.Height);
+            Assert.Equal(page[context.Region.X % 64 * 16, context.Region.Y % 256 * 4], replacement.Image[0, 0]);
+        }
     }
 
     private static TextureBuildContext Context(string owner, string subresource, string layout, int palette = 0)
@@ -272,7 +352,25 @@ public sealed class DemasterTextureTests
         return new(new(new(owner), subresource, palette), new("memory", GameDataEdition.Classic, []), 1, layout, 256, 256, () => throw new InvalidOperationException("Semantic lookup must not decode the base image."));
     }
 
+    private static TextureBuildContext RoadContext(int x = 832, int y = 256)
+    {
+        return new(new(new("world/wmsetus.obj"), "roads/0"), new("memory", GameDataEdition.Classic, ["classic-world-road-region"]), 1, "classic-world-road-region", 128, 16, () => throw new InvalidOperationException("Semantic lookup must not decode or pack the base TIM."), new TextureSourceRegion(x, y, 4, 256, 256));
+    }
+
     private static ModFile MetadataFile(string package, string path) => new(package, ModFormat.Demaster, path, 1, () => throw new InvalidOperationException("Inspection must leave image decoding lazy."));
+
+    private sealed class RecordingRoadResolver(DemasterTextureResolver adapter, List<(TextureBuildContext Context, TextureReplacement Replacement)> regions) : ITextureReplacementResolver
+    {
+        public TextureReplacement? Resolve(TextureBuildContext context)
+        {
+            TextureReplacement? replacement = adapter.Resolve(context);
+            if (replacement is not null)
+            {
+                regions.Add((context, replacement));
+            }
+            return replacement;
+        }
+    }
 
     private static byte[] Png(int width, int height, IMagickColor<byte> color)
     {

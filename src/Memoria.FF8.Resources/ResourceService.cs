@@ -8,6 +8,7 @@ public sealed class ResourceService : IResourceChangeFeed
     private sealed record Publication(long Generation, ImmutableDictionary<TextureKey, TextureValue> Values);
     private readonly IResourceSource source;
     private readonly Dictionary<TextureKey, TextureBuildContext> contexts = [];
+    private readonly Dictionary<TextureKey, TextureTransformContext> transforms = [];
     private readonly Dictionary<TextureKey, AssetHandle<TextureValue>> handles = [];
     private readonly Dictionary<TextureKey, int> owners = [];
     private readonly List<Action<ResourceChangeSet>> subscribers = [];
@@ -38,9 +39,14 @@ public sealed class ResourceService : IResourceChangeFeed
 
     public AssetHandle<TextureValue> GetTexture(TextureBuildContext context, bool retain = false)
     {
+        long expectedVersion = mutationVersion;
         if (notifying)
         {
             throw new InvalidOperationException("Resource mutations must be queued until after change notification.");
+        }
+        if (transforms.ContainsKey(context.Key))
+        {
+            throw new InvalidOperationException("A prepared texture cannot also be registered as an original source texture.");
         }
         bool exists = contexts.TryGetValue(context.Key, out TextureBuildContext? previous);
         if (exists && previous!.Revision == context.Revision && previous.Layout == context.Layout)
@@ -71,10 +77,20 @@ public sealed class ResourceService : IResourceChangeFeed
                 }
             }
         }
+        Publication current = published;
+        ImmutableDictionary<TextureKey, TextureValue>.Builder candidate = current.Values.ToBuilder();
+        candidate[context.Key] = value;
+        if (exists)
+        {
+            BuildTransforms(candidate);
+        }
+        if (mutationVersion != expectedVersion)
+        {
+            throw new InvalidOperationException("The source or preparation graph changed while building the texture.");
+        }
         contexts[context.Key] = context;
         mutationVersion++;
-        Publication current = published;
-        Volatile.Write(ref published, current with { Generation = exists ? current.Generation + 1 : current.Generation, Values = current.Values.SetItem(context.Key, value) });
+        Volatile.Write(ref published, current with { Generation = exists ? current.Generation + 1 : current.Generation, Values = candidate.ToImmutable() });
         if (!handles.TryGetValue(context.Key, out AssetHandle<TextureValue>? handle))
         {
             TextureKey key = context.Key;
@@ -86,6 +102,48 @@ public sealed class ResourceService : IResourceChangeFeed
         {
             owners[context.Key]++;
         }
+        if (exists)
+        {
+            Notify(new ResourceChangeSet(current.Generation, current.Generation + 1, [context.Key, .. transforms.Keys], "Original texture source changed"));
+        }
+        return handle;
+    }
+
+    public AssetHandle<TextureValue> GetTransformedTexture(TextureTransformContext context, bool retain = false)
+    {
+        if (notifying || contexts.ContainsKey(context.Key))
+        {
+            throw new InvalidOperationException("Register native texture preparation outside notifications, under its own identity.");
+        }
+        if (transforms.TryGetValue(context.Key, out TextureTransformContext? previous))
+        {
+            if (!previous.Dependencies.SequenceEqual(context.Dependencies))
+            {
+                throw new InvalidOperationException("A prepared texture identity cannot change its source dependencies while resident.");
+            }
+            if (retain)
+            {
+                owners[context.Key]++;
+            }
+            return handles[context.Key];
+        }
+        long expectedVersion = mutationVersion;
+        TextureValue value = context.Build(context.Dependencies.Select(key => published.Values.TryGetValue(key, out TextureValue? dependency) ? dependency : throw new InvalidOperationException($"Missing texture preparation dependency {key}.")).ToArray());
+        if (mutationVersion != expectedVersion)
+        {
+            throw new InvalidOperationException("The source or preparation graph changed while building the derived texture.");
+        }
+        transforms.Add(context.Key, context);
+        foreach (TextureKey dependency in context.Dependencies)
+        {
+            owners[dependency]++;
+        }
+        mutationVersion++;
+        Volatile.Write(ref published, published with { Values = published.Values.Add(context.Key, value) });
+        TextureKey identity = context.Key;
+        AssetHandle<TextureValue> handle = new(() => Volatile.Read(ref published).Values[identity], () => Volatile.Read(ref published).Generation);
+        handles.Add(context.Key, handle);
+        owners.Add(context.Key, 1);
         return handle;
     }
 
@@ -98,11 +156,45 @@ public sealed class ResourceService : IResourceChangeFeed
         {
             next.Add(key, Resolve(context, nextResolver));
         }
+        BuildTransforms(next);
         return new PreparedResources(this, version, nextResolver, next.ToImmutable());
+    }
+
+    private void BuildTransforms(ImmutableDictionary<TextureKey, TextureValue>.Builder next)
+    {
+        Dictionary<TextureKey, TextureTransformContext> preparation = new(transforms);
+        foreach (TextureKey key in preparation.Keys)
+        {
+            next.Remove(key);
+        }
+        HashSet<TextureKey> visiting = [];
+        TextureValue Build(TextureKey key)
+        {
+            if (next.TryGetValue(key, out TextureValue? value))
+            {
+                return value;
+            }
+            if (!preparation.TryGetValue(key, out TextureTransformContext? transform) || !visiting.Add(key))
+            {
+                throw new InvalidOperationException($"Missing or cyclic texture preparation dependency {key}.");
+            }
+            value = transform.Build(transform.Dependencies.Select(Build).ToArray());
+            visiting.Remove(key);
+            next.Add(key, value);
+            return value;
+        }
+        foreach (TextureKey key in preparation.Keys)
+        {
+            Build(key);
+        }
     }
 
     public void Release(IEnumerable<TextureKey> keys)
     {
+        if (notifying)
+        {
+            throw new InvalidOperationException("Resource mutations must be queued until after change notification.");
+        }
         foreach (TextureKey key in keys)
         {
             if (!owners.TryGetValue(key, out int count))
@@ -115,11 +207,17 @@ public sealed class ResourceService : IResourceChangeFeed
                 continue;
             }
             handles[key].Freeze(published.Values[key]);
+            TextureTransformContext? preparation = transforms.GetValueOrDefault(key);
             contexts.Remove(key);
+            transforms.Remove(key);
             handles.Remove(key);
             owners.Remove(key);
             Volatile.Write(ref published, published with { Values = published.Values.Remove(key) });
             mutationVersion++;
+            if (preparation is not null)
+            {
+                Release(preparation.Dependencies);
+            }
         }
     }
 
@@ -134,6 +232,29 @@ public sealed class ResourceService : IResourceChangeFeed
     {
         TextureReplacement? replacement = replacementResolver?.Resolve(context);
         return replacement is null ? new TextureValue(context.Original, context.LogicalWidth, context.LogicalHeight, context.Source.Id) : new TextureValue(replacement.Image, replacement.LogicalWidth, replacement.LogicalHeight, replacement.Provenance, replacement.MipLevels);
+    }
+
+    private void Notify(ResourceChangeSet notification)
+    {
+        notifying = true;
+        try
+        {
+            foreach (Action<ResourceChangeSet> callback in subscribers.ToArray())
+            {
+                try
+                {
+                    callback(notification);
+                }
+                catch
+                {
+                    // Consumers cannot roll back a committed group or starve other consumers.
+                }
+            }
+        }
+        finally
+        {
+            notifying = false;
+        }
     }
 
     public sealed class PreparedResources
@@ -179,25 +300,7 @@ public sealed class ResourceService : IResourceChangeFeed
             }
             ResourceChangeSet notification = change;
             change = null;
-            owner.notifying = true;
-            try
-            {
-                foreach (Action<ResourceChangeSet> callback in owner.subscribers.ToArray())
-                {
-                    try
-                    {
-                        callback(notification);
-                    }
-                    catch
-                    {
-                        // A consumer cannot roll back a committed resource group or starve other consumers.
-                    }
-                }
-            }
-            finally
-            {
-                owner.notifying = false;
-            }
+            owner.Notify(notification);
         }
     }
 

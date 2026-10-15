@@ -17,7 +17,7 @@ public sealed class ClassicGameDataSource : IResourceSource
         this.gameDirectory = Path.GetFullPath(gameDirectory);
     }
 
-    public ResourceSourceDescriptor Descriptor { get; } = new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-roads", "classic-world-water", "classic-field-tile", "classic-model", "classic-battle"]);
+    public ResourceSourceDescriptor Descriptor { get; } = new("classic", GameDataEdition.Classic, ["classic-world-texl", "classic-world-road-region", "classic-world-water-region", "classic-field-tile", "classic-model", "classic-battle"]);
 
     public ResourceContent? Find(ResourceKey key)
     {

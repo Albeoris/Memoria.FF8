@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Globalization;
+using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Mods;
@@ -33,7 +34,7 @@ public sealed class DemasterTextureResolver : ITextureReplacementResolver
             bool supported = TryWorldTarget(stem, "textures/world/dat/texl/texl_", out int texlId) && texlId >= 1 && HasLayout(source, "classic-world-texl");
             if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset_", out int page))
             {
-                supported |= page == 29 && HasLayout(source, "classic-world-roads");
+                supported |= page == 29 && HasLayout(source, "classic-world-road-region");
                 supported |= source.Edition == GameDataEdition.Remastered && HasLayout(source, "demaster-world-wmset");
             }
             if (TryWorldTarget(stem, "textures/world/dat/wmset/wmset0_", out _))
@@ -63,9 +64,16 @@ public sealed class DemasterTextureResolver : ITextureReplacementResolver
                 continue;
             }
             DecodedModImage decoded = ModImageDecoder.Decode(file);
-            if (decoded.Image.Width % context.LogicalWidth != 0 || decoded.Image.Height % context.LogicalHeight != 0 || decoded.Image.Width / context.LogicalWidth != decoded.Image.Height / context.LogicalHeight)
+            bool roadRegion = context.Layout == "classic-world-road-region";
+            int canvasWidth = roadRegion ? context.Region.CanvasWidth : context.LogicalWidth;
+            int canvasHeight = roadRegion ? context.Region.CanvasHeight : context.LogicalHeight;
+            if (decoded.Image.Width % canvasWidth != 0 || decoded.Image.Height % canvasHeight != 0 || decoded.Image.Width / canvasWidth != decoded.Image.Height / canvasHeight)
             {
-                throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException($"Demaster texture '{file.RelativePath}' does not fit published layout '{context.Layout}' ({context.LogicalWidth}x{context.LogicalHeight})."));
+                throw new ModTextureLoadException(file.PackageId, file.RelativePath, new InvalidDataException($"Demaster texture '{file.RelativePath}' does not fit published layout '{context.Layout}' ({canvasWidth}x{canvasHeight})."));
+            }
+            if (roadRegion)
+            {
+                decoded = CropRoadRegion(decoded, context);
             }
             return new TextureReplacement(decoded.Image, $"{file.PackageId}/{file.RelativePath}@{file.Revision}", context.LogicalWidth, context.LogicalHeight, decoded.MipLevels);
         }
@@ -83,9 +91,9 @@ public sealed class DemasterTextureResolver : ITextureReplacementResolver
             // GetTextureIndex adds one to the native loaded texl index, independently of VRAM page.
             stem = $"textures/world/dat/texl/texl_{page + 1:D3}";
         }
-        else if (IsWorldSet(owner) && context.Layout == "classic-world-roads" && subresource == "roads" && context.LogicalWidth == 256 && context.LogicalHeight == 256)
+        else if (IsWorldSet(owner) && context.Layout == "classic-world-road-region" && subresource.StartsWith("roads/", StringComparison.Ordinal) && TryNonnegative(subresource[6..], out _) && context.Key.Palette == 0 && IsRoadRegion(context))
         {
-            // The source has already composed section 38 TIMs at (X - 832) * 4, Y - 256.
+            // Match the unmodified section-38 TIM before the engine packs its road atlas.
             stem = "textures/world/dat/wmset/wmset_029";
         }
         else if (IsWorldSet(owner) && context.Layout == "demaster-world-wmset" && TryNonnegative(subresource, out int worldPage))
@@ -172,6 +180,43 @@ public sealed class DemasterTextureResolver : ITextureReplacementResolver
     }
 
     private static string[] WithExtensions(string stem) => [$"{stem}.dds", $"{stem}.png"];
+
+    private static bool IsRoadRegion(TextureBuildContext context)
+    {
+        TextureSourceRegion region = context.Region;
+        int x = region.X % 64 * 4;
+        int y = region.Y % 256;
+        return region.BitsPerPixel == 4 && region.CanvasWidth == 256 && region.CanvasHeight == 256 && region.X is >= 832 and < 896 && region.Y is >= 256 and < 512 && context.LogicalWidth > 0 && context.LogicalHeight > 0 && context.LogicalWidth <= 256 - x && context.LogicalHeight <= 256 - y;
+    }
+
+    private static DecodedModImage CropRoadRegion(DecodedModImage decoded, TextureBuildContext context)
+    {
+        int x = context.Region.X % 64 * 4;
+        int y = context.Region.Y % 256;
+        List<PixelImage> levels = [];
+        foreach (PixelImage mip in decoded.MipLevels)
+        {
+            if ((long)x * mip.Width % 256 != 0 || (long)y * mip.Height % 256 != 0 || (long)context.LogicalWidth * mip.Width % 256 != 0 || (long)context.LogicalHeight * mip.Height % 256 != 0)
+            {
+                break;
+            }
+            int cropX = x * mip.Width / 256;
+            int cropY = y * mip.Height / 256;
+            int width = context.LogicalWidth * mip.Width / 256;
+            int height = context.LogicalHeight * mip.Height / 256;
+            if (width == 0 || height == 0)
+            {
+                break;
+            }
+            PixelImage image = new(width, height);
+            for (int row = 0; row < height; row++)
+            {
+                mip.Pixels.AsSpan((cropY + row) * mip.Width + cropX, width).CopyTo(image.Pixels.AsSpan(row * width, width));
+            }
+            levels.Add(image);
+        }
+        return new(levels[0], levels.AsReadOnly());
+    }
 
     private static bool IsWorldSet(string owner) => owner.StartsWith("world/wmset", StringComparison.Ordinal) && owner.EndsWith(".obj", StringComparison.Ordinal);
 
