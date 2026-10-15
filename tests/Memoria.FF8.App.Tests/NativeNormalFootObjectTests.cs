@@ -36,7 +36,7 @@ public sealed class NativeNormalFootObjectTests
         });
         Assert.Throws<InvalidDataException>(() => (process with { PrimaryDistanceSquared = 0 }).Validate());
         Assert.Throws<InvalidDataException>(() => (process with { Alternate = null, AlternateDistanceSquared = null }).Validate());
-        Assert.Throws<NotSupportedException>(() => (process with { Allocation = assets.ReadTrainWorldAllocation(story, 1), Alternate = null, AlternateDistanceSquared = null }).Validate());
+        Assert.Throws<InvalidDataException>(() => (process with { Allocation = assets.ReadTrainWorldAllocation(story, 1), Alternate = null, AlternateDistanceSquared = null }).Validate());
         Assert.Throws<NotSupportedException>(() => assets.ReadFootAllocation(0, story));
     }
 
@@ -84,19 +84,78 @@ public sealed class NativeNormalFootObjectTests
         Assert.Equal(world.Apply(wait), independent.Apply(wait));
         Assert.Equal(JsonSerializer.Serialize(session.State.World), JsonSerializer.Serialize(independentSession.State.World));
         Assert.Equal(1, world.State.NativeFootRuntime!.NormalObjects!.Callback);
-        Assert.Equal(29, world.State.NativeFootRuntime.NormalObjects.Primary.Pause);
-        Assert.All(world.State.NativeFootRuntime.NormalObjects.Primary.Presentation, pose => Assert.NotNull(pose.Projection));
+        Assert.Equal(29, world.State.NativeFootRuntime.NormalObjects.Primary!.Pause);
+        Assert.All(world.State.NativeFootRuntime.NormalObjects.Primary!.Presentation, pose => Assert.NotNull(pose.Projection));
         Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
     }
 
-    private static GameSession ComponentSession()
+    [Theory]
+    [InlineData(315, 9)]
+    [InlineData(345, 13)]
+    public void OriginalDisabledRailSelectorsRetainStaticAllocationWithoutProducingBankOrMinimumWords(ushort story, int count)
+    {
+        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(story, 1);
+        var camera = new NativeWorldFootCameraState(-32742, -26874, -755, -32742, -26874, -1011, 3760, -341, -341, -7168);
+        var process = new NativeNormalFootObjectProcess(1, allocation, 0, null, null, camera, null, null);
+        process.Validate();
+        Assert.Equal(count, process.Allocation.Objects.Length);
+        Assert.Equal(0, process.Allocation.ControlledObjectIndex);
+        NativeNormalFootObjectProcess restored = JsonSerializer.Deserialize<NativeNormalFootObjectProcess>(JsonSerializer.Serialize(process))!;
+        restored.Validate();
+        Assert.Null(restored.Primary);
+        Assert.Null(restored.Alternate);
+        Assert.Null(restored.PrimaryDistanceSquared);
+        Assert.Null(restored.AlternateDistanceSquared);
+        Assert.Throws<InvalidDataException>(() => (process with { PrimaryDistanceSquared = uint.MaxValue }).Validate());
+        Assert.Throws<InvalidDataException>(() => (process with { AlternateDistanceSquared = uint.MaxValue }).Validate());
+        Assert.Throws<InvalidDataException>(() => (process with { Primary = NativeTrainRailBank.Create(assets.ReadScriptedPath(0), 1), PrimaryDistanceSquared = uint.MaxValue }).Validate());
+        Assert.Throws<InvalidDataException>(() => (process with { Allocation = assets.ReadTrainWorldAllocation(story, 0) }).Validate());
+    }
+
+    [Fact]
+    public void DisabledRailFootLoaderRendersStaticObjectsAndContinuesAfterIndependentRestore()
+    {
+        GameSession session = ComponentSession(1);
+        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        AssertAbsentRails(world.State);
+        Assert.Equal(9, world.State.NativeFootRuntime!.NormalObjects!.Allocation.Objects.Length);
+        byte[] pixels = world.Render(320, 224);
+        Assert.Equal(320 * 224 * 4, pixels.Length);
+        GameState independentState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        GameSession independentSession = new(independentState);
+        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        Assert.Equal(pixels, independent.Render(320, 224));
+        foreach (PlayerAction action in new[] { new PlayerAction(PlayerActionKind.Wait), new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 0) })
+        {
+            Assert.Equal(world.Apply(action), independent.Apply(action));
+            AssertAbsentRails(world.State);
+            Assert.Equal(JsonSerializer.Serialize(session.State.World), JsonSerializer.Serialize(independentSession.State.World));
+            Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
+        }
+        Assert.Equal(2, world.State.NativeFootRuntime!.NormalObjects!.Callback);
+
+        static void AssertAbsentRails(WorldState state)
+        {
+            NativeNormalFootObjectProcess process = state.NativeFootRuntime!.NormalObjects!;
+            process.Validate();
+            Assert.Null(process.Primary);
+            Assert.Null(process.Alternate);
+            Assert.Null(process.PrimaryDistanceSquared);
+            Assert.Null(process.AlternateDistanceSquared);
+            Assert.Null(state.NativeTrainRuntime);
+        }
+    }
+
+    private static GameSession ComponentSession(byte eventFlags265 = 0)
     {
         GameSession initialized = GameSession.CreateColdProcess();
         initialized.StartNewGame();
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
         initialized.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         initialized.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        initialized.SetWorldEntryMemory(initialized.WorldEntryMemory!.WriteBytes(256, 2, 315).WriteBytes(265, 1, eventFlags265));
         WorldTransition packet = new(5, 0, -1);
-        return new GameSession(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 822, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 822), Variables = new Dictionary<int, int> { [256] = 315 }, ReplayJournal = null });
+        return new GameSession(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 822, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 822), ReplayJournal = null });
     }
 }

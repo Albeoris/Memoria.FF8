@@ -61,8 +61,7 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = NativeWorldFootCameraState.Create(cameraState);
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         long callback = checked(process.Callback + 1);
-        NativeWorldControlState controls = session.State.WorldControls ?? throw new NotSupportedException("Native continuing trains need the current BYTE103 endpoint flag.");
-        bool stopAtEndpoint = (controls.EventFlags103 & 64) != 0;
+        bool stopAtEndpoint = (WorldEntryVariables.Read(session.State).EventFlags265 & 64) != 0;
         int graphicsZ = -cameraState.Z & 2047;
         NativeWorldPathWords player = new(unchecked((short)(cameraState.X & 2047)), unchecked((short)cameraState.NativeHeight), unchecked((short)(graphicsZ == 0 ? 0 : graphicsZ - 2048)));
 

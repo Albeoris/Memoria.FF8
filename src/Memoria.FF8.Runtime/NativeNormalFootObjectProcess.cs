@@ -3,27 +3,24 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Fresh544860/545330 ordinary-foot allocation, rail banks and the prior54E650 proximity words. No riding or dismount history is implied.</summary>
-public sealed record NativeNormalFootObjectProcess([property: JsonRequired] int Version, [property: JsonRequired] NativeTrainWorldAllocation Allocation, [property: JsonRequired] long Callback, [property: JsonRequired] NativeTrainRailBank Primary, [property: JsonRequired] NativeTrainRailBank? Alternate, [property: JsonRequired] NativeWorldFootCameraState Camera, [property: JsonRequired] uint PrimaryDistanceSquared, [property: JsonRequired] uint? AlternateDistanceSquared)
+public sealed record NativeNormalFootObjectProcess([property: JsonRequired] int Version, [property: JsonRequired] NativeTrainWorldAllocation Allocation, [property: JsonRequired] long Callback, [property: JsonRequired] NativeTrainRailBank? Primary, [property: JsonRequired] NativeTrainRailBank? Alternate, [property: JsonRequired] NativeWorldFootCameraState Camera, [property: JsonRequired] uint? PrimaryDistanceSquared, [property: JsonRequired] uint? AlternateDistanceSquared)
 {
     public void Validate()
     {
         Allocation.Validate();
         Camera.Validate();
-        if ((Allocation.EventFlags103 & 1) != 0)
-        {
-            throw new NotSupportedException("Native ordinary foot with both rail routes disabled requires its separate absent-bank allocation contract.");
-        }
+        bool railsAbsent = (Allocation.EventFlags103 & 1) != 0;
         ushort[] operands = Allocation.ClauseIndex switch
         {
             3 when Allocation.MinimumStory == 290 && Allocation.MaximumStory == 345 => [0, 0x034B, 0x054B, 0x064B, 0x0A4B, 0x0B4B, 0x225F, 0x235F, 0x245F],
             4 when Allocation.MinimumStory == 345 && Allocation.MaximumStory == 348 => [0, 0x0C44, 0x0D45, 0x3F45, 0x0E44, 0x034B, 0x054B, 0x064B, 0x0A4B, 0x0B4B, 0x225F, 0x235F, 0x245F],
             _ => throw new NotSupportedException("Native normal foot object allocation reached an unimplemented original clause.")
         };
-        if (Version != 1 || Callback < 0 || Allocation.ControlledObjectIndex != 0 || Allocation.Objects.Length != operands.Length || Allocation.Objects.Where((item, index) => item.RawOperand != operands[index]).Any() || Primary is null || Primary.TrackIndex != 0 || Alternate is null != ((Allocation.EventFlags103 & 1) != 0) || Alternate is not null && Alternate.TrackIndex != 1 || Alternate is null != (AlternateDistanceSquared is null))
+        if (Version != 1 || Callback < 0 || Allocation.ControlledObjectIndex != 0 || Allocation.Objects.Length != operands.Length || Allocation.Objects.Where((item, index) => item.RawOperand != operands[index]).Any() || Primary is null != railsAbsent || Alternate is null != railsAbsent || Primary is not null && Primary.TrackIndex != 0 || Alternate is not null && Alternate.TrackIndex != 1 || Primary is null != (PrimaryDistanceSquared is null) || Alternate is null != (AlternateDistanceSquared is null))
         {
             throw new InvalidDataException("Native ordinary foot object process lost its selected story290..345 allocation, track selection or previous proximity words.");
         }
-        if (Callback == 0 && (PrimaryDistanceSquared != uint.MaxValue || AlternateDistanceSquared is not null and not uint.MaxValue || Primary.Pause != 30 || Primary.Speed != 0 || Primary.Status is not null || Primary.StopCounter != 0 || Primary.Direction != 1 || Alternate is not null && (Alternate.Pause != 30 || Alternate.Speed != 0 || Alternate.Status is not null || Alternate.StopCounter != 0 || Alternate.Direction != 1)))
+        if (Callback == 0 && (PrimaryDistanceSquared is not null and not uint.MaxValue || AlternateDistanceSquared is not null and not uint.MaxValue || Primary is not null && (Primary.Pause != 30 || Primary.Speed != 0 || Primary.Status is not null || Primary.StopCounter != 0 || Primary.Direction != 1) || Alternate is not null && (Alternate.Pause != 30 || Alternate.Speed != 0 || Alternate.Status is not null || Alternate.StopCounter != 0 || Alternate.Direction != 1)))
         {
             throw new InvalidDataException("Native ordinary foot loader differs from545330's actual initial rail and distance words.");
         }

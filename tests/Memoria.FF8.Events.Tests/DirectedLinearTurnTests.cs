@@ -14,9 +14,10 @@ internal static partial class Program
         using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
         {
-            foreach ((int start, int rawTarget, int rawDuration, int target) in new[] { (195, 184, 30, 184), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 5), (195, 32767, 4, 32511), (255, -32768, 4, -32512) })
+            (int, int, int, int)[] cases = opcode == Jsm.Opcode.Unknown7 ? [(248, 56, 15, 312), (10, 200, 4, 200), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 261), (195, 32767, 4, 32767), (255, -32768, 4, -32512)] : [(195, 184, 30, 184), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 5), (195, 32767, 4, 32511), (255, -32768, 4, -32512)];
+            foreach ((int start, int rawTarget, int rawDuration, int target) in cases)
             {
                 byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, rawTarget), (Jsm.Opcode.PSHN_L, rawDuration), (opcode, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
                 (GameSession Session, EventEngine Engine) Create()
@@ -57,7 +58,7 @@ internal static partial class Program
             }
         }
         NativeDirectedLinearTurnMoveConcurrency(vitals, economy);
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine unknown = new(session, session.State.Variables);
@@ -76,7 +77,7 @@ internal static partial class Program
             JsonElement fiber = unknown.Capture().GetProperty("Fibers")[0];
             Require(unknown.LastFault?.Operation == 3 && fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 30, 184 }) && unknown.Actors[0].RotationTarget is null && unknown.Actors[0].Direction == 193.9f, "Unproved linear turn changed original PC, operands or facing state.");
         }
-        Console.WriteLine("Native LTURNR/LTURNL: signed WORD targets, BYTE durations, nearest128 ties, equal/zero issue waits, integer inclusive samples, MOVE concurrency and independent restoration pass.");
+        Console.WriteLine("Native LTURNR/LTURNL/opcode364: signed WORD targets, BYTE durations, nearest and positive-wrap selection, equal/zero issue waits, integer inclusive samples, MOVE concurrency and independent restoration pass.");
     }
 
     private static GameSession CreateDirectedLinearTurnSession(NativeCharacterVitals vitals, NativeEconomy economy)
@@ -90,11 +91,15 @@ internal static partial class Program
 
     private static void NativeDirectedLinearTurnMoveConcurrency(NativeCharacterVitals vitals, NativeEconomy economy)
     {
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
         {
+            int start = opcode == Jsm.Opcode.Unknown7 ? 248 : 195;
+            int rawTarget = opcode == Jsm.Opcode.Unknown7 ? 56 : 184;
+            int target = opcode == Jsm.Opcode.Unknown7 ? 312 : 184;
+            short duration = opcode == Jsm.Opcode.Unknown7 ? (short)15 : (short)30;
             (Jsm.Opcode, int)[] peer = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 195), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)];
-            (Jsm.Opcode, int)[] lower = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 184), (Jsm.Opcode.PSHN_L, 30), (opcode, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)];
+            (Jsm.Opcode, int)[] lower = [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, rawTarget), (Jsm.Opcode.PSHN_L, duration), (opcode, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] upper = [(Jsm.Opcode.LBL, 20), (Jsm.Opcode.PSHN_L, 500), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             byte[] content = SyntheticObjects([0, (16 << 7) | 4, (32 << 7) | 1], [peer, actor, lower, [(Jsm.Opcode.LBL, 18), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 19), (Jsm.Opcode.RET, 8)], upper, [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
             EventEngine Create()
@@ -107,7 +112,7 @@ internal static partial class Program
                     if (body.NativeScriptMovement is not null && body.RotationTarget is not null)
                     {
                         int elapsed = body.RotationTotalFrames - body.RotationFrames;
-                        byte expected = unchecked((byte)NativeJumpMath.Interpolate(195, 184, 30, (short)elapsed));
+                        byte expected = unchecked((byte)NativeJumpMath.Interpolate(start, target, duration, (short)elapsed));
                         Require(query.FacingDirection == expected, "Concurrent MOVE did not read the same callback's native linear BYTE577 sample before overwriting facing.");
                     }
                     return new NativeScriptDirectionResult(NativeScriptDirectionStatus.Moving, query.FixedX, query.FixedY, 64, 0);
@@ -123,7 +128,7 @@ internal static partial class Program
                 live.Step();
             }
             ActorState body = live.Actors[1];
-            Require(body.RotationUsesNativeLinear && body.RotationTarget == 184 && body.NativeScriptMovement is { Active: true, FacingDirection: 64, MovementDirection: 64 } && body.Direction == 64 && body.NativeMovementCompletion542 == 1, "Higher requested MOVE failed to coexist with the lower native linear turn or lost its final body577 write.");
+            Require(body.RotationUsesNativeLinear && body.RotationTarget == target && body.NativeScriptMovement is { Active: true, FacingDirection: 64, MovementDirection: 64 } && body.Direction == 64 && body.NativeMovementCompletion542 == 1, "Higher requested MOVE failed to coexist with the lower native linear turn or lost its final body577 write.");
             EventEngine independent = Create();
             independent.Restore(live.Capture());
             for (int callback = 0; callback < 32; callback++)

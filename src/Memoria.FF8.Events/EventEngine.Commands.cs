@@ -52,7 +52,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
-                if (TryReadNativeFadeMemory(operation, out int nativeEconomy) || TryReadNativeDrawPointMemory(operation, out nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
+                if (TryReadWorldEntryMemory(operation, out int nativeEconomy) || TryReadNativeFadeMemory(operation, out nativeEconomy) || TryReadNativeDrawPointMemory(operation, out nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
                 {
                     fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
                     fiber.StackExpressions.Push($"native[{parameter}]");
@@ -92,7 +92,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteWorldMusicSelection(fiber, operation, out args) || TryWriteNativeFadeMemory(fiber, operation, out args) || TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
+                if (TryWriteWorldEntryMemory(fiber, operation, out args) || TryWriteWorldMusicSelection(fiber, operation, out args) || TryWriteNativeFadeMemory(fiber, operation, out args) || TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -376,6 +376,7 @@ public sealed partial class EventEngine
                 {
                     variables.Remove(address);
                 }
+                ClearWorldEntryMemory();
                 break;
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;
@@ -468,7 +469,8 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.LTURNL:
             case Jsm.Opcode.LTURNR:
-                args = ExecuteDirectedLinearTurn(fiber);
+            case Jsm.Opcode.Unknown7:
+                args = ExecuteDirectedLinearTurn(fiber, opcode);
                 break;
             case Jsm.Opcode.CTURN:
             case Jsm.Opcode.LTURN:

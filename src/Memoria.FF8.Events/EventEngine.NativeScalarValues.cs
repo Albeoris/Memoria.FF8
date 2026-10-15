@@ -24,6 +24,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (UnsupportedWorldEntryMemory(fiber, operation) is string worldEntry)
+        {
+            return worldEntry;
+        }
         if (operation.Opcode == Jsm.Opcode.SETVIBRATE)
         {
             return UnsupportedVibrationRequest(fiber, operation);

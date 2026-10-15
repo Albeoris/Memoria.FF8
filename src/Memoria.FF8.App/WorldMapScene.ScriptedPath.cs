@@ -21,7 +21,7 @@ internal sealed partial class WorldMapScene
         {
             throw new InvalidDataException("Original scripted entry references an absent wm2field endpoint row.");
         }
-        NativeWorldScriptedPathState path = NativeWorldScriptedPathState.Create(definition, arrival, null);
+        NativeWorldScriptedPathState path = NativeWorldScriptedPathState.Create(definition, arrival, (inputs.EventFlags265 & 64) != 0);
         ValidateScriptedModels(path, definition);
         var scripted = new NativeScriptedWorldRuntimeState(1, NativeScriptedWorldRuntimeState.RuntimeRule, path, load, null);
         return scripted.ToWorldState() with { ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte) };
@@ -33,8 +33,9 @@ internal sealed partial class WorldMapScene
         scripted.Validate();
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(unchecked((byte)scripted.Path.Packet.EntryIndex));
         scripted.Path.Validate(definition);
-        NativeScriptedWorldFootRecord actualFoot = assets.ReadScriptedFootRecord(WorldEntryVariables.Read(session.State).StoryWord);
-        if (scripted.Load.FootRecord0 != actualFoot)
+        WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
+        NativeScriptedWorldFootRecord actualFoot = assets.ReadScriptedFootRecord(inputs.StoryWord);
+        if (scripted.Load.FootRecord0 != actualFoot || scripted.Path.StopAtEndpoint != ((inputs.EventFlags265 & 64) != 0))
         {
             throw new InvalidDataException("Restored scripted static foot allocation differs from the installed original resources.");
         }

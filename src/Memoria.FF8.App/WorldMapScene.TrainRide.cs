@@ -15,8 +15,7 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld ?? throw new NotSupportedException("Native mode3 requires actual saved vehicle records.");
         WorldState previous = session.State.DepartingWorldState ?? throw new NotSupportedException("Native mode3 requires the preceding native world body.");
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native mode3 camera selection needs the current main-loop counter.");
-        NativeWorldControlState controls = session.State.WorldControls ?? throw new NotSupportedException("Native mode3 track selection needs actual event BYTE103.");
-        NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, controls.EventFlags103);
+        NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
         NativeTrainWorldLoadReceipt load = NativeTrainWorldLoadReceipt.Create(saved, previous, allocation);
         if (saved.Slot4.ShapeId is not (0 or 255))
         {
@@ -28,7 +27,7 @@ internal sealed partial class WorldMapScene
         sbyte direction = entry % 2 == 0 ? (sbyte)1 : (sbyte)-1;
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(track, list);
         NativeTrainRailBank primary = NativeTrainRailBank.Create(definition, direction);
-        NativeTrainRailBank? alternate = (controls.EventFlags103 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(1 - track), direction) : null;
+        NativeTrainRailBank? alternate = (inputs.EventFlags265 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(1 - track), direction) : null;
         NativeWorldForestState forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown).DrawRandom(assets.ForestTables.Random, out _);
         NativeWorldPathPosition body = primary.Nodes[2].Position;
         NativeWorldPathCamera camera = NativeWorldScriptedPathState.EvaluateCamera(definition, primary.Nodes, direction, 0);
@@ -74,8 +73,9 @@ internal sealed partial class WorldMapScene
         {
             throw new InvalidDataException("Native mode3 saved camera lost this callback's actual pre-movement nodes.");
         }
-        NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(train.Load.Allocation.Story, train.Load.Allocation.EventFlags103);
-        if (train.Load.Allocation.ProgramHash != actual.ProgramHash || train.Load.Allocation.CoordinateHash != actual.CoordinateHash || !train.Load.Allocation.ClauseWords.SequenceEqual(actual.ClauseWords) || train.Callback > 0 && (train.Camera != expectedCamera || train.CameraCounter != counter || train.CameraReceipt.Counter != expectedCounter))
+        WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
+        NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
+        if (train.Load.Allocation.Story != actual.Story || train.Load.Allocation.EventFlags103 != actual.EventFlags103 || train.Load.Allocation.ProgramHash != actual.ProgramHash || train.Load.Allocation.CoordinateHash != actual.CoordinateHash || !train.Load.Allocation.ClauseWords.SequenceEqual(actual.ClauseWords) || train.Callback > 0 && (train.Camera != expectedCamera || train.CameraCounter != counter || train.CameraReceipt.Counter != expectedCounter))
         {
             throw new InvalidDataException("Native mode3 restored resource selection or camera differs from its original callback source.");
         }

@@ -73,6 +73,8 @@ public sealed record GameState
     public NativeFieldShake? FieldShake { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeWorldProcess? WorldProcess { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeWorldEntryMemory? WorldEntryMemory { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeSeeDState? SeeD { get; init; }
     public Dictionary<int, int> Variables { get; init; } = [];
@@ -257,6 +259,12 @@ public interface IEventServices
         throw new NotSupportedException("Native exam timer state is not implemented by this event service.");
     }
     NativeWorldControlState? WorldControls => null;
+    NativeWorldEntryMemory? WorldEntryMemory => null;
+    bool CanStoreWorldEntryMemory => false;
+    void SetWorldEntryMemory(NativeWorldEntryMemory memory)
+    {
+        throw new NotSupportedException("Native world-entry byte ownership is not implemented by this event service.");
+    }
     bool CanStoreNativeEventOwners => false;
     void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, Dictionary<int, NativeMemoryValue>? nativeVariableValues = null)
     {

@@ -18,15 +18,10 @@ internal sealed partial class WorldMapScene
         {
             throw new NotSupportedException("Native normal foot allocation requires its actual inactive saved-vehicle slots and disabled auxiliary object pairs.");
         }
-        NativeWorldControlState controls = session.State.WorldControls ?? throw new NotSupportedException("Native normal rail allocation requires the executed event BYTE103.");
-        if ((controls.EventFlags103 & 1) != 0)
-        {
-            throw new NotSupportedException("Native ordinary foot with both train routes disabled requires its actual absent-bank allocation contract.");
-        }
-        NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, controls.EventFlags103);
-        NativeTrainRailBank primary = NativeTrainRailBank.Create(assets.ReadScriptedPath(0), 1);
-        NativeTrainRailBank? alternate = (controls.EventFlags103 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(1), 1) : null;
-        var process = new NativeNormalFootObjectProcess(1, allocation, 0, primary, alternate, NativeWorldFootCameraState.Create(world), uint.MaxValue, alternate is null ? null : uint.MaxValue);
+        NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
+        NativeTrainRailBank? primary = (inputs.EventFlags265 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(0), 1) : null;
+        NativeTrainRailBank? alternate = (inputs.EventFlags265 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(1), 1) : null;
+        var process = new NativeNormalFootObjectProcess(1, allocation, 0, primary, alternate, NativeWorldFootCameraState.Create(world), primary is null ? null : uint.MaxValue, alternate is null ? null : uint.MaxValue);
         process.Validate();
         return world with { NativeFootRuntime = world.NativeFootRuntime! with { NormalObjects = process } };
     }
@@ -43,9 +38,9 @@ internal sealed partial class WorldMapScene
         {
             throw new NotSupportedException("Native normal foot restoration requires the represented inactive saved vehicles and auxiliary object allocation.");
         }
-        NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(inputs.StoryWord, process.Allocation.EventFlags103);
+        NativeTrainWorldAllocation actual = assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265);
         bool invalidCallback = validateProximity ? process.Callback != world.Frame : process.Callback < world.Frame || process.Callback > world.Frame + 1;
-        if (invalidCallback || actual.Story != process.Allocation.Story || actual.ProgramHash != process.Allocation.ProgramHash || actual.CoordinateHash != process.Allocation.CoordinateHash || !actual.ClauseWords.SequenceEqual(process.Allocation.ClauseWords) || actual.Objects.Length != process.Allocation.Objects.Length || actual.Objects.Where((item, index) => !item.CoordinateBytes.SequenceEqual(process.Allocation.Objects[index].CoordinateBytes)).Any())
+        if (invalidCallback || actual.EventFlags103 != process.Allocation.EventFlags103 || actual.Story != process.Allocation.Story || actual.ProgramHash != process.Allocation.ProgramHash || actual.CoordinateHash != process.Allocation.CoordinateHash || !actual.ClauseWords.SequenceEqual(process.Allocation.ClauseWords) || actual.Objects.Length != process.Allocation.Objects.Length || actual.Objects.Where((item, index) => !item.CoordinateBytes.SequenceEqual(process.Allocation.Objects[index].CoordinateBytes)).Any())
         {
             throw new InvalidDataException("Native normal foot process differs from its actual original allocation, coordinates or callback clock.");
         }
@@ -79,7 +74,7 @@ internal sealed partial class WorldMapScene
         if (validateProximity && process.Callback > 0)
         {
             NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(world.X, world.NativeHeight, -world.Z));
-            if (process.PrimaryDistanceSquared != NormalTrainDistance(process.Primary, player, context) || process.Alternate is not null && process.AlternateDistanceSquared != NormalTrainDistance(process.Alternate, player, context))
+            if (process.Primary is not null && process.PrimaryDistanceSquared != NormalTrainDistance(process.Primary, player, context) || process.Alternate is not null && process.AlternateDistanceSquared != NormalTrainDistance(process.Alternate, player, context))
             {
                 throw new InvalidDataException("Native normal train speed lost the preceding54E650 distance-word producer.");
             }
@@ -94,8 +89,7 @@ internal sealed partial class WorldMapScene
         NativeWorldFootCameraState camera = NativeWorldFootCameraState.Create(cameraState);
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(camera);
         long callback = checked(process.Callback + 1);
-        NativeWorldControlState controls = session.State.WorldControls ?? throw new NotSupportedException("Native normal train endpoint needs the current BYTE103.");
-        bool stopAtEndpoint = (controls.EventFlags103 & 64) != 0;
+        bool stopAtEndpoint = (WorldEntryVariables.Read(session.State).EventFlags265 & 64) != 0;
         NativeWorldPathWords player = context.RelativeWords(camera.Origin);
         NativeTrainRailBank Advance(NativeTrainRailBank bank, uint distance)
         {
@@ -109,7 +103,7 @@ internal sealed partial class WorldMapScene
                 return next;
             }, NativeNormalFootObjectProcess.SelectSpeed(bank, distance, 48));
         }
-        NativeTrainRailBank primary = Advance(process.Primary, process.PrimaryDistanceSquared);
+        NativeTrainRailBank? primary = process.Primary is null ? null : Advance(process.Primary, process.PrimaryDistanceSquared!.Value);
         NativeTrainRailBank? alternate = process.Alternate is null ? null : Advance(process.Alternate, process.AlternateDistanceSquared!.Value);
         return foot with { NormalObjects = process with { Callback = callback, Primary = primary, Alternate = alternate, Camera = camera } };
     }
@@ -138,7 +132,7 @@ internal sealed partial class WorldMapScene
         NativeNormalFootObjectProcess process = foot.NormalObjects!;
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(process.Camera);
         NativeWorldPathWords player = context.RelativeWords(new NativeWorldPathPosition(x, height, -rawZ));
-        return foot with { NormalObjects = process with { PrimaryDistanceSquared = NormalTrainDistance(process.Primary, player, context), AlternateDistanceSquared = process.Alternate is null ? null : NormalTrainDistance(process.Alternate, player, context) } };
+        return foot with { NormalObjects = process with { PrimaryDistanceSquared = process.Primary is null ? null : NormalTrainDistance(process.Primary, player, context), AlternateDistanceSquared = process.Alternate is null ? null : NormalTrainDistance(process.Alternate, player, context) } };
     }
 
     private bool HasNormalFootObjectContact(NativeFootWorldRuntimeState foot, int x, int rawZ, int height)

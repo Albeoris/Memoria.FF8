@@ -2,33 +2,18 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
 
-/// <summary>Selected early-Garden inputs from native New Game/CLEAR and the original story WORD stores; this is not general byte-addressed event memory.</summary>
-internal readonly record struct WorldEntryVariables(ushort StoryWord, byte ReplacementFlags, byte StoryByte)
+/// <summary>Original world loader WORD256 and BYTE264/266 from their executed selected event-byte owner.</summary>
+internal readonly record struct WorldEntryVariables(ushort StoryWord, byte ReplacementFlags, byte StoryByte, byte EventFlags265)
 {
     public static WorldEntryVariables Read(GameState state)
     {
         if (state.SavedWorld is null)
         {
-            throw new NotSupportedException("Early Garden event-byte defaults require native New Game provenance.");
+            throw new NotSupportedException("World entry requires native saved-world provenance.");
         }
         state.SavedWorld.Validate();
-        IReadOnlyDictionary<int, int> variables = state.Variables;
-        if (variables.Keys.Any(address => address is >= 253 and <= 255 or 257))
-        {
-            throw new NotSupportedException("The original story WORD has an unproved overlapping variable alias.");
-        }
-        int story = variables.GetValueOrDefault(256);
-        if (story is < ushort.MinValue or > ushort.MaxValue)
-        {
-            throw new NotSupportedException("The original story WORD is outside its supported native width.");
-        }
-        // Native New Game and CLEAR establish zero bytes264/266. The selected
-        // history stores B261=2. A small neighboring value cannot write a nonzero
-        // upper byte at264/266 under any supported byte/WORD/DWORD interpretation.
-        if (variables.GetValueOrDefault(264) != 0 || variables.GetValueOrDefault(266) != 0 || variables.Where(pair => pair.Key is >= 261 and <= 263 or 265).Any(pair => pair.Value is < 0 or > byte.MaxValue))
-        {
-            throw new NotSupportedException("Early Garden replacement/story bytes need additional original width evidence.");
-        }
-        return new WorldEntryVariables((ushort)story, 0, 0);
+        NativeWorldEntryMemory memory = state.WorldEntryMemory ?? throw new NotSupportedException("World entry requires its executed native NewGame/CLEAR and typed store byte history.");
+        memory.ValidateVariables(state.Variables, state.NativeVariableValues);
+        return new WorldEntryVariables(memory.StoryWord, memory.ReplacementFlags264, memory.StoryByte266, unchecked((byte)memory.ReadBytes(265, 1)));
     }
 }
