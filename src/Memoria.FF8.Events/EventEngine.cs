@@ -359,13 +359,17 @@ public sealed partial class EventEngine
             defaultsStarted = true;
             foreach (EventObject obj in program.Objects)
             {
-                if (actors[obj.Index].Active && obj.Scripts.Count > 1)
+                if ((actors[obj.Index].Active || IsNativeDoorRequest(obj.Index)) && obj.Scripts.Count > 1)
                 {
-                    Queue(obj.Index, obj.Scripts[1].Id, 7, false);
+                    Fiber queued = Queue(obj.Index, obj.Scripts[1].Id, 7, false);
+                    if (IsNativeDoorRequest(obj.Index))
+                    {
+                        InitializeNativeDoorDefault(queued);
+                    }
                 }
             }
         }
-        fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item));
+        fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item) && !actors.Any(actor => actor.NativeDoorScheduler?.CurrentSequence == item.Sequence));
         StepNativeNormalBackgroundScrollCenter();
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
         foreach (ActorState actor in actors)
@@ -744,6 +748,8 @@ public sealed partial class EventEngine
         public long WaitUntil;
         public Fiber? Request;
         public NativeDoorRequestWaitState? NativeDoorRequestWait;
+        public bool NativeDoorDefaultFrame;
+        public NativeScalarValue[]? NativeDoorSavedResults;
         public int DialogueChannel = -1;
         public int BackgroundId;
         public int SoundResourceId;

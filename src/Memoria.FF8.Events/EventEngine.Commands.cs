@@ -18,6 +18,10 @@ public sealed partial class EventEngine
             case Jsm.Opcode.LBL:
                 if (NativeRuntimeProfile is { IsVerified: true })
                 {
+                    if (IsNativeDoorRequest(fiber.ObjectId))
+                    {
+                        EnterNativeDoorResultFrame(fiber);
+                    }
                     fiber.NativeResultFrameEntered = true;
                 }
                 break;
@@ -28,6 +32,7 @@ public sealed partial class EventEngine
                 {
                     throw Fault(fiber, "Script returned with an unbalanced operand stack.");
                 }
+                CompleteNativeDoorRequest(fiber, parameter);
                 CompleteNativeMovementRequest(fiber, parameter);
                 fiber.Complete = true;
                 break;
@@ -1198,6 +1203,7 @@ public sealed partial class EventEngine
         if (doorRequest)
         {
             requested.NativeDoorSlot = (byte)priority;
+            SelectNativeDoorRequest(requested);
         }
         else
         {

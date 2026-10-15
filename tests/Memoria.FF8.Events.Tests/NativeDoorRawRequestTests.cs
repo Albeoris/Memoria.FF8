@@ -72,9 +72,7 @@ internal static partial class Program
         // This is the declared direct-event Queue/slot boundary used by the
         // existing door suspension component. Raw requests above and below it
         // are actual executed REQ instructions, not fabricated journal entries.
-        MethodInfo queue = typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        object direct = queue.Invoke(live, [1, 19, 1, false])!;
-        direct.GetType().GetField("NativeDoorSlot")!.SetValue(direct, (byte)6);
+        QueueNativeDoorWaitComponent(live, 19, 6);
         JsonElement pendingCapture = live.Capture();
         EventEngine pendingRestore = CreateNativeDoorRawRequest(vitals, economy, busy);
         pendingRestore.Restore(pendingCapture);
@@ -118,7 +116,9 @@ internal static partial class Program
         {
             List<(Jsm.Opcode, int)> expression = [(Jsm.Opcode.LBL, label), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PGETINFO, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PSHN_L, result), (Jsm.Opcode.POPI_L, 1)];
             expression.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), noOperations));
-            expression.AddRange([(Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_W, destination), (Jsm.Opcode.RET, 8)]);
+            // Native RET8 reverses the saved eight-result bank when resuming
+            // a parent; high25 has no child, while19/24 resume with oldR1 atR6.
+            expression.AddRange([(Jsm.Opcode.POPI_L, 7), (Jsm.Opcode.PSHI_L, label == 25 ? 1 : 6), (Jsm.Opcode.POPM_W, destination), (Jsm.Opcode.RET, 8)]);
             return expression.ToArray();
         }
         List<(Jsm.Opcode, int)> initialize = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.EFFECTLOAD, 0)];
@@ -129,7 +129,7 @@ internal static partial class Program
         initialize.Add((Jsm.Opcode.RET, 8));
         (Jsm.Opcode, int)[] issuer = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 24), (Jsm.Opcode.NOP, 0), (firstRequest, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65535), (busy, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 25), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 6100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] line = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)];
-        List<(Jsm.Opcode, int)[]> scripts = [initialize.ToArray(), issuer, line, Empty(17), Empty(18), Expression(19, 22, 60, 6001), Empty(20), Empty(21), Empty(22), Empty(23), explicitReturn ? [(Jsm.Opcode.LBL, 24), (Jsm.Opcode.RET, 0)] : Expression(24, 11, 40, 6000), Expression(25, 33, 24, 6002)];
+        List<(Jsm.Opcode, int)[]> scripts = [initialize.ToArray(), issuer, line, [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Empty(18), Expression(19, 22, 60, 6001), Empty(20), Empty(21), Empty(22), Empty(23), explicitReturn ? [(Jsm.Opcode.LBL, 24), (Jsm.Opcode.RET, 0)] : Expression(24, 11, 40, 6000), Expression(25, 33, 24, 6002)];
         byte[] content = SyntheticObjects([(16 << 7) | 9, 1], scripts);
         content[1] = 1;
         content[3] = 1;

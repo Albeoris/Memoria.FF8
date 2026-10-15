@@ -150,6 +150,10 @@ public sealed partial class EventEngine
             }
         }
         int[] requested = NativeDoorRequestedLocals(events, contact).ToArray();
+        if (requested.Any(local => !RequestPriorityOccupied(objectId, 9 - local)) && UnsupportedNativeDoorSlotIssue(objectId) is string unsupportedSlot)
+        {
+            throw new NotSupportedException(unsupportedSlot);
+        }
         if (requested.Any(local => local >= program!.Objects[objectId].Scripts.Count))
         {
             throw new NotSupportedException("Reached native door event has no declared original local script; original state preserved.");
@@ -175,7 +179,7 @@ public sealed partial class EventEngine
         // The native entity has eighty DWORD stack entries before its result bank.
         // Only executed LBL frames own eight saved results; queued requests reserve
         // nothing until the shared operand-bank guard admits their actual LBL.
-        int stackWords = active.Where(fiber => fiber.NativeResultFrameEntered).Sum(fiber => fiber.Stack.Count + 8);
+        int stackWords = active.Where(fiber => fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame).Sum(fiber => fiber.Stack.Count + (fiber.NativeResultFrameEntered ? 8 : 0));
         if (stackWords > 80 || active.Any(fiber => fiber.Results.Keys.Any(register => register is < 0 or > 7)))
         {
             throw new NotSupportedException("Native door suspension exceeds the original operand/result stack or its eight result registers; original state preserved.");
@@ -312,6 +316,7 @@ public sealed partial class EventEngine
                 {
                     Fiber requested = Queue(line.ObjectId, program.Objects[line.ObjectId].Scripts[local].Id, priority, false);
                     requested.NativeDoorSlot = (byte)(7 - priority);
+                    SelectNativeDoorRequest(requested);
                 }
             }
         }

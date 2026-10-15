@@ -13,15 +13,20 @@ internal static partial class Program
     {
         using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         (Jsm.Opcode, int)[] Empty(int label) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 8)];
-        (Jsm.Opcode, int)[] Expression(int label, int result, int operand, int destination)
+        (Jsm.Opcode, int)[] Expression(int label, int result, int operand, int destination, bool defaultFrame = false)
         {
             List<(Jsm.Opcode, int)> operations = [(Jsm.Opcode.LBL, label), (Jsm.Opcode.PSHN_L, result), (Jsm.Opcode.POPI_L, 1)];
-            operations.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), 12));
-            operations.AddRange([(Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.CAL, 2), (Jsm.Opcode.POPM_W, destination), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_W, destination + 1), (Jsm.Opcode.RET, 8)]);
+            operations.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), defaultFrame ? 13 : 12));
+            operations.AddRange([(Jsm.Opcode.PSHN_L, operand), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.CAL, 2), (Jsm.Opcode.POPM_W, destination), (Jsm.Opcode.PSHI_L, 1), (Jsm.Opcode.POPM_W, destination + 1)]);
+            if (defaultFrame)
+            {
+                operations.Add((Jsm.Opcode.HALT, 0));
+            }
+            operations.Add((Jsm.Opcode.RET, 8));
             return operations.ToArray();
         }
         (Jsm.Opcode, int)[] door = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)];
-        byte[] content = SyntheticObjects([(16 << 7) | 7, 0], [Empty(0), door, Expression(17, 77, 100, 5000), Empty(18), Expression(19, 555, 333, 5002), Expression(20, 999, 444, 5004), Empty(21), Empty(22), Empty(23)]);
+        byte[] content = SyntheticObjects([(16 << 7) | 7, 0], [Empty(0), door, Expression(17, 77, 100, 5000, defaultFrame: true), Empty(18), Expression(19, 555, 333, 5002), Expression(20, 999, 444, 5004), Empty(21), Empty(22), Empty(23)]);
         content[1] = 1;
         content[3] = 1;
         EventEngine Create()
@@ -42,11 +47,9 @@ internal static partial class Program
         // Component fixture only: stage requests at the same Queue/slot-tagging
         // boundary used by DispatchNativeDoorEvents. No research save or journal
         // is constructed from this declared synthetic instruction program.
-        MethodInfo queue = typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic)!;
         foreach ((int script, int priority, byte slot) in new[] { (19, 1, (byte)6), (20, 2, (byte)5) })
         {
-            object fiber = queue.Invoke(live, [1, script, priority, false])!;
-            fiber.GetType().GetField("NativeDoorSlot")!.SetValue(fiber, slot);
+            QueueNativeDoorWaitComponent(live, script, slot);
         }
         JsonElement suspended = live.Capture();
         EventEngine restored = Create();

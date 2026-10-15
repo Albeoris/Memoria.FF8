@@ -11,7 +11,11 @@ public sealed partial class EventEngine
     {
         IEnumerable<Fiber> pending = fibers.Where(item => item.ObjectId == objectId && !item.Complete);
         bool doorScheduler = Scene.NativeDoorDriverVersion == 2 && program!.Objects[objectId].IsDoor;
-        if (!doorScheduler && fibers.Any(item => item.ObjectId == objectId && item.NativeActorSlot is not null))
+        if (doorScheduler)
+        {
+            return SelectNativeDoorScheduledFiber(objectId);
+        }
+        if (fibers.Any(item => item.ObjectId == objectId && item.NativeActorSlot is not null))
         {
             // Native51CD60 selects the highest occupied actor slot; slot0 retains the default.
             return pending.OrderByDescending(item => item.NativeActorSlot ?? (item.Priority == 7 ? 0 : item.Priority)).ThenBy(item => item.Sequence).FirstOrDefault();

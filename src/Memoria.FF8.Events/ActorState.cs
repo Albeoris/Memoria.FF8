@@ -83,6 +83,10 @@ public sealed class ActorState
     [JsonInclude]
     [JsonRequired]
     public ushort? NativeActorWord398 { get; internal set; }
+    /// <summary>Door current372 and default-entry identity from the original52C960 reset.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public NativeDoorSchedulerState? NativeDoorScheduler { get; internal set; }
     [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
     [JsonInclude]

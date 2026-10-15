@@ -10,15 +10,15 @@ public sealed partial class EventEngine
     {
         if (NativeRuntimeProfile is { IsVerified: true })
         {
-            if (IsNativeDoorRequest(fiber.ObjectId) && operation.Opcode == Jsm.Opcode.RET && operation.Parameter != 8)
+            if (IsNativeDoorRequest(fiber.ObjectId) && operation.Opcode == Jsm.Opcode.RET && (operation.Parameter != 8 || fiber.NativeDoorDefaultFrame || !fiber.NativeResultFrameEntered || fiber.NativeDoorSavedResults is not { Length: 8 }))
             {
-                return "Native door RET slot cancellation requires its original explicit-slot contract; PC and operands preserved";
+                return "Native door RET requires its represented requested LBL frame; default negative aliases and explicit slot cancellation are unsupported; PC and operands preserved";
             }
-            if (operation.Opcode == Jsm.Opcode.LBL && (fiber.NativeResultFrameEntered || fiber.Position != fiber.Script.Start))
+            if (operation.Opcode == Jsm.Opcode.LBL && (fiber.NativeResultFrameEntered || fiber.NativeDoorDefaultFrame || fiber.Position != fiber.Script.Start))
             {
                 return "Native repeated LBL requires its additional saved-result frame; PC and operands preserved";
             }
-            if (operation.Opcode != Jsm.Opcode.LBL && !fiber.NativeResultFrameEntered)
+            if (operation.Opcode != Jsm.Opcode.LBL && !fiber.NativeResultFrameEntered && !fiber.NativeDoorDefaultFrame)
             {
                 return "Native opcode requires its executed LBL saved-result frame owner; PC and operands preserved";
             }
@@ -31,7 +31,7 @@ public sealed partial class EventEngine
             // Refuse the unrepresented write rather than imposing a purported native clamp (NG-002).
             if (additionalWords > 0)
             {
-                int retainedWords = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item.NativeResultFrameEntered).Sum(item => item.Stack.Count + 8);
+                int retainedWords = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && (item.NativeResultFrameEntered || item.NativeDoorDefaultFrame)).Sum(item => item.Stack.Count + (item.NativeResultFrameEntered ? 8 : 0));
                 if (retainedWords + additionalWords > 80)
                 {
                     return "Native operand write outside DWORD0..316 requires its unrepresented result/header memory alias; PC and operands preserved";
@@ -61,6 +61,10 @@ public sealed partial class EventEngine
         if ((uint)priority < 8)
         {
             occupied = RequestPriorityOccupied(objectId, priority);
+            if (native && IsNativeDoorRequest(objectId) && !occupied && UnsupportedNativeDoorSlotIssue(objectId) is string unsupportedDoor)
+            {
+                return unsupportedDoor;
+            }
             if (native && !IsNativeDoorRequest(objectId) && !occupied && opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW && rawPriority != priority)
             {
                 return $"Native {opcode} scheduling with a non-byte priority requires its original raw DWORD wait comparison";

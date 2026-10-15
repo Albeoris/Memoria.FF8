@@ -24,15 +24,37 @@ internal static partial class Program
         }
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.REQSW, Jsm.Opcode.REQEW })
         {
-            EventEngine missingFloor = CreateNativeDoorWait(vitals, economy, opcode, floor: false);
-            NativeDoorWaitExpectRefusal(missingFloor, 1, opcode);
+            NativeDoorWaitBeforeHalt(vitals, economy, opcode);
             EventEngine self = CreateNativeDoorWait(vitals, economy, opcode, self: true);
             self.Step();
             self.Step();
             QueueNativeDoorWaitComponent(self, 19, 6);
             NativeDoorWaitExpectRefusal(self, 19, opcode);
         }
-        Console.WriteLine("Native door REQSW/EW: actual slot selection before LBL, lower-slot polling, end wait across higher slots and slot reuse, retained DWORD operands/PC, signed widths257/−255, one-time queueing, completion yield, independent restores and atomic malformed/missing-floor/self-transfer refusals passed.");
+        Console.WriteLine("Native door REQSW/EW: actual slot selection before LBL, lower-slot polling, end wait across higher slots and slot reuse, retained DWORD operands/PC, signed widths257/−255, one-time queueing, completion yield, independent restores and atomic malformed/self-transfer refusals passed.");
+    }
+
+    private static void NativeDoorWaitBeforeHalt(NativeCharacterVitals vitals, NativeEconomy economy, Jsm.Opcode opcode)
+    {
+        EventEngine engine = CreateNativeDoorWait(vitals, economy, opcode, beforeHalt: true);
+        EventEngine restored = CreateNativeDoorWait(vitals, economy, opcode, beforeHalt: true);
+        bool issuedBeforeHalt = false;
+        engine.CommandExecuted += command =>
+        {
+            if (command.ScriptId == 1 && command.Name == "NOP")
+            {
+                JsonElement actualDefault = NativeDoorRawFiber(engine, 17);
+                issuedBeforeHalt = actualDefault.GetProperty("WaitReason").GetString() == "None" && actualDefault.GetProperty("NativeDoorDefaultFrame").GetBoolean() && !actualDefault.GetProperty("NativeResultFrameEntered").GetBoolean();
+            }
+        };
+        for (int callback = 0; callback < 12 && !engine.Capture().GetProperty("Variables").TryGetProperty("6200", out _); callback++)
+        {
+            restored.Restore(engine.Capture());
+            engine.Step();
+            restored.Step();
+            Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Native current-slot wait before the default reached HALT diverged after independent restore.");
+        }
+        Require(issuedBeforeHalt && !engine.Actors[1].LineEnabled && engine.Capture().GetProperty("Variables").GetProperty("6200").GetInt32() == 77, "Native door wait invented a HALT floor requirement instead of reading the executed52C960 current0 owner.");
     }
 
     private static void NativeDoorWaitSelectedBeforeLabel(NativeCharacterVitals vitals, NativeEconomy economy)
@@ -163,7 +185,7 @@ internal static partial class Program
         }
     }
 
-    private static EventEngine CreateNativeDoorWait(NativeCharacterVitals vitals, NativeEconomy economy, Jsm.Opcode opcode, int rawPriority = 3, bool floor = true, bool self = false)
+    private static EventEngine CreateNativeDoorWait(NativeCharacterVitals vitals, NativeEconomy economy, Jsm.Opcode opcode, int rawPriority = 3, bool self = false, bool beforeHalt = false)
     {
         (Jsm.Opcode, int)[] Empty(int label) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.RET, 8)];
@@ -184,7 +206,13 @@ internal static partial class Program
         List<(Jsm.Opcode, int)> reused = [(Jsm.Opcode.LBL, 25)];
         reused.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), 32));
         reused.AddRange([(Jsm.Opcode.PSHN_L, 91), (Jsm.Opcode.POPM_W, 6201), (Jsm.Opcode.RET, 8)]);
-        List<(Jsm.Opcode, int)[]> scripts = [actor, issuer, line, floor ? [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)] : Empty(17), Empty(18), direct.ToArray(), Empty(20), Empty(21), Empty(22), Empty(23), [(Jsm.Opcode.LBL, 24), (Jsm.Opcode.LINEOFF, 0), (Jsm.Opcode.RET, 8)], reused.ToArray()];
+        List<(Jsm.Opcode, int)> defaultBody = [(Jsm.Opcode.LBL, 17)];
+        if (beforeHalt)
+        {
+            defaultBody.AddRange(Enumerable.Repeat((Jsm.Opcode.NOP, 0), 80));
+        }
+        defaultBody.AddRange([(Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
+        List<(Jsm.Opcode, int)[]> scripts = [actor, issuer, line, defaultBody.ToArray(), Empty(18), direct.ToArray(), Empty(20), Empty(21), Empty(22), Empty(23), [(Jsm.Opcode.LBL, 24), (Jsm.Opcode.LINEOFF, 0), (Jsm.Opcode.RET, 8)], reused.ToArray()];
         byte[] content = SyntheticObjects([(16 << 7) | 9, 1], scripts);
         content[1] = 1;
         content[3] = 1;
@@ -200,6 +228,7 @@ internal static partial class Program
         MethodInfo queue = typeof(EventEngine).GetMethod("Queue", BindingFlags.Instance | BindingFlags.NonPublic)!;
         object fiber = queue.Invoke(engine, [1, script, 7 - slot, false])!;
         fiber.GetType().GetField("NativeDoorSlot")!.SetValue(fiber, slot);
+        typeof(EventEngine).GetMethod("SelectNativeDoorRequest", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(engine, [fiber]);
     }
 
     private static bool IsNativeDoorWaitHeld(EventEngine engine) => HasNativeDoorRawFiber(engine, 1) && NativeDoorRawFiber(engine, 1).GetProperty("WaitReason").GetString() == "NativeDoorRequest";
@@ -222,19 +251,26 @@ internal static partial class Program
 
     private static void NativeDoorWaitMalformedRestore(NativeCharacterVitals vitals, NativeEconomy economy, JsonElement pending)
     {
-        foreach (string member in new[] { "RawPriority", "RequestSequence", "DefaultSequence", "Operation" })
+        foreach (string member in new[] { "RawPriority", "RequestSequence", "DefaultSequence", "Operation", "MissingVersion", "MissingOperation", "MissingTargetNativeObjectId", "MissingTargetObjectId", "MissingRawPriority", "MissingRawScriptId", "MissingRequestSequence", "MissingDefaultSequence" })
         {
             EventEngine target = CreateNativeDoorWait(vitals, economy, Jsm.Opcode.REQEW);
             JsonElement before = target.Capture();
             JsonNode bad = JsonNode.Parse(pending.GetRawText())!;
             JsonNode owner = bad["Fibers"]!.AsArray().Single(fiber => fiber!["ScriptId"]!.GetValue<int>() == 1)!["NativeDoorRequestWait"]!;
-            owner[member] = member == "RawPriority" ? 257 : 999999;
+            if (member.StartsWith("Missing", StringComparison.Ordinal))
+            {
+                owner.AsObject().Remove(member[7..]);
+            }
+            else
+            {
+                owner[member] = member == "RawPriority" ? 257 : 999999;
+            }
             try
             {
                 target.Restore(JsonSerializer.SerializeToElement(bad));
                 throw new InvalidOperationException($"Native door wait accepted forged {member}.");
             }
-            catch (InvalidDataException)
+            catch (Exception exception) when (exception is InvalidDataException or JsonException)
             {
             }
             Require(JsonElement.DeepEquals(before, target.Capture()), "Malformed native door wait restore mutated current state.");
