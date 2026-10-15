@@ -7,7 +7,7 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeWorldScriptedPathReader
 {
-    public static NativeWorldScriptedPathDefinition Read(ReadOnlySpan<byte> rail, ReadOnlySpan<byte> cameraSection, ReadOnlySpan<byte> executable, int trackIndex)
+    public static NativeWorldScriptedPathDefinition Read(ReadOnlySpan<byte> rail, ReadOnlySpan<byte> cameraSection, ReadOnlySpan<byte> executable, int trackIndex, int? selectedCameraList = null)
     {
         if (trackIndex is < 0 or >= 14 || rail.Length != 14 * 2048 || Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
         {
@@ -20,17 +20,19 @@ public static class NativeWorldScriptedPathReader
         {
             throw new InvalidDataException("Native rail header exceeds its fixed original chunk.");
         }
-        if (stopCount != 0)
-        {
-            throw new NotSupportedException("Scripted rail stop-node programs are outside the finite nonstop driver.");
-        }
+
         var points = ImmutableArray.CreateBuilder<NativeWorldRailPoint>(pointCount);
         for (int index = 0; index < pointCount; index++)
         {
             ReadOnlySpan<byte> point = chunk.Slice(12 + index * 16, 16);
             points.Add(new NativeWorldRailPoint(BinaryPrimitives.ReadInt32LittleEndian(point), BinaryPrimitives.ReadInt32LittleEndian(point[4..]), BinaryPrimitives.ReadInt32LittleEndian(point[8..]), BinaryPrimitives.ReadInt32LittleEndian(point[12..])));
         }
-        int list = ReadPointer(cameraSection, checked(trackIndex * 4));
+        int cameraList = selectedCameraList ?? trackIndex;
+        if (cameraList is < 0 or >= 28)
+        {
+            throw new InvalidDataException("Native scripted camera list selector is outside its pointer table.");
+        }
+        int list = ReadPointer(cameraSection, checked(cameraList * 4));
         int script = ReadPointer(cameraSection, list);
         if (ReadInt32(cameraSection, checked(list + 4)) != 0)
         {
@@ -59,7 +61,7 @@ public static class NativeWorldScriptedPathReader
         int secondShape = executable[ExecutableOffset(executable, 0xC763B5 + 2 * trackIndex)];
         short frontLength = BinaryPrimitives.ReadInt16LittleEndian(executable[ExecutableOffset(executable, 0xC76460 + firstShape * 8)..]);
         short rearLength = BinaryPrimitives.ReadInt16LittleEndian(executable[ExecutableOffset(executable, 0xC76460 + secondShape * 8)..]);
-        var definition = new NativeWorldScriptedPathDefinition(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(rail)), Convert.ToHexString(SHA256.HashData(chunk)), Convert.ToHexString(SHA256.HashData(cameraSection.Slice(script, position - script))), trackIndex, checked((byte)firstShape), checked((byte)secondShape), frontLength, rearLength, points.MoveToImmutable(), records.ToImmutable());
+        var definition = new NativeWorldScriptedPathDefinition(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(rail)), Convert.ToHexString(SHA256.HashData(chunk)), Convert.ToHexString(SHA256.HashData(cameraSection.Slice(script, position - script))), trackIndex, checked((byte)firstShape), checked((byte)secondShape), frontLength, rearLength, points.MoveToImmutable(), records.ToImmutable()) { CameraListIndex = cameraList, ForwardStops = chunk.Slice(8, stopCount).ToArray().ToImmutableArray(), ReverseStops = chunk.Slice(4, stopCount).ToArray().ToImmutableArray() };
         definition.Validate();
         return definition;
     }

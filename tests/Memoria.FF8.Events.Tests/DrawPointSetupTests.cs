@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
@@ -50,7 +50,7 @@ internal static partial class Program
             List<ScriptCommand> commands = [];
             engine.CommandExecuted += commands.Add;
             engine.Step();
-            Require(engine.Scene.DrawPointFieldStateVersion == 1 && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 1 && engine.Scene.DrawPointIndex == expected && engine.Scene.DrawPointReset is { EffectiveDisplayMask: 1, ObjectId: 0, ScriptId: 0, Operation: 7 } reset && reset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && reset.Sparks.Count == 8 && reset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)), "Draw-point setup lost its low bytes, native anchor reset or immediate index continuation.");
+            Require(engine.Scene.DrawPointFieldStateVersion == 1 && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 1 && engine.Scene.DrawPointIndex == expected && engine.Scene.DrawPointReset is { SampledDisplayMask: 1, ObjectId: 0, ScriptId: 0, Operation: 7 } reset && reset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && reset.Sparks.Count == 8 && reset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)), "Draw-point setup lost its low bytes, native anchor reset or immediate index continuation.");
             JsonElement saved = engine.Capture();
             Require(saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("3").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("4").GetInt32() == 1 && saved.GetProperty("Fibers")[0].GetProperty("Results").GetProperty("5").GetInt32() == expected, "Exact native byte reads did not use the known typed setup/index.");
             Require(JsonElement.DeepEquals(saved.GetProperty("EventRandom"), before.GetProperty("EventRandom")) && saved.GetProperty("Variables").EnumerateObject().All(pair => !int.TryParse(pair.Name, out int address) || address is < 116 or > 242) && engine.AcquiredGuardianForces is null, "Setup fabricated depletion data, GF state, B88 or EventRND draws.");
@@ -120,7 +120,7 @@ internal static partial class Program
                     scene["DrawPointReset"]!["Sparks"]![0]!["Status"] = 2;
                     break;
                 case "mask":
-                    scene["DrawPointReset"]!["EffectiveDisplayMask"] = 2;
+                    scene["DrawPointReset"]!["SampledDisplayMask"] = 2;
                     break;
                 case "frame":
                     scene["DrawPointReset"]!["Frame"] = known.Frame + 1;
@@ -174,7 +174,7 @@ internal static partial class Program
         EventEngine actual = Actual();
         Require(actual.Frame == 0 && actual.Scene.NativeFieldLoadVersion == 0 && actual.Scene.DrawPointIndex is null, "Original148 preinit source or unknown prior draw index changed.");
         actual.Apply(new PlayerAction(PlayerActionKind.Wait));
-        Require(actual.Frame == 1 && actual.LastFault is null && actual.Scene.DrawPointReset is { ObjectId: 17, ScriptId: 105, Operation: 1961, EffectiveDisplayMask: 1 } actualReset && actualReset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && actualReset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)) && actual.Scene.DrawPointIndex == 3, "Actual148 ordinary Wait1 did not preserve original setup and following373.");
+        Require(actual.Frame == 1 && actual.LastFault is null && actual.Scene.DrawPointReset is { ObjectId: 17, ScriptId: 105, Operation: 1961, SampledDisplayMask: 1 } actualReset && actualReset.RawPosition == new FieldFixedPosition(-6119424, 2744320, 0) && actualReset.Sparks.All(anchor => anchor == new NativeDrawPointSparkAnchor(-1494, 670, 0, 1)) && actual.Scene.DrawPointIndex == 3, "Actual148 ordinary Wait1 did not preserve original setup and following373.");
         EventEngine resumed = Actual();
         resumed.Restore(actual.Capture());
         for (int tick = 0; tick < 4; tick++)

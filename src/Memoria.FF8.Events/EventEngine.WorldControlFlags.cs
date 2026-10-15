@@ -11,7 +11,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        return variables.Keys.Any(address => address is >= 101 and <= 107 or >= 206 and <= 209) || services.NativeVariableValues?.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 104 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209) == true ? "Native world controls overlap an unproved memory alias; canonical byte-addressed owners are required" : null;
+        return variables.Keys.Any(address => address is >= 100 and <= 107 or >= 206 and <= 209) || services.NativeVariableValues?.Any(pair => pair.Key < 108 && (long)pair.Key + pair.Value.Width > 103 || pair.Key <= 207 && (long)pair.Key + pair.Value.Width > 207 || pair.Key <= 209 && (long)pair.Key + pair.Value.Width > 209) == true ? "Native world controls overlap an unproved memory alias; canonical byte-addressed owners are required" : null;
     }
 
     private string? UnsupportedWorldControlAccess(JsmOperation operation)
@@ -20,7 +20,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (operation.Opcode is Jsm.Opcode.PHSPOWER or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
+        if (operation.Opcode is Jsm.Opcode.PHSPOWER or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.PHSENABLE or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3)
         {
             return UnsupportedWorldControlAliases();
         }
@@ -32,7 +32,7 @@ public sealed partial class EventEngine
             _ => 0
         };
         long last = (long)operation.Parameter + width - 1;
-        if (width == 0 || !(operation.Parameter <= 107 && last >= 104 || operation.Parameter <= 209 && last >= 209))
+        if (width == 0 || !(operation.Parameter <= 107 && last >= 103 || operation.Parameter <= 207 && last >= 207 || operation.Parameter <= 209 && last >= 209))
         {
             return null;
         }
@@ -44,11 +44,11 @@ public sealed partial class EventEngine
         {
             return UnsupportedWorldControlAliases();
         }
-        if (operation.Parameter >= 104 && last <= 107)
+        if (operation.Parameter >= 103 && last <= 107)
         {
             return UnsupportedWorldControlAliases();
         }
-        return "Native control access needs unknown byte104/105 bits or an unproved overlapping word/DWORD; original PC and operands retained";
+        return "Native control access crosses the known103..107,207 or209 byte banks into unproved memory; original PC and operands retained";
     }
 
     private int ExecutePartyPower(Fiber fiber)
@@ -65,23 +65,32 @@ public sealed partial class EventEngine
         return Scene.PartyPower;
     }
 
-    private string? UnsupportedSaveEnable(Fiber fiber)
+    private string? UnsupportedMenuEnable(Fiber fiber, Jsm.Opcode opcode)
     {
-        if (fiber.Stack.Count == 0)
+        if (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact)
         {
-            return "SAVEENABLE requires its original DWORD operand";
+            return $"{opcode} requires its exact original DWORD operand";
         }
         if (services.WorldControls is not NativeWorldControlState controls)
         {
-            return "SAVEENABLE requires the canonical native menu byte with authentic initialization; recreate the journal";
+            return $"{opcode} requires the canonical native menu byte and control word with authentic initialization; recreate the journal";
         }
         controls.Validate();
         return UnsupportedWorldControlAliases();
     }
 
-    private int ExecuteSaveEnable(Fiber fiber)
+    private int ExecuteMenuEnable(Fiber fiber, Jsm.Opcode opcode)
     {
-        SetNativeWorldControls(fiber, services.WorldControls!.WithSaveEnabled(fiber.Stack.Peek()));
+        NativeWorldControlState controls = services.WorldControls!;
+        int argument = fiber.Stack.Peek();
+        if (opcode == Jsm.Opcode.SAVEENABLE)
+        {
+            SetNativeWorldControls(fiber, controls.WithSaveEnabled(argument));
+        }
+        else if (!controls.SourceDisabled)
+        {
+            SetNativeWorldControls(fiber, controls.WithPartyMenuEnabled(argument));
+        }
         return Pop(fiber, 1)[0];
     }
 

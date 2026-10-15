@@ -9,7 +9,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeShopRequest(Fiber fiber)
     {
-        if (NativeRuntimeProfile is not { IsVerified: true } || partyMenu is not null || services.IsMoviePlaying || !services.CanStoreNativePartyMenuOwners || services.CharacterVitals is null || services.Economy is null || services.ShopHistory is null || services.MenuRandom is null || services.ShotAvailability is null || services.SalaryPresentation is null || services.ExamTimer is null || services.VibrationProcess is null || ResolveNativeShopDefinitions is null)
+        if (NativeRuntimeProfile is not { IsVerified: true } || partyMenu is not null || services.IsMoviePlaying || !services.CanStoreNativePartyMenuOwners || services.CharacterVitals is null || services.Economy is null || services.ShotAvailability is null || services.SalaryPresentation is null || services.ExamTimer is null || services.VibrationProcess is null || ResolveNativeShopDefinitions is null)
         {
             return "Native shop requires its actual menu, saved inventory/character/history, menu RNG and process owners before request mutation.";
         }
@@ -21,6 +21,16 @@ public sealed partial class EventEngine
         {
             int raw = fiber.Stack.Peek();
             NativeShopDefinitions definitions = ResolveNativeShopDefinitions();
+            definitions.Validate();
+            if (definitions.ArgumentMap[unchecked((byte)raw)] == 21)
+            {
+                _ = PrepareNativeWeaponShopEntry(raw);
+                return null;
+            }
+            if (services.ShopHistory is null || services.MenuRandom is null)
+            {
+                return "Ordinary shop requires its actual saved discovery history and menu RNG.";
+            }
             byte catalog = definitions.ResolveCatalog(raw);
             uint abilities = services.CharacterVitals.ShopAbilityMask();
             NativeEconomy normalized = NativeShopTransaction.NormalizeInventory(services.Economy);
@@ -38,7 +48,9 @@ public sealed partial class EventEngine
     private int[] RequestNativeShop(Fiber fiber)
     {
         int raw = fiber.Stack.Peek();
-        NativePartyMenuState request = new(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, NativeFieldMenuKind.Shop, unchecked((byte)raw), 0, raw, null);
+        NativeShopDefinitions definitions = ResolveNativeShopDefinitions!();
+        NativeFieldMenuKind kind = definitions.ArgumentMap[unchecked((byte)raw)] == 21 ? NativeFieldMenuKind.WeaponShop : NativeFieldMenuKind.Shop;
+        NativePartyMenuState request = new(FieldId, programHash, NativeRuntimeProfile!.ExecutableHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, fiber.Sequence, NativePartyMenuPhase.Requested, 0, null, 0, 0, 0, null, kind, unchecked((byte)raw), 0, raw, null, null, null, null);
         int[] operands = Pop(fiber, 1);
         partyMenu = request;
         fiber.WaitReason = WaitReason.NativePartyMenu;

@@ -47,6 +47,8 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonRequired]
     public NativeShopHistory? ShopHistory { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
+    public NativeWeaponRecipes? WeaponRecipes { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
     public NativeMenuRandomState? MenuRandom { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeInputConfiguration? InputConfiguration { get; init; }
@@ -108,6 +110,13 @@ public interface IEventServices
     void SetMenuRandom(NativeMenuRandomState random)
     {
         throw new NotSupportedException("Native menu random process ownership is not implemented by this service.");
+    }
+
+    NativeWeaponRecipes? WeaponRecipes => null;
+    bool CanStoreWeaponRecipes => false;
+    void SetWeaponRecipes(NativeWeaponRecipes recipes)
+    {
+        throw new NotSupportedException("Native saved weapon recipe ownership is not implemented by this service.");
     }
 
     NativeShopHistory? ShopHistory => null;
@@ -178,7 +187,7 @@ public interface IEventServices
     NativeShotAvailabilityState? ShotAvailability => null;
     NativeFieldLocation? NativeFieldLocation => null;
     bool CanStoreNativePartyMenuOwners => false;
-    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null)
+    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null)
     {
         throw new NotSupportedException("Atomic party menu entry ownership is not implemented by this event service.");
     }

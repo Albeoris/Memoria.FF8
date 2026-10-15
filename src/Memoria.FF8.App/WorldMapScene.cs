@@ -32,7 +32,8 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
         bool car = unchecked((sbyte)arrival.Mode) == 33;
-        bool scripted = IsSupportedScriptedPacket(arrival);
+        bool ridingTrain = IsRidingTrainPacket(arrival);
+        bool scripted = IsSupportedScriptedPacket(arrival) || ridingTrain;
         byte footEntityType = unchecked((byte)arrival.Mode);
         if (footEntityType is not (0 or 1) && !car && !scripted)
         {
@@ -54,7 +55,7 @@ internal sealed partial class WorldMapScene : IDisposable
         NativeSavedWorldState? carSavedDeparture = null;
         if (scripted)
         {
-            if (session.State.World is not null && session.State.World.NativeScriptedRuntime is null)
+            if (session.State.World is not null && session.State.World.NativeScriptedRuntime is null && session.State.World.NativeTrainRuntime is null)
             {
                 throw new NotSupportedException("Native scripted restoration has no executed scripted runtime authority.");
             }
@@ -114,10 +115,17 @@ internal sealed partial class WorldMapScene : IDisposable
             {
                 if (session.State.World is null)
                 {
-                    session.SetWorldState(CreateScriptedState(arrival, inputs));
+                    session.SetWorldState(ridingTrain ? CreateTrainRide(arrival, inputs) : CreateScriptedState(arrival, inputs));
                 }
                 replacements = WorldTerrainSelection.Replacements(State.ReplacementMask);
-                ValidateScriptedState(State);
+                if (ridingTrain)
+                {
+                    ValidateTrainRide(State.NativeTrainRuntime!);
+                }
+                else
+                {
+                    ValidateScriptedState(State);
+                }
                 return;
             }
             if (session.State.World is null)
@@ -189,7 +197,7 @@ internal sealed partial class WorldMapScene : IDisposable
     }
 
     public WorldState State => session.State.World ?? LastDeparture ?? throw new InvalidOperationException("This world scene no longer has a current state.");
-    public bool IsPresentationDeferred => State.NativeScriptedRuntime?.Path.Callback == 0;
+    public bool IsPresentationDeferred => State.NativeScriptedRuntime?.Path.Callback == 0 || State.NativeTrainRuntime?.Callback == 0;
 
     internal static void RequireUnaliasedFootAuxiliary(GameState state)
     {
@@ -251,12 +259,12 @@ internal sealed partial class WorldMapScene : IDisposable
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, priorGraphics, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed);
                 salary = salary.WithGraphicsSpeed(graphicsSpeed);
-                if (candidate.NativeScriptedRuntime is null)
+                if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
                 {
                     //53FAC0 calls6519D0 with the same accepted-vector /8 units before salary, regardless of its suppression flag.
                     salary = salary.PrepareDrawPointAging(movementUnits);
                 }
-                NativeSalaryResult? salaryResult = candidate.NativeScriptedRuntime is null ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
+                NativeSalaryResult? salaryResult = candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null ? GameSession.SampleWorldSalary(session.State, salary.SeeD, salary.Economy, movementUnits) : null;
                 NativeSalaryEffects effects;
                 if (salaryResult?.Payment is not null)
                 {
@@ -330,6 +338,10 @@ internal sealed partial class WorldMapScene : IDisposable
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
         WorldState state = State;
+        if (state.NativeTrainRuntime is not null)
+        {
+            return RenderTrainRide(state);
+        }
         if (state.NativeScriptedRuntime is not null)
         {
             return RenderScripted(state);
@@ -344,6 +356,10 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private WorldState Step(WorldState before, float horizontal, float vertical, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits, out int graphicsSpeed)
     {
+        if (before.NativeTrainRuntime is not null)
+        {
+            return StepTrainRide(before, horizontal, vertical, priorGraphicsSpeed, out fieldEntry, out inputProposal, out salaryMovementUnits, out graphicsSpeed);
+        }
         if (before.NativeScriptedRuntime is not null)
         {
             // Native53FAC0 does not call6519D0 for scripted entities16..22/65/66.
@@ -440,6 +456,11 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private void EnsureContactCertificate(WorldState state)
     {
+        if (state.NativeTrainRuntime is not null)
+        {
+            ValidateTrainRide(state.NativeTrainRuntime);
+            return;
+        }
         if (state.NativeScriptedRuntime is not null)
         {
             ValidateScriptedState(state);

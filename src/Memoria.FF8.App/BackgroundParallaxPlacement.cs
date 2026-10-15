@@ -8,9 +8,9 @@ namespace Memoria.FF8;
 /// <summary>Native475480 nonselected normal-layer WORD displacement plus common DRAWENV displacement.</summary>
 internal static class BackgroundParallaxPlacement
 {
-    public static bool SupportsPan(FieldAssets field)
+    public static bool SupportsPan(FieldAssets field, int cameraIndex = 0)
     {
-        Vector2 pan = field.Camera.Pan;
+        Vector2 pan = field.GetCamera(cameraIndex).Pan;
         return float.IsFinite(pan.X) && float.IsFinite(pan.Y) && pan.X == MathF.Truncate(pan.X) && pan.Y == MathF.Truncate(pan.Y) && pan.X is >= -4095 and <= 4096 && pan.Y is >= -4095 and <= 4096 && (pan == Vector2.Zero || field.Information?.BackgroundWrapMask == 0);
     }
 
@@ -23,13 +23,13 @@ internal static class BackgroundParallaxPlacement
         return drawX is >= -1024 and <= 1023 && drawY is >= -1024 and <= 1023;
     }
 
-    public static bool SupportsCameraRange(FieldAssets field, BackgroundScrollSettings settings, short currentX = 0, short currentY = 0)
+    public static bool SupportsCameraRange(FieldAssets field, BackgroundScrollSettings settings, short currentX = 0, short currentY = 0, int cameraIndex = 0)
     {
         if (field.Information is not { CameraBounds.Count: > 0 } information)
         {
             return false;
         }
-        FieldBounds camera = information.CameraBounds[0];
+        FieldBounds camera = information.CameraBounds[cameraIndex];
         int lowX = camera.Left + 160;
         int highX = Math.Max(lowX, camera.Right - 160);
         int lowY = camera.Top + 112;

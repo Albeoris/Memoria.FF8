@@ -21,6 +21,8 @@ public sealed class GameAssets : IDisposable
     private IFlArchive? mainCharacters;
     private NativeVibrationBank? nativeVibrationBank;
     private NativeShopDefinitions? nativeShopDefinitions;
+    private NativeWeaponShopDefinitions? nativeWeaponShopDefinitions;
+    private NativeDrawPointCatalog? nativeDrawPointCatalog;
 
     public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null)
     {
@@ -43,6 +45,16 @@ public sealed class GameAssets : IDisposable
 
     public string GameDirectory { get; }
     public string? NativeExecutableHash { get; }
+    public NativeDrawPointCatalog ReadNativeDrawPointCatalog()
+    {
+        if (nativeDrawPointCatalog is not null)
+        {
+            return nativeDrawPointCatalog;
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        nativeDrawPointCatalog = NativeDrawPointCatalogReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(main, "kernel.bin"));
+        return nativeDrawPointCatalog;
+    }
     public NativeVibrationBank ReadNativeVibrationBank() => nativeVibrationBank ??= NativeVibrationBankReader.ReadExecutable(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
     public NativeShakeTables ReadNativeShakeTables()
     {
@@ -97,6 +109,27 @@ public sealed class GameAssets : IDisposable
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
         return nativeShopDefinitions = NativeShopDefinitionReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(menu, "shop.bin"), Read(menu, "price.bin"), Read(main, "kernel.bin"));
+    }
+
+    public NativeWeaponRecipes ReadNewGameWeaponRecipes()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native known-weapon initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeWeaponShopDefinitionReader.ReadNewGameRecipes(Read(main, "init.out"));
+    }
+
+    public NativeWeaponShopDefinitions ReadNativeWeaponShopDefinitions()
+    {
+        if (nativeWeaponShopDefinitions is not null)
+        {
+            return nativeWeaponShopDefinitions;
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        using IFlArchive menu = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "menu.fs"), FlArchiveRepresentation.Files);
+        return nativeWeaponShopDefinitions = NativeWeaponShopDefinitionReader.Read(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")), Read(main, "kernel.bin"), Read(menu, "mwepon.bin"), Read(menu, "mwepon.msg"));
     }
 
     public NativeShotAvailabilityState ReadNewGameShotAvailability()

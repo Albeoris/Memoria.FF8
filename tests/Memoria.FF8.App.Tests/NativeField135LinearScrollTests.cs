@@ -103,9 +103,9 @@ public sealed class NativeField135LinearScrollTests
             Assert.Throws<InvalidDataException>(() => world.Events.Restore(saved.RootElement));
             Assert.True(JsonElement.DeepEquals(current, world.Events.Capture()));
         }
-        Assert.True(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 351, 0, 351)));
-        Assert.True(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 350, 0, 351)));
-        Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 351, 0, 351)));
+        Assert.True(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 351, 0, 351), world.Events.Scene.CameraIndex));
+        Assert.True(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(1, 0, 0, 350, 0, 351), world.Events.Scene.CameraIndex));
+        Assert.False(NativeWrappedBackgroundScrollCertificate.CanSet(world.Field!, new NativeLinearScrollQuery(0, 0, 0, 351, 0, 351), world.Events.Scene.CameraIndex));
     }
 
     internal static GameState RecreateLava(string directory, string source)

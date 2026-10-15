@@ -290,7 +290,7 @@ internal sealed partial class GameWorld
 
     private static void ValidatePartyMenuDecisionSite(EventEngine engine, ReplayJournalEntry entry)
     {
-        bool decision = entry.Code is (int)PlayerActionKind.SelectPartyMember or (int)PlayerActionKind.BuyShopItem || entry.Code is (int)PlayerActionKind.Confirm or (int)PlayerActionKind.Cancel && entry.Trigger == (int)PlayerTriggerKind.PartyMenu;
+        bool decision = entry.Code is (int)PlayerActionKind.SelectPartySlot or (int)PlayerActionKind.SelectPartyMember or (int)PlayerActionKind.BuyShopItem || entry.Code is (int)PlayerActionKind.Confirm or (int)PlayerActionKind.Cancel && entry.Trigger == (int)PlayerTriggerKind.PartyMenu;
         if (!decision || entry.Trigger != (int)PlayerTriggerKind.PartyMenu && entry.Accepted == false)
         {
             return;

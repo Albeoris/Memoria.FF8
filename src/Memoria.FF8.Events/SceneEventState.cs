@@ -218,9 +218,16 @@ public sealed class SceneEventState
     public byte DrawPointEnabled { get; internal set; }
     [JsonInclude]
     public byte DrawPointDisplayParameter { get; internal set; }
+    /// <summary>Current physical WORD1CDBFEA, supplied only by executed4747A0; setup receipts are historical samples.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public ushort? NativeDrawPointDisplayMask { get; internal set; }
     /// <summary>Known native B242 only; an absent legacy value does not mean index0.</summary>
     [JsonInclude]
     public byte? DrawPointIndex { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
+    public NativeDrawPointInteraction? DrawPointInteraction { get; internal set; }
     [JsonInclude]
     public NativeDrawPointReset? DrawPointReset { get; internal set; }
     public Dictionary<int, BackgroundShade> BackgroundShades { get; } = [];

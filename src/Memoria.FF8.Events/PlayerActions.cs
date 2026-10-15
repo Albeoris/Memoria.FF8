@@ -15,7 +15,8 @@ public enum PlayerActionKind
     Cancel,
     FieldButtons,
     SelectPartyMember,
-    BuyShopItem
+    BuyShopItem,
+    SelectPartySlot
 }
 
 public enum PlayerTriggerKind
@@ -58,7 +59,7 @@ public sealed partial class EventEngine
     public event Action<DialogueOutcome>? DialogueCompleted;
 
     public PlayerTrigger NextTrigger => new(
-        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : PendingInteractiveBattle is not null ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : IsUserControlEnabled && defaultsStarted && !fibers.Any(fiber => !fiber.Complete && !fiber.Started) ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
+        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : PendingInteractiveBattle is not null ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
         FieldId, Frame, PartyMenu is not null ? null : CurrentDialogue?.MessageId, LastFault?.Message ?? (PartyMenu is not null ? null : CurrentDialogue?.Text));
 
     /// <summary>Applies an ordinary player action; no variable or script-PC mutation API is exposed.</summary>
@@ -94,10 +95,11 @@ public sealed partial class EventEngine
             {
                 accepted = action.Kind switch
                 {
+                    PlayerActionKind.SelectPartySlot => SelectPartyMenuSlot(action.Value),
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
                     PlayerActionKind.BuyShopItem => action.Quantity is int quantity && BuyNativeShopItem(action.Value, quantity),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
-                    PlayerActionKind.Cancel => PartyMenu.Kind == NativeFieldMenuKind.Shop ? CloseNativeShop() : CloseNormalMenu(),
+                    PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), NativeFieldMenuKind.PartySelection => CancelPartyMenuSelection(), _ => CloseNormalMenu() },
                     PlayerActionKind.Wait => true,
                     _ => false
                 };
@@ -129,6 +131,7 @@ public sealed partial class EventEngine
             {
                 switch (action.Kind)
                 {
+                    case PlayerActionKind.SelectPartySlot:
                     case PlayerActionKind.SelectPartyMember:
                     case PlayerActionKind.BuyShopItem:
                         accepted = false;
@@ -203,7 +206,7 @@ public sealed partial class EventEngine
                             throw new ArgumentOutOfRangeException(nameof(action), "Movement axes must be finite and between -1 and 1.");
                         }
                         ActorState? player = PlayerActor;
-                        accepted = player is { Active: true, Visible: true } && IsUserControlEnabled && !IsMovementBlockedByDialogue && !services.IsMoviePlaying;
+                        accepted = CanAcceptFieldMovement;
                         if (accepted && ResolveWalkmesh is null)
                         {
                             throw new InvalidOperationException("Player movement requires the field walkmesh resolver.");

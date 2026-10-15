@@ -21,6 +21,10 @@ internal sealed partial class GameWorld : IDisposable
         this.session = session;
         assets = new GameAssets(gameDirectory);
         bool initializedNativeParty = false;
+        if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameWeaponRecipes(assets.ReadNewGameWeaponRecipes());
+        }
         if (session.State.ShopHistory is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameShopHistory(assets.ReadNewGameShopHistory());
@@ -70,6 +74,8 @@ internal sealed partial class GameWorld : IDisposable
         Events.PrepareWorldTransition = PrepareNativeWorldEntry;
         Events.ReadNativeVibrationBank = assets.ReadNativeVibrationBank;
         Events.ResolveNativeShopDefinitions = assets.ReadNativeShopDefinitions;
+        Events.ResolveNativeWeaponShopDefinitions = assets.ReadNativeWeaponShopDefinitions;
+        Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         if (persistReplayJournal)
         {
             journalArchive = new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory);
@@ -136,7 +142,7 @@ internal sealed partial class GameWorld : IDisposable
 
     private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
     {
-        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null || session.ShopHistory is null || session.MenuRandom is null))
+        if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null || session.ShopHistory is null || session.MenuRandom is null || session.WeaponRecipes is null))
         {
             throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world event/menu random, vibration, fade or shop owners from its earlier snapshot.");
         }
@@ -178,8 +184,8 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeTriangleCentroid = triangle => FieldPartyTraceGeometry.ResolveTriangleCentroid(next.Walkmesh, triangle);
         Events.CanUseNativeFieldEntryStack = arrival => NativeFieldEntryStackAdapter.Supports(next, arrival);
         Events.NativeFieldWalkmeshHash = next.WalkmeshHash;
-        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeWrappedBackgroundScrollCertificate.CanSet(next, query) || NativeNonselectedBackgroundScrollCertificate.CanSetLinear(next, query);
-        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeWrappedBackgroundScrollCertificate.SupportsPhase(next, scene) || NativeNonselectedBackgroundScrollCertificate.SupportsLinearPhase(next, scene);
+        Events.CanSetLinearBackgroundScroll = query => DirectBackgroundScrollCertificate.CanSetLinear(next, query) || NativeWrappedBackgroundScrollCertificate.CanSet(next, query, Events.Scene.CameraIndex) || NativeNonselectedBackgroundScrollCertificate.CanSetLinear(next, query);
+        Events.CanRestoreLinearBackgroundScroll = scene => DirectBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeWrappedBackgroundScrollCertificate.SupportsLinearPhase(next, scene) || NativeNonselectedBackgroundScrollCertificate.SupportsLinearPhase(next, scene);
         Events.CanBeginLinearBackgroundScroll = (query, scene) => DirectBackgroundScrollCertificate.CanBeginLinear(next, query, scene) || NativeWrappedBackgroundScrollCertificate.CanBegin(next, query, scene) || NativeNonselectedBackgroundScrollCertificate.CanBeginLinear(next, query, scene);
         Events.CanUseNativeJoinMovement = actor => NativeJoinMovementAdapter.Supports(next, Events.Scene, actor);
         Events.ResolveNativeJoinMovement = query => NativeJoinMovementAdapter.Resolve(next, Events.Scene, query);
@@ -206,6 +212,7 @@ internal sealed partial class GameWorld : IDisposable
         NativeFieldFadeState? sceneFade = restoreDeparting ? session.FieldFade : null;
         NativeShopHistory? sceneShopHistory = restoreDeparting ? session.ShopHistory : null;
         NativeMenuRandomState? sceneMenuRandom = restoreDeparting ? session.MenuRandom : null;
+        NativeWeaponRecipes? sceneWeaponRecipes = restoreDeparting ? session.WeaponRecipes : null;
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot);
         if (next.Information is FieldInformation information)
         {
@@ -244,6 +251,10 @@ internal sealed partial class GameWorld : IDisposable
             if (sceneEventRandom is not null)
             {
                 session.SetEventRandom(sceneEventRandom);
+            }
+            if (sceneWeaponRecipes is not null)
+            {
+                session.SetWeaponRecipes(sceneWeaponRecipes);
             }
             if (sceneMenuRandom is not null)
             {

@@ -15,7 +15,41 @@ public sealed class NativeWorldControlStateTests
         Assert.Equal(NativeWorldControlOriginKind.NativeNewGame, state.Origin.Kind);
         Assert.Equal(NativeWorldControlState.InitializationRule, state.Origin.InitializationRule);
         Assert.False(state.SourceDisabled);
+        Assert.Equal((byte)0, state.EventFlags103);
         Assert.Equal((byte)0, state.Menu209);
+    }
+
+    [Fact]
+    public void KnownControlBytesUseOneLittleEndianBankAndRejectUnknownNeighbors()
+    {
+        NativeWorldControlState original = NativeWorldControlState.CreateNewGame() with { EventFlags103 = 0xA5, EventFlags104 = 0xC3D2E1F0 };
+        byte[] bytes = [0xA5, 0xF0, 0xE1, 0xD2, 0xC3];
+        foreach (int width in new[] { 1, 2, 4 })
+        {
+            for (int address = 103; address + width <= 108; address++)
+            {
+                int expected = width == 1 ? bytes[address - 103] : width == 2 ? BitConverter.ToUInt16(bytes, address - 103) : BitConverter.ToInt32(bytes, address - 103);
+                Assert.Equal(expected, original.ReadEventBytes(address, width));
+                foreach (int value in new[] { 0, -1, int.MinValue, 0x76543210 })
+                {
+                    byte[] updatedBytes = bytes.ToArray();
+                    BitConverter.GetBytes(value).AsSpan(0, width).CopyTo(updatedBytes.AsSpan(address - 103, width));
+                    NativeWorldControlState updated = original.WriteEventBytes(address, width, value);
+                    Assert.Equal(updatedBytes[0], updated.EventFlags103);
+                    Assert.Equal(BitConverter.ToUInt32(updatedBytes, 1), updated.EventFlags104);
+                    Assert.Equal(original.Menu209, updated.Menu209);
+                    Assert.Equal(original.MusicKeep207, updated.MusicKeep207);
+                    Assert.Equal(original.Origin, updated.Origin);
+                    Assert.Equal(updated, JsonSerializer.Deserialize<NativeWorldControlState>(JsonSerializer.Serialize(updated)));
+                }
+            }
+        }
+        foreach ((int address, int width) in new[] { (102, 1), (102, 2), (102, 4), (105, 4), (107, 2), (103, 0), (103, 3), (int.MaxValue, 4) })
+        {
+            Assert.Throws<NotSupportedException>(() => original.ReadEventBytes(address, width));
+            Assert.Throws<NotSupportedException>(() => original.WriteEventBytes(address, width, -1));
+        }
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeWorldControlState>(JsonSerializer.Serialize(original).Replace("\"EventFlags103\":165,", "")));
     }
 
     [Fact]

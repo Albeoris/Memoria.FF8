@@ -6,7 +6,7 @@ namespace Memoria.FF8.Events;
 
 public sealed record NativeDrawPointSparkAnchor(short X, short Y, short Z, byte Status);
 /// <summary>Original setup reset, not a simulated particle lifetime or current depletion state.</summary>
-public sealed record NativeDrawPointReset(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, FieldFixedPosition RawPosition, ushort EffectiveDisplayMask, IReadOnlyList<NativeDrawPointSparkAnchor> Sparks, [property: JsonRequired] byte? SourceByte88);
+public sealed record NativeDrawPointReset(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, FieldFixedPosition RawPosition, [property: JsonRequired] ushort SampledDisplayMask, IReadOnlyList<NativeDrawPointSparkAnchor> Sparks, [property: JsonRequired] byte? SourceByte88);
 
 public sealed partial class EventEngine
 {
@@ -110,10 +110,25 @@ public sealed partial class EventEngine
         Scene.DrawPointFieldStateVersion = 1;
         Scene.DrawPointEnabled = 1;
         Scene.DrawPointDisplayParameter = parameter;
+        Scene.NativeDrawPointDisplayMask = effective;
         // Unknown loader BooleanB88 can only be consumed when bit0 is already set.
         // A known source is sampled in this reset receipt, not copied as another bank owner.
         Scene.DrawPointReset = new NativeDrawPointReset(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, raw, effective, Enumerable.Repeat(anchor, 8).ToArray(), source);
         return args;
+    }
+
+    private ushort? PrepareMenuDrawPointDisplayMask()
+    {
+        if (Scene.DrawPointEnabled == 0)
+        {
+            return Scene.NativeDrawPointDisplayMask;
+        }
+        if (Scene.DrawPointFieldStateVersion != 1 || Scene.DrawPointReset is null || UnsupportedDrawPointAliases(false) is not null)
+        {
+            throw new NotSupportedException("Active menu draw-point display requires its executed setup and unaliased native bytes.");
+        }
+        //The caller already proved495EF0 produced source BYTE88=0.
+        return Scene.DrawPointDisplayParameter;
     }
 
     private int[] SetNativeDrawPointIndex(Fiber fiber)
@@ -126,6 +141,10 @@ public sealed partial class EventEngine
     private void ValidateDrawPointCheckpoint(Checkpoint saved)
     {
         SceneEventState scene = saved.Scene;
+        if (scene.NativeDrawPointDisplayMask is > byte.MaxValue || scene.DrawPointEnabled != 0 && (scene.NativeDrawPointDisplayMask is null || (scene.NativeDrawPointDisplayMask.Value & scene.DrawPointDisplayParameter) != scene.DrawPointDisplayParameter))
+        {
+            throw new InvalidDataException("Saved active draw-point display lacks its current physical WORD1CDBFEA.");
+        }
         if (scene.DrawPointFieldStateVersion is < 0 or > 1 || scene.DrawPointFieldStateVersion == 0 && (scene.DrawPointEnabled != 0 || scene.DrawPointDisplayParameter != 0 || scene.DrawPointReset is not null) || scene.DrawPointReset is null && (scene.DrawPointEnabled != 0 || scene.DrawPointDisplayParameter != 0))
         {
             throw new InvalidDataException("Saved draw-point field bytes lack their native reset or setup authority.");
@@ -136,7 +155,7 @@ public sealed partial class EventEngine
         }
         EventObject? owner = program!.Objects.FirstOrDefault(actor => actor.Index == reset.ObjectId);
         EventScript? script = owner?.Scripts.FirstOrDefault(script => script.Id == reset.ScriptId);
-        bool validMask = reset.SourceByte88 is byte source ? reset.EffectiveDisplayMask == (source | scene.DrawPointDisplayParameter) : (scene.DrawPointDisplayParameter & 1) != 0 && reset.EffectiveDisplayMask == scene.DrawPointDisplayParameter;
+        bool validMask = reset.SourceByte88 is byte source ? reset.SampledDisplayMask == (source | scene.DrawPointDisplayParameter) : (scene.DrawPointDisplayParameter & 1) != 0 && reset.SampledDisplayMask == scene.DrawPointDisplayParameter;
         if (reset.Version != 1 || reset.FieldId != saved.FieldId || reset.FieldId < 72 || reset.Frame < 0 || reset.Frame > saved.Frame || scene.DrawPointFieldStateVersion != 1 || scene.DrawPointEnabled != 1 || !validMask || script is null || reset.Operation < script.Start || reset.Operation >= script.End || program.Operations[reset.Operation].Opcode != Jsm.Opcode.SETDRAWPOINT || reset.RawPosition is null || reset.Sparks is null || reset.Sparks.Count != 8 || new[] { reset.RawPosition.X, reset.RawPosition.Y, reset.RawPosition.Z }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue) || reset.Sparks.Any(anchor => anchor is null || anchor.Status != 1 || anchor.X != (reset.RawPosition.X >> 12) || anchor.Y != (reset.RawPosition.Y >> 12) || anchor.Z != (reset.RawPosition.Z >> 12)))
         {
             throw new InvalidDataException("Saved draw-point reset lost its original setup provenance, mask or eight signed-WORD anchors.");

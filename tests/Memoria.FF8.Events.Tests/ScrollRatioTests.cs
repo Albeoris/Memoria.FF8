@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -34,6 +35,9 @@ internal static partial class Program
         EventEngine CreateNative()
         {
             GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             EventEngine engine = new(session, session.State.Variables) { CanSetBackgroundScrollRatio = (_, _) => true };
             engine.LoadField(100, allocated, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;

@@ -10,7 +10,7 @@ public sealed partial class EventEngine
         bool command = operation.Opcode is Jsm.Opcode.ADDSEEDLEVEL or Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF;
         int width = NativeMemoryWidth(operation.Opcode);
         bool rankMemory = width != 0 && (operation.Parameter < 12 && (long)operation.Parameter + width > 8 || operation.Parameter < 20 && (long)operation.Parameter + width > 16 || operation.Parameter < 188 && (long)operation.Parameter + width > 184);
-        bool flagsMemory = width != 0 && (operation.Parameter < 108 && (long)operation.Parameter + width > 104 || operation.Parameter <= 207 && (long)operation.Parameter + width > 207);
+        bool flagsMemory = width != 0 && (operation.Parameter < 108 && (long)operation.Parameter + width > 103 || operation.Parameter <= 207 && (long)operation.Parameter + width > 207);
         bool salary = operation.Opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF;
         if (!command && !rankMemory && !flagsMemory)
         {
@@ -24,7 +24,7 @@ public sealed partial class EventEngine
         {
             if (services.WorldControls is not NativeWorldControlState controls)
             {
-                return "Native DWORD104 requires its executed New Game52CA90 owner; no flags are inferred";
+                return "Native BYTE103/DWORD104 requires its executed New Game52CA90 owner; no flags are inferred";
             }
             controls.Validate();
             string? aliases = UnsupportedWorldControlAliases();
@@ -32,9 +32,9 @@ public sealed partial class EventEngine
             {
                 return aliases;
             }
-            if (flagsMemory && !(operation.Parameter >= 104 && (long)operation.Parameter + width <= 108 || operation.Parameter == 207 && width == 1))
+            if (flagsMemory && !(operation.Parameter >= 103 && (long)operation.Parameter + width <= 108 || operation.Parameter == 207 && width == 1))
             {
-                return "Native DWORD104 projection cannot consume unknown surrounding bytes";
+                return "Native BYTE103/DWORD104 projection cannot consume unknown surrounding bytes";
             }
         }
         if (!salary && !flagsMemory || operation.Opcode is Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYOFF)
@@ -74,10 +74,9 @@ public sealed partial class EventEngine
             value = musicControls.MusicKeep207;
             return true;
         }
-        if (services.WorldControls is NativeWorldControlState controls && width != 0 && operation.Parameter >= 104 && (long)operation.Parameter + width <= 108)
+        if (services.WorldControls is NativeWorldControlState controls && width != 0 && operation.Parameter >= 103 && (long)operation.Parameter + width <= 108)
         {
-            uint mask = width == 4 ? uint.MaxValue : (1u << (width * 8)) - 1;
-            value = unchecked((int)((controls.EventFlags104 >> ((operation.Parameter - 104) * 8)) & mask));
+            value = controls.ReadEventBytes(operation.Parameter, width);
             return true;
         }
         if (services.SeeD is not NativeSeeDState state)
@@ -103,12 +102,9 @@ public sealed partial class EventEngine
             operands = Pop(fiber, 1);
             return true;
         }
-        if (write && services.WorldControls is NativeWorldControlState controls && operation.Parameter >= 104 && (long)operation.Parameter + width <= 108)
+        if (write && services.WorldControls is NativeWorldControlState controls && operation.Parameter >= 103 && (long)operation.Parameter + width <= 108)
         {
-            int shift = (operation.Parameter - 104) * 8;
-            uint mask = width == 4 ? uint.MaxValue : ((1u << (width * 8)) - 1) << shift;
-            uint flags = (controls.EventFlags104 & ~mask) | ((unchecked((uint)fiber.Stack.Peek()) << shift) & mask);
-            SetNativeWorldControls(fiber, controls with { EventFlags104 = flags });
+            SetNativeWorldControls(fiber, controls.WriteEventBytes(operation.Parameter, width, fiber.Stack.Peek()));
             operands = Pop(fiber, 1);
             return true;
         }

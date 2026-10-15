@@ -10,7 +10,7 @@ public enum NativeWorldControlOriginKind
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record NativeWorldControlOrigin([property: JsonRequired] int ProofVersion, [property: JsonRequired] NativeWorldControlOriginKind Kind, [property: JsonRequired] string InitializationRule);
 
-/// <summary>The single event DWORD104 and menu BYTE209, produced by executed native New Game initialization.</summary>
+/// <summary>The single event BYTE103, DWORD104 and menu BYTE209, produced by executed native New Game initialization.</summary>
 public sealed record NativeWorldControlState
 {
     public const int CurrentSchemaVersion = 1;
@@ -21,6 +21,8 @@ public sealed record NativeWorldControlState
     public required int SchemaVersion { get; init; }
     [JsonRequired]
     public required NativeWorldControlOrigin Origin { get; init; }
+    [JsonRequired]
+    public required byte EventFlags103 { get; init; }
     [JsonRequired]
     public required uint EventFlags104 { get; init; }
     [JsonIgnore]
@@ -36,6 +38,33 @@ public sealed record NativeWorldControlState
     public required byte Menu209 { get; init; }
     [JsonRequired]
     public required byte MusicKeep207 { get; init; }
+
+    public int ReadEventBytes(int address, int width)
+    {
+        ValidateEventBytes(address, width);
+        ulong bank = EventFlags103 | ((ulong)EventFlags104 << 8);
+        ulong mask = (1UL << (width * 8)) - 1;
+        return unchecked((int)((bank >> ((address - 103) * 8)) & mask));
+    }
+
+    public NativeWorldControlState WriteEventBytes(int address, int width, int value)
+    {
+        ValidateEventBytes(address, width);
+        int shift = (address - 103) * 8;
+        ulong mask = ((1UL << (width * 8)) - 1) << shift;
+        ulong bank = EventFlags103 | ((ulong)EventFlags104 << 8);
+        ulong next = (bank & ~mask) | (((ulong)unchecked((uint)value) << shift) & mask);
+        return this with { EventFlags103 = unchecked((byte)next), EventFlags104 = unchecked((uint)(next >> 8)) };
+    }
+
+    private void ValidateEventBytes(int address, int width)
+    {
+        Validate();
+        if (width is not (1 or 2 or 4) || address < 103 || (long)address + width > 108)
+        {
+            throw new NotSupportedException("Native control memory supports only executed known bytes103..107 at BYTE/WORD/DWORD width.");
+        }
+    }
 
     public static NativeWorldControlState CreateNewGame()
     {
@@ -67,6 +96,17 @@ public sealed record NativeWorldControlState
     {
         Validate();
         return this with { Menu209 = argument == 0 ? (byte)(Menu209 & 0xFE) : (byte)(Menu209 | 1) };
+    }
+
+    /// <summary>Native PHSENABLE at522280 updates byte209 mask2 only when DWORD104 mask200 is clear; it consumes a full DWORD in both branches.</summary>
+    public NativeWorldControlState WithPartyMenuEnabled(int argument)
+    {
+        Validate();
+        if (SourceDisabled)
+        {
+            return this;
+        }
+        return this with { Menu209 = argument == 0 ? (byte)(Menu209 & 0xFD) : (byte)(Menu209 | 2) };
     }
 
     /// <summary>Native WORLDMAPJUMP at 521820 copies the inverse source mask into byte 209 mask 2.</summary>
@@ -112,6 +152,7 @@ public sealed record NativeWorldControlState
         {
             SchemaVersion = CurrentSchemaVersion,
             Origin = origin,
+            EventFlags103 = 0,
             EventFlags104 = 0x18,
             Menu209 = 0,
             MusicKeep207 = 0,

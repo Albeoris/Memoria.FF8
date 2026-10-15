@@ -10,7 +10,7 @@ public sealed record FieldNativeCameraResult(FieldNativeCameraCenter? Center, Fi
     public bool Supported => Center.HasValue && UnsupportedReason is null;
 }
 
-/// <summary>Native camera0 normal-follow projection and INF clamp. Scene eligibility, draw offsets and mutation belong to the caller.</summary>
+/// <summary>Native selected CA normal-follow projection and INF clamp. Scene eligibility, draw offsets and mutation belong to the caller.</summary>
 public static class FieldNativeCameraProbe
 {
     public static FieldNativeCameraResult Resolve(FieldCamera camera, FieldInformation information, int fixedX, int fixedY, int fixedZ, int selectedCameraIndex = 0)
@@ -24,13 +24,13 @@ public static class FieldNativeCameraProbe
             return new FieldNativeCameraResult(null, diagnostics, reason);
         }
 
-        if (selectedCameraIndex != 0)
+        if (selectedCameraIndex is < 0 or > 1)
         {
-            return Unsupported("Only the proved native camera0 normal-follow slot is supported.");
+            return Unsupported("Native normal-follow projection requires selected CA slot0 or1.");
         }
-        if (information.CameraBounds is null || information.CameraBounds.Count == 0 || information.ScreenBounds is null || information.ScreenBounds.Count == 0)
+        if (information.CameraBounds is null || information.CameraBounds.Count <= selectedCameraIndex || information.ScreenBounds is null || information.ScreenBounds.Count == 0)
         {
-            return Unsupported("Native INF camera0 and screen0 bounds are required.");
+            return Unsupported("Native INF selected camera and screen0 bounds are required.");
         }
         if (!TryAxis(camera.AxisX, out FieldNativeCameraPoint axisX) || !TryAxis(camera.AxisY, out FieldNativeCameraPoint axisY) || !TryAxis(camera.AxisZ, out FieldNativeCameraPoint axisZ))
         {
@@ -99,8 +99,8 @@ public static class FieldNativeCameraProbe
         FieldNativeCameraCenter centerLow = new(lowX / 8, lowY / 8);
         FieldNativeCameraCenter centerHigh = new(highX / 8, highY / 8);
         diagnostics = diagnostics with { UnclampedCenter = centerLow == centerHigh ? centerLow : null };
-        FieldNativeCameraCenter clampedLow = Clamp(centerLow, information);
-        FieldNativeCameraCenter clampedHigh = Clamp(centerHigh, information);
+        FieldNativeCameraCenter clampedLow = Clamp(centerLow, information, selectedCameraIndex);
+        FieldNativeCameraCenter clampedHigh = Clamp(centerHigh, information, selectedCameraIndex);
         if (clampedLow != clampedHigh)
         {
             return Unsupported("Native eighth-pixel rounding interval reaches different final camera centers.");
@@ -108,12 +108,12 @@ public static class FieldNativeCameraProbe
         return new FieldNativeCameraResult(clampedLow, diagnostics, null);
     }
 
-    private static FieldNativeCameraCenter Clamp(FieldNativeCameraCenter center, FieldInformation information)
+    private static FieldNativeCameraCenter Clamp(FieldNativeCameraCenter center, FieldInformation information, int selectedCameraIndex)
     {
         short centerX = (short)center.X;
         short centerY = (short)center.Y;
         FieldBounds screen = information.ScreenBounds[0];
-        FieldBounds bounds = information.CameraBounds[0];
+        FieldBounds bounds = information.CameraBounds[selectedCameraIndex];
         int halfWidth = (screen.Right - screen.Left) / 2;
         int halfHeight = (screen.Bottom - screen.Top) / 2;
         // Preserve native cap-then-floor ordering and WORD assignment, even when bounds overlap.

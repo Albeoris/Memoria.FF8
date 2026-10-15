@@ -5,16 +5,16 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
-/// <summary>Native475480 default normal-mode wrapping with a separately projected camera0 center.</summary>
+/// <summary>Native475480 default normal-mode wrapping with a separately projected selected-camera center.</summary>
 public static class FieldNativeNormalBackgroundWrap
 {
     public static bool SupportsMetadata(FieldAssets field, int cameraIndex)
     {
-        if (field.Id < 72 || field.NativeExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || cameraIndex != 0 || field.Cameras.Count != 1 || field.Camera != field.Cameras[0] || field.Camera.Pan != Vector2.Zero || field.Information is not FieldInformation information || information.CameraBounds.Count != 8 || information.ScreenBounds.Count == 0 || information.ScreenBounds[0] != new FieldBounds(0, 224, 320, 0) || field.Background.Count == 0 || field.Background.Any(tile => tile.Layer is < 0 or > 7 || tile.X is < short.MinValue or > short.MaxValue || tile.Y is < short.MinValue or > short.MaxValue))
+        if (field.Id < 72 || field.NativeExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || cameraIndex is < 0 or > 1 || cameraIndex >= field.Cameras.Count || field.GetCamera(cameraIndex).Pan != Vector2.Zero || field.Information is not FieldInformation information || information.CameraBounds.Count != 8 || information.ScreenBounds.Count == 0 || information.ScreenBounds[0] != new FieldBounds(0, 224, 320, 0) || field.Background.Count == 0 || field.Background.Any(tile => tile.Layer is < 0 or > 7 || tile.X is < short.MinValue or > short.MaxValue || tile.Y is < short.MinValue or > short.MaxValue))
         {
             return false;
         }
-        FieldBounds selected = information.CameraBounds[0];
+        FieldBounds selected = information.CameraBounds[cameraIndex];
         if (selected.Left + 160 > selected.Right - 160 || selected.Top + 112 > selected.Bottom - 112)
         {
             return false;
@@ -40,7 +40,7 @@ public static class FieldNativeNormalBackgroundWrap
         {
             return false;
         }
-        FieldBounds bounds = field.Information!.CameraBounds[0];
+        FieldBounds bounds = field.Information!.CameraBounds[cameraIndex];
         // Every clamped center's strict origin window fits native eighth
         // packing. WORD addition/one-step relocation/cull then proves every
         // intermediate current value, without replaying each curve/resource.
@@ -54,12 +54,12 @@ public static class FieldNativeNormalBackgroundWrap
             return null;
         }
         bool hasCurrents = !currents.IsDefaultOrEmpty;
-        if (hasCurrents && (!SupportsLayerCurrentMetadata(field, cameraIndex) || currents.Select(current => current.Layer).Distinct().Count() != currents.Length || currents.Any(current => current.Layer is < 1 or > 7 || current.X is < -4095 or > 4096 || current.Y is < -4095 or > 4096 || !field.Background.Any(tile => tile.Layer == current.Layer))))
+        if (hasCurrents && (!SupportsLayerCurrentMetadata(field, cameraIndex) || currents.Select(current => current.Layer).Distinct().Count() != currents.Length || currents.Any(current => current.Layer <= cameraIndex || current.Layer > 7 || current.X is < -4095 or > 4096 || current.Y is < -4095 or > 4096 || !field.Background.Any(tile => tile.Layer == current.Layer))))
         {
             return null;
         }
         FieldInformation information = field.Information!;
-        FieldBounds selected = information.CameraBounds[0];
+        FieldBounds selected = information.CameraBounds[cameraIndex];
         if (center.X < selected.Left + 160 || center.X > selected.Right - 160 || center.Y < selected.Top + 112 || center.Y > selected.Bottom - 112)
         {
             return null;

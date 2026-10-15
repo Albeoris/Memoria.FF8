@@ -99,7 +99,7 @@ public sealed class NativeWorldScriptedPathTests
         Assert.NotEmpty(boat.Faces);
         Assert.NotEmpty(boat.Textures);
         Assert.All(boat.Faces, face => Assert.All(face.Vertices, index => Assert.InRange(index, 0, boat.NativeVertices.Count - 1)));
-        Assert.Throws<NotSupportedException>(() => assets.ReadScriptedPath(0));
+        Assert.Single(assets.ReadScriptedPath(0).ForwardStops);
         Assert.Throws<InvalidDataException>(() => assets.ReadScriptedPath(14));
     }
 

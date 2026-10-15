@@ -18,7 +18,7 @@ public sealed partial class GameSession
         State = State with { ShotAvailability = shots };
     }
 
-    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null)
+    public void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null)
     {
         characterVitals.Validate();
         economy.Validate();
@@ -31,6 +31,11 @@ public sealed partial class GameSession
         fieldFade?.Validate();
         shopHistory?.Validate();
         menuRandom?.Validate();
+        weaponRecipes?.Validate();
+        if (weaponRecipes is not null && weaponRecipes.InitOutSha256 != economy.InitOutSha256)
+        {
+            throw new InvalidDataException("Native weapon recipes and economy have different New Game resource provenance.");
+        }
         if (shopHistory is not null && shopHistory.InitOutSha256 != economy.InitOutSha256)
         {
             throw new InvalidDataException("Native shop history and economy have different New Game resource provenance.");
@@ -47,7 +52,7 @@ public sealed partial class GameSession
         {
             MarkReplayUnavailable("Party menu owners changed outside a recorded engine transaction.");
         }
-        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom };
+        State = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom, WeaponRecipes = weaponRecipes ?? State.WeaponRecipes };
     }
 
     private static void ValidatePartyMenuOwnersCheckpoint(GameState state, JsonElement? vm)

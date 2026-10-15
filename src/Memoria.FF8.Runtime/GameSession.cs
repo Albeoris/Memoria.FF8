@@ -548,6 +548,7 @@ public sealed partial class GameSession : IEventServices
         ValidateFieldFadeCheckpoint(state, currentVm);
         ValidateShopHistoryCheckpoint(state, currentVm);
         ValidateMenuRandomCheckpoint(state, currentVm);
+        ValidateWeaponRecipesCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
         {
             NativeCharacterVitals vitals = vitalsJson.Deserialize<NativeCharacterVitals>(JsonOptions) ?? throw new InvalidDataException("Empty event character vitals.");
@@ -691,6 +692,7 @@ public sealed partial class GameSession : IEventServices
         state.FieldFade?.Validate();
         state.ShopHistory?.Validate();
         state.MenuRandom?.Validate();
+        state.WeaponRecipes?.Validate();
         if (state.EventRandom is not null)
         {
             ValidateEventRandomAliases(state.Variables, state.NativeVariableValues);
@@ -753,6 +755,10 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
             }
+            if (world.NativeTrainRuntime is NativeTrainWorldRuntimeState train && (state.Scene != SceneKind.WorldMap || state.WorldArrival != train.Packet || state.SavedWorld is null || state.DepartingWorldState is null || train.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, train.Load.Allocation)))
+            {
+                throw new InvalidDataException("Native train ride lost its actual packet or preceding physical body allocation.");
+            }
             if (world.NativeScriptedRuntime is NativeScriptedWorldRuntimeState scripted && (state.Scene != SceneKind.WorldMap || state.WorldArrival != scripted.Path.Packet || scripted.Return is null && (state.SavedWorld is null || state.DepartingWorldState is null || scripted.Load != NativeScriptedWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, scripted.Load.FootRecord0)) || scripted.Return is not null && (state.SavedWorld?.ScriptedReturn != scripted.Return || scripted.Return.LastFieldId != state.FieldId || scripted.Return.StoryWord != state.Variables.GetValueOrDefault(256))))
             {
                 throw new InvalidDataException("Native scripted world state disagrees with its original packet or retained world/object record.");
@@ -769,15 +775,20 @@ public sealed partial class GameSession : IEventServices
         world.NativeFootRuntime?.Validate();
         world.NativeCarRuntime?.Validate();
         world.NativeScriptedRuntime?.Validate();
-        if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeScriptedRuntime is not null ? 1 : 0) > 1)
+        world.NativeTrainRuntime?.Validate();
+        if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeScriptedRuntime is not null ? 1 : 0) + (world.NativeTrainRuntime is not null ? 1 : 0) > 1)
         {
             throw new InvalidDataException("A world scene cannot simultaneously own foot, car and scripted runtime authority.");
+        }
+        if (world.NativeTrainRuntime is NativeTrainWorldRuntimeState train && world != train.ToWorldState(world))
+        {
+            throw new InvalidDataException("Native train globals disagree with their sole physical body and rail callback authority.");
         }
         if (world.NativeScriptedRuntime is NativeScriptedWorldRuntimeState scripted && (world.Frame != scripted.Path.Callback || world.X != scripted.Path.EntityPosition.X || world.Z != unchecked(-scripted.Path.EntityPosition.Z) || world.NativeHeight != scripted.Path.EntityPosition.Y || world.BodyYaw != scripted.Load.RetainedBodyYaw || world.CameraYaw != NativeSavedWorldScriptedReturn.CameraYaw(scripted.Path.Camera)))
         {
             throw new InvalidDataException("World scripted projection globals disagree with their executed native callback.");
         }
-        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.NativeScriptedRuntime is null && world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
+        if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.NativeScriptedRuntime is null && world.NativeTrainRuntime is null && world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
         {
             throw new InvalidDataException("Invalid world checkpoint.");
         }

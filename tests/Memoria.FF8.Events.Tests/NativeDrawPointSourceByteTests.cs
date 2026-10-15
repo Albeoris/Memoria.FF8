@@ -52,7 +52,7 @@ internal static partial class Program
         CloseNormalMenu(engine);
         CloseNormalMenu(restored);
         Require(JsonElement.DeepEquals(engine.Capture(), restored.Capture()), "Second kind6 overwrite or draw-point continuation differed after restore.");
-        Require(engine.Scene.DrawPointReset is { EffectiveDisplayMask: 0, SourceByte88: 0 } && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 0, "SETDRAWPOINT lowBYTE0 failed after the genuine menu source producer.");
+        Require(engine.Scene.DrawPointReset is { SampledDisplayMask: 0, SourceByte88: 0 } && engine.Scene.DrawPointEnabled == 1 && engine.Scene.DrawPointDisplayParameter == 0, "SETDRAWPOINT lowBYTE0 failed after the genuine menu source producer.");
         JsonElement snapshot = engine.Capture();
         JsonElement results = snapshot.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Results");
         Require(results.GetProperty("3").GetInt32() == 0 && results.GetProperty("4").GetInt32() == 0, "BYTE88 reads did not consume the exact width-preserved source.");
@@ -66,7 +66,7 @@ internal static partial class Program
             }
             else
             {
-                malformed["Scene"]!["DrawPointReset"]!["EffectiveDisplayMask"] = 1;
+                malformed["Scene"]!["DrawPointReset"]!["SampledDisplayMask"] = 1;
             }
             try
             {
@@ -112,7 +112,7 @@ internal static partial class Program
             CloseNormalMenu(selected);
             CloseNormalMenu(selected);
             byte expected = unchecked((byte)mask);
-            Require(selected.Scene.DrawPointReset is { SourceByte88: 0 } reset && reset.EffectiveDisplayMask == expected && selected.Scene.DrawPointDisplayParameter == expected && selected.Scene.DrawPointEnabled == 1, "SETDRAWPOINT changed its lowBYTE truncation, unsigned OR or unconditional B240=1.");
+            Require(selected.Scene.DrawPointReset is { SourceByte88: 0 } reset && reset.SampledDisplayMask == expected && selected.Scene.DrawPointDisplayParameter == expected && selected.Scene.DrawPointEnabled == 1, "SETDRAWPOINT changed its lowBYTE truncation, unsigned OR or unconditional B240=1.");
         }
         Console.WriteLine("Native BYTE88: two executed normal-menu kind6 producers, no scalar mirror, zero/even/odd display byte OR, truncation/read/independent restore and composite typed-memory atomic refusal passed.");
     }

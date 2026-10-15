@@ -31,6 +31,16 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
             throw new InvalidDataException("Native shop owners have different original initialization/kernel identities.");
         }
         byte catalog = definitions.ResolveCatalog(rawArgument);
+        ImmutableArray<byte> counts = CreateCounts(economy);
+        ImmutableArray<byte> available = definitions.Catalogs[catalog].Select((entry, slot) => (entry, slot)).Where(item => item.entry.ItemId != 0 && history.Bytes[20 * catalog + item.slot] != 0).Select(item => item.entry.ItemId).ToImmutableArray();
+        NativeShopTransaction result = new(rawArgument, catalog, definitions, economy.InitOutSha256, counts, vitals.DreamEnabled ? economy.PastGil : economy.Gil, vitals.DreamEnabled, vitals.ShopAbilityMask(), available);
+        result.Validate();
+        return result;
+    }
+
+    public static ImmutableArray<byte> CreateCounts(NativeEconomy economy)
+    {
+        economy.Validate();
         byte[] counts = new byte[200];
         foreach (NativeItemStock stock in economy.Items)
         {
@@ -43,10 +53,7 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
                 counts[stock.ItemId] = stock.Count;
             }
         }
-        ImmutableArray<byte> available = definitions.Catalogs[catalog].Select((entry, slot) => (entry, slot)).Where(item => item.entry.ItemId != 0 && history.Bytes[20 * catalog + item.slot] != 0).Select(item => item.entry.ItemId).ToImmutableArray();
-        NativeShopTransaction result = new(rawArgument, catalog, definitions, economy.InitOutSha256, ImmutableArray.CreateRange(counts), vitals.DreamEnabled ? economy.PastGil : economy.Gil, vitals.DreamEnabled, vitals.ShopAbilityMask(), available);
-        result.Validate();
-        return result;
+        return ImmutableArray.CreateRange(counts);
     }
 
     public void Validate()
@@ -108,12 +115,21 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
     public NativeEconomy Commit(NativeEconomy economy)
     {
         Validate();
+        return CommitCounts(economy, InitOutSha256, Counts, Gil, Past);
+    }
+
+    public static NativeEconomy CommitCounts(NativeEconomy economy, string initOutSha256, ImmutableArray<byte> cache, uint gil, bool past)
+    {
+        if (cache.IsDefault || cache.Length != 200)
+        {
+            throw new InvalidDataException("Native shop commit requires its actual complete two-hundred-byte local cache.");
+        }
         NativeEconomy result = economy.DeepCopy();
-        if (economy.InitOutSha256 != InitOutSha256)
+        if (economy.InitOutSha256 != initOutSha256)
         {
             throw new InvalidDataException("Native shop cannot commit to another inventory initialization.");
         }
-        byte[] counts = Counts.ToArray();
+        byte[] counts = cache.ToArray();
         for (int slot = 0; slot < result.Items.Length; slot++)
         {
             byte id = result.Items[slot].ItemId;
@@ -146,6 +162,6 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
             //before changing the separate sorting permutation. Any mask
             //built from preceding rows is discarded on that return.
         }
-        return Past ? result with { PastGil = Gil } : result with { Gil = Gil };
+        return past ? result with { PastGil = gil } : result with { Gil = gil };
     }
 }

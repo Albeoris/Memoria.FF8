@@ -64,6 +64,19 @@ public sealed record NativeWorldForestState
         return this with { RandomCursor = cursor, RandomOffset = offset, Particles = advanced };
     }
 
+    public NativeWorldForestState DrawRandom(ReadOnlySpan<byte> table, out byte value)
+    {
+        Validate();
+        if (table.Length != 256)
+        {
+            throw new InvalidDataException("Native541F10 requires its original256-byte table.");
+        }
+        byte cursor = RandomCursor;
+        byte offset = RandomOffset;
+        value = NextRandom(table, ref cursor, ref offset);
+        return this with { RandomCursor = cursor, RandomOffset = offset };
+    }
+
     private static byte NextRandom(ReadOnlySpan<byte> table, ref byte cursor, ref byte offset)
     {
         //541F10 increments BEFORE indexing and increases offset13 on byte wrap.

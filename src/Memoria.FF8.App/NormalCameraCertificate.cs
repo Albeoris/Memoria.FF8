@@ -8,9 +8,9 @@ public static class NormalCameraCertificate
 {
     internal static bool HasBaseline(FieldAssets field, int cameraIndex)
     {
-        // Native4767B0 selects the CA base record for camera0 independently
-        // of whether an unselected second record is present in the resource.
-        return field.Id >= 72 && cameraIndex == 0 && field.Cameras.Count > 0 && field.Camera == field.Cameras[0] && BackgroundParallaxPlacement.SupportsPan(field) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
+        // Native4767B0 selects CA base for slot0 and base+40 for slot1.
+        // Each selection consumes its own matrix/PAN and INF clamp bounds.
+        return field.Id >= 72 && cameraIndex is >= 0 and <= 1 && cameraIndex < field.Cameras.Count && BackgroundParallaxPlacement.SupportsPan(field, cameraIndex) && field.Information is FieldInformation information && information.CameraBounds.Count == 8 && information.ScreenBounds.Count > 0 && information.ScreenBounds[0] == new FieldBounds(0, 224, 320, 0) && field.Background.All(tile => tile.Layer is >= 0 and <= 7) && (field.Background.All(tile => tile.Layer == 0) || information.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, cameraIndex));
     }
 
     public static BackgroundScrollFrame? Prepare(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors)
@@ -24,7 +24,7 @@ public static class NormalCameraCertificate
             return fixedViewport;
         }
         FieldInformation? information = field.Information;
-        FieldCamera camera = field.Camera;
+        FieldCamera camera = field.GetCamera(scene.CameraIndex);
         bool genericLayerScroll = NativeWrappedBackgroundScrollCertificate.SupportsPhase(field, scene);
         bool genericWrapping = information is { BackgroundWrapMask: > 0 };
         bool baseline = scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && HasBaseline(field, scene.CameraIndex) && (!genericWrapping || genericLayerScroll || NormalBackgroundWrapCertificate.Supports(field, scene)) && (scene.BackgroundScrollPositions.Count == 0 || genericLayerScroll || NativeNonselectedBackgroundScrollCertificate.Supports(field, scene)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
@@ -51,7 +51,7 @@ public static class NormalCameraCertificate
         foreach (int layer in field.Background.Select(tile => tile.Layer).Distinct())
         {
             Vector2 layerOffset = offset;
-            if (layer != 0)
+            if (layer > scene.CameraIndex)
             {
                 if (center.X is < -4096 or > 4095 || center.Y is < -4096 or > 4095)
                 {
