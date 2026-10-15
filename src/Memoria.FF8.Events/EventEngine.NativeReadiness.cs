@@ -2,6 +2,9 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    /// <summary>The same admission predicate used by an ordinary Move; it does not promise displacement.</summary>
+    public bool CanAcceptMovementInput => CanAcceptFieldMovement;
+
     private bool CanAcceptFieldMovement => IsUserControlEnabled && !IsMovementBlockedByDialogue && !services.IsMoviePlaying && PlayerActor is { Active: true, Visible: true };
 
     private Fiber? SelectScheduledFiber(int objectId)

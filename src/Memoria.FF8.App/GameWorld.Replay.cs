@@ -190,7 +190,7 @@ internal sealed partial class GameWorld
                 ValidateDecisionReceipts(entry, rebuilt.ReplayJournal.Endpoint!);
                 if (result is not null && result.Accepted != entry.Accepted)
                 {
-                    throw new InvalidDataException($"Replay action acceptance diverged at entry {index}.");
+                    throw new InvalidDataException($"Replay action acceptance diverged at entry {index}/{entry.Kind}/code{entry.Code}: expected {entry.Accepted} at field{entry.FieldId}/frame{entry.Frame}, actual {result.Accepted} at field{world.Events.FieldId}/frame{world.Events.Frame}/trigger{world.NextTrigger.Kind}/movement{world.Events.CanAcceptMovementInput}/fade{world.Events.FieldFade?.Physical.Mode}.");
                 }
                 if (entry.ResultScene.GetValueOrDefault(entry.Scene) != entry.Scene || entry.ResultFieldId.GetValueOrDefault(entry.FieldId) != entry.FieldId)
                 {

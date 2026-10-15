@@ -36,9 +36,9 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native player walking/running requires its current input sampler and actual saved mapping before movement.");
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativePartyTraceVersion != 1 || Scene.NativePlayerPosition is null)
+        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativePartyTraceVersion != 1 || Scene.NativePlayerPosition is null || FieldFade is null)
         {
-            throw new NotSupportedException("Ordinary player input requires the current native field body and preserved party trace; recreate the authentic journal.");
+            throw new NotSupportedException("Ordinary player input requires the current native field body, preserved party trace and physical fade bank; recreate the authentic journal.");
         }
         if (!NativePlayerHasScriptedMode(player) && (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true || Scene.NativePlayerEarlyRetryState is not (0 or 1)))
         {
@@ -54,11 +54,17 @@ public sealed partial class EventEngine
             // Native4789A0 skips the reset for a missing leader or nonzero572.
             return;
         }
+        if (NativeRuntimeProfile is { IsVerified: true } && FieldFade is null)
+        {
+            throw new NotSupportedException("Native ordinary player processing requires its executed physical fade bank; an unknown mode cannot admit movement.");
+        }
         if (Scene.NativeSalaryMovementUnits is not null)
         {
             Scene.NativeSalaryMovementUnits = 0;
         }
-        if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying)
+        // Native4789A0 samples physical WORD1CE4868 after the VM. Mode4
+        // suppresses ordinary movement and478680 follower placement while black.
+        if (!IsUserControlEnabled || FieldFade?.Physical.Mode == 4 || IsMovementBlockedByDialogue || services.IsMoviePlaying)
         {
             return;
         }
