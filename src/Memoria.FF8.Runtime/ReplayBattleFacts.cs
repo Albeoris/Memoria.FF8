@@ -36,7 +36,7 @@ public sealed record ReplayBattleItemConsumption([property: JsonRequired] byte I
 public sealed record ReplayBattlePartyResult([property: JsonRequired] byte Row, [property: JsonRequired] byte CharacterId, [property: JsonRequired] ushort HitPointsBefore, [property: JsonRequired] ushort HitPointsAfter, [property: JsonRequired] ushort StatusBefore, [property: JsonRequired] ushort StatusAfter, [property: JsonRequired] ReplayBattleMagicChange[] MagicChanges);
 
 /// <summary>Observed persistent effects of a completed live encounter. Reward amounts are recomputed from current installed rules.</summary>
-public sealed record ReplayBattleOutcome([property: JsonRequired] ReplayBattleEncounter Encounter, [property: JsonRequired] BattleOutcome Outcome, [property: JsonRequired] ReplayBattlePartyResult[] Party, [property: JsonRequired] ReplayBattleItemConsumption[] ItemConsumptions, [property: JsonRequired] int[] DefeatedEnemySlots, [property: JsonRequired] int[] RewardEligibleGuardianForceIds, [property: JsonRequired] bool DebugVictory)
+public sealed record ReplayBattleOutcome([property: JsonRequired] ReplayBattleEncounter Encounter, [property: JsonRequired] BattleOutcome Outcome, [property: JsonRequired] ReplayBattlePartyResult[] Party, [property: JsonRequired] ReplayBattleItemConsumption[] ItemConsumptions, [property: JsonRequired] int[] DefeatedEnemySlots, [property: JsonRequired] int[] RewardEligibleGuardianForceIds, [property: JsonRequired] bool DebugVictory, [property: JsonRequired] BattleRewardPolicy RewardPolicy, [property: JsonRequired] ReplayBattleEnemyDefeat[] EnemyDefeats)
 {
     public void Validate()
     {
@@ -53,10 +53,18 @@ public sealed record ReplayBattleOutcome([property: JsonRequired] ReplayBattleEn
         {
             throw new InvalidDataException("Battle outcome contradicts its observed party HP or KO effects.");
         }
+        if (!Enum.IsDefined(RewardPolicy) || EnemyDefeats is null || EnemyDefeats.Any(defeat => defeat is null) || EnemyDefeats.Select(defeat => defeat.Slot).Distinct().Count() != EnemyDefeats.Length || DebugVictory != (RewardPolicy == BattleRewardPolicy.DebugNoRewards) || RewardPolicy != BattleRewardPolicy.NativeCombat && EnemyDefeats.Length != 0 || RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && (Outcome != BattleOutcome.Victory || Encounter.ScriptedOwner is null) || RewardPolicy == BattleRewardPolicy.NativeCombat && !EnemyDefeats.Select(defeat => defeat.Slot).Order().SequenceEqual(DefeatedEnemySlots.Order()))
+        {
+            throw new InvalidDataException("Battle reward policy contradicts its observed native defeats or declared research/debug backend.");
+        }
+        foreach (ReplayBattleEnemyDefeat defeat in EnemyDefeats)
+        {
+            defeat.Validate();
+        }
     }
 
     public ReplayBattleOutcome DeepCopy()
     {
-        return this with { Party = Party.Select(member => member with { MagicChanges = member.MagicChanges.ToArray() }).ToArray(), ItemConsumptions = ItemConsumptions.ToArray(), DefeatedEnemySlots = DefeatedEnemySlots.ToArray(), RewardEligibleGuardianForceIds = RewardEligibleGuardianForceIds.ToArray() };
+        return this with { Party = Party.Select(member => member with { MagicChanges = member.MagicChanges.ToArray() }).ToArray(), ItemConsumptions = ItemConsumptions.ToArray(), DefeatedEnemySlots = DefeatedEnemySlots.ToArray(), RewardEligibleGuardianForceIds = RewardEligibleGuardianForceIds.ToArray(), EnemyDefeats = EnemyDefeats.ToArray() };
     }
 }

@@ -21,16 +21,17 @@ public sealed partial class GameSession
         State = State with { PendingBattleEncounter = encounter };
     }
 
-    public void CommitBattleResult(ReplayBattleEncounter encounter, NativeCharacterVitals vitals, NativeEconomy economy)
+    public void CommitBattleResult(ReplayBattleEncounter encounter, NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards)
     {
         encounter.Validate();
         vitals.Validate();
         economy.Validate();
+        cards?.Validate();
         if (State.PendingBattleEncounter != encounter || State.AppliedBattleResultIds.Contains(encounter.OccurrenceId, StringComparer.Ordinal))
         {
             throw new InvalidOperationException("Battle result requires its unapplied current encounter occurrence.");
         }
-        GameState candidate = State with { CharacterVitals = vitals.DeepCopy(), Economy = economy.DeepCopy(), AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
+        GameState candidate = State with { CharacterVitals = vitals.DeepCopy(), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = candidate;
     }

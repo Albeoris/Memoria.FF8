@@ -82,6 +82,16 @@ public sealed class GameAssets : IDisposable
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeCharacterInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
     }
+
+    public NativeBattleExperienceDefinition ReadNativeBattleExperienceDefinition()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Battle experience requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeBattleExperienceDefinitionReader.Read(Read(main, "kernel.bin"));
+    }
     public NativeEconomy ReadNewGameEconomy()
     {
         if (NativeRuntimeProfile is not { IsVerified: true })

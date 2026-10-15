@@ -40,7 +40,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.True(JsonElement.DeepEquals(original.Capture(), restored.Capture()));
         Assert.Equal((byte)0, original.Scene.NativeBattleResult);
         Assert.Equal((byte)0, original.Scene.NativeBattleCompletions![0].Result);
-        Assert.Equal(2, original.Scene.NativeBattleCompletions![0].ReturnFrame);
+        Assert.Equal(3, original.Scene.NativeBattleCompletions![0].ReturnFrame);
         Assert.Equal(0, original.Variables[800]);
         Assert.Equal(new[] { 2 }, original.AcquiredGuardianForces!);
         MinimalMenuCompletion naming = Assert.Single(original.Scene.MinimalMenuCompletions);
@@ -52,7 +52,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.True(JsonElement.DeepEquals(original.Capture(), restored.Capture()));
         Assert.Equal(321, original.Variables[900]);
         Assert.Equal(999, original.FieldId);
-        Assert.Equal(3, original.Frame);
+        Assert.Equal(4, original.Frame);
     }
 
     [Fact]
@@ -72,29 +72,25 @@ public sealed class MinimalBattleAndGuardianForceTests
     }
 
     [Fact]
-    public void Native_addparty_flag_branch_cannot_leave_the_known_battle_mask_stale()
+    public void Native_addparty_guest_branch_updates_the_known_battle_mask()
     {
         EventEngine engine = Engine(Program((Jsm.Opcode.PSHN_L, 13), (Jsm.Opcode.ADDPARTY, 0)), NativeWorldControlState.CreateNewGame());
-        int[] party = engine.Scene.Party.ToArray();
-        Assert.Throws<EventScriptException>(() => engine.Step());
-        Assert.Equal("ADDPARTY", engine.LastFault!.Opcode);
+        engine.Step();
         JsonElement snapshot = engine.Capture();
-        Assert.Equal(2, snapshot.GetProperty("Fibers")[0].GetProperty("Position").GetInt32());
-        Assert.Equal(new[] { 13 }, snapshot.GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()));
-        Assert.Equal(0x18u, snapshot.GetProperty("WorldControls").GetProperty("EventFlags104").GetUInt32());
-        Assert.Equal(party, engine.Scene.Party);
+        Assert.Equal(0x38u, snapshot.GetProperty("WorldControls").GetProperty("EventFlags104").GetUInt32());
+        Assert.Contains(13, engine.Scene.Party);
+        Assert.Null(engine.LastFault);
     }
 
     [Fact]
-    public void Unknown_battle_flag_faults_before_consuming_original_operands()
+    public void Unknown_native_control_owner_faults_before_dispatching_battle()
     {
         byte[] source = Program((Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0));
         EventEngine engine = Engine(source, null);
-        Assert.Throws<EventScriptException>(() => engine.Step());
-        JsonElement snapshot = engine.Capture();
-        Assert.Equal(3, snapshot.GetProperty("Fibers")[0].GetProperty("Position").GetInt32());
-        Assert.Equal(new[] { 4, 94 }, snapshot.GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(item => item.GetInt32()));
-        Assert.Contains("104", engine.LastFault!.Message);
+        JsonElement before = engine.Capture();
+        NotSupportedException error = Assert.Throws<NotSupportedException>(() => engine.Step());
+        Assert.Contains("canonical memory and atomic current-owner publication", error.Message);
+        Assert.True(JsonElement.DeepEquals(before, engine.Capture()));
         Assert.Null(engine.Scene.NativeBattleCompletions);
     }
 
@@ -162,21 +158,27 @@ public sealed class MinimalBattleAndGuardianForceTests
 
     private static EventEngine Engine(byte[] source, NativeWorldControlState? controls)
     {
-        var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 999, WorldControls = controls, CharacterVitals = InitialVitals.Value.DeepCopy() });
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(InitialVitals.Value.DeepCopy());
+        session.Restore(session.State with { FieldId = 999, FieldName = "synthetic-bare-battle-menu-component", WorldControls = controls });
         var engine = new EventEngine(session);
-        engine.LoadField(999, source, []);
+        engine.LoadField(999, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
         return engine;
     }
 
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[] body)
     {
-        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), .. body, (Jsm.Opcode.RET, 0)];
-        const int operationsOffset = 14;
+        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), .. body, (Jsm.Opcode.RET, 0)];
+        const int operationsOffset = 16;
         byte[] bytes = new byte[operationsOffset + operations.Length * 4];
         bytes[3] = 1;
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), 1);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), operationsOffset);
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), checked((ushort)operations.Length));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(12), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(14), checked((ushort)operations.Length));
         for (int index = 0; index < operations.Length; index++)
         {
             (Jsm.Opcode opcode, int parameter) = operations[index];

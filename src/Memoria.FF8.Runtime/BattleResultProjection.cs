@@ -1,11 +1,12 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, NativeEconomy Economy);
+public sealed record BattleRewardSummary(IReadOnlyDictionary<byte, ushort> CharacterExperience, IReadOnlyDictionary<byte, ushort> GuardianForceExperience, IReadOnlyDictionary<int, ushort> GuardianForceAbilityPoints, BattleStock[] Items, byte[] Cards);
+public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, NativeEconomy Economy, NativeCardInventory? Cards, BattleRewardSummary Rewards);
 
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
 public static class BattleResultProjection
 {
-    public static BattleResultOwners Apply(ReplayBattleOutcome result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints)
+    public static BattleResultOwners Apply(ReplayBattleOutcome result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience)
     {
         result.Validate();
         sourceVitals.Validate();
@@ -13,7 +14,11 @@ public static class BattleResultProjection
         byte[] party = sourceVitals.CombatParty.Where(row => row != 255).ToArray();
         if (!party.SequenceEqual(result.Party.Select(member => member.Row)))
         {
-            throw new InvalidDataException("Battle result party does not match the current canonical combat party.");
+            throw new InvalidDataException($"Battle result party does not match the current canonical combat party: recorded [{string.Join(",", result.Party.Select(member => $"{member.Row}:{member.CharacterId}"))}], current [{string.Join(",", party.Select(row => $"{row}:{sourceVitals.Records[row].CharacterId}"))}].");
+        }
+        if (result.EnemyDefeats.Any(defeat => !currentEnemyRewards.ContainsKey(defeat.Slot) || defeat.KillerRow is byte row && !party.Contains(row)))
+        {
+            throw new InvalidDataException("Battle defeat reward facts require their current formation and actual party credit owners.");
         }
         NativeCharacterVitals vitals = sourceVitals.DeepCopy();
         NativeEconomy economy = sourceEconomy.DeepCopy();
@@ -46,6 +51,11 @@ public static class BattleResultProjection
             }
             records[member.Row] = record with { HitPoints = new NativeHpWord(member.HitPointsAfter, member.HitPointsAfter), Status = member.StatusAfter, MagicInventory = stocks };
         }
+        foreach (ReplayBattleEnemyDefeat defeat in result.EnemyDefeats.Where(defeat => defeat.Credit == BattleDefeatCredit.Character))
+        {
+            byte row = defeat.KillerRow!.Value;
+            records[row] = records[row] with { KillCount = unchecked((ushort)(records[row].KillCount + 1)) };
+        }
         NativeItemStock[] items = economy.Items.ToArray();
         foreach (ReplayBattleItemConsumption consumption in result.ItemConsumptions)
         {
@@ -57,11 +67,20 @@ public static class BattleResultProjection
             items[slot] = items[slot] with { Count = checked((byte)(consumption.CountBefore - consumption.Consumed)) };
         }
         vitals = vitals with { Records = records };
+        BattleExperienceAwards experience = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>());
+        BattleLootOwners loot = new(economy with { Items = items }, sourceCards?.DeepCopy(), [], []);
+        if (result.Outcome == BattleOutcome.Victory && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
+        {
+            experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience);
+            vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
+            loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards);
+        }
         int[] eligible = result.Outcome == BattleOutcome.Victory && !result.DebugVictory ? EligibleGuardianForces(vitals) : [];
         if (!eligible.Order().SequenceEqual(result.RewardEligibleGuardianForceIds.Order()))
         {
             throw new InvalidDataException("Observed GF reward eligibility disagrees with the current canonical junction/HP owners.");
         }
+        Dictionary<int, ushort> abilityPoints = [];
         if (eligible.Length > 0)
         {
             ushort points = 0;
@@ -76,9 +95,10 @@ public static class BattleResultProjection
             foreach (int id in eligible)
             {
                 vitals = vitals.AwardGuardianForceAbilityPoints(id, points);
+                abilityPoints[id] = points;
             }
         }
-        return new BattleResultOwners(vitals.RebuildParty(), economy with { Items = items });
+        return new BattleResultOwners(vitals.RebuildParty(), loot.Economy, loot.Cards, new BattleRewardSummary(experience.Characters, experience.GuardianForces, abilityPoints, loot.ItemsGranted, loot.CardsGranted));
     }
 
     public static int[] EligibleGuardianForces(NativeCharacterVitals vitals)

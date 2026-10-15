@@ -11,8 +11,8 @@ public sealed class BattleResultFactTests
     public void FactualEffectsUseCurrentRewardRulesAndConsumeTheirOccurrenceExactlyOnce()
     {
         (NativeCharacterVitals vitals, NativeEconomy economy, ReplayBattleOutcome fact, int learningIndex) = Fixture();
-        BattleResultOwners firstRules = BattleResultProjection.Apply(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
-        BattleResultOwners changedRules = BattleResultProjection.Apply(fact, vitals, economy, fact.DefeatedEnemySlots.Select((slot, index) => (slot, points: index + 3)).ToDictionary(entry => entry.slot, entry => entry.points));
+        BattleResultOwners firstRules = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
+        BattleResultOwners changedRules = Project(fact, vitals, economy, fact.DefeatedEnemySlots.Select((slot, index) => (slot, points: index + 3)).ToDictionary(entry => entry.slot, entry => entry.points));
         Assert.Equal(2, firstRules.CharacterVitals.GuardianForces[0].AbilityProgress[learningIndex]);
         Assert.Equal(7, changedRules.CharacterVitals.GuardianForces[0].AbilityProgress[learningIndex]);
         Assert.Equal(fact.Party[0].HitPointsAfter, firstRules.CharacterVitals.Records[0].HitPoints.Minimum);
@@ -58,10 +58,18 @@ public sealed class BattleResultFactTests
         string beforeEconomy = JsonSerializer.Serialize(economy);
         ReplayBattlePartyResult[] party = fact.Party.ToArray();
         party[0] = party[0] with { HitPointsBefore = (ushort)(party[0].HitPointsBefore - 1) };
-        Assert.Throws<InvalidDataException>(() => BattleResultProjection.Apply(fact with { Party = party }, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1)));
-        Assert.Throws<InvalidDataException>(() => BattleResultProjection.Apply(fact with { RewardEligibleGuardianForceIds = [] }, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1)));
+        Assert.Throws<InvalidDataException>(() => Project(fact with { Party = party }, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1)));
+        Assert.Throws<InvalidDataException>(() => Project(fact with { RewardEligibleGuardianForceIds = [] }, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1)));
         Assert.Equal(beforeVitals, JsonSerializer.Serialize(vitals));
         Assert.Equal(beforeEconomy, JsonSerializer.Serialize(economy));
+    }
+
+    private static BattleResultOwners Project(ReplayBattleOutcome fact, NativeCharacterVitals vitals, NativeEconomy economy, IReadOnlyDictionary<int, int> points)
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets battles = new(assets.GameDirectory);
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = battles.LoadEncounter(fact.Encounter.Formation).Enemies.ToDictionary(enemy => enemy.Slot, enemy => battles.ReadEnemyRewards(enemy.ModelId));
+        return BattleResultProjection.Apply(fact, vitals, economy, points, definitions, assets.ReadNativeBattleExperienceDefinition(), null, false);
     }
 
     private static (NativeCharacterVitals, NativeEconomy, ReplayBattleOutcome, int) Fixture()
@@ -79,7 +87,7 @@ public sealed class BattleResultFactTests
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock potion = economy.Items.Single(stock => stock.ItemId == 1);
         ReplayBattleEncounter occurrence = new("component-encounter-0", 512, battles.FormationSourceHash(512), SceneKind.Field, 74, 0, new string('A', 64), null);
-        ReplayBattleOutcome outcome = new(occurrence, BattleOutcome.Victory, [new(0, records[0].CharacterId, records[0].HitPoints.Minimum, (ushort)(records[0].HitPoints.Minimum - 10), records[0].Status, records[0].Status, [new(1, 2, 3)])], [new(1, potion.Count, 1)], battles.LoadEncounter(512).Enemies.Select(enemy => enemy.Slot).ToArray(), [0], false);
+        ReplayBattleOutcome outcome = new(occurrence, BattleOutcome.Victory, [new(0, records[0].CharacterId, records[0].HitPoints.Minimum, (ushort)(records[0].HitPoints.Minimum - 10), records[0].Status, records[0].Status, [new(1, 2, 3)])], [new(1, potion.Count, 1)], battles.LoadEncounter(512).Enemies.Select(enemy => enemy.Slot).ToArray(), [0], false, BattleRewardPolicy.NativeCombat, battles.LoadEncounter(512).Enemies.Select(enemy => new ReplayBattleEnemyDefeat(enemy.Slot, 8, BattleDefeatCredit.Character, 0, null, false, -1)).ToArray());
         return (vitals, economy, outcome, learning.LearningIndex);
     }
 }

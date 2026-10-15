@@ -192,6 +192,7 @@ public sealed partial class BattleSession
             ActiveAction = ActiveAction,
             Events = events.ToArray(),
             Items = items.ToArray(),
+            EnemyDefeats = enemyDefeats.ToArray(),
             Random = random,
             CustomHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).Select(handler => handler.Kind).Order().ToArray()
         };
@@ -340,6 +341,7 @@ public sealed partial class BattleSession
         Log("Damage", actor?.Id, target.Id, applied, $"{source}: {target.Name} takes {applied} damage.");
         if (!target.IsAlive)
         {
+            ObserveEnemyDefeat(actor, target);
             target.Atb = 0;
             target.IsBusy = false;
             Log("Defeated", actor?.Id, target.Id, 0, $"{target.Name} is defeated.");
@@ -452,6 +454,7 @@ public sealed partial class BattleSession
             throw new ArgumentException("Battle requires a name and both player and enemy combatants (2–16 total).");
         }
         HashSet<string> ids = new(StringComparer.Ordinal);
+        HashSet<int> rewardSlots = [];
         foreach (BattleCombatantDefinition actor in source.Combatants)
         {
             bool invalidModel = actor.ModelId < -1 || actor.IsPlayer && actor.ModelId < 0 || actor.ModelId == -1 && (source.EncounterId is not null || actor.WeaponId is not null || actor.Costume != 0);
@@ -464,6 +467,18 @@ public sealed partial class BattleSession
                 throw new NotSupportedException("Battle command list contains an unsupported or duplicate command.");
             }
             ValidateStocks(actor.MagicStocks, 32);
+            if (actor.Rewards is { } rewards)
+            {
+                rewards.Validate();
+                if (actor.IsPlayer || actor.RewardSlot is not int slot || slot is < 0 or >= 8 || !rewardSlots.Add(slot) || actor.Level == 0)
+                {
+                    throw new InvalidDataException("Enemy reward definitions require their unique original formation slots and actual levels.");
+                }
+            }
+            else if (actor.RewardSlot is not null)
+            {
+                throw new InvalidDataException("An enemy reward slot requires its original reward definition.");
+            }
             HashSet<BattleStatusKind> statusKinds = [];
             foreach (BattleStatusEffectDefinition effect in actor.StatusEffects)
             {
@@ -571,6 +586,20 @@ public sealed partial class BattleSession
         ValidateStocks(snapshot.Items, 198);
         items.Clear();
         items.AddRange(snapshot.Items);
+        if (snapshot.EnemyDefeats is null || snapshot.EnemyDefeats.Select(defeat => defeat.Slot).Distinct().Count() != snapshot.EnemyDefeats.Length)
+        {
+            throw new InvalidDataException("Battle snapshot lacks its unique observed enemy defeat facts.");
+        }
+        foreach (ReplayBattleEnemyDefeat defeat in snapshot.EnemyDefeats)
+        {
+            defeat.Validate();
+            BattleCombatantDefinition source = definition.Combatants.SingleOrDefault(actor => actor.RewardSlot == defeat.Slot && actor.Rewards is not null) ?? throw new InvalidDataException("Observed enemy defeat has no installed reward owner.");
+            if (byId[source.Id].IsAlive || source.Level != defeat.Level)
+            {
+                throw new InvalidDataException("Observed enemy defeat contradicts its actual combatant state.");
+            }
+        }
+        enemyDefeats.AddRange(snapshot.EnemyDefeats);
         random = snapshot.Random ?? throw new InvalidDataException("Battle snapshot lacks its owned native RNG.");
         random.Validate();
     }

@@ -78,6 +78,30 @@ public sealed class HostedAutomaticBattleTests
         Assert.Equal(expectedAp, session.State.CharacterVitals.GuardianForces[0].AbilityProgress[learningIndex]);
     }
 
+    [Fact]
+    public void RandomOutcomeCannotReplaceAnActuallyPendingMandatoryBattleOwner()
+    {
+        (GameSession session, _) = Fixture(false);
+        session.SetFullBattlePlaythrough(true);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory, persistReplayJournal: false);
+        // This component exercises native ownership, independently of interactive presentation assets.
+        world.Events.ValidateInteractiveBattle = (_, _) => null;
+        world.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        world.Events.Step();
+        world.Events.Step();
+        Assert.NotNull(world.Events.PendingInteractiveBattle);
+        ReplayBattleEncounter random = session.State.PendingBattleEncounter! with { ScriptedOwner = null };
+        session.SetPendingBattleEncounter(random);
+        NativeCharacterVitals vitals = session.State.CharacterVitals!;
+        ReplayBattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new ReplayBattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
+        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        ReplayBattleOutcome result = new(random, BattleOutcome.Victory, party, [], assets.LoadEncounter(random.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), [], true, BattleRewardPolicy.DebugNoRewards, []);
+        string before = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(random, result));
+        Assert.Equal(before, JsonSerializer.Serialize(session.State));
+        Assert.Empty(session.State.AppliedBattleResultIds);
+    }
+
     private static (GameSession Session, int LearningIndex) Fixture(bool incompleteJournal)
     {
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);

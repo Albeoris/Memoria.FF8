@@ -1,0 +1,82 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.App.Tests;
+
+// Explicit reward components use installed initial owners; they do not invent a playthrough journal.
+public sealed class NativeBattleRewardDistributionTests
+{
+    [Fact]
+    public void NativeSharedAndKillerExperienceUseActualLevelsAndGfSharesWhileApRemainsSeparate()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).AcquireGuardianForce(1).ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(0, 1).RebuildParty().Rest();
+        byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() };
+        BattleExperienceAwards normal = NativeBattleRewardDistribution.Experience([new(0, level, BattleDefeatCredit.Character, 0, null, false, -1)], vitals, definitions, false);
+        Assert.Equal((ushort)120, normal.Characters[0]);
+        Assert.Equal((ushort)40, normal.GuardianForces[0]);
+        Assert.Equal((ushort)40, normal.GuardianForces[1]);
+        BattleExperienceAwards gf = NativeBattleRewardDistribution.Experience([new(0, level, BattleDefeatCredit.GuardianForce, 0, 0, false, -1)], vitals, definitions, false);
+        int gfLevel = NativeStatDefinitions.Level(vitals.GuardianForces[0].Experience, vitals.Definitions.GuardianForces[0]);
+        Assert.Equal((ushort)80, gf.Characters[0]);
+        Assert.Equal(40 + 5 * 10 * level / gfLevel - 10, gf.GuardianForces[0]);
+        Assert.Equal((ushort)40, gf.GuardianForces[1]);
+    }
+
+    [Fact]
+    public void CharacterAndGfExperienceHaveDifferentKoPetrifyRulesAndNoExperienceClearsBoth()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
+        byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
+        NativeCharacterVital[] records = vitals.Records.ToArray();
+        records[0] = records[0] with { Status = 1, HitPoints = new(0, 0) };
+        vitals = vitals with { Records = records };
+        ReplayBattleEnemyDefeat[] defeats = [new(0, level, BattleDefeatCredit.Unattributed, null, null, false, -1)];
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() };
+        BattleExperienceAwards ko = NativeBattleRewardDistribution.Experience(defeats, vitals, definitions, false);
+        Assert.Empty(ko.Characters);
+        Assert.Equal((ushort)80, ko.GuardianForces[0]);
+        records[0] = records[0] with { Status = 5 };
+        BattleExperienceAwards both = NativeBattleRewardDistribution.Experience(defeats, vitals with { Records = records }, definitions, false);
+        Assert.Empty(both.Characters);
+        Assert.Empty(both.GuardianForces);
+        BattleExperienceAwards disabled = NativeBattleRewardDistribution.Experience(defeats, vitals, definitions, true);
+        Assert.Empty(disabled.Characters);
+        Assert.Empty(disabled.GuardianForces);
+    }
+
+    [Fact]
+    public void SelectedCurrentItemAndCardRewardsUseCanonicalCapsAndLeaveSourceOwnersUntouched()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        NativeItemStock[] stocks = economy.Items.ToArray();
+        int potion = Array.FindIndex(stocks, stock => stock.ItemId == 1);
+        stocks[potion] = stocks[potion] with { Count = 98 };
+        economy = economy with { Items = stocks };
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        cards.Cards[0] = 0x80 | 99;
+        string beforeEconomy = JsonSerializer.Serialize(economy);
+        string beforeCards = JsonSerializer.Serialize(cards);
+        ReplayBattleEnemyDefeat[] defeats = [new(0, 8, BattleDefeatCredit.Character, 0, null, true, 0)];
+        Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() };
+        BattleLootOwners rewards = NativeBattleRewardDistribution.Loot(defeats, definitions, economy, cards);
+        Assert.Equal(100, rewards.Economy.Items[potion].Count);
+        Assert.Equal(new BattleStock(1, 2), Assert.Single(rewards.ItemsGranted));
+        Assert.Equal(100, rewards.Cards!.AvailableCount(0));
+        Assert.Equal((byte)0, Assert.Single(rewards.CardsGranted));
+        Assert.Equal(beforeEconomy, JsonSerializer.Serialize(economy));
+        Assert.Equal(beforeCards, JsonSerializer.Serialize(cards));
+        Assert.Throws<InvalidDataException>(() => NativeBattleRewardDistribution.Loot(defeats, definitions, economy, null));
+        Assert.Equal(beforeEconomy, JsonSerializer.Serialize(economy));
+    }
+
+    private static BattleEnemyRewardDefinition Definition()
+    {
+        return new BattleEnemyRewardDefinition(10, 20, 20, 30, 0, false, 255, Enumerable.Repeat(new BattleStock(1, 5), 12).ToImmutableArray());
+    }
+}

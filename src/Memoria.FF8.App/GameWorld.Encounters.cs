@@ -104,7 +104,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("A random battle is already active.");
                 }
-                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value), input.Mode);
+                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value, 0), input.Mode);
             }
             else
             {
@@ -158,7 +158,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved random combat has lost its exploration scene owner.");
         }
-        BattleDefinition current = CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed);
+        BattleDefinition current = CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed, 0);
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(battle.Capture().Definition)))
         {
             throw new InvalidDataException("Saved random combat differs from its current installed formation and party.");

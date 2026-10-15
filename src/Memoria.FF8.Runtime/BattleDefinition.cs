@@ -72,6 +72,8 @@ public sealed record BattleCombatantDefinition
     public int Attack { get; init; } = 20;
     public int Defense { get; init; } = 5;
     public int AbilityPoints { get; init; }
+    public int? RewardSlot { get; init; }
+    public BattleEnemyRewardDefinition? Rewards { get; init; }
     public int Level { get; init; } = 1;
     public int Magic { get; init; } = 20;
     public int Spirit { get; init; } = 5;
@@ -99,7 +101,9 @@ public sealed record BattleDefinition
     public BattleActionDefinition[] ActionDefinitions { get; init; } = [];
     public BattleStock[] Items { get; init; } = [];
     public byte NativeSeed { get; init; }
+    public ushort NativeFlags { get; init; }
     public NativeBattleRandomState? InitialRandom { get; init; }
+    public bool RareItem { get; init; }
 }
 
 public enum BattleActionPhase
@@ -129,6 +133,8 @@ public sealed record BattleSnapshot
     public BattleActionPresentation? ActiveAction { get; init; }
     public BattleEvent[] Events { get; init; } = [];
     public BattleStock[] Items { get; init; } = [];
+    [System.Text.Json.Serialization.JsonRequired]
+    public ReplayBattleEnemyDefeat[] EnemyDefeats { get; init; } = [];
 
     public NativeBattleRandomState? Random { get; init; }
     public BattleStatusKind[] CustomHandlers { get; init; } = [];

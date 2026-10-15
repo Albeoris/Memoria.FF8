@@ -116,6 +116,10 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Encounter fact differs from its current scene or original formation resource.");
         }
+        if (fact.ScriptedOwner is null && Events.PendingHostedBattle is not null || fact.ScriptedOwner is not null && session.State.RandomEncounters?.Pending is not null)
+        {
+            throw new InvalidDataException("Encounter fact conflicts with the current native battle owner.");
+        }
         string source = fact.SourceScene == SceneKind.Field ? Convert.ToHexString(SHA256.HashData(Field!.Jsm)) : worldScene!.AllocationProgramSha256;
         if (source != fact.SourceHash)
         {
@@ -131,6 +135,7 @@ internal sealed partial class GameWorld
         }
         session.SetPendingBattleEncounter(fact);
         session.RecordReplayEntry(new(ReplayEntryKind.BattleEncounter, session.State.Scene, session.State.FieldId, fact.SourceFrame) { BattleEncounter = fact, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = session.State.Scene == SceneKind.WorldMap ? worldScene!.State.Frame : Events.Frame, ResultTrigger = (int)PlayerTriggerKind.Battle });
+        session.CompactEncounterJournal();
         if (BattleFactDiagnostics is not null)
         {
             BattleFactDiagnostics.EncountersApplied++;

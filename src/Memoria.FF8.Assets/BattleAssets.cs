@@ -2,6 +2,7 @@ using System.Numerics;
 using Albeoris.Games.FF8.FlArchives;
 using Albeoris.Games.FF8.TextEncoding;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -196,6 +197,7 @@ public sealed class BattleAssets : IDisposable
         return bytes[information + 335];
     }
     public BattleEnemyNativeStats ReadEnemyNativeStats(int modelId) => BattleEnemyNativeStats.ReadMonster(Read($"c0m{modelId:000}.dat"));
+    public BattleEnemyRewardDefinition ReadEnemyRewards(int modelId) => BattleEnemyRewards.Read(Read($"c0m{modelId:000}.dat"));
 
     public (int Power, int DrainPercent) ReadEnemyPrimitiveAttack(int modelId, int level)
     {

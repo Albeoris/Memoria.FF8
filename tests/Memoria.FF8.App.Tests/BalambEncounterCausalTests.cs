@@ -76,6 +76,7 @@ public sealed class BalambEncounterCausalTests
         GameState rebuilt = GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game, battleFacts: diagnostics);
         AssertPersistentBattleResults(session.State, rebuilt);
         AssertFactualReconstruction(diagnostics, 1);
+        AssertFactOnlyBattleJournal(rebuilt.ReplayJournal!, SceneKind.Field, 1);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_BALAMB_EVIDENCE");
         if (evidence is not null)
         {
@@ -135,8 +136,9 @@ public sealed class BalambEncounterCausalTests
         int potionCount = session.State.Economy.Items.Single(stock => stock.ItemId == potion).Count;
         world.ApplyBattleInput(new(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased));
         FightWithItemAndShiva(world, potion);
+        Assert.Equal(potionCount - 1, world.Battle!.Items.Single(stock => stock.Id == potion).Count);
         world.ApplyBattleInput(new(BattleInputKind.Return));
-        Assert.Equal(potionCount - 1, session.State.Economy.Items.Single(stock => stock.ItemId == potion).Count);
+        Assert.Contains(session.State.ReplayJournal!.Entries.Last(entry => entry.Kind == ReplayEntryKind.BattleOutcome).BattleOutcome!.ItemConsumptions, consumption => consumption.ItemId == potion && consumption.Consumed == 1);
         session.SetEventState(world.Events.Capture());
         string save = Path.Combine(scratch, "after-world-battle.json");
         session.Save(save, registerJournalReference: false);
@@ -145,6 +147,7 @@ public sealed class BalambEncounterCausalTests
         GameState recreatedState = GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game, battleFacts: diagnostics);
         AssertPersistentBattleResults(session.State, recreatedState);
         AssertFactualReconstruction(diagnostics, 2);
+        AssertFactOnlyBattleJournal(recreatedState.ReplayJournal!, SceneKind.WorldMap, 2);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_BALAMB_EVIDENCE");
         if (evidence is not null)
         {
@@ -310,6 +313,9 @@ public sealed class BalambEncounterCausalTests
             Assert.Contains(encounters, encounter => encounter == outcome.Encounter);
         });
         Assert.DoesNotContain(journal.Entries, entry => entry.BattleInput?.NativeSeed is not null);
+        ReplayJournalEntry[] active = journal.ActiveEntries.ToArray();
+        int occurrence = Array.FindLastIndex(active, entry => entry.Kind == ReplayEntryKind.BattleEncounter);
+        Assert.All(active.Take(occurrence + 1), entry => Assert.True(entry.SemanticProjected, "Encounter-search cadence must not remain in the active causal prefix."));
         Assert.All(journal.Entries.Where(entry => entry.Kind == ReplayEntryKind.BattleInput), entry => Assert.Contains(entry.BattleInput!.Kind, new[] { BattleInputKind.ConfigurePlaythrough, BattleInputKind.ConfigureEncounters }));
     }
 
@@ -317,6 +323,7 @@ public sealed class BalambEncounterCausalTests
     {
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actual.CharacterVitals), JsonSerializer.SerializeToElement(reconstructed.CharacterVitals)), "Recorded battle outcomes did not reapply the canonical party stocks, HP, GF ownership and AP.");
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actual.Economy), JsonSerializer.SerializeToElement(reconstructed.Economy)), "Recorded battle outcomes did not reapply the canonical item inventory.");
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actual.CardInventory), JsonSerializer.SerializeToElement(reconstructed.CardInventory)), "Recorded battle outcomes did not reapply the canonical card inventory.");
         Assert.Equal(actual.AppliedBattleResultIds, reconstructed.AppliedBattleResultIds);
         Assert.Null(reconstructed.Battle);
         Assert.Null(reconstructed.PendingBattleEncounter);
@@ -334,7 +341,7 @@ public sealed class BalambEncounterCausalTests
 
     private static void WriteFactProof(string path, BattleFactReplayDiagnostics diagnostics, int battles, string scope, double? seconds)
     {
-        File.WriteAllText(path, JsonSerializer.Serialize(new { Baseline = "0bbcbcbb + current factual Balamb battle implementation", Implementations = new[] { "current Memoria cold New Game and ordinary live exploration/combat", "current Memoria cold semantic reconstruction with recorded encounter/outcome facts" }, Scope = scope, OriginalRuntimeParity = false, Encounters = battles, Outcomes = battles, CanonicalPartyStocksAndGuardianForceAp = true, CanonicalItemInventory = true, MidCombatOrdinaryRestoreAndNextTick = true, ActiveCombatReconstructionRejected = true, diagnostics.LiveBattleSessionsCreated, diagnostics.RandomEncounterChecks, diagnostics.EncounterMovementRequests, diagnostics.EncountersApplied, diagnostics.OutcomesApplied, Seconds = seconds }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(path, JsonSerializer.Serialize(new { Baseline = "0bbcbcbb + current factual Balamb battle implementation", Implementations = new[] { "current Memoria cold New Game and ordinary live exploration/combat", "current Memoria cold semantic reconstruction with recorded encounter/outcome facts" }, Scope = scope, OriginalRuntimeParity = false, Encounters = battles, Outcomes = battles, CanonicalPartyStocksAndGuardianForceAp = true, CanonicalExperienceAndLevelBonuses = true, CanonicalItemInventory = true, CanonicalCardInventory = true, ObservedRewardSelectionsOnly = true, MidCombatOrdinaryRestoreAndNextTick = true, ActiveCombatReconstructionRejected = true, diagnostics.LiveBattleSessionsCreated, diagnostics.RandomEncounterChecks, diagnostics.EncounterMovementRequests, diagnostics.EncountersApplied, diagnostics.OutcomesApplied, Seconds = seconds }, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static void AssertDiagnosticSaveLoadState(GameState first, GameState second)
