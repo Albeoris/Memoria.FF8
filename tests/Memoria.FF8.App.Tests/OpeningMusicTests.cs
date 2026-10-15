@@ -104,7 +104,7 @@ public sealed class OpeningMusicTests
     private static void PlayDecodedCorridorMovie(GameWorld world, GameSession session, MovieClock clock, string directory, FieldAudioPresentation audio)
     {
         MovieInformation information = clock.Prepare();
-        using var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, Path.Combine(directory, "Data", "movies", "disc00_00h.avi"), 0, information);
+        using var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, clock.SourcePath, 0, information);
         var deadline = Stopwatch.StartNew();
         int count = 0;
         while ((!decoder.VideoFinished || !decoder.AudioFinished) && session.IsMoviePlaying)

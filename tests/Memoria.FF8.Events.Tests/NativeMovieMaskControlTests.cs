@@ -272,7 +272,7 @@ internal static partial class Program
         main.AddRange([(Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]);
         GameSession session = state is null ? CreateDirectedLinearTurnSession(vitals, economy) : new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(state))!);
         session.MarkReplayUnavailable("Declared native movie mask/CAM timing component; no original gameplay journal or MSK rendering claim.");
-        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4, LoadSoundResource = _ => SoundResourceStatus.Muted, MoviePlayback = () => session.State.MoviePlayback, ReadMovieCameraFlags = flags is null ? null : _ => flags };
+        EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4, LoadSoundResource = _ => SoundResourceStatus.Muted, MoviePlayback = () => session.State.MoviePlayback, ReadMovieCameraFlags = flags is null ? null : (_, _) => flags };
         engine.LoadField(600, SyntheticObjects([1], [init.ToArray(), main.ToArray()]), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return (session, engine);
     }

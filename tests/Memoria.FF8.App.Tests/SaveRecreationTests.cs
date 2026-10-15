@@ -175,7 +175,7 @@ public sealed class SaveRecreationTests
         Assert.True(JsonElement.DeepEquals(first.EventState!.Value, second.EventState!.Value));
         ReplayJournalEntry[] samples = second.ReplayJournal!.Entries.Where(entry => entry.Kind == ReplayEntryKind.MovieSample).ToArray();
         Assert.NotEmpty(samples);
-        Assert.All(samples, entry => Assert.Equal(MovieClock.GetSourceHash(directory, 30), entry.MovieSourceHash));
+        Assert.All(samples, entry => Assert.Equal(MovieClock.GetSourceHash(directory, 0, 30), entry.MovieSourceHash));
 
         var forged = GameSession.CreateColdProcess();
         forged.StartNewGame();

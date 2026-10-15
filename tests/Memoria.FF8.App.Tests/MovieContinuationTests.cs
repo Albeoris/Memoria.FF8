@@ -58,7 +58,7 @@ public sealed class MovieContinuationTests
         Assert.Equal(325, clock.State.TerminalFrame);
         using var world = new GameWorld(session, directory, clock);
         world.EnsureField();
-        using (var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, Path.Combine(directory, "Data/movies/disc00_00h.avi"), 5, information))
+        using (var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, clock.SourcePath, 5, information))
         {
             MovieFrame? frame = null;
             Stopwatch timeout = Stopwatch.StartNew();

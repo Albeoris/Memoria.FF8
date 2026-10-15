@@ -5,15 +5,15 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private readonly Dictionary<int, NativeMovieCameraFlags> movieCameraFlags = [];
+    private readonly Dictionary<(byte Disc, int Movie), NativeMovieCameraFlags> movieCameraFlags = [];
 
-    private NativeMovieCameraFlags ReadNativeMovieCameraFlags(int movie)
+    private NativeMovieCameraFlags ReadNativeMovieCameraFlags(byte disc, int movie)
     {
-        if (!movieCameraFlags.TryGetValue(movie, out NativeMovieCameraFlags? flags))
+        if (!movieCameraFlags.TryGetValue((disc, movie), out NativeMovieCameraFlags? flags))
         {
-            string path = Path.Combine(assets.GameDirectory, "Data", "movies", $"disc00_{movie:00}.cam");
+            string path = MovieClock.GetCameraPath(assets.GameDirectory, disc, movie);
             flags = NativeMovieCameraReader.Read(File.ReadAllBytes(path));
-            movieCameraFlags.Add(movie, flags);
+            movieCameraFlags.Add((disc, movie), flags);
         }
         return flags;
     }

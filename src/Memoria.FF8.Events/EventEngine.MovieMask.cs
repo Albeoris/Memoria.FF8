@@ -9,11 +9,11 @@ public sealed record NativeMovieMaskState([property: JsonRequired] int Version, 
 
 public sealed partial class EventEngine
 {
-    public Func<int, NativeMovieCameraFlags>? ReadMovieCameraFlags { get; set; }
+    public Func<byte, int, NativeMovieCameraFlags>? ReadMovieCameraFlags { get; set; }
 
-    private NativeMovieCameraFlags RequireMovieCameraFlags(int movie)
+    private NativeMovieCameraFlags RequireMovieCameraFlags(byte disc, int movie)
     {
-        NativeMovieCameraFlags flags = ReadMovieCameraFlags?.Invoke(movie) ?? throw new NotSupportedException("Native movie mask control requires the actual original CAM resource.");
+        NativeMovieCameraFlags flags = ReadMovieCameraFlags?.Invoke(disc, movie) ?? throw new NotSupportedException("Native movie mask control requires the actual original CAM resource.");
         flags.Validate();
         return flags;
     }
@@ -43,7 +43,14 @@ public sealed partial class EventEngine
                 {
                     throw new NotSupportedException("MOVIEREADY requires its known native clip index.");
                 }
-                _ = RequireMovieCameraFlags(fiber.Stack.Skip(1).First());
+                if (!services.CanStoreMovieSource || services.DiscProcess is not NativeDiscProcessState disc || UnsupportedNativeDiscAliases() is not null)
+                {
+                    throw new NotSupportedException("MOVIEREADY requires its actual canonical disc and persistent prepared resource owner.");
+                }
+                disc.Validate();
+                NativeMovieSource source = new(disc.CurrentDiscIndex, fiber.Stack.Skip(1).First());
+                source.Validate();
+                _ = RequireMovieCameraFlags(source.DiscIndex, source.MovieIndex);
             }
             return null;
         }
@@ -53,17 +60,42 @@ public sealed partial class EventEngine
         }
     }
 
-    private void PrepareNativeMovieMask(int movie)
+    private void PrepareNativeMovieMask(Fiber fiber, int movie)
     {
-        NativeMovieCameraFlags flags = RequireMovieCameraFlags(movie);
+        NativeDiscProcessState disc = services.DiscProcess ?? throw new NotSupportedException("Native movie preparation has no actual disc owner.");
+        NativeMovieSource source = new(disc.CurrentDiscIndex, movie);
+        source.Validate();
+        NativeMovieCameraFlags flags = RequireMovieCameraFlags(source.DiscIndex, movie);
+        try
+        {
+            services.SetMovieSource(source);
+        }
+        catch (NotSupportedException exception)
+        {
+            fiber.Position--;
+            string message = $"Field {FieldId}, object {fiber.ObjectId}, script {fiber.Script.Id}, operation {fiber.Position}: native movie resource service rejected preparation; PC and operands preserved.";
+            LastFault = new EventFault(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position, Jsm.Opcode.MOVIEREADY.ToString(), message);
+            throw new EventScriptException(message, exception);
+        }
         Scene.NativeMovieMask = new NativeMovieMaskState(1, 1, new NativeMovieMaskPlayback(movie, flags.SourceSha256, -1, null, null));
+    }
+
+    private NativeMovieSource RequirePreparedMovieSource(int movie)
+    {
+        NativeMovieSource source = services.MovieSource ?? throw new NotSupportedException("Native movie requires its executed MOVIEREADY resource binding.");
+        source.Validate();
+        if (source.MovieIndex != movie)
+        {
+            throw new InvalidDataException("Native movie differs from its prepared resource index.");
+        }
+        return source;
     }
 
     private NativeMovieMaskState PrepareNativeMovieMaskStart()
     {
         NativeMovieMaskState state = Scene.NativeMovieMask ?? throw new NotSupportedException("Native movie start has no mask-control owner.");
         NativeMovieMaskPlayback playback = state.Playback ?? throw new NotSupportedException("Native movie start has no prepared CAM binding.");
-        NativeMovieCameraFlags flags = RequireMovieCameraFlags(playback.MovieIndex);
+        NativeMovieCameraFlags flags = RequireMovieCameraFlags(RequirePreparedMovieSource(playback.MovieIndex).DiscIndex, playback.MovieIndex);
         if (flags.Flags.Length == 2)
         {
             throw new NotSupportedException("Native CAM terminal inside movie startup requires its unimplemented initial decoded resource clock.");
@@ -89,7 +121,7 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native movie mask callbacks require consecutive decoded CAM records.");
         }
-        NativeMovieCameraFlags flags = RequireMovieCameraFlags(playback.MovieIndex);
+        NativeMovieCameraFlags flags = RequireMovieCameraFlags(RequirePreparedMovieSource(playback.MovieIndex).DiscIndex, playback.MovieIndex);
         if (flags.SourceSha256 != playback.CameraSha256)
         {
             throw new InvalidDataException("Native movie CAM source changed during playback.");
@@ -112,7 +144,7 @@ public sealed partial class EventEngine
         }
     }
 
-    private void ValidateNativeMovieMask(SceneEventState scene, int movie, long frame, MoviePlaybackState? decoded)
+    private void ValidateNativeMovieMask(SceneEventState scene, int movie, long frame, MoviePlaybackState? decoded, NativeMovieSource? source)
     {
         NativeMovieMaskState? state = scene.NativeMovieMask;
         if (state is null)
@@ -135,7 +167,12 @@ public sealed partial class EventEngine
             }
             return;
         }
-        NativeMovieCameraFlags flags = RequireMovieCameraFlags(playback.MovieIndex);
+        if (source is null || source.MovieIndex != playback.MovieIndex || !services.CanStoreMovieSource)
+        {
+            throw new InvalidDataException("Saved movie CAM has no corresponding prepared disc/resource binding.");
+        }
+        source.Validate();
+        NativeMovieCameraFlags flags = RequireMovieCameraFlags(source.DiscIndex, playback.MovieIndex);
         if (playback.MovieIndex != movie || flags.SourceSha256 != playback.CameraSha256 || playback.AppliedRecord < -1 || playback.AppliedRecord >= flags.Flags.Length || playback.DrawRecord != (playback.AppliedRecord >= 1 ? playback.AppliedRecord : null) || playback.DrawValue.HasValue != playback.DrawRecord.HasValue || scene.MovieActors is not NativeMovieActorLifecycle lifecycle || lifecycle.ReadyFrame > frame || lifecycle.StartFrame is null && playback.AppliedRecord != -1 || lifecycle.StartFrame is not null && playback.AppliedRecord < 1)
         {
             throw new InvalidDataException("Saved native movie mask phases disagree with their actual CAM/lifecycle binding.");
