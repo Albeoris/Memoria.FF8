@@ -12,6 +12,44 @@ internal sealed partial class GameWorld
     private FieldRenderer? movieRenderer;
     private FieldAssets? movieRendererField;
 
+    private (NativeMovieSource Source, NativeMovieMaskPlayback Playback, NativeMovieCameraFlags Flags) RequireNativeMovieCameraPhase()
+    {
+        NativeMovieSource source = MovieClock.RequireSource(session.State);
+        NativeMovieMaskPlayback playback = Events.Scene.NativeMovieMask?.Playback ?? throw new NotSupportedException("Native movie camera requires its executed CAM phase.");
+        NativeMovieCameraFlags flags = ReadNativeMovieCameraFlags(source.DiscIndex, source.MovieIndex);
+        if (playback.MovieIndex != source.MovieIndex || playback.CameraSha256 != flags.SourceSha256 || (uint)playback.AppliedRecord >= flags.Flags.Length)
+        {
+            throw new InvalidDataException("Native movie camera differs from its authenticated CAM phase.");
+        }
+        return (source, playback, flags);
+    }
+
+    private FieldCamera ReadNativeFootstepCamera(FieldAssets field, bool beforeCameraSelection)
+    {
+        if (!session.IsMoviePlaying)
+        {
+            return field.GetCamera(Events.Scene.CameraIndex);
+        }
+        (NativeMovieSource source, NativeMovieMaskPlayback playback, _) = RequireNativeMovieCameraPhase();
+        //529FF0 uses the focal retained from the preceding selection. MOVIE's
+        //record0 presentation precedes the first CAM selection in4767B0.
+        if (beforeCameraSelection && playback.AppliedRecord == 0)
+        {
+            return field.GetCamera(Events.Scene.CameraIndex);
+        }
+        int record = playback.AppliedRecord + (beforeCameraSelection ? 0 : 1);
+        return ReadNativeMovieCamera(movieCameraBytes[(source.DiscIndex, source.MovieIndex)], record);
+    }
+
+    internal static FieldCamera ReadNativeMovieCamera(ReadOnlySpan<byte> bytes, int record)
+    {
+        if (record < 0 || 8L + (record + 1L) * 44 > bytes.Length)
+        {
+            throw new InvalidDataException("Native movie camera record is outside its original CAM bank.");
+        }
+        return FieldCamera.Read(bytes.Slice(8 + record * 44, 40).ToArray());
+    }
+
     private NativeMovieCameraFlags ReadNativeMovieCameraFlags(byte disc, int movie)
     {
         if (!movieCameraFlags.TryGetValue((disc, movie), out NativeMovieCameraFlags? flags))
@@ -52,7 +90,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Movie field compositing differs from its authenticated CAM phase.");
         }
-        FieldCamera camera = FieldCamera.Read(movieCameraBytes[(source.DiscIndex, movie)].AsSpan(8 + record * 44, 40).ToArray());
+        FieldCamera camera = ReadNativeMovieCamera(movieCameraBytes[(source.DiscIndex, movie)], record);
         //4767B0 submits actors before the late55A620 CAM flag update. BYTE490D (bit64)
         //and209A7A0 (bits1/32) therefore come from the previous consumed CAM record.
         byte previousFlags = flags.Flags[record - 1];

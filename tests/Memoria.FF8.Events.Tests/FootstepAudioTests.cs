@@ -26,7 +26,12 @@ internal static partial class Program
         EventEngine live = Create((Jsm.Opcode.FOOTSTEPON, 0));
         ActorState actor = live.Actors[0];
         List<NativeFootstepSound> sounds = [];
-        live.ResolveFootstepSound = (source, mode) => new NativeFootstepSound(source.ObjectId, mode, (uint)(100 + mode), 128, 119, 0x400000);
+        List<bool> cameraPhases = [];
+        live.ResolveFootstepSound = (source, mode, beforeCameraSelection) =>
+        {
+            cameraPhases.Add(beforeCameraSelection);
+            return new NativeFootstepSound(source.ObjectId, mode, (uint)(100 + mode), 128, 119, 0x400000);
+        };
         live.AudioCommandExecuted += command =>
         {
             if (command is NativeFootstepSound sound)
@@ -38,8 +43,10 @@ internal static partial class Program
         void Check(ushort previous, ushort next, ushort total, ushort increment, bool narrow, params int[] modes)
         {
             sounds.Clear();
+            cameraPhases.Clear();
             contacts.Invoke(live, [actor, previous, next, total, increment, narrow]);
             Require(sounds.Select(sound => sound.Mode).SequenceEqual(modes), $"Native contact crossing lost callback order or WORD domain for {previous}->{next}, total {total}, increment {increment}, narrow {narrow}.");
+            Require(cameraPhases.All(beforeCameraSelection => beforeCameraSelection == !narrow), "Native script/body contact used the wrong side of4767B0 camera selection.");
         }
         foreach (bool narrow in new[] { true, false })
         {
@@ -58,7 +65,7 @@ internal static partial class Program
         Check(32888, 32904, 512, 16, true, 1);
         Check(32888, 32904, 512, 16, false);
         JsonElement beforeTransient = live.Capture();
-        live.ResolveFootstepSound = (source, mode) => new NativeFootstepSound(source.ObjectId, mode, 102, 128, 119, 0x400000);
+        live.ResolveFootstepSound = (source, mode, _) => new NativeFootstepSound(source.ObjectId, mode, 102, 128, 119, 0x400000);
         Check(112, 128, 512, 16, true, 1);
         JsonElement afterTransient = live.Capture();
         JsonElement recorded = afterTransient.GetProperty("GlobalSoundProcess");
@@ -68,11 +75,11 @@ internal static partial class Program
 
         EventEngine disabled = Create();
         Require(!disabled.Actors[0].FootstepsEnabled && disabled.Actors[0].NativeFootstepSpecial == false, "Native allocation enabled footstep output or invented a special-character flag.");
-        disabled.ResolveFootstepSound = (_, _) => throw new InvalidOperationException("Disabled footstep reached its resolver.");
+        disabled.ResolveFootstepSound = (_, _, _) => throw new InvalidOperationException("Disabled footstep reached its resolver.");
         contacts.Invoke(disabled, [disabled.Actors[0], (ushort)0, (ushort)512, (ushort)512, (ushort)16, true]);
         EventEngine ordinary = Create((Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0));
         Require(ordinary.Actors[0].FootstepsEnabled && ordinary.Actors[0].NativeFootstepSpecial == false, "SETPC did not enable ordinary native footsteps.");
-        ordinary.ResolveFootstepSound = (source, mode) => new NativeFootstepSound(source.ObjectId, mode, 77, 128, 119, 0x800000);
+        ordinary.ResolveFootstepSound = (source, mode, _) => new NativeFootstepSound(source.ObjectId, mode, 77, 128, 119, 0x800000);
         contacts.Invoke(ordinary, [ordinary.Actors[0], (ushort)112, (ushort)128, (ushort)512, (ushort)16, true]);
         JsonElement headless = ordinary.Capture().GetProperty("GlobalSoundProcess");
         Require(headless.GetProperty("Rotation").GetByte() == 1 && headless.GetProperty("OriginalEffectIds")[24].GetUInt32() == 77, "Headless contact skipped the native original effect word without a presentation listener.");
@@ -84,7 +91,7 @@ internal static partial class Program
         // Exercise the reached animation helper itself: its contact callback must
         // inspect the advanced WORD even when the stored renderer frame wraps.
         MethodInfo ladder = typeof(EventEngine).GetMethod("StepLadderAnimation", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        live.ResolveFootstepSound = (source, mode) => new NativeFootstepSound(source.ObjectId, mode, 3, 128, 119, 0x400000);
+        live.ResolveFootstepSound = (source, mode, _) => new NativeFootstepSound(source.ObjectId, mode, 3, 128, 119, 0x400000);
         sounds.Clear();
         for (int frame = 0; frame < 32; frame++)
         {
@@ -114,7 +121,7 @@ internal static partial class Program
                 NativeScriptGroundProbe[] probes = [new(query.FixedX, query.FixedY, 0), new(query.FixedX, query.FixedY, 0), new(query.FixedX, query.FixedY, 0)];
                 return new(NativeScriptMovementStatus.Blocked, query.FixedX, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new(query.FixedX, query.FixedY, query.Direction, probes)]);
             };
-            engine.ResolveFootstepSound = (source, mode) => new NativeFootstepSound(source.ObjectId, mode, (uint)(3 - mode), 128, 119, 0x400000);
+            engine.ResolveFootstepSound = (source, mode, _) => new NativeFootstepSound(source.ObjectId, mode, (uint)(3 - mode), 128, 119, 0x400000);
             engine.LoadField(600, movementContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();
             engine.Step();

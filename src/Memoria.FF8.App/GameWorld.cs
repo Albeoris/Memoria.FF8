@@ -174,8 +174,8 @@ internal sealed partial class GameWorld : IDisposable
         };
         Events.AnimationFrameCount = next.GetAnimationFrameCount;
         Events.ReadNativeModelParts = model => (uint)model < next.Models.Count ? next.Models[model].NativeParts : null;
-        Events.CaptureFootstepModelOrigin = query => NativeFootstepSoundAdapter.Capture(next, Events.Scene, query, session.IsMoviePlaying);
-        Events.ResolveFootstepSound = (actor, mode) => NativeFootstepSoundAdapter.Resolve(next, Events.Scene, actor, mode, () => assets.LoadFieldSoundEffects(next.Id), session.IsMoviePlaying);
+        Events.CaptureFootstepModelOrigin = query => NativeFootstepSoundAdapter.Capture(ReadNativeFootstepCamera(next, false), Events.Scene.CameraIndex, query);
+        Events.ResolveFootstepSound = (actor, mode, beforeCameraSelection) => NativeFootstepSoundAdapter.Resolve(ReadNativeFootstepCamera(next, beforeCameraSelection), actor, mode, () => assets.LoadFieldSoundEffects(next.Id));
         Events.ReadFaceBaseline = actor =>
         {
             next.GetAnimationFrameCount(actor.RenderModelId, actor.AnimationId);

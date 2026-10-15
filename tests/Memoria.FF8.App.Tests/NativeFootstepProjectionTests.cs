@@ -41,7 +41,7 @@ public sealed class NativeFootstepProjectionTests
         FieldSoundEffectTable table = FieldSoundEffectTable.Read("test.sfx", [0x85, 0x5B, 3, 0]);
         NativeFootstepSound Resolve(ActorState target, int mode, Func<FieldSoundEffectTable>? effects = null)
         {
-            return NativeFootstepSoundAdapter.Resolve(field, scene, target, mode, effects ?? (() => throw new InvalidOperationException("Default/ladder sounds must not read the field SFX table.")), false);
+            return NativeFootstepSoundAdapter.Resolve(field.GetCamera(scene.CameraIndex), target, mode, effects ?? (() => throw new InvalidOperationException("Default/ladder sounds must not read the field SFX table.")));
         }
         Assert.Equal((3u, 0x400000u), Identity(Resolve(actor, 0)));
         Assert.Equal((2u, 0x400000u), Identity(Resolve(actor, 1)));
@@ -68,10 +68,26 @@ public sealed class NativeFootstepProjectionTests
         FieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, new Vector3(0, 0, 9600), new Vector2(900, -700), 512);
         field = field with { Camera = camera, Cameras = [camera] };
         ActorState actor = Actor((nameof(ActorState.NativeDisplayOffset), NativeDisplayOffsetState.AllocatedZero with { X = 2 }), (nameof(ActorState.RootTranslationZ), (short)3000));
-        NativeFootstepModelOrigin origin = NativeFootstepSoundAdapter.Capture(field, new SceneEventState(), new NativeFootstepProjectionQuery(actor, new FieldFixedPosition(-1, 0, 0), 0, 7), false);
+        NativeFootstepModelOrigin origin = NativeFootstepSoundAdapter.Capture(field.GetCamera(0), 0, new NativeFootstepProjectionQuery(actor, new FieldFixedPosition(-1, 0, 0), 0, 7));
         Assert.Equal(new NativeFootstepOrigin(1, 9600), origin.Translation);
         Assert.Equal(7, origin.Frame);
         Assert.Null(origin.UnsupportedReason);
+    }
+
+    [Fact]
+    public void MovieCameraUsesTheSameOriginTransformAndItsOwnFocalWithoutDrawingPan()
+    {
+        FieldCamera camera = new(Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ, new Vector3(128, 0, 1024), new Vector2(900, -700), 300);
+        ActorState actor = Actor((nameof(ActorState.NativeDisplayOffset), NativeDisplayOffsetState.AllocatedZero));
+        NativeFootstepModelOrigin origin = NativeFootstepSoundAdapter.Capture(camera, 0, new NativeFootstepProjectionQuery(actor, new FieldFixedPosition(-4096, 0, 0), 0, 7));
+        Assert.Equal(new NativeFootstepOrigin(127, 1024), origin.Translation);
+        ActorState drawn = Actor((nameof(ActorState.NativeFootstepModelOrigin), origin));
+        NativeFootstepSound previous = NativeFootstepSoundAdapter.Resolve(camera, drawn, 1, () => throw new InvalidOperationException());
+        NativeFootstepSound current = NativeFootstepSoundAdapter.Resolve(camera with { FocalLength = 600 }, drawn, 1, () => throw new InvalidOperationException());
+        Assert.Equal(NativeFootstepSoundAdapter.Spatialize(origin.Translation!, 300), (previous.Pan, previous.Volume));
+        Assert.Equal(NativeFootstepSoundAdapter.Spatialize(origin.Translation!, 600), (current.Pan, current.Volume));
+        Assert.NotEqual(previous.Pan, current.Pan);
+        Assert.Equal(previous.EffectId, current.EffectId);
     }
 
     [Fact]
@@ -80,7 +96,7 @@ public sealed class NativeFootstepProjectionTests
         FieldAssets field = InstalledField();
         NativeFootstepSound Resolve(ActorState actor)
         {
-            return NativeFootstepSoundAdapter.Resolve(field, new SceneEventState(), actor, 0, () => throw new InvalidOperationException(), false);
+            return NativeFootstepSoundAdapter.Resolve(field.GetCamera(0), actor, 0, () => throw new InvalidOperationException());
         }
         Assert.Throws<NotSupportedException>(() => Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), null))));
         NativeFootstepModelOrigin origin = Actor().NativeFootstepModelOrigin!;

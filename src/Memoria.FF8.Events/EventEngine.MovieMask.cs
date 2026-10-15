@@ -18,6 +18,27 @@ public sealed partial class EventEngine
         return flags;
     }
 
+    private bool NativeModelDrawEnabled(SceneEventState scene, NativeMovieSource? source, long frame, bool completedCallback)
+    {
+        if (scene.MovieActors is not { StartFrame: not null } lifecycle || lifecycle.EndFrame is long end && end != frame)
+        {
+            return true;
+        }
+        NativeMovieMaskPlayback playback = scene.NativeMovieMask?.Playback ?? throw new InvalidDataException("Native model draw requires its movie CAM phase.");
+        if (source is null || source.MovieIndex != playback.MovieIndex)
+        {
+            throw new InvalidDataException("Native model draw requires its prepared movie source.");
+        }
+        NativeMovieCameraFlags flags = RequireMovieCameraFlags(source.DiscIndex, source.MovieIndex);
+        int record = playback.AppliedRecord - (completedCallback ? 1 : 0);
+        if (flags.SourceSha256 != playback.CameraSha256 || (uint)record >= flags.Flags.Length)
+        {
+            throw new InvalidDataException("Native model draw differs from its authenticated CAM phase.");
+        }
+        //4767B0 checks previous late55A620 flags before472B30/472F20/533CD0.
+        return (flags.Flags[record] & 0x61) == 0;
+    }
+
     private string? UnsupportedMovieMask(Fiber fiber, JsmOperation operation)
     {
         if (operation.Opcode != Jsm.Opcode.SETDCAMERA && operation.Opcode != Jsm.Opcode.MOVIEREADY)

@@ -130,7 +130,7 @@ public sealed partial class EventEngine
         return draw.SkinTranslations;
     }
 
-    private void ValidateNativeModelParts(SceneEventState scene, IReadOnlyList<ActorState> savedActors, long frame, bool initialized, bool transitionRequested)
+    private void ValidateNativeModelParts(SceneEventState scene, IReadOnlyList<ActorState> savedActors, long frame, bool initialized, bool transitionRequested, NativeMovieSource? movieSource)
     {
         if (scene.ModelParts is not NativeFieldModelPartsState bank)
         {
@@ -182,7 +182,7 @@ public sealed partial class EventEngine
         {
             // Native4767B0 dispatches field/world changes before472B30/530810.
             // The dormant field retains its last executed skin sample, not a new draw.
-            if (transitionRequested || !savedActors[instance.ObjectId].Visible)
+            if (transitionRequested || !savedActors[instance.ObjectId].Visible || !NativeModelDrawEnabled(scene, movieSource, frame, true))
             {
                 continue;
             }

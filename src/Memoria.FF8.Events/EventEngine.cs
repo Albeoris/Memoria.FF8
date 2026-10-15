@@ -370,11 +370,14 @@ public sealed partial class EventEngine
         StepNativeNormalBackgroundScrollCenter();
         PublishNativeLayerZeroScrollCurrent();
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
-        foreach (ActorState actor in actors)
+        if (NativeModelDrawEnabled(Scene, services.MovieSource, Frame, false))
         {
-            StepFaceDirection(actor);
+            foreach (ActorState actor in actors)
+            {
+                StepFaceDirection(actor);
+            }
+            StepNativeModelParts();
         }
-        StepNativeModelParts();
         StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
         NativeSalaryPresentation? salaryUi = services.SalaryPresentation?.Advance(movieUi ? 4 : 2);

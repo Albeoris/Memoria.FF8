@@ -21,6 +21,10 @@ internal static class Program
             {
                 return HeadlessPlayer.Run(args[1..]);
             }
+            if (args.Length > 0 && args[0] == "--headless-control")
+            {
+                return HeadlessControlHost.Run(args[1..]);
+            }
             LaunchOptions options = LaunchOptions.Parse(args);
             if (!Directory.Exists(options.GameDirectory))
             {

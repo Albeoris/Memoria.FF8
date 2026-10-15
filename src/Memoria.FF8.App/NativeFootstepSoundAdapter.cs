@@ -7,22 +7,17 @@ namespace Memoria.FF8;
 /// <summary>Original520260, with the retained533CD0 model origin and45FAA0 projection.</summary>
 internal static class NativeFootstepSoundAdapter
 {
-    public static NativeFootstepModelOrigin Capture(FieldAssets field, SceneEventState scene, NativeFootstepProjectionQuery query, bool moviePlaying)
+    public static NativeFootstepModelOrigin Capture(FieldCamera camera, int cameraIndex, NativeFootstepProjectionQuery query)
     {
         NativeFootstepModelOrigin Unsupported(string reason)
         {
-            return new NativeFootstepModelOrigin(1, query.Frame, query.ModelId, scene.CameraIndex, null, reason);
+            return new NativeFootstepModelOrigin(1, query.Frame, query.ModelId, cameraIndex, null, reason);
         }
 
-        if (moviePlaying)
-        {
-            return Unsupported("Footstep model-origin capture during movie CAM playback is unsupported.");
-        }
         if (query.Position is not FieldFixedPosition position || query.Actor.NativeDisplayOffset is not NativeDisplayOffsetState offset)
         {
             return Unsupported("Footstep model-origin capture requires the executed raw actor XYZ and display WORD offsets.");
         }
-        FieldCamera camera = field.GetCamera(scene.CameraIndex);
         if (!TryAxis(camera.AxisX, out FieldNativeCameraPoint axisX) || !TryAxis(camera.AxisZ, out FieldNativeCameraPoint axisZ) || !TryInteger(camera.Translation.X, out int tx) || !TryInteger(camera.Translation.Z, out int tz))
         {
             return Unsupported("Footstep model-origin capture requires original signed-WORD CA axes and exact DWORD translation.");
@@ -37,10 +32,10 @@ internal static class NativeFootstepSoundAdapter
         FieldNativeCameraPoint point = new(x, y, z);
         int transformedX = FieldNativeCameraProbe.Transform(axisX, point, tx);
         int transformedZ = FieldNativeCameraProbe.Transform(axisZ, point, tz);
-        return new NativeFootstepModelOrigin(1, query.Frame, query.ModelId, scene.CameraIndex, new NativeFootstepOrigin(transformedX, transformedZ), null);
+        return new NativeFootstepModelOrigin(1, query.Frame, query.ModelId, cameraIndex, new NativeFootstepOrigin(transformedX, transformedZ), null);
     }
 
-    public static NativeFootstepSound Resolve(FieldAssets field, SceneEventState scene, ActorState actor, int mode, Func<FieldSoundEffectTable> readEffects, bool moviePlaying)
+    public static NativeFootstepSound Resolve(FieldCamera camera, ActorState actor, int mode, Func<FieldSoundEffectTable> readEffects)
     {
         if (mode is not (0 or 1))
         {
@@ -51,13 +46,8 @@ internal static class NativeFootstepSoundAdapter
         {
             throw new NotSupportedException(origin.UnsupportedReason ?? "Native footstep model-origin receipt is unsupported.");
         }
-        if (moviePlaying)
-        {
-            throw new NotSupportedException("Footstep projection during movie CAM playback is unsupported.");
-        }
-        //4767B0 sets the current selected CA focal length before4789A0, while
-        //the model matrix remains the preceding draw's transform.476450 leaves OFX=0.
-        FieldCamera camera = field.GetCamera(scene.CameraIndex);
+        //529FF0 precedes camera selection;4789A0 follows it. The caller supplies
+        //that phase's CA/CAM focal; the origin remains the last enabled draw.
         if (!float.IsFinite(camera.FocalLength) || camera.FocalLength != MathF.Truncate(camera.FocalLength) || camera.FocalLength is < 1 or > ushort.MaxValue)
         {
             throw new NotSupportedException("Footstep projection requires the original positive focal WORD.");

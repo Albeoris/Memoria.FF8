@@ -7,7 +7,7 @@ public sealed record NativeFootstepSound(int ObjectId, int Mode, uint EffectId, 
 
 public sealed partial class EventEngine
 {
-    public Func<ActorState, int, NativeFootstepSound>? ResolveFootstepSound { get; set; }
+    public Func<ActorState, int, bool, NativeFootstepSound>? ResolveFootstepSound { get; set; }
 
     private void StepNativeFootstepCrossings(ActorState actor, ushort oldFrame, ushort advancedFrame, ushort total, ushort increment, bool narrow)
     {
@@ -30,7 +30,7 @@ public sealed partial class EventEngine
             int after = narrow ? unchecked((short)(next - threshold)) : next - threshold;
             if ((before < 0) != (after < 0))
             {
-                NativeFootstepSound sound = ResolveFootstepSound(actor, mode);
+                NativeFootstepSound sound = ResolveFootstepSound(actor, mode, !narrow);
                 NativeGlobalSoundProcess process = services.GlobalSoundProcess ?? throw new NotSupportedException("Native footstep contact requires the persistent global sound process.");
                 //46B2A0 stores the original effect ID even with no native audio buffers.
                 //The explicit footstep masks preserve rotation and replace IDs23/24.

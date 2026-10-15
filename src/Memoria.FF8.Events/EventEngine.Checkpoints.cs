@@ -119,7 +119,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved physical actor requires its explicit native turn mode580; migrate this save explicitly.");
         }
-        ValidateNativeModelParts(saved.Scene, saved.Actors, saved.Frame, saved.DefaultsStarted, saved.TransitionRequested);
+        ValidateNativeModelParts(saved.Scene, saved.Actors, saved.Frame, saved.DefaultsStarted, saved.TransitionRequested, saved.MovieSource);
         if (saved.Scene.MovieActors is NativeMovieActorLifecycle movieActors)
         {
             movieActors.Validate(saved.Frame);
