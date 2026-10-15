@@ -167,7 +167,9 @@ public sealed partial class EventEngine
     private static bool ActorsTouch(ActorState current, ActorState target)
     {
         // Installed PC handler 0x51ED80 -> 0x47B460: signed arithmetic shift of position deltas,
-        // current push radius plus target talk radius, strict XY comparison and Z bounds.
+        // TARGET push502 plus CALLER talk504, strict XY comparison and Z bounds.
+        // Keep these owners: Quistis's corridor follow script uses its enlarged talk radius to select idle.
+        // Swapping the radii keeps ISTOUCH false and repeatedly reissues RMOVE/walk while Squall has stopped.
         int z = (int)MathF.Floor(target.Z - current.Z);
         if (z <= -127 || z >= 128)
         {
@@ -175,7 +177,7 @@ public sealed partial class EventEngine
         }
         int x = (int)MathF.Floor(target.X - current.X);
         int y = (int)MathF.Floor(target.Y - current.Y);
-        int radius = (ushort)current.PushRadius + (ushort)target.TalkRadius;
+        int radius = (ushort)target.PushRadius + (ushort)current.TalkRadius;
         return (long)x * x + (long)y * y < (long)radius * radius;
     }
 }

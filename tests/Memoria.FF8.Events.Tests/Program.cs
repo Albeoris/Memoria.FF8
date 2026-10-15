@@ -118,7 +118,7 @@ internal static partial class Program
                     ["native-facedir"] = NativeFacePointContract,
                     ["native-facedirp"] = NativePartyFaceContract,
                     ["native-ranimeloop-yield"] = NativeAnimationLoopYieldContract,
-                    ["native-movement-animation"] = NativeMovementAnimationDisplacementContract,
+                    ["native-movement-animation"] = () => NativeMovementAnimationContract(selectedGameDirectory),
                     ["native-face-sync"] = NativeFaceSyncContract,
                     ["native-rfacedir"] = NativeAsyncFacePointContract,
                     ["native-rfacedira"] = () => NativeAsyncFaceActorContract(selectedGameDirectory),
@@ -239,7 +239,7 @@ internal static partial class Program
             NativePartyActorDirectionContract();
             NativePartyFaceContract();
             NativeAnimationLoopYieldContract();
-            NativeMovementAnimationDisplacementContract();
+            NativeMovementAnimationContract(gameDirectory);
             NativePlayerScriptHandoffContract(gameDirectory);
             NativeEmptyPartyModelContract();
             NativeVibrationContract();

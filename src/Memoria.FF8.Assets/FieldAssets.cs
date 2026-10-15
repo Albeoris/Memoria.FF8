@@ -10,6 +10,7 @@ public sealed record FieldAssets(int Id, string Name, byte[] Jsm, IReadOnlyList<
     public string? NativeExecutableHash { get; init; }
     public IReadOnlyList<FieldCamera> Cameras { get; init; } = Array.AsReadOnly(new[] { Camera });
     public FieldInformation? Information { get; init; }
+    public FieldMovieMask? MovieMask { get; init; }
 
     public FieldCamera GetCamera(int index)
     {

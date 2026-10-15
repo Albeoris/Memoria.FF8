@@ -31,7 +31,7 @@ internal static partial class Program
         }
         NativeMovieMaskTwoRecordStartupRefusal(vitals, economy);
         NativeMovieMaskAtomicRefusals(vitals, economy);
-        Console.WriteLine("Native SETDCAMERA/movie mask: lowBYTE width, same-callback init successor, fresh loader/ready/start/cleanup owners, actual CAM flag40 parsing and8→0/16→1 order, record0/startup1/decoded callback draw latches, VM override, independent restores, exact render-only MSK refusal and required-state/opaque/provider atomic refusals passed. Installed CAM24 is static metadata only; no MSK pixels or original-runtime parity claim.");
+        Console.WriteLine("Native SETDCAMERA/movie mask: lowBYTE width, same-callback init successor, fresh loader/ready/start/cleanup owners, actual CAM flag40 parsing and8→0/16→1 order, record0/startup1/decoded callback draw latches, VM override, independent restores, required pre-CAM MSK draw selection and required-state/opaque/provider atomic refusals passed. Installed CAM24 is static metadata only; this VM scenario makes no MSK pixel or original-runtime parity claim.");
     }
 
     private static void NativeMovieMaskNativeTerminal(NativeCharacterVitals vitals, NativeEconomy economy, bool skipped)
@@ -206,7 +206,7 @@ internal static partial class Program
         }
         else
         {
-            ExpectNativeMovieMaskRenderRefusal(live.Engine, 0);
+            ExpectNativeMovieMaskRenderRequired(live.Engine, 0);
         }
         live.Engine.RequireSupportedMovieMaskRender(0, 0);
         Require(JsonElement.DeepEquals(guardBefore, live.Engine.Capture()), "Movie render admission mutated byte, callback or VM state.");
@@ -235,9 +235,9 @@ internal static partial class Program
             {
                 Require(current is { Value: 1, Playback.DrawValue: 0 }, "Combined flag24 lost16 precedence or the earlier draw0 latch.");
                 JsonElement saved = live.Engine.Capture();
-                ExpectNativeMovieMaskRenderRefusal(live.Engine, record);
+                ExpectNativeMovieMaskRenderRequired(live.Engine, record);
                 live.Engine.RequireSupportedMovieMaskRender(0, record);
-                Require(live.Session.IsMoviePlaying && live.Engine.LastFault is null && JsonElement.DeepEquals(saved, live.Engine.Capture()), "Unsupported MSK draw blocked decoding/VM or mutated the active phase.");
+                Require(live.Session.IsMoviePlaying && live.Engine.LastFault is null && JsonElement.DeepEquals(saved, live.Engine.Capture()), "MSK draw selection blocked decoding/VM or mutated the active phase.");
             }
         }
         long frame = live.Engine.Frame;
@@ -292,16 +292,9 @@ internal static partial class Program
         return bytes;
     }
 
-    private static void ExpectNativeMovieMaskRenderRefusal(EventEngine engine, int decodedFrame)
+    private static void ExpectNativeMovieMaskRenderRequired(EventEngine engine, int decodedFrame)
     {
-        try
-        {
-            engine.RequireSupportedMovieMaskRender(1, decodedFrame);
-            throw new InvalidOperationException("Movie render admission silently omitted the required native MSK draw.");
-        }
-        catch (NotSupportedException)
-        {
-        }
+        Require(engine.RequireSupportedMovieMaskRender(1, decodedFrame), "Movie rendering silently omitted the required pre-CAM MSK depth prepass.");
     }
 
     private static void NativeMovieMaskMalformedRestore(NativeCharacterVitals vitals, NativeEconomy economy, (Jsm.Opcode, int)[] body, NativeMovieCameraFlags flags, GameState state, JsonElement saved)

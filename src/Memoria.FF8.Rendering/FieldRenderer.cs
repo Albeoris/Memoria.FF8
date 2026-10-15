@@ -47,7 +47,7 @@ public sealed partial class FieldRenderer
     private Vector2 actorScrollOffset;
     private ProjectedPoint[] projected = [];
 
-    public FieldRenderer(FieldAssets field, int outputWidth = Width, int outputHeight = Height, ModelTextureSampling modelTextureSampling = ModelTextureSampling.Bilinear)
+    public FieldRenderer(FieldAssets field, int outputWidth = Width, int outputHeight = Height, ModelTextureSampling modelTextureSampling = ModelTextureSampling.Bilinear, bool nativeMovieViewport = false)
     {
         if (outputWidth < 1 || outputHeight < 1 || outputWidth > 8192 || outputHeight > 8192)
         {
@@ -65,18 +65,19 @@ public sealed partial class FieldRenderer
         pixels = new byte[checked(outputWidth * outputHeight * 4)];
         depth = new float[outputWidth * outputHeight];
         actorWritten = new bool[outputWidth * outputHeight];
-        scale = Math.Min(outputWidth / (float)Width, outputHeight / (float)Height);
+        int presentationHeight = nativeMovieViewport ? NativeDrawingHeight : Height;
+        scale = Math.Min(outputWidth / (float)Width, outputHeight / (float)presentationHeight);
         // Native 471F70 installs a 320x224 DRAWENV. 45B6F0 scales that
         // rectangle independently into the PC driver's 4:3 viewport.
-        verticalScale = Height * scale / NativeDrawingHeight;
+        verticalScale = presentationHeight * scale / NativeDrawingHeight;
         offsetX = (outputWidth - Width * scale) / 2;
-        offsetY = (outputHeight - Height * scale) / 2;
+        offsetY = (outputHeight - presentationHeight * scale) / 2;
         FieldBounds screen = field.Information is { ScreenBounds.Count: > 0 } information ? information.ScreenBounds[0] : new FieldBounds(0, NativeDrawingHeight, Width, 0);
         drawingOrigin = new Vector2(screen.Left + (screen.Right - screen.Left) / 2, screen.Top + (screen.Bottom - screen.Top) / 2);
         clipLeft = Math.Clamp((int)MathF.Ceiling(offsetX - 0.5f), 0, outputWidth);
         clipTop = Math.Clamp((int)MathF.Ceiling(offsetY - 0.5f), 0, outputHeight);
         clipRight = Math.Clamp((int)MathF.Ceiling(offsetX + Width * scale - 0.5f), 0, outputWidth);
-        clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + Height * scale - 0.5f), 0, outputHeight);
+        clipBottom = Math.Clamp((int)MathF.Ceiling(offsetY + presentationHeight * scale - 0.5f), 0, outputHeight);
         background = field.Background.OrderByDescending(tile => tile.Z).Select(tile => CreateTileRaster(tile, Vector2.Zero)).ToArray();
         renderBackground = background;
     }

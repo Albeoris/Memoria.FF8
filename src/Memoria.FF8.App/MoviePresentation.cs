@@ -14,6 +14,7 @@ internal sealed class MoviePresentation : IDisposable
     private readonly Stopwatch clock = new();
     private bool started;
     private int absoluteFrame;
+    private byte[] decodedPixels = [];
 
     public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true)
     {
@@ -24,6 +25,7 @@ internal sealed class MoviePresentation : IDisposable
     }
 
     public Texture2D Texture { get; }
+    public ReadOnlySpan<byte> DecodedPixels => decodedPixels;
     public double PositionSeconds => decoder.StartSeconds + clock.Elapsed.TotalSeconds;
     public bool Finished => started && IsComplete(PositionSeconds, decoder.Information.DurationSeconds, decoder.VideoFinished, decoder.AudioFinished, sound.PendingBufferCount);
     public bool HasFrame => started;
@@ -58,6 +60,7 @@ internal sealed class MoviePresentation : IDisposable
         while (decoder.TryGetNextFrame(clock.Elapsed.TotalSeconds, out MovieFrame? frame))
         {
             Texture.SetData(frame!.Rgba);
+            decodedPixels = frame.Rgba;
             absoluteFrame = Math.Min(decoder.Information.FrameCount - 1, MovieClock.AbsoluteFrame(decoder.StartSeconds, decoder.Information) + checked((int)frame.Index));
             if (!started)
             {

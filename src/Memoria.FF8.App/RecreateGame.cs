@@ -239,7 +239,11 @@ internal sealed partial class RecreateGame : Game
                 movie?.Dispose();
                 string directory = movieClock.ToolsDirectory;
                 string path = Path.Combine(options.GameDirectory, "Data", "movies", $"disc00_{session.State.MovieIndex:00}h.avi");
-                movie = new MoviePresentation(GraphicsDevice, directory, path, session.State.MovieSeconds, movieClock.Prepare(), options.AudioEnabled);
+                Memoria.FF8.Media.MovieInformation information = movieClock.Prepare();
+                // Resume from the actual last decoded frame. Wall-clock/audio position can be ahead
+                // when drawing falls behind and must not skip native callbacks on decoder restart.
+                double startSeconds = movieClock.State.FrameIndex / information.FramesPerSecond;
+                movie = new MoviePresentation(GraphicsDevice, directory, path, startSeconds, information, options.AudioEnabled);
                 movieIndex = session.State.MovieIndex;
                 error = null;
             }
@@ -249,8 +253,9 @@ internal sealed partial class RecreateGame : Game
             {
                 if (world is not null && !fieldFaulted)
                 {
+                    long before = world.Events.Frame;
                     bool active = world.AdvanceMovieFrame(playback, seconds);
-                    if (playback.FrameIndex >= 2)
+                    if (world.Events.Frame != before)
                     {
                         metrics.Simulate(1);
                     }

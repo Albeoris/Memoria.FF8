@@ -93,7 +93,7 @@ internal sealed partial class GameWorld
         session.SetDebugView(view with { Actors = actors });
     }
 
-    private ActorVisual CreateVisual(ActorState actor)
+    internal ActorVisual CreateVisual(ActorState actor)
     {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
         bool visible = view?.Visible ?? actor.Active && actor.Visible;

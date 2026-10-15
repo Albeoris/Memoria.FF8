@@ -334,7 +334,8 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.ISTOUCH:
                 args = Pop(fiber, 1);
-                ActorState? touched = actors.FirstOrDefault(item => item.ObjectId == args[0]);
+                int touchedId = program is not null && (uint)args[0] < program.NativeObjects.Count ? program.NativeObjects[args[0]] : -1;
+                ActorState? touched = touchedId >= 0 && (Scene.NativeActorLayoutVersion != 1 || Scene.NativeActorObjectIds.Contains(touchedId)) ? actors[touchedId] : null;
                 fiber.Results[0] = touched is not null && ActorsTouch(actor, touched) ? 1 : 0;
                 break;
             case Jsm.Opcode.REQ:

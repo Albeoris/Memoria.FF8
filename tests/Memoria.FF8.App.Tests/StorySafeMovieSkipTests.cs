@@ -101,7 +101,7 @@ public sealed class StorySafeMovieSkipTests
         }
     }
 
-    internal static void ReachCorridorMovie(GameSession session, GameWorld world)
+    internal static void ReachCorridorMovie(GameSession session, GameWorld world, string playerName = "Squall")
     {
         int centering = 0;
         for (int input = 0; input < 6000; input++)
@@ -112,7 +112,7 @@ public sealed class StorySafeMovieSkipTests
                 return;
             }
             DialogueState? dialogue = world.Events.CurrentDialogue;
-            PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: "Squall") : dialogue?.FirstChoice is int choice ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1) : new(PlayerActionKind.Wait);
+            PlayerAction action = session.IsMoviePlaying ? new(PlayerActionKind.SkipMovie) : dialogue?.IsNamePrompt == true ? new(PlayerActionKind.EnterName, Text: playerName) : dialogue?.FirstChoice is int choice ? new(PlayerActionKind.Choose, choice) : dialogue is { CanConfirm: true } ? new(PlayerActionKind.Confirm) : world.Events.FieldId == 229 && world.Events.CanAcceptMovementInput ? centering++ < 2 ? new(PlayerActionKind.Move, Horizontal: -1) : new(PlayerActionKind.Move, Vertical: 1) : new(PlayerActionKind.Wait);
             Assert.True(world.Apply(action).Accepted);
             Assert.Null(world.Events.LastFault);
         }

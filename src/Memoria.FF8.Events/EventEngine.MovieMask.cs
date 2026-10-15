@@ -170,20 +170,18 @@ public sealed partial class EventEngine
         }
     }
 
-    public void RequireSupportedMovieMaskRender(byte nativeInf14, int decodedFrame)
+    public bool RequireSupportedMovieMaskRender(byte nativeInf14, int decodedFrame)
     {
         if (!services.IsMoviePlaying || nativeInf14 != 1)
         {
-            return;
+            return false;
         }
         NativeMovieMaskPlayback playback = Scene.NativeMovieMask?.Playback ?? throw new NotSupportedException("Native movie rendering requires its current mask-control phase.");
         if (playback.DrawRecord != Math.Max(1, decodedFrame) || playback.DrawValue is not byte draw)
         {
             throw new NotSupportedException("Native movie rendering has no matching pre-CAM draw-control receipt.");
         }
-        if (draw == 0)
-        {
-            throw new NotSupportedException("Native movie MSK triangle rendering is not implemented for the current active movie draw.");
-        }
+        //The renderer consumes the retained pre-CAM draw phase; the live byte already belongs to the following callback.
+        return draw == 0;
     }
 }

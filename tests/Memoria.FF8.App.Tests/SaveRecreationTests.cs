@@ -165,10 +165,7 @@ public sealed class SaveRecreationTests
             world.Events.Step();
         }
         Assert.True(session.IsMoviePlaying);
-        clock.Prepare();
-        session.SetMoviePlayback(clock.State with { FrameIndex = 3 });
-        session.SetMoviePosition(0.2);
-        world.Events.Step();
+        StorySafeMovieSkipTests.DecodeThrough(session, world, clock, directory, 3);
         session.SetEventState(world.Events.Capture());
         GameState first = GameWorld.RecreateSave(session.State, directory);
         GameState second = GameWorld.RecreateSave(first, directory);

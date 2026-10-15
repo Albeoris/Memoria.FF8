@@ -204,6 +204,11 @@ public sealed class GameAssets : IDisposable
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");
         FieldAssets result = new(fieldId, name, Read(nested, name + ".jsm"), MsdFile.Read(Read(nested, name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray(), tiles, cameras[0], FieldWalkmesh.Read(walkmesh), models) { Cameras = cameras, Information = information.Length == 676 ? FieldInformation.Read(information) : null, WalkmeshHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(walkmesh)), NativeExecutableHash = NativeExecutableHash };
+        if (result.Information?.NativeMovieMaskFlag14 == 1)
+        {
+            //471010 admits MSK only through the original INF byte14, independently of the selected CA camera.
+            result = result with { MovieMask = FieldMovieMask.Read(Read(nested, name + ".msk")) };
+        }
         fields.Add(fieldId, result);
         return result;
     }

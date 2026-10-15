@@ -98,7 +98,10 @@ internal sealed partial class GameWorld : IDisposable
         session.SetMoviePlayback(playback);
         session.SetMoviePosition(seconds);
         // MOVIE owns startup records0/1; later decoded records each own one ordinary callback.
-        if (playback.FrameIndex >= 2)
+        // A resumed decoder first redisplays the saved frame. Its executed CAM receipt already
+        // owns that callback: running it twice repeats scripts and violates consecutive CAM order.
+        bool alreadyExecuted = Events.Scene.NativeMovieMask?.Playback?.AppliedRecord == playback.FrameIndex;
+        if (playback.FrameIndex >= 2 && !alreadyExecuted)
         {
             Events.Step();
         }
