@@ -545,6 +545,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MOVEA:
             case Jsm.Opcode.RMOVEA:
+            case Jsm.Opcode.PMOVEA:
                 args = ExecuteNativeScriptMove(fiber);
                 break;
             case Jsm.Opcode.SETGETA:
