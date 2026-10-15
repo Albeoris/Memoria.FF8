@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -92,8 +92,6 @@ public sealed record NativeSavedWorldCarReturn
     [JsonRequired]
     public required short MapLocationId { get; init; }
 
-    public NativeSemanticWorldTravel? SemanticTravel { get; init; }
-
     public static NativeSavedWorldCarReturn Create(WorldState world, ushort lastField, ushort story, short location)
     {
         world.NativeCarRuntime?.Validate();
@@ -108,10 +106,9 @@ public sealed record NativeSavedWorldCarReturn
 
     public void Validate()
     {
-        if (Version != 2 || (SemanticTravel is null ? Rule != SaveRule : Rule != NativeSemanticWorldTravel.ReturnRule) || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 != 0 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
+        if (Version != 2 || Rule != SaveRule || SourceWorldFrame < 0 || Pose is null || Pose.X is < -131072 or >= 131072 || Pose.RawZ is < -98304 or >= 98304 || Pose.Yaw >= 4096 || CameraYaw96 >= 4096 || EntityType105 is not (32 or 33) || Channel106 != 255 || Channel107 != 255 || AnimationVariant108 != 0 || MapDisplayMode110 != 0 || MapLocationId is < sbyte.MinValue or > sbyte.MaxValue)
         {
             throw new InvalidDataException("Invalid native car-to-field save receipt.");
         }
-        SemanticTravel?.ValidateReturn(StoryWord, EntityType105, Pose);
     }
 }

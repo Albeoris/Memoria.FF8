@@ -60,7 +60,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedJunctionBackupAliases()
     {
-        return EventMemory.Overlaps(188, 6) ? "Native JUNCTION backup bytes overlap a separate typed/untyped VM alias; recreate authentic inputs" : null;
+        return EventMemory.Overlaps(188, 6) ? "Native JUNCTION backup bytes overlap a separate typed/untyped VM alias; migrate this save explicitly" : null;
     }
 
     private string? UnsupportedJunctionBackupMemory(Fiber fiber, JsmOperation operation)

@@ -9,7 +9,7 @@ public sealed partial class GameSession
 
     public void InitializeNewGameWeaponRecipes(NativeWeaponRecipes recipes)
     {
-        if (State.WeaponRecipes is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (State.WeaponRecipes is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             throw new NotSupportedException("Native weapon recipe initialization requires the untouched authentic New Game template load.");
         }
@@ -41,7 +41,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("WeaponRecipes", out JsonElement captured))
         {
-            throw new InvalidDataException("Saved VM lacks its native weapon recipe owner; recreate authentic history.");
+            throw new InvalidDataException("Saved VM lacks its native weapon recipe owner; migrate this save explicitly.");
         }
         NativeWeaponRecipes? restored = captured.ValueKind == JsonValueKind.Null ? null : captured.Deserialize<NativeWeaponRecipes>(JsonOptions);
         restored?.Validate();

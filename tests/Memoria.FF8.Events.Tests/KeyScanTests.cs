@@ -59,7 +59,6 @@ internal static partial class Program
         Require(transient.Engine.ButtonInput is { Held: 0x10, Pressed: 0x10 } && transient.Session.State.Variables[5000] == 1, "Ordinary Cancel failed to supply its one-callback held pulse.");
         transient.Engine.Step();
         Require(transient.Engine.ButtonInput is { Held: 0, Pressed: 0 }, "A logical action pulse remained held.");
-        JsonSerializer.Deserialize<ReplayJournal>(JsonSerializer.Serialize(transient.Session.ReplayJournal))!.Validate();
         foreach (NativeFieldButtonInput invalid in new[] { new NativeFieldButtonInput(3, 0, 0x40, 2, 74, 0, 0, 0, 0x40), new NativeFieldButtonInput(3, 0, 0, 1, 74, 0, 0, 0, 0), new NativeFieldButtonInput(3, 0, 0, 2, 74, 0, 0, 0x1000, 0) })
         {
             try

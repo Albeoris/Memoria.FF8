@@ -171,7 +171,6 @@ internal static partial class Program
         }
         onDefaultStart?.Invoke(JsmProgram.Read(content).Objects[1].Scripts[1].Start);
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        session.MarkReplayUnavailable("Declared door default/result-bank component; requested contexts use current native Queue/selection producers.");
         EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;

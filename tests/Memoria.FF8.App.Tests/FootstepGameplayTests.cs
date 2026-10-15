@@ -13,7 +13,7 @@ public sealed class FootstepGameplayTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
         List<NativeFootstepSound> cues = CaptureCues(world);
         ReachCorridor(world, session);
         ActorState leader = Assert.IsType<ActorState>(world.Events.PlayerActor);
@@ -68,23 +68,23 @@ public sealed class FootstepGameplayTests
         string recreatedPath = Path.Combine(output, "fresh-corridor-recreated.json");
         try
         {
-            session.Save(source, registerJournalReference: false);
+            session.Save(source);
             GameState sourceState = GameSession.Load(source);
-            GameState recreatedState = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), directory);
-            new GameSession(recreatedState).Save(recreatedPath, registerJournalReference: false);
-            string[] semanticDifferences = StateDifferences(sourceState, recreatedState);
+            GameState recreatedState = GameSession.Load(source);
+            new GameSession(recreatedState).Save(recreatedPath);
+            string[] snapshotDifferences = StateDifferences(sourceState, recreatedState);
             AssertSameFootstepState(sourceState, recreatedState, leader.ObjectId);
-            GameState repeatedState = GameWorld.RecreateSave(GameSession.LoadReplaySource(recreatedPath), directory);
+            GameState repeatedState = GameSession.Load(recreatedPath);
             AssertSameFootstepState(recreatedState, repeatedState, leader.ObjectId);
             GameSession restoredSession = new(GameSession.Load(source));
             AssertSameState(sourceState, restoredSession.State, "direct source load");
-            using GameWorld restored = new(restoredSession, directory, persistReplayJournal: false);
+            using GameWorld restored = new(restoredSession, directory);
             List<NativeFootstepSound> resumedCues = CaptureCues(restored);
             restored.EnsureField();
             Assert.Empty(resumedCues);
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
-            using GameWorld recreated = new(new GameSession(recreatedState), directory, persistReplayJournal: false);
-            using GameWorld repeated = new(new GameSession(repeatedState), directory, persistReplayJournal: false);
+            using GameWorld recreated = new(new GameSession(recreatedState), directory);
+            using GameWorld repeated = new(new GameSession(repeatedState), directory);
             List<NativeFootstepSound> recreatedCues = CaptureCues(recreated);
             List<NativeFootstepSound> repeatedCues = CaptureCues(repeated);
             recreated.EnsureField();
@@ -104,7 +104,7 @@ public sealed class FootstepGameplayTests
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             Assert.Equal(recreatedCues, repeatedCues);
             Assert.NotEmpty(recreatedCues);
-            var summary = new { Field = world.Events.FieldId, Leader = leader.ObjectId, OpeningCues = openingCues, MovedFrames = movedFrames, MovementCues = movementCues.Length, Mode0 = movementCues.Count(cue => cue.Mode == 0), Mode1 = movementCues.Count(cue => cue.Mode == 1), ResumedCues = resumedCues.Count, RecreatedCues = recreatedCues.Count, Movement = movementCues, Resumed = resumedCues, Source = source, Recreated = recreatedPath, Entries = sourceState.ReplayJournal!.EntryCount, DirectRestoreStateEqual = true, SemanticFootstepStateEqual = true, SemanticFullStateDifferences = semanticDifferences, RepeatedSemanticFullStateDifferences = StateDifferences(recreatedState, repeatedState) };
+            var summary = new { Field = world.Events.FieldId, Leader = leader.ObjectId, OpeningCues = openingCues, MovedFrames = movedFrames, MovementCues = movementCues.Length, Mode0 = movementCues.Count(cue => cue.Mode == 0), Mode1 = movementCues.Count(cue => cue.Mode == 1), ResumedCues = resumedCues.Count, RecreatedCues = recreatedCues.Count, Movement = movementCues, Resumed = resumedCues, Source = source, Recreated = recreatedPath, DirectRestoreStateEqual = true, SnapshotFootstepStateEqual = true, SnapshotFullStateDifferences = snapshotDifferences, RepeatedSnapshotFullStateDifferences = StateDifferences(recreatedState, repeatedState) };
             File.WriteAllText(Path.Combine(output, "summary.json"), JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
             Console.WriteLine(JsonSerializer.Serialize(summary));
         }
@@ -169,8 +169,8 @@ public sealed class FootstepGameplayTests
 
     private static string[] StateDifferences(GameState first, GameState second)
     {
-        JsonElement expected = JsonSerializer.SerializeToElement(first with { ReplayJournal = null });
-        JsonElement actual = JsonSerializer.SerializeToElement(second with { ReplayJournal = null });
+        JsonElement expected = JsonSerializer.SerializeToElement(first);
+        JsonElement actual = JsonSerializer.SerializeToElement(second);
         return expected.EnumerateObject().Where(property => !actual.TryGetProperty(property.Name, out JsonElement other) || !JsonElement.DeepEquals(property.Value, other)).Select(property => property.Name).ToArray();
     }
 
@@ -186,7 +186,7 @@ public sealed class FootstepGameplayTests
         JsonElement secondEvents = second.EventState!.Value;
         JsonElement firstLeader = firstEvents.GetProperty("Actors").EnumerateArray().Single(actor => actor.GetProperty("ObjectId").GetInt32() == leaderId);
         JsonElement secondLeader = secondEvents.GetProperty("Actors").EnumerateArray().Single(actor => actor.GetProperty("ObjectId").GetInt32() == leaderId);
-        Assert.True(JsonElement.DeepEquals(firstLeader, secondLeader), "Semantic reconstruction changed the selected leader, animation header, position or previous model origin.");
+        Assert.True(JsonElement.DeepEquals(firstLeader, secondLeader), "Snapshot continuation changed the selected leader, animation header, position or previous model origin.");
         Assert.True(JsonElement.DeepEquals(firstEvents.GetProperty("Scene").GetProperty("Party"), secondEvents.GetProperty("Scene").GetProperty("Party")));
     }
 }

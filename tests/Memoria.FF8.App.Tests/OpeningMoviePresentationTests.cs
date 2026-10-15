@@ -91,7 +91,7 @@ public sealed class OpeningMoviePresentationTests
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         MovieClock clock = new(session, game, Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS"));
-        using GameWorld world = new(session, game, clock, persistReplayJournal: false);
+        using GameWorld world = new(session, game, clock);
         for (int callback = 0; !session.IsMoviePlaying && callback < 60; callback++)
         {
             world.EnsureField();

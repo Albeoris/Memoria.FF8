@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class IfritOutsideCheckpointTests
 {
     [Fact]
-    public void AuthenticOutsideJournalRetainsIfritAndCurrentTimerAcrossQuickAndManualLoad()
+    public void OutsideSnapshotRetainsIfritAndCurrentTimerAcrossQuickAndManualLoad()
     {
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed field corpus is required.");
@@ -19,9 +19,7 @@ public sealed class IfritOutsideCheckpointTests
         Assert.NotNull(repository);
         string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
         byte[] original = File.ReadAllBytes(source);
-        ReplayJournalEntry[] entries = GameSession.LoadReplaySource(source).ReplayJournal!.Entries.ToArray();
-        int selectedCount = Array.FindLastIndex(entries, entry => entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 129) + 1;
-        GameState recreated = ExamTimerContinuationTests.RecreateRecordedPrefix(source, gameDirectory, selectedCount);
+        GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_IFRIT_RETURN_SNAPSHOT", 129);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, gameDirectory);
         world.EnsureField();

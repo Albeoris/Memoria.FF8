@@ -18,7 +18,7 @@ public sealed class NativeScrollRatioContinuationTests
         GameState actual = GameSession.Load(source!);
         Assert.Equal(248, actual.FieldId);
         GameSession session = new(actual);
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         Assert.Equal(8, world.Events.Scene.BackgroundScrollLayers.Count);
         world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 2));
@@ -49,7 +49,7 @@ public sealed class NativeScrollRatioContinuationTests
         JsonElement native = world.Events.Capture();
         GameState current = session.State with { EventState = native };
         GameState independent = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(current))!;
-        using GameWorld resumed = new(new GameSession(independent), directory, persistReplayJournal: false);
+        using GameWorld resumed = new(new GameSession(independent), directory);
         resumed.EnsureField();
         resumed.SetRenderSize(640, 448);
         Assert.True(JsonElement.DeepEquals(native, resumed.Events.Capture()));

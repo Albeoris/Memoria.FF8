@@ -23,7 +23,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("VibrationProcess", out JsonElement captured))
         {
-            throw new InvalidDataException("Saved VM lacks its native vibration process; recreate authentic history.");
+            throw new InvalidDataException("Saved VM lacks its native vibration process; migrate this save explicitly.");
         }
         NativeVibrationProcessState? vibration = captured.ValueKind == JsonValueKind.Null ? null : captured.Deserialize<NativeVibrationProcessState>(JsonOptions);
         vibration?.Validate();

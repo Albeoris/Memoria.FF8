@@ -13,13 +13,10 @@ public sealed class NativeWorldProcessTests
         NativeWorldProcess cold = session.WorldProcess!;
         Assert.True(cold.IsColdProcess);
         session.StartNewGame();
-        Assert.True(session.ReplayJournal!.IsComplete);
         NativeWorldProcess executed = cold.AdvanceMainLoopCallbacks(7) with { CameraCooldown = 46 };
         session.SetWorldProcess(executed);
         session.StartNewGame();
         Assert.Equal(executed, session.WorldProcess);
-        Assert.False(session.ReplayJournal!.IsComplete);
-        Assert.Contains("main-loop counter", session.ReplayJournal.UnavailableReason);
         GameSession restored = new(session.State);
         Assert.Equal(executed, restored.WorldProcess);
         restored.SetWorldProcess(restored.WorldProcess!.AdvanceMainLoopCallbacks(1));

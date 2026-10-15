@@ -32,7 +32,6 @@ internal sealed class MovieClock
             throw new NotSupportedException("Movie decoding requires an active native playback request.");
         }
         NativeMovieSource source = RequireSource(session.State);
-        session.SetReplayMovieSourceHash(GetSourceHash(gameDirectory, source.DiscIndex, source.MovieIndex));
         if (!movies.TryGetValue(source, out MovieInformation? information))
         {
             information = FfmpegMovieDecoder.Probe(toolsDirectory, SourcePath);
@@ -52,7 +51,7 @@ internal sealed class MovieClock
 
     internal static NativeMovieSource RequireSource(GameState state)
     {
-        NativeMovieSource source = state.MovieSource ?? throw new NotSupportedException("Movie media requires its executed MOVIEREADY disc/resource binding; recreate authentic history.");
+        NativeMovieSource source = state.MovieSource ?? throw new NotSupportedException("Movie media requires its executed MOVIEREADY disc/resource binding; migrate this save explicitly.");
         source.Validate();
         if (state.Scene == SceneKind.Movie && source.MovieIndex != state.MovieIndex)
         {

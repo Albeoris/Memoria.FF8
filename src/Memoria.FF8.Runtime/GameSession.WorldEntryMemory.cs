@@ -28,7 +28,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("WorldEntryMemory", out JsonElement element))
         {
-            throw new InvalidDataException("Saved VM lacks its required native world-entry byte owner; recreate authentic inputs.");
+            throw new InvalidDataException("Saved VM lacks its required native world-entry byte owner; migrate this save explicitly.");
         }
         NativeWorldEntryMemory? captured = element.ValueKind == JsonValueKind.Null ? null : element.Deserialize<NativeWorldEntryMemory>(JsonOptions);
         captured?.Validate();

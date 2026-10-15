@@ -13,7 +13,7 @@ public sealed class NativeField135LinearScrollTests
         (string directory, string source) = Corpus();
         byte[] original = File.ReadAllBytes(source);
         var session = new GameSession(RecreateLava(directory, source));
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         world.SetRenderSize(320, 240);
         GameWorld? restored = null;
@@ -53,7 +53,7 @@ public sealed class NativeField135LinearScrollTests
                     Assert.NotEqual(firstLavaPixels, pixels);
                     session.SetEventState(world.Events.Capture());
                     session.Save(save);
-                    restored = new GameWorld(new GameSession(GameSession.Load(save)), directory, persistReplayJournal: false);
+                    restored = new GameWorld(new GameSession(GameSession.Load(save)), directory);
                     restored.EnsureField();
                     restored.SetRenderSize(320, 240);
                     Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
@@ -88,7 +88,7 @@ public sealed class NativeField135LinearScrollTests
     public void SavedNativeLavaPhaseRejectsMalformedAuthorityBeforeChangingTheVm()
     {
         (string directory, string source) = Corpus();
-        using var world = new GameWorld(new GameSession(RecreateLava(directory, source)), directory, persistReplayJournal: false);
+        using var world = new GameWorld(new GameSession(RecreateLava(directory, source)), directory);
         world.EnsureField();
         for (int tick = 0; tick < 10; tick++)
         {
@@ -115,18 +115,7 @@ public sealed class NativeField135LinearScrollTests
 
     internal static GameState RecreateBoundary(string directory, string source, int fieldId, int frame)
     {
-        ReplayJournal journal = GameSession.LoadReplaySource(source).ReplayJournal!;
-        ReplayJournalEntry[] entries = journal.Entries.ToArray();
-        int endpointIndex = Array.FindIndex(entries, entry => entry.ResultScene == SceneKind.Field && entry.ResultFieldId == fieldId && entry.ResultFrame == frame);
-        Assert.True(endpointIndex >= 0, $"The authentic route must retain field{fieldId}/frame{frame}.");
-        var seed = GameSession.CreateColdProcess();
-        seed.StartNewGame();
-        ReplayJournal prefix = seed.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in entries.Take(endpointIndex + 1))
-        {
-            prefix = prefix.Append(entry);
-        }
-        return GameWorld.RecreateSave(new GameState { Scene = SceneKind.Field, FieldId = fieldId, ReplayJournal = prefix }, directory);
+        return SnapshotFixtures.Require($"MEMORIA_FF8_FIELD_{fieldId}_FRAME_{frame}_SNAPSHOT", fieldId, frame);
     }
 
     private static (string Directory, string Source) Corpus()

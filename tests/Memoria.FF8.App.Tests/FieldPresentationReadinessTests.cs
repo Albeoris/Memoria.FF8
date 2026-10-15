@@ -57,11 +57,10 @@ public sealed class FieldPresentationReadinessTests
         Assert.Equal((short)0, reset.X.Counter);
         Assert.Equal(reset, engine.FieldShake);
         session.Restore(session.State with { FieldId = 601, EventState = engine.Capture() });
-        session.MarkReplayUnavailable("Declared shake lifecycle component has no original route journal.");
         string path = Path.Combine(Path.GetTempPath(), "ff8-shake-owner-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(path, registerJournalReference: false);
+            session.Save(path);
             Assert.Equal(reset, GameSession.Load(path).FieldShake);
         }
         finally
@@ -75,7 +74,7 @@ public sealed class FieldPresentationReadinessTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, GameDirectory(), persistReplayJournal: false);
+        using var world = new GameWorld(session, GameDirectory());
         world.EnsureField();
         Assert.Equal(NativeFieldShake.FromColdProcess(), world.Events.FieldShake);
         for (int callback = 0; callback < 60; callback++)
@@ -84,11 +83,9 @@ public sealed class FieldPresentationReadinessTests
             {
                 JsonElement vm = world.Events.Capture();
                 NativeFieldShake owner = session.FieldShake!;
-                long entries = session.ReplayJournal!.EntryCount;
                 Assert.NotEmpty(world.Render(TimeSpan.Zero));
                 Assert.Equal(owner, session.FieldShake);
                 Assert.True(JsonElement.DeepEquals(vm, world.Events.Capture()));
-                Assert.Equal(entries, session.ReplayJournal.EntryCount);
                 Assert.Null(world.Events.LastFault);
                 return;
             }
@@ -103,7 +100,7 @@ public sealed class FieldPresentationReadinessTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, GameDirectory(), persistReplayJournal: false);
+        using var world = new GameWorld(session, GameDirectory());
         world.EnsureField();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         world.EnsureField();

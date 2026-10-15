@@ -20,7 +20,7 @@ public sealed partial class EventEngine
         }
         if (Scene.NativeDoorDriverVersion != 2)
         {
-            throw new NotSupportedException($"Legacy field{FieldId} SETLINE state lacks persisted native initialization provenance; replay its original arrival and fresh initialization. Original movement preserved.");
+            throw new NotSupportedException($"Legacy field{FieldId} SETLINE state lacks persisted native initialization provenance; load a snapshot containing its initialized native state.");
         }
         return PrepareNativeDoorMovement(player, proposal, direction);
     }
@@ -42,7 +42,7 @@ public sealed partial class EventEngine
         }
         if (IsUserControlEnabled && actors.Any(line => program!.Objects[line.ObjectId].IsDoor && line.NativeLineCrossingPending))
         {
-            throw new NotSupportedException("Legacy native door pending contact lacks the proved direct-slot mapping; replay fresh initialization. Original state preserved.");
+            throw new NotSupportedException("Legacy native door pending contact lacks the proved direct-slot mapping; load a snapshot containing its initialized native state.");
         }
     }
 

@@ -12,7 +12,7 @@ public sealed class NativeTrainStationChoiceTests
     public void InvalidVisibleChoicePreservesTheCompleteLoadedSession(int choice)
     {
         var session = new GameSession(LoadStationPrompt());
-        using var world = new GameWorld(session, GameDirectory(), persistReplayJournal: false);
+        using var world = new GameWorld(session, GameDirectory());
         Assert.True(world.EnsureField());
         AssertStationPrompt(world);
         JsonElement before = JsonSerializer.SerializeToElement(session.State);
@@ -29,7 +29,7 @@ public sealed class NativeTrainStationChoiceTests
     public void DismountUsesTheOriginalStationPoseAndRestoresTheNextFootCallbackAndPixels()
     {
         var session = new GameSession(LoadStationPrompt());
-        using var world = new GameWorld(session, GameDirectory(), persistReplayJournal: false);
+        using var world = new GameWorld(session, GameDirectory());
         world.EnsureField();
         AssertStationPrompt(world);
         WorldState before = session.State.World!;
@@ -52,10 +52,9 @@ public sealed class NativeTrainStationChoiceTests
         Assert.Equal(0, foot.TrainDismount.Station.Index);
         Assert.Equal(station.Frame, foot.StationTrainProcess!.Callback);
         Assert.Equal(0, foot.StationTrainProcess.Primary.Pause);
-        Assert.Equal("Choose", station.Actions[^1].Kind);
 
         var restoredSession = new GameSession(Clone(session.State));
-        using var restored = new GameWorld(restoredSession, GameDirectory(), persistReplayJournal: false);
+        using var restored = new GameWorld(restoredSession, GameDirectory());
         restored.EnsureField();
         world.SetRenderSize(320, 224);
         restored.SetRenderSize(320, 224);
@@ -76,7 +75,7 @@ public sealed class NativeTrainStationChoiceTests
     public void DecliningDismountReleasesTheSameTrainBankAndResumesItsNextCallback()
     {
         var session = new GameSession(LoadStationPrompt());
-        using var world = new GameWorld(session, GameDirectory(), persistReplayJournal: false);
+        using var world = new GameWorld(session, GameDirectory());
         world.EnsureField();
         AssertStationPrompt(world);
         long sourceFrame = session.State.World!.Frame;
@@ -93,7 +92,7 @@ public sealed class NativeTrainStationChoiceTests
         Assert.Contains(train.Callback, train.StationDeclines);
 
         var restoredSession = new GameSession(Clone(session.State));
-        using var restored = new GameWorld(restoredSession, GameDirectory(), persistReplayJournal: false);
+        using var restored = new GameWorld(restoredSession, GameDirectory());
         restored.EnsureField();
         PlayerAction next = new(PlayerActionKind.Wait);
         Assert.Equal(world.Apply(next), restored.Apply(next));
@@ -130,8 +129,6 @@ public sealed class NativeTrainStationChoiceTests
         }
         Assert.NotNull(repository);
         GameState source = GameSession.Load(Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
-        Assert.NotNull(source.ReplayJournal);
-        Assert.True(source.ReplayJournal.IsComplete);
         return source;
     }
 

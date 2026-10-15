@@ -21,7 +21,7 @@ public sealed class DirectScrollRenderTests
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         var session = new GameSession(NativeField135LinearScrollTests.RecreateBoundary(directory, source, 172, 3));
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         var original = world.Events.Actors.Select(actor => (actor.X, actor.Y, actor.Z)).ToArray();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
@@ -42,7 +42,7 @@ public sealed class DirectScrollRenderTests
         Assert.True(shiftedBody.Where((_, index) => index % 4 != 3).All(value => value == 0));
         byte[] pixels = world.Render(TimeSpan.Zero).ToArray();
         GameState captured = session.State with { EventState = world.Events.Capture() };
-        using var resumed = new GameWorld(new GameSession(captured), directory, persistReplayJournal: false);
+        using var resumed = new GameWorld(new GameSession(captured), directory);
         resumed.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), resumed.Events.Capture()));
         Assert.Equal(pixels, resumed.Render(TimeSpan.Zero));

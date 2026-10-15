@@ -21,7 +21,7 @@ public sealed class NativeBoatWorldTests
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using GameAssets initializationAssets = new(directory);
-        departure = departure with { ReplayJournal = session.State.ReplayJournal, WorldControls = departure.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 }, CharacterVitals = initializationAssets.ReadNewGameCharacterVitals(), SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess };
+        departure = departure with { WorldControls = departure.WorldControls!.WithSalaryEnabled(true), SeeD = session.SeeD!.WithSalaryUiEnabled(true) with { SalaryMovementCounter = 123, RankPoints = 65535 }, CharacterVitals = initializationAssets.ReadNewGameCharacterVitals(), SalaryPresentation = session.SalaryPresentation, GlobalSoundProcess = session.GlobalSoundProcess };
         session.Restore(departure);
         using PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(departure, directory, packet);
         Assert.Same(departure, session.State);
@@ -52,8 +52,6 @@ public sealed class NativeBoatWorldTests
         Assert.Equal(pixels, replay.Render(320, 224));
         // Only the just-executed action is replayed locally; this fixture is never
         // presented as a reconstructable New Game checkpoint.
-        session.MarkReplayUnavailable("Isolated boat lifecycle fixture has no authentic preceding route history.");
-        replaySession.MarkReplayUnavailable("Isolated boat lifecycle fixture has no authentic preceding route history.");
         GameState restoredState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         using WorldMapScene restored = new(new GameSession(restoredState), directory);
         Assert.Equal(pixels, restored.Render(320, 224));

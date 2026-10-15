@@ -30,7 +30,4 @@ public sealed record WorldState
     public NativeScriptedWorldRuntimeState? NativeScriptedRuntime { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeTrainWorldRuntimeState? NativeTrainRuntime { get; init; }
-    public List<WorldActionRecord> Actions { get; init; } = [];
 }
-
-public sealed record WorldActionRecord(long Index, long Frame, string Kind, float Horizontal, float Vertical, int RequestedFrames, int AdvancedFrames, int X, int Z, int NativeHeight, float CameraHorizontal = 0);

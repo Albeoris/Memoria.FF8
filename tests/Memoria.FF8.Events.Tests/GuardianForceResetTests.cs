@@ -52,13 +52,13 @@ internal static partial class Program
         try
         {
             GameSession savedSession = new(session.State with { Scene = SceneKind.Field, FieldId = 323, EventState = checkpoint });
-            savedSession.Save(savePath, false);
+            savedSession.Save(savePath);
             GameState loaded = GameSession.Load(savePath);
             Require(loaded.CharacterVitals!.Records.SequenceEqual(reset.Records) && JsonElement.DeepEquals(loaded.EventState!.Value, checkpoint), "Independent game save/load changed junction byte content or matching root/event identity.");
             NativeCharacterVital[] changedRecords = reset.Records.ToArray();
             changedRecords[6] = changedRecords[6] with { Junction = changedRecords[6].Junction with { GuardianForces = 1 } };
             GameSession mismatchedSession = new(savedSession.State with { CharacterVitals = reset with { Records = changedRecords } });
-            mismatchedSession.Save(savePath, false);
+            mismatchedSession.Save(savePath);
             try
             {
                 GameSession.Load(savePath);

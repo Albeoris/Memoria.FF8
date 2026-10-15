@@ -7,16 +7,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTrainContinuationTests
 {
     [Fact]
-    public void Authentic_station_journal_boards_the_five_node_train_and_recreates_its_actual_field_endpoint()
+    public void Station_snapshot_boards_the_five_node_train_and_recreates_its_actual_field_endpoint()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original train and field corpus is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
-        GameState state = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), directory);
+        GameState state = GameSession.Load(source);
         Assert.Equal(104, state.FieldId);
-        Assert.Equal(40320, state.ReplayJournal!.EntryCount);
         var session = new GameSession(state);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         world.Apply(new PlayerAction(PlayerActionKind.Wait));
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
@@ -46,9 +45,9 @@ public sealed class NativeTrainContinuationTests
         string temporary = Path.Combine(Path.GetTempPath(), "ff8-authentic-train-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(temporary, registerJournalReference: false);
+            session.Save(temporary);
             var restoredSession = new GameSession(GameSession.Load(temporary));
-            using var restored = new GameWorld(restoredSession, directory, persistReplayJournal: false);
+            using var restored = new GameWorld(restoredSession, directory);
             restored.EnsureField();
             world.SetRenderSize(640, 448);
             restored.SetRenderSize(640, 448);
@@ -76,12 +75,12 @@ public sealed class NativeTrainContinuationTests
             world.EnsureField();
             restored.EnsureField();
             session.SetEventState(world.Events.Capture());
-            session.Save(temporary, registerJournalReference: false);
+            session.Save(temporary);
             var endpointSession = new GameSession(GameSession.Load(temporary));
-            using var endpoint = new GameWorld(endpointSession, directory, persistReplayJournal: false);
+            using var endpoint = new GameWorld(endpointSession, directory);
             endpoint.EnsureField();
             endpoint.SetRenderSize(640, 448);
-            GameState independentlyRecreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(temporary), directory);
+            GameState independentlyRecreated = GameSession.Load(temporary);
             EqualState(session.State, independentlyRecreated);
             PlayerAction fieldNext = new(PlayerActionKind.Wait);
             Assert.Equal(world.Apply(fieldNext), endpoint.Apply(fieldNext));
@@ -103,7 +102,7 @@ public sealed class NativeTrainContinuationTests
 
     private static void EqualState(GameState first, GameState second)
     {
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(first with { ReplayJournal = null }), JsonSerializer.SerializeToElement(second with { ReplayJournal = null })));
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(first), JsonSerializer.SerializeToElement(second)));
     }
 
     private static string Repository()

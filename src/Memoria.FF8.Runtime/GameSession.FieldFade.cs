@@ -24,7 +24,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("FieldFade", out JsonElement captured))
         {
-            throw new InvalidDataException("Saved VM lacks its native physical/saved field fade process; recreate authentic history.");
+            throw new InvalidDataException("Saved VM lacks its native physical/saved field fade process; migrate this save explicitly.");
         }
         NativeFieldFadeState? fade = captured.ValueKind == JsonValueKind.Null ? null : captured.Deserialize<NativeFieldFadeState>(JsonOptions);
         fade?.Validate();

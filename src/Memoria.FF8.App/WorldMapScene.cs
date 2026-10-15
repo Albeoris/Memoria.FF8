@@ -156,7 +156,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original foot spawn has no native53EB80 ground lookup result.");
                     NativeWorldGroundCacheState? retained = session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache;
-                    NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest loader requires the executed main-loop/camera process history; recreate its journal.");
+                    NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest loader requires the executed main-loop/camera process history; migrate this save explicitly.");
                     initialFootRuntime = initialFootRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, retained), Forest = NativeWorldForestState.Create(process.MainLoopCounter, process.CameraCooldown) };
                     ground = initialGround.Ground;
                 }
@@ -268,9 +268,6 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice;
         int advanced = 0;
-        int sourceField = session.State.FieldId;
-        long sourceFrame = State.Frame;
-        List<ReplayWorldNavigationStimulus> navigation = [];
         WorldState candidate = State;
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
         List<GlobalSoundRequest> salaryRequests = [];
@@ -285,7 +282,7 @@ internal sealed partial class WorldMapScene : IDisposable
                     salary = salary.PrepareCarVibration(car.EntityType, assets.VibrationBank);
                 }
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, out fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed);
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
                 if (stationChoice)
                 {
                     NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
@@ -325,7 +322,6 @@ internal sealed partial class WorldMapScene : IDisposable
                 //53FAC0 calls49A970 after ordinary body update; its already-requested departure fade returns before that call.
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
                 salaryRequests.AddRange(effects.Requests);
-                navigation.Add(proposal);
                 advanced++;
                 if (fieldEntry is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice)
                 {
@@ -333,8 +329,6 @@ internal sealed partial class WorldMapScene : IDisposable
                 }
             }
         }
-        List<WorldActionRecord> actions = [.. candidate.Actions, new WorldActionRecord(candidate.Actions.Count + 1, candidate.Frame, action.Kind.ToString(), action.Horizontal, action.Vertical, action.Frames, advanced, candidate.X, candidate.Z, candidate.NativeHeight, action.CameraHorizontal)];
-        candidate = candidate with { Actions = actions };
         if (fieldEntry is not null)
         {
             if (PrepareFieldEntry is null)
@@ -346,7 +340,6 @@ internal sealed partial class WorldMapScene : IDisposable
             PublishSalaryEffects?.Invoke(new NativeSalaryEffects(salary.Presentation, salary.SoundProcess, salaryRequests));
             LastDeparture = candidate;
             PlayerActionResult departed = new(true, new PlayerTrigger(PlayerTriggerKind.FieldTransition, fieldEntry.Entry.FieldId, candidate.Frame, null, null), advanced);
-            RecordReplay(departed);
             return departed;
         }
         if (accepted)
@@ -360,13 +353,8 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         PlayerTrigger trigger = CurrentDialogue is { } dialogue ? new(PlayerTriggerKind.Dialogue, session.State.FieldId, State.Frame, dialogue.MessageId, dialogue.Text) : new(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null);
         PlayerActionResult result = new(accepted, trigger, advanced, accepted ? null : "This original world action is not implemented.");
-        RecordReplay(result);
         return result;
 
-        void RecordReplay(PlayerActionResult outcome)
-        {
-            session.AppendReplayEntry(new ReplayJournalEntry(ReplayEntryKind.WorldAction, SceneKind.WorldMap, sourceField, sourceFrame) { Code = (int)action.Kind, Value = action.Value, Text = action.Text, Horizontal = action.Horizontal, Vertical = action.Vertical, CameraHorizontal = action.CameraHorizontal, Frames = action.Frames, MessageId = stationChoice ? sourceDialogue!.MessageId : null, Operation = stationChoice ? sourceDialogue!.Operation : null, Advanced = outcome.FramesAdvanced, Accepted = outcome.Accepted, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = candidate.Frame, ResultTrigger = (int)outcome.Trigger.Kind, WorldNavigation = navigation.ToArray(), WorldEffects = salary.ReplayEffects.ToArray() });
-        }
     }
 
     public byte[] Render(int width, int height)
@@ -397,24 +385,24 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         if (before.NativeTrainRuntime is not null)
         {
-            return StepTrainRide(before, horizontal, vertical, priorGraphicsSpeed, out fieldEntry, out inputProposal, out salaryMovementUnits, out graphicsSpeed);
+            return StepTrainRide(before, horizontal, vertical, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         if (before.NativeScriptedRuntime is not null)
         {
             // Native53FAC0 does not call6519D0 for scripted entities16..22/65/66.
             salaryMovementUnits = 0;
             graphicsSpeed = before.NativeScriptedRuntime.Path.EndpointRequested ? priorGraphicsSpeed : 0;
-            return StepScripted(before, out fieldEntry, out inputProposal, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeScriptedRuntime.Path.EntityType).ProjectNode(node));
+            return StepScripted(before, out fieldEntry, (node, camera, origin) => NativeWorldPathProjectionCertificate.Create(camera, origin, before.NativeScriptedRuntime.Path.EntityType).ProjectNode(node));
         }
         if (before.NativeCarRuntime is not null)
         {
             // The certified car loader retains animation variant0. Original5573C0
             // admits manual vehicle camera offset14 only for variant1.
-            return StepCar(before, horizontal, vertical, out fieldEntry, out inputProposal, out salaryMovementUnits, out graphicsSpeed);
+            return StepCar(before, horizontal, vertical, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         fieldEntry = null;
         NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
@@ -466,7 +454,6 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             foot = StepNormalFootObjects(before with { CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         }
-        inputProposal = new ReplayWorldNavigationStimulus(x, z);
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;

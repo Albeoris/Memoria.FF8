@@ -13,10 +13,12 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         NativeInputConfiguration configuration = assets.ReadNewGameInputConfiguration();
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         Require(configuration.Options == 0x20001 && configuration.ButtonMap.SequenceEqual(Enumerable.Range(1, 12).Select(value => (byte)value)), "Authentic native options do not match the extracted56DA10 template.");
         EventEngine Create(Jsm.Opcode query, int mask, bool mapped = true)
         {
-            GameSession session = GameSession.CreateColdProcess();
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             if (mapped)
             {
                 session.SetInputConfiguration(configuration);
@@ -93,8 +95,12 @@ internal static partial class Program
         Require(carry.Frame == 0 && carry.ButtonInput == beforeLoad && carry.ButtonInput.SampledFieldId == 600, "Normal allocation reset or rebased the global raw sampler.");
         JsonElement allocated = carry.Capture();
         EventEngine independent = Create(Jsm.Opcode.KEYON, 0x40);
+        independent.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 0x40));
+        independent.Step();
         independent.LoadField(601, later, [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
         independent.Restore(allocated);
+        carry.Step();
+        independent.Step();
         carry.Step();
         independent.Step();
         Require(carry.ButtonInput!.RawHeld == 0x40 && carry.ButtonInput.RawPressed == 0 && JsonElement.DeepEquals(carry.Capture(), independent.Capture()), "First new-field sample fabricated another edge or diverged after exact allocation-boundary restore.");
@@ -107,21 +113,6 @@ internal static partial class Program
         pulse.Step();
         pulse.Apply(new PlayerAction(PlayerActionKind.Cancel));
         Require(pulse.ButtonInput.RawPressed == 0x10, "A real sampled release failed to permit the next rise.");
-        foreach (int raw in new[] { 4, 0x20, 0x80, ushort.MaxValue })
-        {
-            new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 600, 0) { Code = (int)PlayerActionKind.FieldButtons, Value = raw }.Validate();
-        }
-        foreach (int raw in new[] { -1, 65536 })
-        {
-            try
-            {
-                new ReplayJournalEntry(ReplayEntryKind.Action, SceneKind.Field, 600, 0) { Code = (int)PlayerActionKind.FieldButtons, Value = raw }.Validate();
-                throw new InvalidOperationException("Causal raw input accepted a value outside its native WORD.");
-            }
-            catch (InvalidDataException)
-            {
-            }
-        }
         JsonNode malformed = JsonNode.Parse(allocated.GetRawText())!;
         malformed.AsObject().Remove("FieldButtonInput");
         JsonElement unchanged = independent.Capture();
@@ -136,10 +127,11 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(unchanged, independent.Capture()), "Input-process restore refusal partially mutated the VM.");
         foreach ((int entity, string original) in new[] { (0, "Squall"), (1, "Rinoa"), (2, "Angelo") })
         {
-            GameSession namingSession = GameSession.CreateColdProcess();
+            GameSession namingSession = CreateDirectedLinearTurnSession(vitals, economy);
             namingSession.SetInputConfiguration(configuration);
             EventEngine naming = new(namingSession);
-            naming.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, entity), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, entity), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)), [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
+            naming.LoadField(600, SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, entity), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, entity), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]), [], nativeRuntimeProfile: assets.NativeRuntimeProfile);
+            naming.Step();
             naming.Step();
             Require(naming.CurrentDialogue is { IsNamePrompt: true } name && name.Text == "Name: " + original, "Native naming prompt invented a placeholder or selected another default subject.");
             naming.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: " "));

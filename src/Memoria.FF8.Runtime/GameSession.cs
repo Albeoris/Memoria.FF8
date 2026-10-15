@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -7,8 +7,6 @@ public sealed partial class GameSession : IEventServices
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
     private SceneKind movieReturnScene;
-    private int replayCaptureDepth;
-    private ReplayJournalEntry? pendingWorldAllocation;
     private bool acceleratingMovie;
 
     public GameSession(GameState state)
@@ -24,22 +22,6 @@ public sealed partial class GameSession : IEventServices
     }
 
     public GameState State { get; private set; }
-    public ReplayJournal? ReplayJournal => State.ReplayJournal;
-    public string? ReplayMovieSourceHash { get; private set; }
-
-    public void SetReplayMovieSourceHash(string hash)
-    {
-        if (hash.Length != 64 || hash.Any(character => !Uri.IsHexDigit(character)))
-        {
-            throw new InvalidDataException("Invalid movie source identity.");
-        }
-        ReplayMovieSourceHash = hash;
-    }
-    public SceneKind ReplayScene => State.Scene;
-    public int? ReplayFieldId => State.FieldId;
-    public bool IsReplayCaptureActive => replayCaptureDepth != 0;
-    public MoviePlaybackState? ReplayMoviePlayback => State.MoviePlayback;
-    public MovieSkipFrames? ReplayMovieSkipFrames { get; private set; }
 
     public void BeginMovieAcceleration()
     {
@@ -47,7 +29,6 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("Movie acceleration requires one active movie owner.");
         }
-        ReplayMovieSkipFrames = null;
         acceleratingMovie = true;
     }
 
@@ -55,8 +36,8 @@ public sealed partial class GameSession : IEventServices
     {
         acceleratingMovie = false;
         frames?.Validate();
-        ReplayMovieSkipFrames = frames;
     }
+
     public NativeWorldControlState? WorldControls => State.WorldControls;
     public bool CanStoreNativeEventOwners => true;
     public NativeWorldConfiguration? WorldConfiguration => State.WorldConfiguration;
@@ -67,11 +48,12 @@ public sealed partial class GameSession : IEventServices
     public IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => State.NativeVariableValues;
     public bool CanStoreEventMemory => true;
     public string? Dialog { get; private set; }
+    public SceneKind CurrentScene => State.Scene;
+    public MoviePlaybackState? CurrentMoviePlayback => State.MoviePlayback;
     public bool IsMoviePlaying => State.Scene == SceneKind.Movie;
     // Accepted RequestMovie models51F390->55A530; CompleteMovie models55A5C0 cleanup.
     public bool? NativeMovieClockFlag => IsMoviePlaying;
     public event Action<GameState>? StateChanged;
-    public event Action<ReplayJournal>? ReplayJournalChanged;
 
     public void StartNewGame()
     {
@@ -81,99 +63,7 @@ public sealed partial class GameSession : IEventServices
         NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
         NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
         NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        ReplayJournal journal = ReplayJournal.StartNewGame();
-        if (reset.ClockCalls != 0 || reset.Alternatives.Length != 1 || reset.Alternatives[0].FirstPhase != 0 || reset.Alternatives[0].LastPhase != 0 || reset.DisplayEnabled || reset.DisplayX != 0 || reset.DisplayY != 0)
-        {
-            journal = journal.MarkUnavailable("Warm New Game preserves the native process clock and UI; the journal does not contain its earlier process history.");
-        }
-        if (State.MessageVariables?.IsColdProcessBank != true)
-        {
-            journal = journal.MarkUnavailable("Warm New Game preserves the process message-variable bank; the journal lacks its preceding history.");
-        }
-        if (State.GlobalSoundProcess?.IsColdProcess != true || State.SalaryPresentation?.IsColdProcess != true)
-        {
-            journal = journal.MarkUnavailable("Warm New Game preserves sound allocation and salary UI process history; the journal lacks its preceding producers.");
-        }
-        if (State.FieldShake?.IsColdProcess != true)
-        {
-            journal = journal.MarkUnavailable("Warm NewGame retains prior shake process history that this new journal does not contain.");
-        }
-        if (State.WorldProcess?.IsColdProcess != true)
-        {
-            journal = journal.MarkUnavailable("Warm New Game preserves the main-loop counter and world camera cooldown; the journal lacks earlier process history.");
-        }
-        if (State.FieldButtonInput?.IsColdProcess != true)
-        {
-            journal = journal.MarkUnavailable("Warm NewGame preserves the input sampler process; the journal lacks its prior physical input history.");
-        }
-        if (!random.IsColdProcess)
-        {
-            journal = journal.MarkUnavailable("Warm New Game preserves the native event random process; earlier draws are absent from this new journal.");
-        }
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(vibration, JsonOptions), JsonSerializer.SerializeToElement(NativeVibrationProcessState.FromColdProcess(), JsonOptions)))
-        {
-            journal = journal.MarkUnavailable("Warm New Game retains vibration queue and world-latch history absent from this new journal.");
-        }
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(fieldFade, JsonOptions), JsonSerializer.SerializeToElement(NativeFieldFadeState.FromColdProcess(), JsonOptions)))
-        {
-            journal = journal.MarkUnavailable("Warm New Game retains physical fade history absent from this new journal.");
-        }
-        if (menuRandom != NativeMenuRandomState.FromColdProcess())
-        {
-            journal = journal.MarkUnavailable("Warm New Game retains native menu random history absent from this new journal.");
-        }
-        Change(new GameState { DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
-        ReplayJournalChanged?.Invoke(State.ReplayJournal!);
-    }
-
-    public void AppendReplayEntry(ReplayJournalEntry entry)
-    {
-        if (State.ReplayJournal is ReplayJournal journal)
-        {
-            ReplayJournal next = journal.Append(entry);
-            if (pendingWorldAllocation is { } allocation)
-            {
-                next = next.Append(allocation);
-                pendingWorldAllocation = null;
-            }
-            State = State with { ReplayJournal = next };
-            ReplayJournalChanged?.Invoke(State.ReplayJournal!);
-        }
-    }
-
-    public void RecordReplayEntry(ReplayJournalEntry entry)
-    {
-        AppendReplayEntry(entry);
-    }
-
-    public void MarkReplayUnavailable(string reason)
-    {
-        pendingWorldAllocation = null;
-        if (State.ReplayJournal is ReplayJournal journal)
-        {
-            State = State with { ReplayJournal = journal.MarkUnavailable(reason) };
-            ReplayJournalChanged?.Invoke(State.ReplayJournal!);
-        }
-    }
-
-    public IDisposable BeginReplayCapture()
-    {
-        replayCaptureDepth++;
-        return new ReplayCapture(this);
-    }
-
-    private sealed class ReplayCapture(GameSession session) : IDisposable
-    {
-        private bool disposed;
-
-        public void Dispose()
-        {
-            if (!disposed)
-            {
-                session.replayCaptureDepth--;
-                disposed = true;
-            }
-        }
+        Change(new GameState { DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
     }
 
     public void Restore(GameState state)
@@ -185,8 +75,6 @@ public sealed partial class GameSession : IEventServices
 
     public void RequestMovie(int index)
     {
-        ReplayMovieSourceHash = null;
-        ReplayMovieSkipFrames = null;
         if (index < 0 || index > 999)
         {
             throw new ArgumentOutOfRangeException(nameof(index));
@@ -205,7 +93,6 @@ public sealed partial class GameSession : IEventServices
         skipped |= acceleratingMovie;
         if (State.Scene == SceneKind.Movie)
         {
-            GameState source = State;
             MovieCompleting?.Invoke();
             MoviePlaybackState? playback = State.MoviePlayback;
             if (playback is not null)
@@ -216,7 +103,6 @@ public sealed partial class GameSession : IEventServices
                 playback = playback with { IsPlaying = false, Completed = true, Skipped = skipped };
             }
             Change(State with { Scene = movieReturnScene, MovieSeconds = 0, MoviePlayback = playback });
-            RecordMovieChange(source, ReplayEntryKind.MovieComplete, skipped);
         }
     }
 
@@ -265,12 +151,11 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
         }
-        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || departure.WorldArrival is null || finalWorldState.NativeFootRuntime is not NativeFootWorldRuntimeState activeFoot || activeFoot.EntityType is not (0 or 1) || departure.SavedWorld is null || departure.WorldControls is null)
+        if (departure.Scene != SceneKind.WorldMap || departure.World is null || departure.WorldArrival is null || finalWorldState.NativeFootRuntime is not NativeFootWorldRuntimeState activeFoot || activeFoot.EntityType is not (0 or 1) || departure.SavedWorld is null || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
         }
         Validate(departure with { World = finalWorldState, WorldProcess = PrepareWorldProcess(departure, finalWorldState) });
-        ValidatePreparedWorldActions(liveWorld, finalWorldState);
         if (transition.FieldId is < 0 or > ushort.MaxValue)
         {
             throw new ArgumentOutOfRangeException(nameof(transition), "Native world-to-field destination must fit its unsigned WORD.");
@@ -317,9 +202,7 @@ public sealed partial class GameSession : IEventServices
 
     public void SetMoviePlayback(MoviePlaybackState playback)
     {
-        GameState source = State;
         State = State with { MoviePlayback = playback };
-        RecordMovieChange(source, ReplayEntryKind.MovieSample);
     }
 
     public void RequestWorld(WorldTransition transition)
@@ -329,7 +212,7 @@ public sealed partial class GameSession : IEventServices
         Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, State.FieldId) });
     }
 
-    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null, ReplayWorldAllocation? allocation = null)
+    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null)
     {
         ArgumentNullException.ThrowIfNull(transition);
         ArgumentNullException.ThrowIfNull(initialState);
@@ -340,14 +223,6 @@ public sealed partial class GameSession : IEventServices
         if (departure.Scene != SceneKind.Field || departure.WorldControls != expectedControls)
         {
             throw new InvalidOperationException("The prepared world entry no longer matches its normal field departure controls.");
-        }
-        if (departure.ReplayJournal is not null)
-        {
-            if (allocation is null || allocation.Packet != transition || pendingWorldAllocation is not null)
-            {
-                throw new NotSupportedException("Journalled world allocation requires its actual current prepared packet/resource provenance.");
-            }
-            allocation.Validate();
         }
         NativeSavedWorldState? saved = preparedSavedWorld ?? departure.SavedWorld;
         NativeSavedWorldState? expectedSaved = initialState.NativeCarRuntime is null ? departure.SavedWorld : departure.SavedWorld?.WithOrdinaryCarEntry(initialState.NativeCarRuntime.EntityType);
@@ -362,24 +237,8 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The field session changed during prepared world-entry validation.");
         }
-        ReplayJournalEntry? boundary = allocation is null ? null : new ReplayJournalEntry(ReplayEntryKind.WorldAllocation, SceneKind.WorldMap, departure.FieldId, initialState.Frame) { WorldAllocation = allocation, NativeSourceHash = allocation.ProgramHash, Text = allocation.ExecutableHash };
-        if (boundary is not null && candidate.ReplayJournal is not null)
-        {
-            if (IsReplayCaptureActive)
-            {
-                pendingWorldAllocation = boundary;
-            }
-            else
-            {
-                candidate = candidate with { ReplayJournal = candidate.ReplayJournal.Append(boundary) };
-            }
-        }
         Dialog = null;
         Change(candidate);
-        if (boundary is not null && !IsReplayCaptureActive && candidate.ReplayJournal is not null)
-        {
-            ReplayJournalChanged?.Invoke(candidate.ReplayJournal);
-        }
     }
 
     public void SetWorldState(WorldState state)
@@ -391,11 +250,10 @@ public sealed partial class GameSession : IEventServices
     {
         ArgumentNullException.ThrowIfNull(state);
         GameState departure = State;
-        if (departure.Scene != SceneKind.WorldMap || departure.World is not WorldState liveWorld || !ReferenceEquals(departure, salary.Departure))
+        if (departure.Scene != SceneKind.WorldMap || departure.World is null || !ReferenceEquals(departure, salary.Departure))
         {
             throw new InvalidOperationException("A world action requires its current native world session.");
         }
-        ValidatePreparedWorldActions(liveWorld, state);
         GameState candidate = salary.ApplyTo(departure with { World = state, SavedWorld = PrepareScriptedWorldSave(departure, state), WorldConfiguration = PrepareScriptedWorldConfiguration(departure, state), ExamTimer = AdvanceWorldTimer(departure, state), WorldProcess = PrepareWorldProcess(departure, state) }, state);
         Validate(candidate);
         State = candidate;
@@ -472,7 +330,7 @@ public sealed partial class GameSession : IEventServices
 
     public void InitializeNewGameCharacterVitals(NativeCharacterVitals vitals)
     {
-        if (State.CharacterVitals is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (State.CharacterVitals is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             throw new NotSupportedException("Character initialization requires the untouched authentic New Game before its first engine transaction.");
         }
@@ -488,7 +346,7 @@ public sealed partial class GameSession : IEventServices
 
     public void InitializeNewGameCharacterAppearance(NativeCharacterAppearance appearance)
     {
-        if (State.CharacterAppearance is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (State.CharacterAppearance is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             throw new NotSupportedException("Appearance initialization requires the untouched authentic New Game before its first engine transaction.");
         }
@@ -526,31 +384,16 @@ public sealed partial class GameSession : IEventServices
 
     public void SetMoviePosition(double seconds)
     {
-        GameState source = State;
         State = State with { MovieSeconds = Math.Max(0, seconds) };
-        RecordMovieChange(source, ReplayEntryKind.MovieSample);
     }
 
-    private void RecordMovieChange(GameState source, ReplayEntryKind kind, bool skipped = false)
-    {
-        if (replayCaptureDepth == 0 && (source.MoviePlayback != State.MoviePlayback || source.MovieSeconds != State.MovieSeconds || source.Scene != State.Scene))
-        {
-            AppendReplayEntry(new ReplayJournalEntry(kind, source.Scene, source.FieldId, source.ReplayJournal?.Endpoint?.ResultFrame ?? source.ReplayJournal?.Endpoint?.Frame ?? 0) { MoviePlayback = State.MoviePlayback, MovieSeconds = State.MovieSeconds, MovieSourceHash = ReplayMovieSourceHash, Skipped = skipped, ResultScene = State.Scene, ResultFieldId = State.FieldId });
-        }
-    }
-
-    public void Save(string path, bool registerJournalReference = true)
+    public void Save(string path)
     {
         ValidateLiveEventMemoryOwners(State, State.EventMemory);
         string fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         string temporary = fullPath + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(State, JsonOptions));
-        if (registerJournalReference && State.ReplayJournal is ReplayJournal journal)
-        {
-            // Pin before publishing the save: interrupted publication may retain extra history, never lose it.
-            new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory).Pin(fullPath, journal);
-        }
         File.Move(temporary, fullPath, true);
     }
 
@@ -650,7 +493,7 @@ public sealed partial class GameSession : IEventServices
             {
                 long calls = sceneTimer.ClockCalls - timer.ClockCalls;
                 long callbacks = calls / 2;
-                if (calls % 2 != 0 || callbacks > checked((state.World?.Frame ?? 0) + CountSemanticWorldEffectCallbacks(state)))
+                if (calls % 2 != 0 || callbacks > (state.World?.Frame ?? 0))
                 {
                     throw new InvalidDataException("Frozen field timer has no matching elapsed world callback count.");
                 }
@@ -670,7 +513,7 @@ public sealed partial class GameSession : IEventServices
         {
             if (!memoryVm.TryGetProperty("EventMemory", out JsonElement memoryJson) || memoryJson.ValueKind == JsonValueKind.Null)
             {
-                throw new InvalidDataException("Saved VM lacks its required typed event memory; recreate authentic history.");
+                throw new InvalidDataException("Saved VM lacks its required typed event memory; migrate this save explicitly.");
             }
             NativeEventMemory memory = memoryJson.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Empty event memory state.");
             ValidateEventMemoryOwners(state, memory);
@@ -686,31 +529,6 @@ public sealed partial class GameSession : IEventServices
         return state;
     }
 
-    public static GameState LoadReplaySource(string path)
-    {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-            JsonElement root = document.RootElement;
-            int version = root.GetProperty("Version").GetInt32();
-            SceneKind scene = root.GetProperty("Scene").Deserialize<SceneKind>(JsonOptions);
-            int fieldId = root.GetProperty("FieldId").GetInt32();
-            if (version != 1 || !Enum.IsDefined(scene) || scene == SceneKind.Title || fieldId is < 0 or > ushort.MaxValue)
-            {
-                throw new InvalidDataException("Invalid replay checkpoint boundary.");
-            }
-            ReplayJournal? journal = root.TryGetProperty("ReplayJournal", out JsonElement capsule) && capsule.ValueKind != JsonValueKind.Null ? capsule.Deserialize<ReplayJournal>(JsonOptions) : null;
-            journal?.Validate();
-            string name = root.TryGetProperty("FieldName", out JsonElement fieldName) && fieldName.ValueKind == JsonValueKind.String ? fieldName.GetString()! : $"field_{fieldId}";
-            DialogueDraft? draft = root.TryGetProperty("DialogueDraft", out JsonElement draftJson) && draftJson.ValueKind != JsonValueKind.Null ? draftJson.Deserialize<DialogueDraft>(JsonOptions) : null;
-            return new GameState { Version = version, Scene = scene, FieldId = fieldId, FieldName = name, ReplayJournal = journal, DialogueDraft = draft };
-        }
-        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
-        {
-            throw new InvalidDataException("Malformed replay checkpoint boundary: " + exception.Message, exception);
-        }
-    }
-
     private void Change(GameState state)
     {
         Validate(state);
@@ -720,7 +538,6 @@ public sealed partial class GameSession : IEventServices
 
     private static void Validate(GameState state)
     {
-        state.ReplayJournal?.Validate();
         if (state.Battle is not null)
         {
             _ = BattleSession.Restore(state.Battle);
@@ -866,32 +683,6 @@ public sealed partial class GameSession : IEventServices
         if (world.Frame < 0 || world.X is < -131072 or >= 131072 || world.Z is < -98304 or >= 98304 || world.NativeHeight is < short.MinValue or > short.MaxValue || world.BodyYaw is < 0 or >= 4096 || world.NativeScriptedRuntime is null && world.NativeTrainRuntime is null && world.CameraYaw is < 0 or >= 4096 || world.AnimationId < 0 || world.AnimationCounter < 0)
         {
             throw new InvalidDataException("Invalid world checkpoint.");
-        }
-    }
-
-    private static void ValidatePreparedWorldActions(WorldState liveWorld, WorldState finalWorld)
-    {
-        if (ReferenceEquals(finalWorld, liveWorld))
-        {
-            return;
-        }
-        if (liveWorld.Actions is null || finalWorld.Actions is null || finalWorld.Actions.Count != liveWorld.Actions.Count + 1 || !finalWorld.Actions.Take(liveWorld.Actions.Count).SequenceEqual(liveWorld.Actions))
-        {
-            throw new InvalidOperationException("Prepared field entry must preserve the complete ordinary world action prefix.");
-        }
-        WorldActionRecord tail = finalWorld.Actions[^1];
-        if (!float.IsFinite(tail.CameraHorizontal) || Math.Abs(tail.CameraHorizontal) > 1 || tail.CameraHorizontal != 0 && tail.Kind is not ("Move" or "Wait"))
-        {
-            throw new InvalidDataException("Manual world camera input requires an ordinary finite Move/Wait axis between -1 and 1.");
-        }
-        bool stationChoice = tail?.Kind == "Choose" && liveWorld.NativeTrainRuntime?.Primary.Pause == -1 && tail.AdvancedFrames == 1 && tail.Horizontal == 0 && tail.Vertical == 0 && (finalWorld.NativeFootRuntime?.TrainDismount?.SourceCallback == finalWorld.Frame || finalWorld.NativeTrainRuntime is { Primary.Pause: 0 } continued && continued.StationDeclines.Contains(finalWorld.Frame));
-        if (tail is null || tail.Index != liveWorld.Actions.Count + 1 || tail.Frame != finalWorld.Frame || tail.Kind is not "Move" and not "Wait" && !stationChoice || !float.IsFinite(tail.Horizontal) || !float.IsFinite(tail.Vertical) || Math.Abs(tail.Horizontal) > 1 || Math.Abs(tail.Vertical) > 1 || tail.RequestedFrames is < 1 or > 30000 || tail.AdvancedFrames < 0 || tail.AdvancedFrames > tail.RequestedFrames || liveWorld.Frame > long.MaxValue - tail.AdvancedFrames || finalWorld.Frame != liveWorld.Frame + tail.AdvancedFrames || tail.X != finalWorld.X || tail.Z != finalWorld.Z || tail.NativeHeight != finalWorld.NativeHeight)
-        {
-            throw new InvalidOperationException("Prepared field entry must retain its exact final ordinary world action record.");
-        }
-        if (tail.AdvancedFrames == 0 && (finalWorld with { Actions = liveWorld.Actions }) != liveWorld)
-        {
-            throw new InvalidOperationException("A zero-frame entrance cannot alter the current world pose or clocks.");
         }
     }
 }

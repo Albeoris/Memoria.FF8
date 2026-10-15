@@ -26,10 +26,10 @@ public sealed class HeadlessPlayerTests
             File.WriteAllText(actions, "[{\"Kind\":\"SkipMovie\",\"Frames\":1}]");
             var session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            using var expected = new GameWorld(session, gameDirectory, persistReplayJournal: false);
+            using var expected = new GameWorld(session, gameDirectory);
             StorySafeMovieSkipTests.ReachCorridorMovie(session, expected);
             session.SetEventState(expected.Events.Capture());
-            session.Save(source, registerJournalReference: false);
+            session.Save(source);
             Assert.True(expected.Apply(new PlayerAction(PlayerActionKind.SkipMovie)).Accepted);
             Assert.Equal(0, HeadlessPlayer.Run(["--state", source, "--game-dir", gameDirectory, "--actions", actions, "--output", output, "--resolution", "320x240"]));
             GameState saved = GameSession.Load(Path.Combine(output, "checkpoint.json"));

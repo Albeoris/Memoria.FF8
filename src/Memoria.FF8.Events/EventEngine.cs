@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -96,6 +96,7 @@ public sealed partial class EventEngine
             Scene.Party.Clear();
             Scene.Party.AddRange([0, 255, 255]);
         }
+        bool coldNativeCamera = program is null && fieldId == 74 && nativeRuntimeProfile is { IsVerified: true } && services is GameSession cameraSession && cameraSession.State.Scene == SceneKind.Field && cameraSession.State.FieldId == 74 && cameraSession.State.EventState is null && cameraSession.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame;
         generation++;
         FieldId = fieldId;
         Frame = 0;
@@ -137,6 +138,9 @@ public sealed partial class EventEngine
         SceneEventState previousScene = Scene;
         Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
+        //52B4F0 resets modes/settings, but retains current WORD8/10. Only
+        //the executable's zero-filled process tail supplies the cold pair.
+        Scene.NativeLayerZeroScrollCurrent = coldNativeCamera ? new NativeLayerZeroScrollCurrent(1, 0, 0) : previousScene.NativeLayerZeroScrollCurrent;
         InitializeNativeBackgroundScrollSettings();
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0, InitializationTransactions: 0);
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
@@ -264,7 +268,7 @@ public sealed partial class EventEngine
             NativeFieldCallbackClock initializationClock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Native synchronous initialization requires its executed allocation clock owner.");
             if (Frame != 0 || initializationClock.InitializationTransactions != 0)
             {
-                throw new NotSupportedException("Partial synchronous initialization requires authentic journal recreation; callback-based resume is unsupported.");
+                throw new NotSupportedException("Partial synchronous initialization cannot resume through an ordinary callback.");
             }
             initializationClock.Validate(Frame);
             Frame++;
@@ -280,8 +284,6 @@ public sealed partial class EventEngine
         ValidateNativeShakeCallback();
         NativeEventRandomState? randomSample = PrepareNativeEventRandomBeforeVm();
         NativeSalaryResult? salarySample = PrepareNativeFieldSalarySample();
-        bool salaryChanged = salarySample is not null && (salarySample.SeeD != services.SeeD || salarySample.Economy != services.Economy);
-        bool salaryPaid = salarySample is not null && salarySample.Economy != services.Economy;
         NativeEconomy? economySample = PrepareNativeGilBeforeVm(salarySample?.Economy ?? services.Economy);
         NativeSalaryEffects? salaryEffects = salarySample is null ? null : PrepareSalaryEffects(salarySample, services.SalaryPresentation, services.GlobalSoundProcess);
         Action? nativePlayerInput = pendingNativePlayerInput;
@@ -294,10 +296,6 @@ public sealed partial class EventEngine
         else if (economySample is not null && economySample != services.Economy)
         {
             services.SetEconomy(economySample);
-        }
-        if (salaryChanged)
-        {
-            RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.PersistentEffect, FieldId, Frame, -1, -1, -1, (int)(salaryPaid ? ReplayPersistentEffectKind.SalaryPayment : ReplayPersistentEffectKind.SalaryProgress), Arguments: [checked((int)(semanticSalaryMovementUnits ?? Scene.NativeSalaryMovementUnits!.Value)), 1]));
         }
         if (salaryEffects is not null)
         {
@@ -312,10 +310,7 @@ public sealed partial class EventEngine
         StepInputAxis();
         foreach (ActorState actor in actors)
         {
-            if (!IsSemanticSpatialReplay)
-            {
-                actor.StepRotation();
-            }
+            actor.StepRotation();
         }
         int currentGeneration = generation;
         foreach (ActorState actor in NativeCallbackActors())
@@ -351,27 +346,17 @@ public sealed partial class EventEngine
         StepNativeDisplayOffsets();
         foreach (ActorState actor in actors)
         {
-            if (!IsSemanticSpatialReplay)
-            {
-                StepCosineRotation(actor);
-            }
+            StepCosineRotation(actor);
         }
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             actors[objectId].NativeMovementGroundContact600 = 1;
         }
-        if (IsSemanticSpatialReplay)
-        {
-            StepSemanticSpatialTraversals();
-        }
-        else
-        {
-            StepNativePlayerInput(nativePlayerInput);
-            StepNativeScriptMovement();
-            StepNativeJump();
-            StepNativeLadder();
-            StepNativeLadderMode3();
-        }
+        StepNativePlayerInput(nativePlayerInput);
+        StepNativeScriptMovement();
+        StepNativeJump();
+        StepNativeLadder();
+        StepNativeLadderMode3();
         SampleNativeDoorActionEdges();
         StepNativeShake();
         StepNativeActorBackgroundScroll();
@@ -379,13 +364,11 @@ public sealed partial class EventEngine
         StepBackgroundShadeLoops();
         fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item) && !actors.Any(actor => actor.NativeDoorScheduler?.CurrentSequence == item.Sequence));
         StepNativeNormalBackgroundScrollCenter();
+        PublishNativeLayerZeroScrollCurrent();
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
         foreach (ActorState actor in actors)
         {
-            if (!IsSemanticSpatialReplay)
-            {
-                StepFaceDirection(actor);
-            }
+            StepFaceDirection(actor);
         }
         StepNativeModelParts();
         StepNativeMovieMask();
@@ -470,10 +453,6 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        if (replayCapture is null && !services.IsReplayCaptureActive)
-        {
-            services.MarkReplayUnavailable("A direct talk request bypassed the engine interaction journal.");
-        }
         if (IsNativeActorRequest(objectId) && Scene.NativeActorObjectIds.Contains(objectId))
         {
             if (RequestPriorityOccupied(objectId, 7))
@@ -493,7 +472,6 @@ public sealed partial class EventEngine
             Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
             action.NativeActorSlot = 7;
             SuspendNativeMovementForRequest(actor, action);
-            RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7));
         }
         else
         {
@@ -629,9 +607,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = IsSemanticSpatialReplay && IsSemanticSpatialOpcode(operation.Opcode)
-                ? UnsupportedSemanticSpatialInstruction(fiber, operation)
-                : UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
@@ -643,7 +619,6 @@ public sealed partial class EventEngine
             try
             {
                 Execute(fiber, operation);
-                RecordReplayExecution(fiber, operation);
             }
             catch (EventScriptException)
             {

@@ -7,7 +7,6 @@ public sealed record LaunchOptions
     public string? StatePath { get; init; }
     public string SavePath { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "checkpoint.json");
     public string? MediaToolsDirectory { get; init; }
-    public ReplayRecreationMode RecreateMode { get; init; } = ReplayRecreationMode.Semantic;
     public GameState InitialState { get; init; } = new();
     public double? ExitAfterSeconds { get; init; }
     public bool ValidateOnly { get; init; }
@@ -43,7 +42,6 @@ public sealed record LaunchOptions
                 "--state" => options with { StatePath = Path.GetFullPath(Value()) },
                 "--save-state" => options with { SavePath = Path.GetFullPath(Value()) },
                 "--media-tools" => options with { MediaToolsDirectory = Path.GetFullPath(Value()) },
-                "--recreate-strict" => options with { RecreateMode = ReplayRecreationMode.Strict },
                 "--scene" => options with { InitialState = options.InitialState with { Scene = Enum.Parse<SceneKind>(Value(), true) } },
                 "--field" => SetField(options, Value()),
                 "--entry" => options with { InitialState = options.InitialState with { EntryPoint = int.Parse(Value()) } },

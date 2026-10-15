@@ -20,7 +20,7 @@ public sealed class StorySafeMovieSkipTests
         if (userPrefix)
         {
             string prefixPath = Path.Combine(Repository(), "../fixtures/external-fixture.json");
-            session = new GameSession(GameWorld.RecreateSave(GameSession.LoadReplaySource(prefixPath), game));
+            session = new GameSession(GameSession.Load(prefixPath));
         }
         else
         {
@@ -28,7 +28,7 @@ public sealed class StorySafeMovieSkipTests
             session.StartNewGame();
         }
         var clock = new MovieClock(session, game);
-        using var world = new GameWorld(session, game, clock, persistReplayJournal: false);
+        using var world = new GameWorld(session, game, clock);
         ReachCorridorMovie(session, world);
         DecodeThrough(session, world, clock, game, skipFrame);
         Assert.Equal(229, session.State.FieldId);
@@ -39,7 +39,7 @@ public sealed class StorySafeMovieSkipTests
         // The old implementation's immediate cleanup is native-correct as a low-level close,
         // but is not a story-safe skip: controller0/script8 waits forever for L[80]>=144.
         var closedSession = new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(beforeSkip))!);
-        using (var control = new GameWorld(closedSession, game, persistReplayJournal: false))
+        using (var control = new GameWorld(closedSession, game))
         {
             control.EnsureField();
             closedSession.CompleteMovie(true);
@@ -57,8 +57,6 @@ public sealed class StorySafeMovieSkipTests
         Assert.True(result.Accepted);
         Assert.True(world.Events.Frame > frameBefore);
         Assert.Equal(world.Events.Frame - frameBefore, result.FramesAdvanced);
-        Assert.NotNull(session.ReplayJournal!.Endpoint!.MovieSkipFrames);
-        Assert.Equal(Math.Max(2, skipFrame + 1), session.ReplayJournal.Endpoint.MovieSkipFrames!.FirstFrame);
         Assert.True(session.State.MoviePlayback!.Skipped);
         Assert.False(session.IsMoviePlaying);
         for (int callback = 0; callback < 500 && session.State.FieldId == 229; callback++)
@@ -79,10 +77,10 @@ public sealed class StorySafeMovieSkipTests
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8-story-skip-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(temporary, registerJournalReference: false);
-            GameState rebuilt = GameWorld.RecreateSave(GameSession.LoadReplaySource(temporary), game, Path.Combine(Path.GetTempPath(), "absent-ffmpeg-" + Guid.NewGuid().ToString("N")));
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }), JsonSerializer.SerializeToElement(rebuilt with { ReplayJournal = null })));
-            using var replay = new GameWorld(new GameSession(rebuilt), game, persistReplayJournal: false);
+            session.Save(temporary);
+            GameState rebuilt = GameSession.Load(temporary);
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source), JsonSerializer.SerializeToElement(rebuilt)));
+            using var replay = new GameWorld(new GameSession(rebuilt), game);
             replay.EnsureField();
             Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
             Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), replay.Apply(new PlayerAction(PlayerActionKind.Wait)));
@@ -92,7 +90,7 @@ public sealed class StorySafeMovieSkipTests
             {
                 string checkpoint = Path.Combine(Repository(), "../fixtures/external-fixture.json");
                 session.SetEventState(world.Events.Capture());
-                session.Save(checkpoint, registerJournalReference: false);
+                session.Save(checkpoint);
             }
         }
         finally

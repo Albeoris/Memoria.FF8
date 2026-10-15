@@ -58,7 +58,7 @@ internal static partial class Program
         GameSession flags = GameSession.CreateColdProcess();
         flags.StartNewGame();
         Initialize(flags);
-        Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true } && flags.ReplayJournal!.IsComplete, "Executed New Game did not establish native500/mask18/zero movement and actual52CA90 process UIfalse.");
+        Require(flags.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && flags.WorldControls is { SalarySuppressed: true, SalaryDisplaySuppressed: true }, "Executed New Game did not establish native500/mask18/zero movement and actual52CA90 process UIfalse.");
         Require(flags.SeeD!.AddRankPoints(int.MaxValue).RankPoints == 499 && flags.SeeD.AddRankPoints(int.MinValue).RankPoints == 500, "SeeD full DWORD arithmetic narrowed or overflowed before the native WORD destination.");
         EventEngine projected = new(flags);
         projected.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 65530), (Jsm.Opcode.POPM_W, 16), (Jsm.Opcode.PSHSM_W, 16), (Jsm.Opcode.POPM_L, 5001), (Jsm.Opcode.PSHM_B, 16), (Jsm.Opcode.POPM_W, 5002), (Jsm.Opcode.PSHSM_B, 16), (Jsm.Opcode.POPM_L, 5003), (Jsm.Opcode.PSHN_L, 18), (Jsm.Opcode.POPM_B, 17), (Jsm.Opcode.PSHN_L, 511), (Jsm.Opcode.POPM_B, 16), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -94,7 +94,7 @@ internal static partial class Program
         warm.StartNewGame();
         warm.SetNativeEventOwners(warm.WorldControls!.WithSalaryEnabled(true), warm.SeeD!.WithSalaryUiEnabled(true));
         warm.StartNewGame();
-        Require(warm.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && warm.WorldControls!.SalarySuppressed && warm.ExamTimer!.ClockCalls == 0 && !warm.ReplayJournal!.IsComplete, "Warm New Game omitted52CA90 UIfalse or published a root without earlier process history.");
+        Require(warm.SeeD is { RankPoints: 500, SalaryUiEnabled: false, SalaryMovementCounter: 0 } && warm.WorldControls!.SalarySuppressed && warm.ExamTimer!.ClockCalls == 0, "Warm New Game omitted52CA90 UIfalse .");
         var missing = Create(500, 80, false);
         try
         {

@@ -39,7 +39,7 @@ public sealed partial class GameSession
             {
                 if (!vm.TryGetProperty(name, out JsonElement captured))
                 {
-                    throw new InvalidDataException($"Departing VM lacks the current {name} shape; recreate authentic inputs.");
+                    throw new InvalidDataException($"Departing VM lacks the current {name} shape; migrate this save explicitly.");
                 }
                 if (captured.ValueKind != JsonValueKind.Null)
                 {
@@ -59,7 +59,7 @@ public sealed partial class GameSession
         {
             if (!vm.TryGetProperty(name, out JsonElement value) || !JsonElement.DeepEquals(expected, value))
             {
-                throw new InvalidDataException($"Root and event {name} owners disagree or lack the current required shape; recreate authentic inputs.");
+                throw new InvalidDataException($"Root and event {name} owners disagree or lack the current required shape; migrate this save explicitly.");
             }
         }
     }

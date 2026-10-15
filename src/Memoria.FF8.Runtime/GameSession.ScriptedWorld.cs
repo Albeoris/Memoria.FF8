@@ -9,7 +9,7 @@ public sealed partial class GameSession
         ArgumentNullException.ThrowIfNull(transition);
         ArgumentNullException.ThrowIfNull(validatePrepared);
         GameState departure = State;
-        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || departure.WorldArrival is not WorldTransition arrival || departure.SavedWorld is null || departure.WorldControls is null || finalWorld.NativeScriptedRuntime is not NativeScriptedWorldRuntimeState scripted || arrival != scripted.Path.Packet)
+        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is null || departure.WorldArrival is not WorldTransition arrival || departure.SavedWorld is null || departure.WorldControls is null || finalWorld.NativeScriptedRuntime is not NativeScriptedWorldRuntimeState scripted || arrival != scripted.Path.Packet)
         {
             throw new NotSupportedException("Native scripted-to-field entry requires its unchanged original scripted departure.");
         }
@@ -17,7 +17,6 @@ public sealed partial class GameSession
         NativeSavedWorldScriptedReturn receipt = scripted.Return ?? throw new NotSupportedException("Scripted departure has no executed endpoint save receipt.");
         NativeSavedWorldState? saved = PrepareScriptedWorldSave(departure, finalWorld);
         Validate(departure with { World = finalWorld, SavedWorld = saved });
-        ValidatePreparedWorldActions(live, finalWorld);
         if (!scripted.Path.FieldTransitionReady || receipt.SourceWorldFrame + 16 != finalWorld.Frame || receipt.LastFieldId != departure.FieldId || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || transition != receipt.FieldEntry)
         {
             throw new InvalidOperationException("Prepared scripted field entry differs from its endpoint save and completed native fade.");

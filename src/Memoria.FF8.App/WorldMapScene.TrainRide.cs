@@ -100,7 +100,7 @@ internal sealed partial class WorldMapScene
         }
     }
 
-    private WorldState StepTrainRide(WorldState before, float horizontal, float vertical, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus proposal, out uint movementUnits, out int graphicsSpeed)
+    private WorldState StepTrainRide(WorldState before, float horizontal, float vertical, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint movementUnits, out int graphicsSpeed)
     {
         NativeTrainWorldRuntimeState train = before.NativeTrainRuntime!;
         train.Validate();
@@ -125,7 +125,6 @@ internal sealed partial class WorldMapScene
         fieldEntry = null;
         movementUnits = 0;
         graphicsSpeed = 0;
-        proposal = new ReplayWorldNavigationStimulus(origin.X, -origin.Z);
         return next.ToWorldState(before) with { GroundType = ground.Center?.Ground.Triangle.GroundType ?? before.GroundType };
     }
 

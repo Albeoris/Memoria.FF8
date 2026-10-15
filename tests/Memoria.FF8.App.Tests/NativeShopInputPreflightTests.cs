@@ -19,18 +19,11 @@ public sealed class NativeShopInputPreflightTests
         session.StartNewGame();
         EventEngine events = new(session, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         GameState originalState = session.State;
-        ReplayJournal originalJournal = session.ReplayJournal!;
         JsonElement before = JsonSerializer.SerializeToElement(originalState);
-        int journalChanges = 0;
-        session.ReplayJournalChanged += _ => journalChanges++;
 
         Assert.Throws<ArgumentException>(() => events.Apply(new PlayerAction(PlayerActionKind.BuyShopItem, itemId, Quantity: quantity)));
 
         Assert.Same(originalState, session.State);
-        Assert.Same(originalJournal, session.ReplayJournal);
         Assert.True(JsonElement.DeepEquals(before, JsonSerializer.SerializeToElement(session.State)));
-        Assert.True(session.ReplayJournal!.IsComplete);
-        Assert.Equal(0, session.ReplayJournal.EntryCount);
-        Assert.Equal(0, journalChanges);
     }
 }

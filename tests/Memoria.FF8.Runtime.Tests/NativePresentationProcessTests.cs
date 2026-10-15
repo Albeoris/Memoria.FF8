@@ -79,11 +79,9 @@ public sealed class NativePresentationProcessTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        Assert.True(session.State.ReplayJournal!.IsComplete);
         session.SetSeeD(session.SeeD!.WithSalaryUiEnabled(true));
         session.StartNewGame();
         Assert.False(session.SeeD!.SalaryUiEnabled);
-        Assert.True(session.State.ReplayJournal!.IsComplete);
         NativeSalaryPresentation presentation = session.SalaryPresentation!.StartPayment(5, 4, 5000, 4000);
         NativeGlobalSoundProcess sound = session.GlobalSoundProcess!.RecordEffect(91, 0, out _);
         session.SetSalaryPresentation(presentation);
@@ -91,7 +89,6 @@ public sealed class NativePresentationProcessTests
         session.StartNewGame();
         Assert.Same(presentation, session.SalaryPresentation);
         Assert.Same(sound, session.GlobalSoundProcess);
-        Assert.False(session.State.ReplayJournal!.IsComplete);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeGlobalSoundProcess>("{}"));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeSalaryPresentation>("{}"));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<GameState>("{}"));

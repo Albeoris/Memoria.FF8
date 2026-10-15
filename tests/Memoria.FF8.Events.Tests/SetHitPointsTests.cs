@@ -68,12 +68,12 @@ internal static partial class Program
         {
             GameState savedState = copySession.State with { Scene = SceneKind.Field, FieldId = 600, EventState = copy.Capture() };
             GameSession savedSession = new(savedState);
-            savedSession.Save(savePath, false);
+            savedSession.Save(savePath);
             GameState loaded = GameSession.Load(savePath);
             Require(loaded.CharacterVitals!.Records[3].HitPoints == new NativeHpWord(9999, 9999) && loaded.CharacterVitals.Records[3].Status == 0xFFFF && JsonElement.DeepEquals(loaded.EventState!.Value, savedState.EventState!.Value), "Game save/load lost exact current HP or native root/VM ownership.");
             NativeCharacterVital[] altered = savedState.CharacterVitals!.Records.ToArray();
             altered[3] = altered[3] with { HitPoints = new NativeHpWord(1, 1) };
-            new GameSession(savedState with { CharacterVitals = savedState.CharacterVitals with { Records = altered } }).Save(savePath, false);
+            new GameSession(savedState with { CharacterVitals = savedState.CharacterVitals with { Records = altered } }).Save(savePath);
             try
             {
                 GameSession.Load(savePath);

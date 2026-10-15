@@ -95,8 +95,6 @@ public sealed record GameState
     public bool? FullBattlePlaythrough { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleSnapshot? Battle { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public ReplayJournal? ReplayJournal { get; init; }
 }
 
 public sealed record DialogueDraft(int Channel, int MessageId, int SelectedChoice, string EnteredName);
@@ -110,7 +108,7 @@ public sealed record FieldTransition(int FieldId, float X, float Y, int Triangle
     }
 }
 
-public readonly record struct InputFrame(float Horizontal, float Vertical, bool Confirm, bool Cancel, bool Skip, bool Save, int MenuVertical = 0, bool QuickLoad = false, bool SaveMenu = false, bool LoadMenu = false, int MenuHorizontal = 0, int MenuPage = 0, bool RecreateSave = false, float CameraHorizontal = 0, float SecondaryHorizontal = 0, float SecondaryVertical = 0);
+public readonly record struct InputFrame(float Horizontal, float Vertical, bool Confirm, bool Cancel, bool Skip, bool Save, int MenuVertical = 0, bool QuickLoad = false, bool SaveMenu = false, bool LoadMenu = false, int MenuHorizontal = 0, int MenuPage = 0, float CameraHorizontal = 0, float SecondaryHorizontal = 0, float SecondaryVertical = 0);
 
 public interface IEventServices
 {
@@ -183,20 +181,6 @@ public interface IEventServices
         throw new NotSupportedException("Native saved input configuration is not implemented by this event service.");
     }
 
-    string? ReplayMovieSourceHash => null;
-    ReplayJournal? ReplayJournal => null;
-    SceneKind ReplayScene => SceneKind.Field;
-    int? ReplayFieldId => null;
-    bool IsReplayCaptureActive => false;
-    MoviePlaybackState? ReplayMoviePlayback => null;
-    MovieSkipFrames? ReplayMovieSkipFrames => null;
-    void RecordReplayEntry(ReplayJournalEntry entry)
-    {
-    }
-    void MarkReplayUnavailable(string reason)
-    {
-    }
-    IDisposable? BeginReplayCapture() => null;
     NativeEventMemory EventMemory => NativeEventMemory.Empty;
     IReadOnlyDictionary<int, NativeMemoryValue> NativeVariableValues => EventMemory.UncertainValues;
     bool CanStoreEventMemory => false;
@@ -298,6 +282,8 @@ public interface IEventServices
     {
         throw new NotSupportedException("Native world control flags are not implemented by this event service.");
     }
+    SceneKind CurrentScene => SceneKind.Field;
+    MoviePlaybackState? CurrentMoviePlayback => null;
     bool IsMoviePlaying { get; }
     bool? NativeMovieClockFlag => null;
     void RequestMovie(int index);

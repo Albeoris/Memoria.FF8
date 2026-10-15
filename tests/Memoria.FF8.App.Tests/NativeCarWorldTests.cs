@@ -103,7 +103,7 @@ public sealed class NativeCarWorldTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
-        // Isolated component fixture; actual gameplay acceptance belongs to the authentic New Game journal.
+        // Isolated component fixture; actual gameplay acceptance belongs to the live New Game journey.
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 40, [265] = 128 }) });
@@ -138,10 +138,9 @@ public sealed class NativeCarWorldTests
         Assert.Equal(1, cache.PreferredGroup);
         Assert.NotEmpty(cache.Entries);
         Assert.InRange(cache.Entries.Length, 1, 12);
-        ReplayJournalEntry action = session.ReplayJournal!.Endpoint!;
         var replaySession = new GameSession(before);
         using var replay = new WorldMapScene(replaySession, directory);
-        Assert.Equal(1, replay.Apply(new PlayerAction((PlayerActionKind)action.Code, action.Value, action.Text, action.Horizontal, action.Vertical, action.Frames)).FramesAdvanced);
+        Assert.Equal(1, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: -1)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
         GameState endpoint = session.State;
         using var restored = new WorldMapScene(new GameSession(endpoint), directory);
@@ -170,7 +169,7 @@ public sealed class NativeCarWorldTests
             NativeWorldGroundIdentity ground = assets.LookupNativeGround(12390, -26709, WorldTerrainSelection.Replacements(entry.State.ReplacementMask), [])!.Identity;
             session.SetWorldState(entry.State with { X = 12390, Z = -26709, NativeHeight = -301, CameraTargetX = 12390, CameraTargetZ = -26709, CameraTargetNativeHeight = -557, NativeCarRuntime = entry.State.NativeCarRuntime! with { GroundCache = NativeWorldGroundCacheState.CreateFresh(ground) } });
         }
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         Assert.Equal(SceneKind.Field, session.State.Scene);
@@ -191,7 +190,7 @@ public sealed class NativeCarWorldTests
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-car-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(path, registerJournalReference: false);
+            session.Save(path);
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(GameSession.Load(path))));
         }
         finally
@@ -201,7 +200,7 @@ public sealed class NativeCarWorldTests
     }
 
     [Fact]
-    public void Refused_car_batch_does_not_commit_partial_pose_speed_timer_or_journal_changes()
+    public void Refused_car_batch_does_not_commit_partial_pose_speed_timer_or_snapshot_changes()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");

@@ -1,4 +1,4 @@
-﻿using Albeoris.Games.FF8.Jsm;
+using Albeoris.Games.FF8.Jsm;
 using System.Numerics;
 using System.Text.Json.Serialization;
 
@@ -125,10 +125,6 @@ public sealed partial class EventEngine
 
     private FieldFixedPosition? ReadNativeScriptPosition(ActorState actor)
     {
-        if (ReadSemanticSpatialPosition(actor) is FieldFixedPosition semantic)
-        {
-            return semantic;
-        }
         if (actor.NativeLadderMode3 is NativeLadderMode3State ladderMode3 && MatchesNativeLadderMode3Placement(actor, ladderMode3))
         {
             return new FieldFixedPosition(ladderMode3.FixedX, ladderMode3.FixedY, ladderMode3.FixedZ);

@@ -28,12 +28,12 @@ public sealed partial class EventEngine
         }
         if (services.CardInventory is not NativeCardInventory cards || opcode is Jsm.Opcode.GETCARD or Jsm.Opcode.SETCARD && !services.CanStoreCardInventory)
         {
-            return $"{opcode} requires the authentic native card inventory and its required service capability; recreate the journal";
+            return $"{opcode} requires the authentic native card inventory and its required service capability; the snapshot is missing required native state";
         }
         cards.Validate();
         if (EventMemory.Overlaps(1408, 115))
         {
-            return $"{opcode} overlaps a separate VM memory record; card byte ownership must be established by the authentic journal";
+            return $"{opcode} overlaps a separate VM memory record; card byte ownership must be established by the saved native state";
         }
         if (fiber.Stack.Capture().Take(operandCount).Any(value => !value.IsExact))
         {

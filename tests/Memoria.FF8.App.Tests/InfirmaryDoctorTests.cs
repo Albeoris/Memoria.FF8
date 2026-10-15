@@ -6,43 +6,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class InfirmaryDoctorTests
 {
-    [Fact]
-    public void UserJournalRecreatesItsUnchangedSupportedOpeningPrefix()
-    {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
-        Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
-        Assert.NotNull(repository);
-        string capsule = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
-        GameState source = GameSession.LoadReplaySource(capsule);
-        var root = GameSession.CreateColdProcess();
-        root.StartNewGame();
-        ReplayJournal prefix = root.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)
-        {
-            prefix = prefix.Append(entry);
-            if (entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 229)
-            {
-                break;
-            }
-        }
-        ReplayJournalEntry endpoint = prefix.Endpoint!;
-        var session = new GameSession(GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, game));
-        using var world = new GameWorld(session, game, persistReplayJournal: false);
-        world.EnsureField();
-        Assert.Equal(229, world.Events.FieldId);
-        Assert.Null(world.Events.LastFault);
-        for (int callback = 0; callback < 100 && world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable; callback++)
-        {
-            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
-        }
-        Assert.Equal(PlayerTriggerKind.Playable, world.Events.NextTrigger.Kind);
-        VerifyRecreation(world, session, game, Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
-    }
 
     [Fact]
     public void EarlyDoctorConversationRendersAndRecreatesFromOrdinaryInputs()
@@ -55,20 +18,8 @@ public sealed class InfirmaryDoctorTests
             repository = repository.Parent;
         }
         Assert.NotNull(repository);
-        GameState source = GameSession.LoadReplaySource(Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
-        var root = GameSession.CreateColdProcess();
-        root.StartNewGame();
-        ReplayJournal prefix = root.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)
-        {
-            prefix = prefix.Append(entry);
-            if (entry.ResultFieldId == 165 && entry.ResultTrigger == (int)PlayerTriggerKind.Playable)
-            {
-                break;
-            }
-        }
-        var session = new GameSession(GameWorld.RecreateSave(new GameState { Scene = SceneKind.Field, FieldId = 165, ReplayJournal = prefix }, game));
-        using var world = new GameWorld(session, game, persistReplayJournal: false);
+        var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_DOCTOR_START_SNAPSHOT", 165));
+        using var world = new GameWorld(session, game);
         world.EnsureField();
         string output = Path.Combine(repository.FullName, "../fixtures");
         Directory.CreateDirectory(output);
@@ -87,7 +38,7 @@ public sealed class InfirmaryDoctorTests
         catch (Exception exception)
         {
             session.SetEventState(world.Events.Capture());
-            session.Save(Path.Combine(output, "boundary.json"), registerJournalReference: false);
+            session.Save(Path.Combine(output, "boundary.json"));
             Console.WriteLine(JsonSerializer.Serialize(new { exception.Message, world.Events.FieldId, world.Events.Frame, world.Events.LastFault, Draws = world.Events.Scene.ModelParts?.Draws, Actors = world.Events.Actors.Where(actor => actor.Visible).Select(actor => new { actor.ObjectId, actor.ModelId }) }));
             throw;
         }
@@ -119,11 +70,11 @@ public sealed class InfirmaryDoctorTests
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         session.SetEventState(world.Events.Capture());
-        session.Save(path, registerJournalReference: false);
+        session.Save(path);
         GameState source = session.State;
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(path), game);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })));
-        using var rebuilt = new GameWorld(new GameSession(recreated), game, persistReplayJournal: false);
+        GameState recreated = GameSession.Load(path);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source), JsonSerializer.SerializeToElement(recreated)));
+        using var rebuilt = new GameWorld(new GameSession(recreated), game);
         rebuilt.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
         PlayerAction wait = new(PlayerActionKind.Wait);

@@ -52,7 +52,7 @@ public sealed class MovieContinuationTests
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         var clock = new MovieClock(session, directory);
-        using var world = new GameWorld(session, directory, clock, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory, clock);
         StorySafeMovieSkipTests.ReachCorridorMovie(session, world, "Cecilia");
         MovieInformation information = clock.Prepare();
         Assert.Equal(326, information.FrameCount);

@@ -24,7 +24,6 @@ internal static partial class Program
             session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
             EventEngine engine = new(session);
             engine.LoadField(74, Content(mask), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-            session.MarkReplayUnavailable("Declared BYTE88/menu/draw-point component; no original journey is claimed.");
             return (session, engine);
         }
 

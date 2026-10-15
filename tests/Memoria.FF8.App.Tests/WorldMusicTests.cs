@@ -27,7 +27,7 @@ public sealed class WorldMusicTests
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var fixtureWorld = new GameWorld(session, game, persistReplayJournal: false);
+        using var fixtureWorld = new GameWorld(session, game);
         for (int input = 0; input < 100; input++)
         {
             fixtureWorld.EnsureField();
@@ -93,7 +93,7 @@ public sealed class WorldMusicTests
         string repository = Repository();
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, game, persistReplayJournal: false);
+        using var world = new GameWorld(session, game);
         ReachGardenGate(world, session);
         world.EnsureField();
         world.SetRenderSize(320, 224);
@@ -140,16 +140,16 @@ public sealed class WorldMusicTests
         GameState current = session.State;
         string path = Path.Combine(repository, "../fixtures/external-fixture.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        session.Save(path, registerJournalReference: false);
+        session.Save(path);
         GameState ordinaryLoaded = GameSession.Load(path);
-        using (var ordinaryWorld = new GameWorld(new GameSession(ordinaryLoaded), game, persistReplayJournal: false))
+        using (var ordinaryWorld = new GameWorld(new GameSession(ordinaryLoaded), game))
         {
             ordinaryWorld.EnsureField();
             Assert.Null(ordinaryWorld.Events.LastFault);
         }
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(path), game);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })));
-        using var restored = new GameWorld(new GameSession(recreated), game, persistReplayJournal: false);
+        GameState recreated = GameSession.Load(path);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(recreated)));
+        using var restored = new GameWorld(new GameSession(recreated), game);
         restored.EnsureField();
         restored.SetRenderSize(320, 224);
         using (var resumedAudio = new FieldAudioPresentation(GetDesktopWindow(), game, new MovieClock(new GameSession(recreated), game).ToolsDirectory))

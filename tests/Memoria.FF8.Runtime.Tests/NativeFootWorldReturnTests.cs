@@ -158,7 +158,7 @@ public sealed class NativeFootWorldReturnTests
     }
 
     [Fact]
-    public void Asset_preflight_failure_preserves_live_world_dialogue_and_save_history()
+    public void Asset_preflight_failure_preserves_live_world_dialogue_and_saved_owners()
     {
         var session = Session();
         GameState before = session.State;
@@ -172,36 +172,15 @@ public sealed class NativeFootWorldReturnTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
     [InlineData(4)]
     [InlineData(5)]
-    public void Altered_action_prefix_tail_pose_frame_or_receipt_refuses_before_publication(int alteration)
+    public void Altered_receipt_frame_or_source_field_refuses_before_publication(int alteration)
     {
         var session = Session();
         GameState before = session.State;
         WorldState final = Final(before.World!, 30);
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(final, 159, 17, 1);
-        List<WorldActionRecord> actions = [.. final.Actions];
-        if (alteration == 0)
-        {
-            actions[0] = actions[0] with { X = actions[0].X + 1 };
-        }
-        else if (alteration == 1)
-        {
-            actions[^1] = actions[^1] with { AdvancedFrames = 29 };
-        }
-        else if (alteration == 2)
-        {
-            actions[^1] = actions[^1] with { X = final.X + 1 };
-        }
-        else if (alteration == 3)
-        {
-            actions[^1] = actions[^1] with { Index = 17 };
-        }
-        else if (alteration == 4)
+        if (alteration == 4)
         {
             receipt = receipt with { SourceWorldFrame = receipt.SourceWorldFrame - 1 };
         }
@@ -209,7 +188,6 @@ public sealed class NativeFootWorldReturnTests
         {
             receipt = receipt with { LastFieldId = 160 };
         }
-        final = final with { Actions = actions };
         Assert.Throws<InvalidOperationException>(() => session.CommitPreparedWorldFieldEntry(before, final, new FieldTransition(136, 175, -2269, 12, 128), receipt, SalaryBatch(before, final), _ => Assert.Fail("Altered preparation must refuse before the callback.")));
         Assert.Same(before, session.State);
     }
@@ -232,7 +210,7 @@ public sealed class NativeFootWorldReturnTests
     }
 
     [Fact]
-    public void Foot_return_and_complete_departing_world_actions_survive_checkpoint_reload()
+    public void Foot_return_and_departing_world_snapshot_survive_checkpoint_reload()
     {
         var session = Session();
         GameState before = session.State;
@@ -246,7 +224,7 @@ public sealed class NativeFootWorldReturnTests
             Assert.Equal(session.State.SavedWorld, restored.SavedWorld);
             Assert.Equal(159, restored.PreviousFieldId);
             Assert.Equal(final.Frame, restored.DepartingWorldState!.Frame);
-            Assert.Equal(final.Actions, restored.DepartingWorldState.Actions);
+            Assert.Equal(JsonSerializer.Serialize(final), JsonSerializer.Serialize(restored.DepartingWorldState));
             Assert.Equal(JsonSerializer.Serialize(session.State.DepartingFieldState), JsonSerializer.Serialize(restored.DepartingFieldState));
         }
         finally
@@ -284,15 +262,13 @@ public sealed class NativeFootWorldReturnTests
             BodyYaw = 3840,
             CameraYaw = 2048,
             NativeFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame()),
-            GroundType = 6,
-            Actions = [new WorldActionRecord(1, 100, "Move", 1, 0, 100, 100, 30240, -29393, -691)]
+            GroundType = 6
         };
     }
 
     private static WorldState Final(WorldState before, int advanced)
     {
-        WorldState next = before with { Frame = before.Frame + advanced, X = before.X + 1 };
-        return next with { Actions = [.. before.Actions, new WorldActionRecord(before.Actions.Count + 1, next.Frame, "Move", 1, 0, 60, advanced, next.X, next.Z, next.NativeHeight)] };
+        return before with { Frame = before.Frame + advanced, X = before.X + 1 };
     }
 
     private static GameSession Session()
@@ -307,7 +283,7 @@ public sealed class NativeFootWorldReturnTests
             World = World(),
             SavedWorld = NativeSavedWorldState.CreateNewGame(),
             WorldControls = NativeWorldControlState.CreateNewGame() with { Menu209 = 0xA7 },
-            // Declared component initialization, without an authentic route or journal.
+            // Declared component initialization for this owner-only fixture.
             WorldProcess = NativeWorldProcess.FromColdProcess(),
             WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 17),
             EventMemory = NativeEventMemory.Empty.Write(84, 2, NativeScalarValue.Exact(160)),

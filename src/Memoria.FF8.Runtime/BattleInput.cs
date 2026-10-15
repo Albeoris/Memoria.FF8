@@ -12,7 +12,7 @@ public enum BattleInputKind
     InstantVictory
 }
 
-/// <summary>Ordinary battle inputs; replay recomputes outcomes rather than restoring old battle snapshots.</summary>
+/// <summary>Ordinary battle inputs for the current owned battle state.</summary>
 public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? ActorId = null, string? TargetId = null, BattleAtbMode Mode = BattleAtbMode.Normal, bool FullCombat = false)
 {
     public void Validate()

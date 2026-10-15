@@ -26,18 +26,12 @@ public sealed class NativeMessageVariableTests
     {
         GameSession cold = GameSession.CreateColdProcess();
         cold.StartNewGame();
-        Assert.True(cold.ReplayJournal!.IsComplete);
         Assert.Equal(NativeMessageVariables.FromColdProcess(), cold.MessageVariables);
-        using (cold.BeginReplayCapture())
-        {
-            cold.SetMessageVariables(cold.MessageVariables!.WithWrite(7, int.MinValue));
-        }
+        cold.SetMessageVariables(cold.MessageVariables!.WithWrite(7, int.MinValue));
         cold.StartNewGame();
         Assert.Equal(int.MinValue, cold.MessageVariables!.At(7));
-        Assert.False(cold.ReplayJournal!.IsComplete);
-        GameSession unknown = new(new GameState { ExamTimer = NativeExamTimerState.FromColdProcess() });
+        GameSession unknown = new(cold.State with { MessageVariables = null });
         unknown.StartNewGame();
         Assert.Null(unknown.MessageVariables);
-        Assert.False(unknown.ReplayJournal!.IsComplete);
     }
 }

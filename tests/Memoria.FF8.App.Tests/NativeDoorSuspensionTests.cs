@@ -16,20 +16,9 @@ public sealed class NativeDoorSuspensionTests
         {
             repository = repository.Parent;
         }
-        ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(repository!.FullName, "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = GameSession.CreateColdProcess();
-        seed.StartNewGame();
-        ReplayJournal prefix = seed.State.ReplayJournal!;
-        int endpointIndex = source.Entries.ToList().FindLastIndex(entry => entry.ResultFieldId == 328 && entry.ResultFrame == 95);
-        Assert.True(endpointIndex >= 0);
-        foreach (ReplayJournalEntry entry in source.Entries.Take(endpointIndex + 1))
-        {
-            prefix = prefix.Append(entry);
-        }
-        ReplayJournalEntry endpoint = prefix.Endpoint!;
-        GameState recreated = GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, directory);
+        GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_DOOR_SUSPENSION_SNAPSHOT", 328, 95);
         var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(95, world.Events.Frame);
         JsonElement originalDefault = DefaultFiber(world.Events.Capture());
@@ -39,7 +28,7 @@ public sealed class NativeDoorSuspensionTests
         JsonElement pending = world.Events.Capture();
         JsonElement suspendedDefault = DefaultFiber(pending);
         Assert.Equal(1359, suspendedDefault.GetProperty("Position").GetInt32());
-        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = pending }), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = pending }), directory);
         restored.EnsureField();
         int earthquakeStarts = 0;
         int earthquakeStops = 0;
@@ -65,7 +54,7 @@ public sealed class NativeDoorSuspensionTests
             if (tick == 0)
             {
                 Assert.True(JsonElement.DeepEquals(suspendedDefault, DefaultFiber(world.Events.Capture())), "Earthquake slot changed the suspended polling default.");
-                using var midScript = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+                using var midScript = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
                 midScript.EnsureField();
                 Assert.Equal(world.Render(TimeSpan.Zero), midScript.Render(TimeSpan.Zero));
             }

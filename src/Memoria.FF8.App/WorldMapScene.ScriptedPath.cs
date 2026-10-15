@@ -96,7 +96,7 @@ internal sealed partial class WorldMapScene
         return renderer!.Render(new Vector3(state.X, -state.NativeHeight, state.Z), state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, avatarVisible: false, staticModels: models);
     }
 
-    private WorldState StepScripted(WorldState before, out WorldFieldSelection? fieldEntry, out ReplayWorldNavigationStimulus inputProposal, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
+    private WorldState StepScripted(WorldState before, out WorldFieldSelection? fieldEntry, Func<NativeWorldPathPosition, NativeWorldPathCamera, NativeWorldPathPosition, NativeWorldPathNodeProjection?> projectNode)
     {
         ValidateScriptedState(before);
         NativeScriptedWorldRuntimeState scripted = before.NativeScriptedRuntime!;
@@ -117,7 +117,6 @@ internal sealed partial class WorldMapScene
             next = next with { Return = NativeSavedWorldScriptedReturn.Create(next, checked((ushort)session.State.FieldId), inputs.StoryWord, location, transition) };
         }
         WorldState candidate = next.ToWorldState(before);
-        inputProposal = new ReplayWorldNavigationStimulus(candidate.X, candidate.Z);
         fieldEntry = null;
         if (path.CompletedFieldRow is byte row)
         {

@@ -11,10 +11,6 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(input);
         input.Validate();
-        if (!IsReplayCaptureActive)
-        {
-            MarkReplayUnavailable("Physical input sampler changed outside a recorded engine transaction.");
-        }
         State = State with { FieldButtonInput = input };
     }
 
@@ -23,7 +19,7 @@ public sealed partial class GameSession
 
     public void InitializeNewGameInputConfiguration(NativeInputConfiguration configuration)
     {
-        if (State.InputConfiguration is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (State.InputConfiguration is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             throw new NotSupportedException("Input initialization requires the untouched authentic New Game template load.");
         }
@@ -35,10 +31,6 @@ public sealed partial class GameSession
     {
         ArgumentNullException.ThrowIfNull(configuration);
         configuration.Validate();
-        if (!IsReplayCaptureActive)
-        {
-            MarkReplayUnavailable("Native input configuration changed outside its recorded initializer or event transaction.");
-        }
         State = State with { InputConfiguration = configuration };
     }
 
@@ -51,7 +43,7 @@ public sealed partial class GameSession
         }
         if (!snapshot.TryGetProperty("InputConfiguration", out JsonElement saved))
         {
-            throw new InvalidDataException("Saved VM is missing its canonical native input configuration; recreate authentic inputs.");
+            throw new InvalidDataException("Saved VM is missing its canonical native input configuration; migrate this save explicitly.");
         }
         if (!snapshot.TryGetProperty("FieldButtonInput", out JsonElement savedInput) || !JsonElement.DeepEquals(savedInput, JsonSerializer.SerializeToElement(state.FieldButtonInput, JsonOptions)))
         {

@@ -13,15 +13,15 @@ public sealed class FreshPartySplitTests
         string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SPLIT_PREFIX") ?? Path.Combine(FindRepository(), "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         Assert.True(File.Exists(source), "The tracked game-recorded New Game prefix is required.");
-        GameState state = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
+        GameState state = GameSession.Load(source);
         var session = new GameSession(state);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         JsonElement begun = world.Events.Capture();
         Assert.Equal(2, begun.GetProperty("PartySplit").GetProperty("Targets").GetArrayLength());
         Assert.False(world.Events.IsUserControlEnabled);
         Assert.Equal(new[] { 0, 5, 255 }, world.Events.Scene.Party);
-        using var restored = new GameWorld(new GameSession(state with { EventState = begun, EventMemory = state.EventMemory}), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(state with { EventState = begun, EventMemory = state.EventMemory}), directory);
         restored.EnsureField();
         long firstFrame = world.Events.Frame;
         for (int tick = 0; tick < 100; tick++)

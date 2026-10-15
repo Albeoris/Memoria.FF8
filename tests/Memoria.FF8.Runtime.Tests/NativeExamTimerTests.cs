@@ -11,7 +11,6 @@ public sealed class NativeExamTimerTests
         GameSession session = GameSession.CreateColdProcess();
         Assert.Equal(new NativeTimerAlternative(0, 0, 0), Assert.Single(session.ExamTimer!.Alternatives));
         session.StartNewGame();
-        Assert.True(session.ReplayJournal!.IsComplete);
         NativeExamTimerState running = session.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 100).AdvanceCallbacks(NativeTimerCallbackKind.World, 3).AdvanceCallbacks(NativeTimerCallbackKind.MovieField, 2);
         Assert.False(running.TimerMemoryActivated);
         uint phase = unchecked(214u * 2191);
@@ -30,8 +29,6 @@ public sealed class NativeExamTimerTests
         Assert.Equal((byte)10, session.ExamTimer.DisplayY);
         Assert.False(session.ExamTimer.TimerMemoryActivated);
         Assert.Equal(0x18u, session.WorldControls!.EventFlags104);
-        Assert.False(session.ReplayJournal!.IsComplete);
-        Assert.Contains("earlier process history", session.ReplayJournal.UnavailableReason);
     }
 
     [Fact]

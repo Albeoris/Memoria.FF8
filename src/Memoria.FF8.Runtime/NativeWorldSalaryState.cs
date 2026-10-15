@@ -1,6 +1,6 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
-/// <summary>Transaction-local owners accumulated over actual world callbacks; never a saved-state or replay shortcut.</summary>
+/// <summary>Transaction-local owners accumulated over actual world callbacks.</summary>
 public sealed record NativeWorldSalaryState
 {
     private NativeWorldSalaryState(GameState departure)
@@ -16,9 +16,6 @@ public sealed record NativeWorldSalaryState
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
     }
 
-    private byte? pendingFuelGround;
-    private bool sampledDrawPoints;
-    public System.Collections.Immutable.ImmutableArray<ReplayWorldEffectCause> ReplayEffects { get; private init; } = [];
     public GameState Departure { get; }
     public long Callbacks { get; private init; }
     public uint MovementUnits { get; private init; }
@@ -49,14 +46,7 @@ public sealed record NativeWorldSalaryState
         {
             throw new InvalidDataException("World callback lost a current salary process owner or its native movement bound.");
         }
-        var causes = ReplayEffects;
-        if (Departure.ReplayJournal is not null)
-        {
-            byte entity = Departure.World?.NativeFootRuntime?.EntityType ?? Departure.World?.NativeCarRuntime?.EntityType ?? unchecked((byte)(Departure.WorldArrival?.Mode ?? throw new NotSupportedException("World effects require their actual allocated packet.")));
-            ReplayWorldEffectCause cause = new(entity, movementUnits, VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("World effects lost their current graphics magnitude producer."), pendingFuelGround, uiTicks, sampledDrawPoints);
-            causes = causes.Add(cause);
-        }
-        return this with { ReplayEffects = causes, pendingFuelGround = null, sampledDrawPoints = false, Callbacks = checked(Callbacks + 1), MovementUnits = checked(MovementUnits + movementUnits), SeeD = result?.SeeD ?? SeeD, Economy = result?.Economy ?? Economy, Presentation = presentation, SoundProcess = soundProcess, VibrationProcess = vibration };
+        return this with { Callbacks = checked(Callbacks + 1), MovementUnits = checked(MovementUnits + movementUnits), SeeD = result?.SeeD ?? SeeD, Economy = result?.Economy ?? Economy, Presentation = presentation, SoundProcess = soundProcess, VibrationProcess = vibration };
     }
 
     public GameState ApplyTo(GameState candidate, WorldState finalWorld)
@@ -64,15 +54,6 @@ public sealed record NativeWorldSalaryState
         if (Departure.Scene != SceneKind.WorldMap || Departure.World is null || Callbacks != finalWorld.Frame - Departure.World.Frame || MovementUnits > (ulong)Callbacks * 5792 || (finalWorld.NativeScriptedRuntime is not null || finalWorld.NativeTrainRuntime is not null) && MovementUnits != 0)
         {
             throw new InvalidDataException("World salary owners do not belong to the actual callback sequence.");
-        }
-        return ApplyOwnersTo(candidate);
-    }
-
-    internal GameState ApplySemanticEffectsTo(GameState candidate, int callbacks)
-    {
-        if (Callbacks != callbacks || callbacks is < 1 or > 30000)
-        {
-            throw new InvalidDataException("Semantic world effects require their explicitly executed callback causes.");
         }
         return ApplyOwnersTo(candidate);
     }
@@ -95,7 +76,7 @@ public sealed record NativeWorldSalaryState
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)
     {
         NativeEventRandomState random = EventRandom ?? throw new NotSupportedException("Native world6519D0 requires its actual shared random process and saved draw-point bank.");
-        return this with { EventRandom = random.AdvanceMovement(movementUnits), sampledDrawPoints = true };
+        return this with { EventRandom = random.AdvanceMovement(movementUnits) };
     }
 
     public NativeWorldSalaryState PrepareCarVibration(int entityType, NativeVibrationBank bank)
@@ -120,7 +101,7 @@ public sealed record NativeWorldSalaryState
         }
         if (entityType == 33)
         {
-            return this with { pendingFuelGround = groundType };
+            return this;
         }
         uint distance = FuelDistance112 ?? throw new NotSupportedException("Native car fuel requires its executed saved-world DWORD112 owner.");
         NativeEconomy economy = Economy ?? throw new NotSupportedException("Native car fuel requires its canonical original inventory pairs.");
@@ -133,10 +114,10 @@ public sealed record NativeWorldSalaryState
         }
         if (!economy.Items.Any(item => item.ItemId == 162 && item.Count != 0))
         {
-            return this with { pendingFuelGround = groundType };
+            return this;
         }
         int increment = groundType == 28 ? rawMagnitude >> 1 : groundType is 27 or 8 ? 2 * rawMagnitude : rawMagnitude;
-        return this with { FuelDistance112 = unchecked(distance + (uint)increment), pendingFuelGround = groundType };
+        return this with { FuelDistance112 = unchecked(distance + (uint)increment) };
     }
 
     public NativeWorldSalaryState AdvanceCarCameraCooldown(bool throttle, bool steering)

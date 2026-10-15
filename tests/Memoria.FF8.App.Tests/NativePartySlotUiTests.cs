@@ -34,17 +34,13 @@ public sealed class NativePartySlotUiTests
     [InlineData(PlayerActionKind.SelectPartyMember, 8)]
     [InlineData(PlayerActionKind.SelectPartyMember, 254)]
     [InlineData(PlayerActionKind.SelectPartyMember, 256)]
-    public void InvalidFullWidthPartyInputRefusesBeforeChangingTheCompleteJournal(PlayerActionKind kind, int value)
+    public void InvalidFullWidthPartyInputRefusesBeforeChangingTheCompleteSnapshot(PlayerActionKind kind, int value)
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         EventEngine events = new(session);
         GameState before = session.State;
-        ReplayJournal journal = session.ReplayJournal!;
         Assert.Throws<ArgumentException>(() => events.Apply(new PlayerAction(kind, value)));
         Assert.Same(before, session.State);
-        Assert.Same(journal, session.ReplayJournal);
-        Assert.True(session.ReplayJournal!.IsComplete);
-        Assert.Equal(0, session.ReplayJournal.EntryCount);
     }
 }

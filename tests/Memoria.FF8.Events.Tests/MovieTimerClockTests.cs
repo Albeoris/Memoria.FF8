@@ -23,7 +23,6 @@ internal static partial class Program
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
                 // This explicit timer-domain diagnostic does not claim a cold timer phase or route history.
                 session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());
-                session.MarkReplayUnavailable("Declared movie timer alternatives component has no original route history.");
             }
             else
             {

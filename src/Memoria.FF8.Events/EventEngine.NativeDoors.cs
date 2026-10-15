@@ -330,10 +330,6 @@ public sealed partial class EventEngine
                 Fiber requested = Queue(line.ObjectId, program!.Objects[line.ObjectId].Scripts[local].Id, priority, false);
                 requested.NativeDoorSlot = (byte)(7 - priority);
                 SelectNativeDoorRequest(requested);
-                if (!EmptyNativeLineScript(line, local))
-                {
-                    RecordSemanticAdmission(CreateSemanticTrigger(SemanticDoorKind(local), line.ObjectId, local, 7 - priority, eventBits: events, contact: contact));
-                }
                 admitted = true;
             }
         }

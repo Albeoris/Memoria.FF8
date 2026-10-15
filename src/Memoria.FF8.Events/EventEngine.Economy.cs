@@ -9,7 +9,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedEconomyAliases()
     {
-        return EventMemory.Overlaps(72, 8) ? "Native gil event-bank words overlap a separate VM memory alias; recreate authentic inputs" : null;
+        return EventMemory.Overlaps(72, 8) ? "Native gil event-bank words overlap a separate VM memory alias; migrate this save explicitly" : null;
     }
 
     private string? UnsupportedNativeEconomy(Fiber fiber, JsmOperation operation)

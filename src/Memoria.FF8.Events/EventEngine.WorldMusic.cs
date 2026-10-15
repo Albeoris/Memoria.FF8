@@ -41,13 +41,13 @@ public sealed partial class EventEngine
     {
         ArgumentNullException.ThrowIfNull(packet);
         ArgumentNullException.ThrowIfNull(resolveResource);
-        NativeWorldMusicSelection selection = Scene.WorldMusicSelection ?? throw new NotSupportedException("World music needs its executed BYTE268 selection; recreate the authentic journal.");
+        NativeWorldMusicSelection selection = Scene.WorldMusicSelection ?? throw new NotSupportedException("World music needs its executed BYTE268 selection; the snapshot is missing required native state");
         NativeMusicProcessState process = Scene.MusicProcess ?? throw new NotSupportedException("World music requires the current native music process.");
         if (UnsupportedNativeMusicAliases(EventMemory) is string aliases)
         {
             throw new NotSupportedException(aliases);
         }
-        if (services.ReplayScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Pending != false || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
+        if (services.CurrentScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Pending != false || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
         {
             throw new NotSupportedException("World music requires authenticated native bank, channel, consumed field preload and unaliased BYTE268 authority.");
         }

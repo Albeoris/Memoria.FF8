@@ -62,7 +62,6 @@ public sealed partial class EventEngine
         Fiber requested = Queue(actor.ObjectId, program!.Objects[actor.ObjectId].Scripts[3].Id, 6, false);
         requested.NativeActorSlot = 6;
         SuspendNativeMovementForRequest(actor, requested);
-        RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.PushContact, actor.ObjectId, 3, 6));
         return true;
     }
 

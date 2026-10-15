@@ -40,7 +40,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("EventRandom", out JsonElement element))
         {
-            throw new InvalidDataException("Saved VM lacks its required native event random process; recreate authentic inputs.");
+            throw new InvalidDataException("Saved VM lacks its required native event random process; migrate this save explicitly.");
         }
         NativeEventRandomState? captured = element.ValueKind == JsonValueKind.Null ? null : element.Deserialize<NativeEventRandomState>(JsonOptions);
         captured?.Validate();

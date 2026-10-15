@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace Memoria.FF8.Runtime.Tests;
 
-/// <summary>Owner-only current Runtime checkpoint fixtures, never executable field VMs or authentic journals.</summary>
+/// <summary>Owner-only current Runtime checkpoint fixtures, without executable field VMs.</summary>
 internal static class RuntimeOwnerCheckpointFixture
 {
     public static JsonElement Capture(GameState state)

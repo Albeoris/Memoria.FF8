@@ -13,7 +13,7 @@ public sealed class PlayerSaveTests : IDisposable
         string research = Path.Combine(directory, "research.json");
         Directory.CreateDirectory(directory);
         File.WriteAllText(research, "research evidence");
-        var store = new PlayerSaveStore(research, Path.Combine(directory, "player-saves"), new ReplayJournalArchive(Path.Combine(directory, "journals")));
+        var store = new PlayerSaveStore(research, Path.Combine(directory, "player-saves"));
         var session = new GameSession(new GameState { Scene = SceneKind.Field, FieldId = 180, FieldName = "bghoke_2", X = 12.5f, Y = 41 });
         store.Save(0, session);
         session.SetPosition(99, 48);
@@ -46,7 +46,7 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.False(entries[2].CanLoad);
         Assert.Throws<FileNotFoundException>(() => store.Load(0));
         Assert.Throws<System.Text.Json.JsonException>(() => store.Load(1));
-        var conflicting = new PlayerSaveStore(store.GetPath(1), Path.GetDirectoryName(store.GetPath(1)), new ReplayJournalArchive(Path.Combine(directory, "journals")));
+        var conflicting = new PlayerSaveStore(store.GetPath(1), Path.GetDirectoryName(store.GetPath(1)));
         Assert.Throws<InvalidOperationException>(() => conflicting.GetPath(1));
         Assert.Throws<InvalidOperationException>(() => conflicting.Save(1, new GameSession(new GameState { Scene = SceneKind.Field })));
         Assert.Contains("invalid json", File.ReadAllText(store.GetPath(1)));
@@ -246,179 +246,6 @@ public sealed class PlayerSaveTests : IDisposable
         Assert.Equal((0, 0, 0f), (inactive.MenuHorizontal, inactive.MenuPage, inactive.Horizontal));
     }
 
-    [Fact]
-    public void Legacy_save_remains_loadable_but_recreation_cannot_fabricate_its_history()
-    {
-        PlayerSaveStore store = CreateStore();
-        var session = new GameSession(new GameState { Scene = SceneKind.Field, X = 42 });
-        store.Save(0, session);
-        byte[] original = File.ReadAllBytes(store.GetPath(0));
-        PlayerSaveEntry entry = store.ReadEntries(true)[0];
-        Assert.True(entry.CanLoad);
-        Assert.False(entry.CanRecreate);
-        Assert.Contains("no recorded history", entry.RecreateUnavailableReason);
-        Assert.Throws<InvalidOperationException>(() => store.Recreate(0, _ => throw new Exception("Replay must not run.")));
-        var menu = new PlayerSaveMenu(store);
-        menu.Open(PlayerSaveMenuMode.Load);
-        menu.Update(Recreate(), _ => throw new Exception(), _ => throw new Exception(), _ => throw new Exception("Disabled recreation must not run."));
-        Assert.True(menu.IsOpen);
-        Assert.Contains("no recorded history", menu.Message);
-        int loaded = -1;
-        menu.Update(Confirm(), _ => throw new Exception(), slot => loaded = slot);
-        Assert.Equal(0, loaded);
-        Assert.False(menu.IsOpen);
-        Assert.Equal(original, File.ReadAllBytes(store.GetPath(0)));
-    }
-
-    [Fact]
-    public void Failed_recreation_preserves_original_save_and_running_session()
-    {
-        PlayerSaveStore store = CreateStore();
-        GameSession session = NewRecordedGame();
-        store.Save(0, session);
-        byte[] original = File.ReadAllBytes(store.GetPath(0));
-        GameState running = session.State;
-        var menu = new PlayerSaveMenu(store);
-        menu.Open(PlayerSaveMenuMode.Load);
-        Assert.True(menu.CanRecreate);
-        menu.Update(Recreate(), _ => throw new Exception(), _ => throw new Exception(), slot => store.Recreate(slot, _ => throw new NotSupportedException("Native replay boundary")));
-        Assert.True(menu.IsOpen);
-        Assert.Contains("Native replay boundary", menu.Message);
-        Assert.Same(running, session.State);
-        Assert.Equal(original, File.ReadAllBytes(store.GetPath(0)));
-        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(store.GetPath(0))!, "*.recreate-*"));
-    }
-
-    [Fact]
-    public void Recreation_replaces_only_selected_slot_and_loads_candidate_after_success()
-    {
-        PlayerSaveStore store = CreateStore();
-        GameSession session = NewRecordedGame();
-        store.Save(0, session);
-        store.Save(1, session);
-        byte[] manual = File.ReadAllBytes(store.GetPath(1));
-        var menu = new PlayerSaveMenu(store);
-        menu.Open(PlayerSaveMenuMode.Load);
-        menu.Update(Recreate(), _ => throw new Exception(), _ => throw new Exception(), slot =>
-        {
-            GameState candidate = store.Recreate(slot, source => source with { X = 99 });
-            session.Restore(candidate);
-        });
-        Assert.False(menu.IsOpen);
-        Assert.Equal(99, session.State.X);
-        Assert.Equal(99, store.Load(0).X);
-        Assert.Equal(manual, File.ReadAllBytes(store.GetPath(1)));
-        Assert.NotNull(store.Load(0).ReplayJournal);
-        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(store.GetPath(0))!, "*.recreate-*"));
-    }
-
-    [Fact]
-    public void Changed_save_and_invalid_recreation_candidate_are_never_replaced()
-    {
-        PlayerSaveStore store = CreateStore();
-        GameSession session = NewRecordedGame();
-        store.Save(0, session);
-        byte[] original = File.ReadAllBytes(store.GetPath(0));
-        Assert.Throws<InvalidDataException>(() => store.Recreate(0, source => source with { Scene = SceneKind.Title }));
-        Assert.Equal(original, File.ReadAllBytes(store.GetPath(0)));
-        Assert.Throws<IOException>(() => store.Recreate(0, source =>
-        {
-            store.Save(0, new GameSession(source with { X = 88 }));
-            return source with { X = 99 };
-        }));
-        Assert.Equal(88, store.Load(0).X);
-        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(store.GetPath(0))!, "*.recreate-*"));
-    }
-
-    [Fact]
-    public void Journal_recreation_is_available_when_old_derived_state_cannot_load()
-    {
-        PlayerSaveStore store = CreateStore();
-        GameSession session = NewRecordedGame();
-        store.Save(0, session);
-        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(store.GetPath(0)))!;
-        json["WorldControls"]!["SchemaVersion"] = 999;
-        File.WriteAllText(store.GetPath(0), json.ToJsonString());
-        Assert.Throws<InvalidDataException>(() => store.Load(0));
-        PlayerSaveEntry entry = store.ReadEntries(true)[0];
-        Assert.False(entry.CanLoad);
-        Assert.True(entry.CanRecreate);
-        Assert.Contains("Normal load unavailable", entry.Details);
-        store.Recreate(0, source => session.State with { ReplayJournal = source.ReplayJournal });
-        Assert.True(store.ReadEntries(true)[0].CanLoad);
-    }
-
-    [Fact]
-    public void Recreation_shortcut_is_a_press_edge_and_ignored_in_save_menu()
-    {
-        var keyboard = new KeyboardInput();
-        Assert.True(keyboard.Read(new KeyboardState(Keys.R), true).RecreateSave);
-        Assert.False(keyboard.Read(new KeyboardState(Keys.R), true).RecreateSave);
-        keyboard.Read(new KeyboardState(), true);
-        Assert.False(keyboard.Read(new KeyboardState(Keys.R), false).RecreateSave);
-        var menu = new PlayerSaveMenu(CreateStore());
-        menu.Open(PlayerSaveMenuMode.Save);
-        menu.Update(Recreate(), _ => throw new Exception(), _ => throw new Exception(), _ => throw new Exception());
-        Assert.True(menu.IsOpen);
-        Assert.Null(menu.Message);
-        Assert.False(menu.CanRecreate);
-    }
-
-    [Fact]
-    public void Registered_player_namespace_protects_journals_for_all_sixty_one_slots()
-    {
-        string archiveDirectory = Path.Combine(directory, "journals");
-        var archive = new ReplayJournalArchive(archiveDirectory);
-        var store = new PlayerSaveStore(Path.Combine(directory, "research.json"), Path.Combine(directory, "player-saves"), archive);
-        var protectedJournals = new List<string>();
-        for (int slot = 0; slot <= PlayerSaveStore.SlotCount; slot++)
-        {
-            GameSession session = NewRecordedGame();
-            session.Save(store.GetPath(slot), registerJournalReference: false);
-            archive.Persist(session.State.ReplayJournal!);
-            string journalPath = archive.GetPath(session.State.ReplayJournal!.SessionId);
-            File.SetLastWriteTimeUtc(journalPath, DateTime.UtcNow.AddDays(-30));
-            protectedJournals.Add(journalPath);
-        }
-        GameSession unreferenced = NewRecordedGame();
-        archive.Persist(unreferenced.State.ReplayJournal!);
-        string unreferencedPath = archive.GetPath(unreferenced.State.ReplayJournal!.SessionId);
-        File.SetLastWriteTimeUtc(unreferencedPath, DateTime.UtcNow.AddDays(-30));
-        Assert.Equal(1, archive.Prune(DateTimeOffset.UtcNow, TimeSpan.Zero, keepUnreferenced: 0));
-        Assert.False(File.Exists(unreferencedPath));
-        Assert.All(protectedJournals, path => Assert.True(File.Exists(path)));
-    }
-
-    [Fact]
-    public void Archive_publication_failure_does_not_replace_selected_save()
-    {
-        PlayerSaveStore store = CreateStore();
-        GameSession session = NewRecordedGame();
-        store.Save(0, session);
-        byte[] original = File.ReadAllBytes(store.GetPath(0));
-        var archive = new ReplayJournalArchive(Path.Combine(directory, "journals"));
-        string blocked = archive.GetPath(session.State.ReplayJournal!.SessionId);
-        File.Delete(blocked);
-        Directory.CreateDirectory(blocked);
-        Exception failure = Assert.ThrowsAny<Exception>(() => store.Recreate(0, source => source with { X = 99 }));
-        Assert.True(failure is IOException or UnauthorizedAccessException);
-        Assert.Equal(original, File.ReadAllBytes(store.GetPath(0)));
-        Assert.Equal(0, session.State.X);
-        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(store.GetPath(0))!, "*.recreate-*"));
-    }
-
-    private static GameSession NewRecordedGame()
-    {
-        var session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        return session;
-    }
-
-    private static InputFrame Recreate()
-    {
-        return new InputFrame(0, 0, false, false, false, false, RecreateSave: true);
-    }
-
     private static void Navigate(PlayerSaveMenu menu, InputFrame input)
     {
         menu.Update(input, _ => throw new InvalidOperationException("Navigation must not save."), _ => throw new InvalidOperationException("Navigation must not load."));
@@ -426,7 +253,7 @@ public sealed class PlayerSaveTests : IDisposable
 
     private PlayerSaveStore CreateStore()
     {
-        return new PlayerSaveStore(Path.Combine(directory, "research.json"), Path.Combine(directory, "player-saves"), new ReplayJournalArchive(Path.Combine(directory, "journals")));
+        return new PlayerSaveStore(Path.Combine(directory, "research.json"), Path.Combine(directory, "player-saves"));
     }
 
     private static InputFrame Confirm()
@@ -437,22 +264,6 @@ public sealed class PlayerSaveTests : IDisposable
     private static InputFrame Cancel()
     {
         return new InputFrame(0, 0, false, true, true, false);
-    }
-
-    [Fact]
-    public void Optional_archive_registration_failure_does_not_block_menu_startup()
-    {
-        Directory.CreateDirectory(directory);
-        string blocked = Path.Combine(directory, "archive-blocked");
-        File.WriteAllText(blocked, "not a directory");
-        var archive = new ReplayJournalArchive(Path.Combine(blocked, "archive"));
-        var store = new PlayerSaveStore(Path.Combine(directory, "research.json"), Path.Combine(directory, "player-saves"), archive);
-        Assert.Equal(61, store.ReadEntries(true).Count);
-        var session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        Assert.ThrowsAny<IOException>(() => store.Save(1, session));
-        Assert.False(File.Exists(store.GetPath(1)));
-        Assert.True(session.ReplayJournal!.IsComplete);
     }
 
     public void Dispose()

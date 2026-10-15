@@ -39,18 +39,18 @@ internal static partial class Program
         live.CommandExecuted += command => commands.Add((command.ObjectId, command.Name));
         live.Step();
         JsonElement initialized = live.Capture();
-        JsonElement values = initialized.GetProperty("Variables");
+        JsonElement values = CapturedVariables(initialized);
         Require(live.Frame == 1 && live.Scene.NativeFieldInitialization?.Stage == NativeFieldInitializationStage.Completed && values.GetProperty("5001").GetInt32() == 7 && values.GetProperty("1024").GetInt32() == 1 && live.Actors[1] is { Active: true, X: 496, Y: -314, WalkmeshTriangle: 35 } && live.Scene.NativeActorObjectIds.SequenceEqual([0, 1]), "Serial initialization exposed a later entity before the prior module/actor producer finished beyond sixteen instructions.");
         Require(commands[0].ObjectId == 2 && commands.All(command => command.Name != "RET") && commands.Count(command => command.Name == "WAIT") == 1 && !values.TryGetProperty("5000", out _) && JsonElement.DeepEquals(allocated.GetProperty("EventRandom"), initialized.GetProperty("EventRandom")) && JsonElement.DeepEquals(allocated.GetProperty("ExamTimer"), initialized.GetProperty("ExamTimer")) && live.Scene.FieldCallbackClock is { OrdinaryCallbacks: 0, MovieCallbacks: 0, InitializationTransactions: 1, TimerCalls: 0 }, "Synchronous initialization called RET/default scripts or advanced callback, RNG or timer ownership while polling WAIT.");
         EventEngine independent = Create();
         independent.Restore(initialized);
         live.Step();
         independent.Step();
-        values = live.Capture().GetProperty("Variables");
+        values = CapturedVariables(live.Capture());
         Require(values.GetProperty("5000").GetInt32() == 901 && !values.TryGetProperty("5008", out _) && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "52C960 lost init R0 at default LBL or ordinary callback no longer respected its sixteen-instruction budget.");
         live.Step();
         independent.Step();
-        Require(live.Capture().GetProperty("Variables").GetProperty("5008").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Ordinary default continuation changed after the serial initialization barrier/independent restore.");
+        Require(CapturedVariables(live.Capture()).GetProperty("5008").GetInt32() == 77 && JsonElement.DeepEquals(live.Capture(), independent.Capture()), "Ordinary default continuation changed after the serial initialization barrier/independent restore.");
         Console.WriteLine("Native52C650: module-before-actor serial completion beyond16, positive WAIT/LOADSYNC without callbacks, RET precheck, dependent actor retention,52C960 R0 carry and ordinary16-op budget/independent restore PASS.");
     }
 }

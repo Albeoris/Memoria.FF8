@@ -51,7 +51,7 @@ public sealed partial class EventEngine
         }
         if (rankMemory && (EventMemory.Overlaps(8, 4) || EventMemory.Overlaps(16, 4) || EventMemory.Overlaps(184, 4)))
         {
-            return "Native SeeD WORD16 overlaps an unproved VM memory alias; recreate the authentic journal";
+            return "Native SeeD WORD16 overlaps an unproved VM memory alias; the snapshot is missing required native state";
         }
         bool operand = operation.Opcode == Jsm.Opcode.ADDSEEDLEVEL || operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L;
         if (operand && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact))

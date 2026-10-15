@@ -18,8 +18,8 @@ public sealed class NativePendingDirectScrollTests
         Assert.Equal(265, initial.FieldId);
         Assert.Equal(2, initial.EventState!.Value.GetProperty("Frame").GetInt32());
         GameSession session = new(initial);
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
-        using GameWorld independent = new(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(initial))!), directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
+        using GameWorld independent = new(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(initial))!), directory);
         world.EnsureField();
         independent.EnsureField();
         world.SetRenderSize(640, 448);
@@ -55,7 +55,7 @@ public sealed class NativePendingDirectScrollTests
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), independent.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), independent.Render(TimeSpan.Zero));
         GameState current = session.State with { EventState = world.Events.Capture() };
-        using GameWorld resumed = new(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(current))!), directory, persistReplayJournal: false);
+        using GameWorld resumed = new(new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(current))!), directory);
         resumed.EnsureField();
         resumed.SetRenderSize(640, 448);
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), resumed.Events.Capture()));

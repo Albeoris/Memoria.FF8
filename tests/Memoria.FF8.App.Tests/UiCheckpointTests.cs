@@ -21,11 +21,11 @@ public sealed class UiCheckpointTests
         GameState recreated = GameSession.Load(rebuiltPath);
         AssertRoofCheckpoint(source);
         AssertRoofCheckpoint(recreated);
-        AssertStateEqual(source, recreated, "Complete source and authentic journal recreation state before loading the field");
+        AssertStateEqual(source, recreated, "Complete source and snapshot restore state before loading the field");
         GameSession sourceSession = new(source);
         GameSession rebuiltSession = new(recreated);
-        using GameWorld sourceWorld = new(sourceSession, gameDirectory, persistReplayJournal: false);
-        using GameWorld rebuiltWorld = new(rebuiltSession, gameDirectory, persistReplayJournal: false);
+        using GameWorld sourceWorld = new(sourceSession, gameDirectory);
+        using GameWorld rebuiltWorld = new(rebuiltSession, gameDirectory);
         sourceWorld.EnsureField();
         rebuiltWorld.EnsureField();
         sourceWorld.SetRenderSize(640, 448);
@@ -38,18 +38,17 @@ public sealed class UiCheckpointTests
         float previousY = sourceSession.State.Y;
         AssertNext(new PlayerAction(PlayerActionKind.Move, Horizontal: 1), sourceSession, sourceWorld, rebuiltSession, rebuiltWorld);
         Assert.True(previousX != sourceSession.State.X || previousY != sourceSession.State.Y, "The compared ordinary roof Move must change the actual player position.");
-        Console.WriteLine($"UI checkpoint validation: preserved source {sourcePath}; current-code authentic journal recreation {rebuiltPath}; complete state excluding journal, 640x448 CPU pixels, next Wait and genuine Move equal. Both implementations are current Memoria; original FF8 GPU/audio/menu pixel parity is not claimed.");
+        Console.WriteLine($"UI checkpoint validation: preserved source {sourcePath}; current-code snapshot restore {rebuiltPath}; complete state all persisted owners, 640x448 CPU pixels, next Wait and genuine Move equal. Both implementations are current Memoria; original FF8 GPU/audio/menu pixel parity is not claimed.");
     }
 
     [Fact]
-    public void AllDemoAndReadOnlyLiveMenuViewsPreserveAttachedAuthenticCheckpointAndJournal()
+    public void AllDemoAndReadOnlyLiveMenuViewsPreserveAttachedAuthenticCheckpoint()
     {
         string sourcePath = RequiredCheckpoint("MEMORIA_UI_SOURCE");
         GameState source = GameSession.Load(sourcePath);
         AssertRoofCheckpoint(source);
         GameSession session = new(source);
         JsonElement original = JsonSerializer.SerializeToElement(session.State, JsonOptions);
-        int journalEntries = session.ReplayJournal!.EntryCount;
         int nativeActionCalls = 0;
         MenuController controller = new(() => LiveMenuData.Build(session.State), _ => nativeActionCalls++);
         string[] screens = controller.ScreenIds.ToArray();
@@ -76,12 +75,9 @@ public sealed class UiCheckpointTests
         Draw(controller, canvas, theme);
         Assert.Equal(0, nativeActionCalls);
         Assert.True(JsonElement.DeepEquals(original, JsonSerializer.SerializeToElement(session.State, JsonOptions)));
-        Assert.Equal(journalEntries, session.ReplayJournal!.EntryCount);
-        Assert.True(session.ReplayJournal.IsComplete, session.ReplayJournal.UnavailableReason);
-        session.ReplayJournal.Validate();
         Assert.True(canvas.TextCalls > 0);
         Assert.Equal(0, canvas.ClipDepth);
-        Console.WriteLine($"UI checkpoint isolation: {screens.Length} registered screens, synthetic demo and read-only live drawing/navigation; preserved source {sourcePath} and its complete {journalEntries}-entry journal. Canvas command checks do not establish original FF8 menu pixel parity.");
+        Console.WriteLine($"UI checkpoint isolation: {screens.Length} registered screens, synthetic demo and read-only live drawing/navigation; preserved source {sourcePath}. Canvas command checks do not establish original FF8 menu pixel parity.");
     }
 
     private static string RequiredCheckpoint(string variable)
@@ -104,10 +100,6 @@ public sealed class UiCheckpointTests
         Assert.Equal(SceneKind.Field, state.Scene);
         Assert.Equal(930, state.FieldId);
         Assert.Equal(5, state.EventState!.Value.GetProperty("Frame").GetInt32());
-        Assert.NotNull(state.ReplayJournal);
-        state.ReplayJournal.Validate();
-        Assert.True(state.ReplayJournal.IsComplete, state.ReplayJournal.UnavailableReason);
-        Assert.True(state.ReplayJournal.EntryCount > 0);
     }
 
     private static void AssertNext(PlayerAction action, GameSession sourceSession, GameWorld sourceWorld, GameSession rebuiltSession, GameWorld rebuiltWorld)
@@ -131,7 +123,7 @@ public sealed class UiCheckpointTests
 
     private static void AssertStateEqual(GameState source, GameState recreated, string phase)
     {
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }, JsonOptions), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null }, JsonOptions)), $"{phase}: complete current GameState excluding its journal differs.");
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source, JsonOptions), JsonSerializer.SerializeToElement(recreated, JsonOptions)), $"{phase}: complete current GameState including all persisted owners differs.");
     }
 
     private static void Draw(MenuController controller, RecordingCanvas canvas, UiTheme theme)

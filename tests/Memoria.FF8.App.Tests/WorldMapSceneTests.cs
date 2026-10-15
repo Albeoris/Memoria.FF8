@@ -14,7 +14,7 @@ public sealed class WorldMapSceneTests
     {
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld initialization = new(session, GameDirectory(), persistReplayJournal: false);
+        using GameWorld initialization = new(session, GameDirectory());
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         NativeExamTimerState timer = NativeExamTimerState.FromReachedSet(600).Display(250, 10);
         if (!displayed)
@@ -28,10 +28,9 @@ public sealed class WorldMapSceneTests
         Assert.Equal(3, scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3)).FramesAdvanced);
         NativeExamTimerState expected = timer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
-        ReplayJournalEntry entry = session.ReplayJournal!.Endpoint!;
         var replaySession = new GameSession(initial);
         using var replay = new WorldMapScene(replaySession, GameDirectory());
-        Assert.Equal(3, replay.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames)).FramesAdvanced);
+        Assert.Equal(3, replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 3)).FramesAdvanced);
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
         Assert.False(scene.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(session.ExamTimer));
@@ -63,7 +62,6 @@ public sealed class WorldMapSceneTests
         Assert.Equal((byte)28, scene.State.GroundType);
         Assert.Equal((ushort)285, scene.State.ReplacementMask);
         Assert.Empty(session.State.Variables);
-        Assert.Empty(scene.State.Actions);
 
         PlayerActionResult result = scene.Apply(new PlayerAction(PlayerActionKind.Wait));
         Assert.True(result.Accepted);
@@ -93,7 +91,6 @@ public sealed class WorldMapSceneTests
         Assert.Equal((0, 0), (scene.State.AnimationId, scene.State.AnimationCounter));
         Assert.Equal(24591, scene.State.CameraTargetX);
         Assert.Equal((1, 6), (scene.State.CameraYaw, scene.State.CameraVelocity));
-        Assert.Equal(2, scene.State.Actions.Count);
     }
 
     [Fact]
@@ -154,9 +151,7 @@ public sealed class WorldMapSceneTests
         {
             Assert.True(single.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1)).Accepted);
         }
-        Assert.Single(batch.State.Actions);
-        Assert.Equal(3, single.State.Actions.Count);
-        Assert.Equal(JsonSerializer.Serialize(single.State with { Actions = [] }), JsonSerializer.Serialize(batch.State with { Actions = [] }));
+        Assert.Equal(JsonSerializer.Serialize(single.State), JsonSerializer.Serialize(batch.State));
     }
 
     [Fact]
@@ -181,7 +176,7 @@ public sealed class WorldMapSceneTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld initialization = new(session, GameDirectory(), persistReplayJournal: false);
+        using GameWorld initialization = new(session, GameDirectory());
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         return session;
     }

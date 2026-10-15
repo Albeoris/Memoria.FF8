@@ -73,7 +73,7 @@ public sealed partial class EventEngine
         }
         if (services.WorldControls is not NativeWorldControlState controls)
         {
-            return $"{opcode} requires the canonical native menu byte and control word with authentic initialization; recreate the journal";
+            return $"{opcode} requires the canonical native menu byte and control word with authentic initialization; the snapshot is missing required native state";
         }
         controls.Validate();
         return UnsupportedWorldControlAliases();

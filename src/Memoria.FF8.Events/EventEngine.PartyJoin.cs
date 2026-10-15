@@ -91,7 +91,7 @@ public sealed partial class EventEngine
         {
             if (LastFault is not null)
             {
-                return "Saved unsupported native JOIN substep requires replay from its original pre-JOIN checkpoint after a contract upgrade";
+                return "Saved unsupported native JOIN substep cannot resume from this snapshot";
             }
             return partyJoin.FiberSequence == fiber.Sequence ? null : "Unsupported concurrent JOIN would replace the native global companion targets";
         }

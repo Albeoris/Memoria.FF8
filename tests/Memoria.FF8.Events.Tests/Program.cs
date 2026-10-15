@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -17,7 +17,6 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["causal-replay"] = CausalReplayContract,
                     ["message-variable"] = NativeMessageVariableContract,
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
                     ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,
@@ -83,10 +82,6 @@ internal static partial class Program
                     ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
                     ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
                     ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
-                    ["semantic-admission"] = () => SemanticAdmissionContract(selectedGameDirectory),
-                    ["semantic-spatial"] = () => SemanticSpatialReplayContract(selectedGameDirectory),
-                    ["semantic-salary"] = () => SemanticSalaryContract(selectedGameDirectory),
-                    ["semantic-exit-equivalence"] = () => SemanticExitEquivalenceContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
@@ -105,6 +100,7 @@ internal static partial class Program
                     ["actor-scroll"] = NativeActorScrollContract,
                     ["actor-cosine-scroll"] = NativeActorCosineScrollContract,
                     ["actor-linear-scroll"] = NativeActorLinearScrollContract,
+                    ["scroll-current-lifetime"] = () => NativeScrollCurrentLifetimeContract(selectedGameDirectory),
                     ["party-linear-scroll"] = NativePartyLinearScrollContract,
                     ["party-cosine-scroll"] = NativePartyCosineScrollContract,
                     ["set-placement"] = NativeSetPlacementContract,
@@ -279,7 +275,7 @@ internal static partial class Program
             string uninterrupted = RunInstalledCorpus(gameDirectory, false);
             string resumed = RunInstalledCorpus(gameDirectory, true);
             Require(uninterrupted == resumed, "Restoring animation/dialogue waits changed the final VM state or executed path.");
-            PlayerReplayCorpus(gameDirectory);
+            PlayerActionCorpus(gameDirectory);
             CorridorLineCorpus(gameDirectory);
             MovieArrivalCorpus(gameDirectory);
             ClassroomFaceFaultRetry(gameDirectory);
@@ -469,15 +465,10 @@ internal static partial class Program
         return restored;
     }
 
-    private static void PlayerReplayCorpus(string gameDirectory)
+    private static void PlayerActionCorpus(string gameDirectory)
     {
         ActionCorpus first = RunActionChain(gameDirectory, false);
         ActionCorpus alternate = RunActionChain(gameDirectory, true);
-        ActionCorpus replay = RunActionChain(gameDirectory, false, first.Actions);
-        Require(first.Checkpoint == replay.Checkpoint, "Replaying ordinary player actions changed the final VM state.");
-        Require(first.Actions.SequenceEqual(replay.Actions), "Replayed actions observed different fields, frames or triggers.");
-        Require(first.Decisions.SequenceEqual(replay.Decisions), "Replayed actions evaluated different script conditions.");
-        Require(first.Dialogues.SequenceEqual(replay.Dialogues), "Replayed actions produced different dialogue outcomes.");
         DialogueOutcome initial = first.Dialogues.First(dialogue => dialogue.Choice is not null);
         DialogueOutcome other = alternate.Dialogues.First(dialogue => dialogue.Choice is not null);
         Require(initial.Operation == other.Operation && initial.Choice != other.Choice, "Two legitimate runs did not cover both answers to the first AASK.");
@@ -491,10 +482,10 @@ internal static partial class Program
         Require(first.Decisions.All(decision => decision.ActionIndex > 0 && decision.Operation >= 0), "A branch decision lost its source/action evidence.");
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-default.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage }));
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-alternate.json"), System.Text.Json.JsonSerializer.Serialize(new { alternate.Actions, alternate.Decisions, alternate.Dialogues, alternate.Coverage }));
-        Console.WriteLine($"Player replay corpus: {first.Actions.Length} actions, {first.Coverage.Length} branch sites, both first AASK answers; exact replay passed.");
+        Console.WriteLine($"Player action corpus: {first.Actions.Length} actions, {first.Coverage.Length} branch sites, both first AASK answers; native actions passed.");
     }
 
-    private static ActionCorpus RunActionChain(string gameDirectory, bool alternateChoice, IReadOnlyList<PlayerActionObservation>? replay = null, bool continueCorridor = false, bool continueTo232 = false)
+    private static ActionCorpus RunActionChain(string gameDirectory, bool alternateChoice, bool continueCorridor = false, bool continueTo232 = false)
     {
         using GameAssets assets = new(gameDirectory);
         GameSession session = GameSession.CreateColdProcess();
@@ -541,20 +532,6 @@ internal static partial class Program
                 engine.LoadField(field.Id, field.Jsm, field.Messages);
             }
         }
-        if (replay is not null)
-        {
-            IEnumerable<PlayerAction> Actions()
-            {
-                foreach (PlayerActionObservation observation in replay)
-                {
-                    LoadPendingField();
-                    Require(engine.FieldId == observation.FieldId && engine.Frame == observation.Frame, "Replay diverged before applying the next ordinary action.");
-                    yield return observation.Action;
-                }
-            }
-            Require(engine.Replay(Actions()).All(result => result.Accepted), "A recorded player action was rejected during replay.");
-        }
-        else
         {
             for (int index = 0; index < 200; index++)
             {
@@ -618,20 +595,16 @@ internal static partial class Program
     private static void CorridorLineCorpus(string gameDirectory)
     {
         ActionCorpus first = RunActionChain(gameDirectory, false, continueCorridor: true);
-        ActionCorpus replay = RunActionChain(gameDirectory, false, first.Actions, continueCorridor: true);
-        Require(first.Checkpoint == replay.Checkpoint && first.Decisions.SequenceEqual(replay.Decisions), "Natural corridor crossing replay diverged.");
         Require(first.Lines.Select(line => line.ObjectId).SequenceEqual(new[] { 10, 11 }), "Natural movement did not execute both original corridor crossing scripts exactly once.");
         Require(first.Lines.Select(line => line.ScriptId).SequenceEqual(new[] { 59, 67 }), "Crossing dispatch used the wrong source scripts.");
         Require(first.Dialogues.Any(dialogue => dialogue.FieldId == 229), "Crossing failed to reach the original corridor conversations.");
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-corridor.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines }));
-        Console.WriteLine($"Natural corridor corpus: {first.Actions.Length} ordinary actions, lines 10/59 and 11/67 -> original movie0 trigger; exact replay passed.");
+        Console.WriteLine($"Natural corridor corpus: {first.Actions.Length} ordinary actions, lines 10/59 and 11/67 -> original movie0 trigger; native actions passed.");
     }
 
     private static void MovieArrivalCorpus(string gameDirectory)
     {
         ActionCorpus first = RunActionChain(gameDirectory, false, continueCorridor: true, continueTo232: true);
-        ActionCorpus replay = RunActionChain(gameDirectory, false, first.Actions, continueCorridor: true, continueTo232: true);
-        Require(first.Checkpoint == replay.Checkpoint && first.Decisions.SequenceEqual(replay.Decisions), "Real movie-frame continuation changed on action replay.");
         Require(first.Decisions.Any(item => item.Predicate.Contains("L[80]") && item.ConditionPassed), "Decoded terminal frame did not satisfy the original movie-frame predicate.");
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-movie0-arrival232.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines, Arrival = new FieldTransition(232, 1389, -3580, 50, 0) }));
         using GameAssets assets = new(gameDirectory);
@@ -709,7 +682,7 @@ internal static partial class Program
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "field232-first-trigger-checkpoint.json"), arrivalEngine.Capture().GetRawText());
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "field232-first-trigger.json"), System.Text.Json.JsonSerializer.Serialize(new { arrivalEngine.FieldId, arrivalEngine.Frame, arrivalEngine.NextTrigger, arrivalEngine.IsUserControlEnabled, arrivalEngine.Scene.CameraIndex, arrivalEngine.Scene.LoadedSoundEffects, arrivalEngine.Scene.LockedTriangles, Shades = arrivalEngine.GetBackgroundModuleShades(), Opcodes = classroomOpcodes.Order().ToArray(), Players = arrivalEngine.Actors.Where(actor => actor.CharacterId == 0).Select(actor => new { actor.X, actor.Y, actor.Z, actor.Direction, actor.WalkmeshTriangle, actor.Visible }) }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
         Console.WriteLine($"Field232 state at frame{arrivalEngine.Frame}: {arrivalEngine.NextTrigger.Kind}, control{arrivalEngine.IsUserControlEnabled}, dialogue{arrivalEngine.CurrentDialogue?.MessageId}.");
-        Console.WriteLine($"Movie0 arrival corpus: {first.Actions.Length} ordinary actions, skip terminal325 -> native field232 (1389,-3580), triangle50, direction0; exact replay passed.");
+        Console.WriteLine($"Movie0 arrival corpus: {first.Actions.Length} ordinary actions, skip terminal325 -> native field232 (1389,-3580), triangle50, direction0; native actions passed.");
     }
 
     private static void FaceDirectionAnglesAndResume()
@@ -843,7 +816,7 @@ internal static partial class Program
             }
         };
         original.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
-        replayed.Replay([new PlayerAction(PlayerActionKind.Wait, Frames: 1)]);
+        replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(cancellations == 1 && original.Frame == 364 && original.LastFault is null, $"Exact-before MOVECANCEL action failed: count{cancellations}, frame{original.Frame}, fault{original.LastFault}.");
         Require(original.Capture().GetRawText() == replayed.Capture().GetRawText(), "Exact-before MOVECANCEL action replay changed the VM.");
         EventEngine retry = Create(GameSession.Load(Path.Combine(evidenceDirectory, "player-performance-movecancel-exact-fault-checkpoint.json")));
@@ -1062,7 +1035,7 @@ internal static partial class Program
         EventEngine replayed = Create(beforeLeaf);
         Require(original.Frame == 2241 && original.Scene.Party.SequenceEqual([0]), "PREQ fixture lost its exact preceding frame or party.");
         original.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
-        replayed.Replay([new PlayerAction(PlayerActionKind.Wait, Frames: 1)]);
+        replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(original.Capture().GetRawText() == replayed.Capture().GetRawText(), "Exact-before PREQ action replay changed the full VM state.");
         var running = original.Capture();
         var caller = running.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 91);
@@ -1507,7 +1480,7 @@ internal static partial class Program
         var replayed = Create();
         Require(first.Engine.Frame == 3 && first.Engine.LastFault is null && first.Engine.Actors[0].ModelId == 0 && !first.Engine.Actors[0].AdditionalControlDisabled && field.Models[0].ControlBones.Additional == 24 && field.Models[0].Vertices.Count(vertex => vertex.Bone == 24) == 49, "Actual ACTORMODE source or selected additional control group changed.");
         first.Engine.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
-        replayed.Engine.Replay([new PlayerAction(PlayerActionKind.Wait, Frames: 1)]);
+        replayed.Engine.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(first.Engine.Capture().GetRawText() == replayed.Engine.Capture().GetRawText() && first.Engine.Actors[0].AdditionalControlDisabled && first.Engine.LastFault is null, "Ordinary ACTORMODE3 Wait1 and replay diverged or failed to preserve native actor state.");
         var applied = first.Engine.Capture();
         first.Engine.Restore(applied);
@@ -1590,7 +1563,7 @@ internal static partial class Program
         Require(engine.Frame == 5 && engine.LastFault is null && engine.NextTrigger.Kind == PlayerTriggerKind.Playable, "Actual area-request source is not its untouched ordinary frame5 checkpoint.");
         engine.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 1));
         EventEngine replay = Create();
-        replay.Replay([new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 1)]);
+        replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Frames: 1));
         Require(engine.Frame == 6 && engine.LastFault is null && !engine.Actors[23].DoorLineEnabled && engine.Actors[23].LineEnabled && engine.Capture().GetRawText() == replay.Capture().GetRawText(), "Corrected ordinary area request/gate failed its native target, independent line state or exact replay.");
         var applied = engine.Capture();
         engine.Restore(applied);
@@ -1980,7 +1953,7 @@ internal static partial class Program
         EventEngine replayed = Create(beforeLeaf);
         Require(original.Frame == 2333 && !original.IsUserControlEnabled, "MENUTIPS exact-before fixture lost its frame or original control state.");
         original.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
-        replayed.Replay([new PlayerAction(PlayerActionKind.Wait, Frames: 1)]);
+        replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(original.Capture().GetRawText() == replayed.Capture().GetRawText(), "Exact-before MENUTIPS action replay changed the full VM state.");
         Require(original.Frame == 2334 && original.Scene.UnlockedTutorials.SetEquals([0]) && original.IsUserControlEnabled && !original.Actors[11].Visible && !original.IsDialogueOpen && original.LastFault is null, "MENUTIPS0 failed to unlock its persisted bit before original UCON/HIDE/RET continuation.");
         var completed = original.Capture();
@@ -2012,7 +1985,7 @@ internal static partial class Program
         EventEngine replayed = Create("player-performance-preqew-preboundary-checkpoint.json");
         Require(original.Frame == 1427 && original.Scene.Party.SequenceEqual([0]), "PREQEW fixture did not start at the actual preceding frame and party.");
         original.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
-        replayed.Replay([new PlayerAction(PlayerActionKind.Wait, Frames: 1)]);
+        replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(original.Capture().GetRawText() == replayed.Capture().GetRawText(), "PREQEW exact-before action replay diverged.");
         var waiting = original.Capture();
         var caller = waiting.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 18 && fiber.GetProperty("ScriptId").GetInt32() == 171);
@@ -2093,7 +2066,7 @@ internal static partial class Program
         EventEngine replayed = Create(beforeLeaf);
         Require(original.Frame == 1724 && original.Actors[11].Direction == 120 && original.Scene.Party.SequenceEqual([0]), "PCTURN fixture lost its original party, starting angle or immediately preceding frame.");
         original.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
-        replayed.Replay([new PlayerAction(PlayerActionKind.Wait, Frames: 1)]);
+        replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(original.Capture().GetRawText() == replayed.Capture().GetRawText() && original.Actors[11].RotationTarget == 143 && original.Actors[11].RotationFrames == 16, "Actual PCTURN replay changed its fixed native target143 or duration15/16 samples.");
         for (int index = 0; index < 6; index++)
         {

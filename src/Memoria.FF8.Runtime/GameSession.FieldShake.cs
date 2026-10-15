@@ -23,7 +23,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("FieldShake", out JsonElement value))
         {
-            throw new InvalidDataException("Saved VM lacks its current required field shake process owner; recreate authentic inputs.");
+            throw new InvalidDataException("Saved VM lacks its current required field shake process owner; migrate this save explicitly.");
         }
         NativeFieldShake? captured = value.ValueKind == JsonValueKind.Null ? null : value.Deserialize<NativeFieldShake>(JsonOptions);
         captured?.Validate();

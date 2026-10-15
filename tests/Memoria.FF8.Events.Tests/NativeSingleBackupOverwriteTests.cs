@@ -18,7 +18,6 @@ internal static partial class Program
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
-            session.MarkReplayUnavailable("Declared native single-backup component with bounded test movement providers.");
             var result = new EventEngine(session)
             {
                 AnimationFrameCount = (_, _) => 4,

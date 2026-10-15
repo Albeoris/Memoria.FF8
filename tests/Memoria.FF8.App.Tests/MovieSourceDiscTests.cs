@@ -5,16 +5,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MovieSourceDiscTests
 {
     [Fact]
-    public void Prepared_resources_keep_their_disc_across_probe_cam_cache_and_replay_hash_validation()
+    public void Prepared_resources_keep_their_disc_across_probe_cam_cache_and_source_hash_validation()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original movie corpus is required.");
-        //Declared resource component: explicit native loader requests, no fabricated gameplay journal.
+        //Declared resource component: explicit native loader requests, no fabricated gameplay history.
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        session.MarkReplayUnavailable("Declared disc/movie resource selection component.");
         MovieClock clock = new(session, directory);
-        using GameWorld world = new(session, directory, clock, persistReplayJournal: false);
+        using GameWorld world = new(session, directory, clock);
         session.SetMovieSource(new NativeMovieSource(0, 0));
         session.RequestMovie(0);
         var first = clock.Prepare();
@@ -38,9 +37,6 @@ public sealed class MovieSourceDiscTests
         Assert.NotEqual(firstCamera.SourceSha256, secondCamera.SourceSha256);
         Assert.Same(firstCamera, world.Events.ReadMovieCameraFlags(0, 0));
         Assert.Same(secondCamera, world.Events.ReadMovieCameraFlags(1, 0));
-        ReplayJournalEntry correct = new(ReplayEntryKind.MovieSample, SceneKind.Movie, 804, 0) { MovieSourceHash = secondHash };
-        Assert.Equal(secondHash, GameWorld.ValidateMovieSource(correct, session.State, directory));
-        Assert.Throws<InvalidDataException>(() => GameWorld.ValidateMovieSource(correct with { MovieSourceHash = firstHash }, session.State, directory));
         session.SetDiscProcess(session.DiscProcess.Assign(3));
         Assert.Equal((byte)1, clock.SourceDiscIndex);
         Assert.Same(second, clock.Prepare());

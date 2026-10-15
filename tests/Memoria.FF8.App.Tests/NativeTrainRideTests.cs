@@ -91,7 +91,7 @@ public sealed class NativeTrainRideTests
 
     private static GameSession CreateComponent(GameAssets assets)
     {
-        //Declared world-return component boundary, not a NewGame replay journal or patched historical checkpoint.
+        //Declared world-return component boundary, not a live NewGame journey or patched historical checkpoint.
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
@@ -100,7 +100,6 @@ public sealed class NativeTrainRideTests
         NativeSavedWorldCarReturn receipt = NativeSavedWorldCarReturn.Create(previous, 262, 40, 1);
         GameState departure = session.State with { Scene = SceneKind.Field, FieldId = 265, EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int>() { [256] = 290 }), CharacterVitals = assets.ReadNewGameCharacterVitals(), Economy = assets.ReadNewGameEconomy(), DepartingWorldState = previous, SavedWorld = initial.WithOrdinaryCarEntry().WithCarReturn(receipt) };
         session.Restore(departure);
-        session.MarkReplayUnavailable("Declared mode3 component boundary; no preceding route history is fabricated.");
         return session;
     }
 }

@@ -14,7 +14,7 @@ public sealed class OpeningPresentationTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         HashSet<int> renderedFields = [];
         for (int input = 0; input < 6000; input++)
         {

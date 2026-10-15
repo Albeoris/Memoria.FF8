@@ -33,7 +33,11 @@ internal static class ActorBackgroundScrollCertificate
         {
             return DirectBackgroundScrollCertificate.IsCompleted(position) && position.X is short x && position.Y is short y && DirectBackgroundScrollCertificate.SupportsCenter(field, scene, x, y);
         }
-        return scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks && DirectBackgroundScrollCertificate.SupportsCenter(field, scene, normal.X, normal.Y);
+        if (scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks)
+        {
+            return DirectBackgroundScrollCertificate.SupportsCenter(field, scene, normal.X, normal.Y);
+        }
+        return scene.NativeLayerZeroScrollCurrent is { Version: 1 } retained && DirectBackgroundScrollCertificate.SupportsCenter(field, scene, retained.X, retained.Y);
     }
 
     public static (short X, short Y)? Resolve(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, byte nativeActor)

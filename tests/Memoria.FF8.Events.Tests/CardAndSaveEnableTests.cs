@@ -184,12 +184,12 @@ internal static partial class Program
         {
             JsonElement captured = engine.Capture();
             GameSession saved = new(session.State with { EventState = captured });
-            saved.Save(path, false);
+            saved.Save(path);
             GameState loaded = GameSession.Load(path);
             Require(CardsEqual(loaded.CardInventory, session.CardInventory) && JsonElement.DeepEquals(loaded.EventState!.Value, captured), "Independent disk save/load changed native cards.");
             NativeCardInventory mismatched = initial.Acquire(1, out _);
             GameSession mismatch = new(saved.State with { CardInventory = mismatched });
-            mismatch.Save(path, false);
+            mismatch.Save(path);
             try
             {
                 GameSession.Load(path);

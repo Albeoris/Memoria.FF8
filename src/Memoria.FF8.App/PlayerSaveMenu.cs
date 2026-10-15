@@ -31,8 +31,6 @@ internal sealed class PlayerSaveMenu
     public bool ConfirmOverwrite { get; private set; }
     public string? Message { get; private set; }
     public IReadOnlyList<PlayerSaveEntry> Entries { get; private set; } = [];
-    public bool CanRecreate => Mode == PlayerSaveMenuMode.Load && Entries[Selection].CanRecreate;
-    public string? RecreateUnavailableReason => Mode == PlayerSaveMenuMode.Load ? Entries[Selection].RecreateUnavailableReason : null;
 
     public void Open(PlayerSaveMenuMode mode)
     {
@@ -61,7 +59,7 @@ internal sealed class PlayerSaveMenu
         ConfirmOverwrite = false;
     }
 
-    public void Update(InputFrame input, Action<int> save, Action<int> load, Action<int>? recreate = null)
+    public void Update(InputFrame input, Action<int> save, Action<int> load)
     {
         if (!IsOpen)
         {
@@ -100,29 +98,6 @@ internal sealed class PlayerSaveMenu
             else
             {
                 Close();
-            }
-            return;
-        }
-        if (input.RecreateSave && Mode == PlayerSaveMenuMode.Load)
-        {
-            if (!CanRecreate)
-            {
-                Message = RecreateUnavailableReason;
-                return;
-            }
-            try
-            {
-                if (recreate is null)
-                {
-                    throw new InvalidOperationException("Save recreation is unavailable in this host.");
-                }
-                recreate(SelectedSlot);
-                Close();
-            }
-            catch (Exception exception)
-            {
-                Message = "Recreation failed: " + exception.Message;
-                Entries = store.ReadEntries(true);
             }
             return;
         }

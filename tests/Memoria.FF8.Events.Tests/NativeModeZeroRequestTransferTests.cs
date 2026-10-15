@@ -31,7 +31,6 @@ internal static partial class Program
                     GameSession session = GameSession.CreateColdProcess();
                     session.StartNewGame();
                     session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
-                    session.MarkReplayUnavailable("Declared native request component; ground/direction/animation providers are bounded test adapters.");
                     EventEngine engine = new(session)
                     {
                         AnimationFrameCount = (_, _) => 64,
@@ -115,7 +114,6 @@ internal static partial class Program
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
-        session.MarkReplayUnavailable("Declared completed asynchronous movement component with bounded test geometry.");
         EventEngine engine = new(session)
         {
             AnimationFrameCount = (_, _) => 4,

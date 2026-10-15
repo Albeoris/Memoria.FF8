@@ -31,7 +31,7 @@ public sealed partial class GameSession
         }
         if (currentVm is JsonElement vm && (!vm.TryGetProperty("DiscProcess", out JsonElement saved) || !JsonElement.DeepEquals(saved, JsonSerializer.SerializeToElement(state.DiscProcess, JsonOptions))))
         {
-            throw new InvalidDataException("Root and VM native disc process owners disagree; recreate authentic history.");
+            throw new InvalidDataException("Root and VM native disc process owners disagree; migrate this save explicitly.");
         }
     }
 }

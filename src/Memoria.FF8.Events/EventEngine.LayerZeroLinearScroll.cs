@@ -16,7 +16,7 @@ public sealed partial class EventEngine
         {
             return (normal.X, normal.Y);
         }
-        return null;
+        return Scene.NativeLayerZeroScrollCurrent is { Version: 1 } process ? (process.X, process.Y) : null;
     }
 
     private string? UnsupportedNativeLayerZeroLinearBackgroundScroll(Fiber fiber)

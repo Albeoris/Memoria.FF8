@@ -18,7 +18,7 @@ public sealed class NativePlayerRadiusTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), directory);
+        GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);
         world.EnsureField();

@@ -36,7 +36,6 @@ public sealed class NativeEventRandomTests
         Assert.Equal(moved.State, session.EventRandom!.State);
         Assert.Equal((ushort)0, session.EventRandom.DrawPoints!.RegenerationCounter180);
         Assert.True(session.EventRandom.DrawPoints.Depletion.All(value => value == 0));
-        Assert.False(session.ReplayJournal!.IsComplete);
     }
 
     [Fact]

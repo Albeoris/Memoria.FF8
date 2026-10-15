@@ -14,9 +14,9 @@ public sealed class NativeGuestFieldContinuationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original dream field corpus is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), directory);
+        GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(819, world.Events.FieldId);
         Assert.Equal(3, world.Events.Frame);
@@ -39,9 +39,9 @@ public sealed class NativeGuestFieldContinuationTests
         try
         {
             session.SetEventState(world.Events.Capture());
-            session.Save(saved, registerJournalReference: false);
+            session.Save(saved);
             var restoredSession = new GameSession(GameSession.Load(saved));
-            using var restored = new GameWorld(restoredSession, directory, persistReplayJournal: false);
+            using var restored = new GameWorld(restoredSession, directory);
             restored.EnsureField();
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

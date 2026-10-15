@@ -18,9 +18,9 @@ public sealed class LayerZeroLinearScrollProjectionTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower-road journal and installed original resources are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
-        using GameWorld world = new(new GameSession(current), directory, persistReplayJournal: false);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower-road snapshot and installed original resources are required.");
+        GameState current = GameSession.Load(source);
+        using GameWorld world = new(new GameSession(current), directory);
         world.EnsureField();
         Assert.Equal(332, world.Field!.Id);
         BackgroundScrollPosition start = world.Events.Scene.BackgroundScrollPositions[0];
@@ -45,7 +45,7 @@ public sealed class LayerZeroLinearScrollProjectionTests
             Assert.Throws<InvalidDataException>(() => world.Events.Restore(JsonSerializer.SerializeToElement(corrupt)));
             Assert.True(JsonElement.DeepEquals(entry, world.Events.Capture()));
         }
-        using GameWorld restored = new(new GameSession(current with { EventState = entry }), directory, persistReplayJournal: false);
+        using GameWorld restored = new(new GameSession(current with { EventState = entry }), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

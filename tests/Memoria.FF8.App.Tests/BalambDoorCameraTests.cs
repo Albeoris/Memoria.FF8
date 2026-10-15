@@ -19,7 +19,7 @@ public sealed class BalambDoorCameraTests
         Assert.NotNull(repository);
         string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         Assert.Equal(102, world.Events.FieldId);
         Assert.NotEmpty(world.Render(TimeSpan.Zero));
@@ -40,7 +40,7 @@ public sealed class BalambDoorCameraTests
         }
         Assert.True(acceptedMoves > 0, "The supplied save must continue through ordinary movement.");
         Assert.True(moved, "At least one ordinary input must change the native player position.");
-        using GameWorld restored = new(new GameSession(session.State with { EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+        using GameWorld restored = new(new GameSession(session.State with { EventState = world.Events.Capture() }), directory);
         restored.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
         PlayerAction next = new(PlayerActionKind.Wait);

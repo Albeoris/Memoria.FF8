@@ -217,7 +217,6 @@ internal static partial class Program
         content[1] = 1;
         content[3] = 1;
         GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-        session.MarkReplayUnavailable("Declared door wait component; original request executes normally, direct/reused slots are staged through current Queue boundary.");
         EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
         engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;

@@ -13,7 +13,7 @@ public sealed class QuistisStationaryAnimationTests
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, game, persistReplayJournal: false);
+        using var world = new GameWorld(session, game);
         for (int input = 0; input < 6000; input++)
         {
             world.EnsureField();
@@ -64,10 +64,10 @@ public sealed class QuistisStationaryAnimationTests
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.FieldButtons)).Accepted);
         session.SetEventState(world.Events.Capture());
         string checkpoint = Path.Combine(AppContext.BaseDirectory, "quistis-open-message-checkpoint.json");
-        session.Save(checkpoint, registerJournalReference: false);
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(checkpoint), game);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })));
-        using var rebuilt = new GameWorld(new GameSession(recreated), game, persistReplayJournal: false);
+        session.Save(checkpoint);
+        GameState recreated = GameSession.Load(checkpoint);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(recreated)));
+        using var rebuilt = new GameWorld(new GameSession(recreated), game);
         rebuilt.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
         world.Events.Step();
@@ -99,7 +99,7 @@ public sealed class QuistisStationaryAnimationTests
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, game, persistReplayJournal: false);
+        using var world = new GameWorld(session, game);
         for (int input = 0; input < 7000; input++)
         {
             world.EnsureField();

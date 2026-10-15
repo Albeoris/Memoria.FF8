@@ -46,12 +46,12 @@ public sealed partial class GameSession
             NativeEventMemory aliases = memory.Deserialize<NativeEventMemory>(JsonOptions) ?? throw new InvalidDataException("Empty typed event-memory metadata.");
             if (aliases.Cells.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
             {
-                throw new InvalidDataException("Canonical SeeD words overlap a typed VM alias; recreate authentic inputs.");
+                throw new InvalidDataException("Canonical SeeD words overlap a typed VM alias; migrate this save explicitly.");
             }
         }
         if (captured != state.SeeD)
         {
-            throw new InvalidDataException("Root and event SeeD rank/salary checkpoints disagree; recreate the authentic journal.");
+            throw new InvalidDataException("Root and event SeeD rank/salary checkpoints disagree; migrate this save explicitly.");
         }
     }
 
@@ -59,7 +59,7 @@ public sealed partial class GameSession
     {
         if (memory.Cells.Any(pair => OverlapsSeeDMemory(pair.Key, pair.Value.Width)))
         {
-            throw new InvalidDataException("Canonical SeeD event words overlap a typed root variable alias; recreate authentic inputs.");
+            throw new InvalidDataException("Canonical SeeD event words overlap a typed root variable alias; migrate this save explicitly.");
         }
     }
 

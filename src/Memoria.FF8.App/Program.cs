@@ -17,23 +17,6 @@ internal static class Program
             {
                 return BattlePreview.Run(args[1..]);
             }
-            if (args.Length >= 4 && args[0] is "--recreate-save" or "--recreate-prefix" && args[2] == "--output")
-            {
-                string sourcePath = Path.GetFullPath(args[1]);
-                string targetPath = Path.GetFullPath(args[3]);
-                if (string.Equals(sourcePath, targetPath, StringComparison.OrdinalIgnoreCase) || File.Exists(targetPath))
-                {
-                    throw new IOException("Save recreation requires a new output path.");
-                }
-                LaunchOptions recreationOptions = LaunchOptions.Parse(args[4..]);
-                var watch = System.Diagnostics.Stopwatch.StartNew();
-                GameState source = GameSession.LoadReplaySource(sourcePath);
-                GameState recreated = args[0] == "--recreate-prefix" ? GameWorld.RecreateCommittedPrefix(source, recreationOptions.GameDirectory, recreationOptions.MediaToolsDirectory, recreationOptions.RecreateMode) : GameWorld.RecreateSave(source, recreationOptions.GameDirectory, recreationOptions.MediaToolsDirectory, recreationOptions.RecreateMode);
-                new GameSession(recreated).Save(targetPath);
-                string scope = args[0] == "--recreate-prefix" ? "committed prefix" : "save";
-                Console.WriteLine($"Recreated {scope} ({recreationOptions.RecreateMode}) field{recreated.FieldId}/{recreated.Scene} in {watch.Elapsed.TotalSeconds:F3}s: {targetPath}");
-                return 0;
-            }
             if (args.Length > 0 && args[0] == "--headless-play")
             {
                 return HeadlessPlayer.Run(args[1..]);

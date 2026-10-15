@@ -82,7 +82,7 @@ public sealed class WorldForestMovementTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld world = new(session, GameDirectory(), persistReplayJournal: false);
+        using GameWorld world = new(session, GameDirectory());
         world.EnsureField();
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         world.EnsureField();
@@ -91,7 +91,6 @@ public sealed class WorldForestMovementTests
         Assert.Equal(PlayerTriggerKind.FieldTransition, result.Trigger.Kind);
         Assert.Equal(287, session.State.FieldId);
         Assert.Equal(new FieldTransition(287, -310, -3065, 147, 128), session.State.FieldArrival);
-        Assert.False(session.ReplayJournal!.IsComplete);
         Assert.True(world.EnsureField());
         Assert.Equal("cwwood1", world.Field!.Name);
         for (int callback = 0; callback < 20; callback++)
@@ -109,8 +108,7 @@ public sealed class WorldForestMovementTests
         WorldGroundSelection ground = assets.LookupNativeGround(x, z, replacements, [])!;
         NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity) with { Alternatives = [new(0, [], ground.Identity, ground.Identity) { FailedSelections = 0 }] };
         int height = unchecked((short)(-(int)ground.Ground.Height + (ground.Ground.Triangle.Forest ? 320 : 0)));
-        //User-authorized diagnostic placement, explicitly outside causal journals.
-        session.MarkReplayUnavailable("Diagnostic forest coordinate/mode fixture.");
+        //User-authorized diagnostic placement, explicitly outside live journeys.
         session.SetWorldState(scene.State with { X = x, Z = z, NativeHeight = height, CameraYaw = 0, BodyYaw = 1024, CameraTargetX = x, CameraTargetZ = z, CameraTargetNativeHeight = height - 256, GroundType = ground.Ground.Triangle.GroundType, NativeFootRuntime = scene.State.NativeFootRuntime! with { GroundCache = cache, PreviousHorizontalInput = 0 } });
     }
 
@@ -118,7 +116,7 @@ public sealed class WorldForestMovementTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld initialization = new(session, GameDirectory(), persistReplayJournal: false);
+        using GameWorld initialization = new(session, GameDirectory());
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         return session;
     }

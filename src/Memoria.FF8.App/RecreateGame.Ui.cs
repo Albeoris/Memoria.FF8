@@ -124,7 +124,7 @@ internal sealed partial class RecreateGame
             }
             return;
         }
-        throw new NotSupportedException($"Live menu action '{action.Kind}' requires a proved game-owned command and causal replay contract.");
+        throw new NotSupportedException($"Live menu action '{action.Kind}' requires a supported game-owned command.");
     }
 
     private bool UpdateGameUi(TimeSpan elapsed, InputFrame input)

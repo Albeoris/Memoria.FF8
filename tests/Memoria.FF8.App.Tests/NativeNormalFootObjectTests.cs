@@ -5,7 +5,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-/// <summary>Declared native components using installed original resources; these fixtures do not represent an authentic player journal.</summary>
+/// <summary>Declared native components using installed original resources; these fixtures do not represent an authentic player journey.</summary>
 public sealed class NativeNormalFootObjectTests
 {
     [Theory]
@@ -254,6 +254,6 @@ public sealed class NativeNormalFootObjectTests
         initialized.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         initialized.SetWorldEntryMemory(initialized.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(264, 1, replacementFlags).WriteBytes(265, 1, eventFlags265));
         WorldTransition packet = new(spawn, 0, -1);
-        return new GameSession(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 822, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 822), ReplayJournal = null });
+        return new GameSession(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 822, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 822) });
     }
 }

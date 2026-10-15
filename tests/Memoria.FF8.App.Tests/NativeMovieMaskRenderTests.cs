@@ -91,7 +91,7 @@ public sealed class NativeMovieMaskRenderTests
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         MovieClock clock = new(session, GameDirectory());
-        using GameWorld world = new(session, GameDirectory(), clock, persistReplayJournal: false);
+        using GameWorld world = new(session, GameDirectory(), clock);
         StorySafeMovieSkipTests.ReachCorridorMovie(session, world);
         world.SetRenderSize(320, 224);
         FieldAssets field = world.Field!;
@@ -153,10 +153,10 @@ public sealed class NativeMovieMaskRenderTests
             if (record == 89)
             {
                 session.SetEventState(world.Events.Capture());
-                session.Save(Path.Combine(evidence, "corridor-movie89-authentic.json"), registerJournalReference: false);
-                GameState rebuilt = GameWorld.RecreateSave(session.State, GameDirectory(), Path.Combine(evidence, "absent-media-tools"));
-                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { ReplayJournal = null }), JsonSerializer.SerializeToElement(rebuilt with { ReplayJournal = null })));
-                using GameWorld replay = new(new GameSession(rebuilt), GameDirectory(), persistReplayJournal: false);
+                session.Save(Path.Combine(evidence, "corridor-movie89-authentic.json"));
+                GameState rebuilt = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+                Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(rebuilt)));
+                using GameWorld replay = new(new GameSession(rebuilt), GameDirectory());
                 replay.EnsureField();
                 replay.SetRenderSize(320, 224);
                 Assert.Equal(masked, replay.RenderMovieFrame(frame.Rgba, information.Width, information.Height));
@@ -184,7 +184,7 @@ public sealed class NativeMovieMaskRenderTests
                 Assert.True(replay.AdvanceMovieFrame(nextPlayback, 90 / information.FramesPerSecond));
                 Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
                 Assert.Equal(world.RenderMovieFrame(next.Rgba, information.Width, information.Height), replay.RenderMovieFrame(next.Rgba, information.Width, information.Height));
-                File.WriteAllText(Path.Combine(evidence, "corridor-movie89-reconstruction-proof.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria genuine movie89 journal and decoded AVI89/90", Implementation = "Independent cold current Memoria reconstruction without a decoder", FullState89 = true, Pixels89 = true, NextDecoded90VmState = true, NextDecoded90Pixels = true, OriginalRuntimePixelParity = false }, new JsonSerializerOptions { WriteIndented = true }));
+                File.WriteAllText(Path.Combine(evidence, "corridor-movie89-reconstruction-proof.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria movie89 snapshot and decoded AVI89/90", Implementation = "Independent current Memoria snapshot continuation without a decoder", FullState89 = true, Pixels89 = true, NextDecoded90VmState = true, NextDecoded90Pixels = true, OriginalRuntimePixelParity = false }, new JsonSerializerOptions { WriteIndented = true }));
             }
         }
         File.WriteAllText(Path.Combine(evidence, "corridor-movie-mask-pixels.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria actual decoder/field VM", Implementation = "Current Memoria CPU CAM/MSK actor compositor", OriginalRuntimePixelParity = false, Frames = frames }, new JsonSerializerOptions { WriteIndented = true }));

@@ -36,10 +36,7 @@ internal static partial class Program
         Require(!engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && !engine.Apply(new PlayerAction(PlayerActionKind.SelectPartyMember, 1)).Accepted, "Save menu silently accepted an unsupported write or party mutation.");
         JsonElement active = engine.Capture();
         session.SetEventState(active);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(active);
-        }
+        engine.Restore(active);
         Require(JsonElement.DeepEquals(active, engine.Capture()), "Active save menu lost its owned disc or issuing context on restore.");
         JsonNode corrupt = JsonNode.Parse(active.GetRawText())!;
         corrupt["DiscProcess"]!["CurrentDiscIndex"] = 0;
@@ -77,7 +74,7 @@ internal static partial class Program
         string checkpoint = Path.Combine(Path.GetTempPath(), $"ff8-native-disc-save-{Guid.NewGuid():N}.json");
         try
         {
-            session.Save(checkpoint, registerJournalReference: false);
+            session.Save(checkpoint);
             Require(GameSession.Load(checkpoint).DiscProcess == session.DiscProcess, "Root/VM disc ownership did not survive a real checkpoint round trip.");
         }
         finally

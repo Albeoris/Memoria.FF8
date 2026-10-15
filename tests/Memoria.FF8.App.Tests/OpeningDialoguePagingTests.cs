@@ -12,7 +12,7 @@ public sealed class OpeningDialoguePagingTests
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using var world = new GameWorld(session, game, persistReplayJournal: false);
+        using var world = new GameWorld(session, game);
         for (int input = 0; input < 1000; input++)
         {
             world.EnsureField();

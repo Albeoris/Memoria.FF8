@@ -20,7 +20,7 @@ public sealed class OpeningMusicTests
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         var clock = new MovieClock(session, directory);
-        using var world = new GameWorld(session, directory, clock, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory, clock);
         using FieldAudioPresentation? audio = devices ? new FieldAudioPresentation(GetDesktopWindow(), directory, clock.ToolsDirectory) : null;
         audio?.SetOutputPreferences(0, 0);
         audio?.Attach(world.Events);

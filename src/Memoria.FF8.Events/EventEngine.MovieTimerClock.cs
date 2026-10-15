@@ -20,7 +20,7 @@ public sealed partial class EventEngine
 {
     private void AdvanceNativeFieldCallbackClock()
     {
-        NativeFieldCallbackClock clock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Native field callbacks have no executed allocation clock history; recreate the causal journal.");
+        NativeFieldCallbackClock clock = Scene.FieldCallbackClock ?? throw new NotSupportedException("Native field callbacks have no executed allocation clock history; load a snapshot containing its native allocation state.");
         clock.Validate(Frame);
         bool movie = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native movie callback requires the accepted start/close lifecycle flag.") : false);
         if (movie != services.IsMoviePlaying)

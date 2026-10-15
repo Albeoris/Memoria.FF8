@@ -16,20 +16,9 @@ public sealed class NativeMovementRequestTests
         {
             repository = repository.Parent;
         }
-        ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(repository!.FullName, "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = GameSession.CreateColdProcess();
-        seed.StartNewGame();
-        ReplayJournal prefix = seed.State.ReplayJournal!;
-        int endpointIndex = source.Entries.ToList().FindLastIndex(entry => entry.ResultFieldId == 327 && entry.ResultFrame == 36);
-        Assert.True(endpointIndex >= 0);
-        foreach (ReplayJournalEntry entry in source.Entries.Take(endpointIndex + 1))
-        {
-            prefix = prefix.Append(entry);
-        }
-        ReplayJournalEntry endpoint = prefix.Endpoint!;
-        GameState recreated = GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, directory);
+        GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_MOVEMENT_REQUEST_SNAPSHOT", 327, 36);
         var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(36, world.Events.Frame);
         Assert.False(world.Events.IsUserControlEnabled);
@@ -37,7 +26,7 @@ public sealed class NativeMovementRequestTests
         Assert.NotNull(request);
         Assert.Equal(1, request.SavedMovement.TargetNativeObjectId);
         JsonElement lower = world.Events.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("Sequence").GetInt64() == request.SavedMovement.FiberSequence);
-        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
         restored.EnsureField();
         List<int> moves = [];
         world.Events.CommandExecuted += command =>

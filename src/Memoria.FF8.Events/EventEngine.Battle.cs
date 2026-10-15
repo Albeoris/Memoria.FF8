@@ -47,17 +47,10 @@ public sealed partial class EventEngine
         {
             throw new InvalidOperationException("Battle return duration disagrees with its dispatched native clock callbacks.");
         }
-        ReplayJournalEntry input = ReplayBoundary(Memoria.FF8.Runtime.ReplayEntryKind.BattleInput) with { BattleInput = new Memoria.FF8.Runtime.BattleInput(Memoria.FF8.Runtime.BattleInputKind.Return), Code = request.Flags, Value = request.Encounter, NativeSourceHash = request.ProgramHash, ObjectId = request.ObjectId, ScriptId = request.ScriptId, Operation = request.Operation };
-        RunReplay(input, () =>
-        {
-            publishCombatOutcome?.Invoke();
-            int index = Scene.NativeBattleCompletions!.IndexOf(request);
-            Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
-            PlayerTrigger before = NextTrigger;
-            StepCore();
-            RecordReplayProgress(before);
-            return true;
-        });
+        publishCombatOutcome?.Invoke();
+        int index = Scene.NativeBattleCompletions!.IndexOf(request);
+        Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
+        StepCore();
     }
     private string? UnsupportedBattle(Fiber fiber, JsmOperation operation)
     {

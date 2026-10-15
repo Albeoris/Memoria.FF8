@@ -27,7 +27,7 @@ public sealed partial class EventEngine
         }
         // Native529FF0 consumes the PREVIOUS body callback's scalar before VM.
         // Prepare the entire payout before changing the clock, PC or body.
-        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, semanticSalaryMovementUnits ?? Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
+        return NativeSalaryCalculator.Sample(state, services.Economy, services.CharacterVitals, Scene.NativeSalaryMovementUnits.Value, controls.EventFlags104);
     }
 
     private void ValidateNativePlayerInput(ActorState player)
@@ -38,7 +38,7 @@ public sealed partial class EventEngine
         }
         if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativePartyTraceVersion != 1 || Scene.NativePlayerPosition is null || FieldFade is null)
         {
-            throw new NotSupportedException("Ordinary player input requires the current native field body, preserved party trace and physical fade bank; recreate the authentic journal.");
+            throw new NotSupportedException("Ordinary player input requires the current native field body, preserved party trace and physical fade bank; the snapshot is missing required native state");
         }
         if (!NativePlayerHasScriptedMode(player) && (ResolveNativePlayerMovement is null || CanUseNativePlayerMovement?.Invoke(player) != true || Scene.NativePlayerEarlyRetryState is not (0 or 1)))
         {

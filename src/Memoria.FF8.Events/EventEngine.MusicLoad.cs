@@ -13,7 +13,7 @@ public sealed partial class EventEngine
 {
     private void InitializeNewGameMusic(NativeFieldRuntimeProfile? profile, int fieldId)
     {
-        if (program is not null || fieldId != 74 || profile is not { IsVerified: true } || services is not GameSession session || session.State.Scene != SceneKind.Field || session.State.FieldId != 74 || session.State.EventState is not null || session.State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || session.State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (program is not null || fieldId != 74 || profile is not { IsVerified: true } || services is not GameSession session || session.State.Scene != SceneKind.Field || session.State.FieldId != 74 || session.State.EventState is not null || session.State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             return;
         }
@@ -61,7 +61,7 @@ public sealed partial class EventEngine
     {
         // These are physical BYTEs owned by MusicProcess, not DWORD entries in Variables.
         // Readers project the owner directly; even equal scalar copies create a second owner.
-        return memory.Cells.Any(pair => pair.Key <= 202 && (long)pair.Key + pair.Value.Width > 201 || pair.Key <= 214 && (long)pair.Key + pair.Value.Width > 213) ? "Native music process bytes overlap a second memory owner; recreate authentic history." : null;
+        return memory.Cells.Any(pair => pair.Key <= 202 && (long)pair.Key + pair.Value.Width > 201 || pair.Key <= 214 && (long)pair.Key + pair.Value.Width > 213) ? "Native music process bytes overlap a second memory owner; migrate this save explicitly." : null;
     }
 
     private bool TryReadNativeMusicByte(int address, out int value)

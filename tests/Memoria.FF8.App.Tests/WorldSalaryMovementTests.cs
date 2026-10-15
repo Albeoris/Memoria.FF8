@@ -49,7 +49,7 @@ public sealed class WorldSalaryMovementTests
             other.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: 1));
         }
         Assert.Equal(session.SeeD, independent.SeeD);
-        Assert.Equal(JsonSerializer.Serialize(scene.State with { Actions = [] }), JsonSerializer.Serialize(other.State with { Actions = [] }));
+        Assert.Equal(JsonSerializer.Serialize(scene.State), JsonSerializer.Serialize(other.State));
         GameState serialized = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession restored = new(serialized);
         using WorldMapScene resumed = new(restored, GameDirectory());
@@ -71,7 +71,6 @@ public sealed class WorldSalaryMovementTests
         Assert.Contains("UI and global sound producer", refusal.Message);
         Assert.Same(before, session.State);
         Assert.Equal(0, scene.State.Frame);
-        Assert.Empty(scene.State.Actions);
         Assert.Equal(0, session.ExamTimer!.ClockCalls);
     }
 
@@ -116,7 +115,7 @@ public sealed class WorldSalaryMovementTests
         Assert.Equal(JsonSerializer.Serialize(session.State.Economy), JsonSerializer.Serialize(independent.State.Economy));
         Assert.Equal(JsonSerializer.Serialize(session.SalaryPresentation), JsonSerializer.Serialize(independent.SalaryPresentation));
         Assert.Equal(JsonSerializer.Serialize(session.GlobalSoundProcess), JsonSerializer.Serialize(independent.GlobalSoundProcess));
-        Assert.Equal(JsonSerializer.Serialize(scene.State with { Actions = [] }), JsonSerializer.Serialize(other.State with { Actions = [] }));
+        Assert.Equal(JsonSerializer.Serialize(scene.State), JsonSerializer.Serialize(other.State));
     }
 
     [Fact]
@@ -140,7 +139,7 @@ public sealed class WorldSalaryMovementTests
             salary = salary.Advance(result, effects.Presentation!.Advance(2), effects.SoundProcess, 5792, 2);
             Assert.Same(before, session.State);
         }
-        WorldState final = before.World! with { Frame = 6, Actions = [new(1, 6, "Wait", 0, 0, 6, 6, before.World.X, before.World.Z, before.World.NativeHeight)] };
+        WorldState final = before.World! with { Frame = 6 };
         Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(final, NativeWorldSalaryState.Begin(before)));
         Assert.Same(before, session.State);
         session.CommitWorldAction(final, salary);
@@ -158,7 +157,7 @@ public sealed class WorldSalaryMovementTests
     public void Executed_native_departure_freezes_the_vm_while_global_salary_and_clock_survive_reload()
     {
         // A declared component program executes the real native handler. It is
-        // not an original field script or an authentic research route journal.
+        // not an original field script or an authentic research route snapshot.
         (Jsm.Opcode, int)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SARALYON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.WORLDMAPJUMP, 0), (Jsm.Opcode.RET, 0)];
         byte[] bytes = new byte[16 + operations.Length * 4];
         bytes[3] = 1;
@@ -203,7 +202,6 @@ public sealed class WorldSalaryMovementTests
         Assert.Equal(9u, session.SeeD!.SalaryMovementCounter);
         Assert.Equal(frozen, LocalVm(engine));
         session.SetEventState(engine.Capture());
-        session.MarkReplayUnavailable("Declared native departure component has no original field route history.");
         string path = Path.Combine(Path.GetTempPath(), "ff8-native-world-salary-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {

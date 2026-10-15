@@ -51,7 +51,6 @@ public sealed partial class EventEngine
     /// <summary>Captures the complete cooperative VM, including typed waits and its deterministic random stream.</summary>
     public JsonElement Capture()
     {
-        ValidateReplayMemory();
         if (program is null)
         {
             throw new InvalidOperationException("No field has been loaded.");
@@ -70,7 +69,7 @@ public sealed partial class EventEngine
         Checkpoint saved = snapshot.Deserialize<Checkpoint>(CheckpointOptions) ?? throw new InvalidDataException("Empty event checkpoint.");
         if (saved.EventMemory is null)
         {
-            throw new InvalidDataException("Saved VM requires explicit typed event memory; recreate its authentic journal.");
+            throw new InvalidDataException("Saved VM requires explicit typed event memory; the snapshot is missing required native state");
         }
         saved.EventMemory.Validate();
         ValidateSceneMemoryOwners(saved.EventMemory, saved.Scene);
@@ -105,7 +104,7 @@ public sealed partial class EventEngine
         }
         if (saved.Scene.NativeSalaryMovementUnits is not null and not (0 or 3 or 5) || NativeRuntimeProfile is { IsVerified: true } && saved.Scene.NativeSalaryMovementUnits is null)
         {
-            throw new InvalidDataException("Saved native field must preserve its actual previous salary movement scalar0/3/5; recreate its authentic inputs.");
+            throw new InvalidDataException("Saved native field must preserve its actual previous salary movement scalar0/3/5; migrate this save explicitly.");
         }
         if (!HasCanonicalPartySlots(saved.Scene))
         {
@@ -127,7 +126,7 @@ public sealed partial class EventEngine
         }
         else if (services.IsMoviePlaying || saved.MovieProgressExpected)
         {
-            throw new InvalidDataException("Active or pending movie snapshot has no executed native actor lifecycle; recreate its journal.");
+            throw new InvalidDataException("Active or pending movie snapshot has no executed native actor lifecycle; the snapshot is missing required native state");
         }
         foreach (NativeMemoryValue entry in saved.EventMemory.Cells.Values)
         {
@@ -147,29 +146,29 @@ public sealed partial class EventEngine
             }
             if (!savedActorJson[index].TryGetProperty("FaceStateVersion", out _) || !savedActorJson[index].TryGetProperty("NativeBaseAnimationVersion", out _) || saved.Actors[index].FaceStateVersion != 1 || saved.Actors[index].NativeBaseAnimationVersion != 1)
             {
-                throw new InvalidDataException("Saved actor lacks current native face or base animation provenance; recreate the authentic journal.");
+                throw new InvalidDataException("Saved actor lacks current native face or base animation provenance; the snapshot is missing required native state");
             }
             ValidateNativeFaceCheckpoint(savedActorJson[index], saved.Actors[index]);
             if (saved.Frame == 0 && !saved.DefaultsStarted && saved.PendingArrival is not null && saved.Fibers.All(fiber => fiber.Initialization && !fiber.Started) && saved.Actors[index].WalkmeshTriangle == -1)
             {
-                throw new InvalidDataException("Saved allocation contains the obsolete invented triangle sentinel; recreate the authentic journal.");
+                throw new InvalidDataException("Saved allocation contains the obsolete invented triangle sentinel; the snapshot is missing required native state");
             }
         }
         ValidateNativeAnimationCheckpoint(saved);
         if (snapshot.GetProperty("Dialogues").EnumerateArray().Any(dialogue => !dialogue.TryGetProperty("CanConfirm", out _)))
         {
-            throw new InvalidDataException("Saved dialogue lacks native confirmability; recreate the authentic journal.");
+            throw new InvalidDataException("Saved dialogue lacks native confirmability; the snapshot is missing required native state");
         }
         ValidatePreviousFieldCheckpoint(saved);
         ValidatePreviousWorldEntityCheckpoint(saved);
         saved.ExamTimer?.Validate();
         if (services.ExamTimer is not null && saved.ExamTimer is null)
         {
-            throw new InvalidDataException("Saved VM lacks the current process clock; recreate the authentic journal.");
+            throw new InvalidDataException("Saved VM lacks the current process clock; the snapshot is missing required native state");
         }
         if (saved.Scene.AudioLoadEpoch <= 0)
         {
-            throw new InvalidDataException("Saved process audio history requires its executed field-load identity; recreate the authentic journal.");
+            throw new InvalidDataException("Saved process audio history requires its executed field-load identity; the snapshot is missing required native state");
         }
         saved.Scene.FieldCallbackClock?.Validate(saved.Frame);
         if (saved.Scene.FieldCallbackClock is { } callbackClock && (saved.DefaultsStarted && callbackClock.InitializationTransactions != 1 || saved.Frame == 0 && callbackClock.InitializationTransactions != 0))
@@ -188,7 +187,7 @@ public sealed partial class EventEngine
         saved.CharacterVitals?.Validate();
         if (saved.CharacterVitals is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 194 && pair.Key + pair.Value.Width > 188))
         {
-            throw new InvalidDataException("Canonical JUNCTION backup bytes overlap a separate saved VM alias; recreate authentic inputs.");
+            throw new InvalidDataException("Canonical JUNCTION backup bytes overlap a separate saved VM alias; migrate this save explicitly.");
         }
         saved.CharacterAppearance?.Validate();
         saved.CardInventory?.Validate();
@@ -241,7 +240,7 @@ public sealed partial class EventEngine
         }
         if (saved.Economy is not null && !services.CanStoreEconomy || saved.Economy is null && services.Economy is not null)
         {
-            throw new InvalidDataException("Saved economy requires matching known history and a persistent service; recreate authentic inputs.");
+            throw new InvalidDataException("Saved economy requires matching known history and a persistent service; migrate this save explicitly.");
         }
         if (saved.Economy is not null && (saved.EventMemory.Cells.Any(pair => pair.Key < 80 && pair.Key + pair.Value.Width > 72) || saved.CharacterVitals is not null && saved.Economy.InitOutSha256 != saved.CharacterVitals.InitOutSha256))
         {
@@ -250,11 +249,11 @@ public sealed partial class EventEngine
         saved.SeeD?.Validate();
         if (saved.SeeD is not null && !services.CanStoreSeeD || saved.SeeD is null && services.SeeD is not null || saved.SeeD is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 12 && pair.Key + pair.Value.Width > 8 || pair.Key < 20 && pair.Key + pair.Value.Width > 16 || pair.Key < 188 && pair.Key + pair.Value.Width > 184))
         {
-            throw new InvalidDataException("Saved SeeD rank and salary require matching native state and canonical WORD16 ownership; recreate the authentic journal.");
+            throw new InvalidDataException("Saved SeeD rank and salary require matching native state and canonical WORD16 ownership; the snapshot is missing required native state");
         }
         if (saved.CardInventory is not null && !services.CanStoreCardInventory || saved.CardInventory is null && services.CardInventory is not null)
         {
-            throw new InvalidDataException("Saved card inventory requires matching native history and a persistent service; recreate the authentic journal.");
+            throw new InvalidDataException("Saved card inventory requires matching native history and a persistent service; the snapshot is missing required native state");
         }
         if (saved.CharacterAppearance is not null && saved.CharacterVitals is not null && saved.CharacterAppearance.InitOutSha256 != saved.CharacterVitals.InitOutSha256)
         {
@@ -329,7 +328,7 @@ public sealed partial class EventEngine
         ValidateFootstepOffAllCheckpoint(saved);
         if (saved.Scene.NativeFieldInitialization is not null && saved.Scene.BackgroundScrollLayers.Count != 8)
         {
-            throw new InvalidDataException("Native field background settings require all eight executed current loader records; recreate this source from its authentic journal.");
+            throw new InvalidDataException("Native field background settings require all eight executed current loader records; the snapshot is missing required native state");
         }
         if (saved.Scene.BackgroundScrollLayers.Keys.Any(layer => (uint)layer >= 8) || saved.Scene.BackgroundScrollLayers.Values.Any(settings => settings is null))
         {
@@ -365,11 +364,11 @@ public sealed partial class EventEngine
         }
         if (saved.Actors.Any(actor => actor.MovementActorId is not null || actor.MovementTarget is not null && actor.NativeScriptMovement is not { Active: true }))
         {
-            throw new InvalidDataException("Saved managed scripted movement is unsupported; recreate the authentic journal with native movement contracts.");
+            throw new InvalidDataException("Saved managed scripted movement is unsupported; the snapshot is missing required native state");
         }
         if (saved.Scene.FieldPartyNativeActorIds.Count != 0 && saved.Scene.NativeActorLayoutVersion != 1)
         {
-            throw new InvalidDataException("Legacy refreshed party bindings predate native actor compaction. Replay player-performance-classroom-exit-preboundary-checkpoint.json before field139 loads; preserve this snapshot as diagnostic evidence.");
+            throw new InvalidDataException("Legacy refreshed party bindings predate native actor compaction. Load a snapshot with native actor compaction state.");
         }
         if (saved.Scene.FieldPartyNativeActorIds.Count is not (0 or 3) || saved.Scene.FieldPartyNativeActorIds.Any(id => id != 0xFF && (uint)id >= saved.Scene.NativeActorObjectIds.Count))
         {
@@ -406,7 +405,7 @@ public sealed partial class EventEngine
 
         if (saved.BackgroundAnimations.Any(animation => animation.NativeVersion != 1))
         {
-            throw new InvalidDataException("Background animation requires the current native state contract; recreate this checkpoint from its authentic journal.");
+            throw new InvalidDataException("Background animation requires the current native state contract; the snapshot is missing required native state");
         }
         if (saved.BackgroundAnimations.Any(animation => animation.NativeVersion == 1 && (animation.Speed is < short.MinValue or > short.MaxValue || animation.Counter is < short.MinValue or > short.MaxValue || animation.Position is < short.MinValue or > short.MaxValue)))
         {

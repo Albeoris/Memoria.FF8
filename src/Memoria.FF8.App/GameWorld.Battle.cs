@@ -90,7 +90,7 @@ internal sealed partial class GameWorld
         input.Validate();
         if (input.Kind == BattleInputKind.ConfigurePlaythrough)
         {
-            // Allocate the genuine New Game field before recording a host policy input: its music/input/stat bootstraps require the untouched root journal.
+            // Allocate the genuine New Game field before applying a host policy input and its native music/input/stat bootstraps.
             if (Field is null)
             {
                 EnsureField();
@@ -100,85 +100,75 @@ internal sealed partial class GameWorld
                 throw new InvalidOperationException("Battle policy belongs to a fresh New Game before its first field callback.");
             }
         }
-        long fieldFrame = Events.Frame;
-        PlayerTrigger before = Events.NextTrigger;
-        SceneKind sourceScene = session.State.Scene;
-        int sourceField = session.State.FieldId;
         NativeBattleCompletion? request = Events.PendingInteractiveBattle;
         int advanced = 0;
-        using (input.Kind == BattleInputKind.Return ? null : session.BeginReplayCapture())
+        if (input.Kind == BattleInputKind.ConfigurePlaythrough)
         {
-            if (input.Kind == BattleInputKind.ConfigurePlaythrough)
+            session.SetFullBattlePlaythrough(input.FullCombat);
+        }
+        else if (input.Kind == BattleInputKind.StartEncounter)
+        {
+            if (battle is not null || request is null)
             {
-                session.SetFullBattlePlaythrough(input.FullCombat);
+                throw new InvalidOperationException("Start Encounter requires one suspended interactive BATTLE request.");
             }
-            else if (input.Kind == BattleInputKind.StartEncounter)
+            battle = new BattleSession(CreateEncounterBattle(request.Encounter), input.Mode);
+            session.SetBattle(battle.Capture());
+        }
+        else
+        {
+            BattleSession active = battle ?? throw new InvalidOperationException("No interactive battle is active.");
+            long previous = active.Frame;
+            switch (input.Kind)
             {
-                if (battle is not null || request is null)
-                {
-                    throw new InvalidOperationException("Start Encounter requires one suspended interactive BATTLE request.");
-                }
-                battle = new BattleSession(CreateEncounterBattle(request.Encounter), input.Mode);
-                session.SetBattle(battle.Capture());
+                case BattleInputKind.Tick:
+                    for (int frame = 0; frame < input.Frames; frame++)
+                    {
+                        active.Tick();
+                    }
+                    break;
+                case BattleInputKind.Attack:
+                    active.QueueAttack(input.ActorId!, input.TargetId!);
+                    break;
+                case BattleInputKind.AdvanceTurn:
+                    active.AdvanceTurn();
+                    break;
+                case BattleInputKind.SetMode:
+                    active.SetMode(input.Mode);
+                    break;
+                case BattleInputKind.InstantVictory:
+                    active.InstantVictory();
+                    break;
+                case BattleInputKind.Return:
+                    if (active.Outcome != BattleOutcome.Victory || request is null)
+                    {
+                        throw new InvalidOperationException("Only a completed victory can return to its suspended field request.");
+                    }
+                    NativeCharacterVitals vitals = session.State.CharacterVitals!;
+                    foreach (BattleCombatant player in active.Combatants.Where(actor => actor.IsPlayer))
+                    {
+                        int row = int.Parse(player.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture);
+                        vitals = vitals.WithSavedHitPoints(row, player.CurrentHp);
+                    }
+                    Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => session.SetCharacterVitals(vitals));
+                    battle = null;
+                    session.SetBattle(null);
+                    break;
+                default:
+                    throw new NotSupportedException($"Battle input {input.Kind} is unsupported.");
             }
-            else
+            advanced = checked((int)(active.Frame - previous));
+            if (advanced > 0)
             {
-                BattleSession active = battle ?? throw new InvalidOperationException("No interactive battle is active.");
-                long previous = active.Frame;
-                switch (input.Kind)
-                {
-                    case BattleInputKind.Tick:
-                        for (int frame = 0; frame < input.Frames; frame++)
-                        {
-                            active.Tick();
-                        }
-                        break;
-                    case BattleInputKind.Attack:
-                        active.QueueAttack(input.ActorId!, input.TargetId!);
-                        break;
-                    case BattleInputKind.AdvanceTurn:
-                        active.AdvanceTurn();
-                        break;
-                    case BattleInputKind.SetMode:
-                        active.SetMode(input.Mode);
-                        break;
-                    case BattleInputKind.InstantVictory:
-                        active.InstantVictory();
-                        break;
-                    case BattleInputKind.Return:
-                        if (active.Outcome != BattleOutcome.Victory || request is null)
-                        {
-                            throw new InvalidOperationException("Only a completed victory can return to its suspended field request.");
-                        }
-                        NativeCharacterVitals vitals = session.State.CharacterVitals!;
-                        foreach (BattleCombatant player in active.Combatants.Where(actor => actor.IsPlayer))
-                        {
-                            int row = int.Parse(player.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture);
-                            vitals = vitals.WithSavedHitPoints(row, player.CurrentHp);
-                        }
-                        Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => session.SetCharacterVitals(vitals));
-                        battle = null;
-                        session.SetBattle(null);
-                        break;
-                    default:
-                        throw new NotSupportedException($"Battle input {input.Kind} is unsupported.");
-                }
-                advanced = checked((int)(active.Frame - previous));
-                if (advanced > 0)
-                {
-                    Events.AdvanceInteractiveBattleCallbacks(advanced);
-                }
-                if (battle is not null)
-                {
-                    session.SetBattle(active.Capture());
-                }
+                Events.AdvanceInteractiveBattleCallbacks(advanced);
+            }
+            if (battle is not null)
+            {
+                session.SetBattle(active.Capture());
             }
         }
+
         PlayerTrigger after = Events.NextTrigger;
-        if (input.Kind != BattleInputKind.Return)
-        {
-            session.RecordReplayEntry(new ReplayJournalEntry(ReplayEntryKind.BattleInput, sourceScene, sourceField, fieldFrame) { BattleInput = input, Code = request?.Flags ?? 0, Value = request?.Encounter ?? 0, NativeSourceHash = request?.ProgramHash, Advanced = advanced, Trigger = (int)before.Kind, ResultTrigger = (int)after.Kind, ResultFrame = Events.Frame, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ObjectId = request?.ObjectId, ScriptId = request?.ScriptId, Operation = request?.Operation });
-        }
         return advanced;
     }
 }

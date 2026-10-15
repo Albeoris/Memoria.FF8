@@ -98,7 +98,7 @@ internal static partial class Program
         warm.StartNewGame();
         warm.SetFieldShake(produced);
         warm.StartNewGame();
-        Require(warm.FieldShake == produced && warm.State.ReplayJournal is { IsComplete: false }, "Warm NewGame reset process shake or fabricated fresh journal provenance.");
+        Require(warm.FieldShake == produced, "Warm NewGame reset process shake.");
         EventEngine absent = new(new GameSession(new GameState()), NativeEventMemory.FromDWords(new Dictionary<int, int>())) { ShakeTables = tables };
         absent.LoadField(101, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         absent.Step();

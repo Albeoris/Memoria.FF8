@@ -22,7 +22,6 @@ public sealed partial class GameSession
         }
         receipt.Validate();
         Validate(departure with { World = finalWorld, WorldProcess = PrepareWorldProcess(departure, finalWorld) });
-        ValidatePreparedWorldActions(live, finalWorld);
         if (transition.FieldId is < 0 or > ushort.MaxValue || receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorld.Frame || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.Pose != new NativeSavedWorldPose(finalWorld.X, finalWorld.Z, checked((short)finalWorld.NativeHeight), checked((ushort)finalWorld.BodyYaw)) || receipt.CameraYaw96 != finalWorld.CameraYaw || finalWorld.NativeCarRuntime is null || receipt.MapDisplayMode110 != finalWorld.NativeCarRuntime.MapDisplayMode)
         {
             throw new InvalidOperationException("The prepared native car save differs from its current world action endpoint.");

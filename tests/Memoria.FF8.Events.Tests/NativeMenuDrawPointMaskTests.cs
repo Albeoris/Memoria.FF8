@@ -25,7 +25,6 @@ internal static partial class Program
                 session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
                 EventEngine engine = new(session);
                 engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-                session.MarkReplayUnavailable("Declared active draw-point/menu tail component; no original journey or particle lifetime is claimed.");
                 return (session, engine);
             }
 

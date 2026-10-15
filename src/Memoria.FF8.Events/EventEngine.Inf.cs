@@ -107,7 +107,6 @@ public sealed partial class EventEngine
         {
             area.DoorLineEntryPending = true;
         }
-        RecordSemanticAdmission(CreateSemanticTrigger(contact ? ReplaySemanticTriggerKind.AreaEntry : ReplaySemanticTriggerKind.AreaExit, area.ObjectId, 2, 6, infIndex, contact: contact) with { Inferred = infIndex < 0 });
     }
 
     private Action PrepareInfGatewayAdmission(InfGateway gateway)
@@ -135,7 +134,6 @@ public sealed partial class EventEngine
                 services.RequestField(destination);
             }
             transitionRequested = true;
-            RecordSemanticAdmission(CreateSemanticGateway(gateway));
         };
     }
 

@@ -50,9 +50,9 @@ public sealed class NativeCosineScrollRenderTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic reached Dollet journal and installed resources are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
-        using GameWorld world = new(new GameSession(current), directory, persistReplayJournal: false);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic reached Dollet snapshot and installed resources are required.");
+        GameState current = GameSession.Load(source);
+        using GameWorld world = new(new GameSession(current), directory);
         world.EnsureField();
         Assert.Equal(342, world.Field!.Id);
         NativeNormalBackgroundScrollCenter previous = Assert.IsType<NativeNormalBackgroundScrollCenter>(world.Events.Scene.NormalBackgroundScrollCenter);
@@ -85,7 +85,7 @@ public sealed class NativeCosineScrollRenderTests
         Assert.Equal((short)30, entry.Duration);
         Assert.Null(world.Events.Scene.NormalBackgroundScrollCenter);
         GameState saved = current with { EventState = world.Events.Capture() };
-        using GameWorld restored = new(new GameSession(saved), directory, persistReplayJournal: false);
+        using GameWorld restored = new(new GameSession(saved), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

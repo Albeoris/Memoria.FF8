@@ -10,10 +10,6 @@ public sealed partial class GameSession
     public void SetMessageVariables(NativeMessageVariables bank)
     {
         ArgumentNullException.ThrowIfNull(bank);
-        if (!IsReplayCaptureActive)
-        {
-            MarkReplayUnavailable("Message variables changed outside a recorded engine transaction.");
-        }
         State = State with { MessageVariables = bank };
     }
 
@@ -25,7 +21,7 @@ public sealed partial class GameSession
         }
         if (!snapshot.TryGetProperty("MessageVariables", out JsonElement value))
         {
-            throw new InvalidDataException("Saved VM lacks canonical process message-variable metadata; recreate its authentic journal.");
+            throw new InvalidDataException("Saved VM lacks canonical process message-variable metadata; migrate this save explicitly.");
         }
         NativeMessageVariables? saved = value.ValueKind == JsonValueKind.Null ? null : value.Deserialize<NativeMessageVariables>(JsonOptions);
         if (saved != state.MessageVariables)

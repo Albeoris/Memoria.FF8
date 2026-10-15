@@ -28,7 +28,6 @@ internal static partial class Program
                     ReadNativeDrawPointCatalog = provider ? assets.ReadNativeDrawPointCatalog : null
                 };
                 engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-                session.MarkReplayUnavailable("Declared DRAWPOINT component with authentic initialization; no original journey or equipped Draw ability is invented.");
                 return (session, engine);
             }
 

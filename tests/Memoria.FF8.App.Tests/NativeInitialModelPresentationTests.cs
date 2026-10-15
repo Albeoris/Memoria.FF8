@@ -13,7 +13,7 @@ public sealed class NativeInitialModelPresentationTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original opening movie and field corpus is required.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
         for (int input = 0; input < 6000; input++)
         {
             world.EnsureField();
@@ -32,12 +32,10 @@ public sealed class NativeInitialModelPresentationTests
                 Assert.True(world.CanPresentCurrentField);
                 Assert.All(world.Events.Scene.ModelParts!.Draws.Values, draw => Assert.Equal(world.Events.Frame, draw.Frame));
                 JsonElement drawn = world.Events.Capture();
-                long entries = session.ReplayJournal!.EntryCount;
                 byte[] pixels = world.Render(TimeSpan.Zero);
                 Assert.NotEmpty(pixels);
                 Assert.Equal(pixels, world.Render(TimeSpan.Zero));
                 Assert.True(JsonElement.DeepEquals(drawn, world.Events.Capture()));
-                Assert.Equal(entries, session.ReplayJournal.EntryCount);
                 Assert.Null(world.Events.LastFault);
 
                 //A missing sample after a real callback remains an unsupported contract,

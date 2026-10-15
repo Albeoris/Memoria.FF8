@@ -33,7 +33,14 @@ public sealed class NativeWorldTerrainTests
         Assert.Equal(0, NativeWorldTerrain.PermissionMask(entity));
         Assert.True(NativeWorldTerrain.CanTraverse(0, entity));
         Assert.True(NativeWorldTerrain.CanDisembark(0, entity));
-        Assert.Throws<NotSupportedException>(() => NativeWorldTerrain.ProbeRadius(entity));
+        if (entity is >= 16 and <= 22)
+        {
+            Assert.Equal(32, NativeWorldTerrain.ProbeRadius(entity));
+        }
+        else
+        {
+            Assert.Throws<NotSupportedException>(() => NativeWorldTerrain.ProbeRadius(entity));
+        }
         Assert.Throws<NotSupportedException>(() => NativeWorldTerrain.ResolveHeight(entity, 0, 0, 0));
     }
 

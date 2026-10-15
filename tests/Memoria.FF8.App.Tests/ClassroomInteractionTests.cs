@@ -13,7 +13,7 @@ public sealed class ClassroomInteractionTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         GameState classroom = RecreateClassroom(directory);
         var session = new GameSession(classroom with { EventMemory = classroom.EventMemory});
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(1185, world.Events.Frame);
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: -1)).Accepted);
@@ -22,7 +22,7 @@ public sealed class ClassroomInteractionTests
         Assert.True(desk.NativeLineFacingContact);
         Assert.Equal((byte?)252, desk.NativeLineFacingDirection);
         JsonElement beforeConfirm = world.Events.Capture();
-        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = beforeConfirm }), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = beforeConfirm }), directory);
         restored.EnsureField();
         var confirm = new PlayerAction(PlayerActionKind.Confirm);
         Assert.Equal(world.Apply(confirm), restored.Apply(confirm));
@@ -62,7 +62,7 @@ public sealed class ClassroomInteractionTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         GameState classroom = RecreateClassroom(directory);
         var session = new GameSession(classroom with { EventMemory = classroom.EventMemory});
-        using (var world = new GameWorld(session, directory, persistReplayJournal: false))
+        using (var world = new GameWorld(session, directory))
         {
             world.EnsureField();
             int pushes = 0;
@@ -78,12 +78,12 @@ public sealed class ClassroomInteractionTests
             Assert.True(pushes > 0);
             Assert.Equal(1220, world.Events.Frame);
             Assert.Null(world.Events.LastFault);
-            using var resumed = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+            using var resumed = new GameWorld(new GameSession(session.State with { EventMemory = session.State.EventMemory, EventState = world.Events.Capture() }), directory);
             resumed.EnsureField();
             Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), resumed.Apply(new PlayerAction(PlayerActionKind.Wait)));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), resumed.Events.Capture()));
         }
-        using (var world = new GameWorld(new GameSession(classroom with { EventMemory = classroom.EventMemory}), directory, persistReplayJournal: false))
+        using (var world = new GameWorld(new GameSession(classroom with { EventMemory = classroom.EventMemory}), directory))
         {
             world.EnsureField();
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Move, Vertical: -1, Frames: 60)).Accepted);
@@ -99,24 +99,6 @@ public sealed class ClassroomInteractionTests
 
     private static GameState RecreateClassroom(string directory)
     {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
-        ReplayJournal source = GameSession.LoadReplaySource(Path.Combine(repository!.FullName, "../fixtures/external-fixture.json")).ReplayJournal!;
-        var seed = GameSession.CreateColdProcess();
-        seed.StartNewGame();
-        ReplayJournal prefix = seed.State.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in source.Entries)
-        {
-            prefix = prefix.Append(entry);
-            if (entry.ResultFieldId == 232 && entry.ResultTrigger == (int)PlayerTriggerKind.Playable)
-            {
-                break;
-            }
-        }
-        ReplayJournalEntry endpoint = prefix.Endpoint!;
-        return GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, directory);
+        return SnapshotFixtures.Require("MEMORIA_FF8_CLASSROOM_SNAPSHOT", 232);
     }
 }

@@ -518,7 +518,7 @@ public sealed partial class EventEngine
         }
         if (operation.Opcode == Jsm.Opcode.REFRESHPARTY && Scene.NativeActorLayoutVersion != 1)
         {
-            return "Unsupported REFRESHPARTY requires original post-init native actor compaction; replay player-performance-classroom-exit-preboundary-checkpoint.json before field139 loads";
+            return "Unsupported REFRESHPARTY requires original post-init native actor compaction; the snapshot must contain native actor compaction state";
         }
         if (operation.Opcode == Jsm.Opcode.REFRESHPARTY && (variables.TryGetValue(104, out int partyFlags) && (partyFlags & 0x800) != 0 || variables.TryGetValue(105, out int partyFlagByte) && (partyFlagByte & 8) != 0))
         {

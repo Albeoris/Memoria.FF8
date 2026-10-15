@@ -227,7 +227,6 @@ public sealed partial class EventEngine
                                 {
                                     var native = ResolveNativePartyPlayerStep(player!, axes);
                                     pushContacts = native.PushContacts;
-                                    RecordReplayNavigation(player!, native.Position, native.FixedPosition, native.Direction, native.NativeMovement, native.TriggerPosition, native.PushContacts);
                                     lineChanges = MovePlayerCore(native.Position.Position.X, native.Position.Position.Y, native.Position.Position.Z, native.Position.Triangle, native.FixedPosition, native.Direction, native.NativeMovement, native.TriggerPosition);
                                     PublishNativePlayerMovementResult(native.MovementSucceeded);
                                     if (native.NativeMovement)
@@ -293,12 +292,6 @@ public sealed partial class EventEngine
         }
     }
 
-    /// <summary>Replays ordinary actions in order. The host must supply movie and field services as during live play.</summary>
-    public IReadOnlyList<PlayerActionResult> Replay(IEnumerable<PlayerAction> actions)
-    {
-        ArgumentNullException.ThrowIfNull(actions);
-        return actions.Select(Apply).ToArray();
-    }
 
     private void RecordBranch(Fiber fiber, int operation, string predicate, int value, int jumpTarget)
     {
@@ -307,7 +300,6 @@ public sealed partial class EventEngine
         branchCoverage[key] = value != 0 ? current with { TrueCount = current.TrueCount + 1 } : current with { FalseCount = current.FalseCount + 1 };
         BranchDecision decision = new(FieldId, fiber.ObjectId, fiber.Script.Id, operation, Frame, predicate, value, value != 0, jumpTarget, activeActionIndex ?? actionLog.Count);
         decisions.Add(decision);
-        RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.Branch, FieldId, Frame, fiber.ObjectId, fiber.Script.Id, operation, jumpTarget, value, predicate));
         BranchEvaluated?.Invoke(decision);
     }
 
@@ -315,7 +307,6 @@ public sealed partial class EventEngine
     {
         DialogueOutcome outcome = new(FieldId, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, Frame, dialogue.MessageId, choice, name, activeActionIndex ?? actionLog.Count);
         dialogueOutcomes.Add(outcome);
-        RecordCausalReceipt(new ReplayReceipt(ReplayReceiptKind.Dialogue, FieldId, Frame, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, dialogue.MessageId, choice ?? -1, name));
         DialogueCompleted?.Invoke(outcome);
     }
 }

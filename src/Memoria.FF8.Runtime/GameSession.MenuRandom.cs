@@ -23,7 +23,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("MenuRandom", out JsonElement captured))
         {
-            throw new InvalidDataException("Saved VM lacks its native menu random process; recreate authentic history.");
+            throw new InvalidDataException("Saved VM lacks its native menu random process; migrate this save explicitly.");
         }
         NativeMenuRandomState? random = captured.ValueKind == JsonValueKind.Null ? null : captured.Deserialize<NativeMenuRandomState>(JsonOptions);
         random?.Validate();

@@ -21,14 +21,8 @@ public sealed class ExamTimerContinuationTests
         {
             repository = repository.Parent;
         }
-        string sourcePath = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        ReplayJournal journal = GameSession.LoadReplaySource(sourcePath).ReplayJournal!.GetCommittedPrefix();
-        ReplayJournalEntry[] entries = journal.Entries.ToArray();
-        int choiceIndex = Array.FindIndex(entries, entry => entry.Kind == ReplayEntryKind.Action && entry.FieldId == 129 && entry.Code == (int)PlayerActionKind.Choose && entry.MessageId == 9);
-        Assert.True(choiceIndex > 0, "Authentic journal must contain the actual guard time decision.");
-        GameState recreated = RecreateRecordedPrefix(sourcePath, directory, choiceIndex);
-        var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_GUARD_TIMER_CHOICE_SNAPSHOT", 129));
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         for (int callback = 0; world.Events.CurrentDialogue is not { CanConfirm: true }; callback++)
         {
@@ -37,7 +31,6 @@ public sealed class ExamTimerContinuationTests
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         }
         Assert.Equal(9, world.Events.CurrentDialogue.MessageId);
-        Assert.Equal((entries[choiceIndex].ObjectId, entries[choiceIndex].ScriptId, entries[choiceIndex].Operation), (world.Events.CurrentDialogue.ObjectId, world.Events.CurrentDialogue.ScriptId, world.Events.CurrentDialogue.Operation));
         Assert.Equal((0, 3), (world.Events.CurrentDialogue.FirstChoice, world.Events.CurrentDialogue.LastChoice));
         Assert.False(session.ExamTimer!.TimerMemoryActivated);
         long callsBeforeChoice = session.ExamTimer.ClockCalls;
@@ -57,7 +50,7 @@ public sealed class ExamTimerContinuationTests
         Assert.True(session.ExamTimer.SaveGlobalMask4);
         session.SetEventState(world.Events.Capture());
         GameState copied = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State, JsonOptions), JsonOptions)!;
-        using var restored = new GameWorld(new GameSession(copied), directory, persistReplayJournal: false);
+        using var restored = new GameWorld(new GameSession(copied), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         world.SetRenderSize(320, 240);
@@ -69,22 +62,4 @@ public sealed class ExamTimerContinuationTests
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
     }
 
-    internal static GameState RecreateRecordedPrefix(string sourcePath, string directory, int selectedCount)
-    {
-        ReplayJournal journal = GameSession.LoadReplaySource(sourcePath).ReplayJournal!.GetCommittedPrefix();
-        Assert.InRange(selectedCount, 1, journal.EntryCount);
-        ReplayJournalEntry[] selected = journal.Entries.Take(selectedCount).ToArray();
-        // Select existing committed transactions without changing a single action or importing snapshot state.
-        JsonObject capsule = JsonSerializer.SerializeToNode(journal)!.AsObject();
-        using MemoryStream compressed = new();
-        using (BrotliStream writer = new(compressed, CompressionLevel.Optimal, true))
-        {
-            writer.Write(JsonSerializer.SerializeToUtf8Bytes(selected));
-        }
-        capsule["EntryCount"] = selected.Length;
-        capsule["Data"] = Convert.ToBase64String(compressed.ToArray());
-        ReplayJournal prefix = capsule.Deserialize<ReplayJournal>()!;
-        ReplayJournalEntry endpoint = selected[^1];
-        return GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene ?? endpoint.Scene, FieldId = endpoint.ResultFieldId ?? endpoint.FieldId, ReplayJournal = prefix }, directory);
-    }
 }

@@ -10,7 +10,7 @@ public sealed partial class GameSession
 
     public void InitializeNewGameShotAvailability(NativeShotAvailabilityState shots)
     {
-        if (State.ShotAvailability is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (State.ShotAvailability is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             throw new NotSupportedException("Shot availability initialization requires the untouched authentic New Game template load.");
         }
@@ -50,11 +50,7 @@ public sealed partial class GameSession
         NativeEconomy nextEconomy = economy.DeepCopy();
         GameState candidate = State with { CharacterVitals = nextVitals, Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom, WeaponRecipes = weaponRecipes ?? State.WeaponRecipes };
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
-        if (!IsReplayCaptureActive)
-        {
-            MarkReplayUnavailable("Party menu owners changed outside a recorded engine transaction.");
-        }
-        State = candidate with { ReplayJournal = State.ReplayJournal };
+        State = candidate;
     }
 
     private static void ValidatePartyMenuOwnersCheckpoint(GameState state, JsonElement? vm)
@@ -67,7 +63,7 @@ public sealed partial class GameSession
         }
         if (vm is JsonElement snapshot && (!snapshot.TryGetProperty("ShotAvailability", out JsonElement shots) || !JsonElement.DeepEquals(shots, JsonSerializer.SerializeToElement(state.ShotAvailability, JsonOptions))))
         {
-            throw new InvalidDataException("Root and VM native shot availability disagree; recreate authentic history.");
+            throw new InvalidDataException("Root and VM native shot availability disagree; migrate this save explicitly.");
         }
     }
 }

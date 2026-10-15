@@ -29,7 +29,7 @@ internal static partial class Program
             string savePath = Path.Combine(Path.GetTempPath(), "Memoria.FF8-world-entity-" + Guid.NewGuid().ToString("N") + ".json");
             try
             {
-                boundSession.Save(savePath, registerJournalReference: false);
+                boundSession.Save(savePath);
                 Require(GameSession.Load(savePath).WorldConfiguration == boundSession.WorldConfiguration, "Ordinary save load lost process world entity authority.");
                 JsonNode changedRoot = JsonNode.Parse(File.ReadAllText(savePath))!;
                 changedRoot["WorldConfiguration"] = JsonSerializer.SerializeToNode(NativeWorldConfiguration.FromFieldPacket(new WorldTransition(63, 0, -1), 262));

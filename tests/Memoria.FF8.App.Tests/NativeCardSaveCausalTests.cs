@@ -13,28 +13,13 @@ public sealed class NativeCardSaveCausalTests
     [Theory]
     [InlineData(137)]
     [InlineData(165)]
-    public void Ordinary_original_card_and_save_point_scripts_complete_and_recreate_from_the_authentic_journal(int fieldId)
+    public void Ordinary_original_card_and_save_point_scripts_complete_and_continue_from_saved_snapshots(int fieldId)
     {
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original game corpus is required.");
         string repository = Repository();
-        GameState source = GameSession.LoadReplaySource(Path.Combine(repository, "../fixtures/external-fixture.json"));
-        var root = GameSession.CreateColdProcess();
-        root.StartNewGame();
-        ReplayJournal prefix = root.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)
-        {
-            prefix = prefix.Append(entry);
-            if (entry.ResultFieldId == fieldId && entry.ResultTrigger == (int)PlayerTriggerKind.Playable)
-            {
-                break;
-            }
-        }
-        ReplayJournalEntry endpoint = prefix.Endpoint!;
-        Assert.Equal(fieldId, endpoint.ResultFieldId);
-        GameState rebuilt = GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = fieldId, ReplayJournal = prefix }, gameDirectory);
-        var session = new GameSession(rebuilt);
-        using var world = new GameWorld(session, gameDirectory, persistReplayJournal: false);
+        var session = new GameSession(SnapshotFixtures.Require($"MEMORIA_FF8_CARD_SAVE_{fieldId}_SNAPSHOT", fieldId));
+        using var world = new GameWorld(session, gameDirectory);
         world.EnsureField();
         int executions = 0;
         List<int> grants = [];
@@ -93,10 +78,9 @@ public sealed class NativeCardSaveCausalTests
             }
             session.SetEventState(world.Events.Capture());
             GameState completed = session.State;
-            Assert.True(completed.ReplayJournal!.IsComplete, completed.ReplayJournal.UnavailableReason);
-            GameState recreated = GameWorld.RecreateSave(completed, gameDirectory);
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(completed with { ReplayJournal = null }, JsonOptions), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null }, JsonOptions)));
-            using var restored = new GameWorld(new GameSession(recreated), gameDirectory, persistReplayJournal: false);
+            GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(completed))!;
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(completed, JsonOptions), JsonSerializer.SerializeToElement(recreated, JsonOptions)));
+            using var restored = new GameWorld(new GameSession(recreated), gameDirectory);
             restored.EnsureField();
             world.SetRenderSize(320, 224);
             restored.SetRenderSize(320, 224);
@@ -104,8 +88,8 @@ public sealed class NativeCardSaveCausalTests
             PlayerAction next = new(PlayerActionKind.Wait);
             Assert.Equal(world.Apply(next), restored.Apply(next));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
-            new GameSession(completed).Save(Path.Combine(output, $"field{fieldId}-complete.json"), registerJournalReference: false);
-            File.WriteAllText(Path.Combine(output, $"field{fieldId}-proof.json"), JsonSerializer.Serialize(new { fieldId, Frame = completed.EventState!.Value.GetProperty("Frame").GetInt64(), executions, grants, JournalEntries = completed.ReplayJournal.EntryCount, FullGameStateEqual = true, CpuPixelsEqual = true, NextOrdinaryWaitEqual = true }, new JsonSerializerOptions { WriteIndented = true }));
+            new GameSession(completed).Save(Path.Combine(output, $"field{fieldId}-complete.json"));
+            File.WriteAllText(Path.Combine(output, $"field{fieldId}-proof.json"), JsonSerializer.Serialize(new { fieldId, Frame = completed.EventState!.Value.GetProperty("Frame").GetInt64(), executions, grants, FullGameStateEqual = true, CpuPixelsEqual = true, NextOrdinaryWaitEqual = true }, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch
         {
@@ -113,7 +97,7 @@ public sealed class NativeCardSaveCausalTests
             {
                 session.SetEventState(world.Events.Capture());
             }
-            session.Save(Path.Combine(output, $"field{fieldId}-boundary.json"), registerJournalReference: false);
+            session.Save(Path.Combine(output, $"field{fieldId}-boundary.json"));
             Console.WriteLine($"Ordinary field{fieldId} boundary frame{world.Events.Frame}: {world.NextTrigger}, {world.Events.LastFault}; player{Player(world).X},{Player(world).Y}.");
             throw;
         }

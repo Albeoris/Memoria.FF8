@@ -534,7 +534,7 @@ internal sealed partial class RecreateGame : Game
         }
         if (saveMenu.IsOpen)
         {
-            saveMenu.Update(input, SavePlayerSlot, LoadPlayerSlot, RecreatePlayerSlot);
+            saveMenu.Update(input, SavePlayerSlot, LoadPlayerSlot);
             return true;
         }
         if (input.Save || input.QuickLoad)
@@ -596,17 +596,6 @@ internal sealed partial class RecreateGame : Game
         ShowSaveNotice(slot == 0 ? "Quick loaded." : $"Loaded {PlayerSaveStore.GetLabel(slot)}.");
     }
 
-    private void RecreatePlayerSlot(int slot)
-    {
-        GameState recreated = playerSaves.Recreate(slot, source =>
-        {
-            GameState candidate = GameWorld.RecreateSave(source, options.GameDirectory, options.MediaToolsDirectory);
-            ValidatePlayerState(candidate);
-            return candidate;
-        });
-        RestorePlayerState(recreated);
-        ShowSaveNotice($"Recreated and loaded {PlayerSaveStore.GetLabel(slot)} from recorded New Game history.");
-    }
 
     private void ValidatePlayerState(GameState state)
     {
@@ -787,8 +776,7 @@ internal sealed partial class RecreateGame : Game
             ExamTimer = session.State.ExamTimer is NativeExamTimerState timer ? new { timer.DisplayEnabled, timer.DisplayX, timer.DisplayY, Text = timer.FieldDisplayText(), RemainingMinimum = timer.Alternatives.Min(alternative => alternative.Remaining), RemainingMaximum = timer.Alternatives.Max(alternative => alternative.Remaining) } : null,
             session.State.FieldArrival,
             session.State.WorldArrival,
-            World = compact && session.State.World is WorldState worldState ? worldState with { Actions = [] } : session.State.World,
-            WorldActionCount = session.State.World?.Actions.Count ?? 0,
+            World = session.State.World,
             FieldFaulted = fieldFaulted,
             FieldRenderFaulted = fieldRenderFaulted,
             LastFault = events?.LastFault,

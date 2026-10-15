@@ -104,41 +104,8 @@ public sealed class WorldFieldEntryReaderTests
         Assert.Throws<InvalidDataException>(() => cycle.Select(new WorldFieldSelectionInput(0, 0, 0, 0), 8));
     }
 
-    [Fact]
-    public void Semantic_selection_preserves_single_integer_regions_and_current_story_entity_conditions()
-    {
-        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(Program([(0xFF01, 0), (0xFF02, 100), (0xFF03, 200), (0xFF06, 400), (0xFF09, 132), (0xFF11, 100), (0xFF0F, 102), (0xFF10, 3), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0), (0xFF16, 0)]), Packet(fieldId: 774));
 
-        SemanticWorldFieldResolution result = reader.ResolveSemanticEntry(774, 150, 32);
 
-        Assert.Equal(0, result.Entry.Index);
-        Assert.Contains(result.Regions, region => region.Contains(101, 0));
-        Assert.DoesNotContain(result.Regions, region => region.Contains(100, 0) || region.Contains(102, 0) || region.Contains(101, 3));
-        Assert.Throws<NotSupportedException>(() => reader.ResolveSemanticEntry(774, 200, 32));
-        Assert.Throws<NotSupportedException>(() => reader.ResolveSemanticEntry(774, 150, 0));
-    }
-
-    [Fact]
-    public void Semantic_selection_rejects_two_eligible_current_rows_for_the_same_target()
-    {
-        byte[] table = Packet(fieldId: 774).Concat(Packet(x: 1, fieldId: 774)).ToArray();
-        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(Program([(0xFF01, 0), (0xFF06, 400), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0), (0xFF16, 0)], [(0xFF01, 0), (0xFF06, 401), (0xFF04, 0), (0xFF08, 1), (0xFF05, 0), (0xFF16, 0)]), table);
-
-        Assert.Throws<NotSupportedException>(() => reader.ResolveSemanticEntry(774, 150, 32));
-    }
-
-    [Fact]
-    public void Semantic_selection_retains_native_clause_precedence_and_hashes_the_full_packet_table()
-    {
-        byte[] table = Packet(fieldId: 774).Concat(Packet(x: 1, fieldId: 774)).ToArray();
-        table[23] = 97;
-        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(Program([(0xFF01, 0), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0), (0xFF16, 0)], [(0xFF01, 0), (0xFF04, 0), (0xFF08, 1), (0xFF05, 0), (0xFF16, 0)]), table);
-
-        SemanticWorldFieldResolution result = reader.ResolveSemanticEntry(774, 150, 32);
-
-        Assert.Equal(0, result.Entry.Index);
-        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(table)), result.Wm2FieldSha256);
-    }
 
     private static byte[] Program(params (ushort Opcode, ushort Operand)[][] clauses)
     {

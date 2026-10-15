@@ -23,7 +23,7 @@ public sealed class NativeWorldEventRandomTests
         Assert.Equal((ushort)0, prospective.EventRandom.DrawPoints!.RegenerationCounter180);
         Assert.Same(before, session.State);
         // A transport with no actual callback count cannot publish its prospective RNG.
-        WorldState incomplete = before.World! with { Frame = 1, Actions = [new(1, 1, "Wait", 0, 0, 1, 1, before.World.X, before.World.Z, before.World.NativeHeight)] };
+        WorldState incomplete = before.World! with { Frame = 1 };
         Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(incomplete, prospective));
         Assert.Same(before, session.State);
         Assert.Equal(1u, session.EventRandom!.State);
@@ -43,7 +43,7 @@ public sealed class NativeWorldEventRandomTests
         }
         Assert.Equal(session.EventRandom, independent.EventRandom);
         Assert.Equal(JsonSerializer.Serialize(session.ExamTimer), JsonSerializer.Serialize(independent.ExamTimer));
-        Assert.Equal(JsonSerializer.Serialize(world.State with { Actions = [] }), JsonSerializer.Serialize(singleInputs.State with { Actions = [] }));
+        Assert.Equal(JsonSerializer.Serialize(world.State), JsonSerializer.Serialize(singleInputs.State));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public sealed class NativeWorldEventRandomTests
     private static (GameSession Session, EventEngine Engine, WorldMapScene World, byte[] Program) CreateNativeDeparture()
     {
         // Declared component JSM executes original-width stores and WORLDMAPJUMP.
-        // It is not an original field script or an authentic research route journal.
+        // It is not an original field script or an authentic research route snapshot.
         (Jsm.Opcode, int)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0xC9), (Jsm.Opcode.POPM_B, 116), (Jsm.Opcode.PSHN_L, 0x2800), (Jsm.Opcode.POPM_W, 180), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, -1), (Jsm.Opcode.WORLDMAPJUMP, 0), (Jsm.Opcode.RET, 0)];
         byte[] bytes = new byte[16 + operations.Length * 4];
         bytes[3] = 1;
@@ -121,7 +121,6 @@ public sealed class NativeWorldEventRandomTests
         };
         engine.LoadField(74, bytes, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
-        session.MarkReplayUnavailable("Declared native world RNG component has no original route history.");
         Assert.NotNull(world);
         return (session, engine, world!, bytes);
     }

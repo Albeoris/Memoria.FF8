@@ -38,9 +38,9 @@ public sealed class OffsetParallaxTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic mountain-road journal and installed resources are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
-        using GameWorld world = new(new GameSession(current), directory, persistReplayJournal: false);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic mountain-road snapshot and installed resources are required.");
+        GameState current = GameSession.Load(source);
+        using GameWorld world = new(new GameSession(current), directory);
         world.EnsureField();
         Assert.Equal(321, world.Field!.Id);
         BackgroundScrollSettings settings = new(440, 0, 0, 0);
@@ -55,7 +55,7 @@ public sealed class OffsetParallaxTests
         Assert.Equal(new Vector2(-440, 0), after.ActorOffset);
         Assert.Equal(new Vector2(440, 0), after.LayerOffsets[1]);
         Assert.Equal(new Vector2(440, 0), DirectBackgroundScrollCertificate.PrepareCenter(world.Field, world.Events.Scene, 440, 0).LayerOffsets[1]);
-        using GameWorld restored = new(new GameSession(current with { EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+        using GameWorld restored = new(new GameSession(current with { EventState = world.Events.Capture() }), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

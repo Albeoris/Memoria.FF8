@@ -18,13 +18,13 @@ public sealed class WorldTimerContinuationTests
             repository = repository.Parent;
         }
         string sourcePath = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(sourcePath), directory);
+        GameState recreated = GameSession.Load(sourcePath);
         Assert.Equal(SceneKind.WorldMap, recreated.Scene);
         Assert.Equal(136, recreated.FieldId);
         Assert.Equal(0, recreated.World!.Frame);
         Assert.False(recreated.ExamTimer!.DisplayEnabled);
         var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         JsonElement initialVm = world.Events.Capture();
         NativeExamTimerState initialTimer = session.ExamTimer!;
@@ -35,15 +35,15 @@ public sealed class WorldTimerContinuationTests
         Assert.Equal(JsonSerializer.Serialize(initialTimer.AdvanceCallbacks(NativeTimerCallbackKind.World, 3)), JsonSerializer.Serialize(session.ExamTimer));
         Assert.True(JsonElement.DeepEquals(FrozenVm(initialVm), FrozenVm(world.Events.Capture())));
         Assert.Equal(initialTimer.ClockCalls, session.State.EventState!.Value.GetProperty("ExamTimer").GetProperty("ClockCalls").GetInt64());
-        GameState continued = GameWorld.RecreateSave(session.State, directory);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { ReplayJournal = null }), JsonSerializer.SerializeToElement(continued with { ReplayJournal = null })));
+        GameState continued = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(continued)));
 
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-world-timer-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(path, registerJournalReference: false);
+            session.Save(path);
             var restoredSession = new GameSession(GameSession.Load(path));
-            using var restored = new GameWorld(restoredSession, directory, persistReplayJournal: false);
+            using var restored = new GameWorld(restoredSession, directory);
             restored.EnsureField();
             Assert.Equal(JsonSerializer.Serialize(session.ExamTimer), JsonSerializer.Serialize(restoredSession.ExamTimer));
             var next = new PlayerAction(PlayerActionKind.Wait);

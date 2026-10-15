@@ -16,41 +16,41 @@ internal sealed partial class GameWorld : IDisposable
     private int renderWidth = FieldRenderer.Width;
     private int renderHeight = FieldRenderer.Height;
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, bool persistReplayJournal = true)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null)
     {
         this.session = session;
         assets = new GameAssets(gameDirectory);
         bool initializedNativeParty = false;
-        if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameWeaponRecipes(assets.ReadNewGameWeaponRecipes());
         }
-        if (session.State.ShopHistory is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.ShopHistory is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameShopHistory(assets.ReadNewGameShopHistory());
         }
-        if (session.State.ShotAvailability is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.ShotAvailability is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         }
-        if (session.State.InputConfiguration is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.InputConfiguration is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         }
-        if (session.State.SeeD is { SalaryTable: null } && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.SeeD is { SalaryTable: null } && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
         }
-        if (session.State.Economy is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.Economy is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         }
-        if (session.State.CharacterVitals is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.CharacterVitals is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             initializedNativeParty = true;
         }
-        if (session.State.CharacterAppearance is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.ReplayJournal is { EntryCount: 0, IsComplete: true } && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        if (session.State.CharacterAppearance is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
         }
@@ -79,15 +79,6 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeWeaponShopDefinitions = assets.ReadNativeWeaponShopDefinitions;
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
-        if (persistReplayJournal)
-        {
-            journalArchive = new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory);
-            session.ReplayJournalChanged += PersistReplayJournal;
-            if (session.ReplayJournal is ReplayJournal journal)
-            {
-                FlushReplayJournal(journal);
-            }
-        }
     }
 
     public EventEngine Events { get; }
@@ -133,7 +124,7 @@ internal sealed partial class GameWorld : IDisposable
             }
             if (Events.Scene.WorldMusicLoad is null)
             {
-                throw new NotSupportedException("World restoration requires its executed native music-loader receipt; recreate the authentic journal.");
+                throw new NotSupportedException("World restoration requires its executed native music-loader receipt; migrate this save explicitly.");
             }
             worldScene = new WorldMapScene(session, assets.GameDirectory);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
@@ -173,7 +164,6 @@ internal sealed partial class GameWorld : IDisposable
         {
             throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world event/menu random, vibration, fade or shop owners from its earlier snapshot.");
         }
-        using IDisposable? restoredLoad = snapshot is null ? null : session.BeginReplayCapture();
         FieldAssets next = assets.LoadField(fieldId);
         Events.ResolveFieldSoundEffectTable = () =>
         {
@@ -336,7 +326,7 @@ internal sealed partial class GameWorld : IDisposable
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
         BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeWrappedBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
         DebugSceneView? view = session.State.DebugView;
-        NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; recreate the session journal.");
+        NativeFieldShake shake = Events.FieldShake ?? throw new NativeShakeRenderException("Native field rendering requires its authentic shake process owner; migrate this save explicitly.");
         shake.Validate();
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
@@ -386,11 +376,6 @@ internal sealed partial class GameWorld : IDisposable
 
     public void Dispose()
     {
-        session.ReplayJournalChanged -= PersistReplayJournal;
-        if (journalArchive is not null && session.ReplayJournal is ReplayJournal journal)
-        {
-            FlushReplayJournal(journal);
-        }
         assets.Dispose();
         battleAssets?.Dispose();
         preparedWorldEntry?.Dispose();

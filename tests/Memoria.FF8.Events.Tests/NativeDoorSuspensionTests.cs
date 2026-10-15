@@ -34,7 +34,6 @@ internal static partial class Program
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
             session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
-            session.MarkReplayUnavailable("Declared native door scheduler component; requests are staged through the current Queue boundary.");
             var engine = new EventEngine(session);
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;

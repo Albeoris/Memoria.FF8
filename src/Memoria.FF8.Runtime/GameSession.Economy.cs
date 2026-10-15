@@ -9,7 +9,7 @@ public sealed partial class GameSession
 
     public void InitializeNewGameEconomy(NativeEconomy economy)
     {
-        if (State.Economy is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.ReplayJournal is not { EntryCount: 0, IsComplete: true } || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
+        if (State.Economy is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame)
         {
             throw new NotSupportedException("Economy initialization requires the untouched authentic New Game before its first engine transaction.");
         }
@@ -49,7 +49,7 @@ public sealed partial class GameSession
         }
         if (!vm.TryGetProperty("Economy", out JsonElement json))
         {
-            throw new InvalidDataException("Saved VM lacks its current native economy shape; recreate the authentic journal.");
+            throw new InvalidDataException("Saved VM lacks its current native economy shape; migrate this save explicitly.");
         }
         NativeEconomy? saved = json.ValueKind == JsonValueKind.Null ? null : json.Deserialize<NativeEconomy>(JsonOptions) ?? throw new InvalidDataException("Empty event economy.");
         saved?.Validate();

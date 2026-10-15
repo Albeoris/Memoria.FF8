@@ -79,10 +79,10 @@ public sealed class PlayerLocomotionAnimationTests
         }
         string output = Path.Combine(repository!.FullName, "../fixtures");
         Directory.CreateDirectory(output);
-        new GameSession(source).Save(Path.Combine(output, "squall-walk-source.json"), registerJournalReference: false);
-        GameState recreated = GameWorld.RecreateSave(source, directory);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null })));
-        new GameSession(recreated).Save(Path.Combine(output, "squall-walk-recreated.json"), registerJournalReference: false);
+        new GameSession(source).Save(Path.Combine(output, "squall-walk-source.json"));
+        GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!;
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source), JsonSerializer.SerializeToElement(recreated)));
+        new GameSession(recreated).Save(Path.Combine(output, "squall-walk-recreated.json"));
         using var independent = new GameWorld(new GameSession(recreated), directory);
         independent.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), independent.Render(TimeSpan.Zero));
@@ -90,6 +90,6 @@ public sealed class PlayerLocomotionAnimationTests
         Assert.Equal(world.Apply(continuation), independent.Apply(continuation));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), independent.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), independent.Render(TimeSpan.Zero));
-        Console.WriteLine("Authentic New Game journal recreation matches complete GameState, CPU pixels and the next ordinary moving callback; both implementations are current Memoria.");
+        Console.WriteLine("Authentic New Game snapshot continuation matches complete GameState, CPU pixels and the next ordinary moving callback; both implementations are current Memoria.");
     }
 }

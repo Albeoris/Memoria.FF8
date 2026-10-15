@@ -141,7 +141,6 @@ public sealed partial class EventEngine
                 continue;
             }
             short elapsed = actor.NativeTurnAccumulator474!.Value;
-            bool controlledEndpointPending = IsControlledLadderMode3(actor) && actor.NativeMovementCompletion542 != 2;
             if (!IsControlledLadderMode3(actor))
             {
                 if (elapsed == current.Duration)
@@ -194,18 +193,6 @@ public sealed partial class EventEngine
             actor.Y = current.FixedY / 4096f;
             actor.Z = current.FixedZ / 4096f;
             actor.WalkmeshTriangle = current.Triangle;
-            if (controlledEndpointPending && actor.NativeMovementCompletion542 == 2)
-            {
-                if (elapsed != 0 && elapsed != current.Duration)
-                {
-                    services.MarkReplayUnavailable("Opposed native mode3 controls completed away from either retained semantic endpoint.");
-                }
-                else
-                {
-                    bool forward = elapsed == current.Duration && (ButtonInput!.Held!.Value & (current.Up ? 0x1000 : 0x4000)) != 0;
-                    RecordNativeTraversalCompletion(CreateNativeTraversal(actor, current.ScriptId, current.Operation, 3, forward), ButtonInput!.PhysicalHeld);
-                }
-            }
             if (IsNativePartyPlayerBody(actor))
             {
                 Scene.NativePlayerPosition = new FieldFixedPosition(current.FixedX, current.FixedY, current.FixedZ);

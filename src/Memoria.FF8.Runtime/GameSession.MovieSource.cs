@@ -26,7 +26,7 @@ public sealed partial class GameSession
         }
         if (currentVm is JsonElement vm && (!vm.TryGetProperty("MovieSource", out JsonElement saved) || !JsonElement.DeepEquals(saved, JsonSerializer.SerializeToElement(state.MovieSource, JsonOptions))))
         {
-            throw new InvalidDataException("Root and VM native movie resource bindings disagree; recreate authentic history.");
+            throw new InvalidDataException("Root and VM native movie resource bindings disagree; migrate this save explicitly.");
         }
     }
 }

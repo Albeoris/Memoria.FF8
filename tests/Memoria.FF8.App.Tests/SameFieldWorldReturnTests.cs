@@ -18,26 +18,13 @@ public sealed class SameFieldWorldReturnTests
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original field and world corpus is required.");
         string repository = Repository();
-        GameState source = GameSession.LoadReplaySource(Path.Combine(repository, "../fixtures/external-fixture.json"));
+        GameState source = GameSession.Load(Path.Combine(repository, "../fixtures/external-fixture.json"));
         if (!afterIfrit)
         {
-            var root = GameSession.CreateColdProcess();
-            root.StartNewGame();
-            ReplayJournal prefix = root.ReplayJournal!;
-            foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)
-            {
-                prefix = prefix.Append(entry);
-                if (entry.ResultFieldId == 136 && entry.ResultTrigger == (int)PlayerTriggerKind.Playable)
-                {
-                    break;
-                }
-            }
-            ReplayJournalEntry endpoint = prefix.Endpoint!;
-            Assert.Equal(136, endpoint.ResultFieldId);
-            source = new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix };
+            source = SnapshotFixtures.Require("MEMORIA_FF8_CAVERN_ENTRANCE_SNAPSHOT", 136);
         }
-        var session = new GameSession(GameWorld.RecreateSave(source, gameDirectory));
-        using var world = new GameWorld(session, gameDirectory, persistReplayJournal: false);
+        var session = new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!);
+        using var world = new GameWorld(session, gameDirectory);
         world.EnsureField();
         if (afterIfrit)
         {
@@ -83,10 +70,9 @@ public sealed class SameFieldWorldReturnTests
 
         session.SetEventState(world.Events.Capture());
         GameState reached = session.State;
-        Assert.True(reached.ReplayJournal!.IsComplete, reached.ReplayJournal.UnavailableReason);
-        GameState recreated = GameWorld.RecreateSave(reached, gameDirectory);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(reached with { ReplayJournal = null }, JsonOptions), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null }, JsonOptions)));
-        using var restored = new GameWorld(new GameSession(recreated), gameDirectory, persistReplayJournal: false);
+        GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(reached))!;
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(reached, JsonOptions), JsonSerializer.SerializeToElement(recreated, JsonOptions)));
+        using var restored = new GameWorld(new GameSession(recreated), gameDirectory);
         restored.EnsureField();
         world.SetRenderSize(320, 224);
         restored.SetRenderSize(320, 224);
@@ -97,7 +83,7 @@ public sealed class SameFieldWorldReturnTests
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
         string output = Path.Combine(repository, "../fixtures");
         Directory.CreateDirectory(output);
-        new GameSession(reached).Save(Path.Combine(output, afterIfrit ? "reentry-after-ifrit-checkpoint.json" : "reentry-before-ifrit-checkpoint.json"), registerJournalReference: false);
+        new GameSession(reached).Save(Path.Combine(output, afterIfrit ? "reentry-after-ifrit-checkpoint.json" : "reentry-before-ifrit-checkpoint.json"));
         Console.WriteLine($"Authentic cavern reentry field136: previous frame{departedFrame}, allocated frame0, arrival{arrival}; movement, portable reconstruction, VM and CPU pixels verified.");
     }
 

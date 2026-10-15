@@ -6,54 +6,6 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeFootWorldReloadTests
 {
-    [Fact]
-    public void ActualFreshWorldSpawnReplaysAll1650OrdinaryActionsAndCarriesCompleteFootReceipt()
-    {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
-        string prefix = Path.Combine(repository!.FullName, "../fixtures");
-        GameState spawn = GameSession.Load(prefix + "spawn-checkpoint.json");
-        GameState expected = GameSession.Load(prefix + "cavern-arrival-checkpoint.json");
-        var session = new GameSession(spawn);
-        var replaySession = new GameSession(GameSession.Load(prefix + "spawn-checkpoint.json"));
-        using var world = new GameWorld(session, GameDirectory());
-        using var replay = new GameWorld(replaySession, GameDirectory());
-        world.EnsureField();
-        replay.EnsureField();
-        JsonElement frozenVm = world.Events.Capture();
-        Assert.Equal(634, world.Events.Frame);
-        Assert.Equal(0, session.State.World!.Frame);
-        Assert.Equal(NativeFootWorldRuntimeState.FirstLoadRule, session.State.World.NativeFootRuntime!.Rule);
-        Assert.Equal(1650, expected.DepartingWorldState!.Actions.Count);
-        foreach (WorldActionRecord record in expected.DepartingWorldState.Actions)
-        {
-            PlayerAction action = new(Enum.Parse<PlayerActionKind>(record.Kind), Horizontal: record.Horizontal, Vertical: record.Vertical, Frames: record.RequestedFrames);
-            PlayerActionResult result = world.Apply(action);
-            Assert.True(result.Accepted);
-            Assert.Equal(record.AdvancedFrames, result.FramesAdvanced);
-            Assert.Equal(result, replay.Apply(action));
-        }
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(session.State)));
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
-        Assert.True(JsonElement.DeepEquals(frozenVm, session.State.DepartingFieldState!.Value));
-        Assert.Equal(new FieldTransition(136, 175, -2269, 12, 128), session.State.FieldArrival);
-        NativeSavedWorldFootReturn receipt = session.State.SavedWorld!.FootReturn!;
-        receipt.RequireCompleteFootReload();
-        Assert.Equal(new NativeSavedWorldPose(30181, -29222, -693, 165), receipt.Pose0);
-        Assert.Equal(690, receipt.CameraYaw96);
-        Assert.Equal<byte?>(0, receipt.AnimationVariant108);
-        Assert.Equal<byte?>(0, receipt.MapDisplayMode110);
-        Assert.True(world.EnsureField());
-        Assert.True(replay.EnsureField());
-        Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), replay.Apply(new PlayerAction(PlayerActionKind.Wait)));
-        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
-        world.SetRenderSize(320, 240);
-        replay.SetRenderSize(320, 240);
-        Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
-    }
 
     [Fact]
     public void ActualFirstLoaderAuxiliariesSurviveOrdinaryActionsAndRestore()
@@ -77,7 +29,7 @@ public sealed class NativeFootWorldReloadTests
     [Fact]
     public void UniformFootComponentLoadsOriginalBalambSpawnAndRestoresItsSelectedModelAndTicks()
     {
-        // Isolated structural loader fixture; this establishes no live journey or causal journal.
+        // Isolated structural loader fixture; this establishes no live journey or live journey.
         GameState entry = FirstEntry() with
         {
             WorldArrival = new WorldTransition(1, 1, -1),
@@ -89,7 +41,6 @@ public sealed class NativeFootWorldReloadTests
         Assert.Equal((13249, -26779, -304), (scene.State.X, scene.State.Z, scene.State.NativeHeight));
         Assert.Equal((byte)1, scene.State.NativeFootRuntime!.EntityType);
         Assert.Equal(0, scene.State.Frame);
-        Assert.Empty(scene.State.Actions);
         var restoredSession = new GameSession(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
         using var restored = new WorldMapScene(restoredSession, GameDirectory());
         Assert.Equal(scene.Render(320, 224), restored.Render(320, 224));

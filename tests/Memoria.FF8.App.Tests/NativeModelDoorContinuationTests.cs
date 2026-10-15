@@ -12,9 +12,9 @@ public sealed class NativeModelDoorContinuationTests
     {
         string directory = GameDirectory();
         string source = Evidence("replay-timber-arrival-pre-door-checkpoint.json");
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), directory);
+        GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(919, world.Events.FieldId);
         Assert.Equal(244, world.Events.Frame);
@@ -31,7 +31,6 @@ public sealed class NativeModelDoorContinuationTests
         Assert.Equal(world.Events.Frame, sample.Frame);
         Assert.NotEmpty(sample.SkinTranslations);
         JsonElement before = world.Events.Capture();
-        long entries = session.ReplayJournal!.EntryCount;
         byte[] pixels = world.Render(TimeSpan.Zero).ToArray();
         for (int render = 0; render < 5; render++)
         {
@@ -43,7 +42,6 @@ public sealed class NativeModelDoorContinuationTests
         Assert.Equal(pixels, world.Render(TimeSpan.Zero));
         Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
         Assert.Equal(counter, world.Events.Scene.ModelParts.Resources[13].Parts[1][2]);
-        Assert.Equal(entries, session.ReplayJournal.EntryCount);
 
         WithRestored(world, session, directory, restored =>
         {
@@ -63,9 +61,9 @@ public sealed class NativeModelDoorContinuationTests
     {
         string directory = GameDirectory();
         string source = Evidence("replay-timber-door-current-checkpoint.json");
-        GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), directory);
+        GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(919, world.Events.FieldId);
         Assert.Equal(820, world.Events.Frame);
@@ -96,8 +94,8 @@ public sealed class NativeModelDoorContinuationTests
         try
         {
             session.SetEventState(world.Events.Capture());
-            session.Save(saved, registerJournalReference: false);
-            using var restored = new GameWorld(new GameSession(GameSession.Load(saved)), directory, persistReplayJournal: false);
+            session.Save(saved);
+            using var restored = new GameWorld(new GameSession(GameSession.Load(saved)), directory);
             restored.EnsureField();
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

@@ -92,7 +92,7 @@ public sealed partial class EventEngine
         {
             if (!json.TryGetProperty(name, out _))
             {
-                throw new InvalidDataException("Saved actor lacks the current native face words; recreate authentic inputs.");
+                throw new InvalidDataException("Saved actor lacks the current native face words; migrate this save explicitly.");
             }
         }
         if (actor.FaceDuration is < 0 or > ushort.MaxValue || actor.FaceProgress < 0 || actor.FaceProgress > actor.FaceDuration || new[] { actor.FaceFirstAngle, actor.FaceSecondAngle, actor.FaceElapsed, actor.FacePendingBaseline, actor.FacePitchTarget, actor.FaceYawTarget }.Any(value => value is < short.MinValue or > short.MaxValue) || new[] { actor.FaceLimits.X, actor.FaceLimits.Y, actor.FaceLimits.Z }.Any(value => !float.IsFinite(value) || value != MathF.Truncate(value) || value is < 0 or > 255) || actor.FaceTargetPoint is Vector3 point && new[] { point.X, point.Y, point.Z }.Any(value => !float.IsFinite(value) || value != MathF.Truncate(value) || value is < short.MinValue or > short.MaxValue))

@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Security.Cryptography;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -28,7 +28,11 @@ internal static class DirectBackgroundScrollCertificate
         {
             return InRange(actorX) && InRange(actorY) && SupportsCenter(field, scene, actorX, actorY);
         }
-        return scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks && InRange(normal.X) && InRange(normal.Y) && SupportsCenter(field, scene, normal.X, normal.Y);
+        if (scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == field.Id && normal.CameraIndex == scene.CameraIndex && normal.Frame > 0 && scene.FieldCallbackClock is { Version: 1 } clock && normal.Frame <= clock.OrdinaryCallbacks + clock.MovieCallbacks)
+        {
+            return InRange(normal.X) && InRange(normal.Y) && SupportsCenter(field, scene, normal.X, normal.Y);
+        }
+        return scene.NativeLayerZeroScrollCurrent is { Version: 1 } retained && InRange(retained.X) && InRange(retained.Y) && SupportsCenter(field, scene, retained.X, retained.Y);
     }
 
     public static bool CanSetLinear(FieldAssets field, NativeLinearScrollQuery query)

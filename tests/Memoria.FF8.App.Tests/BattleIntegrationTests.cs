@@ -34,12 +34,8 @@ public sealed class BattleIntegrationTests
         Assert.Equal(completed, Assert.Single(engine.Scene.NativeBattleCompletions!));
         JsonElement nextVisit = engine.Capture();
         session.SetEventState(nextVisit);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(nextVisit);
-        }
+        engine.Restore(nextVisit);
         Assert.True(JsonElement.DeepEquals(nextVisit, engine.Capture()));
-        Assert.True(session.ReplayJournal!.IsComplete, session.ReplayJournal.UnavailableReason);
     }
 
     [Fact]
@@ -61,12 +57,8 @@ public sealed class BattleIntegrationTests
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State with { EventState = before }))!;
         GameSession restoredSession = new(saved);
         EventEngine restored = CreateEngine(restoredSession);
-        using (restoredSession.BeginReplayCapture())
-        {
-            restored.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-            restored.Restore(before);
-        }
-        Assert.True(restoredSession.ReplayJournal!.IsComplete);
+        restored.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        restored.Restore(before);
         restored.Step();
         Assert.True(JsonElement.DeepEquals(before, restored.Capture()));
         engine.AdvanceInteractiveBattleCallbacks(40);
@@ -78,48 +70,35 @@ public sealed class BattleIntegrationTests
     }
 
     [Fact]
-    public void ReturnCapturesOpcodeReceiptsAndRefreshesMemoryDigestBeforeOrdinaryStep()
+    public void ReturnResumesOpcodeAndRefreshesMemoryBeforeOrdinaryStep()
     {
         byte[] source = Program((Jsm.Opcode.PSHN_L, 321), (Jsm.Opcode.POPM_W, 800), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 654), (Jsm.Opcode.POPM_W, 802));
         (GameSession session, EventEngine engine) = Fixture(source);
         engine.Step();
-        NativeBattleCompletion request = engine.PendingInteractiveBattle!;
         bool outcomePublished = false;
         engine.AdvanceInteractiveBattleCallbacks(57);
         engine.ReturnFromInteractiveBattle(57, () => outcomePublished = true);
+        Assert.Equal(57, engine.Scene.NativeBattleCompletions![0].EmulatedCombatCallbacks);
         Assert.True(outcomePublished);
         Assert.Equal(321, session.State.Variables[800]);
-        ReplayJournalEntry entry = session.ReplayJournal!.Endpoint!;
-        Assert.Equal(ReplayEntryKind.BattleInput, entry.Kind);
-        Assert.Equal(BattleInputKind.Return, entry.BattleInput!.Kind);
-        Assert.Equal((request.ObjectId, request.ScriptId, request.Operation), (entry.ObjectId, entry.ScriptId, entry.Operation));
-        Assert.Contains(entry.Receipts, receipt => receipt.Kind == ReplayReceiptKind.Command && receipt.Code == (int)Jsm.Opcode.POPM_W && receipt.Value == 800);
-        Assert.True(entry.CommandCount > 0);
-        Assert.Equal(57, engine.Scene.NativeBattleCompletions![0].EmulatedCombatCallbacks);
         engine.Step();
         Assert.Equal(654, session.State.Variables[802]);
-        Assert.True(session.ReplayJournal.IsComplete, session.ReplayJournal.UnavailableReason);
     }
 
     [Fact]
-    public void ReturnTransitionRecordsOriginalFieldAsSourceAndDestinationAsResult()
+    public void ReturnTransitionReachesRequestedDestination()
     {
         byte[] source = Program((Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.PSHN_L, 20), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 32), (Jsm.Opcode.MAPJUMP3, 50));
         (GameSession session, EventEngine engine) = Fixture(source);
         engine.Step();
         engine.AdvanceInteractiveBattleCallbacks(20);
         engine.ReturnFromInteractiveBattle(20);
-        ReplayJournalEntry entry = session.ReplayJournal!.Endpoint!;
-        Assert.Equal(SceneKind.Field, entry.Scene);
-        Assert.Equal(FixtureField, entry.FieldId);
-        Assert.Equal(SceneKind.Field, entry.ResultScene);
-        Assert.Equal(100, entry.ResultFieldId);
         Assert.Equal(PlayerTriggerKind.FieldTransition, engine.NextTrigger.Kind);
-        Assert.True(session.ReplayJournal.IsComplete, session.ReplayJournal.UnavailableReason);
+        Assert.Equal(100, session.State.FieldId);
     }
 
     [Fact]
-    public void ReturnMovieRecordsOriginalFieldSceneAsSource()
+    public void ReturnMovieResumesRequestedMovie()
     {
         byte[] source = EncodeProgram([(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.MOVIEREADY, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.MOVIE, 0), (Jsm.Opcode.RET, 0)]);
         (GameSession session, EventEngine engine) = Fixture(source);
@@ -127,28 +106,20 @@ public sealed class BattleIntegrationTests
         engine.Step();
         engine.AdvanceInteractiveBattleCallbacks(20);
         engine.ReturnFromInteractiveBattle(20);
-        ReplayJournalEntry entry = session.ReplayJournal!.Endpoint!;
-        Assert.Equal(SceneKind.Field, entry.Scene);
-        Assert.Equal(FixtureField, entry.FieldId);
-        Assert.Equal(SceneKind.Movie, entry.ResultScene);
         Assert.Equal(PlayerTriggerKind.Movie, engine.NextTrigger.Kind);
-        Assert.True(session.ReplayJournal.IsComplete, session.ReplayJournal.UnavailableReason);
+        Assert.Equal(SceneKind.Movie, session.State.Scene);
     }
 
     [Fact]
-    public void UnsupportedResumedOpcodeMarksFailedCausalBoundaryUnavailable()
+    public void UnsupportedResumedOpcodeReportsItsActualFault()
     {
         // SHAKE is unsupported in this component without the explicitly required installed lookup table.
         byte[] source = Program((Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.SHAKE, 0));
         (GameSession session, EventEngine engine) = Fixture(source);
         engine.Step();
-        int committedCount = session.ReplayJournal!.EntryCount;
         engine.AdvanceInteractiveBattleCallbacks(20);
         Assert.Throws<EventScriptException>(() => engine.ReturnFromInteractiveBattle(20));
         Assert.Equal("SHAKE", engine.LastFault!.Opcode);
-        Assert.False(session.ReplayJournal.IsComplete);
-        Assert.Contains("causal transaction failed", session.ReplayJournal.UnavailableReason!);
-        Assert.Equal(committedCount, session.ReplayJournal.EntryCount);
     }
 
     [Fact]
@@ -174,11 +145,8 @@ public sealed class BattleIntegrationTests
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State with { EventState = pending }))!;
         GameSession restoredSession = new(saved);
         EventEngine restored = CreateEngine(restoredSession);
-        using (restoredSession.BeginReplayCapture())
-        {
-            restored.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-            restored.Restore(pending);
-        }
+        restored.LoadField(FixtureField, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        restored.Restore(pending);
         Assert.Equal(7, restored.Scene.FieldCallbackClock!.BattleCallbacks);
         Assert.Equal(session.ExamTimer.ClockCalls, restoredSession.ExamTimer!.ClockCalls);
         Assert.Equal(session.State.WorldProcess.MainLoopCallbacks, restoredSession.State.WorldProcess!.MainLoopCallbacks);

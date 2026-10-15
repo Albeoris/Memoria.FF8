@@ -64,7 +64,7 @@ public sealed class NativeScriptedWorldStateTests
         boat = boat with { Path = path };
         NativeSavedWorldScriptedReturn receipt = NativeSavedWorldScriptedReturn.Create(boat, 123, story, assets.GetNativeMapLocationId(path.EntityPosition.X, -path.EntityPosition.Z), transition);
         boat = boat with { Return = receipt };
-        WorldState endpoint = boat.ToWorldState() with { Actions = [new(1, endpointCallback, "Wait", 0, 0, (int)endpointCallback, (int)endpointCallback, path.EntityPosition.X, -path.EntityPosition.Z, path.EntityPosition.Y)] };
+        WorldState endpoint = boat.ToWorldState();
         GameState beforeEndpoint = session.State;
         NativeWorldSalaryState endpointSalary = SalaryBatch(session.State, endpoint);
         Assert.Throws<InvalidDataException>(() => session.CommitWorldAction(endpoint with { NativeScriptedRuntime = boat with { Return = receipt with { LastFieldId = 120 } } }, endpointSalary));
@@ -91,7 +91,7 @@ public sealed class NativeScriptedWorldStateTests
             path = path.Step(definition, (_, _, _) => throw new InvalidOperationException("Fade must freeze projection."));
         }
         boat = boat with { Path = path };
-        WorldState final = boat.ToWorldState(endpoint) with { Actions = [.. endpoint.Actions, new(2, endpointCallback + 16, "Wait", 0, 0, 16, 16, path.EntityPosition.X, -path.EntityPosition.Z, path.EntityPosition.Y)] };
+        WorldState final = boat.ToWorldState(endpoint);
         GameState departure = session.State;
         NativeWorldSalaryState fadeSalary = SalaryBatch(departure, final);
         Assert.Throws<InvalidOperationException>(() => session.CommitPreparedScriptedFieldEntry(departure, final, transition with { FieldId = 123 }, fadeSalary, _ => { }));

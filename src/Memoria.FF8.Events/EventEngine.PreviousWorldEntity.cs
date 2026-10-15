@@ -63,12 +63,12 @@ public sealed partial class EventEngine
     {
         if (saved.Scene.PreviousWorldEntityByte86 is byte known)
         {
-            if (saved.EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86) || services.ReplayScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration?.EntityByte != known)
+            if (saved.EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86) || services.CurrentScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration?.EntityByte != known)
             {
                 throw new InvalidDataException("Saved world entity BYTE86 disagrees with its allocated process configuration.");
             }
         }
-        else if (services.ReplayScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration is not null)
+        else if (services.CurrentScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration is not null)
         {
             throw new InvalidDataException("Saved field lacks its native world entity allocation authority.");
         }

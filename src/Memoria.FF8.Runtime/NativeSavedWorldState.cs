@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -57,8 +57,6 @@ public sealed record NativeSavedWorldFootReturn
     [JsonRequired]
     public required short MapLocationId { get; init; }
 
-    public NativeSemanticWorldTravel? SemanticTravel { get; init; }
-
     public static NativeSavedWorldFootReturn Create(WorldState world, ushort lastFieldId, ushort storyWord, short mapLocationId, byte? animationVariant108 = null, byte? mapDisplayMode110 = null, byte entityType105 = 0)
     {
         ArgumentNullException.ThrowIfNull(world);
@@ -96,7 +94,7 @@ public sealed record NativeSavedWorldFootReturn
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || (SemanticTravel is null ? Rule != SaveRule : Rule != NativeSemanticWorldTravel.ReturnRule) || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 > 1 || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || Rule != SaveRule || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 > 1 || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }
@@ -104,7 +102,6 @@ public sealed record NativeSavedWorldFootReturn
         {
             throw new InvalidDataException("Invalid native foot-return pose or auxiliary metadata.");
         }
-        SemanticTravel?.ValidateReturn(StoryWord, EntityType105, Pose0);
     }
 
     public void RequireCompleteFootReload()

@@ -19,7 +19,7 @@ public sealed class NativeField135ZeroCenterTests
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         GameState recreated = NativeField135LinearScrollTests.RecreateLava(directory, source);
-        using var world = new GameWorld(new GameSession(recreated), directory, persistReplayJournal: false);
+        using var world = new GameWorld(new GameSession(recreated), directory);
         world.EnsureField();
         BackgroundScrollFrame frame = NormalCameraCertificate.Prepare(world.Field!, world.Events.Scene, world.Events.Actors)!;
         Assert.Equal(Vector2.Zero, frame.ActorOffset);

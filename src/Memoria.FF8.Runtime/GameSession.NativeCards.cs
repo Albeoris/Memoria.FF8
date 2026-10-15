@@ -28,7 +28,7 @@ public sealed partial class GameSession
         }
         else if (currentVm is not null && state.CardInventory is not null)
         {
-            throw new InvalidDataException("Root card inventory requires matching history in the active event checkpoint; recreate the authentic journal.");
+            throw new InvalidDataException("Root card inventory requires matching history in the active event checkpoint; migrate this save explicitly.");
         }
     }
 }

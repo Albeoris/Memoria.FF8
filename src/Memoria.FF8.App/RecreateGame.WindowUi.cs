@@ -54,7 +54,7 @@ internal sealed partial class RecreateGame
         }
 
         entries.AddRange(saveMenu.VisibleEntries);
-        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.CanRecreate, saveMenu.Message, saveMenu.RecreateUnavailableReason, string.Join(";", entries), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
+        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.Message, string.Join(";", entries), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
         if (savesWindowUi is null || savesWindowKey != key)
         {
             UiAnchorPanel root = new();
@@ -72,8 +72,8 @@ internal sealed partial class RecreateGame
             UiList rows = new() { GridRow = 2, RowHeight = 50, Items = entries.Select(FormatPlayerSaveRow).ToList(), SelectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == saveMenu.SelectedSlot)) };
             content.Children.Add(rows);
             bool loading = saveMenu.Mode == PlayerSaveMenuMode.Load;
-            content.Children.Add(new UiLabel { GridRow = 3, Text = loading ? keyboard.BindingHint(ControlAction.RecreateSave) + ": Recreate selected save from start" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose a save slot", FontSize = 18, Muted = loading && !saveMenu.CanRecreate });
-            string detail = saveMenu.Message ?? (loading ? saveMenu.RecreateUnavailableReason ?? "Rebuild saved progress with this engine, then replace and load this slot after success." : "Confirm saves to the selected slot. Existing saves require overwrite confirmation.");
+            content.Children.Add(new UiLabel { GridRow = 3, Text = loading ? "Choose a save to load" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose a save slot", FontSize = 18 });
+            string detail = saveMenu.Message ?? (loading ? "Confirm loads the selected save." : "Confirm saves to the selected slot. Existing saves require overwrite confirmation.");
             content.Children.Add(new UiLabel { GridRow = 4, Text = detail, FontSize = 15 });
             content.Children.Add(new UiLabel { GridRow = 5, Text = $"Movement: select / bank    Page: {keyboard.BindingHint(ControlAction.UiPageUp)} / {keyboard.BindingHint(ControlAction.UiPageDown)}\nConfirm: {keyboard.BindingHint(ControlAction.Confirm)}    Cancel: {keyboard.BindingHint(ControlAction.Cancel)}\nConfigure shortcuts in Menu > Config.", FontSize = 16, Muted = true });
             panel.Children.Add(content);

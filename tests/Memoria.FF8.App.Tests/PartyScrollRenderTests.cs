@@ -18,10 +18,10 @@ public sealed class PartyScrollRenderTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic withdrawal journal and installed field corpus are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic withdrawal snapshot and installed field corpus are required.");
+        GameState current = GameSession.Load(source);
         GameSession session = new(current);
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         Assert.Equal(322, world.Field!.Id);
         BackgroundScrollPosition start = world.Events.Scene.BackgroundScrollPositions[0];
@@ -63,7 +63,7 @@ public sealed class PartyScrollRenderTests
         }
         GameState saved = session.State with { EventState = entry };
         GameSession resumedSession = new(saved);
-        using GameWorld restored = new(resumedSession, directory, persistReplayJournal: false);
+        using GameWorld restored = new(resumedSession, directory);
         restored.EnsureField();
         AssertStateAndPixels();
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), restored.Apply(new PlayerAction(PlayerActionKind.Wait)));
@@ -76,7 +76,7 @@ public sealed class PartyScrollRenderTests
         void AssertStateAndPixels()
         {
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
-            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { EventState = world.Events.Capture(), ReplayJournal = null }), JsonSerializer.SerializeToElement(resumedSession.State with { EventState = restored.Events.Capture(), ReplayJournal = null })));
+            Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State with { EventState = world.Events.Capture() }), JsonSerializer.SerializeToElement(resumedSession.State with { EventState = restored.Events.Capture() })));
             Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
         }
     }

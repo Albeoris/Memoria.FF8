@@ -23,7 +23,7 @@ public sealed class NativeDepartingModelPartsTests
         GameSession session = new(GameSession.Load(source));
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
         Assert.Equal(0, session.State.World!.Frame);
-        using GameWorld world = new(session, game, persistReplayJournal: false);
+        using GameWorld world = new(session, game);
         world.EnsureField();
         JsonElement departure = world.Events.Capture();
         Assert.True(departure.GetProperty("TransitionRequested").GetBoolean());
@@ -55,8 +55,8 @@ public sealed class NativeDepartingModelPartsTests
         string saved = Path.Combine(Path.GetTempPath(), "ff8-authentic-departing-models-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            session.Save(saved, registerJournalReference: false);
-            using GameWorld restored = new(new GameSession(GameSession.Load(saved)), game, persistReplayJournal: false);
+            session.Save(saved);
+            using GameWorld restored = new(new GameSession(GameSession.Load(saved)), game);
             restored.EnsureField();
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             Assert.Equal(pixels, restored.Render(TimeSpan.Zero));

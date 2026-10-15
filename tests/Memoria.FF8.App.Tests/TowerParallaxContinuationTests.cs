@@ -39,9 +39,9 @@ public sealed class TowerParallaxContinuationTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower journal and installed resources are required.");
-        GameState current = GameWorld.RecreateCommittedPrefix(GameSession.LoadReplaySource(source), directory);
-        using GameWorld world = new(new GameSession(current), directory, persistReplayJournal: false);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower snapshot and installed resources are required.");
+        GameState current = GameSession.Load(source);
+        using GameWorld world = new(new GameSession(current), directory);
         world.EnsureField();
         Assert.Equal(325, world.Field!.Id);
         Assert.Equal(new Vector2(0, 64), world.Field.Camera.Pan);
@@ -59,7 +59,7 @@ public sealed class TowerParallaxContinuationTests
         Assert.Equal(after.ActorOffset, after.LayerOffsets[0]);
         Assert.Equal(new Vector2(32 - x * 128 / 256, 64 - 48 - y * 128 / 256), after.LayerOffsets[1]);
         Assert.Equal(after.LayerOffsets[1], DirectBackgroundScrollCertificate.PrepareCenter(world.Field, world.Events.Scene, (short)x, (short)y).LayerOffsets[1]);
-        using GameWorld restored = new(new GameSession(current with { EventState = world.Events.Capture() }), directory, persistReplayJournal: false);
+        using GameWorld restored = new(new GameSession(current with { EventState = world.Events.Capture() }), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));

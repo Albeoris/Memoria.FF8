@@ -102,7 +102,7 @@ public sealed partial class EventEngine
             {
                 if (caller.WaitReason == WaitReason.NativeDoorRequest || caller.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && caller.Request is Fiber legacy && program!.Objects[legacy.ObjectId].IsDoor)
                 {
-                    throw new InvalidDataException("Saved door request wait requires its executed native current-slot contract; recreate the authentic journal");
+                    throw new InvalidDataException("Saved door request wait requires its executed native current-slot contract; the snapshot is missing required native state");
                 }
                 continue;
             }

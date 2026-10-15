@@ -1,9 +1,9 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Executed BYTE1(2036B4C) authority, retained between world and field scenes.</summary>
-public sealed record NativeWorldConfiguration([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] byte EntityByte, [property: JsonRequired] ushort SourceField, long? SourceWorldFrame = null, WorldTransition? FieldPacket = null, NativeSemanticWorldTravel? SemanticTravel = null)
+public sealed record NativeWorldConfiguration([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] byte EntityByte, [property: JsonRequired] ushort SourceField, long? SourceWorldFrame = null, WorldTransition? FieldPacket = null)
 {
     public const string PacketRule = "ff8-en-world-config-471f70-byte1-v1";
     public const string ReturnRule = "ff8-en-world-config-53fac0-byte1-v1";
@@ -42,14 +42,9 @@ public sealed record NativeWorldConfiguration([property: JsonRequired] int Versi
 
     public void Validate()
     {
-        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || (Rule == ReturnRule || Rule == NativeSemanticWorldTravel.ReturnRule) && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 32 or 33 or >= 16 and <= 22 or 65 or 66)) || Rule != PacketRule && Rule != ReturnRule && Rule != NativeSemanticWorldTravel.ReturnRule || (Rule == NativeSemanticWorldTravel.ReturnRule) != (SemanticTravel is not null))
+        if (Version != 1 || Rule == PacketRule && (FieldPacket is null || SourceWorldFrame is not null || EntityByte != unchecked((byte)FieldPacket.Mode)) || Rule == ReturnRule && (FieldPacket is not null || SourceWorldFrame is null or < 0 || EntityByte is not (0 or 1 or 32 or 33 or >= 16 and <= 22 or 65 or 66)) || Rule != PacketRule && Rule != ReturnRule)
         {
             throw new InvalidDataException("Native world configuration lacks its original executed packet/entity authority.");
-        }
-        SemanticTravel?.Validate();
-        if (SemanticTravel is not null && EntityByte != SemanticTravel.EntityType)
-        {
-            throw new InvalidDataException("Semantic world configuration has a different current entity owner.");
         }
     }
 }

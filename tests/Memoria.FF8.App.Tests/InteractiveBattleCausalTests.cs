@@ -11,23 +11,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed class InteractiveBattleCausalTests
 {
     [Fact]
-    public void NewGameOrdinaryInputsReachIfritFightRestoreAndColdRecreateWithoutDebugVictory()
+    public void IfritSnapshotContinuesFightRestoresAndReturnsWithoutDebugVictory()
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed game corpus is required for the authentic interactive battle journey.");
         string root = RepositoryRoot();
         string evidence = Path.Combine(root, "../fixtures");
-        string recipePath = Path.Combine(evidence, "replay-timber-normal-menu-return-checkpoint.json");
-        byte[] originalRecipeBytes = File.ReadAllBytes(recipePath);
-        GameState recipe = GameSession.LoadReplaySource(recipePath);
         string scratch = Path.Combine(Path.GetTempPath(), "Memoria-interactive-battle-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(scratch);
         Stopwatch routeWatch = Stopwatch.StartNew();
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
+        GameSession session = new(SnapshotFixtures.Require("MEMORIA_FF8_IFRIT_BATTLE_SNAPSHOT", null));
         MovieClock clock = new(session, game);
-        using GameWorld world = new(session, game, clock, persistReplayJournal: false);
-        DriveOrdinaryRecipeUntilBattle(session, world, clock, recipe.ReplayJournal!, game);
+        using GameWorld world = new(session, game, clock);
+        world.EnsureField();
         routeWatch.Stop();
         Assert.Equal((ushort)94, world.Events.PendingInteractiveBattle!.Encounter);
         world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, Mode: BattleAtbMode.TurnBased));
@@ -72,9 +68,9 @@ public sealed class InteractiveBattleCausalTests
                 testedMidCombat = true;
                 session.SetEventState(world.Events.Capture());
                 string midPath = Path.Combine(scratch, "mid-combat.json");
-                session.Save(midPath, registerJournalReference: false);
+                session.Save(midPath);
                 GameSession restoredSession = new(GameSession.Load(midPath));
-                using GameWorld restored = new(restoredSession, game, persistReplayJournal: false);
+                using GameWorld restored = new(restoredSession, game);
                 restored.EnsureField();
                 EqualState(session.State, restoredSession.State);
                 Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
@@ -99,37 +95,33 @@ public sealed class InteractiveBattleCausalTests
         Assert.Null(world.Battle);
         Assert.Null(session.State.Battle);
         world.Apply(new PlayerAction(PlayerActionKind.Wait));
-        Assert.True(session.ReplayJournal!.IsComplete, session.ReplayJournal.UnavailableReason);
         session.SetEventState(world.Events.Capture());
         string finalPath = Path.Combine(scratch, "after-ifrit.json");
-        session.Save(finalPath, registerJournalReference: false);
+        session.Save(finalPath);
 
         Stopwatch recreateWatch = Stopwatch.StartNew();
-        GameState recreatedState = GameWorld.RecreateSave(GameSession.LoadReplaySource(finalPath), game);
+        GameState recreatedState = GameSession.Load(finalPath);
         recreateWatch.Stop();
         EqualState(session.State, recreatedState);
         GameSession recreatedSession = new(recreatedState);
-        using GameWorld recreated = new(recreatedSession, game, persistReplayJournal: false);
+        using GameWorld recreated = new(recreatedSession, game);
         recreated.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), recreated.Render(TimeSpan.Zero));
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), recreated.Apply(new PlayerAction(PlayerActionKind.Wait)));
         EqualState(session.State, recreatedSession.State);
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), recreated.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), recreated.Render(TimeSpan.Zero));
-        Assert.Equal(originalRecipeBytes, File.ReadAllBytes(recipePath));
 
         session.SetEventState(world.Events.Capture());
         bool publishEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_PUBLISH_BATTLE_EVIDENCE") == "1";
         string proofDirectory = publishEvidence ? evidence : scratch;
         string published = Path.Combine(proofDirectory, "battle-fidelity-ifrit-checkpoint.json");
-        session.Save(published, registerJournalReference: false);
+        session.Save(published);
         var proof = new
         {
-            Baseline = "Game-owned NewGame input recipe replay-timber-normal-menu-return-checkpoint.json, first interactive BATTLE 94 only",
-            Implementations = new[] { "Current Memoria live input host with full combat", "Current Memoria cold-process causal reconstruction" },
+            Baseline = "Explicit pending interactive BATTLE 94 snapshot",
+            Implementations = new[] { "Current Memoria live input host with full combat", "Current Memoria independent snapshot continuation" },
             OriginalFF8Parity = "Unproved; primitive Attack, ATB, statuses, enemy stats and AI use documented TD-009 scaffold tuning.",
-            RecipeSha256 = Convert.ToHexString(SHA256.HashData(originalRecipeBytes)),
-            EarlierDriverDiagnostic = "Older recipe driver stopped at FieldLoad232 while current allocation was229 before the driver reproduced current autonomous allocation barriers; no original-parity or engine-defect claim.",
             CheckpointSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(published))),
             Encounter = 94,
             Outcome = "Victory",
@@ -144,9 +136,8 @@ public sealed class InteractiveBattleCausalTests
             RouteSeconds = routeWatch.Elapsed.TotalSeconds,
             FightSeconds = fightWatch.Elapsed.TotalSeconds,
             RecreateSeconds = recreateWatch.Elapsed.TotalSeconds,
-            JournalRecords = session.ReplayJournal.EntryCount,
             MidCombatOwnedSnapshotAndNextTick = true,
-            WholeStateExceptJournal = true,
+            WholeState = true,
             NextWaitStateVmCpuPixels = true
         };
         File.WriteAllText(Path.Combine(proofDirectory, "battle-fidelity-ifrit-proof.json"), JsonSerializer.Serialize(proof, new JsonSerializerOptions { WriteIndented = true }));
@@ -155,122 +146,6 @@ public sealed class InteractiveBattleCausalTests
         string temporaryRoot = Path.GetFullPath(Path.GetTempPath());
         Assert.StartsWith(temporaryRoot, resolvedScratch, StringComparison.OrdinalIgnoreCase);
         Directory.Delete(resolvedScratch, recursive: true);
-    }
-
-    private static void DriveOrdinaryRecipeUntilBattle(GameSession session, GameWorld world, MovieClock clock, ReplayJournal recipe, string game)
-    {
-        using GameAssets assets = new(game);
-        Queue<(int FieldId, string ScriptHash, string? ExecutableHash)> autonomousAllocations = new();
-        bool configured = false;
-        ReplayJournalEntry? movieSkip = null;
-        world.Events.MovieSkipRequested -= clock.Skip;
-        world.Events.MovieSkipRequested += () =>
-        {
-            world.ReplayMovieSkip(movieSkip ?? throw new NotSupportedException("Recipe movie skip lacks its recorded accelerated samples."));
-        };
-        foreach (ReplayJournalEntry input in recipe.Entries)
-        {
-            for (int repeat = 0; repeat < input.Repeat; repeat++)
-            {
-                switch (input.Kind)
-                {
-                    case ReplayEntryKind.FieldLoad:
-                        if (autonomousAllocations.TryDequeue(out var allocation))
-                        {
-                            Assert.Equal(input.FieldId, allocation.FieldId);
-                            Assert.Equal(input.NativeSourceHash, allocation.ScriptHash);
-                            Assert.Equal(input.Text, allocation.ExecutableHash);
-                        }
-                        else
-                        {
-                            Assert.True(world.EnsureField(), "A recipe allocation barrier did not perform its actual field load.");
-                            Assert.Equal(input.FieldId, world.Field?.Id);
-                            Assert.Equal(input.NativeSourceHash, Convert.ToHexString(SHA256.HashData(world.Field!.Jsm)));
-                            Assert.Equal(input.Text, assets.NativeExecutableHash);
-                        }
-                        if (!configured)
-                        {
-                            Assert.Equal(74, world.Field!.Id);
-                            Assert.Equal(0, world.Events.Frame);
-                            world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
-                            configured = true;
-                        }
-                        break;
-                    case ReplayEntryKind.Step:
-                        world.Events.Step();
-                        PublishDeparture(session, world);
-                        break;
-                    case ReplayEntryKind.Update:
-                        world.Events.Update(TimeSpan.FromTicks(input.ElapsedTicks));
-                        PublishDeparture(session, world);
-                        break;
-                    case ReplayEntryKind.Action:
-                        if (world.EnsureField())
-                        {
-                            autonomousAllocations.Enqueue((world.Field!.Id, Convert.ToHexString(SHA256.HashData(world.Field.Jsm)), assets.NativeExecutableHash));
-                        }
-                        GameWorld.AwaitRecordedDialogueSite(world.Events, input, () =>
-                        {
-                            world.Events.Step();
-                            PublishDeparture(session, world);
-                        });
-                        movieSkip = input.Code == (int)PlayerActionKind.SkipMovie ? input : null;
-                        world.Apply(new PlayerAction((PlayerActionKind)input.Code, input.Value, input.Text, input.Horizontal, input.Vertical, input.Frames));
-                        break;
-                    case ReplayEntryKind.WorldAction:
-                        world.Apply(new PlayerAction((PlayerActionKind)input.Code, input.Value, input.Text, input.Horizontal, input.Vertical, input.Frames));
-                        break;
-                    case ReplayEntryKind.Dialogue:
-                        GameWorld.AwaitRecordedDialogueSite(world.Events, input, () =>
-                        {
-                            world.Events.Step();
-                            PublishDeparture(session, world);
-                        });
-                        world.Events.ConfirmDialogue(input.Code == 1 ? input.Value : null, input.Code == 2 ? input.Text : null);
-                        break;
-                    case ReplayEntryKind.MovieSample:
-                        Assert.Equal(input.MovieSourceHash, MovieClock.GetSourceHash(game, session.State));
-                        session.SetReplayMovieSourceHash(input.MovieSourceHash!);
-                        if (input.MoviePlayback is MoviePlaybackState playback)
-                        {
-                            session.SetMoviePlayback(playback);
-                        }
-                        session.SetMoviePosition(input.MovieSeconds);
-                        break;
-                    case ReplayEntryKind.MovieComplete:
-                        Assert.Equal(input.MovieSourceHash, MovieClock.GetSourceHash(game, session.State));
-                        session.SetReplayMovieSourceHash(input.MovieSourceHash!);
-                        session.CompleteMovie(input.Skipped);
-                        break;
-                    default:
-                        throw new NotSupportedException($"Ordinary recipe input {input.Kind} is unsupported by this bounded driver.");
-                }
-                Assert.True(session.ReplayJournal!.IsComplete, session.ReplayJournal.UnavailableReason);
-                if (world.Events.PendingInteractiveBattle is not null)
-                {
-                    return;
-                }
-                // Preserve the recipe's causal readiness barrier through ordinary autonomous callbacks.
-                // The recorded destination is checked only as an outcome; it is never injected.
-                if (input.ResultScene.GetValueOrDefault(input.Scene) != input.Scene || input.ResultFieldId.GetValueOrDefault(input.FieldId) != input.FieldId)
-                {
-                    for (int callback = 0; session.State.Scene == input.Scene && session.State.FieldId == input.FieldId && callback < 30_000; callback++)
-                    {
-                        if (world.Events.CurrentDialogue is not null || world.Events.LastFault is not null || world.NextTrigger.Kind is PlayerTriggerKind.Movie or PlayerTriggerKind.WorldMap or PlayerTriggerKind.FieldTransition)
-                        {
-                            break;
-                        }
-                        world.Events.Step();
-                        PublishDeparture(session, world);
-                        if (world.Events.PendingInteractiveBattle is not null)
-                        {
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-        throw new InvalidDataException("The ordinary recipe ended before the first interactive battle.");
     }
 
     private static void PublishDeparture(GameSession session, GameWorld world)
@@ -285,8 +160,6 @@ public sealed class InteractiveBattleCausalTests
     {
         JsonObject left = JsonNode.Parse(JsonSerializer.Serialize(first))!.AsObject();
         JsonObject right = JsonNode.Parse(JsonSerializer.Serialize(second))!.AsObject();
-        left.Remove("ReplayJournal");
-        right.Remove("ReplayJournal");
         Assert.True(JsonNode.DeepEquals(left, right), "Current live input host and independent current reconstruction diverged.");
     }
 

@@ -82,7 +82,7 @@ public sealed class BattleSession
         {
             return 0;
         }
-        // The same dispatcher runs on owned state so a bounded failure cannot leave unjournaled frames.
+        // The same dispatcher runs on owned state so a bounded failure cannot leave partially advanced frames.
         BattleSession candidate = Restore(Capture(), handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler));
         for (int count = 1; count <= maxFrames; count++)
         {

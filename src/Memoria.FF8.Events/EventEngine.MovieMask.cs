@@ -128,7 +128,7 @@ public sealed partial class EventEngine
         }
         if ((uint)record >= flags.Flags.Length)
         {
-            throw new NotSupportedException($"Native movie CAM record is outside its source bank: movie={playback.MovieIndex}, field={FieldId}, callback={Frame}, applied={playback.AppliedRecord}, requested={record}, camRecords={flags.Flags.Length}, decoded={CurrentMoviePlayback}, rootDecoded={services.ReplayMoviePlayback}.");
+            throw new NotSupportedException($"Native movie CAM record is outside its source bank: movie={playback.MovieIndex}, field={FieldId}, callback={Frame}, applied={playback.AppliedRecord}, requested={record}, camRecords={flags.Flags.Length}, decoded={CurrentMoviePlayback}, rootDecoded={services.CurrentMoviePlayback}.");
         }
         //4767B0 draws the MSK before55A620 applies this record's flags. Keep both phases.
         Scene.NativeMovieMask = state with { Value = flags.Apply(record, state.Value), Playback = playback with { AppliedRecord = record, DrawRecord = record, DrawValue = state.Value } };
@@ -151,7 +151,7 @@ public sealed partial class EventEngine
         {
             if (scene.NativeFieldInitialization is not null)
             {
-                throw new InvalidDataException("Native movie mask BYTE4907 has no executed loader history; recreate the causal journal.");
+                throw new InvalidDataException("Native movie mask BYTE4907 has no executed loader history; load a snapshot containing its native allocation state.");
             }
             return;
         }
@@ -191,7 +191,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native movie CAM binding differs from the current physical movie owner.");
             }
-            MoviePlaybackState? current = session.ReplayMoviePlayback;
+            MoviePlaybackState? current = session.CurrentMoviePlayback;
             if (lifecycle.StartFrame == frame)
             {
                 //The native start callback presents records0/1 before the first subsequent VM callback.

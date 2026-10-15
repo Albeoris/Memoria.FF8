@@ -167,7 +167,7 @@ public sealed record NativeFootWorldRuntimeState
         Validate();
         if (GroundCache is null || GroundYaw is null || Forest is null)
         {
-            throw new NotSupportedException("Native foot movement requires executed ground-cache, selected-yaw and forest presentation authority; recreate its authentic journal.");
+            throw new NotSupportedException("Native foot movement requires executed ground-cache, selected-yaw and forest presentation authority; migrate this save explicitly.");
         }
     }
 

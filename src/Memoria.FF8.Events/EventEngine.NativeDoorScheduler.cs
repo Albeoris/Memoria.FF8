@@ -138,7 +138,7 @@ public sealed partial class EventEngine
                 }
                 continue;
             }
-            NativeDoorSchedulerState scheduler = actor.NativeDoorScheduler ?? throw new InvalidDataException("Saved door lacks its executed current372/default reset; recreate the authentic journal");
+            NativeDoorSchedulerState scheduler = actor.NativeDoorScheduler ?? throw new InvalidDataException("Saved door lacks its executed current372/default reset; the snapshot is missing required native state");
             Fiber? initialization = restored.SingleOrDefault(fiber => fiber.Sequence == scheduler.InitializationSequence);
             Fiber? root = restored.SingleOrDefault(fiber => fiber.Sequence == scheduler.DefaultSequence);
             Fiber? current = restored.SingleOrDefault(fiber => fiber.Sequence == scheduler.CurrentSequence);

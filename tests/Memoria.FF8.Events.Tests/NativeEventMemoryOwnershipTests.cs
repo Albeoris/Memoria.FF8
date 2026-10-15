@@ -112,7 +112,7 @@ internal static partial class Program
         string refusedOwnershipSave = Path.Combine(Path.GetTempPath(), $"ff8-event-memory-refused-{Guid.NewGuid():N}.json");
         try
         {
-            ExpectMemoryOwnershipFailure<InvalidDataException>(() => prospectiveScene.Save(refusedOwnershipSave, registerJournalReference: false), "Save published a generic byte claimed by its live canonical Scene.");
+            ExpectMemoryOwnershipFailure<InvalidDataException>(() => prospectiveScene.Save(refusedOwnershipSave), "Save published a generic byte claimed by its live canonical Scene.");
             Require(!File.Exists(refusedOwnershipSave) && ReferenceEquals(prospectiveBefore, prospectiveScene.State), "Refused Scene ownership validation published a save or changed its root checkpoint.");
         }
         finally
@@ -132,7 +132,7 @@ internal static partial class Program
         string ownershipSave = Path.Combine(Path.GetTempPath(), $"ff8-event-memory-scene-{Guid.NewGuid():N}.json");
         try
         {
-            musicSession.Save(ownershipSave, registerJournalReference: false);
+            musicSession.Save(ownershipSave);
             GameState savedMusic = GameSession.Load(ownershipSave);
             Require(savedMusic.EventMemory.Cells.Count == musicMemoryBefore.Cells.Count, "Saving and loading a canonical Scene changed its generic memory bank.");
             JsonNode forgedMusicSave = JsonNode.Parse(File.ReadAllText(ownershipSave))!;

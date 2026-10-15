@@ -61,10 +61,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(ownersBeforeRefusal, JsonSerializer.SerializeToElement(session.State)), "Invalid menu restore changed canonical owners before refusing its masks.");
         }
         session.SetEventState(active);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(active);
-        }
+        engine.Restore(active);
         Require(engine.Apply(new PlayerAction(PlayerActionKind.SelectPartyMember, 1)).Accepted, "Explicit ordinary Zell selection was refused.");
         Require(session.CharacterVitals!.CombatParty.SequenceEqual(new byte[] { 4, 0, 255 }) && engine.Scene.Party.SequenceEqual(new[] { 0, 4, 255 }), "Temporary party selection prematurely wrote canonical saved parties.");
         Require(engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted && engine.PartyMenu is { Phase: NativePartyMenuPhase.Closing }, "Party confirmation did not enter the native completion/exit phase.");
@@ -72,10 +69,7 @@ internal static partial class Program
         Require(engine.Frame == fieldFrame && session.ExamTimer.ClockCalls == clockCalls + 4 && !session.State.Variables.ContainsKey(500), "Explicit selection/confirmation changed field chronology instead of one native menu clock call each.");
         JsonElement closing = engine.Capture();
         session.SetEventState(closing);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(closing);
-        }
+        engine.Restore(closing);
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
@@ -84,28 +78,17 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expectedVibration), JsonSerializer.SerializeToElement(session.VibrationProcess)), "Menu vibration queue did not receive exactly its two active49A970 ticks and actual teardown49E8E0 request clear.");
         JsonElement reentry = engine.Capture();
         session.SetEventState(reentry);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(reentry);
-        }
-        ReplayJournalEntry selection = session.ReplayJournal!.Entries.Single(entry => entry.Kind == ReplayEntryKind.Action && entry.Code == (int)PlayerActionKind.SelectPartyMember && entry.Accepted == true);
-        Require(session.ReplayJournal.IsComplete && selection.Value == 1 && selection.Operation == issuingOperation && selection.ObjectId == 0 && selection.ScriptId == 1 && selection.MessageId is null && selection.NativeSourceHash == engine.PartyMenu!.ProgramHash && selection.Trigger == (int)PlayerTriggerKind.PartyMenu, "Explicit menu input lost its actual issuing site/hash or became a fabricated dialogue.");
+        engine.Restore(reentry);
         Require(engine.PartyMenu!.NativeFieldEntryKind == 6, "Script-requested changed PHS incorrectly selected native player-open kind10.");
         engine.Step();
         Require(engine.PartyMenu is { Phase: NativePartyMenuPhase.FieldResumeInitialization } && engine.Frame == fieldFrame && engine.Scene.FieldCallbackClock!.FieldLoaderCallbacks == 1 && !session.State.Variables.ContainsKey(500), "Confirmed PHS did not execute its clock-only kind6 bootstrap.");
         JsonElement bootstrap = engine.Capture();
         session.SetEventState(bootstrap);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(bootstrap);
-        }
+        engine.Restore(bootstrap);
         engine.Step();
         Require(engine.PartyMenu is null && engine.Frame == fieldFrame + 1 && session.ExamTimer.ClockCalls == clockCalls + 11 && session.State.Variables[500] == 77 && engine.Scene.Party.SequenceEqual(new[] { 0, 4, 1 }) && session.CharacterVitals!.CombatParty.SequenceEqual(new byte[] { 4, 0, 1 }), "Confirmed script PHS replayed fresh init/default scripts instead of resuming its original advanced PC and selected parties.");
         session.SetEventState(engine.Capture());
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(session.State.EventState!.Value);
-        }
+        engine.Restore(session.State.EventState!.Value);
         GameSession unknown = GameSession.CreateColdProcess();
         unknown.StartNewGame();
         unknown.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
@@ -156,10 +139,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(owners, JsonSerializer.SerializeToElement(session.State)), "Missing actor-mask restore mutated canonical owners before refusal.");
         }
         session.SetEventState(detached);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(detached);
-        }
+        engine.Restore(detached);
         engine.Step();
         engine.Step();
         Require(engine.Scene.FieldPartyNativeActorIds[1] == 1 && engine.Actors[1].NativePartyFlags is { AutoAnimation4: false, DetachedFollow64: false }, "FOLLOWON inferred animation mask4 from its restored runtime binding; native51ECF0 only clears mask64.");
@@ -190,10 +170,7 @@ internal static partial class Program
         Require(!engine.Apply(new PlayerAction(PlayerActionKind.SelectPartyMember, 1)).Accepted && !engine.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted, "Read-only normal menu silently used PHS selection/confirmation.");
         JsonElement active = engine.Capture();
         session.SetEventState(active);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(active);
-        }
+        engine.Restore(active);
         Require(engine.Apply(new PlayerAction(PlayerActionKind.Cancel)).Accepted && engine.PartyMenu!.NativeReturnResult == 0, "Ordinary normal-menu cancel synthesized party-change result1.");
         engine.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 3));
         Require(engine.PartyMenu is { Phase: NativePartyMenuPhase.FieldReentry } && engine.Frame == fieldFrame && !session.State.Variables.ContainsKey(500), "Normal menu resumed the issuing PC before nativekind6.");
@@ -202,20 +179,14 @@ internal static partial class Program
         Require(session.FieldFade!.MapFadeDisabled == 1, "Clock-only loader cleared4905 before actual4767B0 resumed.");
         JsonElement bootstrap = engine.Capture();
         session.SetEventState(bootstrap);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(bootstrap);
-        }
+        engine.Restore(bootstrap);
         engine.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(engine.PartyMenu is null && engine.Frame == fieldFrame + 1 && session.State.Variables[500] == 77 && session.ExamTimer.ClockCalls == clocks + 10 && engine.Scene.Party.SequenceEqual(fieldParty.Select(row => (int)row)) && session.CharacterVitals!.CombatParty.SequenceEqual(before.CombatParty), "Verified unchanged kind6 failed its original retained VM, ten clock units or unchanged saved parties.");
         Require(session.FieldFade!.MapFadeDisabled == 0, "First resumed4767B0 retained the old4905 byte instead of executing its actual reset.");
         Require(engine.Scene.FieldCallbackClock!.OrdinaryCallbacks == fieldFrame + 1 && engine.Scene.FieldCallbackClock.MenuCallbacks == 6 && engine.Scene.FieldCallbackClock.FieldLoaderCallbacks == 1 && engine.Scene.FieldCallbackClock.TimerCalls == session.ExamTimer.ClockCalls, "Menu/loader/VM callback ledger conflated native process clock with actor frame history.");
         JsonElement completed = engine.Capture();
         session.SetEventState(completed);
-        using (session.BeginReplayCapture())
-        {
-            engine.Restore(completed);
-        }
+        engine.Restore(completed);
         Require(JsonElement.DeepEquals(completed, engine.Capture()), "Completed normal menu lost its exact retained kind6 state on restore.");
     }
 }

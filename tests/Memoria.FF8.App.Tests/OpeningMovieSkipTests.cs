@@ -19,7 +19,7 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
         GameSession referenceSession = GameSession.CreateColdProcess();
         referenceSession.StartNewGame();
         MovieClock referenceClock = new(referenceSession, game);
-        using GameWorld reference = new(referenceSession, game, referenceClock, persistReplayJournal: false);
+        using GameWorld reference = new(referenceSession, game, referenceClock);
         ReachOpening(referenceSession, reference);
         MovieInformation information = referenceClock.Prepare();
         Assert.Equal(2925, information.FrameCount);
@@ -37,7 +37,7 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
                 File.Copy(Path.Combine(referenceClock.ToolsDirectory, executable), Path.Combine(temporary, executable));
             }
             MovieClock clock = new(session, game, temporary);
-            using GameWorld world = new(session, game, clock, persistReplayJournal: false);
+            using GameWorld world = new(session, game, clock);
             world.EnsureField();
             Assert.Equal(information, clock.Prepare());
             File.Delete(Path.Combine(temporary, "ffmpeg.exe"));
@@ -57,8 +57,8 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
             Stopwatch decoded = Stopwatch.StartNew();
             Assert.Equal(result, reference.Apply(new PlayerAction(PlayerActionKind.SkipMovie)));
             decoded.Stop();
-            output.WriteLine($"opening-skip start={startFrame} accelerated-ms={accelerated.Elapsed.TotalMilliseconds:F3} decoded-ms={decoded.Elapsed.TotalMilliseconds:F3} frames={session.ReplayMovieSkipFrames!.Count}");
-            Assert.Equal(referenceSession.ReplayMovieSkipFrames, session.ReplayMovieSkipFrames);
+            output.WriteLine($"opening-skip start={startFrame} accelerated-ms={accelerated.Elapsed.TotalMilliseconds:F3} decoded-ms={decoded.Elapsed.TotalMilliseconds:F3} callbacks={result.FramesAdvanced}");
+            Assert.Equal(referenceSession.State.MoviePlayback, session.State.MoviePlayback);
             referenceSession.SetEventState(reference.Events.Capture());
             session.SetEventState(world.Events.Capture());
             AssertSameState(referenceSession.State, session.State);
@@ -81,8 +81,8 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
             Assert.Equal(reference.Render(TimeSpan.Zero), world.Render(TimeSpan.Zero));
 
             string source = Path.Combine(temporary, "source.json");
-            session.Save(source, registerJournalReference: false);
-            GameState recreated = GameWorld.RecreateSave(GameSession.LoadReplaySource(source), game, temporary);
+            session.Save(source);
+            GameState recreated = GameSession.Load(source);
             AssertSameState(session.State, recreated);
         }
         finally
@@ -142,8 +142,8 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
 
     private static void AssertSameState(GameState expected, GameState actual)
     {
-        JsonElement left = JsonSerializer.SerializeToElement(expected with { ReplayJournal = null });
-        JsonElement right = JsonSerializer.SerializeToElement(actual with { ReplayJournal = null });
+        JsonElement left = JsonSerializer.SerializeToElement(expected);
+        JsonElement right = JsonSerializer.SerializeToElement(actual);
         string[] differences = left.EnumerateObject().Where(property => !JsonElement.DeepEquals(property.Value, right.GetProperty(property.Name))).Select(property => property.Name).ToArray();
         Assert.True(differences.Length == 0, "Different state properties: " + string.Join(", ", differences));
     }

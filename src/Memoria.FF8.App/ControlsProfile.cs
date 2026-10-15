@@ -46,7 +46,6 @@ public enum ControlAction
     QuickLoad,
     SaveMenu,
     LoadMenu,
-    RecreateSave,
     SkipMovie,
     UiTab,
     UiPageUp,
@@ -126,7 +125,7 @@ public sealed record InputChord(Keys[] Keys, Buttons[] Buttons)
     internal bool Same(InputChord other) => Count == other.Count && Contains(other);
 }
 
-/// <summary>Host device preferences. Game-owned native configuration and causal saves remain separate.</summary>
+/// <summary>Host device preferences. Game-owned native configuration and saved game state remain separate.</summary>
 public sealed class ControlsProfile
 {
     private sealed record Binding(ControlAction Action, ControlDevice Device, InputChord Chord);
@@ -213,7 +212,6 @@ public sealed class ControlsProfile
         Key(ControlAction.SaveMenu, Keys.F6);
         Key(ControlAction.QuickLoad, Keys.F9);
         Key(ControlAction.LoadMenu, Keys.F10);
-        Key(ControlAction.RecreateSave, Keys.R);
         Key(ControlAction.SkipMovie, Keys.Escape, Keys.Space);
         Key(ControlAction.BattleAdvanceTurn, Keys.Space);
         Key(ControlAction.UiTab, Keys.Tab);

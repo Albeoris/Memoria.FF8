@@ -32,7 +32,6 @@ public sealed class GlobalSoundCheckpointTests
         session.SetEventState(first.Events.Capture());
         Assert.Equal(74, first.Events.FieldId);
         Assert.NotNull(session.State.CharacterVitals);
-        Assert.True(session.State.ReplayJournal!.IsComplete);
         string path = Path.Combine(Path.GetTempPath(), "Memoria.FF8-newgame-presentation-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {

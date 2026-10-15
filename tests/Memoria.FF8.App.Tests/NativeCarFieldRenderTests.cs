@@ -16,14 +16,11 @@ public sealed class NativeCarFieldRenderTests
             repository = repository.Parent;
         }
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
-        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic route journal and installed game are required.");
-        ReplayJournalEntry[] entries = GameSession.LoadReplaySource(source).ReplayJournal!.GetCommittedPrefix().Entries.ToArray();
-        int departure = Array.FindIndex(entries, entry => entry.Scene == SceneKind.Field && entry.FieldId == 262 && entry.ResultScene == SceneKind.WorldMap);
-        Assert.True(departure > 0, "Authentic journal must include the actual car-field departure.");
-        GameState current = ExamTimerContinuationTests.RecreateRecordedPrefix(source, directory, departure);
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic route snapshot and installed game are required.");
+        GameState current = SnapshotFixtures.Require("MEMORIA_FF8_CAR_DEPARTURE_SNAPSHOT", 262);
         Assert.Equal(262, current.FieldId);
         GameSession session = new(current);
-        using GameWorld world = new(session, directory, persistReplayJournal: false);
+        using GameWorld world = new(session, directory);
         world.EnsureField();
         Assert.Equal(new[] { 0, 6, 1 }, world.Events.Scene.Party);
         Assert.Equal(new[] { 0, 255, 255 }, world.Events.Scene.FieldPartyNativeActorIds);
@@ -35,7 +32,7 @@ public sealed class NativeCarFieldRenderTests
         byte[] pixels = world.Render(TimeSpan.Zero);
         JsonElement vm = world.Events.Capture();
         GameState saved = session.State with { EventState = vm };
-        using GameWorld restored = new(new GameSession(saved), directory, persistReplayJournal: false);
+        using GameWorld restored = new(new GameSession(saved), directory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(vm, restored.Events.Capture()));
         Assert.Equal(pixels, restored.Render(TimeSpan.Zero));

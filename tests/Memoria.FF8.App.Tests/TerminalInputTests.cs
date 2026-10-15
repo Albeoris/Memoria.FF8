@@ -15,7 +15,7 @@ public sealed class TerminalInputTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = new GameSession(RecreateClassroom(directory));
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         OpenPersonalTerminal(world, session);
         Assert.False(world.Events.IsUserControlEnabled);
         Assert.Equal(2, session.State.Variables[1024]);
@@ -24,15 +24,14 @@ public sealed class TerminalInputTests
         Apply(world, new PlayerAction(PlayerActionKind.FieldButtons));
         session.SetEventState(world.Events.Capture());
         GameState source = session.State;
-        Assert.True(source.ReplayJournal!.IsComplete, source.ReplayJournal.UnavailableReason);
-        GameState recreated = GameWorld.RecreateSave(source, directory);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }, JsonOptions), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null }, JsonOptions)), "Authentic terminal navigation must recreate complete state.");
+        GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!;
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source, JsonOptions), JsonSerializer.SerializeToElement(recreated, JsonOptions)), "Authentic terminal navigation must recreate complete state.");
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_TERMINAL_EXPORT") == "1")
         {
             string evidence = Path.Combine(Repository(), "../fixtures");
-            session.Save(Path.Combine(evidence, "replay-classroom-terminal-keyscan-checkpoint.json"), registerJournalReference: false);
+            session.Save(Path.Combine(evidence, "replay-classroom-terminal-keyscan-checkpoint.json"));
         }
-        using var rebuilt = new GameWorld(new GameSession(recreated), directory, persistReplayJournal: false);
+        using var rebuilt = new GameWorld(new GameSession(recreated), directory);
         rebuilt.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
 
@@ -52,7 +51,7 @@ public sealed class TerminalInputTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_TERMINAL_EXPORT") == "1")
         {
             string proof = Path.Combine(Repository(), "../fixtures/external-fixture.json");
-            File.WriteAllText(proof, JsonSerializer.Serialize(new { Baseline = "Authentic NewGame journal prefix reaching classroom232 and ordinary personal desk activation", Implementations = "Current Memoria GameWorld and independent causal recreation under the same code", CheckpointField = source.FieldId, CheckpointFrame = source.EventState!.Value.GetProperty("Frame").GetInt64(), JournalEntries = source.ReplayJournal.EntryCount, CompleteStateEqual = true, IndependentCpuPixelsEqual = true, TerminalDownHeldMask = 0x4000, ConfirmHeldMask = 0x40, CancelHeldMask = 0x10, SubmenuMessage = 3, SubmenuCancelResumedMain = true, FinalField = world.Events.FieldId, FinalMessage = world.Events.CurrentDialogue?.MessageId, Limitation = "Original field scripts exercised; original FF8 runtime and GPU parity are not established." }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(proof, JsonSerializer.Serialize(new { Baseline = "Explicit classroom232 snapshot and ordinary personal desk activation", Implementations = "Current Memoria GameWorld and independent snapshot continuation under the same code", CheckpointField = source.FieldId, CheckpointFrame = source.EventState!.Value.GetProperty("Frame").GetInt64(), CompleteStateEqual = true, IndependentCpuPixelsEqual = true, TerminalDownHeldMask = 0x4000, ConfirmHeldMask = 0x40, CancelHeldMask = 0x10, SubmenuMessage = 3, SubmenuCancelResumedMain = true, FinalField = world.Events.FieldId, FinalMessage = world.Events.CurrentDialogue?.MessageId, Limitation = "Original field scripts exercised; original FF8 runtime and GPU parity are not established." }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 
@@ -62,7 +61,7 @@ public sealed class TerminalInputTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = new GameSession(RecreateClassroom(directory));
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        using var world = new GameWorld(session, directory);
         OpenPersonalTerminal(world, session);
         Assert.Equal(0, session.State.Variables.GetValueOrDefault(384) & 2);
         DriveUntil(world, () => world.Events.CurrentDialogue?.MessageId == 1, new PlayerAction(PlayerActionKind.FieldButtons, 0x40));
@@ -80,9 +79,9 @@ public sealed class TerminalInputTests
         Assert.NotEmpty(world.Events.Scene.MinimalMenuWaits);
         session.SetEventState(world.Events.Capture());
         GameState source = session.State;
-        GameState recreated = GameWorld.RecreateSave(source, directory);
-        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source with { ReplayJournal = null }, JsonOptions), JsonSerializer.SerializeToElement(recreated with { ReplayJournal = null }, JsonOptions)), "The ordinary tutorial browser request must recreate at its real yielding operation.");
-        using var rebuilt = new GameWorld(new GameSession(recreated), directory, persistReplayJournal: false);
+        GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!;
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source, JsonOptions), JsonSerializer.SerializeToElement(recreated, JsonOptions)), "The ordinary tutorial browser request must recreate at its real yielding operation.");
+        using var rebuilt = new GameWorld(new GameSession(recreated), directory);
         rebuilt.EnsureField();
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
         DriveTogetherUntil(world, rebuilt, () => world.Events.CurrentDialogue is null && session.State.Variables[1025] == 0);
@@ -152,11 +151,8 @@ public sealed class TerminalInputTests
 
     private static GameState RecreateClassroom(string directory)
     {
-        string sourcePath = Path.Combine(Repository(), "../fixtures/external-fixture.json");
-        ReplayJournalEntry[] entries = GameSession.LoadReplaySource(sourcePath).ReplayJournal!.Entries.ToArray();
-        int selectedCount = Array.FindIndex(entries, entry => entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 232) + 1;
-        var session = new GameSession(ExamTimerContinuationTests.RecreateRecordedPrefix(sourcePath, directory, selectedCount));
-        using var world = new GameWorld(session, directory, persistReplayJournal: false);
+        var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_CLASSROOM_SNAPSHOT", 232));
+        using var world = new GameWorld(session, directory);
         world.EnsureField();
         for (int tick = 0; tick < 3000 && world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable; tick++)
         {

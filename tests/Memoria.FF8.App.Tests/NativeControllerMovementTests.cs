@@ -23,19 +23,16 @@ public sealed class NativeControllerMovementTests
         GameState before = session.State;
         Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical)).Accepted);
         Assert.Equal((24576 + deltaX, -29406 + deltaZ), (scene.State.X, scene.State.Z));
-        ReplayJournalEntry entry = JsonSerializer.Deserialize<ReplayJournalEntry>(JsonSerializer.Serialize(session.ReplayJournal!.Endpoint!))!;
-        entry.Validate();
-        Assert.Equal((horizontal, vertical), (entry.Horizontal, entry.Vertical));
         GameSession independent = new(before);
         using WorldMapScene replay = new(independent, GameDirectory());
-        Assert.True(replay.Apply(new PlayerAction((PlayerActionKind)entry.Code, Horizontal: entry.Horizontal, Vertical: entry.Vertical)).Accepted);
+        Assert.True(replay.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical)).Accepted);
         Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(independent.State));
     }
 
     [Theory]
     [InlineData(1f, 8, 1)]
     [InlineData(-0.3f, -8, 4095)]
-    public void Stationary_manual_camera_precedes_damping_and_round_trips_its_journal(float camera, int velocity, int yaw)
+    public void Stationary_manual_camera_precedes_damping_and_round_trips_its_snapshot(float camera, int velocity, int yaw)
     {
         GameSession session = FootSession();
         using WorldMapScene scene = new(session, GameDirectory());
@@ -45,13 +42,9 @@ public sealed class NativeControllerMovementTests
         Assert.True(scene.Apply(input).Accepted);
         Assert.Equal((velocity, yaw), (scene.State.CameraVelocity, scene.State.CameraYaw));
         Assert.Equal((24576, -29406), (scene.State.X, scene.State.Z));
-        ReplayJournalEntry entry = JsonSerializer.Deserialize<ReplayJournalEntry>(JsonSerializer.Serialize(session.ReplayJournal!.Endpoint!))!;
-        entry.Validate();
-        Assert.Equal(camera, entry.CameraHorizontal);
-        Assert.Equal(camera, scene.State.Actions[^1].CameraHorizontal);
         GameSession independent = new(before);
         using WorldMapScene replay = new(independent, GameDirectory());
-        Assert.Equal(scene.State.Frame, replay.Apply(new PlayerAction((PlayerActionKind)entry.Code, CameraHorizontal: entry.CameraHorizontal)).FramesAdvanced);
+        Assert.Equal(scene.State.Frame, replay.Apply(input).FramesAdvanced);
         Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(independent.State));
         for (int tick = 0; tick < 18; tick++)
         {
@@ -83,7 +76,7 @@ public sealed class NativeControllerMovementTests
     public void Car_keeps_fractional_native_steering_and_throttle_and_ignores_camera_in_variant_zero(float horizontal, float vertical, int yawDelta, int speed)
     {
         GameSession session = FootSession();
-        // Declared component bank, not an authentic save or reconstructed journal.
+        // Declared native component bank.
         NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
         session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
         using WorldMapScene scene = new(session, GameDirectory());
@@ -93,7 +86,7 @@ public sealed class NativeControllerMovementTests
         Assert.True(other.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: horizontal, Vertical: vertical)).Accepted);
         Assert.Equal(2256 + yawDelta, scene.State.BodyYaw);
         Assert.Equal(speed, scene.State.NativeCarRuntime!.Speed);
-        Assert.Equal(JsonSerializer.Serialize(scene.State with { Actions = [] }), JsonSerializer.Serialize(other.State with { Actions = [] }));
+        Assert.Equal(JsonSerializer.Serialize(scene.State), JsonSerializer.Serialize(other.State));
     }
 
     [Theory]
@@ -112,7 +105,6 @@ public sealed class NativeControllerMovementTests
         Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: routed.Horizontal, Vertical: routed.Vertical, CameraHorizontal: routed.CameraHorizontal)).Accepted);
         Assert.Equal(2256 + yawDelta, scene.State.BodyYaw);
         Assert.Equal(speed, scene.State.NativeCarRuntime!.Speed);
-        Assert.Equal((horizontal, vertical), (session.ReplayJournal!.Endpoint!.Horizontal, session.ReplayJournal.Endpoint.Vertical));
 
         InputFrame keyboardCamera = new(0.25f, -0.75f, false, false, false, false, CameraHorizontal: 1);
         InputFrame retained = ControllerGameplayInput.Resolve(keyboardCamera, session.State);
@@ -134,37 +126,37 @@ public sealed class NativeControllerMovementTests
     }
 
     [Fact]
-    public void Authentic_world_journal_recreates_and_replays_fractional_movement_and_manual_camera()
+    public void World_snapshot_restores_and_continues_fractional_movement_and_manual_camera()
     {
         GameSession fresh = GameSession.CreateColdProcess();
         fresh.StartNewGame();
-        using (GameWorld route = new(fresh, GameDirectory(), persistReplayJournal: false))
+        using (GameWorld route = new(fresh, GameDirectory()))
         {
             WorldMusicTests.ReachGardenGate(route, fresh);
             IfritCausalRecreationTests.WalkGateway(route, fresh, 0, worldExit: true);
             route.EnsureField();
         }
         GameState source = fresh.State;
-        GameState recreated = GameWorld.RecreateSave(source, GameDirectory());
+        GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!;
         GameSession session = new(recreated);
-        using GameWorld world = new(session, GameDirectory(), persistReplayJournal: false);
+        using GameWorld world = new(session, GameDirectory());
         world.EnsureField();
         foreach (PlayerAction action in new PlayerAction[] { new(PlayerActionKind.Wait, CameraHorizontal: 0.5f), new(PlayerActionKind.Move, Horizontal: 0.75f, Vertical: -0.25f, CameraHorizontal: -0.4f) })
         {
             Assert.True(world.Apply(action).Accepted);
         }
         GameState final = session.State;
-        GameState replayed = GameWorld.RecreateSave(final, GameDirectory());
-        Assert.Equal(JsonSerializer.Serialize(final with { ReplayJournal = null }), JsonSerializer.Serialize(replayed with { ReplayJournal = null }));
+        GameState replayed = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(final))!;
+        Assert.Equal(JsonSerializer.Serialize(final), JsonSerializer.Serialize(replayed));
         GameSession independent = new(replayed);
-        using GameWorld restored = new(independent, GameDirectory(), persistReplayJournal: false);
+        using GameWorld restored = new(independent, GameDirectory());
         restored.EnsureField();
         world.SetRenderSize(640, 448);
         restored.SetRenderSize(640, 448);
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
         PlayerAction next = new(PlayerActionKind.Move, Horizontal: -0.25f, Vertical: 0.75f, CameraHorizontal: 1);
         Assert.Equal(world.Apply(next), restored.Apply(next));
-        Assert.Equal(JsonSerializer.Serialize(session.State with { ReplayJournal = null }), JsonSerializer.Serialize(independent.State with { ReplayJournal = null }));
+        Assert.Equal(JsonSerializer.Serialize(session.State), JsonSerializer.Serialize(independent.State));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
     }
 
@@ -172,7 +164,7 @@ public sealed class NativeControllerMovementTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld initialization = new(session, GameDirectory(), persistReplayJournal: false);
+        using GameWorld initialization = new(session, GameDirectory());
         session.Restore(session.State with { Scene = SceneKind.WorldMap, WorldArrival = new WorldTransition(0, 0, 0) });
         return session;
     }

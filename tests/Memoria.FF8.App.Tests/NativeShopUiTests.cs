@@ -34,7 +34,7 @@ public sealed class NativeShopUiTests
         uint gil = shop.Gil;
         byte count = shop.Counts[191];
         List<PlayerAction> inputs = [];
-        //Declared UI/cache component: no field visit, replay journal or saved inventory mutation is fabricated.
+        // Declared UI/cache component.
         MenuController controller = new(() => NativeShopMenuProjection.Build(shop), action =>
         {
             PlayerAction input = NativeShopMenuProjection.PurchaseAction(action);

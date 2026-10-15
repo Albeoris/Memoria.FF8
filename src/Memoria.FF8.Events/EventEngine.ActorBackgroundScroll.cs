@@ -90,6 +90,11 @@ public sealed partial class EventEngine
             x = normal.X;
             y = normal.Y;
         }
+        else if (Scene.NativeLayerZeroScrollCurrent is { Version: 1 } process)
+        {
+            x = process.X;
+            y = process.Y;
+        }
         Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, Scene.ActorBackgroundScroll?.PreviousX, Scene.ActorBackgroundScroll?.PreviousY, partySlot, mode, duration, mode is 1 or 2 ? counter : (short)0);
         Scene.NormalBackgroundScrollCenter = null;
     }

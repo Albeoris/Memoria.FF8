@@ -140,7 +140,7 @@ public sealed partial class EventEngine
             }
             if (initialized && NativeRuntimeProfile is { IsVerified: true } && ReadNativeModelParts is not null)
             {
-                throw new InvalidDataException("Saved native field is missing its executed model-part resource state; recreate authentic inputs.");
+                throw new InvalidDataException("Saved native field is missing its executed model-part resource state; migrate this save explicitly.");
             }
             return;
         }
