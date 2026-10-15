@@ -8,7 +8,7 @@ public sealed partial class EventEngine
     private bool IsKnownNativeByteAlias(int address, int value)
     {
         bool party = address is >= 194 and <= 196 && (Scene.NativeActorLayoutVersion == 1 && Scene.FieldPartyNativeActorIds.Count == 3 && Scene.FieldPartyNativeActorIds[address - 194] == value || Scene.PartyBindingMemory is { Version: 1 } memory && memory.At(address - 194) == value);
-        return party || address == 86 && Scene.PreviousWorldEntityByte86 is byte entity && value == entity || TryReadSoundVolumeByte(address, out int volume) && volume == value || address is 199 or 200 && ReadMusicChannel(address - 199)?.MusicId == value || TryReadNativeMusicByte(address, out int music) && music == value;
+        return party || address == 86 && Scene.PreviousWorldEntityByte86 is byte entity && value == entity || TryReadSoundVolumeByte(address, out int volume) && volume == value || address is 199 or 200 && ReadMusicChannel(address - 199)?.MusicId == value || TryReadNativeMusicByte(address, out int music) && music == value || address == 204 && services.DiscProcess?.SavedDisc204 == value;
     }
 
     private static int NativeMemoryWidth(Jsm.Opcode opcode)
@@ -24,6 +24,14 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (UnsupportedNativeDisc(fiber, operation) is string disc)
+        {
+            return disc;
+        }
+        if (operation.Opcode == Jsm.Opcode.DISC)
+        {
+            return null;
+        }
         if (operation.Opcode == Jsm.Opcode.SETDCAMERA)
         {
             return UnsupportedMovieMask(fiber, operation);
@@ -40,7 +48,7 @@ public sealed partial class EventEngine
         {
             return random;
         }
-        if (operation.Opcode is Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL)
+        if (operation.Opcode is Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.MENUSAVE)
         {
             // Native521D10/521D40 read no operand stack slots.
             return null;

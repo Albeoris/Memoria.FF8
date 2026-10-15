@@ -32,6 +32,8 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public WorldState? DepartingWorldState { get; init; }
     public NativeSavedWorldState? SavedWorld { get; init; }
+    [JsonRequired]
+    public NativeDiscProcessState? DiscProcess { get; init; }
     public NativeWorldControlState? WorldControls { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldConfiguration? WorldConfiguration { get; init; }
@@ -94,7 +96,7 @@ public sealed record GameState
 
 public sealed record DialogueDraft(int Channel, int MessageId, int SelectedChoice, string EnteredName);
 public sealed record MoviePlaybackState(int FrameIndex, int TerminalFrame, bool IsPlaying, bool Completed, bool Skipped);
-public sealed record FieldTransition(int FieldId, float X, float Y, int Triangle, int Direction, short? NativeExtraWord = null)
+public sealed record FieldTransition(int FieldId, float X, float Y, int Triangle, int Direction, short? NativeExtraWord = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeDiscJumpTransition? DiscJump = null)
 {
     public static FieldTransition FromMapJumpOrigin(int fieldId, int triangle)
     {
@@ -107,6 +109,13 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    NativeDiscProcessState? DiscProcess => null;
+    bool CanStoreDiscProcess => false;
+    void SetDiscProcess(NativeDiscProcessState disc)
+    {
+        throw new NotSupportedException("Native disc process ownership is not implemented by this service.");
+    }
+
     NativeMenuRandomState? MenuRandom => null;
     bool CanStoreMenuRandom => false;
     void SetMenuRandom(NativeMenuRandomState random)

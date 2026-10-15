@@ -32,15 +32,15 @@ public sealed partial class EventEngine
             Jsm.Opcode.POPM_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or
             Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.BATTLE or Jsm.Opcode.BATTLEMODE or Jsm.Opcode.BATTLERESULT or
             Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SETDCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.SCROLLRATIO2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL or Jsm.Opcode.DSCROLLA or Jsm.Opcode.CSCROLLA or Jsm.Opcode.LSCROLLA or Jsm.Opcode.LSCROLLP or Jsm.Opcode.DSCROLLP or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.CSCROLL or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.PDIRA or Jsm.Opcode.FACEDIR or Jsm.Opcode.RFACEDIR or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.FACEDIRA or Jsm.Opcode.RFACEDIRA or Jsm.Opcode.FACEDIRP or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.RFACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
-            Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.LADDERUP or Jsm.Opcode.LADDERDOWN or Jsm.Opcode.LADDERUP2 or Jsm.Opcode.LADDERDOWN2 or Jsm.Opcode.Unknown15 or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
+            Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.PJUMPA or Jsm.Opcode.LADDERUP or Jsm.Opcode.LADDERDOWN or Jsm.Opcode.LADDERUP2 or Jsm.Opcode.LADDERDOWN2 or Jsm.Opcode.Unknown15 or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
             Jsm.Opcode.HIDE or Jsm.Opcode.SHOW or Jsm.Opcode.SET or Jsm.Opcode.SET3 or Jsm.Opcode.DIR or Jsm.Opcode.DIRP or Jsm.Opcode.Unknown8 or Jsm.Opcode.Unknown9 or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or
             Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.Unknown7 or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MACCEL or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
             Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE or Jsm.Opcode.MOVESYNC or Jsm.Opcode.MOVECANCEL or Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.SETGETA or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETROOTTRANS or
             Jsm.Opcode.SHADELEVEL or Jsm.Opcode.SHADEFORM or Jsm.Opcode.SHADESET or Jsm.Opcode.DOFFSET or Jsm.Opcode.BASEANIME or Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIME or
             Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or
             Jsm.Opcode.RCANIMELOOP or Jsm.Opcode.ANIMESPEED or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.ANIMESTOP or Jsm.Opcode.WAIT or Jsm.Opcode.LOADSYNC or
-            Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.MENUENABLE or Jsm.Opcode.MENUDISABLE or Jsm.Opcode.MENUTIPS or Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO or Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.MENUSHOP or Jsm.Opcode.RUNENABLE or Jsm.Opcode.RUNDISABLE or
-            Jsm.Opcode.MOVIEREADY or Jsm.Opcode.MOVIE or Jsm.Opcode.MOVIESYNC or Jsm.Opcode.PREMAPJUMP2 or Jsm.Opcode.MAPJUMPO or
+            Jsm.Opcode.UCOFF or Jsm.Opcode.UCON or Jsm.Opcode.MENUENABLE or Jsm.Opcode.MENUDISABLE or Jsm.Opcode.MENUTIPS or Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO or Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.MENUSAVE or Jsm.Opcode.DISC or Jsm.Opcode.MENUSHOP or Jsm.Opcode.RUNENABLE or Jsm.Opcode.RUNDISABLE or
+            Jsm.Opcode.MOVIEREADY or Jsm.Opcode.MOVIE or Jsm.Opcode.MOVIESYNC or Jsm.Opcode.PREMAPJUMP2 or Jsm.Opcode.MAPJUMPO or Jsm.Opcode.DISCJUMP or
             Jsm.Opcode.IDLOCK or Jsm.Opcode.IDUNLOCK or Jsm.Opcode.POLYCOLOR or Jsm.Opcode.POLYCOLORALL or Jsm.Opcode.MAPJUMP or Jsm.Opcode.MAPJUMP3 or Jsm.Opcode.AXIS or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or
             Jsm.Opcode.MESVAR or Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.WINSIZE or Jsm.Opcode.MESSYNC or Jsm.Opcode.MENUNAME or Jsm.Opcode.MESMODE or
             Jsm.Opcode.SETMESSPEED or Jsm.Opcode.BGDRAW or Jsm.Opcode.BGOFF or Jsm.Opcode.BGCLEAR or Jsm.Opcode.SETDRAWPOINT or Jsm.Opcode.DRAWPOINT or Jsm.Opcode.Unknown16 or Jsm.Opcode.BGANIMESPEED or Jsm.Opcode.BGANIME or Jsm.Opcode.RBGANIME or
@@ -58,6 +58,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        if (UnsupportedNativeDiscJump(fiber, operation) is string discJump)
+        {
+            return discJump;
+        }
         if (operation.Opcode is Jsm.Opcode.LADDERUP or Jsm.Opcode.LADDERDOWN)
         {
             return UnsupportedNativeLadderMode3(fiber, operation.Opcode == Jsm.Opcode.LADDERUP);
@@ -136,6 +140,10 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.JUMP3)
         {
             return UnsupportedNativeJump(fiber, operation.Parameter, true);
+        }
+        if (operation.Opcode == Jsm.Opcode.PJUMPA)
+        {
+            return UnsupportedNativeJump(fiber, operation.Parameter, partyTarget: true);
         }
         if (operation.Opcode == Jsm.Opcode.PLTURN)
         {
@@ -364,7 +372,7 @@ public sealed partial class EventEngine
         {
             return UnsupportedPartyRemoval(fiber);
         }
-        if (operation.Opcode is Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL)
+        if (operation.Opcode is Jsm.Opcode.MENUPHS or Jsm.Opcode.MENUNORMAL or Jsm.Opcode.MENUSAVE)
         {
             return UnsupportedPartyMenuRequest(operation.Opcode);
         }

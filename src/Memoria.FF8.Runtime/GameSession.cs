@@ -120,7 +120,7 @@ public sealed partial class GameSession : IEventServices
         {
             journal = journal.MarkUnavailable("Warm New Game retains native menu random history absent from this new journal.");
         }
-        Change(new GameState { MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
+        Change(new GameState { DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset, ReplayJournal = journal });
         ReplayJournalChanged?.Invoke(State.ReplayJournal!);
     }
 
@@ -235,6 +235,10 @@ public sealed partial class GameSession : IEventServices
     public void RequestField(FieldTransition transition)
     {
         ArgumentNullException.ThrowIfNull(transition);
+        if (transition.DiscJump is NativeDiscJumpTransition discJump)
+        {
+            discJump.Validate(State.DiscProcess?.SavedDisc204 ?? throw new NotSupportedException("DISCJUMP requires its actual disc process owner."));
+        }
         RequestField(transition.FieldId, 0);
         Change(State with { X = transition.X, Y = transition.Y, FieldArrival = transition });
     }
@@ -471,6 +475,10 @@ public sealed partial class GameSession : IEventServices
         {
             NativeMemoryValue.Validate(values, State.Variables);
         }
+        if (State.DiscProcess is not null)
+        {
+            ValidateDiscAliases(State.Variables, values);
+        }
         State = State with { NativeVariableValues = values is { Count: > 0 } ? new Dictionary<int, NativeMemoryValue>(values) : null };
     }
 
@@ -572,6 +580,7 @@ public sealed partial class GameSession : IEventServices
         ValidateFieldFadeCheckpoint(state, currentVm);
         ValidateShopHistoryCheckpoint(state, currentVm);
         ValidateMenuRandomCheckpoint(state, currentVm);
+        ValidateDiscCheckpoint(state, currentVm);
         ValidateWeaponRecipesCheckpoint(state, currentVm);
         ValidateWorldEntryMemoryCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
@@ -710,6 +719,7 @@ public sealed partial class GameSession : IEventServices
         state.Economy?.Validate();
         state.GlobalSoundProcess?.Validate();
         state.WorldProcess?.Validate();
+        ValidateDiscCheckpoint(state, null);
         state.SalaryPresentation?.Validate();
         state.FieldShake?.Validate();
         state.EventRandom?.Validate();
@@ -757,6 +767,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Invalid coordinate field arrival.");
         }
+        state.FieldArrival?.DiscJump?.Validate(state.DiscProcess?.SavedDisc204 ?? throw new InvalidDataException("DISCJUMP arrival has no native disc owner."));
         if (state.MoviePlayback is MoviePlaybackState playback && (playback.TerminalFrame < 0 || playback.FrameIndex < 0 || playback.FrameIndex > playback.TerminalFrame || playback.Completed && playback.IsPlaying))
         {
             throw new InvalidDataException("Invalid movie playback clock.");

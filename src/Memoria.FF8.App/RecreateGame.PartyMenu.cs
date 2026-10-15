@@ -13,7 +13,7 @@ internal sealed partial class RecreateGame
     {
         if (events!.PartyMenu!.Phase == NativePartyMenuPhase.Active)
         {
-            if (events.PartyMenu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop && input.Cancel)
+            if (events.PartyMenu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Save or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop && input.Cancel)
             {
                 world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
                 fieldSeconds = 0;
