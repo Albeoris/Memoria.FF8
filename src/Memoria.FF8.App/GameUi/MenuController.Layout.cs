@@ -8,7 +8,7 @@ public sealed partial class MenuController
     {
         get
         {
-            if (IsHostSettingsScreen || ScreenId == "debug-room" || UseHostControls)
+            if (IsHostSettingsScreen || ScreenId == "debug-room" || IsNamingScreen || UseHostControls)
             {
                 UiPreferences preferences = _readPreferences?.Invoke() ?? new UiPreferences();
                 return preferences.TextScale / 100f * preferences.UiFontSize / 24f;
@@ -273,6 +273,10 @@ public sealed partial class MenuController
 
     private UiElement Footer()
     {
+        if (IsNamingScreen)
+        {
+            return Panel(null, Label($"Current game    Confirm: {CurrentBindingText(ControlAction.Confirm)}    Back: {CurrentBindingText(ControlAction.Cancel)}", 14));
+        }
         string text = IsCapturingControls ? "Release all to apply · Escape or click Cancel to cancel" : IsControlsScreen ? "Arrow keys: select · Enter: confirm · Escape: back · Mouse supported" : $"{(IsDemo ? "DEMO · " : "")}{Data.Location}    Confirm: {CurrentBindingText(ControlAction.Confirm)}    Back: {CurrentBindingText(ControlAction.Cancel)}    Menu: {CurrentBindingText(ControlAction.Menu)}";
         return Panel(null, Label(text, 14));
     }

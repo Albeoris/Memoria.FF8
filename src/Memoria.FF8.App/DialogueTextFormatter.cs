@@ -113,8 +113,7 @@ internal static partial class DialogueTextFormatter
     {
         int identity = character switch
         {
-            TextTagCharacter.Squall => 0,
-            TextTagCharacter.Rinoa => 1,
+            >= TextTagCharacter.Squall and <= TextTagCharacter.Ward => GameNames.CharacterSubject((int)character - (int)TextTagCharacter.Squall),
             TextTagCharacter.Angelo1 or TextTagCharacter.Angelo2 => 2,
             _ => -1
         };
@@ -132,6 +131,12 @@ internal static partial class DialogueTextFormatter
 
     private static string MiscName(TextTagName name, IReadOnlyDictionary<int, string>? names)
     {
+        if (name is >= TextTagName.Quetzacotl and <= TextTagName.Eden)
+        {
+            int identity = (int)name - (int)TextTagName.Quetzacotl;
+            int subject = GameNames.GuardianForceSubject(identity);
+            return names?.GetValueOrDefault(subject) ?? GameNames.DefaultName(subject);
+        }
         return name switch
         {
             TextTagName.Squall => CharacterName(TextTagCharacter.Squall, names),

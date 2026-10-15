@@ -56,6 +56,7 @@ public sealed partial class EventEngine
     public bool IsMovementBlockedByDialogue => dialogues.Values.Any(dialogue => dialogue.FirstChoice is not null || dialogue.IsNamePrompt);
     public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values.Select(ExpandMessageVariables).ToArray();
     public bool CanConfirmDialogue => dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
+    public string? PendingNameDefault => CurrentDialogue?.IsNamePrompt == true ? NativeCharacterName(nameEntity) : null;
     private DialogueState? currentDialogue;
     public DialogueState? CurrentDialogue
     {
@@ -431,11 +432,7 @@ public sealed partial class EventEngine
         }
         if (dialogue.IsNamePrompt)
         {
-            string selectedName = string.IsNullOrWhiteSpace(name) ? NativeCharacterName(nameEntity) : name.Trim();
-            if (selectedName.Length > 12)
-            {
-                throw new ArgumentOutOfRangeException(nameof(name), "A character name may contain at most twelve characters.");
-            }
+            string selectedName = GameNames.Normalize(string.IsNullOrWhiteSpace(name) ? NativeCharacterName(nameEntity) : name);
             Scene.Names[nameEntity] = selectedName;
         }
         RecordDialogueOutcome(dialogue, dialogue.FirstChoice is null ? null : choice ?? dialogue.InitialChoice ?? dialogue.FirstChoice, dialogue.IsNamePrompt ? Scene.Names[nameEntity] : null);

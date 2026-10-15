@@ -33,6 +33,7 @@ public sealed partial class MenuController
         _liveProvider = liveProvider;
         _liveAction = liveAction;
         MenuCatalog.Register(this);
+        RegisterNamingScreens();
     }
 
     public bool IsOpen { get; private set; }
@@ -278,7 +279,7 @@ public sealed partial class MenuController
         {
             Push(entry.Destination);
         }
-        if (entry.Action?.Kind != "menu-back")
+        if (entry.Action?.Kind is not ("menu-back" or "name-save"))
         {
             SoundRequested?.Invoke(MenuSound.Confirm);
         }
@@ -301,6 +302,10 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (ExecuteNamingAction(action))
+        {
+            return;
+        }
         if (ExecuteHostSettingsAction(action))
         {
             return;

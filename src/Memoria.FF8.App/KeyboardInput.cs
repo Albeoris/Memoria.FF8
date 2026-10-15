@@ -45,6 +45,7 @@ internal sealed class KeyboardInput
         set => connectedPresentation = value == ControllerPresentation.Automatic ? ControllerPresentation.Generic : value;
     }
     public bool RecoveryNavigationEnabled { get; set; }
+    public bool TextEntryEnabled { get; set; }
     public bool SpeedToggleRequested { get; private set; }
     public bool DebugRoomRequested { get; private set; }
     public bool GameMenuRequested { get; private set; }
@@ -96,6 +97,10 @@ internal sealed class KeyboardInput
             disarmedButtons.UnionWith(ControlsProfile.BindableButtons.Where(pad.IsButtonDown));
         }
         IReadOnlyList<(ControlAction Action, ControlDevice Device, InputChord Chord)> matches = Profile.Match(current, pad);
+        if (TextEntryEnabled)
+        {
+            matches = matches.Where(match => match.Device == ControlDevice.Controller).ToArray();
+        }
         foreach (var match in matches.Where(match => match.Chord.Count > 1))
         {
             consumedKeys.UnionWith(match.Chord.Keys);
@@ -105,7 +110,7 @@ internal sealed class KeyboardInput
         HashSet<ControlAction> effective = effectiveMatches.Select(match => match.Action).ToHashSet();
         bool Down(ControlAction action) => active && effective.Contains(action);
         bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || Profile.GetBindings(action, ControlDevice.Keyboard).Any(chord => chord.Matches(current, default)));
-        bool RecoveryPressed(Keys key) => active && RecoveryNavigationEnabled && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
+        bool RecoveryPressed(Keys key) => active && (RecoveryNavigationEnabled || TextEntryEnabled) && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
         Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
         Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);
         if (!active || !previousActive || profileChanged || deviceChanged || hasSampledInput && pad.IsConnected && !previousConnected)

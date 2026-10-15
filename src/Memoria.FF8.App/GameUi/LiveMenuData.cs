@@ -107,7 +107,7 @@ public static class LiveMenuData
                 MenuGuardianForce guardianForce = new()
                 {
                     Id = $"gf-{id}",
-                    Name = catalog?.GuardianForceName(id) ?? $"GF {id}",
+                    Name = Nonempty(names?.GetValueOrDefault(GameNames.GuardianForceSubject(id))) ?? SavedName(state, GameNames.GuardianForceSubject(id)) ?? catalog?.GuardianForceName(id) ?? GameNames.DefaultName(GameNames.GuardianForceSubject(id)),
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.GuardianForces[id]),
                     CurrentHp = native.HitPoints,
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
@@ -171,20 +171,9 @@ public static class LiveMenuData
 
     internal static string CharacterName(GameState state, byte identity, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog)
     {
-        // EventEngine.CharacterNames owns naming subjects0/1; their combat identities are0/4.
-        int? subject = identity switch
-        {
-            0 => 0,
-            4 => 1,
-            _ => null
-        };
-        string? named = subject.HasValue ? Nonempty(names?.GetValueOrDefault(subject.Value)) ?? SavedName(state, subject.Value) : null;
-        return named ?? Nonempty(catalog?.CharacterName(identity)) ?? (identity switch
-        {
-            0 => "Squall",
-            4 => "Rinoa",
-            _ => $"Character {identity}"
-        });
+        int subject = GameNames.CharacterSubject(identity);
+        string? named = Nonempty(names?.GetValueOrDefault(subject)) ?? SavedName(state, subject);
+        return named ?? Nonempty(catalog?.CharacterName(identity)) ?? GameNames.DefaultName(subject);
     }
 
     private static string? SavedName(GameState state, int identity)

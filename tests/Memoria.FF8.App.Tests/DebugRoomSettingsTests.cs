@@ -81,7 +81,7 @@ public sealed class DebugRoomSettingsTests
         MenuController menus = new();
         menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
         menus.Open("debug-room", true);
-        Assert.Equal(new[] { "Battle laboratory", "UI", "Audio", "Controls", "Menu gallery" }, menus.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Battle laboratory", "UI", "Audio", "Controls", "Names", "Menu gallery" }, menus.Entries.Select(entry => entry.Label));
         menus.Navigate(MenuInput.Down);
         menus.Navigate(MenuInput.Confirm);
         Assert.Equal("debug-ui", menus.ScreenId);

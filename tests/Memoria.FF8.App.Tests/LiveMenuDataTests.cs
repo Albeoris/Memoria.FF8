@@ -71,6 +71,11 @@ public sealed class LiveMenuDataTests
         Assert.Empty(data.SupportedActions);
         Assert.Equal(original, JsonSerializer.Serialize(state));
         Assert.Equal("Saved research name", LiveMenuData.Build(state, catalog: catalog).Characters.Single(character => character.Id == "character-0").Name);
+        GameState renamed = state with { EventState = JsonSerializer.SerializeToElement(new { Scene = new { Names = new Dictionary<int, string> { [GameNames.CharacterSubject(1)] = "New Zell", [GameNames.GuardianForceSubject(0)] = "New GF" } } }) };
+        MenuData renamedData = LiveMenuData.Build(renamed, catalog: catalog);
+        Assert.Equal("New Zell", renamedData.Characters.Single(character => character.Id == "character-1").Name);
+        Assert.Equal("New GF", renamedData.GuardianForces.Single().Name);
+        Assert.Equal("Live GF", LiveMenuData.Build(renamed, new Dictionary<int, string> { [GameNames.GuardianForceSubject(0)] = "Live GF" }, catalog).GuardianForces.Single().Name);
         rows[1] = rows[1] with { CharacterId = 9 };
         NativeCharacterVitals guestVitals = vitals with { Records = rows, CombatParty = [0, 255, 255], DreamEnabled = true };
         NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();

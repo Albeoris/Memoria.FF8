@@ -31,6 +31,7 @@ internal sealed partial class RecreateGame
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
         gameMenus.ConnectPreferences(() => uiPreferences, ApplyLiveMenuAction);
+        gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
         gameMenus.ConnectControls(() => keyboard.Profile, profile =>
@@ -91,6 +92,27 @@ internal sealed partial class RecreateGame
             data.SupportedActions.Add("save");
         }
         return data;
+    }
+
+    private IReadOnlyList<DebugNameTarget> ReadDebugNames()
+    {
+        if (world is null || ActiveBattle is not null || session.State.Scene is not (SceneKind.Field or SceneKind.WorldMap) || fieldFaulted)
+        {
+            return [];
+        }
+        List<DebugNameTarget> targets = [];
+        foreach (int identity in Enumerable.Range(0, 11))
+        {
+            int subject = GameNames.CharacterSubject(identity);
+            targets.Add(new DebugNameTarget(subject, world.Events.Scene.Names.GetValueOrDefault(subject, GameNames.DefaultName(subject)), "Character"));
+        }
+        targets.Add(new DebugNameTarget(2, world.Events.Scene.Names.GetValueOrDefault(2, "Angelo"), "Character"));
+        foreach (int identity in Enumerable.Range(0, 16))
+        {
+            int subject = GameNames.GuardianForceSubject(identity);
+            targets.Add(new DebugNameTarget(subject, world.Events.Scene.Names.GetValueOrDefault(subject, GameNames.DefaultName(subject)), "GF"));
+        }
+        return targets;
     }
 
     private void ApplyLiveMenuAction(MenuAction action)
@@ -227,7 +249,14 @@ internal sealed partial class RecreateGame
         }
         if (input.Confirm || keyboard.UiConfirmRequested)
         {
-            gameMenus.Navigate(MenuInput.Confirm);
+            if (gameMenus.IsEditingName && keyboard.LastInputDevice == ControlDevice.Keyboard)
+            {
+                gameMenus.Execute(new MenuAction("name-save"));
+            }
+            else
+            {
+                gameMenus.Navigate(MenuInput.Confirm);
+            }
         }
         if (input.Cancel || keyboard.UiCancelRequested)
         {

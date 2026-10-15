@@ -71,8 +71,14 @@ internal static class MenuPreview
             UiPreferences preferences = new();
             MenuController menus = new();
             menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
+            Dictionary<int, string> names = Enumerable.Range(0, 43).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);
+            menus.ConnectNaming(() => names.Select(pair => new DebugNameTarget(pair.Key, pair.Value, pair.Key is >= 16 and <= 31 ? "GF" : "Character")).ToArray(), (subject, name) => names[subject] = name);
             menus.BattleDebugRequested += () => { };
             menus.Open(screen, true);
+            if (screen == "debug-name-input")
+            {
+                menus.Execute(new MenuAction("name-edit", "0"));
+            }
             view = menus.BuildView();
         }
         using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);

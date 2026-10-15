@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -115,6 +117,7 @@ internal sealed partial class RecreateGame : Game
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
         capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
+        keyboard.TextEntryEnabled = gameMenus?.IsEditingName == true;
         InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
         var currentMovieIdentity = (session.State.FieldId, session.State.MovieIndex, session.State.MovieSource);
         if (session.State.Scene != SceneKind.Movie || movieSkipIdentity != currentMovieIdentity || !IsActive)
@@ -369,7 +372,7 @@ internal sealed partial class RecreateGame : Game
             if (dialogue != presentedDialogue)
             {
                 presentedDialogue = dialogue;
-                (selectedChoice, enteredName) = DialoguePresentation.ResolveDraft(dialogue, session.State.DialogueDraft, events.Scene.Names.GetValueOrDefault(0, "Squall"));
+                (selectedChoice, enteredName) = DialoguePresentation.ResolveDraft(dialogue, session.State.DialogueDraft, events.PendingNameDefault ?? "Squall");
             }
             if (dialogue is { CanConfirm: true })
             {
@@ -437,15 +440,22 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
+        if (IsActive && gameMenus?.EnterNameCharacter(args.Character) == true)
+        {
+            return;
+        }
         if (gameMenus?.IsOpen == true || saveMenu.IsOpen || events?.CurrentDialogue?.IsNamePrompt != true)
         {
             return;
         }
         if (args.Character == '\b')
         {
-            enteredName = enteredName.Length == 0 ? enteredName : enteredName[..^1];
+            if (enteredName.Length > 0)
+            {
+                enteredName = enteredName[..StringInfo.ParseCombiningCharacters(enteredName)[^1]];
+            }
         }
-        else if (!char.IsControl(args.Character) && enteredName.Length < 12)
+        else if (!char.IsControl(args.Character) && args.Character is not ('{' or '}') && (enteredName + args.Character).EnumerateRunes().Count() <= 12)
         {
             enteredName += args.Character;
         }
@@ -710,7 +720,7 @@ internal sealed partial class RecreateGame : Game
             }
             if (request.Name is string name)
             {
-                if (!dialogue.IsNamePrompt || name.Length > 12 || name.Any(char.IsControl))
+                if (!dialogue.IsNamePrompt || !GameNames.IsValidDraft(name))
                 {
                     throw new ArgumentException("Name drafts require a name prompt and at most twelve printable characters.");
                 }
