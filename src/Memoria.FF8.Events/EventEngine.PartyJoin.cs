@@ -556,7 +556,7 @@ public sealed partial class EventEngine
         }
         else
         {
-            StepLadderAnimation(player, playerAnimation, 1);
+            StepLadderAnimation(player, playerAnimation, 1, moved);
         }
         foreach (var follower in followers)
         {

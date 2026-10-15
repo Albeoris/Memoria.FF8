@@ -100,6 +100,11 @@ public sealed partial class EventEngine
             NativeModelPartStep step = resources[instance.ModelId].Step(definition);
             resources[instance.ModelId] = step.State;
             draws[instance.ObjectId] = new NativeModelPartDraw(Frame, instance.ModelId, new Dictionary<int, Vector3>(step.SkinTranslations));
+            ActorState actor = actors[instance.ObjectId];
+            if (CaptureFootstepModelOrigin is not null)
+            {
+                actor.NativeFootstepModelOrigin = CaptureFootstepModelOrigin(new NativeFootstepProjectionQuery(actor, ReadNativeScriptPosition(actor), instance.ModelId, Frame));
+            }
         }
         Scene.ModelParts = bank with { Resources = resources, Draws = draws };
     }
@@ -129,6 +134,10 @@ public sealed partial class EventEngine
     {
         if (scene.ModelParts is not NativeFieldModelPartsState bank)
         {
+            if (savedActors.Any(actor => actor.NativeFootstepModelOrigin is not null))
+            {
+                throw new InvalidDataException("Saved native footstep model-origin receipt has no registered model bank.");
+            }
             if (initialized && NativeRuntimeProfile is { IsVerified: true } && ReadNativeModelParts is not null)
             {
                 throw new InvalidDataException("Saved native field is missing its executed model-part resource state; recreate authentic inputs.");
@@ -138,6 +147,10 @@ public sealed partial class EventEngine
         if (!initialized || scene.NativeActorLayoutVersion != 1 || bank.Resources is null || bank.Resources.Values.Any(state => state is null) || bank.Instances is null || bank.Instances.Any(instance => instance is null) || bank.Draws is null || bank.Instances.Length > 32 || bank.Instances.Select(instance => instance.ObjectId).Distinct().Count() != bank.Instances.Length || !bank.Instances.Select(instance => instance.ObjectId).SequenceEqual(scene.NativeActorObjectIds.Where(id => bank.Instances.Any(instance => instance.ObjectId == id))) || bank.Instances.Any(instance => (uint)instance.ObjectId >= savedActors.Count || instance.ModelId < 0 || !bank.Resources.ContainsKey(instance.ModelId)) || !bank.Resources.Keys.Order().SequenceEqual(bank.Instances.Select(instance => instance.ModelId).Distinct().Order()))
         {
             throw new InvalidDataException("Saved native model registrations are malformed.");
+        }
+        if (savedActors.Any(actor => actor.NativeFootstepModelOrigin is not null && !bank.Instances.Any(instance => instance.ObjectId == actor.ObjectId)))
+        {
+            throw new InvalidDataException("Saved native footstep model-origin receipt belongs to an unregistered actor.");
         }
         foreach ((int model, NativeModelPartResourceState state) in bank.Resources)
         {
@@ -152,6 +165,18 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved native model draw samples are malformed.");
             }
+            NativeFootstepModelOrigin? origin = savedActors[objectId].NativeFootstepModelOrigin;
+            if (CaptureFootstepModelOrigin is not null || origin is not null)
+            {
+                if (origin is null || origin.Version != 1 || origin.Frame != draw.Frame || origin.ModelId != instance!.ModelId || origin.CameraIndex < 0 || (origin.Translation is null) == (origin.UnsupportedReason is null) || origin.UnsupportedReason is not null && string.IsNullOrWhiteSpace(origin.UnsupportedReason))
+                {
+                    throw new InvalidDataException("Saved native footstep model-origin receipt differs from its executed model draw.");
+                }
+            }
+        }
+        if (bank.Instances.Any(instance => savedActors[instance.ObjectId].NativeFootstepModelOrigin is not null && !bank.Draws.ContainsKey(instance.ObjectId)))
+        {
+            throw new InvalidDataException("Saved native footstep model-origin receipt has no executed model draw.");
         }
         foreach (NativeFieldModelInstance instance in bank.Instances)
         {

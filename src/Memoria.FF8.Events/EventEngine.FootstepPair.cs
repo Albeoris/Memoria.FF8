@@ -75,6 +75,10 @@ public sealed partial class EventEngine
         int[] allocated = program!.NativeObjects.Take(program.NativeActorCount).ToArray();
         foreach (ActorState actor in saved.Actors)
         {
+            if (NativeRuntimeProfile is { IsVerified: true } && allocated.Contains(actor.ObjectId) && actor.NativeFootstepSpecial is null)
+            {
+                throw new InvalidDataException("Saved native actor lost its allocated/SETPC footstep flag4000000.");
+            }
             if (actor.NativeFootstepPair is not NativeFootstepPairState pair)
             {
                 continue;

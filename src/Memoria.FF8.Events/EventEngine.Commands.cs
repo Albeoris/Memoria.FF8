@@ -371,6 +371,11 @@ public sealed partial class EventEngine
             case Jsm.Opcode.SETPC:
                 args = Pop(fiber, 1);
                 actor.CharacterId = (byte)args[0];
+                actor.FootstepsEnabled = true;
+                if (actor.CharacterId is 3 or 4 or 5 or 7)
+                {
+                    actor.NativeFootstepSpecial = true;
+                }
                 if (!Scene.Party.Contains(actor.CharacterId))
                 {
                     actor.Active = false;

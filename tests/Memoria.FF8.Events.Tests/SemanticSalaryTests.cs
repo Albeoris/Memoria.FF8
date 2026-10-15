@@ -19,7 +19,7 @@ internal static partial class Program
             Require(session.ReplayJournal is { IsComplete: true }, $"Semantic fixture initializer invalidated its journal: {session.ReplayJournal?.UnavailableReason}.");
             (Jsm.Opcode, int)[] initialization = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.SARALYON, 0), (Jsm.Opcode.SARALYDISPOFF, 0), (Jsm.Opcode.PSHN_L, additionalRank), (Jsm.Opcode.ADDSEEDLEVEL, 0), (Jsm.Opcode.PSHN_L, 0x5FFF), (Jsm.Opcode.POPM_L, 8), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session, session.EventMemory)
             {
                 AnimationFrameCount = (_, _) => 1,
                 ResolveNativeTriangleHeight = (_, _, _) => 0,

@@ -60,7 +60,7 @@ internal static partial class Program
             GameSession session = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
             session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
             Require(session.ReplayJournal is { IsComplete: true }, $"Semantic fixture initializer invalidated its journal: {session.ReplayJournal?.UnavailableReason}.");
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session, session.EventMemory)
             {
                 AnimationFrameCount = (_, _) => 1,
                 ResolveNativeTriangleHeight = (_, _, _) => 0,

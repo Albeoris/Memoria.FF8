@@ -67,7 +67,7 @@ internal static partial class Program
             content[3] = 1;
             GameSession session = CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
             session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session, session.EventMemory)
             {
                 AnimationFrameCount = (_, _) => 1,
                 ResolveNativeTriangleHeight = (_, _, _) => 0,

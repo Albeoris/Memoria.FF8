@@ -155,8 +155,9 @@ internal static partial class Program
                     ["vibration"] = NativeVibrationContract,
                     ["actor-shadow"] = NativeActorShadowContract,
                     ["actor-shadow-form"] = NativeActorShadowFormContract,
-                    ["footstep-pair"] = NativeFootstepPairContract,
-                    ["footstep-off-all"] = NativeFootstepOffAllContract,
+                    ["footstep-pair"] = () => NativeFootstepPairContract(selectedGameDirectory),
+                    ["footstep-audio"] = () => NativeFootstepAudioContract(selectedGameDirectory),
+                    ["footstep-off-all"] = () => NativeFootstepOffAllContract(selectedGameDirectory),
                     ["draw-point-setup"] = () => NativeDrawPointSetupContract(selectedGameDirectory),
                     ["native-drawpoint-source-byte"] = () => NativeDrawPointSourceByteContract(selectedGameDirectory),
                     ["native-menu-drawpoint-mask"] = () => NativeMenuDrawPointMaskContract(selectedGameDirectory),
@@ -261,7 +262,7 @@ internal static partial class Program
             NativeEmptyPartyModelContract();
             NativeVibrationContract();
             NativeActorShadowContract();
-            NativeFootstepPairContract();
+            NativeFootstepPairContract(gameDirectory);
             NativeDrawPointSetupContract(gameDirectory);
             NativeMusicPositionContract(gameDirectory);
             NativeMusicLoadContract();

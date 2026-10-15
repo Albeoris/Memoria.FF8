@@ -29,7 +29,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 4 };
+            EventEngine engine = new(session, session.EventMemory) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }

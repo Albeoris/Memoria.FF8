@@ -21,7 +21,7 @@ internal static partial class Program
             (Jsm.Opcode, int)[] source = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, -19), (Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.PSHN_L, 2000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] moving = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.PSHN_L, -100), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session, session.EventMemory)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = actor => actor.ObjectId == 2,

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events.Tests;
@@ -45,7 +46,7 @@ internal static partial class Program
         }
         if (checkpoint.TryGetProperty("WorldEntryMemory", out JsonElement selected) && selected.ValueKind == JsonValueKind.Object)
         {
-            values = new Dictionary<int, int>(selected.Deserialize<NativeWorldEntryMemory>()!.ProjectVariables(values));
+            values = new Dictionary<int, int>(selected.Deserialize<NativeWorldEntryMemory>(new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } })!.ProjectVariables(values));
         }
         return JsonSerializer.SerializeToElement(values);
     }

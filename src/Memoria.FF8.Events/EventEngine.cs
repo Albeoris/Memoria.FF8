@@ -207,6 +207,7 @@ public sealed partial class EventEngine
                 actors[^1].NativeLadderAnimation = new NativeLadderAnimationState(0, 0, 0);
                 actors[^1].NativeMovementGroundContact600 = 0;
                 actors[^1].NativeFootstepPair = new NativeFootstepPairState(1, 255, 255, new NativeFootstepPairSource(1, "Allocation", fieldId, programHash, nativeRuntimeProfile.ExecutableHash, obj.Index, -1, -1, 0));
+                actors[^1].NativeFootstepSpecial = false;
             }
             if (obj.BackgroundModuleIndex is int moduleIndex)
             {

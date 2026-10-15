@@ -112,7 +112,12 @@ public sealed partial class EventEngine
         }
         if ((flags & AnimationFrozen) == 0)
         {
+            ushort previous = frame;
             frame = unchecked((ushort)(frame + header.Increment));
+            if (HasNativeMode1(actor))
+            {
+                StepNativeFootstepCrossings(actor, previous, frame, terminal, header.Increment, false);
+            }
         }
         if (unchecked((short)frame) < unchecked((short)terminal))
         {

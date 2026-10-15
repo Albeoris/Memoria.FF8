@@ -25,7 +25,7 @@ internal static partial class Program
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
             session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session, session.EventMemory);
             engine.LoadField(600, SyntheticProgram(operations.ToArray()), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }

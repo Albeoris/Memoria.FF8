@@ -89,9 +89,16 @@ public sealed class ActorState
     public NativeDoorSchedulerState? NativeDoorScheduler { get; internal set; }
     [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
+    /// <summary>Native actor352 mask4000000, allocated clear and set sticky by SETPC.</summary>
+    [JsonInclude]
+    [JsonRequired]
+    public bool? NativeFootstepSpecial { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeFootstepPairState? NativeFootstepPair { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
+    public NativeFootstepModelOrigin? NativeFootstepModelOrigin { get; internal set; }
     [JsonInclude]
     public int TalkRadius { get; internal set; } = 128;
     [JsonInclude]

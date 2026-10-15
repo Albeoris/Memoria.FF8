@@ -20,7 +20,7 @@ internal static partial class Program
         EventEngine Create()
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            return new EventEngine(session, session.State.Variables)
+            return new EventEngine(session, session.EventMemory)
             {
                 AnimationFrameCount = (_, _) => 4,
                 ResolveNativeTriangleHeight = (triangle, _, _) => triangle == 9 ? 49 : 31,

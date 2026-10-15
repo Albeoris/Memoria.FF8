@@ -83,7 +83,7 @@ internal static partial class Program
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             session.InitializeNewGameInputConfiguration(input);
-            EventEngine engine = new(session, session.State.Variables);
+            EventEngine engine = new(session, session.EventMemory);
             byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.UCON, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, pulse), (Jsm.Opcode.KEYON, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.JMP, -4), (Jsm.Opcode.RET, 8)]]);
             engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();

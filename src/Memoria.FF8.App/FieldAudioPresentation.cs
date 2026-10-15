@@ -60,6 +60,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
     public string? Error { get; private set; }
     internal bool IsMidiPlaying => music?.IsPlaying == true;
     internal int PrimaryMusicId => musicIds[0];
+    internal int SoundVoiceCount => voices.Count;
     internal float PrimaryMusicVolume => musicKinds[0] == MusicKind.Midi ? midiVolume : streamVolume;
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameDirectory);
     private DirectSoundOutput Sound => sound ??= new DirectSoundOutput(window);
@@ -96,7 +97,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         }
     }
 
-    private void Execute(object command)
+    internal void Execute(object command)
     {
         TryOutput(() =>
         {
@@ -115,6 +116,9 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                     break;
                 case GlobalSoundRequest request when request.Resource.BackendStatus != GlobalSoundBackendStatus.Failed:
                     PlaySound(request);
+                    break;
+                case NativeFootstepSound footstep:
+                    PlayFootstepSound(footstep);
                     break;
                 case NativeSoundStop stop:
                     foreach (int voice in stop.Voices)
@@ -159,6 +163,26 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
     private void PlaySound(GlobalSoundRequest request)
     {
         PlaySoundSample(request.Resource.SampleIndex, request.Voice, request.Volume, request.EffectivePan, request.Resource.LoopPolicy);
+    }
+
+    internal static (int SampleIndex, int Voice, uint Volume, uint EffectivePan) ResolveFootstepPlayback(NativeFootstepSound footstep)
+    {
+        if (footstep.Flags is not (0x400000 or 0x800000) || footstep.Pan > 255 || footstep.Volume > 127)
+        {
+            throw new NotSupportedException("Footstep output requires the original520260 channel mask, unsigned pan and volume.");
+        }
+        // Both520260 masks select explicit voices, so46B0F0 requires no automatic allocation state.
+        NativeGlobalSoundProcess.FromBufferlessColdProcess().SelectVoice(footstep.Flags, out NativeGlobalSoundAllocation allocation);
+        return (EventEngine.MapGlobalSoundSample(footstep.EffectId), allocation.Voice, footstep.Volume, footstep.Pan >> 1);
+    }
+
+    private void PlayFootstepSound(NativeFootstepSound footstep)
+    {
+        (int sample, int voice, uint volume, uint pan) = ResolveFootstepPlayback(footstep);
+        GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Footstep sound {footstep.EffectId} requires an unsupported audio format.");
+        // Native footsteps replace device voices23/24, sharing script stop/volume controls.
+        // The transient callback creates no persisted VM request or allocator mutation.
+        PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
     private void PlaySoundSample(int index, int voiceId, uint volume, uint effectivePan, GlobalSoundLoopPolicy policy)

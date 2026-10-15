@@ -33,9 +33,9 @@ public sealed partial class EventEngine
         {
             return "Native mode3 requires four original operands and an idle retained physical body; overlapping movement backups are unsupported";
         }
-        if (IsControlledLadderMode3(actor) && (ButtonInput?.Held is null || actor.FootstepsEnabled))
+        if (IsControlledLadderMode3(actor) && ButtonInput?.Held is null)
         {
-            return "Controlled native mode3 requires mapped held input and the proved disabled-footsteps animation path";
+            return "Controlled native mode3 requires mapped held input";
         }
         try
         {
@@ -169,7 +169,7 @@ public sealed partial class EventEngine
                     else
                     {
                         elapsed--;
-                        StepLadderAnimation(actor, actor.AnimationId, -1);
+                        StepLadderAnimation(actor, actor.AnimationId, -1, true);
                     }
                 }
                 // Native mode3 tests forward independently after reverse, unlike mode4's priority branch.
@@ -183,7 +183,7 @@ public sealed partial class EventEngine
                     else
                     {
                         elapsed++;
-                        StepLadderAnimation(actor, actor.AnimationId, 1);
+                        StepLadderAnimation(actor, actor.AnimationId, 1, true);
                     }
                 }
             }

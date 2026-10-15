@@ -101,7 +101,7 @@ public static class FieldNativeCameraProbe
         return new FieldNativeCameraCenter(centerX, centerY);
     }
 
-    private static int Transform(FieldNativeCameraPoint axis, FieldNativeCameraPoint point, int translation)
+    public static int Transform(FieldNativeCameraPoint axis, FieldNativeCameraPoint point, int translation)
     {
         long numerator = (long)axis.X * point.X + (long)axis.Y * point.Y + (long)axis.Z * point.Z;
         // Every WORD product and partial sum divided by4096 is exact at
@@ -109,7 +109,7 @@ public static class FieldNativeCameraProbe
         return unchecked(RoundNative(numerator / 4096.0) + translation);
     }
 
-    private static int Project(int coordinate, double ratio)
+    public static int Project(int coordinate, double ratio)
     {
         // Preserve 45FCB3/45FD0C LEA DWORD wrapping and the separately rounded
         // FDIV, FMUL, FADD and binary64 store at native precision53.

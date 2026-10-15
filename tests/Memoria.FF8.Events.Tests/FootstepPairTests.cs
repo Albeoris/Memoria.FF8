@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,9 +9,12 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeFootstepPairContract()
+    private static void NativeFootstepPairContract(string gameDirectory)
     {
-        NativeFootstepCutContract();
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        NativeFootstepCutContract(vitals, economy);
         byte[] Content(bool direct = true, bool initializationCopy = false)
         {
             List<(Jsm.Opcode Opcode, int Parameter)> callerInit = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.FOOTSTEPON, 0)];
@@ -32,7 +36,7 @@ internal static partial class Program
         }
         (GameSession Session, EventEngine Engine) Create(byte[] content, bool authenticated = true)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return (session, engine);
@@ -119,7 +123,7 @@ internal static partial class Program
         Require(empty.Session.State.Variables[500] == 9 && empty.Engine.Scene.NativeActorObjectIds.Count == 0 && empty.Engine.Actors[0].NativeFootstepPair is null, "Zero native actor count read an unknown module pair or introduced copy writes/wait.");
     }
 
-    private static void NativeFootstepCutContract()
+    private static void NativeFootstepCutContract(NativeCharacterVitals vitals, NativeEconomy economy)
     {
         byte[] content = SyntheticObjects([1, 16 << 7],
         [
@@ -129,8 +133,8 @@ internal static partial class Program
         ]);
         (GameSession Session, EventEngine Engine) Create()
         {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }

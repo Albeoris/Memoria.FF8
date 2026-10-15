@@ -50,9 +50,9 @@ public sealed partial class EventEngine
             {
                 return "Native mode4 follower placement cannot replace an active mode3 body without its physical overlap contract";
             }
-            if (member.NativeLadderAnimation is not { } animation || (member.NativePartyFlags is null || userControlEnabled && !member.NativePartyFlags.AutoAnimation4) || member.ObjectId == actor.ObjectId && member.FootstepsEnabled || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
+            if (member.NativeLadderAnimation is not { } animation || (member.NativePartyFlags is null || userControlEnabled && !member.NativePartyFlags.AutoAnimation4) || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
             {
-                return "Native mode4 requires each present party body's allocated animation bytes, native animation ownership and complete model metadata; enabled ladder footsteps are unsupported";
+                return "Native mode4 requires each present party body's allocated animation bytes, native animation ownership and complete model metadata";
             }
         }
         try
@@ -130,15 +130,18 @@ public sealed partial class EventEngine
 
     private static bool MatchesNativeLadderPlacement(ActorState actor, NativeLadderState ladder) => actor.X == ladder.FixedX / 4096f && actor.Y == ladder.FixedY / 4096f && actor.Z == ladder.FixedZ / 4096f && actor.WalkmeshTriangle == ladder.Triangle;
 
-    private void StepLadderAnimation(ActorState actor, int animation, int step)
+    private void StepLadderAnimation(ActorState actor, int animation, int step, bool footsteps = false)
     {
         step = unchecked((sbyte)step);
         int total = checked(AnimationFrameCount!(actor.RenderModelId, animation) * 16);
         ushort frame = actor.AnimationId == animation ? unchecked((ushort)(int)(actor.AnimationFrame * 16)) : (ushort)0;
         SelectFullNativeAnimation(actor, animation, actor.AnimationId != animation, false);
+        ushort previous = frame;
+        ushort advanced = 0;
         if (step != 0)
         {
             frame = unchecked((ushort)(frame + unchecked((sbyte)step) * unchecked((ushort)actor.AnimationSpeed)));
+            advanced = frame;
             if (step > 0 && frame >= total)
             {
                 frame = 0;
@@ -149,6 +152,10 @@ public sealed partial class EventEngine
             }
         }
         actor.AnimationFrame = frame / 16f;
+        if (footsteps)
+        {
+            StepNativeFootstepCrossings(actor, previous, advanced, unchecked((ushort)total), unchecked((ushort)actor.AnimationSpeed), true);
+        }
     }
 
     private static void ValidateLadderTraceSamples(PartyTraceState trace)
@@ -272,7 +279,7 @@ public sealed partial class EventEngine
                 bool reverse = (held & (current.Up ? 0xC000 : 0x3000)) != 0;
                 bool forward = !reverse && (held & (current.Up ? 0x3000 : 0xC000)) != 0;
                 step = reverse || forward ? ((held & (current.Up ? 0xC000 : 0x3000)) != 0 ? current.Up ? -1 : 1 : current.Up ? 1 : -1) : 0;
-                StepLadderAnimation(actor, actor.NativeLadderAnimation!.Loop595, step);
+                StepLadderAnimation(actor, actor.NativeLadderAnimation!.Loop595, step, step != 0);
                 RecordLadderTrace(actor, current, step == 0 ? null : 4, step, step != 0, step != 0, step != 0, 1, 31, 62);
                 if (step == 0)
                 {
@@ -288,7 +295,7 @@ public sealed partial class EventEngine
             {
                 kind = stage == 4 ? current.Up ? 5 : 3 : current.Up ? 3 : 5;
                 step = stage == 5 ? current.Up ? -1 : 1 : current.Up ? 1 : -1;
-                StepLadderAnimation(actor, LadderAnimationFor(actor, kind), step);
+                StepLadderAnimation(actor, LadderAnimationFor(actor, kind), step, true);
                 current = current with { Duration = unchecked((short)(AnimationFrameCount!(actor.RenderModelId, actor.AnimationId) - 2)) };
                 RecordLadderTrace(actor, current, kind, step, true, false, true, 1, 31, 62);
                 start = stage == 3 ? current.Entry : stage == 4 ? current.ClimbingEnd : current.Approach;
@@ -296,7 +303,7 @@ public sealed partial class EventEngine
             }
             else if (stage == 6)
             {
-                StepLadderAnimation(actor, actor.BaseAnimationId, -1);
+                StepLadderAnimation(actor, actor.BaseAnimationId, -1, true);
                 RecordLadderTrace(actor, current, 2, -1, true, false, true, 2, 15, 30);
                 if (elapsed == 0)
                 {
@@ -393,7 +400,7 @@ public sealed partial class EventEngine
                     {
                         throw new InvalidDataException("Saved native mode4 cannot place a party body owned by active mode3.");
                     }
-                    if (member.NativeLadderAnimation is not { } animation || (member.NativePartyFlags is null || saved.UserControlEnabled && !member.NativePartyFlags.AutoAnimation4) || slot == 0 && member.FootstepsEnabled || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
+                    if (member.NativeLadderAnimation is not { } animation || (member.NativePartyFlags is null || saved.UserControlEnabled && !member.NativePartyFlags.AutoAnimation4) || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
                     {
                         throw new InvalidDataException("Saved native mode4 has inconsistent physical animation ownership or metadata");
                     }

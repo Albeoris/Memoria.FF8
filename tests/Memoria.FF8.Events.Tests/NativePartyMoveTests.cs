@@ -21,7 +21,7 @@ internal static partial class Program
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.BASEANIME, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 12), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] targetMove = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.PSHN_L, -200), (Jsm.Opcode.PSHN_L, 300), (Jsm.Opcode.DOFFSET, 0), (Jsm.Opcode.PSHN_L, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
-            EventEngine engine = new(session, session.State.Variables)
+            EventEngine engine = new(session, session.EventMemory)
             {
                 AnimationFrameCount = (_, _) => 4,
                 CanUseNativeScriptMove = actor => actor.ObjectId is 0 or 2,

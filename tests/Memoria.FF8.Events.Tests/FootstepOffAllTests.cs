@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -8,8 +9,11 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeFootstepOffAllContract()
+    private static void NativeFootstepOffAllContract(string gameDirectory)
     {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
         byte[] Content(bool initializationClear)
         {
             List<(Jsm.Opcode Opcode, int Parameter)> removedInit = [(Jsm.Opcode.LBL, 48), (Jsm.Opcode.FOOTSTEPON, 0)];
@@ -31,8 +35,8 @@ internal static partial class Program
         }
         (GameSession Session, EventEngine Engine) Create(byte[] content, bool authenticated = true)
         {
-            GameSession session = new(new GameState());
-            EventEngine engine = new(session);
+            GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
+            EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
             engine.LoadField(600, content, [], nativeRuntimeProfile: authenticated ? NativeFieldRuntimeProfile.FF8En : null);
             return (session, engine);
         }
