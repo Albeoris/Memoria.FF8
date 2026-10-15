@@ -667,11 +667,14 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
-        if (uiPreferences.BattlePolicy == "NewGameFullCombat")
+        BattleInput[] newGameBattleInputs = uiPreferences.CreateNewGameBattleInputs();
+        if (newGameBattleInputs.Length > 0)
         {
             world = CreateWorld();
-            world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
-            world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: uiPreferences.RandomEncounters));
+            foreach (BattleInput input in newGameBattleInputs)
+            {
+                world.ApplyBattleInput(input);
+            }
         }
         presentedDialogue = null;
         dialoguePages.Clear();

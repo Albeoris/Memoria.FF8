@@ -9,7 +9,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>A read-only projection of canonical session owners. It never creates native state or grants menu mutations.</summary>
+/// <summary>Projects canonical session owners and supported input kinds without creating or mutating native state.</summary>
 public static class LiveMenuData
 {
     public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null)
@@ -69,22 +69,40 @@ public static class LiveMenuData
                 {
                     character.GuardianForceIds.Add($"gf-{id}");
                 }
+                character.Commands.Add(catalog?.CommandName(1) ?? "Attack");
                 for (int slot = 0; slot < 4; slot++)
                 {
                     byte command = unchecked((byte)(native.Junction.Commands >> (8 * slot)));
                     byte ability = unchecked((byte)(native.Junction.Abilities >> (8 * slot)));
-                    if (command != 0)
+                    if (slot < 3)
                     {
-                        character.Commands.Add(catalog?.CommandName(command) ?? $"Command {command}");
+                        character.Commands.Add(command == 0 ? "--" : catalog?.AbilityName(command) ?? $"Command ability {command}");
                     }
-                    if (ability != 0)
+                    if (slot < vitals.JunctionAbilitySlots(row))
                     {
-                        character.Abilities.Add(catalog?.AbilityName(ability) ?? $"Ability {ability}");
+                        character.Abilities.Add(ability == 0 ? "--" : catalog?.AbilityName(ability) ?? $"Ability {ability}");
+                    }
+                }
+                character.AbilitySlots = vitals.JunctionAbilitySlots(row);
+                foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
+                {
+                    MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(ability) ?? $"Ability {ability}", true);
+                    if (ability is >= 20 and < 39)
+                    {
+                        character.AvailableCommands.Add(choice);
+                    }
+                    if (ability is >= 39 and < 83)
+                    {
+                        character.AvailableAbilities.Add(choice);
                     }
                 }
                 // Non-HP combat formulas are outside the proved native contract; empty stats render as unavailable.
                 for (int slot = 0; slot < native.Junction.MagicJunctions.Length; slot++)
                 {
+                    if (vitals.JunctionMagicSlotAvailable(row, slot))
+                    {
+                        character.AvailableJunctionSlots.Add(JunctionSlotName(slot));
+                    }
                     byte spell = native.Junction.MagicJunctions[slot];
                     if (spell != 0)
                     {
@@ -111,7 +129,8 @@ public static class LiveMenuData
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.GuardianForces[id]),
                     CurrentHp = native.HitPoints,
                     MaximumHp = vitals.Definitions.GuardianForceMaximum(id, native),
-                    Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null
+                    Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
+                    Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? $"Ability {native.Learning}"
                 };
                 for (int ability = 0; ability < 128; ability++)
                 {
@@ -120,7 +139,19 @@ public static class LiveMenuData
                         guardianForce.Abilities.Add(catalog?.AbilityName(ability) ?? $"Learned ability {ability}");
                     }
                 }
+                foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
+                {
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints));
+                    if (entry.Ability == native.Learning && !entry.Learned)
+                    {
+                        guardianForce.AbilityPoints = entry.Progress;
+                    }
+                }
                 result.GuardianForces.Add(guardianForce);
+            }
+            if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
+            {
+                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "gf-learn"]);
             }
         }
         if (state.CardInventory is { } cards)
@@ -145,7 +176,7 @@ public static class LiveMenuData
         return result;
     }
 
-    private static string JunctionSlotName(int slot)
+    internal static string JunctionSlotName(int slot)
     {
         // Native496440/4967C0/4968A0 consume saved+92..100; 496930/496AF0/4969E0/496BD0 consume+101..110.
         return slot switch

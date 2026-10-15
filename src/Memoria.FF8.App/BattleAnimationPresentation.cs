@@ -51,7 +51,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             const int duration = BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames;
             if (age < duration)
             {
-                int[] clips = Sequence(AttackSequence).Animations.ToArray();
+                int[] clips = Sequence(CommandSequence(windup.Ability)).Animations.ToArray();
                 if (clips.Length == 0)
                 {
                     throw new NotSupportedException($"{model.Name} physical action sequence has no skeletal pose track.");
@@ -59,8 +59,9 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                 // TODO(TD-009): Native clips use scaffold phase duration/approach until the full sequence movement/effect VM executes
                 double progress = age / duration;
                 float approach = age < BattleSession.AttackWindupFrames ? (float)(age / BattleSession.AttackWindupFrames) : (float)((duration - age) / BattleSession.AttackRecoveryFrames);
-                Vector3 offset = definition.IsPlayer && Melee ? (target - origin) * Math.Clamp(approach, 0, 1) * 0.7f : Vector3.Zero;
-                return Play(clips, progress * Length(clips), offset, definition.IsPlayer && Melee);
+                bool approachTarget = definition.IsPlayer && Melee && windup.Ability == BattleAbility.Attack;
+                Vector3 offset = approachTarget ? (target - origin) * Math.Clamp(approach, 0, 1) * 0.7f : Vector3.Zero;
+                return Play(clips, progress * Length(clips), offset, approachTarget);
             }
         }
         BattleEvent? damage = session.Events.LastOrDefault(item => item.Kind == "Damage" && item.Amount > 0 && item.TargetId == actor.Id);
@@ -105,7 +106,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         {
             int sequence = item.Kind switch
             {
-                "Windup" when item.ActorId == definition.Id => AttackSequence,
+                "Windup" when item.ActorId == definition.Id => CommandSequence(item.Ability),
                 "Defeated" when item.TargetId == definition.Id => 3,
                 "Damage" when item.TargetId == definition.Id && item.Amount > 0 => 4,
                 "Outcome" when definition.IsPlayer && session.Outcome == BattleOutcome.Victory => 17,
@@ -146,6 +147,20 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             }
         }
         return result;
+    }
+
+    private int CommandSequence(BattleAbility ability)
+    {
+        // Native48D200 selects these original command sequences from executable B8150C.
+        return !definition.IsPlayer ? AttackSequence : ability switch
+        {
+            BattleAbility.Attack => AttackSequence,
+            BattleAbility.Magic => 11,
+            BattleAbility.GuardianForce => 14,
+            BattleAbility.Item => 15,
+            BattleAbility.Draw => 30,
+            _ => throw new NotSupportedException($"No original sequence for battle command {ability}.")
+        };
     }
 
     private double Age(BattleSession session, BattleEvent item)

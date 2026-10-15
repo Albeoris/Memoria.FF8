@@ -13,6 +13,8 @@ public sealed class BattleAssets : IDisposable
     private readonly Dictionary<string, BattleModel> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, BattleStage> stages = [];
     private readonly byte[] encounters;
+    private readonly BattlePlayerStatReader playerStats;
+    private readonly Albeoris.Games.FF8.KernelBin.KernelData battleKernel;
 
     public BattleAssets(string gameDirectory)
     {
@@ -24,7 +26,26 @@ public sealed class BattleAssets : IDisposable
             using Stream input = kernel.OpenForRead();
             using MemoryStream bytes = new();
             input.CopyTo(bytes);
+            input.Dispose();
             WeaponDefinitions = BattleKernelReader.Weapons(bytes.ToArray());
+            IFlArchiveEntry initial = main.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1].Equals("init.out", StringComparison.OrdinalIgnoreCase));
+            using Stream initialInput = initial.OpenForRead();
+            using MemoryStream initialBytes = new();
+            initialInput.CopyTo(initialBytes);
+            byte[] initialContent = initialBytes.ToArray();
+            if (initialContent.Length != 2812)
+            {
+                throw new NotSupportedException("Battle GF labels require the authentic New Game name template.");
+            }
+            string GuardianName(int id)
+            {
+                ReadOnlySpan<byte> name = initialContent.AsSpan(id * 68, 12);
+                int end = name.IndexOf((byte)0);
+                return FF8Encoding.CreateEuropean().GetString(end < 0 ? name : name[..end]);
+            }
+            ActionDefinitions = BattleActionKernelReader.Read(bytes.ToArray()).Select(action => action.Ability == Memoria.FF8.Runtime.BattleAbility.GuardianForce ? action with { DisplayName = GuardianName(action.Id) } : action).ToArray();
+            playerStats = new BattlePlayerStatReader(bytes.ToArray());
+            battleKernel = Albeoris.Games.FF8.KernelBin.KernelData.ReadFromArray(bytes.ToArray(), FF8Encoding.CreateEuropean());
         }
         encounters = Read("scene.out");
         if (encounters.Length != 1024 * 128)
@@ -34,6 +55,40 @@ public sealed class BattleAssets : IDisposable
     }
 
     public IReadOnlyList<BattleWeaponDefinition> WeaponDefinitions { get; }
+    public IReadOnlyList<Memoria.FF8.Runtime.BattleActionDefinition> ActionDefinitions { get; }
+    public BattlePlayerStats ReadPlayerStats(Memoria.FF8.Runtime.NativeCharacterVitals vitals, int row) => playerStats.Read(vitals, row);
+
+    public Memoria.FF8.Runtime.BattleDrawSpell[] ReadEnemyDrawSpells(int modelId, int level)
+    {
+        byte[] bytes = Read($"c0m{modelId:000}.dat");
+        int sections = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes);
+        if (sections is not (2 or 11))
+        {
+            throw new NotSupportedException("Enemy Draw requires an original information section.");
+        }
+        int information = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 28 : 4));
+        if (information < 0 || information > bytes.Length - 284)
+        {
+            throw new InvalidDataException("Enemy Draw records exceed the original information section.");
+        }
+        // Native48C7A0/48FD20 read four BYTE spell/resistance pairs at info+260+8*levelBand.
+        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        List<Memoria.FF8.Runtime.BattleDrawSpell> spells = [];
+        for (int slot = 0; slot < 4; slot++)
+        {
+            int offset = information + 260 + band * 8 + slot * 2;
+            int id = bytes[offset];
+            if (id is > 0 and < 64)
+            {
+                spells.Add(new Memoria.FF8.Runtime.BattleDrawSpell(id, bytes[offset + 1]));
+            }
+            else if (id >= 64)
+            {
+                throw new NotSupportedException("Enemy GF Draw requires the native one-time GF acquisition contract.");
+            }
+        }
+        return spells.ToArray();
+    }
 
     public string EncounterSourceHash => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(encounters));
     public IReadOnlyList<int> EnemyModelIds => entries.Keys.Where(name => name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".dat", StringComparison.OrdinalIgnoreCase)).Select(name => int.Parse(name.AsSpan(3, 3))).Order().ToArray();
@@ -114,6 +169,60 @@ public sealed class BattleAssets : IDisposable
             throw new InvalidDataException("Original enemy name has no terminator.");
         }
         return FF8Encoding.CreateEuropean().GetString(name[..end]);
+    }
+
+    public int ReadEnemyAbilityPoints(int modelId)
+    {
+        byte[] bytes = Read($"c0m{modelId:000}.dat");
+        int sections = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes);
+        if (sections is not (2 or 11))
+        {
+            throw new NotSupportedException("Enemy AP requires the original information section.");
+        }
+        int information = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 28 : 4));
+        if (information < 0 || information > bytes.Length - 336)
+        {
+            throw new InvalidDataException("Enemy AP exceeds the original information section.");
+        }
+        // Native494AF0 LABEL37 accumulates this BYTE into the reward AP WORD.
+        return bytes[information + 335];
+    }
+    public BattleEnemyNativeStats ReadEnemyNativeStats(int modelId) => BattleEnemyNativeStats.ReadMonster(Read($"c0m{modelId:000}.dat"));
+
+    public (int Power, int DrainPercent) ReadEnemyPrimitiveAttack(int modelId, int level)
+    {
+        byte[] bytes = Read($"c0m{modelId:000}.dat");
+        if (System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes) != 11)
+        {
+            throw new NotSupportedException("Enemy primitive action requires its original ability bank.");
+        }
+        int information = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
+        if (information < 0 || information > bytes.Length - 284)
+        {
+            throw new InvalidDataException("Enemy ability bank exceeds its information section.");
+        }
+        int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
+        // TODO(TD-009): Native487DF0 enemy AI is not executed; this bounded dispatcher uses the first installed enemy-attack command in its actual level band
+        for (int slot = 0; slot < 16; slot++)
+        {
+            int offset = information + 52 + band * 64 + slot * 4;
+            if (bytes[offset] != 8)
+            {
+                continue;
+            }
+            int id = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2));
+            if (id >= battleKernel.EnemyAttacks.Count)
+            {
+                throw new InvalidDataException("Enemy ability references an absent kernel attack.");
+            }
+            var attack = battleKernel.EnemyAttacks[id];
+            if (attack.AttackType != 1 || attack.Element != 0 || attack.Statuses0 != 0 || (attack.Statuses1 & ~0x8000u) != 0)
+            {
+                throw new NotSupportedException($"Enemy model {modelId} primitive action {id} requires an unsupported attack contract.");
+            }
+            return (attack.AttackPower, (attack.Statuses1 & 0x8000) != 0 ? attack.StatusAttack : 0);
+        }
+        throw new NotSupportedException("Enemy level band has no primitive physical attack command.");
     }
 
     public BattleModel LoadEnemy(int modelId) => LoadModel($"c0m{modelId:000}.dat");

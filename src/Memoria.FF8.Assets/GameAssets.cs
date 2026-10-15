@@ -23,6 +23,7 @@ public sealed class GameAssets : IDisposable
     private NativeShopDefinitions? nativeShopDefinitions;
     private NativeWeaponShopDefinitions? nativeWeaponShopDefinitions;
     private NativeDrawPointCatalog? nativeDrawPointCatalog;
+    private NativeEncounterTables? nativeEncounterTables;
 
     public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null)
     {
@@ -45,6 +46,7 @@ public sealed class GameAssets : IDisposable
 
     public string GameDirectory { get; }
     public string? NativeExecutableHash { get; }
+    public NativeEncounterTables ReadNativeEncounterTables() => nativeEncounterTables ??= NativeEncounterTables.ReadExecutable(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
     public NativeDrawPointCatalog ReadNativeDrawPointCatalog()
     {
         if (nativeDrawPointCatalog is not null)
@@ -204,6 +206,7 @@ public sealed class GameAssets : IDisposable
         byte[] information = Read(nested, name + ".inf");
         byte[] walkmesh = Read(nested, name + ".id");
         FieldAssets result = new(fieldId, name, Read(nested, name + ".jsm"), MsdFile.Read(Read(nested, name + ".msd"), FF8Encoding.CreateEuropean()).Texts.ToArray(), tiles, cameras[0], FieldWalkmesh.Read(walkmesh), models) { Cameras = cameras, Information = information.Length == 676 ? FieldInformation.Read(information) : null, WalkmeshHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(walkmesh)), NativeExecutableHash = NativeExecutableHash };
+        result = result with { RandomEncounters = NativeEncounterTables.ReadField(Read(nested, name + ".rat"), Read(nested, name + ".mrt")) };
         if (result.Information?.NativeMovieMaskFlag14 == 1)
         {
             //471010 admits MSK only through the original INF byte14, independently of the selected CA camera.

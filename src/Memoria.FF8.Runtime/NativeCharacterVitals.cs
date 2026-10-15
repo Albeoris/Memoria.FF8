@@ -70,6 +70,8 @@ public sealed partial record NativeCharacterVitals
     [JsonRequired]
     public required NativeStatDefinitions Definitions { get; init; }
     [JsonRequired]
+    public required NativeGuardianForceMenuDefinitions MenuDefinitions { get; init; }
+    [JsonRequired]
     public required byte[] DreamWeapons { get; init; }
     /// <summary>Physical event-bank bytes188..193, cleared by executed native52CA90 and overwritten by JUNCTION.</summary>
     [JsonRequired]
@@ -82,11 +84,12 @@ public sealed partial record NativeCharacterVitals
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, eight records or raw combat slots.");
         }
-        if (Definitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null || row.LearnedBank is null) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
+        if (Definitions is null || MenuDefinitions is null || GuardianForces is not { Length: 16 } || GuardianForces.Any(row => row is null || row.LearnedBank is null || row.AbilityProgress.IsDefault || row.AbilityProgress.Length != 21 || row.ForgottenAbilities > 0xFFFFFF) || DreamWeapons is not { Length: 3 } || JunctionPartyBackup is not { Length: 6 })
         {
             throw new InvalidDataException("Native saved-stat owner lacks current GF records, dream weapons or immutable kernel inputs.");
         }
         Definitions.Validate();
+        MenuDefinitions.Validate();
         foreach (NativeCharacterVital record in Records)
         {
             record.HitPoints.Validate();

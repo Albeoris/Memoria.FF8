@@ -66,7 +66,7 @@ public sealed class NativeStatDefinitionTests
     public void GuardianForceLearnedBitsUseOnlyTheNativeNineModifierRows()
     {
         NativeStatDefinitions definitions = Definitions();
-        NativeGuardianForceVital row = new(6500, 1, 9999, new NativeGuardianForceLearnedBank(0, 0), null);
+        NativeGuardianForceVital row = new(6500, 1, 9999, new NativeGuardianForceLearnedBank(0, 0), null, new byte[21].ToImmutableArray(), 0, 0);
         // 100 +7*20 +490/10 =289.
         Assert.Equal((ushort)289, definitions.GuardianForceMaximum(0, row));
         Assert.Equal((ushort)289, definitions.GuardianForceMaximum(0, row with { LearnedBank = new NativeGuardianForceLearnedBank(0, 1UL << 18 | 1UL << 28) }));

@@ -16,7 +16,12 @@ public enum PlayerActionKind
     FieldButtons,
     SelectPartyMember,
     BuyShopItem,
-    SelectPartySlot
+    SelectPartySlot,
+    JunctionGuardianForce,
+    SetJunctionCommand,
+    SetJunctionAbility,
+    SelectGuardianForceLearning,
+    SetJunctionMagic
 }
 
 public enum PlayerTriggerKind
@@ -59,7 +64,7 @@ public sealed partial class EventEngine
     public event Action<DialogueOutcome>? DialogueCompleted;
 
     public PlayerTrigger NextTrigger => new(
-        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : PendingInteractiveBattle is not null ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
+        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
         FieldId, Frame, PartyMenu is not null ? null : CurrentDialogue?.MessageId, LastFault?.Message ?? (PartyMenu is not null ? null : CurrentDialogue?.Text));
 
     /// <summary>Applies an ordinary player action; no variable or script-PC mutation API is exposed.</summary>
@@ -86,10 +91,19 @@ public sealed partial class EventEngine
         activeActionIndex = actionLog.Count + 1;
         try
         {
-            if (PendingInteractiveBattle is not null)
+            if (HasPendingBattle)
             {
                 accepted = false;
                 detail = "The interactive battle suspends ordinary field input until its outcome returns.";
+            }
+            else if (NativeJunctionMenuInput.IsMenuAction(action.Kind))
+            {
+                bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+                accepted = ApplyJunctionMenuAction(action);
+                if (accepted && menuCallback)
+                {
+                    advanced = 1;
+                }
             }
             else if (PartyMenu is not null)
             {
@@ -246,7 +260,7 @@ public sealed partial class EventEngine
                                 }
                                 CommitNativeLineMovement(lineChanges);
                                 advanced++;
-                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || PendingInteractiveBattle is not null)
+                                if (!IsUserControlEnabled || IsMovementBlockedByDialogue || services.IsMoviePlaying || transitionRequested || HasPendingBattle)
                                 {
                                     break;
                                 }

@@ -22,7 +22,8 @@ internal sealed partial class WorldMapScene : IDisposable
     public Func<WorldFieldSelection, WorldState, short, NativeWorldSalaryState, Action>? PrepareFieldEntry { get; set; }
     public Func<NativeSalaryResult, NativeSalaryPresentation?, NativeGlobalSoundProcess?, NativeSalaryEffects>? PrepareSalaryEffects { get; set; }
     public Action<NativeSalaryEffects>? PublishSalaryEffects { get; set; }
-    public Func<WorldState, uint, WorldState>? ProcessRandomEncounters { get; set; }
+    public Func<WorldState, int, RandomEncounterSessionState?, (WorldState World, RandomEncounterSessionState? Encounters)>? ProcessRandomEncounters { get; set; }
+    private int encounterMovementMagnitude;
     public Func<bool>? HasPendingBattle { get; set; }
     public WorldState? LastDeparture { get; private set; }
 
@@ -336,8 +337,10 @@ internal sealed partial class WorldMapScene : IDisposable
                 advanced++;
                 if (fieldEntry is null && ProcessRandomEncounters is not null)
                 {
-                    candidate = ProcessRandomEncounters(candidate, movementUnits);
-                    if (HasPendingBattle?.Invoke() == true)
+                    var encounterResult = ProcessRandomEncounters(candidate, encounterMovementMagnitude, salary.RandomEncounters);
+                    candidate = encounterResult.World;
+                    salary = salary with { RandomEncounters = encounterResult.Encounters };
+                    if (salary.RandomEncounters?.Pending is not null)
                     {
                         break;
                     }
@@ -370,7 +373,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             session.SetWorldState(candidate);
         }
-        PlayerTrigger trigger = CurrentDialogue is { } dialogue ? new(PlayerTriggerKind.Dialogue, session.State.FieldId, State.Frame, dialogue.MessageId, dialogue.Text) : new(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null);
+        PlayerTrigger trigger = session.State.RandomEncounters?.Pending is not null ? new(PlayerTriggerKind.Battle, session.State.FieldId, State.Frame, null, null) : CurrentDialogue is { } dialogue ? new(PlayerTriggerKind.Dialogue, session.State.FieldId, State.Frame, dialogue.MessageId, dialogue.Text) : new(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null);
         PlayerActionResult result = new(accepted, trigger, advanced, accepted ? null : "This original world action is not implemented.");
         return result;
 
@@ -406,6 +409,7 @@ internal sealed partial class WorldMapScene : IDisposable
 
     private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
+        encounterMovementMagnitude = 0;
         if (before.NativeTrainRuntime is not null)
         {
             return StepTrainRide(before, horizontal, vertical, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
@@ -422,6 +426,14 @@ internal sealed partial class WorldMapScene : IDisposable
             // The certified car loader retains animation variant0. Original5573C0
             // admits manual vehicle camera offset14 only for variant1.
             return StepCar(before, horizontal, vertical, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+        }
+        //53FAC0 seeds24 on the first normal loader callback and decrements before559140.
+        //Frame is the actual callback age: callbacks1..23 retain the native zero-input hold.
+        if (NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) > 0)
+        {
+            horizontal = 0;
+            vertical = 0;
+            cameraHorizontal = 0;
         }
         fieldEntry = null;
         NativeFootWorldRuntimeState foot = before.NativeFootRuntime!;
@@ -498,6 +510,7 @@ internal sealed partial class WorldMapScene : IDisposable
             foot = CompleteNormalFootObjectCallback(foot, x, z, nativeHeight);
         }
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsMoveZ);
+        encounterMovementMagnitude = ground.Blocked ? 0 : graphicsSpeed;
         return before with
         {
             Frame = before.Frame + 1,

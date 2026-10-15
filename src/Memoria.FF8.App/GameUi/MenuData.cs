@@ -48,6 +48,10 @@ public sealed class MenuCharacter
     public List<string> Conditions { get; } = [];
     public List<string> Commands { get; } = [];
     public List<string> Abilities { get; } = [];
+    public List<MenuAbilityChoice> AvailableCommands { get; } = [];
+    public List<MenuAbilityChoice> AvailableAbilities { get; } = [];
+    public int AbilitySlots { get; set; } = 2;
+    public HashSet<string> AvailableJunctionSlots { get; } = new(StringComparer.Ordinal);
     public List<string> GuardianForceIds { get; } = [];
     public Dictionary<string, int> Stats { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> Junctions { get; } = new(StringComparer.Ordinal);
@@ -79,7 +83,10 @@ public sealed class MenuGuardianForce
     public string Learning { get; set; } = "Unavailable";
     public string Element { get; set; } = "Unavailable";
     public List<string> Abilities { get; } = [];
+    public List<MenuAbilityChoice> LearningChoices { get; } = [];
 }
+
+public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = false, int Progress = 0, int RequiredPoints = 0);
 
 public sealed class MenuItem
 {

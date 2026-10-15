@@ -254,6 +254,10 @@ public sealed partial class MenuController
         }
         var index = characters.FindIndex(c => c.Id == Character?.Id);
         _characterId = characters[(index + delta + characters.Count) % characters.Count].Id;
+        if (!IsDemo)
+        {
+            _abilitySlot = Math.Clamp(_abilitySlot, 0, Math.Max(0, (Character?.AbilitySlots ?? 2) - 1));
+        }
         _view = null;
     }
 
@@ -403,6 +407,15 @@ public sealed partial class MenuController
                 Message = $"Unsupported native contract: {action.Kind}. This view remains read-only.";
                 return;
             }
+            action = action.Kind switch
+            {
+                "junction-gf" => action with { TargetId = Character?.Id ?? "" },
+                "junction-command" => action with { TargetId = Character?.Id ?? "", Value = (_commandSlot - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                "junction-magic" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },
+                "gf-learn" => action with { TargetId = GuardianForce?.Id ?? "" },
+                _ => action
+            };
             _liveAction(action);
             _liveData = null;
             Message = "Request sent to the live owner.";

@@ -51,9 +51,20 @@ internal sealed class BattleHudElement : UiElement
         }
         else
         {
-            theme.Pointer(canvas, Left + 32 * Scale, Top + 554 * Scale, 12 * Scale);
-            Text(canvas, theme, "Attack", 56, 546, 186, 30, 24, !canAttack);
-            Text(canvas, theme, canAttack ? "Select an enemy" : "Waiting for ATB", 34, 588, 220, 26, 15, !canAttack);
+            int start = controller.ChoiceStart;
+            for (int row = 0; row < 3 && start + row < controller.ChoiceLabels.Count; row++)
+            {
+                float y = 544 + row * 24;
+                if (start + row == controller.ChoiceIndex)
+                {
+                    theme.Pointer(canvas, Left + 32 * Scale, Top + (y + 5) * Scale, 10 * Scale);
+                }
+                Text(canvas, theme, controller.ChoiceLabels[start + row], 52, y, 198, 24, 17, !canAttack);
+            }
+            if (!canAttack)
+            {
+                Text(canvas, theme, "Waiting for ATB", 34, 588, 220, 26, 15, true);
+            }
         }
 
         IReadOnlyList<BattleCombatant> party = controller.Party;
@@ -206,7 +217,11 @@ internal sealed class BattleHudElement : UiElement
             }
             else
             {
-                controller.Attack();
+                int index = (int)((y - Rect(0, 544, 0, 0).Y) / (24 * Scale)) + controller.ChoiceStart;
+                if (index >= 0 && index < controller.ChoiceLabels.Count)
+                {
+                    controller.Choose(index);
+                }
             }
         }
         else if (Rect(280, 494, 664, 130).Contains(x, y))

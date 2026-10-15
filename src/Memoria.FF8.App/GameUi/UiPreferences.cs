@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>Local presentation preferences; never seed or alter game-owned saved state.</summary>
+/// <summary>Local UI and next New Game choices. Existing playthrough policy changes only through explicit journaled input.</summary>
 internal sealed record UiPreferences
 {
     public int MusicVolume { get; init; } = 100;
@@ -17,6 +17,12 @@ internal sealed record UiPreferences
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
     public bool ShowInitiative { get; init; }
     public bool RandomEncounters { get; init; } = true;
+
+    public BattleInput[] CreateNewGameBattleInputs()
+    {
+        Validate();
+        return BattlePolicy == "NewGameFullCombat" ? [new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true), new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: RandomEncounters)] : [];
+    }
 
     public static UiPreferences Load(string path)
     {

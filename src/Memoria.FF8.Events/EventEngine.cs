@@ -256,7 +256,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (PendingInteractiveBattle is not null)
+        if (HasPendingBattle)
         {
             return;
         }

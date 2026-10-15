@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 internal readonly record struct BattleImpactCue(BattleEvent Event, int Age)
 {
     public bool IsHealing => Event.Kind == "Healing";
-    public bool IsPhysical => Event.Kind == "Damage" && Event.ActorId is not null;
+    public bool IsPhysical => Event.Kind == "Damage" && Event.ActorId is not null && Event.Ability == BattleAbility.Attack;
 }
 
 internal static class BattleImpactPresentation

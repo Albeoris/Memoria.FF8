@@ -73,7 +73,7 @@ public sealed class BattleSessionTests
         Dispatch(session, BattleSession.AttackWindupFrames - 1);
         Assert.Equal(100, session.Combatants[2].CurrentHp);
         session.Tick();
-        Assert.Equal(85, session.Combatants[2].CurrentHp);
+        Assert.Equal(46, session.Combatants[2].CurrentHp);
         Assert.Equal(BattleActionPhase.Recovery, session.ActiveAction!.Phase);
         Dispatch(session, BattleSession.AttackRecoveryFrames);
         Assert.False(session.Combatants[0].IsBusy);
@@ -152,8 +152,8 @@ public sealed class BattleSessionTests
     [Fact]
     public void UnsupportedAbilityAndStatusFailBeforePublishingSession()
     {
-        Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Player() with { Abilities = [BattleAbility.Attack, BattleAbility.Magic] }, Enemy()), BattleAtbMode.Normal));
-        Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Player() with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep }] }, Enemy()), BattleAtbMode.Normal));
+        Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Player() with { Abilities = [BattleAbility.Attack, (BattleAbility)255] }, Enemy()), BattleAtbMode.Normal));
+        Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Player() with { StatusEffects = [new BattleStatusEffectDefinition { Kind = (BattleStatusKind)255 }] }, Enemy()), BattleAtbMode.Normal));
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class BattleSessionTests
         Assert.Equal(26, session.AdvanceTurn());
         Assert.True(session.Combatants[0].IsReady);
         Assert.False(session.Combatants[0].IsBusy);
-        Assert.Equal(85, session.Combatants[1].CurrentHp);
+        Assert.Equal(46, session.Combatants[1].CurrentHp);
     }
 
     [Fact]

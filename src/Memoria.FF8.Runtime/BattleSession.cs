@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 /// Deterministic playable battle scaffold. The 30 Hz dispatch, gauge, damage formula,
 /// AI and presentation timings are explicit product tuning, not original FF8 parity.
 /// </summary>
-public sealed class BattleSession
+public sealed partial class BattleSession
 {
     // TODO(TD-009): Replace scaffold gauge and action timings with recovered battle contracts
     public const int FramesPerSecond = 30;
@@ -18,6 +18,8 @@ public sealed class BattleSession
     private readonly Dictionary<BattleStatusKind, IBattleStatusEffectHandler> handlers;
     private readonly Queue<BattleAttackCommand> actions = new();
     private readonly List<BattleEvent> events = [];
+    private readonly List<BattleStock> items = [];
+    private NativeBattleRandomState random;
 
     public BattleSession(BattleDefinition definition, BattleAtbMode mode) : this(definition, mode, [])
     {
@@ -26,19 +28,24 @@ public sealed class BattleSession
     public BattleSession(BattleDefinition definition, BattleAtbMode mode, IEnumerable<IBattleStatusEffectHandler> additionalHandlers)
     {
         ValidateMode(mode);
-        handlers = new[] { BattleStatusKind.Poison, BattleStatusKind.Regen, BattleStatusKind.Haste, BattleStatusKind.Slow }.ToDictionary(kind => kind, kind => (IBattleStatusEffectHandler)new ScaffoldBattleEffectHandler(kind));
+        handlers = Enum.GetValues<BattleStatusKind>().ToDictionary(kind => kind, kind => (IBattleStatusEffectHandler)new ScaffoldBattleEffectHandler(kind));
+        HashSet<BattleStatusKind> customKinds = [];
         foreach (IBattleStatusEffectHandler handler in additionalHandlers)
         {
-            if (!Enum.IsDefined(handler.Kind) || handler.AtbRatePercent is < 1 or > 1_000 || !handlers.TryAdd(handler.Kind, handler))
+            if (!Enum.IsDefined(handler.Kind) || handler.AtbRatePercent is < 1 or > 1_000 || !customKinds.Add(handler.Kind))
             {
                 throw new ArgumentException("Duplicate or invalid status effect handler.", nameof(additionalHandlers));
             }
+            handlers[handler.Kind] = handler;
         }
         this.definition = CloneDefinition(definition);
         ValidateDefinition(this.definition);
         combatants = this.definition.Combatants.Select(actor => new BattleCombatant(actor)).ToList();
         Combatants = combatants.AsReadOnly();
         byId = combatants.ToDictionary(actor => actor.Id, StringComparer.Ordinal);
+        items.AddRange(this.definition.Items);
+        random = this.definition.InitialRandom ?? NativeBattleRandomState.Initialize(this.definition.NativeSeed);
+        random.Validate();
         Mode = mode;
         Outcome = DetermineOutcome();
     }
@@ -51,6 +58,8 @@ public sealed class BattleSession
     public IReadOnlyList<BattleAttackCommand> QueuedActions => actions.ToArray();
     public BattleActionPresentation? ActiveAction { get; private set; }
     public string Name => definition.Name;
+    public IReadOnlyList<BattleStock> Items => items.AsReadOnly();
+    public IReadOnlyList<BattleActionDefinition> ActionDefinitions => definition.ActionDefinitions.Select(action => action with { Statuses = action.Statuses?.ToArray() }).ToArray();
 
     public void SetMode(BattleAtbMode mode)
     {
@@ -100,7 +109,7 @@ public sealed class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !target.IsAlive || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack))
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || !target.IsAlive || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack) || HasStatus(actor, BattleStatusKind.Sleep))
         {
             throw new InvalidOperationException("Attack requires a ready living actor with Attack and a living opponent in an active battle.");
         }
@@ -177,10 +186,13 @@ public sealed class BattleSession
             Mode = Mode,
             Frame = Frame,
             Outcome = Outcome,
-            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray())).ToArray(),
+            Combatants = combatants.Select(actor => new BattleCombatantSnapshot(actor.Id, actor.CurrentHp, actor.Atb, actor.StatusEffects.ToArray()) { MagicStocks = actor.Stocks.ToArray() }).ToArray(),
             QueuedActions = actions.ToArray(),
             ActiveAction = ActiveAction,
-            Events = events.ToArray()
+            Events = events.ToArray(),
+            Items = items.ToArray(),
+            Random = random,
+            CustomHandlers = handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).Select(handler => handler.Kind).Order().ToArray()
         };
     }
 
@@ -221,8 +233,11 @@ public sealed class BattleSession
                 {
                     effect.UntilTickFrames = effect.Definition.TickIntervalFrames;
                 }
-                effect.RemainingFrames--;
-                if (effect.RemainingFrames == 0)
+                if (!effect.Definition.Permanent)
+                {
+                    effect.RemainingFrames--;
+                }
+                if (!effect.Definition.Permanent && effect.RemainingFrames == 0)
                 {
                     actor.Effects.Remove(effect);
                     Log("StatusExpired", actor.Id, actor.Id, 0, $"{actor.Name}: {effect.Definition.Kind} expired.");
@@ -232,7 +247,7 @@ public sealed class BattleSession
                     break;
                 }
             }
-            if (actor.IsAlive && !actor.IsBusy && !actor.IsReady)
+            if (actor.IsAlive && !actor.IsBusy && !actor.IsReady && !HasStatus(actor, BattleStatusKind.Sleep))
             {
                 // Scaffold gauge growth: Speed units per dispatched frame, modified by active statuses.
                 int gain = CalculateAtbGain(actor.Speed, ratePercent);
@@ -250,7 +265,7 @@ public sealed class BattleSession
         {
             return becameReady;
         }
-        foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady))
+        foreach (BattleCombatant enemy in combatants.Where(actor => !actor.IsPlayer && actor.IsReady && !HasStatus(actor, BattleStatusKind.Sleep)))
         {
             // TODO(TD-009): First living opponent is scaffold AI until native enemy decision programs are implemented
             BattleCombatant target = combatants.First(actor => actor.IsPlayer && actor.IsAlive);
@@ -270,14 +285,14 @@ public sealed class BattleSession
             {
                 BattleCombatant actor = byId[command.ActorId];
                 BattleCombatant target = byId[command.TargetId];
-                if (!actor.IsAlive || !target.IsAlive)
+                if (!actor.IsAlive || !target.IsAlive && !IsRevive(command.Ability, command.ActionId))
                 {
                     actor.IsBusy = false;
                     Log("Cancelled", actor.Id, target.Id, 0, "Attack cancelled because a participant was defeated.");
                     continue;
                 }
-                ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, AttackWindupFrames);
-                Log("Windup", actor.Id, target.Id, 0, $"{actor.Name} attacks {target.Name}.");
+                ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, AttackWindupFrames, command.Ability, command.ActionId, command.DrawCast);
+                Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                 return;
             }
             return;
@@ -293,12 +308,9 @@ public sealed class BattleSession
         {
             BattleCombatant actor = byId[action.ActorId];
             BattleCombatant target = byId[action.TargetId];
-            if (actor.IsAlive && target.IsAlive)
+            if (actor.IsAlive && (target.IsAlive || IsRevive(action.Ability, action.ActionId)))
             {
-                // Scaffold damage deliberately uses no random values or unverified native constants.
-                // TODO(TD-009): Replace Attack-minus-Defense with the recovered physical attack contract
-                int damage = Math.Max(1, actor.Attack - target.Defense);
-                ApplyDamage(actor, target, damage, "Attack");
+                ResolveAction(actor, target, action);
             }
             ActiveAction = action with { Phase = BattleActionPhase.Recovery, RemainingFrames = AttackRecoveryFrames };
             return;
@@ -349,7 +361,7 @@ public sealed class BattleSession
 
     private void CancelDeadActions()
     {
-        if (ActiveAction is { } active && (!byId[active.ActorId].IsAlive || (active.Phase == BattleActionPhase.Windup && !byId[active.TargetId].IsAlive)))
+        if (ActiveAction is { } active && (!byId[active.ActorId].IsAlive || (active.Phase == BattleActionPhase.Windup && !byId[active.TargetId].IsAlive && !IsRevive(active.Ability, active.ActionId))))
         {
             byId[active.ActorId].IsBusy = false;
             ActiveAction = null;
@@ -359,7 +371,7 @@ public sealed class BattleSession
         actions.Clear();
         foreach (BattleAttackCommand command in pending)
         {
-            if (byId[command.ActorId].IsAlive && byId[command.TargetId].IsAlive)
+            if (byId[command.ActorId].IsAlive && (byId[command.TargetId].IsAlive || IsRevive(command.Ability, command.ActionId)))
             {
                 actions.Enqueue(command);
             }
@@ -408,7 +420,8 @@ public sealed class BattleSession
 
     private void Log(string kind, string? actorId, string? targetId, int amount, string message)
     {
-        events.Add(new BattleEvent(Frame, kind, actorId, targetId, amount, message));
+        BattleAbility ability = ActiveAction is { } active && active.ActorId == actorId ? active.Ability : BattleAbility.Attack;
+        events.Add(new BattleEvent(Frame, kind, actorId, targetId, amount, message, ability));
     }
 
     private static void ValidateMode(BattleAtbMode mode)
@@ -428,7 +441,7 @@ public sealed class BattleSession
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(source.Combatants);
-        return source with { Combatants = source.Combatants.Select(actor => actor with { EquipmentIds = actor.EquipmentIds.ToArray(), Abilities = actor.Abilities.ToArray(), StatusEffects = actor.StatusEffects.ToArray() }).ToArray() };
+        return source with { Combatants = source.Combatants.Select(actor => actor with { EquipmentIds = actor.EquipmentIds.ToArray(), Abilities = actor.Abilities.ToArray(), StatusEffects = actor.StatusEffects.ToArray(), MagicStocks = actor.MagicStocks.ToArray(), DrawSpells = actor.DrawSpells.ToArray(), ElementDefenses = actor.ElementDefenses.ToArray() }).ToArray(), Items = source.Items.ToArray(), ActionDefinitions = source.ActionDefinitions.Select(action => action with { Statuses = action.Statuses?.ToArray() }).ToArray() };
     }
 
     private void ValidateDefinition(BattleDefinition source)
@@ -441,14 +454,15 @@ public sealed class BattleSession
         foreach (BattleCombatantDefinition actor in source.Combatants)
         {
             bool invalidModel = actor.ModelId < -1 || actor.IsPlayer && actor.ModelId < 0 || actor.ModelId == -1 && (source.EncounterId is not null || actor.WeaponId is not null || actor.Costume != 0);
-            if (string.IsNullOrWhiteSpace(actor.Id) || !ids.Add(actor.Id) || string.IsNullOrWhiteSpace(actor.Name) || invalidModel || actor.Costume < 0 || actor.MaximumHp is < 1 or > 1_000_000 || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || actor.Speed is < 1 or > AtbMaximum || actor.Attack is < 1 or > 1_000_000 || actor.Defense is < 0 or > 1_000_000 || actor.InitialAtb is < 0 or > AtbMaximum || actor.WeaponId < 0 || actor.EquipmentIds.Any(id => id < 0))
+            if (string.IsNullOrWhiteSpace(actor.Id) || !ids.Add(actor.Id) || string.IsNullOrWhiteSpace(actor.Name) || invalidModel || actor.Costume < 0 || actor.MaximumHp is < 1 or > 1_000_000 || actor.CurrentHp < 0 || actor.CurrentHp > actor.MaximumHp || actor.Speed is < 1 or > AtbMaximum || actor.Attack is < 0 or > 1_000_000 || actor.Defense is < 0 or > 1_000_000 || actor.InitialAtb is < 0 or > AtbMaximum || actor.WeaponId < 0 || actor.EquipmentIds.Any(id => id < 0) || actor.Level is < 0 or > 100 || actor.Magic is < 0 or > 255 || actor.Spirit is < 0 or > 255 || actor.PhysicalPower is < 0 or > 255 || actor.ElementAttack is < 0 or > 255 || actor.ElementAttackPercent is < 0 or > 255 || actor.DrainPercent is < 0 or > 255 || actor.ElementDefenses.Length != 8 || actor.ElementDefenses.Any(value => value is < 0 or > 2550) || actor.DrawSpells.Any(spell => spell.Id is < 1 or >= 64 || spell.Resistance is < 0 or > 255) || actor.DrawSpells.Select(spell => spell.Id).Distinct().Count() != actor.DrawSpells.Length)
             {
                 throw new ArgumentException("Invalid battle combatant identity, vitals, stats or equipment.");
             }
-            if (actor.Abilities.Length == 0 || actor.Abilities.Any(ability => ability != BattleAbility.Attack))
+            if (actor.Abilities.Length == 0 || actor.Abilities.Any(ability => !Enum.IsDefined(ability)) || actor.Abilities.Distinct().Count() != actor.Abilities.Length)
             {
-                throw new NotSupportedException("Only Attack is implemented by the playable battle scaffold.");
+                throw new NotSupportedException("Battle command list contains an unsupported or duplicate command.");
             }
+            ValidateStocks(actor.MagicStocks, 32);
             HashSet<BattleStatusKind> statusKinds = [];
             foreach (BattleStatusEffectDefinition effect in actor.StatusEffects)
             {
@@ -467,6 +481,11 @@ public sealed class BattleSession
                 handler.Validate(effect);
             }
         }
+        ValidateStocks(source.Items, 198);
+        if (source.ActionDefinitions.Any(action => !Enum.IsDefined(action.Ability) || !Enum.IsDefined(action.Effect) || action.Id < 0 || string.IsNullOrWhiteSpace(action.Name) || action.Power < 0 || action.Statuses?.Any(kind => !handlers.ContainsKey(kind)) == true) || source.ActionDefinitions.GroupBy(action => (action.Ability, action.Id)).Any(group => group.Count() != 1))
+        {
+            throw new InvalidDataException("Invalid or unsupported battle action catalog.");
+        }
     }
 
     private void RestoreValidated(BattleSnapshot snapshot)
@@ -474,6 +493,10 @@ public sealed class BattleSession
         if (snapshot.Version != 1 || snapshot.Frame < 0 || !Enum.IsDefined(snapshot.Outcome) || snapshot.Combatants is null || snapshot.Combatants.Length != combatants.Count || snapshot.QueuedActions is null || snapshot.Events is null)
         {
             throw new InvalidDataException("Invalid battle snapshot envelope.");
+        }
+        if (!snapshot.CustomHandlers.Order().SequenceEqual(handlers.Values.Where(handler => handler is not ScaffoldBattleEffectHandler).Select(handler => handler.Kind).Order()))
+        {
+            throw new NotSupportedException("Battle snapshot requires its explicit custom effect handlers.");
         }
         HashSet<string> restored = new(StringComparer.Ordinal);
         foreach (BattleCombatantSnapshot saved in snapshot.Combatants)
@@ -488,25 +511,30 @@ public sealed class BattleSession
             HashSet<BattleStatusKind> kinds = [];
             foreach (BattleStatusSnapshot status in saved.StatusEffects)
             {
-                if (!kinds.Add(status.Kind) || !initial.TryGetValue(status.Kind, out BattleStatusState? original) || status.RemainingFrames < 1 || status.RemainingFrames > original.Definition.DurationFrames || status.UntilTickFrames < 1 || status.UntilTickFrames > original.Definition.TickIntervalFrames)
+                BattleStatusEffectDefinition? effectDefinition = status.Definition ?? initial.GetValueOrDefault(status.Kind)?.Definition;
+                if (effectDefinition is null || !handlers.ContainsKey(status.Kind) || effectDefinition.Kind != status.Kind || !kinds.Add(status.Kind) || status.RemainingFrames < 1 || status.RemainingFrames > effectDefinition.DurationFrames || status.UntilTickFrames < 1 || status.UntilTickFrames > effectDefinition.TickIntervalFrames)
                 {
                     throw new InvalidDataException("Invalid battle status timer.");
                 }
-                int elapsedFrames = original.Definition.DurationFrames - status.RemainingFrames;
-                int expectedUntilTick = original.Definition.TickIntervalFrames - elapsedFrames % original.Definition.TickIntervalFrames;
-                if (status.UntilTickFrames != expectedUntilTick)
+                int elapsedFrames = effectDefinition.DurationFrames - status.RemainingFrames;
+                int expectedUntilTick = effectDefinition.TickIntervalFrames - elapsedFrames % effectDefinition.TickIntervalFrames;
+                if (!effectDefinition.Permanent && status.UntilTickFrames != expectedUntilTick)
                 {
                     throw new InvalidDataException("Battle status duration and periodic timer disagree.");
                 }
-                actor.Effects.Add(new BattleStatusState(original.Definition, status.RemainingFrames, status.UntilTickFrames));
+                handlers[status.Kind].Validate(effectDefinition);
+                actor.Effects.Add(new BattleStatusState(effectDefinition, status.RemainingFrames, status.UntilTickFrames));
             }
             actor.CurrentHp = saved.CurrentHp;
             actor.Atb = saved.Atb;
+            ValidateStocks(saved.MagicStocks, 32);
+            actor.Stocks.Clear();
+            actor.Stocks.AddRange(saved.MagicStocks);
         }
         HashSet<string> busy = new(StringComparer.Ordinal);
         foreach (BattleAttackCommand command in snapshot.QueuedActions)
         {
-            ValidateSavedAction(command.ActorId, command.TargetId, busy, false);
+            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, false);
             actions.Enqueue(command);
         }
         if (snapshot.ActiveAction is { } action)
@@ -516,7 +544,7 @@ public sealed class BattleSession
             {
                 throw new InvalidDataException("Invalid battle presentation timer.");
             }
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Phase == BattleActionPhase.Recovery);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.Phase == BattleActionPhase.Recovery);
         }
         if (snapshot.Outcome != DetermineOutcome() || (snapshot.Outcome != BattleOutcome.Active && busy.Count != 0))
         {
@@ -539,13 +567,19 @@ public sealed class BattleSession
         Outcome = snapshot.Outcome;
         ActiveAction = snapshot.ActiveAction;
         events.AddRange(snapshot.Events);
+        ValidateStocks(snapshot.Items, 198);
+        items.Clear();
+        items.AddRange(snapshot.Items);
+        random = snapshot.Random ?? throw new InvalidDataException("Battle snapshot lacks its owned native RNG.");
+        random.Validate();
     }
 
-    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, bool allowDefeatedTarget)
+    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
-        if (!actor.IsAlive || actor.Atb != 0 || actor.IsPlayer == target.IsPlayer || (!target.IsAlive && !allowDefeatedTarget) || !busy.Add(actorId))
+        bool allies = ability != BattleAbility.Attack && ability != BattleAbility.Draw && FindAction(ability, actionId).Allies;
+        if (!actor.IsAlive || actor.Atb != 0 || (actor.IsPlayer == target.IsPlayer) != allies || (!target.IsAlive && !allowDefeatedTarget && !IsRevive(ability, actionId)) || !busy.Add(actorId) || !actor.Abilities.Contains(ability))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }
@@ -561,6 +595,8 @@ public sealed class BattleSession
             actor.IsBusy = replacement.IsBusy;
             actor.Effects.Clear();
             actor.Effects.AddRange(replacement.Effects);
+            actor.Stocks.Clear();
+            actor.Stocks.AddRange(replacement.Stocks);
         }
         actions.Clear();
         foreach (BattleAttackCommand command in candidate.actions)
@@ -572,6 +608,8 @@ public sealed class BattleSession
         Frame = candidate.Frame;
         Outcome = candidate.Outcome;
         ActiveAction = candidate.ActiveAction;
+        items.Clear();
+        items.AddRange(candidate.items);
+        random = candidate.random;
     }
 }
-

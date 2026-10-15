@@ -1,4 +1,4 @@
-namespace Memoria.FF8.GameUi;
+﻿namespace Memoria.FF8.GameUi;
 
 /// <summary>Menu information architecture. Native effects remain owned by the live provider.</summary>
 public static class MenuCatalog
@@ -22,17 +22,17 @@ public static class MenuCatalog
             Link("junction-command", "Command", "Set command abilities."),
             Link("junction-ability", "Ability", "Set passive character abilities.")
         ], Stats, MenuLayout.Junction, true);
-        Add("junction-gf", "Junction · GF", "Choose a GF. Demo ownership toggles; live junction contract must be supported.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, $"{(c.Character?.GuardianForceIds.Contains(g.Id) == true ? "J " : "")}{g.Name}", $"Junction {g.Name} to {c.Character?.Name}.", Action: new MenuAction("junction-gf", g.Id))).ToArray(), c => ["Character: " + (c.Character?.Name ?? "Unavailable"), "Junctioned GF:", .. c.Data.GuardianForces.Where(g => c.Character?.GuardianForceIds.Contains(g.Id) == true).Select(g => g.Name).Take(10), .. Boundary(c)], MenuLayout.Junction);
+        Add("junction-gf", "Junction · GF", "Choose a GF to junction or remove. A GF assigned to another character must first be removed.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, $"{(c.Character?.GuardianForceIds.Contains(g.Id) == true ? "J " : "")}{g.Name}", $"Junction {g.Name} to {c.Character?.Name}.", Action: new MenuAction("junction-gf", g.Id), Enabled: c.IsDemo || !c.Data.Characters.Any(owner => owner.Id != c.Character?.Id && owner.GuardianForceIds.Contains(g.Id)))).ToArray(), c => ["Character: " + (c.Character?.Name ?? "Unavailable"), "Junctioned GF:", .. c.Data.GuardianForces.Where(g => c.Character?.GuardianForceIds.Contains(g.Id) == true).Select(g => g.Name).Take(10), .. Boundary(c)], MenuLayout.Junction);
         Add("junction-magic", "Junction · Magic", "Choose the stat, then the stocked spell.", c => Slots(c, ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"]), Stats, MenuLayout.Junction);
-        Add("junction-element", "Junction · Elemental", "Elemental attack and defense; slot unlocks require actual GF ability data.", c => Slots(c, ["Elem-Atk", "Elem-Def 1", "Elem-Def 2", "Elem-Def 3", "Elem-Def 4"]), Stats, MenuLayout.Junction);
-        Add("junction-status", "Junction · Status", "Status attack and defense; slot unlocks require actual GF ability data.", c => Slots(c, ["ST-Atk", "ST-Def 1", "ST-Def 2", "ST-Def 3", "ST-Def 4"]), Stats, MenuLayout.Junction);
-        Add("junction-stock", "Junction · Select magic", "Choose stocked magic. Native junction strength is not estimated.", c => CharacterMagic(c).Select(m => new MenuEntry(m.Id, $"{m.Name}   {m.Quantity}", $"Assign {m.Name} to {c.JunctionSlot}.", Action: new MenuAction("junction-magic", m.Id, Value: m.Name))).ToArray(), c => [$"Slot: {c.JunctionSlot}", "Current: " + (c.Character?.Junctions.GetValueOrDefault(c.JunctionSlot) ?? "Unavailable"), "Quantities are projected stock, not stat bonuses.", .. Boundary(c)], MenuLayout.Junction);
+        Add("junction-element", "Junction · Elemental", "Junction stocked magic to unlocked elemental attack and defense slots.", c => Slots(c, ["Elem-Atk", "Elem-Def 1", "Elem-Def 2", "Elem-Def 3", "Elem-Def 4"]), Stats, MenuLayout.Junction);
+        Add("junction-status", "Junction · Status", "Junction stocked magic to unlocked status attack and defense slots.", c => Slots(c, ["ST-Atk", "ST-Def 1", "ST-Def 2", "ST-Def 3", "ST-Def 4"]), Stats, MenuLayout.Junction);
+        Add("junction-stock", "Junction · Select magic", "Choose stocked magic. A spell can be junctioned to one slot at a time.", c => JunctionStock(c), c => [$"Slot: {c.JunctionSlot}", "Current: " + (c.Character?.Junctions.GetValueOrDefault(c.JunctionSlot) ?? "--")], MenuLayout.Junction);
         Add("junction-off", "Junction · Off", "Remove a junction category.", _ => [Action("magic", "Magic", "Remove stat / elemental / status magic junctions.", "junction-off", value: "Magic"), Action("all", "All", "Remove GF and magic junctions.", "junction-off", value: "All")], Stats, MenuLayout.Junction);
         Add("junction-auto", "Junction · Auto", "Choose an optimization priority.", _ => [Action("attack", "Atk", "Prioritize attack in the original Auto menu.", "junction-auto", value: "Attack"), Action("magic", "Mag", "Prioritize magic in the original Auto menu.", "junction-auto", value: "Magic"), Action("defense", "Def", "Prioritize defense in the original Auto menu.", "junction-auto", value: "Defense")], c => ["Native optimization is unsupported.", "Demo assigns one visible fixture junction.", .. Stats(c)], MenuLayout.Junction);
         Add("junction-command", "Junction · Command", "Choose a configurable command slot.", c => Enumerable.Range(1, 3).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Commands.ElementAtOrDefault(slot) ?? "Unavailable"}", "Select a command for this slot.", "junction-command-choice", new MenuAction("select-command-slot", slot.ToString()))).ToArray(), c => ["Attack occupies the fixed first slot.", "Three configurable command slots follow.", .. CharacterDetails(c)], MenuLayout.Junction);
-        Add("junction-command-choice", "Junction · Select Command", "Choose a command for the selected slot.", _ => new[] { "Magic", "GF", "Draw", "Item", "Card", "Doom", "Darkside", "Recover", "Treatment", "Revive", "Death", "Mad Rush", "Defend", "Kamikaze", "Absorb", "LV Down", "LV Up" }.Select(command => Action(command, command, "Fixture command choice; native availability requires learned abilities.", "junction-command", value: command)).ToArray(), c => [$"Selected command slot: {c.CommandSlot + 1}", "Availability is not a native learned-ability claim.", .. CharacterDetails(c)], MenuLayout.Junction);
-        Add("junction-ability", "Junction · Ability", "Choose a passive ability slot.", c => Enumerable.Range(0, c.IsDemo ? 3 : Math.Max(2, c.Character?.Abilities.Count ?? 0)).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Abilities.ElementAtOrDefault(slot) ?? "Unavailable"}", "Native slot unlocks must be authenticated.", "junction-ability-choice", new MenuAction("select-ability-slot", slot.ToString()))).ToArray(), c => ["Assigned abilities:", .. (c.Character?.Abilities ?? []).Take(4), .. Boundary(c)], MenuLayout.Junction);
-        Add("junction-ability-choice", "Junction · Select Ability", "Choose a passive character ability.", _ => new[] { "Empty", "HP+20%", "HP+40%", "HP+80%", "Str+20%", "Str+40%", "Str+60%", "Vit+20%", "Mag+20%", "Spr+20%", "Spd+20%", "Luck+50%", "Mug", "Auto-Protect", "Auto-Shell", "Auto-Haste", "Auto-Reflect", "Auto-Potion", "Move-HP Up", "Cover", "Counter", "Return Damage" }.Select(ability => Action(ability, ability, "Set a fixture passive; native slot unlocks and effect calculation unsupported.", "junction-ability", value: ability)).ToArray(), c => [$"Selected ability slot: {c.AbilitySlot + 1}", .. Boundary(c)], MenuLayout.Junction);
+        Add("junction-command-choice", "Junction · Select Command", "Choose a learned command from the junctioned GFs.", c => CommandChoices(c), c => [$"Selected command slot: {c.CommandSlot + 1}", .. CharacterDetails(c)], MenuLayout.Junction);
+        Add("junction-ability", "Junction · Ability", "Choose a passive ability slot.", c => Enumerable.Range(0, c.IsDemo ? 3 : c.Character?.AbilitySlots ?? 2).Select(slot => new MenuEntry(slot.ToString(), $"Slot {slot + 1}   {c.Character?.Abilities.ElementAtOrDefault(slot) ?? "--"}", "Select a learned ability for this slot.", "junction-ability-choice", new MenuAction("select-ability-slot", slot.ToString()))).ToArray(), c => ["Assigned abilities:", .. (c.Character?.Abilities ?? []).Take(4)], MenuLayout.Junction);
+        Add("junction-ability-choice", "Junction · Select Ability", "Choose a learned passive ability from the junctioned GFs.", c => PassiveChoices(c), c => [$"Selected ability slot: {c.AbilitySlot + 1}"], MenuLayout.Junction);
 
         Add("item", "Item", "Use and arrange inventory.", _ => [Link("item-use", "Use", "Choose an item and character target."), Link("item-rearrange", "Rearrange", "Exchange two inventory positions."), Action("sort", "Sort", "Sort the explicit fixture inventory by name.", "item-sort")], InventoryDetails, main: true);
         Add("item-use", "Item · Use", "Select an item.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", i.Description, "item-target", new MenuAction("select-item", i.Id))).ToArray(), InventoryDetails);
@@ -76,8 +76,8 @@ public static class MenuCatalog
 
         Add("gf", "GF", "Choose a Guardian Force.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, g.Name, $"Inspect {g.Name}.", "gf-detail", new MenuAction("select-gf", g.Id))).ToArray(), SelectedGfDetails, MenuLayout.GuardianForceGrid, true, 8);
         Add("gf-detail", "GF · Details", "GF stats, junction owner and learned abilities.", _ => [Link("gf-learn", "Learn", "Choose the GF ability learning target."), Link("gf-abilities", "Abilities", "Browse ability catalogue.")], GfDetails);
-        Add("gf-learn", "GF · Learn", "Choose a learning target from explicitly provided abilities.", c => (c.GuardianForce?.Abilities ?? []).Select(a => Action(a, a, "Select the fixture GF learning target.", "gf-learn", value: a)).ToArray(), GfDetails);
-        Add("gf-abilities", "GF · Abilities", "GF ability overview.", c => (c.GuardianForce?.Abilities ?? []).Select(a => new MenuEntry(a, a, "Learned / available distinction requires native AP and bit banks.")).ToArray(), GfDetails);
+        Add("gf-learn", "GF · Learn", "Choose an available unlearned ability. AP progress is retained when changing targets.", c => c.IsDemo ? (c.GuardianForce?.Abilities ?? []).Select(a => Action(a, a, "Select a learning target.", "gf-learn", value: a)).ToArray() : (c.GuardianForce?.LearningChoices ?? []).Select(a => new MenuEntry(a.Id, $"{a.Name}   {(a.Learned ? "Learned" : $"{a.Progress}/{a.RequiredPoints} AP")}", a.Learned ? "This ability has already been learned." : "Learn this ability next.", Action: new MenuAction("gf-learn", a.Id), Enabled: !a.Learned)).ToArray(), GfDetails);
+        Add("gf-abilities", "GF · Abilities", "Learned and available abilities.", c => c.IsDemo ? (c.GuardianForce?.Abilities ?? []).Select(a => new MenuEntry(a, a, "GF ability.")).ToArray() : (c.GuardianForce?.LearningChoices ?? []).Select(a => new MenuEntry(a.Id, $"{a.Name}   {(a.Learned ? "Learned" : $"{a.Progress}/{a.RequiredPoints} AP")}", "Current GF progression.")).ToArray(), GfDetails);
 
         Add("ability", "Ability", "Refine items, magic and cards with learned menu abilities.", c => [.. c.Data.Recipes.Select(r => r.Ability).Distinct().Select(a => new MenuEntry(a, a, "Browse explicit fixture recipes.", "ability-recipes", new MenuAction("select-recipe", c.Data.Recipes.First(r => r.Ability == a).Id))), Link("ability-card-mod", "Card Mod", "Select a card and inspect its refinement result.")], c => ["Choose a refinement ability.", "Select a recipe before choosing quantity."], main: true);
         Add("ability-recipes", "Ability · Recipes", "Select a recipe.", c => c.Data.Recipes.Where(r => r.Ability == c.Recipe?.Ability).Select(r => new MenuEntry(r.Id, $"{r.IngredientQuantity} → {r.ResultQuantity} {r.ResultName}", "Inspect the recipe before executing.", "ability-refine", new MenuAction("select-recipe", r.Id))).ToArray(), RecipeDetails);
@@ -100,7 +100,7 @@ public static class MenuCatalog
         Add("tutorial", "Tutorial", "Reference topics and SeeD test entry.", _ => [Link("tutorial-junction", "Junction", "GF, magic and ability junction concepts."), Link("tutorial-battle", "Battle", "Battle command concepts."), Link("tutorial-gf", "GF", "GF learning and junction concepts."), Link("tutorial-card", "Card", "Triple Triad concepts."), Link("tutorial-menu", "Menu", "Menu control reference."), Link("tutorial-seed", "SeeD test", "Original test bank is unsupported; isolated demo questions available.")], _ => ["Concept reference pages are rewritten summaries.", "These pages do not reproduce original tutorial scripts."], main: true);
         Add("tutorial-junction", "Tutorial · Junction", "Junction concept reference.", _ => [], _ => ["Junction a GF to unlock supported junction slots.", "Stocked magic can be assigned to enabled stats.", "The spell and stock affect the original stat bonus.", "Commands and passive abilities use separate slots.", "This UI does not guess native stat formulas."]);
         Add("tutorial-battle", "Tutorial · Battle", "Battle concept reference.", _ => [], _ => ["Attack uses the equipped weapon.", "Magic casts stocked spells.", "Draw obtains available spells from a target.", "GF summons the junctioned Guardian Force.", "Item uses an available battle item.", "Limit Break availability depends on battle state."]);
-        Add("tutorial-gf", "Tutorial · GF", "Guardian Force concept reference.", _ => [], _ => ["Guardian Forces earn EXP and AP.", "Choose an ability learning target in Learn.", "Learned abilities enable commands and junctions.", "GF details require authentic native progression data."]);
+        Add("tutorial-gf", "Tutorial · GF", "Guardian Force concept reference.", _ => [], _ => ["Guardian Forces earn EXP and AP.", "Choose an ability learning target in Learn.", "Learned abilities enable commands and junctions.", "Learn shows available abilities and their saved AP progress."]);
         Add("tutorial-card", "Tutorial · Card", "Triple Triad concept reference.", _ => [], _ => ["Cards carry values on four sides.", "Adjacent values determine captures under basic rules.", "Regional rules can change captures and trading.", "Card ownership is separate from encountered cards.", "No Triple Triad match engine is implemented here."]);
         Add("tutorial-menu", "Tutorial · Menu", "Current host menu controls.", _ => [], _ => ["Directional keys move the menu cursor.", "Confirm opens a page or requests an action.", "Cancel returns to the previous page.", "H / G switches the selected character.", "S opens the Limit Break page from Status.", "V opens the game menu through the host."]);
         Add("tutorial-seed", "Tutorial · SeeD Test", "Start the isolated test fixture.", _ => [new MenuEntry("test", "Start fixture test", "Ten synthetic questions; no native rank mutation.", "seed-test", new MenuAction("test-reset"))], c => [$"Projected SeeD rank: {MenuController.Number(c.Data.SeeDRank)}", "Original numbered tests and eligibility are unsupported.", "The debug fixture tests navigation and answer recording."]);
@@ -137,7 +137,32 @@ public static class MenuCatalog
     private static IReadOnlyList<string> Boundary(MenuController c) => c.ScreenId == "debug-room" ? [c.Data.SourceDescription] : [];
     private static IEnumerable<MenuMagic> CharacterMagic(MenuController c) => c.Data.Magic.Where(m => m.CharacterId == c.Character?.Id);
     private static IReadOnlyList<MenuEntry> MagicEntries(MenuController c, string destination) => CharacterMagic(c).Select(m => new MenuEntry(m.Id, $"{m.Name}   {m.Quantity}", m.Description, destination, new MenuAction("select-magic", m.Id))).ToArray();
-    private static IReadOnlyList<MenuEntry> Slots(MenuController c, string[] slots) => slots.Select(slot => new MenuEntry(slot, $"{slot}   {c.Character?.Junctions.GetValueOrDefault(slot, "--") ?? "Unavailable"}", "Native slot unlocks and stat effects require a supported junction owner.", "junction-stock", new MenuAction("select-slot", slot))).ToArray();
+    private static IReadOnlyList<MenuEntry> CommandChoices(MenuController c)
+    {
+        if (c.IsDemo)
+        {
+            return new[] { "Magic", "GF", "Draw", "Item", "Card", "Doom", "Darkside", "Recover", "Treatment", "Revive", "Death", "Mad Rush", "Defend", "Kamikaze", "Absorb", "LV Down", "LV Up" }.Select(command => Action(command, command, "Choose a fixture command.", "junction-command", value: command)).ToArray();
+        }
+        return new[] { new MenuEntry("0", "Empty", "Remove the command from this slot.", Action: new MenuAction("junction-command", "0")) }.Concat((c.Character?.AvailableCommands ?? []).Select(choice => new MenuEntry(choice.Id, choice.Name, "Equip this learned command.", Action: new MenuAction("junction-command", choice.Id)))).ToArray();
+    }
+
+    private static IReadOnlyList<MenuEntry> PassiveChoices(MenuController c)
+    {
+        if (c.IsDemo)
+        {
+            return new[] { "Empty", "HP+20%", "HP+40%", "HP+80%", "Str+20%", "Str+40%", "Str+60%", "Vit+20%", "Mag+20%", "Spr+20%", "Spd+20%", "Luck+50%", "Mug", "Auto-Protect", "Auto-Shell", "Auto-Haste", "Auto-Reflect", "Auto-Potion", "Move-HP Up", "Cover", "Counter", "Return Damage" }.Select(ability => Action(ability, ability, "Choose a fixture ability.", "junction-ability", value: ability)).ToArray();
+        }
+        return new[] { new MenuEntry("0", "Empty", "Remove the ability from this slot.", Action: new MenuAction("junction-ability", "0")) }.Concat((c.Character?.AvailableAbilities ?? []).Select(choice => new MenuEntry(choice.Id, choice.Name, "Equip this learned ability.", Action: new MenuAction("junction-ability", choice.Id)))).ToArray();
+    }
+
+    private static IReadOnlyList<MenuEntry> JunctionStock(MenuController c)
+    {
+        bool available = c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(c.JunctionSlot) == true;
+        MenuEntry[] spells = CharacterMagic(c).Where(magic => magic.Quantity > 0).Select(magic => new MenuEntry(magic.Id, $"{magic.Name}   {magic.Quantity}", $"Junction {magic.Name} to {c.JunctionSlot}.", Action: new MenuAction("junction-magic", magic.Id, Value: magic.Name), Enabled: available)).ToArray();
+        return c.IsDemo ? spells : [new MenuEntry("0", "Empty", "Remove magic from this slot.", Action: new MenuAction("junction-magic", "0"), Enabled: available), .. spells];
+    }
+
+    private static IReadOnlyList<MenuEntry> Slots(MenuController c, string[] slots) => slots.Select(slot => new MenuEntry(slot, $"{slot}   {c.Character?.Junctions.GetValueOrDefault(slot, "--") ?? "--"}", c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(slot) == true ? "Choose stocked magic for this slot." : "Learn this junction ability from an equipped GF to unlock the slot.", "junction-stock", new MenuAction("select-slot", slot), c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(slot) == true)).ToArray();
     private static IReadOnlyList<MenuEntry> Targets(MenuController c, string kind) => c.Data.Characters.Select(ch => Action(ch.Id, $"{ch.Name}   HP {MenuController.Hp(ch)}", "Request this action on the selected target.", kind, target: ch.Id)).ToArray();
     private static IReadOnlyList<string> CharacterDetails(MenuController c)
     {
@@ -153,13 +178,27 @@ public static class MenuCatalog
     private static IReadOnlyList<string> MagicDetails(MenuController c) => [$"Character: {c.Character?.Name ?? "Unavailable"}", $"Stock entries: {CharacterMagic(c).Count()}", "Max stock: 100 in the explicit fixture", c.Magic?.Description ?? "Magic descriptions unavailable.", .. Boundary(c)];
     private static IReadOnlyList<string> GfDetails(MenuController c)
     {
-        var gf = c.GuardianForce;
-        return gf == null ? ["GF data unavailable.", .. Boundary(c)] : [gf.Name, $"Lv {MenuController.Number(gf.Level)}", $"HP {MenuController.Number(gf.CurrentHp)} / {MenuController.Number(gf.MaximumHp)}", $"EXP {MenuController.Number(gf.Experience)}    AP {MenuController.Number(gf.AbilityPoints)}", $"Element: {gf.Element}", $"Learning: {gf.Learning}", "Owner: " + (c.Data.Characters.FirstOrDefault(ch => ch.GuardianForceIds.Contains(gf.Id))?.Name ?? "None projected"), .. Boundary(c)];
+        MenuGuardianForce? gf = c.GuardianForce;
+        if (gf is null)
+        {
+            return ["No Guardian Forces available."];
+        }
+        List<string> details = [gf.Name, $"Lv {MenuController.Number(gf.Level)}", $"HP {MenuController.Number(gf.CurrentHp)} / {MenuController.Number(gf.MaximumHp)}", $"EXP {MenuController.Number(gf.Experience)}", $"Learning: {gf.Learning}"];
+        if (gf.AbilityPoints is int points)
+        {
+            details.Add($"Learning AP: {points}");
+        }
+        if (gf.Element != "Unavailable")
+        {
+            details.Add($"Element: {gf.Element}");
+        }
+        details.Add("Junctioned to: " + (c.Data.Characters.FirstOrDefault(character => character.GuardianForceIds.Contains(gf.Id))?.Name ?? "--"));
+        return details;
     }
     private static IReadOnlyList<string> SelectedGfDetails(MenuController c)
     {
         var gf = c.Data.GuardianForces.FirstOrDefault(g => g.Id == c.SelectedEntry?.Id);
-        return gf == null ? ["No GF collection is projected.", .. Boundary(c)] : [$"{gf.Name}    Lv {MenuController.Number(gf.Level)}    HP {MenuController.Number(gf.CurrentHp)} / {MenuController.Number(gf.MaximumHp)}", $"Learning: {gf.Learning}", .. Boundary(c)];
+        return gf == null ? ["No Guardian Forces available.", .. Boundary(c)] : [$"{gf.Name}    Lv {MenuController.Number(gf.Level)}    HP {MenuController.Number(gf.CurrentHp)} / {MenuController.Number(gf.MaximumHp)}", $"Learning: {gf.Learning}", .. Boundary(c)];
     }
     private static IReadOnlyList<string> SelectedCardDetails(MenuController c) => CardDetails(c.Data.Cards.FirstOrDefault(card => card.Id == c.SelectedEntry?.Id));
     private static IReadOnlyList<string> CardDetails(MenuCard? card) => card == null ? ["No card metadata is projected."] : [$"{card.Name}    Quantity {card.Quantity}    Level {MenuController.Number(card.Level)}", "Ranks (top / right / bottom / left): " + card.Ranks, "Element: " + card.Element, card.Description];

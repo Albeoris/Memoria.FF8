@@ -12,12 +12,19 @@ public sealed class BattleHudController
     private readonly Action<string, string> attack;
     private readonly Action? complete;
     private readonly UiView view;
+    private readonly Action<BattleInput>? execute;
+    private int commandIndex;
+    private int actionIndex;
+    private BattleEvent? lastNotification;
+    public bool SelectingAction { get; private set; }
+    public bool DrawCast { get; private set; }
     private string? selectedActorId;
     private string? selectedTargetId;
 
-    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null)
+    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null)
     {
         this.session = session;
+        this.execute = execute;
         this.attack = attack;
         this.complete = complete;
         this.openDebug = openDebug;
@@ -29,12 +36,31 @@ public sealed class BattleHudController
     public BattleSession Session => session;
     public event Action<MenuSound>? SoundRequested;
     public bool SelectingTarget { get; private set; }
-    public string Message { get; private set; } = "Choose Attack when a character is ready.";
+    public string Message { get; private set; } = "Choose a command when a character is ready.";
     public float TextScale { get; set; } = 1;
     public bool ShowInitiative { get; set; }
     public Action<BattleCombatant, IUiCanvas, UiRect>? HeadRenderer { get; set; }
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
-    public IReadOnlyList<BattleCombatant> Targets => session.Combatants.Where(actor => !actor.IsPlayer && actor.IsAlive).ToArray();
+    public IReadOnlyList<BattleAbility> Commands => SelectedActor?.Abilities ?? [];
+    public BattleAbility SelectedCommand => Commands.Count == 0 ? BattleAbility.Attack : Commands[Math.Clamp(commandIndex, 0, Commands.Count - 1)];
+    public IReadOnlyList<BattleActionDefinition> ActionChoices => SelectedActor is not { } actor ? [] : session.ActionDefinitions.Where(action => SelectedCommand switch
+    {
+        BattleAbility.Magic => action.Ability == BattleAbility.Magic && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0),
+        BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
+        BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available,
+        BattleAbility.Draw => action.Ability == BattleAbility.Magic && session.Combatants.Any(enemy => enemy.IsAlive && !enemy.IsPlayer && enemy.DrawSpells.Any(spell => spell.Id == action.Id)),
+        _ => false
+    }).ToArray();
+    public BattleActionDefinition? SelectedAction => ActionChoices.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)));
+    public IReadOnlyList<string> ChoiceLabels => SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(command => command == BattleAbility.GuardianForce ? "GF" : command.ToString()).ToArray();
+    public int ChoiceIndex => SelectingAction ? actionIndex : commandIndex;
+    public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 3));
+    public IReadOnlyList<BattleCombatant> Targets => session.Combatants.Where(actor =>
+    {
+        bool allies = SelectedCommand != BattleAbility.Attack && SelectedCommand != BattleAbility.Draw && SelectedAction?.Allies == true;
+        bool revive = SelectedCommand != BattleAbility.Draw && SelectedAction?.Effect == BattleActionEffect.Revive;
+        return actor.IsPlayer == allies && (revive ? !actor.IsAlive : actor.IsAlive);
+    }).ToArray();
     public IReadOnlyList<BattleCombatant> VisibleTargets
     {
         get
@@ -68,9 +94,16 @@ public sealed class BattleHudController
 
     public UiView BuildView()
     {
+        BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Draw" or "Scan");
+        if (notification is not null && notification != lastNotification)
+        {
+            Message = notification.Message;
+            lastNotification = notification;
+        }
         if (SelectingTarget && SelectedActor is null)
         {
             SelectingTarget = false;
+            SelectingAction = false;
         }
         return view;
     }
@@ -104,6 +137,26 @@ public sealed class BattleHudController
                     SoundRequested?.Invoke(MenuSound.Move);
                 }
             }
+            else if (input is MenuInput.Up or MenuInput.Down)
+            {
+                int count = SelectingAction ? ActionChoices.Count : Commands.Count;
+                if (count > 0)
+                {
+                    if (SelectingAction)
+                    {
+                        actionIndex = (actionIndex + direction + count) % count;
+                    }
+                    else
+                    {
+                        commandIndex = (commandIndex + direction + count) % count;
+                    }
+                    SoundRequested?.Invoke(MenuSound.Move);
+                }
+            }
+            else if (SelectingAction && SelectedCommand == BattleAbility.Draw)
+            {
+                DrawCast = !DrawCast;
+            }
             else
             {
                 string? before = SelectedActor?.Id;
@@ -123,10 +176,22 @@ public sealed class BattleHudController
             Message = "Waiting for a character's ATB gauge.";
             return;
         }
+        if (SelectedCommand != BattleAbility.Attack && !SelectingAction && !SelectingTarget)
+        {
+            SelectingAction = true;
+            actionIndex = 0;
+            Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Draw ? "Choose magic. Left/Right switches Stock/Cast." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
+            SoundRequested?.Invoke(MenuSound.Confirm);
+            return;
+        }
         if (!SelectingTarget)
         {
+            if (SelectedCommand != BattleAbility.Attack && SelectedAction is null)
+            {
+                return;
+            }
             SelectingTarget = true;
-            Message = "Select an enemy. Confirm: Attack   Cancel: Return";
+            Message = "Select a target. Confirm: Execute   Cancel: Return";
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
@@ -134,13 +199,55 @@ public sealed class BattleHudController
         {
             return;
         }
-        attack(actor.Id, target.Id);
+        string name = SelectedCommand == BattleAbility.Attack ? "Attack" : SelectedAction!.Name;
+        try
+        {
+            if (SelectedCommand == BattleAbility.Attack)
+            {
+                attack(actor.Id, target.Id);
+            }
+            else
+            {
+                (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: target.Id, Ability: SelectedCommand, ActionId: SelectedAction!.Id, DrawCast: DrawCast));
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
+        {
+            Message = error.Message;
+            return;
+        }
         SoundRequested?.Invoke(MenuSound.Confirm);
         SelectingTarget = false;
-        Message = $"{actor.Name}: Attack → {target.Name}";
+        SelectingAction = false;
+        Message = $"{actor.Name}: {name} → {target.Name}";
         selectedActorId = null;
+        commandIndex = 0;
     }
 
+    public void Choose(int index)
+    {
+        if (SelectingAction)
+        {
+            actionIndex = index;
+        }
+        else
+        {
+            commandIndex = index;
+        }
+        Attack();
+    }
+
+    private string ChoiceLabel(BattleActionDefinition action)
+    {
+        string label = action.DisplayName ?? action.Name;
+        return SelectedCommand switch
+        {
+            BattleAbility.Draw => label + (DrawCast ? " · Cast" : " · Stock"),
+            BattleAbility.Magic => label + "  " + SelectedActor!.MagicStocks.Single(stock => stock.Id == action.Id).Count,
+            BattleAbility.Item => label + "  " + session.Items.Single(stock => stock.Id == action.Id).Count,
+            _ => label
+        };
+    }
     public void SelectParty(string actorId)
     {
         if (Party.Any(actor => actor.Id == actorId && actor.IsReady && actor.IsAlive && !actor.IsBusy))
@@ -200,7 +307,8 @@ public sealed class BattleHudController
             SoundRequested?.Invoke(MenuSound.Cancel);
         }
         SelectingTarget = false;
-        Message = "Choose Attack when a character is ready.";
+        SelectingAction = false;
+        Message = "Choose a command when a character is ready.";
     }
 
     private static string? Cycle(IReadOnlyList<BattleCombatant> actors, string? selectedId, int direction)

@@ -44,11 +44,18 @@ public static class NativeCharacterInitialization
             passives[id] = new NativeStatModifier(row[4], row[5], row[6]);
         }
         NativeStatCurve[] guardianForces = new NativeStatCurve[16];
+        ImmutableArray<NativeGuardianForceLearningRule>[] learning = new ImmutableArray<NativeGuardianForceLearningRule>[16];
         ReadOnlySpan<byte> guardianForceSection = Section(2, 132, guardianForces.Length);
         for (int id = 0; id < guardianForces.Length; id++)
         {
             ReadOnlySpan<byte> row = guardianForceSection.Slice(id * 132, 132);
             guardianForces[id] = new NativeStatCurve(row[24], row[25], row[20], row[21], row[22]);
+            NativeGuardianForceLearningRule[] rules = new NativeGuardianForceLearningRule[21];
+            for (int index = 0; index < rules.Length; index++)
+            {
+                rules[index] = new NativeGuardianForceLearningRule(row[28 + index * 4], row[29 + index * 4], row[30 + index * 4]);
+            }
+            learning[id] = rules.ToImmutableArray();
         }
         NativeStatModifier[] guardianForceModifiers = new NativeStatModifier[9];
         ReadOnlySpan<byte> guardianForceModifierSection = Section(16, 8, guardianForceModifiers.Length);
@@ -58,6 +65,27 @@ public static class NativeCharacterInitialization
             guardianForceModifiers[id] = new NativeStatModifier(row[5], row[6], row[7]);
         }
         NativeStatDefinitions definitions = new(characters.ToImmutableArray(), magicHitPoints.ToImmutableArray(), passives.ToImmutableArray(), guardianForces.ToImmutableArray(), guardianForceModifiers.ToImmutableArray());
+        List<byte> abilityPoints = [];
+        int[] abilityCounts = [20, 19, 19, 20, 5, 9, 24];
+        byte[] commandMappings = new byte[19];
+        byte[] partyAbilityFlags = new byte[5];
+        for (int section = 11; section <= 17; section++)
+        {
+            ReadOnlySpan<byte> table = Section(section, 8, abilityCounts[section - 11]);
+            for (int id = 0; id < abilityCounts[section - 11]; id++)
+            {
+                abilityPoints.Add(table[8 * id + 4]);
+                if (section == 12)
+                {
+                    commandMappings[id] = table[8 * id + 5];
+                }
+                if (section == 15)
+                {
+                    partyAbilityFlags[id] = table[8 * id + 5];
+                }
+            }
+        }
+        NativeGuardianForceMenuDefinitions menuDefinitions = new(learning.ToImmutableArray(), abilityPoints.ToImmutableArray(), commandMappings.ToImmutableArray(), partyAbilityFlags.ToImmutableArray());
         NativeCharacterVital[] records = new NativeCharacterVital[8];
         for (int index = 0; index < records.Length; index++)
         {
@@ -80,7 +108,7 @@ public static class NativeCharacterInitialization
         for (int id = 0; id < savedGuardianForces.Length; id++)
         {
             ReadOnlySpan<byte> row = initial.AsSpan(id * 68, 68);
-            savedGuardianForces[id] = new NativeGuardianForceVital(BinaryPrimitives.ReadUInt32LittleEndian(row[12..]), row[17], BinaryPrimitives.ReadUInt16LittleEndian(row[18..]), new NativeGuardianForceLearnedBank(BinaryPrimitives.ReadUInt64LittleEndian(row[20..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..])), null);
+            savedGuardianForces[id] = new NativeGuardianForceVital(BinaryPrimitives.ReadUInt32LittleEndian(row[12..]), row[17], BinaryPrimitives.ReadUInt16LittleEndian(row[18..]), new NativeGuardianForceLearnedBank(BinaryPrimitives.ReadUInt64LittleEndian(row[20..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..])), null, row.Slice(36, 21).ToArray().ToImmutableArray(), row[64], (uint)(row[65] | row[66] << 8 | row[67] << 16));
         }
         NativeCharacterVitals state = new()
         {
@@ -92,6 +120,7 @@ public static class NativeCharacterInitialization
             CombatParty = initial.AsSpan(2724, 3).ToArray(),
             GuardianForces = savedGuardianForces,
             Definitions = definitions,
+            MenuDefinitions = menuDefinitions,
             DreamWeapons = initial.AsSpan(2744, 3).ToArray(),
             // Executed52CA90(1) clears248 event-bank bytes, including188..193.
             JunctionPartyBackup = new byte[6],

@@ -27,8 +27,8 @@ public sealed class BattleDebugController
     private readonly Action<BattleDefinition, BattleAtbMode> start;
     private readonly Action<BattleAtbMode, string, bool> settings;
     private readonly Action close;
-    public Func<bool?>? ReadCurrentEncounters { get; init; }
-    public Action<bool>? ChangeCurrentEncounters { get; init; }
+    private Func<bool?>? readCurrentEncounters;
+    private Action<bool>? changeCurrentEncounters;
     private readonly List<BattleCombatantDefinition> party;
     private readonly List<BattleCombatantDefinition> enemies;
     private readonly UiView view;
@@ -62,14 +62,23 @@ public sealed class BattleDebugController
     public string Policy { get; private set; }
     public bool ShowInitiative { get; private set; }
     public int SelectedIndex { get; private set; }
-    public string Message { get; private set; } = "Changes apply to a new debug scenario.";
+    public string Message { get; private set; } = "Edit the scenario or the explicitly labeled playthrough settings.";
     internal IReadOnlyList<BattleDebugRow> Rows => rows;
     public BattleDefinition Definition => initial with { Name = "Debug battle", StageId = stageId, Combatants = [.. party.Select((actor, index) => actor with { Id = $"party-{index}", IsPlayer = true }), .. enemies.Select((actor, index) => actor with { Id = $"enemy-{index}", IsPlayer = false })] };
 
+    public void ConnectCurrentEncounters(Func<bool?> read, Action<bool> change)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        ArgumentNullException.ThrowIfNull(change);
+        readCurrentEncounters = read;
+        changeCurrentEncounters = change;
+        RebuildRows();
+    }
+
     public static BattleDefinition InitializeParty(BattleDefinition scenario, IReadOnlyList<BattleCombatantDefinition> currentParty, BattleSession? currentBattle = null)
     {
-        Dictionary<string, int>? currentHp = currentBattle?.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
-        return BattleSession.CloneDefinition(scenario with { Combatants = [.. currentParty.Select(actor => currentHp is not null && currentHp.TryGetValue(actor.Id, out int hp) ? actor with { CurrentHp = hp } : actor), .. scenario.Combatants.Where(actor => !actor.IsPlayer)] });
+        Dictionary<string, BattleCombatant>? current = currentBattle?.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id);
+        return BattleSession.CloneDefinition(scenario with { Combatants = [.. currentParty.Select(actor => current is not null && current.TryGetValue(actor.Id, out BattleCombatant? live) ? actor with { CurrentHp = live.CurrentHp, MagicStocks = live.MagicStocks.ToArray() } : actor), .. scenario.Combatants.Where(actor => !actor.IsPlayer)] });
     }
 
     public UiView BuildView()
@@ -139,7 +148,7 @@ public sealed class BattleDebugController
                 SoundRequested?.Invoke(MenuSound.Confirm);
             }
         }
-        catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IOException or UnauthorizedAccessException)
+        catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             Message = "Cannot apply change: " + error.Message;
         }
@@ -184,15 +193,15 @@ public sealed class BattleDebugController
             Policy = Policy == "ResearchInstantVictory" ? "NewGameFullCombat" : "ResearchInstantVictory";
             settings(Mode, Policy, ShowInitiative);
         }));
-        if (ReadCurrentEncounters is not null && ChangeCurrentEncounters is not null)
+        if (readCurrentEncounters is not null && changeCurrentEncounters is not null)
         {
-            bool? current = ReadCurrentEncounters();
+            bool? current = readCurrentEncounters();
             rows.Add(new("Current save random battles", current is null ? "No playthrough" : current.Value ? "On" : "Off", "Explicitly change this playthrough's encounter setting. This is recorded in its session journal.", _ =>
             {
-                bool? enabled = ReadCurrentEncounters();
+                bool? enabled = readCurrentEncounters();
                 if (enabled is not null)
                 {
-                    ChangeCurrentEncounters(!enabled.Value);
+                    changeCurrentEncounters(!enabled.Value);
                 }
             }));
         }
@@ -323,11 +332,12 @@ public sealed class BattleDebugController
         foreach (BattleAbility ability in Enum.GetValues<BattleAbility>())
         {
             BattleAbility selected = ability;
-            rows.Add(new(prefix + "Ability: " + ability, ability == BattleAbility.Attack ? "On" : "Unsupported", ability == BattleAbility.Attack ? "Attack is required by this battle dispatcher." : "Ability extension hook. Only Attack has an executable command in this implementation.", _ =>
+            bool enabled = actor.Abilities.Contains(ability);
+            rows.Add(new(prefix + "Ability: " + ability, enabled ? "On" : "Off", ability == BattleAbility.Attack ? "Attack is required by this battle dispatcher." : "Toggle this explicit scenario command. Magic and Item require owned stock; GF requires junction and availability.", _ =>
             {
                 if (selected != BattleAbility.Attack)
                 {
-                    Message = $"{selected} has no implemented battle command.";
+                    actors[index] = actor with { Abilities = enabled ? actor.Abilities.Where(item => item != selected).ToArray() : [.. actor.Abilities, selected] };
                 }
             }));
         }

@@ -2,6 +2,11 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    public void SetRandomEncounters(RandomEncounterSessionState state)
+    {
+        state.Validate();
+        State = State with { RandomEncounters = state };
+    }
     public void SetFullBattlePlaythrough(bool enabled)
     {
         if (State.Battle is not null)

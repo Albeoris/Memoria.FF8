@@ -94,6 +94,8 @@ public sealed record GameState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? FullBattlePlaythrough { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RandomEncounterSessionState? RandomEncounters { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BattleSnapshot? Battle { get; init; }
 }
 

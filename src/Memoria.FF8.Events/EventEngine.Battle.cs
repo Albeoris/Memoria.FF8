@@ -13,6 +13,20 @@ public sealed record NativeBattleCompletion(int Version, int FieldId, string Pro
 
 public sealed partial class EventEngine
 {
+    public Func<bool>? HasPendingRandomBattle { get; set; }
+    public Action<bool>? NativePlayerMovementProcessed { get; set; }
+    public bool HasPendingBattle => PendingInteractiveBattle is not null || HasPendingRandomBattle?.Invoke() == true;
+    public void AdvanceRandomBattleCallbacks(int callbacks)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(callbacks);
+        if (HasPendingRandomBattle?.Invoke() != true || Scene.FieldCallbackClock is not { } clock)
+        {
+            throw new InvalidOperationException("Random combat callbacks require their suspended field owner.");
+        }
+        services.SetExamTimer(services.ExamTimer!.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks));
+        services.SetWorldProcess(services.WorldProcess!.AdvanceMainLoopCallbacks(callbacks));
+        Scene.FieldCallbackClock = clock with { RandomBattleCallbacks = checked(clock.RandomBattleCallbacks + callbacks) };
+    }
     public Func<ushort, ushort, bool>? UseInteractiveBattle { get; set; }
     public Func<ushort, ushort, string?>? ValidateInteractiveBattle { get; set; }
     public NativeBattleCompletion? PendingInteractiveBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => request.Backend == NativeBattleBackend.Interactive && request.ReturnFrame is null && request.Result is null);

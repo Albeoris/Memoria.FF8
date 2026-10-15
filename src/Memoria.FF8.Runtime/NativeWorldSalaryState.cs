@@ -11,6 +11,7 @@ public sealed record NativeWorldSalaryState
         Presentation = departure.SalaryPresentation;
         SoundProcess = departure.GlobalSoundProcess;
         EventRandom = departure.EventRandom;
+        RandomEncounters = departure.RandomEncounters;
         VibrationProcess = departure.VibrationProcess;
         FuelDistance112 = departure.SavedWorld?.FuelDistance112;
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
@@ -24,6 +25,7 @@ public sealed record NativeWorldSalaryState
     public NativeSalaryPresentation? Presentation { get; private init; }
     public NativeGlobalSoundProcess? SoundProcess { get; private init; }
     public NativeEventRandomState? EventRandom { get; private init; }
+    public RandomEncounterSessionState? RandomEncounters { get; init; }
     public NativeVibrationProcessState? VibrationProcess { get; private init; }
     public uint? FuelDistance112 { get; private init; }
     public int? CarCameraCooldown { get; private init; }
@@ -41,6 +43,7 @@ public sealed record NativeWorldSalaryState
         presentation?.Validate();
         soundProcess?.Validate();
         EventRandom?.Validate();
+        RandomEncounters?.Validate();
         NativeVibrationProcessState? vibration = VibrationProcess?.Advance(uiTicks);
         if (movementUnits > 5792 || Presentation is not null && presentation is null || SoundProcess is not null && soundProcess is null || Economy is not null && result is not null && result.Economy is null)
         {
@@ -70,7 +73,7 @@ public sealed record NativeWorldSalaryState
         {
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, VibrationProcess = VibrationProcess, SavedWorld = candidate.SavedWorld is { } saved ? saved with { FuelDistance112 = FuelDistance112 } : null, WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
+        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, SavedWorld = candidate.SavedWorld is { } saved ? saved with { FuelDistance112 = FuelDistance112 } : null, WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)

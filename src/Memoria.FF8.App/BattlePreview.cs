@@ -17,6 +17,7 @@ internal sealed record BattlePreviewScenario
     public bool ShowInitiative { get; init; }
     public int TextScale { get; init; } = 100;
     public bool UseEncounter { get; init; }
+    public MenuInput[] HudInputs { get; init; } = [];
 }
 
 /// <summary>Renders actual battle assets and the shared live HUD without initializing a graphics device.</summary>
@@ -126,6 +127,10 @@ internal static class BattlePreview
             if (selectTarget)
             {
                 hud.Navigate(MenuInput.Confirm);
+            }
+            foreach (MenuInput input in scenario?.HudInputs ?? [])
+            {
+                hud.Navigate(input);
             }
             UiView view = hud.BuildView();
             view.Resize(width, height);

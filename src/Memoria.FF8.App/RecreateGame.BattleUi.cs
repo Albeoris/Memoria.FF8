@@ -72,7 +72,7 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
-        if (world?.Events.PendingInteractiveBattle is not null && world.Battle is null)
+        if (world?.HasPendingBattle == true && world.Battle is null)
         {
             world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, Mode: uiPreferences.AtbMode));
         }
@@ -166,7 +166,7 @@ internal sealed partial class RecreateGame
             DisposeBattleTextures();
             presentedBattle = active;
             battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
-            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult);
+            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input));
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleHud.HeadRenderer = DrawBattleHead;
             battleSeconds = 0;
@@ -212,6 +212,9 @@ internal sealed partial class RecreateGame
                 break;
             case BattleInputKind.Attack:
                 debugBattle.QueueAttack(input.ActorId!, input.TargetId!);
+                break;
+            case BattleInputKind.Action:
+                debugBattle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast);
                 break;
             case BattleInputKind.AdvanceTurn:
                 debugBattle.AdvanceTurn();
@@ -263,18 +266,27 @@ internal sealed partial class RecreateGame
             stageId = encounter.StageId;
         }
         BattleCombatantDefinition[] currentParty;
+        NativeCharacterVitals currentVitals;
+        NativeEconomy currentEconomy;
         if (session.State.Scene == SceneKind.Title)
         {
             using GameAssets assets = new(options.GameDirectory);
             currentParty = BattlePartyProjection.CreateNewGame(assets, liveMenuCatalog!, PresentationBattleResources);
+            currentVitals = assets.ReadNewGameCharacterVitals();
+            currentEconomy = assets.ReadNewGameEconomy();
         }
         else
         {
             currentParty = world?.CreateBattleParty() ?? throw new NotSupportedException("Battle laboratory requires the current game-owned party.");
+            currentVitals = session.State.CharacterVitals ?? throw new NotSupportedException("Battle laboratory requires the current native GF owner.");
+            currentEconomy = session.State.Economy ?? throw new NotSupportedException("Battle laboratory requires the current native item owner.");
         }
-        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle);
+        BattleActionDefinition[] actions = BattlePartyProjection.CreateActions(currentVitals, PresentationBattleResources.ActionDefinitions);
+        BattleStock[] items = currentEconomy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
+        BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle, actions, items);
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
         battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, uiPreferences.BattlePolicy, uiPreferences.ShowInitiative, StartDebugBattle, ApplyBattleDebugSettings, () => battleDebug = null, battleDebugPresets);
+        battleDebug.ConnectCurrentEncounters(() => world is null ? null : session.State.RandomEncounters?.Enabled == true, enabled => world!.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: enabled)));
         battleDebug.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         SynchronizeUiMoviePause();
     }
