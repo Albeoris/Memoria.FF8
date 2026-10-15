@@ -104,46 +104,8 @@ internal static partial class Program
                 Require(lowerFiber.GetProperty("Results").GetProperty("6").GetInt32() == 11 && lowerFiber.GetProperty("Results").GetProperty("1").GetInt32() == 0 && middleReturnObserved && live.Actors[1].NativeMovementRequest is null && live.Actors[1].NativeScriptMovement!.ScriptId == 18, "Middle RET resurrected a consumed backup or lost the reversed saved result bank.");
             }
         }
-        NativeCompletedAsyncRequestRefusal(assets);
-        Console.WriteLine("Native REQ/REQSW/REQEW: MOVE1 -> held ANIME2 -> mode0 higher request, sole backup transfer/RET8 consumption, lower queued request, current/base speed, independent restore and completed-async-owner atomic refusal passed.");
+        NativeCompletedAsyncRequestContract(assets);
+        Console.WriteLine("Native REQ/REQSW/REQEW: MOVE1 -> held ANIME2 -> mode0 higher request, sole backup transfer/RET8 consumption, lower queued request, current/base speed, independent restore and completed-async physical backup passed.");
     }
 
-    private static void NativeCompletedAsyncRequestRefusal(GameAssets assets)
-    {
-        byte[] content = SyntheticObjects([2, (16 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PUSHRADIUS, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 2), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.RFMOVE, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.REQSW, 0), (Jsm.Opcode.RET, 8)]]);
-        GameSession session = GameSession.CreateColdProcess();
-        session.StartNewGame();
-        session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
-        EventEngine engine = new(session)
-        {
-            AnimationFrameCount = (_, _) => 4,
-            CanUseNativeScriptMove = _ => true,
-            ResolveNativeScriptDirection = query => new(NativeScriptDirectionStatus.Moving, query.FixedX, query.FixedY, 64, query.TurnAccumulator),
-            ResolveNativeScriptMovement = query =>
-            {
-                int x = query.FixedX + 4096;
-                NativeScriptGroundProbe[] fan = [new(x, query.FixedY, 0), new(x, query.FixedY, 0), new(x, query.FixedY, 0)];
-                return new(NativeScriptMovementStatus.Accepted, x, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new(x, query.FixedY, query.Direction, fan)]);
-            }
-        };
-        engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
-        engine.Step();
-        engine.Step();
-        engine.Step();
-        Require(engine.Actors[0].NativeScriptMovement is { Active: true, Asynchronous: true, ScriptId: 2 } && !engine.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 2), "The physical-only boundary did not actually retain movement after its requested VM owner completed.");
-        while (engine.LastFault is null && engine.Frame < 12)
-        {
-            NativeScriptMovementState before = engine.Actors[0].NativeScriptMovement!;
-            try
-            {
-                engine.Step();
-            }
-            catch (EventScriptException) when (engine.LastFault?.Opcode == nameof(Jsm.Opcode.REQSW))
-            {
-                JsonElement caller = engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 17);
-                Require(caller.GetProperty("Position").GetInt32() == engine.LastFault.Operation && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([0, 2]) && engine.Actors[0].NativeScriptMovement == before && engine.Actors[0].NativeMovementRequest is null && engine.Capture().GetProperty("Fibers").EnumerateArray().Where(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && !fiber.GetProperty("Initialization").GetBoolean()).All(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1), "Unproved physical-only request consumed operands, advanced PC, changed movement or invented a replacement VM fiber.");
-            }
-        }
-        Require(engine.LastFault is not null, "A completed-VM asynchronous body silently skipped its native request backup.");
-    }
 }

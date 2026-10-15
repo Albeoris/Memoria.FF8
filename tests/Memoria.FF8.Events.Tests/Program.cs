@@ -125,6 +125,11 @@ internal static partial class Program
                     ["native-actor-info"] = () => NativeActorInfoContract(selectedGameDirectory),
                     ["native-movement-request"] = NativeMovementRequestContract,
                     ["native-mode0-request-transfer"] = NativeModeZeroRequestTransferContract,
+                    ["native-completed-async-request"] = () =>
+                    {
+                        using GameAssets assets = new(selectedGameDirectory);
+                        NativeCompletedAsyncRequestContract(assets);
+                    },
                     ["native-single-backup-overwrite"] = NativeSingleBackupOverwriteContract,
                     ["native-move-cancel"] = NativeMovementCancellationContract,
                     ["native-push-radius"] = NativePushRadiusContract,
