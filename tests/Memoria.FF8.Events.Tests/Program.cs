@@ -136,6 +136,7 @@ internal static partial class Program
                     ["native-rfacedir"] = NativeAsyncFacePointContract,
                     ["native-rfacedira"] = () => NativeAsyncFaceActorContract(selectedGameDirectory),
                     ["native-ladder-mode3"] = () => NativeLadderMode3Contract(selectedGameDirectory),
+                    ["native-ladder-mode3-request"] = () => NativeLadderMode3RequestContract(selectedGameDirectory),
                     ["native-ladder-short-clips"] = NativeLadderShortClipContract,
                     ["native-particle-set"] = () => NativeParticleSetContract(selectedGameDirectory),
                     ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,

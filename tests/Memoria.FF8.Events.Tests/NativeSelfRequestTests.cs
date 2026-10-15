@@ -106,4 +106,3 @@ internal static partial class Program
         Console.WriteLine("Native self REQ: shared sixteen-op budget, live LBL bank/reversed RET8 restoration, busy self continuation, lower-slot queue order, mid-preemption restore and cross-entity yield PASS.");
     }
 }
-

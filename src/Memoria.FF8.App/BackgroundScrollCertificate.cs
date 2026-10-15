@@ -87,7 +87,7 @@ public static class BackgroundScrollCertificate
 
     public static bool CanSetCosinePosition(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
     {
-        return DirectBackgroundScrollCertificate.CanSetCosine(field, scene, layer, x, y, duration);
+        return DirectBackgroundScrollCertificate.CanSetCosine(field, scene, layer, x, y, duration) || NativeNonselectedBackgroundScrollCertificate.CanSetCosine(field, scene, layer, x, y, duration) || NativeWrappedBackgroundScrollCertificate.CanSetCosine(field, scene, layer, x, y, duration);
     }
 
     public static BackgroundScrollFrame Prepare(FieldAssets field, SceneEventState scene)

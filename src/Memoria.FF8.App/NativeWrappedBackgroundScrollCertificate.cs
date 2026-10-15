@@ -28,6 +28,16 @@ internal static class NativeWrappedBackgroundScrollCertificate
         return CanSet(field, query, scene.CameraIndex) && HasNormalRuntime(field, scene) && ValidPositions(field, scene) && FitsSettings(field, BackgroundScrollCertificate.ReadSettings(scene, query.Layer), query.StartX, query.StartY, scene.CameraIndex) && FitsSettings(field, BackgroundScrollCertificate.ReadSettings(scene, query.Layer), query.TargetX, query.TargetY, scene.CameraIndex);
     }
 
+    public static bool CanSetCosine(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
+    {
+        if (duration < 0 || !CanSetDirect(field, scene, layer, x, y))
+        {
+            return false;
+        }
+        BackgroundScrollSettings settings = BackgroundScrollCertificate.ReadSettings(scene, layer);
+        return scene.BackgroundScrollPositions.TryGetValue(layer, out BackgroundScrollPosition? current) ? current.X is short startX && current.Y is short startY && FitsSettings(field, settings, startX, startY, scene.CameraIndex) : FitsSettings(field, settings, 0, 0, scene.CameraIndex);
+    }
+
     public static bool SupportsPhase(FieldAssets field, SceneEventState scene)
     {
         return !scene.BackgroundScrollPositions.ContainsKey(0) && (scene.BackgroundScrollPositions.Count > 0 || !BackgroundScrollCertificate.HasDefaultSettings(scene)) && HasNormalRuntime(field, scene) && ValidPositions(field, scene) && scene.BackgroundScrollPositions.Values.All(position => InRange(position.X) && InRange(position.Y));
@@ -114,7 +124,7 @@ internal static class NativeWrappedBackgroundScrollCertificate
         {
             return DirectBackgroundScrollCertificate.ValidPosition(position) && FitsSettings(field, settings, position.TargetX, position.TargetY, cameraIndex) && (position.X is null || position.X is short x && position.Y is short y && FitsSettings(field, settings, x, y, cameraIndex));
         }
-        return NativeLinearScrollPhase.IsValid(position) && position.X is short currentX && position.Y is short currentY && FitsSettings(field, settings, currentX, currentY, cameraIndex) && (position.Status == 0 ? position.X : position.PreviousX) is short startX && (position.Status == 0 ? position.Y : position.PreviousY) is short startY && FitsSettings(field, settings, startX, startY, cameraIndex) && FitsSettings(field, settings, position.TargetX, position.TargetY, cameraIndex) && position.Duration is short duration && CanSet(field, new NativeLinearScrollQuery(layer, startX, startY, position.TargetX, position.TargetY, duration), cameraIndex);
+        return DirectBackgroundScrollCertificate.ValidPosition(position) && position.X is short currentX && position.Y is short currentY && FitsSettings(field, settings, currentX, currentY, cameraIndex) && (position.Status == 0 ? position.X : position.PreviousX) is short startX && (position.Status == 0 ? position.Y : position.PreviousY) is short startY && FitsSettings(field, settings, startX, startY, cameraIndex) && FitsSettings(field, settings, position.TargetX, position.TargetY, cameraIndex) && position.Duration is short duration && CanSet(field, new NativeLinearScrollQuery(layer, startX, startY, position.TargetX, position.TargetY, duration), cameraIndex);
     }
 
     private static bool FitsSettings(FieldAssets field, BackgroundScrollSettings settings, short x, short y, int cameraIndex)

@@ -100,7 +100,7 @@ internal static partial class Program
         }
         JsonElement variables = CapturedVariables(live.Capture());
         Require(sawUnenteredHigh && directBeforeHigh is not null && busyCount == 1 && labels.Where(script => script >= 19).SequenceEqual(new[] { 24, 19, 25 }) && returns.SequenceEqual(new[] { 25, 19, 24 }), "Native raw/direct occupancy, actual LBL admission or highest physical slot7→6→1 return order changed.");
-        Require(variables.GetProperty("6002").GetInt32() == 33 && variables.GetProperty("6001").GetInt32() == 22 && variables.GetProperty("6000").GetInt32() == 11 && variables.GetProperty("6100").GetInt32() == 77, "Busy raw request looked up its invalid script, lost its successor or overwrote another slot's results.");
+        Require(variables.GetProperty("6004").GetInt32() == 33 && variables.GetProperty("6002").GetInt32() == 22 && variables.GetProperty("6000").GetInt32() == 11 && variables.GetProperty("6100").GetInt32() == 77, "Busy raw request looked up its invalid script, lost its successor or overwrote another slot's results.");
         Require(resumedInReturnCallback.SetEquals(new[] { 19, 24 }), "Door RET8 failed to resume retained lower requests within the same sixteen-op callback budget.");
         foreach (int script in new[] { 24, 19, 25 })
         {
@@ -129,7 +129,7 @@ internal static partial class Program
         initialize.Add((Jsm.Opcode.RET, 8));
         (Jsm.Opcode, int)[] issuer = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 24), (Jsm.Opcode.NOP, 0), (firstRequest, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 65535), (busy, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 25), (Jsm.Opcode.REQ, 1), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_W, 6100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] line = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETLINE, 0), (Jsm.Opcode.RET, 8)];
-        List<(Jsm.Opcode, int)[]> scripts = [initialize.ToArray(), issuer, line, [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Empty(18), Expression(19, 22, 60, 6001), Empty(20), Empty(21), Empty(22), Empty(23), explicitReturn ? [(Jsm.Opcode.LBL, 24), (Jsm.Opcode.RET, 0)] : Expression(24, 11, 40, 6000), Expression(25, 33, 24, 6002)];
+        List<(Jsm.Opcode, int)[]> scripts = [initialize.ToArray(), issuer, line, [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Empty(18), Expression(19, 22, 60, 6002), Empty(20), Empty(21), Empty(22), Empty(23), explicitReturn ? [(Jsm.Opcode.LBL, 24), (Jsm.Opcode.RET, 0)] : Expression(24, 11, 40, 6000), Expression(25, 33, 24, 6004)];
         byte[] content = SyntheticObjects([(16 << 7) | 9, 1], scripts);
         content[1] = 1;
         content[3] = 1;

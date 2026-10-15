@@ -11,7 +11,9 @@ internal static class DirectBackgroundScrollCertificate
 {
     public static bool CanSet(FieldAssets field, SceneEventState scene, int layer, short x, short y)
     {
-        return layer == scene.CameraIndex && InRange(x) && InRange(y) && HasSelectedDirectBaseline(field, scene) && ValidPositions(field, scene) && SupportsCenter(field, scene, x, y);
+        //520C40/520FA0 may issue a direct target during52C650 initialization.
+        //No current center is consumed;475DF0 publishes the target before draw.
+        return layer == scene.CameraIndex && InRange(x) && InRange(y) && HasSelectedDirectBaseline(field, scene, allowInitialization: true) && ValidPositions(field, scene) && SupportsCenter(field, scene, x, y);
     }
 
     public static bool CanSetCosine(FieldAssets field, SceneEventState scene, int layer, short x, short y, short duration)
@@ -127,11 +129,11 @@ internal static class DirectBackgroundScrollCertificate
         return scene.CameraIndex == 0 && HasSelectedDirectBaseline(field, scene);
     }
 
-    private static bool HasSelectedDirectBaseline(FieldAssets field, SceneEventState scene)
+    private static bool HasSelectedDirectBaseline(FieldAssets field, SceneEventState scene, bool allowInitialization = false)
     {
         //475480/476450 consume the selected record. Camera1 cancels PAN for both
         //raw pairs0/1; only subsequent layers use their independent parallax rows.
-        return scene.CameraIndex is >= 0 and <= 1 && (scene.CameraIndex == 0 || scene.ActorBackgroundScroll is null && (!scene.BackgroundScrollPositions.TryGetValue(scene.CameraIndex, out BackgroundScrollPosition? selected) || selected.Mode == 3)) && scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && BackgroundScrollCertificate.HasCurrentSettings(scene) && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
+        return scene.CameraIndex is >= 0 and <= 1 && (scene.CameraIndex == 0 || scene.ActorBackgroundScroll is null && (!scene.BackgroundScrollPositions.TryGetValue(scene.CameraIndex, out BackgroundScrollPosition? selected) || selected.Mode == 3)) && scene.NativeFieldInitialization is { } proof && (proof.Stage == NativeFieldInitializationStage.Completed && scene.NativeFieldLoadVersion == 1 || allowInitialization && proof.Stage == NativeFieldInitializationStage.Initializing && scene.NativeFieldLoadVersion == 0 && scene.NativeActorLayoutVersion == 0) && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && BackgroundScrollCertificate.HasCurrentSettings(scene) && NormalCameraCertificate.HasBaseline(field, scene.CameraIndex) && (field.Information!.BackgroundWrapMask == 0 || FieldNativeNormalBackgroundWrap.SupportsMetadata(field, scene.CameraIndex)) && BackgroundScrollCertificate.HasSupportedSettings(field, scene);
     }
 
     internal static bool SupportsCenter(FieldAssets field, SceneEventState scene, short x, short y)

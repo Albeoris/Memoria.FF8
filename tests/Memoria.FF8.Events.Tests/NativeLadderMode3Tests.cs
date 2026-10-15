@@ -260,7 +260,34 @@ internal static partial class Program
         }
     }
 
-    private static EventEngine CreateLadderMode3Fixture(NativeCharacterVitals vitals, NativeEconomy economy, NativeInputConfiguration input, bool up, bool automatic = true, int selector = 65542, int speed = 284, bool unknownSelector = false, bool unknownCoordinate = false, int targetX = 29, bool changeGlobalSpeed = false)
+    private static void NativeLadderMode3RequestContract(string gameDirectory)
+    {
+        using GameAssets assets = new(gameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        NativeInputConfiguration input = assets.ReadNewGameInputConfiguration();
+        EventEngine Create() => CreateLadderMode3Fixture(vitals, economy, input, true, automatic: false, preempt: true);
+        EventEngine live = Create();
+        ReachLadderMode3Issue(live);
+        for (int callback = 0; callback < 8 && live.IsUserControlEnabled; callback++)
+        {
+            live.Step();
+        }
+        Require(!live.IsUserControlEnabled && live.Actors[0].NativeLadderMode3 is { Active: true } && live.Actors[0].NativeMovementRequest is null && live.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ScriptId").GetInt32() == 2 && fiber.GetProperty("Started").GetBoolean() && fiber.GetProperty("WaitReason").GetString() == "Frames"), "Higher request failed to enter UCOFF/WAIT over the retained mode3 ladder or invented a mode1 movement backup.");
+        int before = live.Actors[0].NativeTurnAccumulator474!.Value;
+        EventEngine restored = Create();
+        restored.Restore(live.Capture());
+        for (int callback = 0; callback < 8 && !LadderMode3HasSuccessor(live); callback++)
+        {
+            live.Step();
+            restored.Step();
+            Require(live.Actors[0].NativeMovementRequest is null && JsonElement.DeepEquals(live.Capture(), restored.Capture()), "Higher mode3 request changed the physical owner, invented a mode1 backup or diverged after active restore.");
+        }
+        Require(before < live.Actors[0].NativeTurnAccumulator474 && live.Actors[0].NativeLadderMode3 is { Active: false } && LadderMode3HasSuccessor(live) && live.LastFault is null, "UCOFF in the higher request failed to advance and complete the retained automatic mode3 body.");
+        Console.WriteLine("Mode3 request: higher UCOFF/WAIT/RET8 retains physical ladder, advances automatically without mode1 backup and restores active state exactly PASS.");
+    }
+
+    private static EventEngine CreateLadderMode3Fixture(NativeCharacterVitals vitals, NativeEconomy economy, NativeInputConfiguration input, bool up, bool automatic = true, int selector = 65542, int speed = 284, bool unknownSelector = false, bool unknownCoordinate = false, int targetX = 29, bool changeGlobalSpeed = false, bool preempt = false)
     {
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 7), (Jsm.Opcode.FOOTSTEPOFF, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.PSHN_L, 4), (Jsm.Opcode.LADDERANIME, 3), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.EFFECTLOAD, 0), (Jsm.Opcode.RET, 0)];
         List<(Jsm.Opcode, int)> main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.INITTRACE, 0)];
@@ -278,13 +305,17 @@ internal static partial class Program
         main.Add(unknownSelector ? (Jsm.Opcode.PSHI_L, 0) : (Jsm.Opcode.PSHN_L, selector));
         main.AddRange([(Jsm.Opcode.NOP, 0), (up ? Jsm.Opcode.LADDERUP : Jsm.Opcode.LADDERDOWN, 65545), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 6000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)]);
         List<(Jsm.Opcode, int)[]> scripts = [init, main.ToArray()];
-        if (changeGlobalSpeed)
+        if (preempt)
+        {
+            scripts.Add([(Jsm.Opcode.LBL, 2), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]);
+        }
+        if (changeGlobalSpeed || preempt)
         {
             scripts.Add([(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 0)]);
-            scripts.Add([(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), ((Jsm.Opcode)372, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)]);
+            scripts.Add(preempt ? [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)] : [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 0), ((Jsm.Opcode)372, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)]);
         }
-        byte[] content = SyntheticObjects(changeGlobalSpeed ? [(16 << 7) | 1, 1] : [1], scripts);
-        if (changeGlobalSpeed)
+        byte[] content = SyntheticObjects(changeGlobalSpeed || preempt ? [(16 << 7) | 1, (ushort)(preempt ? 2 : 1)] : [1], scripts);
+        if (changeGlobalSpeed || preempt)
         {
             // A genuine logical module independently writes the shared global speed; it has no allocated body.
             content[2] = 1;
