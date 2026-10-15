@@ -274,7 +274,9 @@ public sealed partial class EventEngine
                         accepted = services.IsMoviePlaying && MovieSkipRequested is not null;
                         if (accepted)
                         {
+                            long beforeSkip = Frame;
                             MovieSkipRequested!.Invoke();
+                            advanced = checked((int)(Frame - beforeSkip));
                         }
                         break;
                     default:

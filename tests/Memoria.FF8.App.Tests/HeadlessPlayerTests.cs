@@ -20,13 +20,16 @@ public sealed class HeadlessPlayerTests
         Directory.CreateDirectory(temporary);
         try
         {
-            string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+            string source = Path.Combine(temporary, "source.json");
             string actions = Path.Combine(temporary, "actions.json");
             string output = Path.Combine(temporary, "output");
             File.WriteAllText(actions, "[{\"Kind\":\"SkipMovie\",\"Frames\":1}]");
-            var session = new GameSession(GameSession.Load(source));
-            using var expected = new GameWorld(session, gameDirectory);
-            expected.EnsureField();
+            var session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            using var expected = new GameWorld(session, gameDirectory, persistReplayJournal: false);
+            StorySafeMovieSkipTests.ReachCorridorMovie(session, expected);
+            session.SetEventState(expected.Events.Capture());
+            session.Save(source, registerJournalReference: false);
             Assert.True(expected.Apply(new PlayerAction(PlayerActionKind.SkipMovie)).Accepted);
             Assert.Equal(0, HeadlessPlayer.Run(["--state", source, "--game-dir", gameDirectory, "--actions", actions, "--output", output, "--resolution", "320x240"]));
             GameState saved = GameSession.Load(Path.Combine(output, "checkpoint.json"));

@@ -64,6 +64,7 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         }
         Number(writer, nameof(value.MovieSeconds), value.MovieSeconds);
         Optional(writer, nameof(value.MoviePlayback), value.MoviePlayback);
+        Optional(writer, nameof(value.MovieSkipFrames), value.MovieSkipFrames);
         Optional(writer, nameof(value.MovieSourceHash), value.MovieSourceHash);
         if (value.Skipped)
         {

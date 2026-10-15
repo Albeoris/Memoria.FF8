@@ -8,6 +8,7 @@ public sealed partial class GameSession : IEventServices
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
     private SceneKind movieReturnScene;
     private int replayCaptureDepth;
+    private bool acceleratingMovie;
 
     public GameSession(GameState state)
     {
@@ -37,6 +38,24 @@ public sealed partial class GameSession : IEventServices
     public int? ReplayFieldId => State.FieldId;
     public bool IsReplayCaptureActive => replayCaptureDepth != 0;
     public MoviePlaybackState? ReplayMoviePlayback => State.MoviePlayback;
+    public MovieSkipFrames? ReplayMovieSkipFrames { get; private set; }
+
+    public void BeginMovieAcceleration()
+    {
+        if (!IsMoviePlaying || acceleratingMovie)
+        {
+            throw new InvalidOperationException("Movie acceleration requires one active movie owner.");
+        }
+        ReplayMovieSkipFrames = null;
+        acceleratingMovie = true;
+    }
+
+    public void EndMovieAcceleration(MovieSkipFrames? frames)
+    {
+        acceleratingMovie = false;
+        frames?.Validate();
+        ReplayMovieSkipFrames = frames;
+    }
     public NativeWorldControlState? WorldControls => State.WorldControls;
     public bool CanStoreNativeEventOwners => true;
     public NativeWorldConfiguration? WorldConfiguration => State.WorldConfiguration;
@@ -158,6 +177,7 @@ public sealed partial class GameSession : IEventServices
     public void RequestMovie(int index)
     {
         ReplayMovieSourceHash = null;
+        ReplayMovieSkipFrames = null;
         if (index < 0 || index > 999)
         {
             throw new ArgumentOutOfRangeException(nameof(index));
@@ -173,6 +193,7 @@ public sealed partial class GameSession : IEventServices
 
     public void CompleteMovie(bool skipped)
     {
+        skipped |= acceleratingMovie;
         if (State.Scene == SceneKind.Movie)
         {
             GameState source = State;
@@ -180,7 +201,9 @@ public sealed partial class GameSession : IEventServices
             MoviePlaybackState? playback = State.MoviePlayback;
             if (playback is not null)
             {
-                //Native5304B0 closes playback without seeking past its actual last decoded frame.
+                // Native5304B0 closes playback without seeking past its actual last decoded frame.
+                // Story-safe SkipMovie first executes the remaining decoded callbacks in MovieClock;
+                // assigning TerminalFrame here would silently discard intervening script events.
                 playback = playback with { IsPlaying = false, Completed = true, Skipped = skipped };
             }
             Change(State with { Scene = movieReturnScene, MovieSeconds = 0, MoviePlayback = playback });

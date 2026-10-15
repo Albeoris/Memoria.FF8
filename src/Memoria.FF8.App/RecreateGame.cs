@@ -224,14 +224,9 @@ internal sealed partial class RecreateGame : Game
         {
             if (input.Skip)
             {
-                if (world is not null)
-                {
-                    world.Apply(new PlayerAction(PlayerActionKind.SkipMovie));
-                }
-                else
-                {
-                    movieClock.Skip();
-                }
+                world ??= CreateWorld();
+                world.EnsureField();
+                world.Apply(new PlayerAction(PlayerActionKind.SkipMovie));
                 return;
             }
             if (world is null && session.State.EventState is not null)
@@ -252,15 +247,17 @@ internal sealed partial class RecreateGame : Game
             int playbackMovie = session.State.MovieIndex;
             movie.Update((playback, seconds) =>
             {
+                if (world is not null && !fieldFaulted)
+                {
+                    bool active = world.AdvanceMovieFrame(playback, seconds);
+                    if (playback.FrameIndex >= 2)
+                    {
+                        metrics.Simulate(1);
+                    }
+                    return active;
+                }
                 session.SetMoviePlayback(playback);
                 session.SetMoviePosition(seconds);
-                // MOVIE's ordinary callback presents frames0/1 through55A530
-                // and the tail of4767B0; they do not own extra field callbacks.
-                if (world is not null && !fieldFaulted && playback.FrameIndex >= 2)
-                {
-                    events!.Step();
-                    metrics.Simulate(1);
-                }
                 return session.State.Scene == SceneKind.Movie && session.State.MovieIndex == playbackMovie && session.State.FieldId == playbackField;
             });
             if (session.State.Scene != SceneKind.Movie || session.State.MovieIndex != playbackMovie || session.State.FieldId != playbackField)
@@ -823,7 +820,7 @@ internal sealed partial class RecreateGame : Game
             {
                 if (session.State.Scene == SceneKind.Movie && movie?.HasFrame == true)
                 {
-                    world.RequireSupportedMovieMaskRender();
+                    fieldTexture.SetData(world.RenderMovieFrame(movie.DecodedPixels, movie.Texture.Width, movie.Texture.Height));
                 }
                 else
                 {
@@ -865,7 +862,15 @@ internal sealed partial class RecreateGame : Game
         {
             if (!fieldRenderFaulted)
             {
-                movie.Draw(batch, bounds);
+                if (world?.Field is not null)
+                {
+                    PixelBounds fit = ViewportLayout.Fit(fieldTexture.Width, fieldTexture.Height, bounds.Width, bounds.Height);
+                    batch.Draw(fieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
+                }
+                else
+                {
+                    movie.Draw(batch, bounds);
+                }
                 DrawMovieHintUi(bounds);
             }
         }

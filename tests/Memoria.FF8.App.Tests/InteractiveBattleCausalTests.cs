@@ -166,12 +166,7 @@ public sealed class InteractiveBattleCausalTests
         world.Events.MovieSkipRequested -= clock.Skip;
         world.Events.MovieSkipRequested += () =>
         {
-            MoviePlaybackState terminal = movieSkip?.MoviePlayback ?? throw new NotSupportedException("Recipe movie skip lacks its genuinely recorded terminal external clock.");
-            string hash = MovieClock.GetSourceHash(game, session.State.MovieIndex);
-            Assert.Equal(movieSkip!.MovieSourceHash, hash);
-            session.SetReplayMovieSourceHash(hash);
-            session.SetMoviePlayback(terminal with { IsPlaying = true, Completed = false, Skipped = false });
-            session.CompleteMovie(true);
+            world.ReplayMovieSkip(movieSkip ?? throw new NotSupportedException("Recipe movie skip lacks its recorded accelerated samples."));
         };
         foreach (ReplayJournalEntry input in recipe.Entries)
         {

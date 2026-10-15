@@ -66,6 +66,7 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
     public ulong CommandDigest { get; init; }
     public double MovieSeconds { get; init; }
     public MoviePlaybackState? MoviePlayback { get; init; }
+    public MovieSkipFrames? MovieSkipFrames { get; init; }
     public string? MovieSourceHash { get; init; }
     public bool Skipped { get; init; }
     public long ElapsedTicks { get; init; }
@@ -74,6 +75,11 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
 
     public void Validate()
     {
+        MovieSkipFrames?.Validate();
+        if (MovieSkipFrames is not null && (Kind != ReplayEntryKind.Action || Code != 6 || MovieSourceHash is null || MoviePlayback is null))
+        {
+            throw new InvalidDataException("Accelerated movie samples require their skip action, completion clock and source identity.");
+        }
         BattleInput?.Validate();
         if (!float.IsFinite(CameraHorizontal) || Math.Abs(CameraHorizontal) > 1 || CameraHorizontal != 0 && (Kind != ReplayEntryKind.WorldAction || Code is not (4 or 5)))
         {

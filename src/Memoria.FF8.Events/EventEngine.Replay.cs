@@ -132,6 +132,7 @@ public sealed partial class EventEngine
                 CommandCount = capture.CommandCount,
                 CommandDigest = capture.CommandDigest,
                 MovieSourceHash = input.Code == (int)PlayerActionKind.SkipMovie && input.Kind == ReplayEntryKind.Action ? services.ReplayMovieSourceHash : input.MovieSourceHash,
+                MovieSkipFrames = input.Kind == ReplayEntryKind.Action && input.Code == (int)PlayerActionKind.SkipMovie ? services.ReplayMovieSkipFrames : null,
                 MoviePlayback = input.Kind == ReplayEntryKind.Action && input.Code == (int)PlayerActionKind.SkipMovie ? services.ReplayMoviePlayback : input.MoviePlayback
             });
             recordedMemoryDigest = ReplayMemoryDigest();

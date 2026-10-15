@@ -63,19 +63,7 @@ internal sealed partial class GameWorld
         world.Events.MovieSkipRequested -= clock.Skip;
         world.Events.MovieSkipRequested += () =>
         {
-            MoviePlaybackState playback = movieSkip?.MoviePlayback ?? throw new NotSupportedException("The movie skip has no game-recorded completion clock.");
-            string hash = MovieClock.GetSourceHash(gameDirectory, rebuilt.State.MovieIndex);
-            if (movieSkip.MovieSourceHash is null || movieSkip.MovieSourceHash != hash)
-            {
-                throw new InvalidDataException("The game-recorded movie clock does not match the installed clip.");
-            }
-            clock.Prepare();
-            MoviePlaybackState current = rebuilt.State.MoviePlayback ?? throw new NotSupportedException("The movie skip has no actual decoded playback clock.");
-            if (playback != (current with { IsPlaying = false, Completed = true, Skipped = true }))
-            {
-                throw new InvalidDataException("The recorded movie skip completion differs from the actual current decoded frame.");
-            }
-            rebuilt.CompleteMovie(true);
+            world.ReplayMovieSkip(movieSkip ?? throw new NotSupportedException("The movie skip has no recorded input."));
         };
         Queue<(int FieldId, string ScriptHash, string? ExecutableHash)> autonomousAllocations = new();
         int index = 0;
@@ -271,6 +259,55 @@ internal sealed partial class GameWorld
             rebuilt.SetDialogueDraft(draft);
         }
         return rebuilt.State;
+    }
+
+    internal void ReplayMovieSkip(ReplayJournalEntry entry)
+    {
+        MovieSkipFrames frames = entry.MovieSkipFrames ?? throw new NotSupportedException("This historical skip closed playback without recording its remaining decoded callbacks. Recreate its authentic prefix before the skip and perform a new skip under current code.");
+        frames.Validate();
+        string hash = MovieClock.GetSourceHash(assets.GameDirectory, session.State.MovieIndex);
+        if (entry.MovieSourceHash != hash)
+        {
+            throw new InvalidDataException("The accelerated movie samples do not match the installed clip.");
+        }
+        int first = Math.Max(2, (session.State.MoviePlayback?.FrameIndex ?? 0) + 1);
+        if (first != frames.FirstFrame || session.State.MoviePlayback is { } current && current.TerminalFrame != frames.TerminalFrame)
+        {
+            throw new InvalidDataException("The accelerated movie range does not continue its actual current clock.");
+        }
+        session.SetReplayMovieSourceHash(hash);
+        session.BeginMovieAcceleration();
+        try
+        {
+            bool active = true;
+            for (int offset = 0; offset < frames.Count; offset++)
+            {
+                if (!active)
+                {
+                    throw new InvalidDataException("The movie completed before its recorded accelerated sample range ended.");
+                }
+                int frame = frames.FirstFrame + offset;
+                active = AdvanceMovieFrame(new MoviePlaybackState(frame, frames.TerminalFrame, true, false, false), frame / frames.FramesPerSecond);
+            }
+            if (active)
+            {
+                if (frames.FirstFrame + frames.Count - 1 != frames.TerminalFrame)
+                {
+                    throw new InvalidDataException("The accelerated movie range ended before actual native completion or decoder EOF.");
+                }
+                session.CompleteMovie(true);
+            }
+            if (session.State.MoviePlayback != entry.MoviePlayback)
+            {
+                throw new InvalidDataException("The accelerated movie completion differs from its recorded external clock.");
+            }
+            session.EndMovieAcceleration(frames);
+        }
+        catch
+        {
+            session.EndMovieAcceleration(null);
+            throw;
+        }
     }
 
     internal static void AwaitRecordedDialogueSite(EventEngine engine, ReplayJournalEntry entry, Action advance)

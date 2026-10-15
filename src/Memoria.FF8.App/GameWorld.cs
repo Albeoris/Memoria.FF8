@@ -68,6 +68,7 @@ internal sealed partial class GameWorld : IDisposable
             Events.Scene.Party.AddRange([0, 255, 255]);
         }
         Events.MoviePlayback = () => clock.State;
+        clock.AdvanceFrame = AdvanceMovieFrame;
         Events.ReadMovieCameraFlags = ReadNativeMovieCameraFlags;
         Events.MovieSkipRequested += clock.Skip;
         Events.LoadSoundResource = _ => SoundResourceStatus.Muted;
@@ -89,6 +90,20 @@ internal sealed partial class GameWorld : IDisposable
     }
 
     public EventEngine Events { get; }
+
+    internal bool AdvanceMovieFrame(MoviePlaybackState playback, double seconds)
+    {
+        int field = session.State.FieldId;
+        int movie = session.State.MovieIndex;
+        session.SetMoviePlayback(playback);
+        session.SetMoviePosition(seconds);
+        // MOVIE owns startup records0/1; later decoded records each own one ordinary callback.
+        if (playback.FrameIndex >= 2)
+        {
+            Events.Step();
+        }
+        return session.IsMoviePlaying && session.State.MovieIndex == movie && session.State.FieldId == field;
+    }
     public FieldAssets? Field { get; private set; }
     public WorldMapScene? WorldScene => worldScene;
     public DialogueState? CurrentDialogue => session.State.Scene == SceneKind.WorldMap ? worldScene?.CurrentDialogue : Events.CurrentDialogue;

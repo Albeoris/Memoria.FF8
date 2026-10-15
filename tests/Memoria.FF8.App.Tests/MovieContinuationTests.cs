@@ -49,15 +49,15 @@ public sealed class MovieContinuationTests
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         string repository = FindRepository();
-        string source = Path.Combine(repository, "../fixtures/external-fixture.json");
-        Assert.True(File.Exists(source), "The independently played pre-AXIS checkpoint is required.");
-        var session = new GameSession(GameSession.Load(source));
+        var session = GameSession.CreateColdProcess();
+        session.StartNewGame();
         var clock = new MovieClock(session, directory);
+        using var world = new GameWorld(session, directory, clock, persistReplayJournal: false);
+        StorySafeMovieSkipTests.ReachCorridorMovie(session, world);
         MovieInformation information = clock.Prepare();
         Assert.Equal(326, information.FrameCount);
         Assert.Equal(325, clock.State.TerminalFrame);
-        using var world = new GameWorld(session, directory, clock);
-        world.EnsureField();
+        StorySafeMovieSkipTests.DecodeThrough(session, world, clock, directory, 74);
         using (var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, Path.Combine(directory, "Data/movies/disc00_00h.avi"), 5, information))
         {
             MovieFrame? frame = null;

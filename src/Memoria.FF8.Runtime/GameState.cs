@@ -168,6 +168,7 @@ public interface IEventServices
     int? ReplayFieldId => null;
     bool IsReplayCaptureActive => false;
     MoviePlaybackState? ReplayMoviePlayback => null;
+    MovieSkipFrames? ReplayMovieSkipFrames => null;
     void RecordReplayEntry(ReplayJournalEntry entry)
     {
     }
