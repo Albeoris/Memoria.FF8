@@ -4,10 +4,10 @@ using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Rendering;
 
-public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float FieldOfView = 0.8f)
+public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float FieldOfView = 0.8f, float VerticalCenter = 0.5f)
 {
     // TODO(TD-009): Custom overview camera until native battle camera sequencing is implemented
-    public static BattleCamera Overview => new(new Vector3(42, 27, -52), new Vector3(0, 6, 0));
+    public static BattleCamera Overview => new(new Vector3(-65, 32, -52), new Vector3(0, 6, 0), VerticalCenter: 0.46f);
 }
 
 public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0);
@@ -20,6 +20,7 @@ public sealed class BattleRenderer
     private readonly Dictionary<(BattleModel Model, int Size), PixelImage> portraits = [];
     private Matrix4x4 view;
     private float focal;
+    private float centerY;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv);
     private readonly record struct Screen(float X, float Y, float InverseZ, Vector2 UvOverZ);
 
@@ -38,6 +39,18 @@ public sealed class BattleRenderer
     public int Width { get; }
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
+
+    public bool TryProject(Vector3 position, out Vector2 screen)
+    {
+        Vector3 transformed = Vector3.Transform(position, view);
+        if (transformed.Z >= -0.25f)
+        {
+            screen = default;
+            return false;
+        }
+        screen = new Vector2(Width * 0.5f - transformed.X * focal / transformed.Z, centerY + transformed.Y * focal / transformed.Z);
+        return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
+    }
 
     public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null)
     {
@@ -82,12 +95,13 @@ public sealed class BattleRenderer
 
     private void Begin(BattleCamera camera, bool background)
     {
-        if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI)
+        if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1)
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
         }
         view = Matrix4x4.CreateLookAt(camera.Eye, camera.Target, Vector3.UnitY);
         focal = Height / (2 * MathF.Tan(camera.FieldOfView / 2));
+        centerY = Height * camera.VerticalCenter;
         Array.Clear(pixels);
         Array.Fill(depth, float.NegativeInfinity);
         DrawnTriangles = 0;
@@ -119,6 +133,15 @@ public sealed class BattleRenderer
         foreach (BattleFace face in mesh.Faces)
         {
             Vertex At(int index) => new(transformed[face.Vertices[index]], face.Uv[index]);
+            // Native50FDF0/510680 accepts positive projected winding for both triangles and quads.
+            // The camera-space plane test is equivalent before near clipping; use the original first three corners.
+            Vector3 first = At(0).Position;
+            Vector3 second = At(1).Position;
+            Vector3 third = At(2).Position;
+            if (Vector3.Dot(Vector3.Cross(second - first, third - first), first) <= 0)
+            {
+                continue;
+            }
             Triangle(At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2), textures[face.Texture], face.Color, opacity);
             if (face.Vertices.Length == 4)
             {
@@ -158,7 +181,7 @@ public sealed class BattleRenderer
     private Screen Project(Vertex vertex)
     {
         float inverse = -1 / vertex.Position.Z;
-        return new Screen(Width * 0.5f + vertex.Position.X * focal * inverse, Height * 0.5f - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse);
+        return new Screen(Width * 0.5f + vertex.Position.X * focal * inverse, centerY - vertex.Position.Y * focal * inverse, inverse, vertex.Uv * inverse);
     }
 
     private static float Edge(Screen a, Screen b, float x, float y) => (b.X - a.X) * (y - a.Y) - (b.Y - a.Y) * (x - a.X);

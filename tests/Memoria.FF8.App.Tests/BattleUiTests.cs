@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -112,6 +113,7 @@ public sealed class BattleUiTests
     public void Rejected_debug_scenario_displays_error_and_preserves_existing_battle(string failure)
     {
         BattleDefinition original = Definition();
+        JsonElement originalBefore = JsonSerializer.SerializeToElement(original);
         BattleSession session = new(original, BattleAtbMode.Normal);
         BattleSnapshot before = session.Capture();
         BattleDebugController debug = new(original, new BattleDebugCatalog(), BattleAtbMode.Normal, "ResearchInstantVictory", true, (_, _) => throw failure switch
@@ -125,8 +127,9 @@ public sealed class BattleUiTests
         Assert.StartsWith("Cannot start scenario: ", debug.Message);
         Assert.Equal(before.Frame, session.Frame);
         Assert.Equal(before.Outcome, session.Outcome);
-        Assert.Equal(before.Combatants, session.Capture().Combatants);
-        Assert.Equal(original.Combatants, debug.Definition.Combatants);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(before), JsonSerializer.SerializeToElement(session.Capture())));
+        Assert.True(JsonElement.DeepEquals(originalBefore, JsonSerializer.SerializeToElement(original)));
+        Assert.True(JsonElement.DeepEquals(originalBefore, JsonSerializer.SerializeToElement(debug.Definition)));
     }
 
     [Fact]

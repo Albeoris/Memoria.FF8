@@ -47,6 +47,16 @@ public sealed class NativeMusicCatalog
     public int SoundPan(int pan) => Table(0xB7ED10, pan);
     public int MusicVolume(int volume) => Table(0xB7F92C, volume);
 
+    /// <summary>Original5015A0/501640 select one of seven original sound identities for each battle actor.</summary>
+    public uint BattleActorSound(int actorId, int soundNumber)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(actorId);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(actorId, 160);
+        ArgumentOutOfRangeException.ThrowIfNegative(soundNumber);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(soundNumber, 7);
+        return BinaryPrimitives.ReadUInt32LittleEndian(image.AsSpan(Offset(0xB8A418) + (actorId * 7 + soundNumber) * sizeof(uint), sizeof(uint)));
+    }
+
     public static int ResolveMusicId(int music, int fieldId)
     {
         // NG-001:; original46B530 remaps landing17 outside Dollet field339.

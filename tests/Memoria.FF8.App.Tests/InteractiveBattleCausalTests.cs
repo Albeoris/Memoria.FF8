@@ -38,6 +38,7 @@ public sealed class InteractiveBattleCausalTests
         int commands = 0;
         int attacks = 0;
         bool testedMidCombat = false;
+        bool capturedPresentation = false;
         Stopwatch fightWatch = Stopwatch.StartNew();
         while (world.Battle!.Outcome == BattleOutcome.Active)
         {
@@ -57,6 +58,14 @@ public sealed class InteractiveBattleCausalTests
             else
             {
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.AdvanceTurn));
+            }
+            if (!capturedPresentation && Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PRESENTATION_EVIDENCE") is string presentationEvidence && active.Events.Any(item => item.Kind == "Damage"))
+            {
+                capturedPresentation = true;
+                Directory.CreateDirectory(presentationEvidence);
+                string snapshot = Path.Combine(presentationEvidence, "battle-fidelity-ifrit-snapshot.json");
+                File.WriteAllText(snapshot, JsonSerializer.Serialize(active.Capture(), new JsonSerializerOptions { WriteIndented = true }));
+                Assert.Equal(0, BattlePreview.Run(["--snapshot", snapshot, "--output", Path.Combine(presentationEvidence, "battle-fidelity-ifrit.png"), "--game-dir", game]));
             }
             if (!testedMidCombat && attacks > 0 && active.Outcome == BattleOutcome.Active && (active.ActiveAction is not null || active.QueuedActions.Count != 0))
             {
@@ -112,7 +121,7 @@ public sealed class InteractiveBattleCausalTests
         session.SetEventState(world.Events.Capture());
         bool publishEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_PUBLISH_BATTLE_EVIDENCE") == "1";
         string proofDirectory = publishEvidence ? evidence : scratch;
-        string published = Path.Combine(proofDirectory, "interactive-ifrit-current-checkpoint.json");
+        string published = Path.Combine(proofDirectory, "battle-fidelity-ifrit-checkpoint.json");
         session.Save(published, registerJournalReference: false);
         var proof = new
         {
@@ -140,7 +149,7 @@ public sealed class InteractiveBattleCausalTests
             WholeStateExceptJournal = true,
             NextWaitStateVmCpuPixels = true
         };
-        File.WriteAllText(Path.Combine(proofDirectory, "interactive-ifrit-current-proof.json"), JsonSerializer.Serialize(proof, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(proofDirectory, "battle-fidelity-ifrit-proof.json"), JsonSerializer.Serialize(proof, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine(JsonSerializer.Serialize(proof));
         string resolvedScratch = Path.GetFullPath(scratch);
         string temporaryRoot = Path.GetFullPath(Path.GetTempPath());

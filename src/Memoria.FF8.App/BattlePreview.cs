@@ -116,6 +116,7 @@ internal static class BattlePreview
         {
             PixelBounds viewport = ViewportLayout.Fit(320, 240, width, height);
             canvas.DrawRgba(scene.Render(session, viewport.Width, viewport.Height), viewport.Width, viewport.Height, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
+            scene.DrawEffects(session, canvas, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
             BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn())
             {
                 ShowInitiative = scenario?.ShowInitiative ?? true,

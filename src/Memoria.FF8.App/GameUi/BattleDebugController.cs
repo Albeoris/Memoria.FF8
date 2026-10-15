@@ -38,8 +38,8 @@ public sealed class BattleDebugController
         this.start = start;
         this.settings = settings;
         this.close = close;
-        party = initial.Combatants.Where(actor => actor.IsPlayer).ToList();
-        enemies = initial.Combatants.Where(actor => !actor.IsPlayer).ToList();
+        party = this.initial.Combatants.Where(actor => actor.IsPlayer).ToList();
+        enemies = this.initial.Combatants.Where(actor => !actor.IsPlayer).ToList();
         Mode = mode;
         Policy = policy;
         ShowInitiative = showInitiative;
@@ -55,6 +55,12 @@ public sealed class BattleDebugController
     public string Message { get; private set; } = "Changes apply to a new debug scenario.";
     internal IReadOnlyList<BattleDebugRow> Rows => rows;
     public BattleDefinition Definition => initial with { Name = "Debug battle", StageId = stageId, Combatants = [.. party.Select((actor, index) => actor with { Id = $"party-{index}", IsPlayer = true }), .. enemies.Select((actor, index) => actor with { Id = $"enemy-{index}", IsPlayer = false })] };
+
+    public static BattleDefinition InitializeParty(BattleDefinition scenario, IReadOnlyList<BattleCombatantDefinition> currentParty, BattleSession? currentBattle = null)
+    {
+        Dictionary<string, int>? currentHp = currentBattle?.Combatants.Where(actor => actor.IsPlayer).ToDictionary(actor => actor.Id, actor => actor.CurrentHp);
+        return BattleSession.CloneDefinition(scenario with { Combatants = [.. currentParty.Select(actor => currentHp is not null && currentHp.TryGetValue(actor.Id, out int hp) ? actor with { CurrentHp = hp } : actor), .. scenario.Combatants.Where(actor => !actor.IsPlayer)] });
+    }
 
     public UiView BuildView()
     {

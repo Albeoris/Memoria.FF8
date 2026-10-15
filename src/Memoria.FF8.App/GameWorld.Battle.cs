@@ -35,29 +35,9 @@ internal sealed partial class GameWorld
 
     public BattleDefinition CreateEncounterBattle(int encounterId)
     {
-        NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Interactive battle requires the actual current character records.");
-        vitals.Validate();
         BattleEncounter encounter = BattleResources.LoadEncounter(encounterId);
         _ = BattleResources.LoadStage(encounter.StageId);
-        battleCatalog ??= LiveMenuCatalog.ReadInstalled(assets);
-        List<BattleCombatantDefinition> combatants = [];
-        foreach (byte row in vitals.CombatParty.Where(row => row != 255))
-        {
-            NativeCharacterVital saved = vitals.Records[row];
-            if (saved.HitPoints.Minimum != saved.HitPoints.Maximum || saved.Status != 0)
-            {
-                throw new NotSupportedException("Interactive combat requires exact current HP and an implemented saved-status projection.");
-            }
-            int character = saved.CharacterId;
-            int weapon = character >= 8 ? vitals.DreamWeapons[character - 8] : saved.Weapon;
-            int level = NativeStatDefinitions.Level(saved.Experience, vitals.Definitions.Characters[character]);
-            int costume = session.State.CharacterAppearance?.Records[row].Dress ?? throw new NotSupportedException("Interactive battle requires the current saved costume owner.");
-            _ = BattleResources.LoadPlayer(character, costume);
-            string name = Events.Scene.Names.GetValueOrDefault(character, battleCatalog.CharacterName(character) ?? $"Character {character}");
-            // TODO(TD-009): non-HP stats use explicit scaffold tuning until the native combat stat/damage contract is implemented
-            BattleWeaponDefinition equipped = BattleResources.WeaponDefinitions[weapon];
-            combatants.Add(new BattleCombatantDefinition { Id = $"party-{row}", Name = name, IsPlayer = true, ModelId = character, Costume = costume, MaximumHp = vitals.Definitions.CharacterMaximum(saved), CurrentHp = saved.HitPoints.Minimum, Speed = 90 + level, Attack = 25 + level * 4 + equipped.AttackPower + equipped.StrengthBonus, Defense = 10 + level, WeaponId = weapon, WeaponName = equipped.Name, EquipmentIds = saved.Junction.GuardianForceAssignments.ToArray() });
-        }
+        List<BattleCombatantDefinition> combatants = [.. CreateBattleParty()];
         foreach (BattleEnemyPlacement enemy in encounter.Enemies)
         {
             if (enemy.Hidden || enemy.Untargetable)
@@ -73,6 +53,12 @@ internal sealed partial class GameWorld
         BattleDefinition definition = new() { Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray() };
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
+    }
+
+    public BattleCombatantDefinition[] CreateBattleParty()
+    {
+        battleCatalog ??= LiveMenuCatalog.ReadInstalled(assets);
+        return BattlePartyProjection.Create(session.State, Events.Scene.Names, battleCatalog, BattleResources);
     }
 
     private void ValidateBattleHostState()

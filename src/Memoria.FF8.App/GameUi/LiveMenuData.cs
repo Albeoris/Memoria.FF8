@@ -169,7 +169,7 @@ public static class LiveMenuData
 
     private static string? Nonempty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
-    private static string CharacterName(GameState state, byte identity, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog)
+    internal static string CharacterName(GameState state, byte identity, IReadOnlyDictionary<int, string>? names, LiveMenuCatalog? catalog)
     {
         // EventEngine.CharacterNames owns naming subjects0/1; their combat identities are0/4.
         int? subject = identity switch

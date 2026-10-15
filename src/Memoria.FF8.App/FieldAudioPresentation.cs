@@ -156,13 +156,16 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
 
     private void PlaySound(GlobalSoundRequest request)
     {
-        int index = request.Resource.SampleIndex;
+        PlaySoundSample(request.Resource.SampleIndex, request.Voice, request.Volume, request.EffectivePan, request.Resource.LoopPolicy);
+    }
+
+    private void PlaySoundSample(int index, int voiceId, uint volume, uint effectivePan, GlobalSoundLoopPolicy policy)
+    {
         if (!samples.TryGetValue(index, out PcmAudio? pcm))
         {
             pcm = PcmAudioDecoder.ReadSample(gameDirectory, index);
             samples.Add(index, pcm);
         }
-        GlobalSoundLoopPolicy policy = request.Resource.LoopPolicy;
         DirectSoundOutput.Buffer primary = Sound.Create(pcm.Bytes, pcm.SampleRate, pcm.Channels);
         DirectSoundOutput.Buffer? loop = null;
         try
@@ -173,24 +176,47 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                 int length = checked((int)(policy.LoopEndPcmByte - policy.LoopStartPcmByte));
                 loop = Sound.Create(pcm.Bytes.AsSpan(start, length).ToArray(), pcm.SampleRate, pcm.Channels);
             }
-            int gain = OutputGain(Catalog.SoundVolume((int)request.Volume), soundPreference);
-            int pan = Catalog.SoundPan((int)request.EffectivePan);
+            int gain = OutputGain(Catalog.SoundVolume((int)volume), soundPreference);
+            int pan = Catalog.SoundPan((int)effectivePan);
             primary.Volume(gain);
             primary.Pan(pan);
             loop?.Volume(gain);
             loop?.Pan(pan);
-            StopVoice(request.Voice);
-            var voice = new Voice(primary, loop, request.Volume, request.EffectivePan, policy.LoopTransitionDelayMilliseconds);
-            voices.Add(request.Voice, voice);
+            StopVoice(voiceId);
+            var voice = new Voice(primary, loop, volume, effectivePan, policy.LoopTransitionDelayMilliseconds);
+            voices.Add(voiceId, voice);
             primary.Play(loop is null && (policy.PlaybackFlags & 1) != 0);
         }
         catch
         {
             primary.Dispose();
             loop?.Dispose();
-            voices.Remove(request.Voice);
+            voices.Remove(voiceId);
             throw;
         }
+    }
+
+    public void PlayBattleMusic(int track)
+    {
+        TryOutput(() => PlayMusic(track, 0, 127, -1));
+    }
+
+    public void PlayBattleImpact(int actorId)
+    {
+        TryOutput(() =>
+        {
+            // Native504290 selects slot1 for actor0 and slot0 for other actors;501640 reads B8A418.
+            uint effect = Catalog.BattleActorSound(actorId, actorId == 0 ? 1 : 0);
+            if (effect == 0)
+            {
+                return;
+            }
+            int sample = EventEngine.MapGlobalSoundSample(effect);
+            GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Battle sound {effect} requires an unsupported audio format.");
+            // TODO(TD-009): Centered maximum-gain contact at scaffold damage timing; native sequence/camera spatialization remains deferred
+            // The negative voice is device-only and cannot collide with native field voices0..31 or create a VM receipt.
+            PlaySoundSample(sample, -1, 127, 64, resource.LoopPolicy);
+        });
     }
 
     private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false)

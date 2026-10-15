@@ -82,6 +82,8 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        battleScene!.AdvancePresentation(elapsed);
+        SynchronizeBattleAudio();
         if (keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.InstantVictory));
@@ -210,7 +212,9 @@ internal sealed partial class RecreateGame
     {
         if (debugBattle is null)
         {
-            return world!.ApplyBattleInput(input);
+            int dispatched = world!.ApplyBattleInput(input);
+            SynchronizeBattleAudio();
+            return dispatched;
         }
         input.Validate();
         long before = debugBattle.Frame;
@@ -237,6 +241,7 @@ internal sealed partial class RecreateGame
             default:
                 throw new InvalidOperationException("This command requires a game-owned encounter.");
         }
+        SynchronizeBattleAudio();
         return checked((int)(debugBattle.Frame - before));
     }
 
@@ -246,7 +251,7 @@ internal sealed partial class RecreateGame
         BattleAssets resources = PresentationBattleResources;
         return new BattleDebugCatalog
         {
-            Players = resources.PlayerCharacterIds.Select(id => new BattleCombatantDefinition { Id = $"player-{id}", Name = liveMenuCatalog!.CharacterName(id) ?? $"Character {id}", IsPlayer = true, ModelId = id, MaximumHp = 1000, CurrentHp = 1000, Speed = 100, Attack = 80, Defense = 20 }).ToArray(),
+            Players = resources.PlayerCharacterIds.Select(id => new BattleCombatantDefinition { Id = $"player-{id}", Name = LiveMenuData.CharacterName(session.State, checked((byte)id), events?.Scene.Names, liveMenuCatalog), IsPlayer = true, ModelId = id, MaximumHp = 1000, CurrentHp = 1000, Speed = 100, Attack = 80, Defense = 20 }).ToArray(),
             Enemies = resources.EnemyModelIds.Select(id => new BattleCombatantDefinition { Id = $"enemy-{id}", Name = resources.ReadEnemyName(id), ModelId = id, MaximumHp = 500, CurrentHp = 500, Speed = 80, Attack = 50, Defense = 10 }).ToArray(),
             Weapons = resources.WeaponDefinitions.Select(weapon => new BattleDebugEquipment(weapon.Id, weapon.Name, weapon.CharacterId)).ToArray(),
             Equipment = Enumerable.Range(0, 16).Select(id => new BattleDebugEquipment(id, liveMenuCatalog!.GuardianForceName(id) ?? $"GF {id}")).ToArray(),
@@ -259,7 +264,18 @@ internal sealed partial class RecreateGame
     {
         gameMenus?.Close();
         BattleDebugCatalog catalog = ReadBattleDebugCatalog();
-        BattleDefinition initial = ActiveBattle?.Capture().Definition ?? debugBattleDefinition ?? new BattleDefinition { StageId = catalog.StageIds.First(), Combatants = [catalog.Players.First() with { Id = "party-0" }, catalog.Enemies.First() with { Id = "enemy-0" }] };
+        BattleDefinition scenario = ActiveBattle?.Capture().Definition ?? debugBattleDefinition ?? new BattleDefinition { StageId = catalog.StageIds.First(), Combatants = [catalog.Enemies.First() with { Id = "enemy-0" }] };
+        BattleCombatantDefinition[] currentParty;
+        if (session.State.Scene == SceneKind.Title)
+        {
+            using GameAssets assets = new(options.GameDirectory);
+            currentParty = BattlePartyProjection.CreateNewGame(assets, liveMenuCatalog!, PresentationBattleResources);
+        }
+        else
+        {
+            currentParty = world?.CreateBattleParty() ?? throw new NotSupportedException("Battle laboratory requires the current game-owned party.");
+        }
+        BattleDefinition initial = BattleDebugController.InitializeParty(scenario, currentParty, world?.Battle);
         battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, uiPreferences.BattlePolicy, uiPreferences.ShowInitiative, StartDebugBattle, ApplyBattleDebugSettings, () => battleDebug = null);
         SynchronizeUiMoviePause();
     }
@@ -285,6 +301,7 @@ internal sealed partial class RecreateGame
         battleDebug = null;
         gameMenus?.Close();
         EnsureBattleHud(next);
+        SynchronizeBattleAudio();
     }
 
     private void DrawBattle(Rectangle bounds)
@@ -300,6 +317,7 @@ internal sealed partial class RecreateGame
         battleTexture!.SetData(battleScene!.Render(active, size.Width, size.Height));
         PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         batch.Draw(battleTexture, new Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height), Color.White);
+        battleScene.DrawEffects(active, uiCanvas!, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
         UiView view = battleHud!.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(uiCanvas!, uiTheme);
@@ -385,9 +403,13 @@ internal sealed partial class RecreateGame
         battleScene = null;
     }
 
-    private void ClearBattlePresentation()
+    private void ClearBattlePresentation(bool synchronizeAudio = true)
     {
         debugBattle = null;
+        if (synchronizeAudio)
+        {
+            SynchronizeBattleAudio();
+        }
         battleDebug = null;
         battleHud = null;
         presentedBattle = null;
@@ -397,7 +419,8 @@ internal sealed partial class RecreateGame
 
     private void DisposeBattlePresentation()
     {
-        ClearBattlePresentation();
+        ClearBattlePresentation(synchronizeAudio: false);
+        battleAudio = null;
         presentationBattleAssets?.Dispose();
     }
 }

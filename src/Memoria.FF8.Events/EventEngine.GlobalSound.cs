@@ -21,7 +21,7 @@ public sealed partial class EventEngine
     /// <summary>Resolves the mapped global sample descriptor and an explicit muted/failed backend, independently of the field-local EFFECTLOAD bank.</summary>
     public Func<int, GlobalSoundResource?>? ResolveGlobalSoundResource { get; set; }
 
-    private static int MapGlobalSoundSample(uint effectId)
+    public static int MapGlobalSoundSample(uint effectId)
     {
         uint group = effectId / 10000;
         if (group == 69)
