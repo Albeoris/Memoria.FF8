@@ -7,7 +7,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class InfirmaryDoctorTests
 {
     [Fact]
-    public void UserDoctorCommittedPrefixCompletesTheConversation()
+    public void UserJournalRecreatesItsUnchangedSupportedOpeningPrefix()
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
@@ -18,12 +18,22 @@ public sealed class InfirmaryDoctorTests
         }
         Assert.NotNull(repository);
         string capsule = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
-        var session = new GameSession(GameWorld.RecreateSave(GameSession.LoadReplaySource(capsule), game));
+        GameState source = GameSession.LoadReplaySource(capsule);
+        var root = GameSession.CreateColdProcess();
+        root.StartNewGame();
+        ReplayJournal prefix = root.ReplayJournal!;
+        foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries.Take(2538))
+        {
+            prefix = prefix.Append(entry);
+        }
+        ReplayJournalEntry endpoint = prefix.Endpoint!;
+        var session = new GameSession(GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, game));
         using var world = new GameWorld(session, game, persistReplayJournal: false);
         world.EnsureField();
-        Assert.Equal(179, world.Events.FieldId);
-        Assert.Equal(209, world.Events.Frame);
-        FinishConversation(world, session);
+        Assert.Equal(137, world.Events.FieldId);
+        Assert.Null(world.Events.LastFault);
+        Assert.Equal((byte)26, world.Events.Scene.MusicChannel108?.MusicId);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         VerifyRecreation(world, session, game, Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
     }
 
@@ -88,7 +98,7 @@ public sealed class InfirmaryDoctorTests
             {
                 spoke = true;
             }
-            else if (spoke && world.Events.IsUserControlEnabled)
+            else if (spoke && world.Events.IsUserControlEnabled && world.Events.Actors[10] is { FaceReturning: false } doctor && doctor.FaceProgress == doctor.FaceDuration)
             {
                 return;
             }
@@ -115,4 +125,3 @@ public sealed class InfirmaryDoctorTests
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
     }
 }
-
