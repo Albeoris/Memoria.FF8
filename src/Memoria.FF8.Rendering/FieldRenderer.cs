@@ -326,6 +326,11 @@ public sealed partial class FieldRenderer
         }
         foreach (ModelFace face in model.Faces)
         {
+            // Native 533920/533A90 reject the back face using the first three projected vertices, before splitting a quad.
+            if (Edge(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]].X, projected[face.Vertices[2]].Y) > 0)
+            {
+                continue;
+            }
             PixelImage texture = model.Textures[face.Texture];
             Triangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value);
             if (face.Quad)
