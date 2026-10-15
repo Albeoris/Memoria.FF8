@@ -75,7 +75,6 @@ internal sealed class ReplayJournalEntryStorage : JsonConverter<ReplayJournalEnt
         Optional(writer, nameof(value.NativeSourceHash), value.NativeSourceHash);
         Optional(writer, nameof(value.BattleInput), value.BattleInput);
         Optional(writer, nameof(value.SemanticTrigger), value.SemanticTrigger);
-        Optional(writer, nameof(value.Approach), value.Approach);
         Array(writer, nameof(value.SemanticAdmissions), value.SemanticAdmissions);
         Optional(writer, nameof(value.ScriptGoal), value.ScriptGoal);
         Optional(writer, nameof(value.EffectArguments), value.EffectArguments);

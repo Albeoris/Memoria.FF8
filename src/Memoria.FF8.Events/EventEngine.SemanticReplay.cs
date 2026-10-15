@@ -1,13 +1,11 @@
 using Memoria.FF8.Runtime;
 using Albeoris.Games.FF8.Jsm;
-using System.Numerics;
 
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
     private bool semanticInputInferred;
-    private bool semanticInputApproachUnknown;
     public event Action<ReplaySemanticTrigger>? SemanticTriggerAdmitted;
     public bool CanAdmitSemanticInput => CanAdmitSemanticTrigger();
 
@@ -24,9 +22,7 @@ public sealed partial class EventEngine
                 return new PlayerActionResult(false, NextTrigger, 0, "The current native field does not admit an external event stimulus.");
             }
             bool previous = semanticInputInferred;
-            bool previousApproachUnknown = semanticInputApproachUnknown;
             semanticInputInferred = trigger.Inferred;
-            semanticInputApproachUnknown = trigger.Kind == ReplaySemanticTriggerKind.ActorInteraction && trigger.Approach is null;
             try
             {
                 bool accepted;
@@ -78,7 +74,6 @@ public sealed partial class EventEngine
             finally
             {
                 semanticInputInferred = previous;
-                semanticInputApproachUnknown = previousApproachUnknown;
             }
         });
     }
@@ -259,6 +254,13 @@ public sealed partial class EventEngine
 
     private bool HasPureCurrentExitPrefix(int objectId, EventScript script)
     {
+        return TryReadPureCurrentExitPrefix(objectId, script, out _, out _);
+    }
+
+    private bool TryReadPureCurrentExitPrefix(int objectId, EventScript script, out JsmOperation? terminal, out int[] arguments)
+    {
+        terminal = null;
+        arguments = [];
         // Only these existing Execute cases return after operating on the detached
         // operand stack. They do not emit CommandExecuted or publish event owners.
         Fiber probe = new(objectId, script, 0, 0, false) { Position = script.Start + 1 };
@@ -308,7 +310,13 @@ public sealed partial class EventEngine
                 };
                 // Reached writes, requests, UI, RNG, actor-local inputs and RET
                 // before departure are unsupported proof paths, not executed.
-                return operands != 0 && probe.Stack.Count >= operands;
+                if (operands == 0 || probe.Stack.Count < operands)
+                {
+                    return false;
+                }
+                terminal = operation;
+                arguments = probe.Stack.Take(operands).Reverse().ToArray();
+                return true;
             }
         }
         catch (Exception exception) when (exception is EventScriptException or InvalidOperationException or InvalidDataException or ArgumentException or ArithmeticException or NotSupportedException)
@@ -316,6 +324,74 @@ public sealed partial class EventEngine
             return false;
         }
         return false;
+    }
+
+    /// <summary>Proves current pure field exits for inferred inputs under explicit completed-visit spatial abstraction.</summary>
+    public bool CanCanonicalizeLegacySpatialExits(IReadOnlyList<ReplaySemanticTrigger> candidates, SceneKind destinationScene, int destinationFieldId)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        if (!IsSemanticSpatialReplay || candidates.Count < 2 || program is null || NativeRuntimeProfile is not { IsVerified: true } || Scene.MapJumpDisabled || destinationScene != SceneKind.Field)
+        {
+            return false;
+        }
+        bool? resetLeaderDefaults = null;
+        foreach (ReplaySemanticTrigger candidate in candidates)
+        {
+            if (candidate is not { Inferred: true })
+            {
+                return false;
+            }
+            try
+            {
+                candidate.Validate();
+                ValidateSemanticProducer(candidate);
+                if (!IsSemanticTargetEnabled(candidate))
+                {
+                    return false;
+                }
+                FieldTransition? destination;
+                if (candidate.Kind == ReplaySemanticTriggerKind.FieldGateway)
+                {
+                    destination = ResolveSemanticGateway(candidate.InfIndex).Destination;
+                    // An unclassified extra WORD is not proved to be only spatial.
+                    if (destination.NativeExtraWord is not null)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    EventScript script = program.Objects[candidate.ObjectId].Scripts[candidate.LocalScript];
+                    if (!TryReadPureCurrentExitPrefix(candidate.ObjectId, script, out JsmOperation? terminal, out int[] arguments))
+                    {
+                        return false;
+                    }
+                    destination = terminal!.Opcode switch
+                    {
+                        Jsm.Opcode.MAPJUMP => new FieldTransition(unchecked((ushort)arguments[0]), unchecked((short)arguments[1]), unchecked((short)arguments[2]), unchecked((ushort)terminal.Parameter), unchecked((byte)arguments[3])),
+                        //521B1D's extra WORD is the known MAPJUMP3 height operand.
+                        Jsm.Opcode.MAPJUMP3 => new FieldTransition(unchecked((ushort)arguments[0]), unchecked((short)arguments[1]), unchecked((short)arguments[2]), unchecked((ushort)terminal.Parameter), unchecked((byte)arguments[4]), unchecked((short)arguments[3])),
+                        Jsm.Opcode.MAPJUMPO => FieldTransition.FromMapJumpOrigin(arguments[0], arguments[1]),
+                        _ => null
+                    };
+                }
+                if (destination is null || destination.DiscJump is not null || destination.FieldId != destinationFieldId || destination.FieldId is < 72 or > ushort.MaxValue or 0x7FFF || !float.IsFinite(destination.X) || !float.IsFinite(destination.Y) || destination.X is < short.MinValue or > short.MaxValue || destination.Y is < short.MinValue or > short.MaxValue || destination.X != MathF.Truncate(destination.X) || destination.Y != MathF.Truncate(destination.Y) || destination.Triangle is < 0 or > short.MaxValue || destination.Direction is < 0 or > byte.MaxValue)
+                {
+                    return false;
+                }
+                bool resets = destination.Triangle == short.MaxValue;
+                if (resetLeaderDefaults is bool expectedReset && resets != expectedReset)
+                {
+                    return false;
+                }
+                resetLeaderDefaults = resets;
+            }
+            catch (Exception exception) when (exception is EventScriptException or InvalidOperationException or InvalidDataException or ArgumentException or ArithmeticException or NotSupportedException)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     /// <summary>Legacy-only policy proof for choosing a current arrival packet after physical approach was discarded. This is not packet equivalence.</summary>
@@ -405,33 +481,11 @@ public sealed partial class EventEngine
         }
     }
 
-    private ReplaySemanticTrigger CreateSemanticTrigger(ReplaySemanticTriggerKind kind, int objectId, int local, int slot, int infIndex = -1, byte eventBits = 0, bool contact = false, bool captureApproach = false)
+    private ReplaySemanticTrigger CreateSemanticTrigger(ReplaySemanticTriggerKind kind, int objectId, int local, int slot, int infIndex = -1, byte eventBits = 0, bool contact = false)
     {
         int nativeId = Array.IndexOf(program!.NativeObjects.ToArray(), objectId);
         int scriptId = (uint)local < program.Objects[objectId].Scripts.Count ? program.Objects[objectId].Scripts[local].Id : -1;
-        ReplayActorApproach? approach = captureApproach && kind == ReplaySemanticTriggerKind.ActorInteraction ? CaptureSemanticActorApproach(objectId) : null;
-        return new ReplaySemanticTrigger(1, kind, FieldId, programHash!, nativeId, objectId, scriptId, slot, local, infIndex, eventBits, contact, ExecutableHash: NativeRuntimeProfile?.ExecutableHash, Approach: approach);
-    }
-
-    private ReplayActorApproach? CaptureSemanticActorApproach(int objectId)
-    {
-        if (PlayerActor is not ActorState leader)
-        {
-            return null;
-        }
-        ActorState target = actors[objectId];
-        Vector2 towardTarget = new(target.X - leader.X, target.Y - leader.Y);
-        if (!float.IsFinite(towardTarget.X) || !float.IsFinite(towardTarget.Y) || towardTarget.LengthSquared() == 0)
-        {
-            return null;
-        }
-        Vector2 axes = Vector2.Transform(Vector2.Normalize(towardTarget), Matrix3x2.CreateRotation(-InputAxisDirection * MathF.Tau / 256));
-        // Quantize the normalized advisory vector inside its unit bound rather than retain float roundoff above one.
-        while ((double)axes.X * axes.X + (double)axes.Y * axes.Y > 1)
-        {
-            axes *= MathF.BitDecrement(1f);
-        }
-        return new ReplayActorApproach(axes.X, axes.Y);
+        return new ReplaySemanticTrigger(1, kind, FieldId, programHash!, nativeId, objectId, scriptId, slot, local, infIndex, eventBits, contact, ExecutableHash: NativeRuntimeProfile?.ExecutableHash);
     }
 
     private ReplaySemanticTrigger CreateSemanticGateway(InfGateway gateway)

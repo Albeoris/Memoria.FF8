@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -84,6 +84,7 @@ internal static partial class Program
                     ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
                     ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
                     ["semantic-admission"] = () => SemanticAdmissionContract(selectedGameDirectory),
+                    ["semantic-spatial"] = () => SemanticSpatialReplayContract(selectedGameDirectory),
                     ["semantic-salary"] = () => SemanticSalaryContract(selectedGameDirectory),
                     ["semantic-exit-equivalence"] = () => SemanticExitEquivalenceContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),

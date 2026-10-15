@@ -23,15 +23,10 @@ public enum ReplaySemanticTriggerKind
 }
 
 /// <summary>An actual native admission site, never a position or a recorded state write.</summary>
-public sealed record ReplaySemanticTrigger(int Version, ReplaySemanticTriggerKind Kind, int FieldId, string ProgramHash, int NativeObjectId, int ObjectId, int ScriptId, int NativeSlot, int LocalScript, int InfIndex = -1, byte EventBits = 0, bool Contact = false, bool Inferred = false, string? ExecutableHash = null, int Sequence = -1, ReplayActorApproach? Approach = null)
+public sealed record ReplaySemanticTrigger(int Version, ReplaySemanticTriggerKind Kind, int FieldId, string ProgramHash, int NativeObjectId, int ObjectId, int ScriptId, int NativeSlot, int LocalScript, int InfIndex = -1, byte EventBits = 0, bool Contact = false, bool Inferred = false, string? ExecutableHash = null, int Sequence = -1)
 {
     public void Validate()
     {
-        Approach?.Validate();
-        if (Approach is not null && Kind != ReplaySemanticTriggerKind.ActorInteraction)
-        {
-            throw new InvalidDataException("Only actor interactions carry an incoming approach direction.");
-        }
         if (Version != 1 || !Enum.IsDefined(Kind) || FieldId is < 0 or > ushort.MaxValue || !IsHash(ProgramHash) || ExecutableHash is not null && !IsHash(ExecutableHash) || NativeObjectId < -1 || ObjectId < -1 || ScriptId < -1 || NativeSlot is < -1 or > 7 || LocalScript < -1 || InfIndex < -1 || Sequence < -1)
         {
             throw new InvalidDataException("Invalid semantic native admission provenance.");

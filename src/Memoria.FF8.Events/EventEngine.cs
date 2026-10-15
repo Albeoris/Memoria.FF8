@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -311,7 +311,10 @@ public sealed partial class EventEngine
         StepInputAxis();
         foreach (ActorState actor in actors)
         {
-            actor.StepRotation();
+            if (!IsSemanticSpatialReplay)
+            {
+                actor.StepRotation();
+            }
         }
         int currentGeneration = generation;
         foreach (ActorState actor in NativeCallbackActors())
@@ -347,17 +350,27 @@ public sealed partial class EventEngine
         StepNativeDisplayOffsets();
         foreach (ActorState actor in actors)
         {
-            StepCosineRotation(actor);
+            if (!IsSemanticSpatialReplay)
+            {
+                StepCosineRotation(actor);
+            }
         }
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             actors[objectId].NativeMovementGroundContact600 = 1;
         }
-        StepNativePlayerInput(nativePlayerInput);
-        StepNativeScriptMovement();
-        StepNativeJump();
-        StepNativeLadder();
-        StepNativeLadderMode3();
+        if (IsSemanticSpatialReplay)
+        {
+            StepSemanticSpatialTraversals();
+        }
+        else
+        {
+            StepNativePlayerInput(nativePlayerInput);
+            StepNativeScriptMovement();
+            StepNativeJump();
+            StepNativeLadder();
+            StepNativeLadderMode3();
+        }
         SampleNativeDoorActionEdges();
         StepNativeShake();
         StepNativeActorBackgroundScroll();
@@ -368,7 +381,10 @@ public sealed partial class EventEngine
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
         foreach (ActorState actor in actors)
         {
-            StepFaceDirection(actor);
+            if (!IsSemanticSpatialReplay)
+            {
+                StepFaceDirection(actor);
+            }
         }
         StepNativeModelParts();
         StepNativeMovieMask();
@@ -473,11 +489,10 @@ public sealed partial class EventEngine
             {
                 throw new NotSupportedException(suspension);
             }
-            bool captureApproach = !semanticInputApproachUnknown && Scene.NativeFieldLoadVersion == 1 && SelectInteractionTarget() == objectId;
             Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
             action.NativeActorSlot = 7;
             SuspendNativeMovementForRequest(actor, action);
-            RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7, captureApproach: captureApproach));
+            RecordSemanticAdmission(CreateSemanticTrigger(ReplaySemanticTriggerKind.ActorInteraction, objectId, 2, 7));
         }
         else
         {
@@ -613,7 +628,9 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = IsSemanticSpatialReplay && IsSemanticSpatialOpcode(operation.Opcode)
+                ? UnsupportedSemanticSpatialInstruction(fiber, operation)
+                : UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";

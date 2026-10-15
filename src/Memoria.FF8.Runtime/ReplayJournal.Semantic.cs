@@ -74,19 +74,9 @@ public sealed partial class ReplayJournal
             }
         }
         ReplayJournalEntry? allocation = entries.FirstOrDefault(entry => entry.Kind == ReplayEntryKind.FieldLoad);
-        ReplayActorApproach? lastMoveApproach = null;
         for (int inputIndex = 0; inputIndex < entries.Length; inputIndex++)
         {
             ReplayJournalEntry entry = entries[inputIndex];
-            if (inferred && entry.Kind == ReplayEntryKind.Action && entry.Scene == SceneKind.Field && entry.Code == 4 && entry.Accepted && (entry.Horizontal != 0 || entry.Vertical != 0))
-            {
-                double magnitude = Math.Sqrt((double)entry.Horizontal * entry.Horizontal + (double)entry.Vertical * entry.Vertical);
-                lastMoveApproach = new ReplayActorApproach((float)(entry.Horizontal / magnitude), (float)(entry.Vertical / magnitude), Inferred: true);
-            }
-            if (inferred && entry.Kind == ReplayEntryKind.Action && entry.Scene == SceneKind.Field && entry.Code == 3 && entry.Accepted && entry.Approach is null)
-            {
-                entry = entry with { Approach = lastMoveApproach };
-            }
             bool cadence = entry.Kind is ReplayEntryKind.FieldLoad or ReplayEntryKind.WorldAllocation or ReplayEntryKind.InputPulse or ReplayEntryKind.Step or ReplayEntryKind.Update || entry.Kind is ReplayEntryKind.Action or ReplayEntryKind.WorldAction && entry.Code is 4 or 5;
             bool representedInteraction = entry.Kind == ReplayEntryKind.Action && entry.Code is 0 or 3 && entry.SemanticAdmissions.Any(admission => admission.Kind == ReplaySemanticTriggerKind.ActorInteraction);
             if (!cadence && !representedInteraction && RetainExplicitInput(entry, entries, inputIndex, inferred))
@@ -112,13 +102,12 @@ public sealed partial class ReplayJournal
             bool consumedInputAdmission = false;
             foreach (ReplaySemanticTrigger admission in entry.SemanticAdmissions)
             {
-                if (!consumedInputAdmission && entry.SemanticTrigger is { } input && input with { Sequence = -1, ExecutableHash = input.ExecutableHash ?? admission.ExecutableHash, Approach = null } == admission with { Sequence = -1, Approach = null })
+                if (!consumedInputAdmission && entry.SemanticTrigger is { } input && input with { Sequence = -1, ExecutableHash = input.ExecutableHash ?? admission.ExecutableHash } == admission with { Sequence = -1 })
                 {
                     consumedInputAdmission = true;
                     continue;
                 }
-                ReplaySemanticTrigger projectedAdmission = admission.Kind == ReplaySemanticTriggerKind.ActorInteraction && admission.Approach is null ? admission with { Approach = entry.Approach } : admission;
-                outcomes.Add((admission.Sequence, outcomes.Count, new ReplayJournalEntry(ReplayEntryKind.SemanticTrigger, entry.Scene, entry.FieldId, entry.Frame) { SemanticTrigger = projectedAdmission, NativeSourceHash = admission.ProgramHash }));
+                outcomes.Add((admission.Sequence, outcomes.Count, new ReplayJournalEntry(ReplayEntryKind.SemanticTrigger, entry.Scene, entry.FieldId, entry.Frame) { SemanticTrigger = admission, NativeSourceHash = admission.ProgramHash }));
             }
             foreach (ReplayReceipt receipt in entry.Receipts)
             {

@@ -1,4 +1,4 @@
-using Albeoris.Games.FF8.Jsm;
+﻿using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
@@ -120,6 +120,10 @@ public sealed partial class EventEngine
         if (!CanApplySemanticTraversal(traversal))
         {
             return new PlayerActionResult(false, NextTrigger, 0, "The current native traversal producer is not ready.");
+        }
+        if (IsSemanticSpatialReplay)
+        {
+            return ApplySemanticSpatialTraversal(traversal);
         }
         ActorState actor = actors[traversal.Producer.ObjectId];
         bool up = traversal.Mode == 3 ? actor.NativeLadderMode3!.Up : actor.NativeLadder!.Up;

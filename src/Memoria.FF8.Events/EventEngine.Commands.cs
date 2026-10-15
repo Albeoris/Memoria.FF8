@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Runtime;
 
@@ -13,6 +13,12 @@ public sealed partial class EventEngine
         int parameter = operation.Parameter;
         int[] args = [];
         NativeScalarValue[]? scalarArgs = null;
+        if (IsSemanticSpatialReplay && IsSemanticSpatialOpcode(opcode))
+        {
+            args = IsSemanticSpatialFacingOpcode(opcode) ? ExecuteSemanticSpatialFacing(fiber, operation) : ExecuteSemanticSpatialMovement(fiber, operation);
+            CommandExecuted?.Invoke(new ScriptCommand(FieldId, fiber.ObjectId, fiber.Script.Id, operation.Index, opcode.ToString(), args));
+            return;
+        }
         switch (opcode)
         {
             case Jsm.Opcode.LBL:

@@ -6,13 +6,13 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.App.Tests;
 
-public sealed class SemanticActorApproachTests
+public sealed class SemanticSpatialRecreationTests
 {
     [Fact]
-    public void Actual_129_talk_recreates_current_approach_and_join_before_departing_to_131()
+    public void Actual_129_prefix_completes_spatial_commands_and_join_before_departing_to_131()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
-        string sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_LEGACY_APPROACH_SOURCE") ?? Path.Combine("../fixtures/external-fixture.json");
+        string sourcePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_LEGACY_SPATIAL_SOURCE") ?? Path.Combine("../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(sourcePath), "The installed original corpus and preserved authentic legacy journal are required.");
         GameState authentic = GameSession.LoadReplaySource(sourcePath);
         ReplayJournal original = Assert.IsType<ReplayJournal>(authentic.ReplayJournal);
@@ -48,7 +48,6 @@ public sealed class SemanticActorApproachTests
         Assert.Equal(JsonSerializer.Serialize(inputs.Take(departure + 1)), JsonSerializer.Serialize(prefix.Entries));
         ReplayCompletedVisit legacyVisit = prefix.GetSemanticProjection().CompletedVisits.Single(visit => visit.FieldId == 129);
         Assert.Equal(new ReplayVisitExit(SceneKind.Field, 131), legacyVisit.Exit);
-        ReplayActorApproach intendedApproach = Assert.IsType<ReplayActorApproach>(legacyVisit.Intents.Single(intent => intent.Kind == ReplayEntryKind.Action && intent.Code == (int)PlayerActionKind.Interact && intent.Value == 9).Approach);
 
         GameSession cold = GameSession.CreateColdProcess();
         cold.StartNewGame();
@@ -61,16 +60,15 @@ public sealed class SemanticActorApproachTests
         Assert.True(rebuilt.ReplayJournal!.IsComplete);
         Assert.NotEqual(prefix.SessionId, rebuilt.ReplayJournal.SessionId);
         ReplayCompletedVisit current = rebuilt.ReplayJournal.CompletedVisits.Single(visit => visit.FieldId == 129);
-        Assert.Equal(new ReplayVisitExit(SceneKind.Field, 131), current.Exit);
-        ReplaySemanticTrigger admission = Assert.Single(current.Intents, intent => intent.SemanticTrigger is { Kind: ReplaySemanticTriggerKind.ActorInteraction, ObjectId: 9 }).SemanticTrigger!;
-        ReplayActorApproach actualApproach = Assert.IsType<ReplayActorApproach>(admission.Approach);
-        Assert.False(actualApproach.Inferred);
-        if (!intendedApproach.Inferred)
-        {
-            float along = intendedApproach.Horizontal * actualApproach.Horizontal + intendedApproach.Vertical * actualApproach.Vertical;
-            float across = intendedApproach.Horizontal * actualApproach.Vertical - intendedApproach.Vertical * actualApproach.Horizontal;
-            Assert.True(along > 0 && along >= MathF.Abs(across), "An actual retained native direction must preserve its45-degree approach sector.");
-        }
+        Assert.Equal(SceneKind.Field, current.Exit.Scene);
+        Assert.Equal(131, current.Exit.FieldId);
+        ReplaySemanticTrigger currentExit = Assert.IsType<ReplaySemanticTrigger>(current.Exit.Trigger);
+        Assert.Equal(ReplaySemanticTriggerKind.FieldGateway, currentExit.Kind);
+        Assert.Equal(129, currentExit.FieldId);
+        Assert.Equal(0, currentExit.InfIndex);
+        Assert.Equal(current.EntryFieldLoad!.NativeSourceHash, currentExit.ProgramHash);
+        Assert.Equal(current.EntryFieldLoad.Text, currentExit.ExecutableHash);
+        Assert.Single(current.Intents, intent => intent.SemanticTrigger is { Kind: ReplaySemanticTriggerKind.ActorInteraction, ObjectId: 9 });
         Assert.DoesNotContain(current.Intents, intent => intent.Kind == ReplayEntryKind.Action && intent.Code == (int)PlayerActionKind.Move);
         Assert.NotNull(rebuilt.EventState);
         Assert.Equal(JsonValueKind.Null, rebuilt.EventState.Value.GetProperty("PartyJoin").ValueKind);
@@ -90,5 +88,24 @@ public sealed class SemanticActorApproachTests
         Assert.True(JsonElement.DeepEquals(currentScene.GetProperty("Names"), repeatedScene.GetProperty("Names")));
         Assert.Equal(JsonValueKind.Null, repeated.EventState.Value.GetProperty("PartyJoin").ValueKind);
         Assert.Equal(JsonValueKind.Null, repeated.EventState.Value.GetProperty("LastFault").ValueKind);
+        Assert.Equal(ObserveOrdinaryActiveSuffix(rebuilt), ObserveOrdinaryActiveSuffix(repeated));
+
+        (bool Before, bool After) ObserveOrdinaryActiveSuffix(GameState checkpoint)
+        {
+            GameState independent = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(checkpoint))!;
+            GameSession currentSession = new(independent);
+            using GameWorld currentWorld = new(currentSession, directory, persistReplayJournal: false);
+            currentWorld.EnsureField();
+            Assert.False(currentWorld.Events.IsSemanticSpatialReplay);
+            bool before = currentWorld.Events.CanAcceptMovementInput;
+            long frame = currentWorld.Events.Frame;
+            PlayerActionResult waited = currentWorld.Apply(new PlayerAction(PlayerActionKind.Wait));
+            Assert.True(waited.Accepted);
+            Assert.Equal(1, waited.FramesAdvanced);
+            Assert.Equal(frame + 1, currentWorld.Events.Frame);
+            Assert.False(currentWorld.Events.IsSemanticSpatialReplay);
+            Assert.Null(currentWorld.Events.LastFault);
+            return (before, currentWorld.Events.CanAcceptMovementInput);
+        }
     }
 }

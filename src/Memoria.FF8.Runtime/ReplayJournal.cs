@@ -84,7 +84,6 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
     public string? NativeSourceHash { get; init; }
     public BattleInput? BattleInput { get; init; }
     public ReplaySemanticTrigger? SemanticTrigger { get; init; }
-    public ReplayActorApproach? Approach { get; init; }
     public ReplaySemanticTrigger[] SemanticAdmissions { get; init; } = [];
     public ReplayScriptGoal? ScriptGoal { get; init; }
     public int[]? EffectArguments { get; init; }
@@ -94,11 +93,6 @@ public sealed record ReplayJournalEntry([property: JsonRequired] ReplayEntryKind
 
     public void Validate()
     {
-        Approach?.Validate();
-        if (Approach is not null && (Kind != ReplayEntryKind.Action || Code != 3 || Scene != SceneKind.Field))
-        {
-            throw new InvalidDataException("An explicit actor approach belongs to a field interaction input.");
-        }
         if ((MappedPulse & ~0x50) != 0 || MappedPulse != 0 && Kind is not (ReplayEntryKind.InputSample or ReplayEntryKind.InputPulse) || Kind == ReplayEntryKind.InputPulse && MappedPulse == 0 || Kind == ReplayEntryKind.InputSample && Value is < 0 or > ushort.MaxValue)
         {
             throw new InvalidDataException("Native samples and explicit pulse queues require the implemented mapped Confirm/Cancel pulse flags.");
