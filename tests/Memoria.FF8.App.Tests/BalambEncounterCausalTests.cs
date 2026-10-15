@@ -10,26 +10,19 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BalambEncounterCausalTests
 {
     [Fact]
-    public void GardenTrainingCenterRandomBattleReturnsToItsFieldAndRecreates()
+    public void GardenTrainingBattleRecordsFactsAndReappliesRewardsWithoutSimulation()
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original assets are required.");
-        string? prefix = Environment.GetEnvironmentVariable("MEMORIA_FF8_GARDEN_PREFIX");
-        GameSession session = prefix is null ? GameSession.CreateColdProcess() : new(GameWorld.RecreateSave(GameSession.LoadReplaySource(prefix), game));
-        if (prefix is null)
-        {
-            session.StartNewGame();
-        }
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
         using GameWorld world = new(session, game, persistReplayJournal: false);
-        if (prefix is null)
+        BalambTestJourney.OpeningToGate(session, world, encounters: true);
+        world.ApplyBattleInput(new(BattleInputKind.ConfigureEncounters, RandomEncounters: false));
+        ConfigureCommands(session, world);
+        foreach (int destination in new[] { 160, 161, 162, 163, 165, 170 })
         {
-            BalambTestJourney.OpeningToGate(session, world, encounters: true);
-            world.ApplyBattleInput(new(BattleInputKind.ConfigureEncounters, RandomEncounters: false));
-            ConfigureCommands(session, world);
-            foreach (int destination in new[] { 160, 161, 162, 163, 165, 170 })
-            {
-                IfritCausalRecreationTests.WalkGateway(world, session, destination);
-            }
+            IfritCausalRecreationTests.WalkGateway(world, session, destination);
         }
         world.EnsureField();
         try
@@ -78,18 +71,22 @@ public sealed class BalambEncounterCausalTests
         session.SetEventState(world.Events.Capture());
         string save = Path.Combine(Path.GetTempPath(), "Memoria-Garden-battle-" + Guid.NewGuid().ToString("N") + ".json");
         session.Save(save, registerJournalReference: false);
-        GameState rebuilt = GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game);
-        EqualState(session.State, rebuilt);
+        AssertFactOnlyBattleJournal(session.State.ReplayJournal!, SceneKind.Field, 1);
+        BattleFactReplayDiagnostics diagnostics = new();
+        GameState rebuilt = GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game, battleFacts: diagnostics);
+        AssertPersistentBattleResults(session.State, rebuilt);
+        AssertFactualReconstruction(diagnostics, 1);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_BALAMB_EVIDENCE");
         if (evidence is not null)
         {
             Directory.CreateDirectory(evidence);
             session.Save(Path.Combine(evidence, "garden-training-battle-current.json"), registerJournalReference: false);
+            WriteFactProof(Path.Combine(evidence, "garden-training-battle-proof.json"), diagnostics, 1, "Garden Training Center", null);
         }
     }
 
     [Fact]
-    public void ActualBalambWorldEncounterUsesCanonicalDrawMagicGuardianForcesAndRecreates()
+    public void ActualBalambWorldBattlesRecordOutcomesAndReapplyCanonicalRewards()
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original assets are required.");
@@ -112,14 +109,15 @@ public sealed class BalambEncounterCausalTests
         string midCombat = Path.Combine(scratch, "mid-combat.json");
         session.SetEventState(world.Events.Capture());
         session.Save(midCombat, registerJournalReference: false);
+        Assert.Throws<NotSupportedException>(() => GameWorld.RecreateSave(GameSession.LoadReplaySource(midCombat), game));
         GameSession loadedSession = new(GameSession.Load(midCombat));
         using (GameWorld loaded = new(loadedSession, game, persistReplayJournal: false))
         {
             loaded.EnsureField();
-            EqualState(session.State, loadedSession.State);
+            AssertDiagnosticSaveLoadState(session.State, loadedSession.State);
             world.ApplyBattleInput(new(BattleInputKind.Tick));
             loaded.ApplyBattleInput(new(BattleInputKind.Tick));
-            EqualState(session.State, loadedSession.State);
+            AssertDiagnosticSaveLoadState(session.State, loadedSession.State);
         }
         Fight(session, world, exerciseCommands: true);
         world.ApplyBattleInput(new(BattleInputKind.Return));
@@ -142,23 +140,17 @@ public sealed class BalambEncounterCausalTests
         session.SetEventState(world.Events.Capture());
         string save = Path.Combine(scratch, "after-world-battle.json");
         session.Save(save, registerJournalReference: false);
-        GameState recreatedState = GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game);
-        EqualState(session.State, recreatedState);
-        GameSession recreatedSession = new(recreatedState);
-        using (GameWorld recreated = new(recreatedSession, game, persistReplayJournal: false))
-        {
-            recreated.EnsureField();
-            Assert.Equal(world.Render(TimeSpan.Zero), recreated.Render(TimeSpan.Zero));
-            Assert.Equal(world.Apply(new(PlayerActionKind.Wait)), recreated.Apply(new(PlayerActionKind.Wait)));
-            EqualState(session.State, recreatedSession.State);
-            Assert.Equal(world.Render(TimeSpan.Zero), recreated.Render(TimeSpan.Zero));
-        }
+        AssertFactOnlyBattleJournal(session.State.ReplayJournal!, SceneKind.WorldMap, 2);
+        BattleFactReplayDiagnostics diagnostics = new();
+        GameState recreatedState = GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game, battleFacts: diagnostics);
+        AssertPersistentBattleResults(session.State, recreatedState);
+        AssertFactualReconstruction(diagnostics, 2);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_BALAMB_EVIDENCE");
         if (evidence is not null)
         {
             Directory.CreateDirectory(evidence);
             session.Save(Path.Combine(evidence, "balamb-world-battle-current.json"), registerJournalReference: false);
-            File.WriteAllText(Path.Combine(evidence, "balamb-world-battle-proof.json"), JsonSerializer.Serialize(new { Baseline = "0bbcbcbb + current Balamb battle implementation", Implementations = new[] { "current Memoria actual New Game and ordinary input", "current Memoria cold causal reconstruction" }, Scope = "Balamb Garden opening, GF menu and Balamb island random battles", OriginalRuntimeParity = false, WholeStateExceptJournal = true, WorldCpuPixels = true, MidCombatRestoreAndNextTick = true, NextWaitStateAndPixels = true, DrawStockMagicQuezacotl = true, HealingItemShiva = true, StockedMagicJunction = true, Seconds = timer.Elapsed.TotalSeconds }, new JsonSerializerOptions { WriteIndented = true }));
+            WriteFactProof(Path.Combine(evidence, "balamb-world-battle-proof.json"), diagnostics, 2, "Balamb island", timer.Elapsed.TotalSeconds);
         }
     }
 
@@ -302,13 +294,56 @@ public sealed class BalambEncounterCausalTests
         Assert.Equal(BattleOutcome.Victory, world.Battle!.Outcome);
     }
 
-    private static void EqualState(GameState first, GameState second)
+    private static void AssertFactOnlyBattleJournal(ReplayJournal journal, SceneKind scene, int expectedBattles)
+    {
+        ReplayBattleEncounter[] encounters = journal.Entries.Where(entry => entry.Kind == ReplayEntryKind.BattleEncounter).Select(entry => entry.BattleEncounter!).ToArray();
+        ReplayBattleOutcome[] outcomes = journal.Entries.Where(entry => entry.Kind == ReplayEntryKind.BattleOutcome).Select(entry => entry.BattleOutcome!).ToArray();
+        Assert.Equal(expectedBattles, encounters.Length);
+        Assert.Equal(expectedBattles, outcomes.Length);
+        Assert.Equal(expectedBattles, encounters.Select(encounter => encounter.OccurrenceId).Distinct().Count());
+        Assert.Equal(expectedBattles, outcomes.Select(outcome => outcome.Encounter.OccurrenceId).Distinct().Count());
+        Assert.All(encounters, encounter => Assert.Equal(scene, encounter.SourceScene));
+        Assert.All(outcomes, outcome =>
+        {
+            Assert.Equal(BattleOutcome.Victory, outcome.Outcome);
+            Assert.False(outcome.DebugVictory);
+            Assert.Contains(encounters, encounter => encounter == outcome.Encounter);
+        });
+        Assert.DoesNotContain(journal.Entries, entry => entry.BattleInput?.NativeSeed is not null);
+        Assert.All(journal.Entries.Where(entry => entry.Kind == ReplayEntryKind.BattleInput), entry => Assert.Contains(entry.BattleInput!.Kind, new[] { BattleInputKind.ConfigurePlaythrough, BattleInputKind.ConfigureEncounters }));
+    }
+
+    private static void AssertPersistentBattleResults(GameState actual, GameState reconstructed)
+    {
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actual.CharacterVitals), JsonSerializer.SerializeToElement(reconstructed.CharacterVitals)), "Recorded battle outcomes did not reapply the canonical party stocks, HP, GF ownership and AP.");
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(actual.Economy), JsonSerializer.SerializeToElement(reconstructed.Economy)), "Recorded battle outcomes did not reapply the canonical item inventory.");
+        Assert.Equal(actual.AppliedBattleResultIds, reconstructed.AppliedBattleResultIds);
+        Assert.Null(reconstructed.Battle);
+        Assert.Null(reconstructed.PendingBattleEncounter);
+        Assert.Null(reconstructed.RandomEncounters?.Pending);
+    }
+
+    private static void AssertFactualReconstruction(BattleFactReplayDiagnostics diagnostics, int expectedBattles)
+    {
+        Assert.Equal(0, diagnostics.LiveBattleSessionsCreated);
+        Assert.Equal(0, diagnostics.RandomEncounterChecks);
+        Assert.Equal(0, diagnostics.EncounterMovementRequests);
+        Assert.Equal(expectedBattles, diagnostics.EncountersApplied);
+        Assert.Equal(expectedBattles, diagnostics.OutcomesApplied);
+    }
+
+    private static void WriteFactProof(string path, BattleFactReplayDiagnostics diagnostics, int battles, string scope, double? seconds)
+    {
+        File.WriteAllText(path, JsonSerializer.Serialize(new { Baseline = "0bbcbcbb + current factual Balamb battle implementation", Implementations = new[] { "current Memoria cold New Game and ordinary live exploration/combat", "current Memoria cold semantic reconstruction with recorded encounter/outcome facts" }, Scope = scope, OriginalRuntimeParity = false, Encounters = battles, Outcomes = battles, CanonicalPartyStocksAndGuardianForceAp = true, CanonicalItemInventory = true, MidCombatOrdinaryRestoreAndNextTick = true, ActiveCombatReconstructionRejected = true, diagnostics.LiveBattleSessionsCreated, diagnostics.RandomEncounterChecks, diagnostics.EncounterMovementRequests, diagnostics.EncountersApplied, diagnostics.OutcomesApplied, Seconds = seconds }, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static void AssertDiagnosticSaveLoadState(GameState first, GameState second)
     {
         JsonObject left = JsonNode.Parse(JsonSerializer.Serialize(first))!.AsObject();
         JsonObject right = JsonNode.Parse(JsonSerializer.Serialize(second))!.AsObject();
         left.Remove("ReplayJournal");
         right.Remove("ReplayJournal");
-        Assert.True(JsonNode.DeepEquals(left, right), "Current ordinary execution and independently recreated state differ.");
+        Assert.True(JsonNode.DeepEquals(left, right), "Ordinary diagnostic Save/Load continuation differs.");
     }
 
     private static void VerifyRestoredNextTick(GameSession session, GameWorld world, string game)
@@ -316,12 +351,13 @@ public sealed class BalambEncounterCausalTests
         session.SetEventState(world.Events.Capture());
         string save = Path.Combine(Path.GetTempPath(), "Memoria-Balamb-mid-field-" + Guid.NewGuid().ToString("N") + ".json");
         session.Save(save, registerJournalReference: false);
+        Assert.Throws<NotSupportedException>(() => GameWorld.RecreateSave(GameSession.LoadReplaySource(save), game));
         GameSession restoredSession = new(GameSession.Load(save));
         using GameWorld restored = new(restoredSession, game, persistReplayJournal: false);
         restored.EnsureField();
-        EqualState(session.State, restoredSession.State);
+        AssertDiagnosticSaveLoadState(session.State, restoredSession.State);
         world.ApplyBattleInput(new(BattleInputKind.Tick));
         restored.ApplyBattleInput(new(BattleInputKind.Tick));
-        EqualState(session.State, restoredSession.State);
+        AssertDiagnosticSaveLoadState(session.State, restoredSession.State);
     }
 }

@@ -6,10 +6,10 @@ namespace Memoria.FF8.App.Tests;
 
 internal static class BalambTestJourney
 {
-    internal static void OpeningToGate(GameSession session, GameWorld world, bool encounters = false)
+    internal static void OpeningToGate(GameSession session, GameWorld world, bool encounters = false, bool fullCombat = true)
     {
         world.EnsureField();
-        world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
+        world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: fullCombat));
         world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: encounters));
         IfritCausalRecreationTests.DriveUntil(world, session, () => world.Field?.Id == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable);
         Apply(world, new(PlayerActionKind.Move, Horizontal: -1));

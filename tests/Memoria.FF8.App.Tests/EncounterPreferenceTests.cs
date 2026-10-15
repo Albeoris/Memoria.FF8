@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
@@ -6,6 +7,37 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class EncounterPreferenceTests
 {
+    [Fact]
+    public void ResearchPlaythroughIgnoresExplicitCurrentSaveEncounterEnableDuringActualFieldAndWorldMovement()
+    {
+        string game = InstalledGame();
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        using GameWorld world = new(session, game, persistReplayJournal: false);
+        BalambTestJourney.OpeningToGate(session, world, fullCombat: false);
+        Assert.NotEqual(true, session.State.FullBattlePlaythrough);
+        BattleDefinition scenario = new() { Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true }, new() { Id = "enemy-0", Name = "Dummy" }] };
+        BattleDebugController debug = new(scenario, new BattleDebugCatalog(), BattleAtbMode.Normal, "ResearchInstantVictory", false, (_, _) => { }, (_, _, _) => { }, () => { });
+        debug.ConnectCurrentEncounters(() => session.State.RandomEncounters?.Enabled, enabled => world.ApplyBattleInput(new(BattleInputKind.ConfigureEncounters, RandomEncounters: enabled)));
+        int row = debug.Rows.Select((entry, index) => (entry, index)).Single(pair => pair.entry.Label == "Current save random battles").index;
+        debug.Select(row, true);
+        Assert.True(session.State.RandomEncounters!.Enabled);
+        string before = JsonSerializer.Serialize(session.State.RandomEncounters);
+        BalambTestJourney.Apply(world, new(PlayerActionKind.Move, Horizontal: 1, Frames: 4));
+        Assert.Equal(before, JsonSerializer.Serialize(session.State.RandomEncounters));
+        IfritCausalRecreationTests.WalkGateway(world, session, 0, worldExit: true);
+        world.EnsureField();
+        Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+        Assert.Equal(before, JsonSerializer.Serialize(session.State.RandomEncounters));
+        for (int callback = 0; callback < 64; callback++)
+        {
+            BalambTestJourney.Apply(world, new(PlayerActionKind.Move, Horizontal: callback % 16 < 8 ? 1 : -1));
+        }
+        Assert.False(world.HasPendingBattle);
+        Assert.Equal(before, JsonSerializer.Serialize(session.State.RandomEncounters));
+        Assert.DoesNotContain(session.State.ReplayJournal!.Entries, entry => entry.Kind is ReplayEntryKind.BattleEncounter or ReplayEntryKind.BattleOutcome);
+    }
+
     [Fact]
     public void ConfigPreferenceAppliesToTheNextFullCombatNewGameAndLeavesTheRunningPlaythroughUntouched()
     {

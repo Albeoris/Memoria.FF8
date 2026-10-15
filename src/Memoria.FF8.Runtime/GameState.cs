@@ -14,6 +14,10 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    [JsonRequired]
+    public ReplayBattleEncounter? PendingBattleEncounter { get; init; }
+    [JsonRequired]
+    public string[] AppliedBattleResultIds { get; init; } = [];
     public int Version { get; init; } = 1;
     public SceneKind Scene { get; init; } = SceneKind.Title;
     public int FieldId { get; init; } = 74;

@@ -15,7 +15,8 @@ public sealed partial class EventEngine
 {
     public Func<bool>? HasPendingRandomBattle { get; set; }
     public Action<bool>? NativePlayerMovementProcessed { get; set; }
-    public bool HasPendingBattle => PendingInteractiveBattle is not null || HasPendingRandomBattle?.Invoke() == true;
+    public bool HostAutomaticBattles { get; set; }
+    public bool HasPendingBattle => PendingHostedBattle is not null || HasPendingRandomBattle?.Invoke() == true;
     public void AdvanceRandomBattleCallbacks(int callbacks)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(callbacks);
@@ -30,6 +31,7 @@ public sealed partial class EventEngine
     public Func<ushort, ushort, bool>? UseInteractiveBattle { get; set; }
     public Func<ushort, ushort, string?>? ValidateInteractiveBattle { get; set; }
     public NativeBattleCompletion? PendingInteractiveBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => request.Backend == NativeBattleBackend.Interactive && request.ReturnFrame is null && request.Result is null);
+    public NativeBattleCompletion? PendingHostedBattle => Scene.NativeBattleCompletions?.LastOrDefault(request => (request.Backend == NativeBattleBackend.Interactive || HostAutomaticBattles && request.Backend == NativeBattleBackend.AutomaticVictory) && request.ReturnFrame is null && request.Result is null);
 
     public void AdvanceInteractiveBattleCallbacks(int callbacks)
     {
@@ -48,23 +50,46 @@ public sealed partial class EventEngine
         Scene.FieldCallbackClock = next;
     }
 
-    public void ReturnFromInteractiveBattle(int combatCallbacks, Action? publishCombatOutcome = null)
+    public void ReturnFromInteractiveBattle(int combatCallbacks, Action? publishCombatOutcome = null, ReplayJournalEntry? factualOutcome = null)
     {
-        NativeBattleCompletion request = PendingInteractiveBattle ?? throw new InvalidOperationException("No interactive battle owns the suspended field VM.");
+        if (PendingInteractiveBattle is null)
+        {
+            throw new InvalidOperationException("No interactive battle owns the suspended field VM.");
+        }
+        ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome, factualOutcome);
+    }
+
+    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, ReplayJournalEntry? factualOutcome = null)
+    {
+        NativeBattleCompletion request = PendingHostedBattle ?? throw new InvalidOperationException("No hosted battle owns the suspended field VM.");
         if (combatCallbacks < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(combatCallbacks));
         }
-        long allocationClock = Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? throw new NotSupportedException("Battle return requires its actual allocation clock.");
-        long completedCallbacks = Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
-        if (Scene.FieldCallbackClock?.BattleCallbacks != completedCallbacks + combatCallbacks)
+        if (request.Backend == NativeBattleBackend.Interactive)
         {
-            throw new InvalidOperationException("Battle return duration disagrees with its dispatched native clock callbacks.");
+            long allocationClock = Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? throw new NotSupportedException("Battle return requires its actual allocation clock.");
+            long completedCallbacks = Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
+            if (Scene.FieldCallbackClock?.BattleCallbacks != completedCallbacks + combatCallbacks)
+            {
+                throw new InvalidOperationException("Battle return duration disagrees with its dispatched native clock callbacks.");
+            }
         }
-        publishCombatOutcome?.Invoke();
-        int index = Scene.NativeBattleCompletions!.IndexOf(request);
-        Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
-        StepCore();
+        else if (combatCallbacks != 0)
+        {
+            throw new InvalidOperationException("Automatic research victory has no simulated combat callbacks.");
+        }
+        ReplayJournalEntry input = factualOutcome is null ? ReplayBoundary(ReplayEntryKind.BattleInput) with { BattleInput = new BattleInput(BattleInputKind.Return), Code = request.Flags, Value = request.Encounter, NativeSourceHash = request.ProgramHash, ObjectId = request.ObjectId, ScriptId = request.ScriptId, Operation = request.Operation } : ReplayBoundary(ReplayEntryKind.BattleOutcome) with { BattleOutcome = factualOutcome.BattleOutcome };
+        RunReplay(input, () =>
+        {
+            publishCombatOutcome?.Invoke();
+            int index = Scene.NativeBattleCompletions!.IndexOf(request);
+            Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
+            PlayerTrigger before = NextTrigger;
+            StepCore();
+            RecordReplayProgress(before);
+            return true;
+        });
     }
     private string? UnsupportedBattle(Fiber fiber, JsmOperation operation)
     {
@@ -186,8 +211,9 @@ public sealed partial class EventEngine
             {
                 continue;
             }
-            byte? result = request.Suppressed ? null : request.Backend == NativeBattleBackend.Interactive ? request.Result : (byte)0;
-            if (request.Backend == NativeBattleBackend.Interactive && result is null)
+            bool hosted = request.Backend == NativeBattleBackend.Interactive || HostAutomaticBattles && request.Backend == NativeBattleBackend.AutomaticVictory;
+            byte? result = request.Suppressed ? null : hosted ? request.Result : (byte)0;
+            if (hosted && result is null)
             {
                 continue;
             }

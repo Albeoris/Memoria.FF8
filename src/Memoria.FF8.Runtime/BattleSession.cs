@@ -58,6 +58,7 @@ public sealed partial class BattleSession
     public IReadOnlyList<BattleAttackCommand> QueuedActions => actions.ToArray();
     public BattleActionPresentation? ActiveAction { get; private set; }
     public string Name => definition.Name;
+    public int? EncounterId => definition.EncounterId;
     public IReadOnlyList<BattleStock> Items => items.AsReadOnly();
     public IReadOnlyList<BattleActionDefinition> ActionDefinitions => definition.ActionDefinitions.Select(action => action with { Statuses = action.Statuses?.ToArray() }).ToArray();
 

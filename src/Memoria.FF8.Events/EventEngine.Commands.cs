@@ -1224,6 +1224,7 @@ public sealed partial class EventEngine
         }
         bool doorRequest = IsNativeDoorRequest(objectId);
         Fiber requested = Queue(objectId, scriptId, doorRequest ? 7 - priority : priority, false);
+        requested.ProducerRequests = CaptureSemanticRequestAncestry(caller, opcode);
         if (doorRequest)
         {
             requested.NativeDoorSlot = (byte)priority;
@@ -1273,6 +1274,7 @@ public sealed partial class EventEngine
             throw Fault(caller, $"{opcode} targets an unknown party actor script index.");
         }
         Fiber requested = Queue(target.ObjectId, program.Objects[target.ObjectId].Scripts[scriptIndex].Id, priority, false);
+        requested.ProducerRequests = CaptureSemanticRequestAncestry(caller, opcode);
         if (IsNativeActorRequest(target.ObjectId))
         {
             requested.NativeActorSlot = (byte)priority;

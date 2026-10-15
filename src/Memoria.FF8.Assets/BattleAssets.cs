@@ -91,6 +91,14 @@ public sealed class BattleAssets : IDisposable
     }
 
     public string EncounterSourceHash => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(encounters));
+    public string FormationSourceHash(int encounterId)
+    {
+        if ((uint)encounterId >= 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(encounterId));
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(encounters.AsSpan(encounterId * 128, 128)));
+    }
     public IReadOnlyList<int> EnemyModelIds => entries.Keys.Where(name => name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".dat", StringComparison.OrdinalIgnoreCase)).Select(name => int.Parse(name.AsSpan(3, 3))).Order().ToArray();
     public IReadOnlyList<int> StageIds => entries.Keys.Where(name => name.StartsWith("a0stg", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".x", StringComparison.OrdinalIgnoreCase)).Select(name => int.Parse(name.AsSpan(5, 3))).Order().ToArray();
     public IReadOnlyList<int> PlayerCharacterIds => entries.Keys.Where(name => name.Length == 10 && name[0] == 'd' && name[2] == 'c').Select(name => Convert.ToInt32(name[1].ToString(), 16)).Distinct().Order().ToArray();

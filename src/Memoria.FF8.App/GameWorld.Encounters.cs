@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
@@ -9,11 +8,11 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    public bool HasPendingBattle => Events.PendingInteractiveBattle is not null || session.State.RandomEncounters?.Pending is not null;
+    public bool HasPendingBattle => session.State.PendingBattleEncounter is not null || Events.PendingHostedBattle is not null || session.State.RandomEncounters?.Pending is not null;
 
     private void ConfigureRandomEncounterHost()
     {
-        Events.HasPendingRandomBattle = () => session.State.RandomEncounters?.Pending is not null;
+        Events.HasPendingRandomBattle = () => session.State.RandomEncounters?.Pending is not null || session.State.PendingBattleEncounter is { ScriptedOwner: null, SourceScene: SceneKind.Field };
         Events.NativePlayerMovementProcessed = ProcessFieldRandomEncounters;
     }
 
@@ -24,24 +23,6 @@ internal sealed partial class GameWorld
             throw new InvalidOperationException("Encounter policy requires an explicit setting outside combat in a running playthrough.");
         }
         RandomEncounterSessionState current = session.State.RandomEncounters ?? new(false, NativeRandomEncounterState.FromColdProcess(), null);
-        if (enabled && !current.Enabled && session.ReplayJournal?.CompletedVisits.Any(visit => !visit.PhysicalEncounterHistory) == true)
-        {
-            // Earlier semantic visits may have discarded cadence that now seeds random outcomes.
-            // Admit the toggle only when the actual current prefix independently reproduces its complete causal state.
-            GameState source = session.State with { EventState = Events.Capture() };
-            GameState recreated = RecreateSave(source, assets.GameDirectory);
-            JsonObject expected = JsonSerializer.SerializeToNode(source)!.AsObject();
-            JsonObject actual = JsonSerializer.SerializeToNode(recreated)!.AsObject();
-            foreach (string presentation in new[] { "ReplayJournal", "DebugView" })
-            {
-                expected.Remove(presentation);
-                actual.Remove(presentation);
-            }
-            if (!JsonNode.DeepEquals(expected, actual))
-            {
-                throw new NotSupportedException("Recreate this research save from its journal in the Load menu before enabling random encounters; its earlier compacted history does not reproduce the current movement and process-clock boundary.");
-            }
-        }
         session.SetRandomEncounters(current with { Enabled = enabled });
         if (enabled && session.State.Scene == SceneKind.WorldMap)
         {
@@ -51,11 +32,15 @@ internal sealed partial class GameWorld
 
     private void ProcessFieldRandomEncounters(bool accepted)
     {
-        if (session.State.RandomEncounters is not { Enabled: true, Pending: null } encounter || session.State.Scene != SceneKind.Field || HasPendingBattle || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
+        if (IsCausalReconstruction || session.State.FullBattlePlaythrough != true || session.State.RandomEncounters is not { Enabled: true, Pending: null } encounter || session.State.Scene != SceneKind.Field || HasPendingBattle || Events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition)
         {
             return;
         }
         FieldAssets field = Field ?? throw new InvalidOperationException("Random encounters require the loaded field resources.");
+        if (BattleFactDiagnostics is not null)
+        {
+            BattleFactDiagnostics.RandomEncounterChecks++;
+        }
         NativeFieldEncounterDefinition definition = field.RandomEncounters ?? throw new NotSupportedException("Random encounters require the original field RAT/MRT resources.");
         NativeFieldEncounterInput input = new(accepted, unchecked((short)(Events.PlayerActor?.MovementSpeed ?? 0)), session.State.CharacterVitals!.GetEncounterAbilityFlags(), !Events.Scene.RandomBattlesEnabled, session.IsMoviePlaying, 0, unchecked((ushort)Events.FieldFade!.Physical.Mode));
         NativeRandomEncounterResult result = NativeRandomEncounter.AdvanceField(encounter.Native, definition, assets.ReadNativeEncounterTables().FieldRandom.AsSpan(), input);
@@ -65,7 +50,7 @@ internal sealed partial class GameWorld
 
     private void InitializeWorldRandomEncounters()
     {
-        if (session.State.RandomEncounters is not { Enabled: true } encounter || encounter.Native.WorldInitialized)
+        if (IsCausalReconstruction || session.State.FullBattlePlaythrough != true || session.State.RandomEncounters is not { Enabled: true } encounter || encounter.Native.WorldInitialized)
         {
             return;
         }
@@ -76,14 +61,18 @@ internal sealed partial class GameWorld
     private void ConfigureWorldRandomEncounters(WorldMapScene scene)
     {
         InitializeWorldRandomEncounters();
-        scene.HasPendingBattle = () => session.State.RandomEncounters?.Pending is not null;
+        scene.HasPendingBattle = () => session.State.RandomEncounters?.Pending is not null || session.State.PendingBattleEncounter is { SourceScene: SceneKind.WorldMap };
         scene.ProcessRandomEncounters = (worldState, movementMagnitude, currentEncounters) =>
         {
-            if (currentEncounters is not { Enabled: true, Pending: null } encounter || worldState.NativeFootRuntime is null || worldState.NativeScriptedRuntime is not null || worldState.NativeTrainRuntime is not null)
+            if (IsCausalReconstruction || session.State.FullBattlePlaythrough != true || currentEncounters is not { Enabled: true, Pending: null } encounter || worldState.NativeFootRuntime is null || worldState.NativeScriptedRuntime is not null || worldState.NativeTrainRuntime is not null)
             {
                 return (worldState, currentEncounters);
             }
             NativeEncounterTables tables = assets.ReadNativeEncounterTables();
+            if (BattleFactDiagnostics is not null)
+            {
+                BattleFactDiagnostics.RandomEncounterChecks++;
+            }
             byte ground = worldState.GroundType ?? throw new NotSupportedException("World encounters require the actual ground polygon.");
             int entityType = worldState.NativeFootRuntime?.EntityType ?? worldState.NativeCarRuntime?.EntityType ?? 10;
             NativeWorldEncounterDefinition? definition = scene.ReadRandomEncounterDefinition(worldState);
@@ -107,7 +96,6 @@ internal sealed partial class GameWorld
         {
             throw new InvalidOperationException("Battle policy cannot change during a pending encounter.");
         }
-        long frame = request.Scene == SceneKind.Field ? Events.Frame : worldScene!.State.Frame;
         using (session.BeginReplayCapture())
         {
             if (input.Kind == BattleInputKind.StartEncounter)
@@ -116,7 +104,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("A random battle is already active.");
                 }
-                battle = new BattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value), input.Mode);
+                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value), input.Mode);
             }
             else
             {
@@ -128,8 +116,7 @@ internal sealed partial class GameWorld
                     {
                         throw new InvalidOperationException("Only victory can return to its suspended exploration scene.");
                     }
-                    PublishBattleOutcome(active);
-                    session.SetRandomEncounters(encounters with { Pending = null });
+                    CompleteRecordedBattle(active);
                     battle = null;
                 }
                 else
@@ -149,6 +136,10 @@ internal sealed partial class GameWorld
                         session.SetWorldProcess(session.State.WorldProcess!.AdvanceMainLoopCallbacks(advanced));
                     }
                 }
+                if (active.Outcome == BattleOutcome.Defeat && session.State.PendingBattleEncounter is not null)
+                {
+                    RecordCompletedDefeat(active);
+                }
             }
             session.SetBattle(battle?.Capture());
         }
@@ -157,7 +148,6 @@ internal sealed partial class GameWorld
             // The field VM is dormant, but its checkpoint projects the current process-owned globals.
             session.SetEventState(Events.Capture());
         }
-        session.RecordReplayEntry(new ReplayJournalEntry(ReplayEntryKind.BattleInput, request.Scene, request.FieldId, frame) { BattleInput = input, Value = request.Formation, NativeSourceHash = request.SourceHash, Advanced = advanced, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ResultFrame = frame, Trigger = (int)PlayerTriggerKind.Battle, ResultTrigger = (int)(input.Kind == BattleInputKind.Return ? NextTrigger.Kind : PlayerTriggerKind.Battle) });
         return true;
     }
 
@@ -177,26 +167,10 @@ internal sealed partial class GameWorld
 
     private void ValidateRecordedBattleOwner(ReplayJournalEntry entry)
     {
-        if (entry.BattleInput is { Kind: BattleInputKind.StartEncounter, NativeSeed: null })
-        {
-            throw new NotSupportedException("Battle reconstruction requires its actually sampled entry seed; regenerate the checkpoint from current ordinary inputs.");
-        }
         if (entry.BattleInput?.Kind is BattleInputKind.ConfigurePlaythrough or BattleInputKind.ConfigureEncounters)
         {
             return;
         }
-        if (session.State.RandomEncounters?.Pending is { } random)
-        {
-            if (entry.Scene != random.Scene || entry.FieldId != random.FieldId || entry.Value != random.Formation || entry.NativeSourceHash != random.SourceHash || entry.ObjectId is not null || entry.ScriptId is not null || entry.Operation is not null)
-            {
-                throw new InvalidDataException("Recorded random battle differs from its current encounter owner.");
-            }
-            return;
-        }
-        NativeBattleCompletion request = Events.PendingInteractiveBattle ?? throw new InvalidDataException("Recorded battle input has no suspended encounter owner.");
-        if (entry.ObjectId != request.ObjectId || entry.ScriptId != request.ScriptId || entry.Operation != request.Operation || entry.Code != request.Flags || entry.Value != request.Encounter || entry.NativeSourceHash != request.ProgramHash)
-        {
-            throw new InvalidDataException("Recorded battle input differs from its current native issuing site.");
-        }
+        throw new NotSupportedException("Legacy battle input traces cannot be reconstructed; regenerate an encounter/outcome factual journal from current play.");
     }
 }

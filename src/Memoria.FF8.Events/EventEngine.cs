@@ -745,6 +745,7 @@ public sealed partial class EventEngine
         public bool Complete;
         public bool Started;
         public bool NativeResultFrameEntered;
+        public ReplayScriptRequest[] ProducerRequests = [];
         public NativeOperandStack Stack { get; } = new();
         public Stack<string> StackExpressions { get; } = new();
         public string[] LastExpressions = [];

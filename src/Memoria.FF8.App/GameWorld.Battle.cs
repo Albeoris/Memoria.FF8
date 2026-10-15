@@ -17,11 +17,18 @@ internal sealed partial class GameWorld
     private void ConfigureBattleHost()
     {
         battle = session.State.Battle is null ? null : BattleSession.Restore(session.State.Battle);
+        Events.HostAutomaticBattles = true;
         Events.UseInteractiveBattle = (_, _) => session.State.FullBattlePlaythrough == true;
         Events.ValidateInteractiveBattle = (encounter, flags) =>
         {
             try
             {
+                if (IsCausalReconstruction)
+                {
+                    _ = BattleResources.LoadEncounter(encounter);
+                    _ = BattleResources.FormationSourceHash(encounter);
+                    return null;
+                }
                 BattleDefinition definition = CreateEncounterBattle(encounter);
                 _ = new BattleSession(definition, BattleAtbMode.Normal);
                 return null;
@@ -107,7 +114,7 @@ internal sealed partial class GameWorld
         input.Validate();
         if (input.Kind == BattleInputKind.StartEncounter && input.NativeSeed is null)
         {
-            // TODO(TD-009): Host samples and journals explicit external per-battle entropy; the original CRT wall-clock
+            // TODO(TD-009): Live combat samples external entropy; its
             input = input with { NativeSeed = (byte)System.Security.Cryptography.RandomNumberGenerator.GetInt32(256) };
         }
         if (TryApplyRandomBattleInput(input, out int randomAdvanced))
@@ -148,7 +155,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("Start Encounter requires one suspended interactive BATTLE request.");
                 }
-                battle = new BattleSession(CreateEncounterBattle(request.Encounter, input.NativeSeed!.Value), input.Mode);
+                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Encounter, input.NativeSeed!.Value), input.Mode);
                 session.SetBattle(battle.Capture());
             }
             else
@@ -162,7 +169,7 @@ internal sealed partial class GameWorld
                         {
                             throw new InvalidOperationException("Only a completed victory can return to its suspended field request.");
                         }
-                        Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => PublishBattleOutcome(active));
+                        CompleteRecordedBattle(active);
                         battle = null;
                         session.SetBattle(null);
                         break;
@@ -175,6 +182,10 @@ internal sealed partial class GameWorld
                 {
                     Events.AdvanceInteractiveBattleCallbacks(advanced);
                 }
+                if (active.Outcome == BattleOutcome.Defeat && session.State.PendingBattleEncounter is not null)
+                {
+                    RecordCompletedDefeat(active);
+                }
                 if (battle is not null)
                 {
                     session.SetBattle(active.Capture());
@@ -182,7 +193,7 @@ internal sealed partial class GameWorld
             }
         }
         PlayerTrigger after = Events.NextTrigger;
-        if (input.Kind != BattleInputKind.Return)
+        if (input.Kind is BattleInputKind.ConfigurePlaythrough or BattleInputKind.ConfigureEncounters)
         {
             session.RecordReplayEntry(new ReplayJournalEntry(ReplayEntryKind.BattleInput, sourceScene, sourceField, fieldFrame) { BattleInput = input, Code = request?.Flags ?? 0, Value = request?.Encounter ?? 0, NativeSourceHash = request?.ProgramHash, Advanced = advanced, Trigger = (int)before.Kind, ResultTrigger = (int)after.Kind, ResultFrame = Events.Frame, ResultScene = session.State.Scene, ResultFieldId = session.State.FieldId, ObjectId = request?.ObjectId, ScriptId = request?.ScriptId, Operation = request?.Operation });
         }
@@ -221,25 +232,25 @@ internal sealed partial class GameWorld
         return checked((int)(active.Frame - before));
     }
 
-    private NativeCharacterVitals ProjectBattleOutcome(BattleSession active)
+    internal ReplayBattleOutcome CaptureBattleOutcome(BattleSession active, ReplayBattleEncounter encounter)
     {
-        NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new InvalidDataException("Battle return lost its canonical party owner.");
+        encounter.Validate();
+        if (active.Outcome == BattleOutcome.Active || active.EncounterId != encounter.Formation)
+        {
+            throw new InvalidOperationException("A factual battle outcome can only be captured from its completed live encounter.");
+        }
+        NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner.");
+        NativeEconomy economy = session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical item owner.");
+        List<ReplayBattlePartyResult> party = [];
         foreach (BattleCombatant player in active.Combatants.Where(actor => actor.IsPlayer))
         {
             int row = int.Parse(player.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture);
-            vitals = vitals.WithSavedHitPoints(row, player.CurrentHp);
-            NativeMagicStock[] stocks = vitals.Records[row].MagicInventory.Select(stock => stock.SpellId == 0 ? stock : new NativeMagicStock(stock.SpellId, checked((byte)(player.MagicStocks.FirstOrDefault(current => current.Id == stock.SpellId)?.Count ?? 0)))).ToArray();
-            foreach (BattleStock stock in player.MagicStocks.Where(stock => !stocks.Any(current => current.SpellId == stock.Id)))
+            NativeCharacterVital original = vitals.Records[row];
+            if (original.HitPoints.Minimum != original.HitPoints.Maximum)
             {
-                int empty = Array.FindIndex(stocks, entry => entry.SpellId == 0 || entry.Count == 0);
-                if (empty < 0)
-                {
-                    throw new InvalidDataException("Battle magic inventory exceeded its native thirty-two slots.");
-                }
-                stocks[empty] = new NativeMagicStock(checked((byte)stock.Id), checked((byte)stock.Count));
+                throw new NotSupportedException("Battle facts require the actual exact pre-battle HP operand.");
             }
-            NativeCharacterVital[] records = vitals.Records.ToArray();
-            ushort status = (ushort)((records[row].Status & 0x80) | (player.CurrentHp == 0 ? 1 : 0));
+            ushort status = (ushort)((original.Status & 0x80) | (player.CurrentHp == 0 ? 1 : 0));
             foreach ((int mask, BattleStatusKind kind) in new[] { (2, BattleStatusKind.Poison), (8, BattleStatusKind.Blind), (16, BattleStatusKind.Silence) })
             {
                 if (player.StatusEffects.Any(effect => effect.Kind == kind))
@@ -247,28 +258,90 @@ internal sealed partial class GameWorld
                     status |= (ushort)mask;
                 }
             }
-            records[row] = records[row] with { MagicInventory = stocks, Status = status };
-            vitals = vitals with { Records = records };
-        }
-        if (active.Outcome == BattleOutcome.Victory && !active.Events.Any(entry => entry.Kind == "debug-victory"))
-        {
-            ushort points = unchecked((ushort)active.Capture().Definition.Combatants.Where(actor => !actor.IsPlayer).Sum(actor => actor.AbilityPoints));
-            // Native494D40 includes an active party actor when KO is clear OR Petrify is clear; current supported saved statuses have no Petrify.
-            // Every junctioned GF with nonzero current HP receives the entire AP WORD;4A6680/497010 apply learning and saturation.
-            foreach (int id in vitals.CombatParty.Where(row => row != 255).SelectMany(row => vitals.Records[row].Junction.GuardianForceAssignments).Distinct().Where(id => vitals.GuardianForces[id].HitPoints > 0))
+            List<ReplayBattleMagicChange> magic = [];
+            foreach (int spell in original.MagicInventory.Where(stock => stock.SpellId != 0).Select(stock => (int)stock.SpellId).Concat(player.MagicStocks.Select(stock => stock.Id)).Distinct())
             {
-                vitals = vitals.AwardGuardianForceAbilityPoints(id, points);
+                int before = original.MagicInventory.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0;
+                int after = player.MagicStocks.FirstOrDefault(stock => stock.Id == spell)?.Count ?? 0;
+                if (before != after)
+                {
+                    magic.Add(new ReplayBattleMagicChange(checked((byte)spell), checked((byte)before), after - before));
+                }
+            }
+            party.Add(new ReplayBattlePartyResult(checked((byte)row), original.CharacterId, original.HitPoints.Minimum, checked((ushort)player.CurrentHp), original.Status, status, magic.ToArray()));
+        }
+        List<ReplayBattleItemConsumption> items = [];
+        foreach (NativeItemStock stock in economy.Items.Where(stock => stock.ItemId != 0 && stock.Count != 0))
+        {
+            int after = active.Items.FirstOrDefault(item => item.Id == stock.ItemId)?.Count ?? 0;
+            if (after > stock.Count)
+            {
+                throw new NotSupportedException("Battle item gains require a supported reward fact contract.");
+            }
+            if (after < stock.Count)
+            {
+                items.Add(new ReplayBattleItemConsumption(stock.ItemId, stock.Count, checked((byte)(stock.Count - after))));
             }
         }
-        return vitals.RebuildParty();
+        bool debugVictory = active.Events.Any(entry => entry.Kind == "debug-victory");
+        int[] defeated = active.Combatants.Where(actor => !actor.IsPlayer && !actor.IsAlive).Select(actor => int.Parse(actor.Id.AsSpan("enemy-".Length), System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        int[] eligible = active.Outcome == BattleOutcome.Victory && !debugVictory ? BattleResultProjection.EligibleGuardianForces(vitals) : [];
+        ReplayBattleOutcome result = new(encounter, active.Outcome, party.ToArray(), items.ToArray(), defeated, eligible, debugVictory);
+        result.Validate();
+        return result;
     }
 
-    private void PublishBattleOutcome(BattleSession active)
+    internal ReplayBattleOutcome CaptureAutomaticBattleOutcome(ReplayBattleEncounter encounter)
     {
-        NativeCharacterVitals vitals = ProjectBattleOutcome(active);
-        NativeEconomy economy = session.State.Economy ?? throw new InvalidDataException("Battle return lost its canonical item owner.");
-        NativeItemStock[] stocks = economy.Items.Select(stock => stock.ItemId == 0 ? stock : new NativeItemStock(stock.ItemId, checked((byte)(active.Items.FirstOrDefault(current => current.Id == stock.ItemId)?.Count ?? 0)))).ToArray();
-        session.SetCharacterVitals(vitals);
-        session.SetEconomy(economy with { Items = stocks });
+        encounter.Validate();
+        NativeBattleCompletion current = Events.PendingHostedBattle ?? throw new InvalidOperationException("Automatic outcome requires its actual held native BATTLE operation.");
+        if (current.Backend != NativeBattleBackend.AutomaticVictory || current.Encounter != encounter.Formation || encounter.ScriptedOwner is null)
+        {
+            throw new InvalidOperationException("Automatic outcome cannot be inferred from completed battle history or another backend.");
+        }
+        NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new InvalidDataException("Automatic outcome requires its current canonical party owner.");
+        List<ReplayBattlePartyResult> party = [];
+        foreach (byte row in vitals.CombatParty.Where(row => row != 255))
+        {
+            NativeCharacterVital member = vitals.Records[row];
+            if (member.HitPoints.Minimum != member.HitPoints.Maximum)
+            {
+                throw new NotSupportedException("Automatic victory cannot invent an exact HP fact from an uncertain native HP interval.");
+            }
+            party.Add(new ReplayBattlePartyResult(row, member.CharacterId, member.HitPoints.Minimum, member.HitPoints.Minimum, member.Status, member.Status, []));
+        }
+        ReplayBattleOutcome result = new(encounter, BattleOutcome.Victory, party.ToArray(), [], BattleResources.LoadEncounter(encounter.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), BattleResultProjection.EligibleGuardianForces(vitals), false);
+        result.Validate();
+        return result;
+    }
+
+    internal void ApplyBattleResult(ReplayBattleEncounter expected, ReplayBattleOutcome result)
+    {
+        expected.Validate();
+        result.Validate();
+        if (result.Encounter != expected || session.State.PendingBattleEncounter != expected || session.State.AppliedBattleResultIds.Contains(expected.OccurrenceId, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("Battle result requires its unapplied matching encounter occurrence.");
+        }
+        if (session.State.Scene != expected.SourceScene || session.State.FieldId != expected.SourceFieldId || !BattleResources.FormationSourceHash(expected.Formation).Equals(expected.FormationHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Battle result source scene or current original formation resource differs from its observed encounter.");
+        }
+        if (expected.ScriptedOwner is { } owner)
+        {
+            NativeBattleCompletion request = Events.PendingHostedBattle ?? throw new InvalidDataException("Scripted battle fact lost its original pending BATTLE owner.");
+            if (request.FieldId != owner.FieldId || request.ObjectId != owner.ObjectId || request.ScriptId != owner.ScriptId || request.Operation != owner.Operation || request.Flags != owner.Flags || request.Encounter != expected.Formation || request.ProgramHash != owner.ProgramHash)
+            {
+                throw new InvalidDataException("Scripted battle result owner differs from the actual suspended BATTLE operation.");
+            }
+        }
+        BattleEncounter formation = BattleResources.LoadEncounter(expected.Formation);
+        if (result.DefeatedEnemySlots.Any(slot => !formation.Enemies.Any(enemy => enemy.Slot == slot)) || result.Outcome == BattleOutcome.Victory && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
+        {
+            throw new InvalidDataException("Battle result defeated-enemy facts contradict the current original formation.");
+        }
+        Dictionary<int, int> currentAp = formation.Enemies.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
+        BattleResultOwners owners = BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp);
+        session.CommitBattleResult(expected, owners.CharacterVitals, owners.Economy);
     }
 }
