@@ -11,20 +11,26 @@ internal static partial class Program
 {
     private static void NativePartyLinearTurnContract()
     {
-        byte[] Content(int start, int duration, int slot, int x, int y)
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        byte[] Content(int start, int duration, int slot, int x, int y, Jsm.Opcode opcode)
         {
-            (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
-            (Jsm.Opcode, int)[] turn = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, duration), (Jsm.Opcode.PLTURN, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] caller = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
+            (Jsm.Opcode, int)[] turn = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, slot), (Jsm.Opcode.PSHN_L, duration), (opcode, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] absent = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.UNUSE, 0), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] target = [(Jsm.Opcode.LBL, 32), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ADDPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, y), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 0)];
             (Jsm.Opcode, int)[] detach = [(Jsm.Opcode.LBL, 33), (Jsm.Opcode.FOLLOWOFF, 0), (Jsm.Opcode.RET, 0)];
             return SyntheticObjects([1, 16 << 7, (32 << 7) | 1], [caller, turn, absent, target, detach]);
         }
-        (GameSession Session, EventEngine Engine) Create(int start, int duration, int slot = 0, int x = 437, int y = -3376)
+        (GameSession Session, EventEngine Engine) Create(int start, int duration, int slot = 0, int x = 437, int y = -3376, Jsm.Opcode opcode = Jsm.Opcode.PLTURN)
         {
-            GameSession session = new(new GameState());
+            GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+            session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+            session.InitializeNewGameSalaryTable(assets.ReadNativeSalaryTable());
+            session.SetInputConfiguration(assets.ReadNewGameInputConfiguration());
             EventEngine engine = new(session, session.State.Variables) { AnimationFrameCount = (_, _) => 2, ResolveNativeActorFacing = query => FieldNativeScriptDirectionProbe.ResolveFacing(query.FixedX, query.FixedY, query.TargetX, query.TargetY) };
-            engine.LoadField(600, Content(start, duration, slot, x, y), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.LoadField(600, Content(start, duration, slot, x, y, opcode), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return (session, engine);
         }
         foreach ((int start, int rawDuration, int target, int x, int y) in new[] { (234, 65540, 261, 437, -3376), (0, 4, 128, 0, 1), (10, 0, 5, 437, -3376), (5, 4, 5, 437, -3376) })
@@ -82,6 +88,33 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(live.Engine.Capture(), restored.Engine.Capture()), "PLTURN completion continuation diverged after restore.");
             Require(actor.RotationTarget is null && !actor.RotationUsesNativeLinear && live.Session.State.Variables[5000] == 77 && operands.Count == 1, "PLTURN did not clear its mode1 rotation or consume its operands exactly once.");
         }
+        var cosine = Create(234, 65540, opcode: Jsm.Opcode.PCTURN);
+        cosine.Engine.Step();
+        cosine.Engine.Step();
+        Require(cosine.Engine.Scene.NativeActorObjectIds.SequenceEqual([0, 2]) && cosine.Engine.Scene.FieldPartyNativeActorIds.SequenceEqual([255, 255, 255]) && cosine.Engine.Scene.PartyBindingMemory is { First: 1 }, "PCTURN fixture did not retain its canonical saved binding after FOLLOWOFF.");
+        List<int[]> cosineOperands = [];
+        cosine.Engine.CommandExecuted += command =>
+        {
+            if (command.Name == nameof(Jsm.Opcode.PCTURN))
+            {
+                cosineOperands.Add(command.Arguments.ToArray());
+            }
+        };
+        cosine.Engine.Step();
+        ActorState cosineActor = cosine.Engine.Actors[0];
+        Require(cosineOperands.Count == 1 && cosineOperands[0].SequenceEqual(new[] { 0, 65540 }) && cosineActor.Direction == 234 && cosineActor.RotationTarget == 261 && cosineActor.RotationUsesNativeCosine && !cosineActor.RotationUsesNativeLinear && cosineActor.RotationTotalFrames == 4 && cosineActor.RotationFrames == 4 && !cosine.Session.State.Variables.ContainsKey(5000), "PCTURN did not capture its saved-party raw target once, narrow only its duration BYTE, or retain cosine elapsed0 ownership.");
+        var cosineRestored = Create(234, 65540, opcode: Jsm.Opcode.PCTURN);
+        cosineRestored.Engine.Restore(cosine.Engine.Capture());
+        for (int elapsed = 1; elapsed <= 4; elapsed++)
+        {
+            cosine.Engine.Step();
+            cosineRestored.Engine.Step();
+            byte expected = unchecked((byte)NativeCosineInterpolation.Interpolate(234, 261, 4, elapsed));
+            Require(cosineActor.Direction == expected && JsonElement.DeepEquals(cosine.Engine.Capture(), cosineRestored.Engine.Capture()) && !cosine.Session.State.Variables.ContainsKey(5000), "PCTURN lost its captured cosine target, inclusive post-VM endpoint or independent restore.");
+        }
+        cosine.Engine.Step();
+        cosineRestored.Engine.Step();
+        Require(cosineActor.RotationTarget is null && !cosineActor.RotationUsesNativeCosine && cosine.Session.State.Variables[5000] == 77 && cosineOperands.Count == 1 && JsonElement.DeepEquals(cosine.Engine.Capture(), cosineRestored.Engine.Capture()), "PCTURN did not return2 after completion or consumed its operands again while polling.");
         foreach (int slot in new[] { -1, 1, 256 })
         {
             var invalid = Create(234, 4, slot);
@@ -98,6 +131,6 @@ internal static partial class Program
             JsonElement fiber = invalid.Engine.Capture().GetProperty("Fibers").EnumerateArray().Single(item => item.GetProperty("ObjectId").GetInt32() == 0 && !item.GetProperty("Initialization").GetBoolean());
             Require(fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 4, slot }) && invalid.Engine.Actors[0].Direction == 234 && invalid.Engine.Actors[0].RotationTarget is null, "PLTURN refusal consumed operands or changed visible facing.");
         }
-        Console.WriteLine("PLTURN: compact saved binding, exact native facing, BYTE duration, signed nearest angle and128 tie, integer linear elapsed0/endpoint, immediate equality, full VM restore and atomic refusal passed.");
+        Console.WriteLine("PLTURN/PCTURN: compact saved binding after FOLLOWOFF, exact native facing, BYTE duration, signed nearest angle and128 tie, linear/cosine elapsed0/endpoint, immediate equality, full VM restore and atomic refusal passed.");
     }
 }

@@ -273,7 +273,8 @@ public sealed partial class EventEngine
                 Scene.NativeLadderSpeed490E = unchecked((byte)args[0]);
                 break;
             case Jsm.Opcode.PLTURN:
-                args = ExecutePartyLinearTurn(fiber);
+            case Jsm.Opcode.PCTURN:
+                args = ExecutePartyTurn(fiber, opcode == Jsm.Opcode.PCTURN);
                 break;
             case Jsm.Opcode.CMOVE:
                 args = ExecuteNativeScriptMove(fiber);
@@ -502,22 +503,6 @@ public sealed partial class EventEngine
                 actor.RotationTotalFrames = (byte)args[1];
                 actor.RotationUsesNativeCosine = opcode == Jsm.Opcode.CTURN && actor.RotationTarget is not null;
                 actor.RotationFrames = actor.RotationTarget is null ? 0 : actor.RotationTotalFrames + (actor.RotationUsesNativeCosine ? 1 : 0);
-                fiber.WaitReason = actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
-                break;
-            case Jsm.Opcode.PCTURN:
-                args = Pop(fiber, 2);
-                if ((uint)args[0] >= (Scene.FieldPartyNativeActorIds.Count == 3 ? 3 : Scene.Party.Count))
-                {
-                    throw Fault(fiber, "PCTURN refers to a missing party actor slot.");
-                }
-                ActorState rotationPlayer = ResolvePartyActor(args[0]) ?? throw Fault(fiber, "PCTURN party slot has no registered field actor.");
-                int rotationStart = (byte)actor.Direction;
-                int rotationTarget = NativeDirection(actor.X, actor.Y, rotationPlayer.X, rotationPlayer.Y);
-                actor.RotationStart = rotationStart;
-                actor.RotationTotalFrames = (byte)args[1];
-                actor.RotationTarget = rotationStart == rotationTarget ? null : NearestFaceAngle(rotationStart, rotationTarget);
-                actor.RotationUsesNativeCosine = actor.RotationTarget is not null;
-                actor.RotationFrames = actor.RotationUsesNativeCosine ? actor.RotationTotalFrames + 1 : 0;
                 fiber.WaitReason = actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
                 break;
             case Jsm.Opcode.MSPEED:

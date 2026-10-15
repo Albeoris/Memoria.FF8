@@ -2,14 +2,19 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private string? UnsupportedPartyLinearTurn(Fiber fiber)
+    private string? UnsupportedPartyTurn(Fiber fiber, bool cosine)
     {
+        string opcode = cosine ? "PCTURN" : "PLTURN";
+        if (fiber.Stack.Count < 2 || fiber.Stack.Capture().Take(2).Any(value => !value.IsExact))
+        {
+            return $"{opcode} requires its two original exact DWORD operands";
+        }
         ActorState actor = actors[fiber.ObjectId];
         NativeActorFacingQuery? query = PreparePartyActorFacing(fiber, 1);
-        return fiber.Stack.Count >= 2 && query is not null && ResolveNativeActorFacing?.Invoke(query) is not null && float.IsFinite(actor.Direction) && actor.Direction == (byte)actor.Direction && actor.RotationTarget is null ? null : "PLTURN requires two original DWORD operands, known saved compact party binding, certified raw actor facing and an idle exact BYTE577 direction";
+        return query is not null && ResolveNativeActorFacing?.Invoke(query) is not null && float.IsFinite(actor.Direction) && actor.Direction == (byte)actor.Direction && actor.RotationTarget is null ? null : $"{opcode} requires its known saved compact party binding, certified raw actor facing and an idle exact BYTE577 direction; unowned native bodies are unsupported";
     }
 
-    private int[] ExecutePartyLinearTurn(Fiber fiber)
+    private int[] ExecutePartyTurn(Fiber fiber, bool cosine)
     {
         NativeActorFacingQuery query = PreparePartyActorFacing(fiber, 1)!;
         byte target = ResolveNativeActorFacing!(query)!.Value;
@@ -19,10 +24,11 @@ public sealed partial class EventEngine
         actor.RotationStart = start;
         actor.RotationTotalFrames = unchecked((byte)operands[1]);
         actor.RotationTarget = start == target ? null : NearestFaceAngle(start, target);
-        actor.RotationUsesNativeCosine = false;
-        actor.RotationUsesNativeLinear = actor.RotationTarget is not null;
-        actor.RotationFrames = actor.RotationUsesNativeLinear ? actor.RotationTotalFrames + 1 : 0;
-        // Native527790 returns2 immediately for an equal direction; otherwise mode1 samples elapsed0..duration.
+        actor.RotationUsesNativeCosine = cosine && actor.RotationTarget is not null;
+        actor.RotationUsesNativeLinear = !cosine && actor.RotationTarget is not null;
+        actor.RotationFrames = actor.RotationTarget is not null ? actor.RotationTotalFrames + 1 : 0;
+        //527790/5278A0 use saved BYTE194+slot, including after FOLLOWOFF.
+        //Equal direction returns2 immediately; mode1/2 samples elapsed0..duration.
         fiber.WaitReason = actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
         return operands;
     }

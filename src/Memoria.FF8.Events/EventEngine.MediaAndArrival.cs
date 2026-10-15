@@ -149,9 +149,9 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeJump(fiber, operation.Parameter, partyTarget: true);
         }
-        if (operation.Opcode == Jsm.Opcode.PLTURN)
+        if (operation.Opcode is Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN)
         {
-            return UnsupportedPartyLinearTurn(fiber);
+            return UnsupportedPartyTurn(fiber, operation.Opcode == Jsm.Opcode.PCTURN);
         }
         if (operation.Opcode == Jsm.Opcode.CMOVE)
         {
@@ -513,10 +513,6 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.REFRESHPARTY && (variables.TryGetValue(104, out int partyFlags) && (partyFlags & 0x800) != 0 || variables.TryGetValue(105, out int partyFlagByte) && (partyFlagByte & 8) != 0))
         {
             return "Unsupported REFRESHPARTY auxiliary party-list branch requires its own native continuation evidence";
-        }
-        if (operation.Opcode == Jsm.Opcode.PCTURN && Scene.FieldPartyNativeActorIds.Count == 3 && fiber.Stack.Count > 1 && ResolvePartyActor(fiber.Stack.Skip(1).First()) is null)
-        {
-            return "Unsupported PCTURN refreshed party binding has no native actor object";
         }
         if (operation.Opcode is Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.DOORLINEON && program?.Objects[fiber.ObjectId].IsArea != true)
         {
