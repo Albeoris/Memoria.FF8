@@ -1,6 +1,5 @@
 using Memoria.FF8.Media;
 using Memoria.FF8.Runtime;
-using System.Diagnostics;
 
 namespace Memoria.FF8;
 
@@ -102,7 +101,7 @@ internal sealed class MovieClock
     {
         // This product action skips presentation, not the movie's script execution. Immediate native
         // cleanup freezes L[80] (corridor MAP232 waits for frame144); jumping straight to EOF also
-        // loses intermediate requests and actor writes. Admit every remaining decoded callback.
+        // loses intermediate requests and actor writes. Admit every remaining display callback.
         MovieInformation information = Prepare();
         if (AdvanceFrame is null)
         {
@@ -113,46 +112,20 @@ internal sealed class MovieClock
         session.BeginMovieAcceleration();
         try
         {
-            // Decode from the source origin so seek/keyframe rounding cannot omit a causal frame.
-            string path = SourcePath;
-            using var decoder = new FfmpegMovieDecoder(toolsDirectory, path, information: information);
-            Stopwatch timeout = Stopwatch.StartNew();
+            // Prepare authenticates the clip and counts actual displayed frames (including VP8's
+            // invisible-frame distinction). Pixels and PCM do not drive the script clock, so skip
+            // their decoding while retaining every consecutive callback and its original timestamp.
             bool active = true;
-            while (active && !decoder.VideoFinished)
+            for (int frame = first; active && frame < information.FrameCount; frame++)
             {
-                while (decoder.TryGetAudio(out _))
-                {
-                }
-                if (!decoder.TryGetNextFrame(double.MaxValue, out MovieFrame? frame))
-                {
-                    if (timeout.Elapsed > TimeSpan.FromSeconds(30))
-                    {
-                        throw new TimeoutException("Movie skip decoder made no progress for thirty seconds.");
-                    }
-                    Thread.Sleep(1);
-                    continue;
-                }
-                timeout.Restart();
-                if (frame!.Index < first)
-                {
-                    continue;
-                }
-                if (frame.Index != first + count)
-                {
-                    throw new InvalidDataException("Movie skip decoder did not deliver consecutive frames.");
-                }
                 count++;
-                active = AdvanceFrame(new MoviePlaybackState(checked((int)frame.Index), information.FrameCount - 1, true, false, false), frame.Index / information.FramesPerSecond);
-            }
-            if (decoder.Error is string error)
-            {
-                throw new InvalidDataException(error);
+                active = AdvanceFrame(new MoviePlaybackState(frame, information.FrameCount - 1, true, false, false), frame / information.FramesPerSecond);
             }
             if (active)
             {
                 if (first + count - 1 != information.FrameCount - 1)
                 {
-                    throw new InvalidDataException("Movie skip reached decoder EOF before its authenticated terminal frame.");
+                    throw new InvalidDataException("Movie skip ended before its authenticated terminal frame.");
                 }
                 session.CompleteMovie(true);
             }

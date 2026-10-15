@@ -49,7 +49,7 @@ public sealed class StorySafeMovieSkipTests
             }
             Assert.Equal(229, closedSession.State.FieldId);
             Assert.Null(control.Events.LastFault);
-            Assert.Contains(control.Events.Decisions, decision => decision.Predicate == "(L[80] < 144)" && decision.Value != 0);
+            Assert.Contains(control.Events.Decisions, decision => decision.Predicate == "(native[80/4] < 144)" && decision.Value != 0);
         }
 
         long frameBefore = world.Events.Frame;

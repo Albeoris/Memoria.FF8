@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-/// <summary>The consecutive actual decoded samples admitted by an accelerated movie action.</summary>
+/// <summary>The consecutive displayed-frame samples admitted by an accelerated movie action.</summary>
 public sealed record MovieSkipFrames(int FirstFrame, int Count, int TerminalFrame, double FramesPerSecond)
 {
     public void Validate()
