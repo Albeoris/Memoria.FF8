@@ -79,6 +79,7 @@ internal static partial class Program
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),
                     ["background-shade-off"] = () => NativeBackgroundShadeOffContract(selectedGameDirectory),
                     ["background-shade-stop"] = () => NativeBackgroundShadeStopContract(selectedGameDirectory),
+                    ["native-effect-attribute-check"] = () => NativeEffectAttributeCheckContract(selectedGameDirectory),
                     ["dying"] = () => NativeDyingContract(selectedGameDirectory),
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
