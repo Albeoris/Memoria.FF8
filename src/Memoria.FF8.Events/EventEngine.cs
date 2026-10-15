@@ -587,7 +587,10 @@ public sealed partial class EventEngine
                 Scene.NativeBattleWaits!.Remove(fiber.Sequence);
             }
             fiber.WaitReason = WaitReason.None;
-            fiber.Request = null;
+            if (fiber.NativeDoorRequestWait is null)
+            {
+                fiber.Request = null;
+            }
             if (nativeDialogueCompleted)
             {
                 // Native closing return3 consumes the held operation and yields.
@@ -740,6 +743,7 @@ public sealed partial class EventEngine
         public WaitReason WaitReason;
         public long WaitUntil;
         public Fiber? Request;
+        public NativeDoorRequestWaitState? NativeDoorRequestWait;
         public int DialogueChannel = -1;
         public int BackgroundId;
         public int SoundResourceId;
@@ -781,6 +785,7 @@ public sealed partial class EventEngine
             WaitReason.Fade => true,
             WaitReason.BackgroundAnimation => !backgroundAnimations.TryGetValue(fiber.BackgroundId, out BackgroundAnimation? animation) || animation.Complete,
             WaitReason.BackgroundScroll => BackgroundScrollWaitReady(fiber),
+            WaitReason.NativeDoorRequest => NativeDoorRequestWaitReady(fiber),
             WaitReason.RequestStart => fiber.Request?.Started == true,
             WaitReason.RequestEnd => fiber.Request?.Complete == true,
             _ => throw Fault(fiber, "Invalid saved wait reason.")

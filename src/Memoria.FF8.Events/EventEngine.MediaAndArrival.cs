@@ -508,6 +508,10 @@ public sealed partial class EventEngine
         }
         if (operation.Opcode is Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW)
         {
+            if (fiber.NativeDoorRequestWait is not null)
+            {
+                return UnsupportedPendingNativeDoorRequestWait(fiber, operation);
+            }
             if (program is null || (uint)operation.Parameter >= program.NativeObjects.Count || fiber.Stack.Count < 2)
             {
                 return $"Unsupported {operation.Opcode} native target or operand stack is outside the verified request bounds";
@@ -535,6 +539,10 @@ public sealed partial class EventEngine
             }
             if (!occupied)
             {
+                if (IsNativeDoorRequest(targetId) && operation.Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW)
+                {
+                    return UnsupportedNativeDoorRequestWaitIssue(fiber, targetId);
+                }
                 string? movementRequest = UnsupportedNativeMovementRequest(actors[targetId], requestPriority, scriptId);
                 if (movementRequest is not null)
                 {

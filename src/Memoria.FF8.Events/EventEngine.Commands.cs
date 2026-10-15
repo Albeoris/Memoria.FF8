@@ -328,6 +328,11 @@ public sealed partial class EventEngine
             case Jsm.Opcode.REQ:
             case Jsm.Opcode.REQSW:
             case Jsm.Opcode.REQEW:
+                if (opcode != Jsm.Opcode.REQ && NativeRuntimeProfile is { IsVerified: true } && (fiber.NativeDoorRequestWait is not null || IsNativeDoorRequest(program!.NativeObjects[parameter])))
+                {
+                    args = ExecuteNativeDoorRequestWait(fiber, parameter);
+                    break;
+                }
                 args = Pop(fiber, 2);
                 Request(fiber, parameter, args[1], args[0], opcode);
                 break;
@@ -1155,7 +1160,7 @@ public sealed partial class EventEngine
         fiber.StackExpressions.Push($"({leftExpression} {symbol} {rightExpression})");
     }
 
-    private void Request(Fiber caller, int objectId, int scriptId, int priority, Jsm.Opcode opcode)
+    private Fiber? Request(Fiber caller, int objectId, int scriptId, int priority, Jsm.Opcode opcode)
     {
         if (program is not null && (uint)objectId < program.NativeObjects.Count)
         {
@@ -1163,7 +1168,7 @@ public sealed partial class EventEngine
             objectId = program.NativeObjects[rawObjectId];
             if (Scene.NativeActorLayoutVersion == 1 && rawObjectId < program.NativeActorCount && !Scene.NativeActorObjectIds.Contains(objectId))
             {
-                return;
+                return null;
             }
         }
         if (objectId < 0 || objectId >= actors.Count)
@@ -1182,7 +1187,7 @@ public sealed partial class EventEngine
         priority = nativePriority;
         if (busy && (opcode == Jsm.Opcode.REQ || NativeRuntimeProfile is { IsVerified: true }))
         {
-            return;
+            return null;
         }
         if (NativeRuntimeProfile is { IsVerified: true })
         {
@@ -1213,6 +1218,7 @@ public sealed partial class EventEngine
             caller.Request = requested;
             caller.WaitReason = WaitReason.RequestStart;
         }
+        return requested;
     }
 
     private void RequestParty(Fiber caller, int partySlot, int scriptIndex, int priority, Jsm.Opcode opcode)

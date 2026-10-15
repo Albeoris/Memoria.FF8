@@ -99,6 +99,7 @@ internal static partial class Program
                     ["door-line-toggle"] = NativeDoorLineToggleContract,
                     ["door-operand-suspension"] = NativeDoorOperandSuspensionContract,
                     ["native-door-raw-request"] = () => NativeDoorRawRequestContract(selectedGameDirectory),
+                    ["native-door-request-wait"] = () => NativeDoorRequestWaitContract(selectedGameDirectory),
                     ["native-music-status"] = () => NativeMusicStatusContract(selectedGameDirectory),
                     ["native-actor-info-unknown"] = NativeActorInfoUnknownReadContract,
                     ["native-actor-info"] = () => NativeActorInfoContract(selectedGameDirectory),

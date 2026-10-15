@@ -61,11 +61,7 @@ public sealed partial class EventEngine
         if ((uint)priority < 8)
         {
             occupied = RequestPriorityOccupied(objectId, priority);
-            if (native && IsNativeDoorRequest(objectId) && !occupied && opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW)
-            {
-                return $"Native door {opcode} requires its actual current-slot/raw DWORD wait comparison; PC and operands preserved";
-            }
-            if (native && !occupied && opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW && rawPriority != priority)
+            if (native && !IsNativeDoorRequest(objectId) && !occupied && opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW && rawPriority != priority)
             {
                 return $"Native {opcode} scheduling with a non-byte priority requires its original raw DWORD wait comparison";
             }

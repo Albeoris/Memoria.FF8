@@ -18,16 +18,11 @@ internal static partial class Program
         {
             NativeDoorRawRequestInterleaving(vitals, economy, busy);
         }
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.REQSW, Jsm.Opcode.REQEW })
-        {
-            EventEngine free = CreateNativeDoorRawRequest(vitals, economy, firstRequest: opcode);
-            NativeDoorRawRequestRefusal(free, 1, opcode.ToString(), "free door wait request");
-        }
         EventEngine early = CreateNativeDoorRawRequest(vitals, economy, beforeInitialization: true);
         NativeDoorRawRequestRefusal(early, 0, "REQ", "request before physical V2 initialization");
         EventEngine explicitReturn = CreateNativeDoorRawRequest(vitals, economy, explicitReturn: true);
         NativeDoorRawRequestRefusal(explicitReturn, 24, "RET", "door explicit RET0 cancellation");
-        Console.WriteLine("Native door raw slot1/local8, direct slot6, raw slot7/local9: typed suspended operands/results, entered LBL frames, highest-slot order, same-budget RET8 resume, independent restores, busy REQ/SW/EW drop and atomic free-wait/pre-V2/RET0 refusals passed (declared scheduler component).");
+        Console.WriteLine("Native door raw slot1/local8, direct slot6, raw slot7/local9: typed suspended operands/results, entered LBL frames, highest-slot order, same-budget RET8 resume, independent restores, busy REQ/SW/EW drop and atomic pre-V2/RET0 refusals passed (declared scheduler component).");
     }
 
     private static void NativeDoorRawRequestInterleaving(NativeCharacterVitals vitals, NativeEconomy economy, Jsm.Opcode busy)
