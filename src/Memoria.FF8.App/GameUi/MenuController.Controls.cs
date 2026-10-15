@@ -6,6 +6,13 @@ public sealed partial class MenuController
 {
     private Func<ControlsProfile>? _readControls;
     private Action<ControlsProfile>? _writeControls;
+    private Func<ControllerPresentation>? _readControllerPresentation;
+    private Func<int>? _readControllerGeneration;
+    private Func<ControlDevice>? _readControlDevice;
+    private ControllerPresentation _viewControllerPresentation;
+    private ControlDevice _viewControlDevice;
+    private int _captureControllerGeneration;
+    private bool _captureControllerConnected;
     private ControlsProfile _demoControls = ControlsProfile.CreateDefault();
     private ControlDevice _controlsDevice;
     private ControlAction _controlsAction = ControlAction.Confirm;
@@ -22,12 +29,17 @@ public sealed partial class MenuController
     private bool CanWriteControls => IsDemoControls || _writeControls is not null;
     private string ControlsDeviceName => _controlsDevice == ControlDevice.Keyboard ? "Keyboard" : "Controller";
     private string ControlsActionName => ControlsLabel(_controlsAction);
+    private ControllerPresentation CurrentControllerPresentation => CurrentControls.Controller.Presentation == ControllerPresentation.Automatic ? _readControllerPresentation?.Invoke() ?? ControllerPresentation.Generic : CurrentControls.Controller.Presentation;
+    private ControlDevice CurrentControlDevice => _readControlDevice?.Invoke() ?? (ScreenId.StartsWith("config-controller", StringComparison.Ordinal) ? ControlDevice.Controller : ControlDevice.Keyboard);
     private string ControlsMapping => BindingText(_controlsAction, _controlsDevice);
 
-    internal void ConnectControls(Func<ControlsProfile> read, Action<ControlsProfile> write)
+    internal void ConnectControls(Func<ControlsProfile> read, Action<ControlsProfile> write, Func<ControllerPresentation>? presentation = null, Func<int>? generation = null, Func<ControlDevice>? inputDevice = null)
     {
         _readControls = read;
         _writeControls = write;
+        _readControllerPresentation = presentation;
+        _readControllerGeneration = generation;
+        _readControlDevice = inputDevice;
         _view = null;
     }
 
@@ -48,6 +60,14 @@ public sealed partial class MenuController
             Help = "Select an action to change its button or combination.",
             Entries = c => c.ControlsEntries(ControlDevice.Controller),
             Details = c => c.ControlsListDetails(ControlDevice.Controller)
+        });
+        Register(new MenuScreenDefinition
+        {
+            Id = "config-controller-settings",
+            Title = "Controller settings",
+            Help = "Confirm cycles each setting. Changes save automatically.",
+            Entries = c => c.ControllerSettingsEntries(),
+            Details = c => ["Deadzones remove stick drift.", "Run threshold uses the adjusted stick.", "A lighter tilt selects native walking.", "Right stick steers / throttles the car.", "Button labels follow the connected pad.", "Choose labels manually for virtual pads.", "Confirm cycles the selected setting."]
         });
         foreach (string id in new[] { "config-keyboard-choice", "config-controller-choice" })
         {
@@ -72,22 +92,26 @@ public sealed partial class MenuController
         {
             Id = "config-controls-reset",
             Title = "Restore defaults",
-            Help = "Restore every binding for the selected device.",
+            Help = "Restore every binding and host preference for the selected device.",
             Entries = _ => [new("keep", "Keep current bindings", "Return without changing bindings.", Action: new("menu-back")), new("reset", "Restore device defaults", "Restore every native and extended action for this device.", Action: new("controls-reset-confirm"))],
-            Details = c => [$"Device: {c.ControlsDeviceName}", "All bindings for this device will reset.", "The other device keeps its bindings.", c.IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."]
+            Details = c => [$"Device: {c.ControlsDeviceName}", "Device bindings and preferences reset.", "The other device keeps its bindings.", c.IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."]
         });
     }
 
     private IReadOnlyList<MenuEntry> ControlsEntries(ControlDevice device)
     {
         string destination = device == ControlDevice.Keyboard ? "config-keyboard-choice" : "config-controller-choice";
-        return [.. ControlsProfile.Definitions.Select(definition => new MenuEntry(definition.Action.ToString(), ControlsLabel(definition.Action), $"{definition.Category}: {BindingText(definition.Action, device)}", destination, new("controls-select", definition.Action.ToString(), Value: device.ToString()))), new("reset", "Restore device defaults...", "Reset all native and extended actions for this device.", "config-controls-reset", new("controls-device", device.ToString()))];
+        return [.. device == ControlDevice.Controller ? new[] { new MenuEntry("settings", "Stick / device settings...", "Set deadzones, run threshold, button labels and vibration.", "config-controller-settings") } : [], .. ControlsProfile.Definitions.Select(definition => new MenuEntry(definition.Action.ToString(), ControlsLabel(definition.Action), $"{definition.Category}: {BindingText(definition.Action, device)}", destination, new("controls-select", definition.Action.ToString(), Value: device.ToString()))), new("reset", "Restore device defaults...", "Reset all native and extended actions for this device.", "config-controls-reset", new("controls-device", device.ToString()))];
     }
 
     private IReadOnlyList<string> ControlsListDetails(ControlDevice device)
     {
+        if (SelectedEntry?.Id == "settings")
+        {
+            return ["Controller settings", "Adjust left and right radial deadzones.", "Choose the tilt needed to run.", "Right stick: camera / car controls.", "Choose button labels for virtual pads.", "Enable or disable controller vibration.", "Changes save automatically."];
+        }
         ControlActionDefinition? selected = ControlsProfile.Definitions.FirstOrDefault(definition => definition.Action.ToString() == SelectedEntry?.Id);
-        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Confirm: change binding", "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemoControls ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
+        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Confirm: change binding", "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera / car controls" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemoControls ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
         return details.Where(line => line.Length != 0).ToArray();
     }
 
@@ -104,20 +128,26 @@ public sealed partial class MenuController
     {
         if (_captureControls)
         {
-            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.DisplayName ?? "Waiting for input...", "Escape or click Cancel to cancel.", "Gameplay input is paused."];
+            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.FormatDisplayName(CurrentControllerPresentation) ?? "Waiting for input...", "Escape or click Cancel to cancel.", "Gameplay input is paused."];
         }
         return [ControlsActionName, $"Device: {ControlsDeviceName}", $"Current: {ControlsMapping}", "Capture replaces this action's bindings.", "Hold combination buttons together.", "Confirm and Cancel must stay bound.", IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."];
     }
 
     private IReadOnlyList<string> ControlsConflictDetails()
     {
-        return [ControlsActionName, $"New: {_pendingChord?.DisplayName}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label), "Keep current bindings to cancel."];
+        return [ControlsActionName, $"New: {_pendingChord?.FormatDisplayName(CurrentControllerPresentation)}", "Already assigned to:", .. _pendingChord is null ? [] : CurrentControls.FindConflicts(_controlsAction, _controlsDevice, _pendingChord).Select(action => ControlsProfile.Definitions.Single(definition => definition.Action == action).Label), "Keep current bindings to cancel."];
     }
 
     private string BindingText(ControlAction action, ControlDevice device)
     {
         IReadOnlyList<InputChord> bindings = CurrentControls.GetBindings(action, device);
-        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.DisplayName));
+        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(binding => binding.FormatDisplayName(CurrentControllerPresentation)));
+    }
+
+    private string CurrentBindingText(ControlAction action)
+    {
+        ControlDevice device = CurrentControls.GetBindings(action, CurrentControlDevice).Count != 0 ? CurrentControlDevice : CurrentControlDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard;
+        return BindingText(action, device);
     }
 
     private static string ControlsLabel(ControlAction action)
@@ -139,6 +169,9 @@ public sealed partial class MenuController
         }
         switch (action.Kind)
         {
+            case "controls-setting":
+                WriteControls(() => CycleControllerSetting(action.SubjectId));
+                return true;
             case "controls-select":
                 _controlsAction = Enum.Parse<ControlAction>(action.SubjectId);
                 _controlsDevice = Enum.Parse<ControlDevice>(action.Value);
@@ -154,6 +187,8 @@ public sealed partial class MenuController
                     _captureArmed = false;
                     _drainControls = false;
                     _capturedChord = null;
+                    _captureControllerConnected = false;
+                    _captureControllerGeneration = _readControllerGeneration?.Invoke() ?? 0;
                     Message = "Release controls, then press your new combination.";
                 }
                 return true;
@@ -188,6 +223,31 @@ public sealed partial class MenuController
             default:
                 return false;
         }
+    }
+
+    private IReadOnlyList<MenuEntry> ControllerSettingsEntries()
+    {
+        ControllerSettings settings = CurrentControls.Controller;
+        return
+        [
+            new("left-deadzone", $"Left stick deadzone: {settings.LeftStickDeadZone:P0}", "Confirm increases by 5%; after 50% returns to 0%.", Action: new("controls-setting", "left-deadzone"), Enabled: CanWriteControls),
+            new("right-deadzone", $"Right stick deadzone: {settings.RightStickDeadZone:P0}", "Confirm increases by 5%; after 50% returns to 0%.", Action: new("controls-setting", "right-deadzone"), Enabled: CanWriteControls),
+            new("run-threshold", $"Run threshold: {settings.WalkRunThreshold:P0}", "Confirm increases by 5%; after 95% returns to 10%.", Action: new("controls-setting", "run-threshold"), Enabled: CanWriteControls),
+            new("presentation", $"Button labels: {settings.Presentation}", "Cycle automatic, generic, Xbox, PlayStation and Nintendo labels.", Action: new("controls-setting", "presentation"), Enabled: CanWriteControls),
+            new("vibration", $"Vibration: {(settings.VibrationEnabled ? "On" : "Off")}", "Enable or disable controller vibration.", Action: new("controls-setting", "vibration"), Enabled: CanWriteControls)
+        ];
+    }
+
+    private ControlsProfile CycleControllerSetting(string setting)
+    {
+        ControllerSettings current = CurrentControls.Controller;
+        float Next(float value, float minimum, float maximum) => value >= maximum - 0.001f ? minimum : MathF.Round(value + 0.05f, 2);
+        return CurrentControls.WithControllerSettings(
+            setting == "left-deadzone" ? Next(current.LeftStickDeadZone, 0, 0.5f) : current.LeftStickDeadZone,
+            setting == "right-deadzone" ? Next(current.RightStickDeadZone, 0, 0.5f) : current.RightStickDeadZone,
+            setting == "run-threshold" ? Next(current.WalkRunThreshold, 0.1f, 0.95f) : current.WalkRunThreshold,
+            setting == "presentation" ? (ControllerPresentation)(((int)current.Presentation + 1) % Enum.GetValues<ControllerPresentation>().Length) : current.Presentation,
+            setting == "vibration" ? !current.VibrationEnabled : current.VibrationEnabled);
     }
 
     private bool WriteControls(Func<ControlsProfile> update)
@@ -267,11 +327,13 @@ public sealed partial class MenuController
             _drainControls = !released;
             return true;
         }
-        if (!active)
+        bool deviceChanged = (_readControllerGeneration?.Invoke() ?? 0) != _captureControllerGeneration;
+        if (!active || _controlsDevice == ControlDevice.Controller && (_captureControllerConnected && !pad.IsConnected || deviceChanged))
         {
             CancelControlsCapture();
             return true;
         }
+        _captureControllerConnected |= pad.IsConnected;
         if (!_captureArmed)
         {
             _captureArmed = released;

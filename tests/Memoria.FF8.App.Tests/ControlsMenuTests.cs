@@ -141,7 +141,7 @@ public sealed class ControlsMenuTests
         Assert.True(menus.IsCapturingControls);
         GamePadState chord = new(Microsoft.Xna.Framework.Vector2.Zero, Microsoft.Xna.Framework.Vector2.Zero, 0, 0, [Buttons.LeftShoulder, Buttons.Y]);
         menus.UpdateControlsCapture(default, chord, true);
-        menus.UpdateControlsCapture(default, default, true);
+        menus.UpdateControlsCapture(default, new GamePadState(Microsoft.Xna.Framework.Vector2.Zero, Microsoft.Xna.Framework.Vector2.Zero, 0, 0, []), true);
         Assert.Equal(new[] { Buttons.LeftShoulder, Buttons.Y }.Order(), profile.GetBindings(ControlAction.QuickSave, ControlDevice.Controller).Single().Buttons.Order());
     }
 

@@ -15,6 +15,9 @@ internal sealed partial class RecreateGame : Game
     private readonly GameSession session;
     private readonly GraphicsDeviceManager graphics;
     private readonly KeyboardInput keyboard = new();
+    private ControllerDevice? controller;
+    private ControllerFeedback? controllerFeedback;
+    private bool capturingControls;
     private readonly GameplayClock gameplayClock = new();
     private readonly MovieClock movieClock;
     private FieldAudioPresentation? fieldAudio;
@@ -69,6 +72,8 @@ internal sealed partial class RecreateGame : Game
 
     protected override void LoadContent()
     {
+        controller = new ControllerDevice();
+        controllerFeedback = new ControllerFeedback(controller.SetVibration);
         batch = new SpriteBatch(GraphicsDevice);
         text = new SystemTextRenderer(GraphicsDevice);
         pixel = new Texture2D(GraphicsDevice, 1, 1);
@@ -88,10 +93,25 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        try
+        {
+            UpdateGameFrame(gameTime);
+        }
+        finally
+        {
+            controllerFeedback?.Update(session.State.VibrationProcess, IsActive && !userPaused && !capturingControls && !fieldFaulted && !fieldRenderFaulted && gameMenus?.IsOpen != true && !saveMenu.IsOpen, keyboard.Profile.Controller.VibrationEnabled);
+        }
+    }
+
+    private void UpdateGameFrame(GameTime gameTime)
+    {
         long updateStarted = Stopwatch.GetTimestamp();
         KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
-        Microsoft.Xna.Framework.Input.GamePadState pad = Microsoft.Xna.Framework.Input.GamePad.GetState(PlayerIndex.One, Microsoft.Xna.Framework.Input.GamePadDeadZone.None);
+        GamePadState pad = controller!.Read();
+        keyboard.ControllerPresentation = controller.Presentation;
+        keyboard.ControllerGeneration = controller.Generation;
         bool capturing = gameMenus?.UpdateControlsCapture(keys, pad, IsActive) == true;
+        capturingControls = capturing;
         keyboard.RecoveryNavigationEnabled = gameMenus is { IsOpen: true, IsControlsScreen: true };
         InputFrame input = keyboard.Read(keys, pad, IsActive && !capturing);
         if (capturing)
@@ -420,6 +440,7 @@ internal sealed partial class RecreateGame : Game
 
     private void UpdateWorldMap(TimeSpan elapsed, InputFrame input)
     {
+        input = ControllerGameplayInput.Resolve(input, session.State);
         if (fieldFaulted)
         {
             return;
@@ -973,6 +994,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            controller?.Dispose();
             fieldAudio?.Dispose();
             movie?.Dispose();
             world?.Dispose();

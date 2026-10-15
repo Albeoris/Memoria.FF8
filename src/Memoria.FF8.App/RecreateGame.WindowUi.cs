@@ -9,6 +9,8 @@ internal sealed partial class RecreateGame
     private UiView? titleWindowUi;
     private int titleWindowSelection = -1;
     private ControlsProfile? titleControlsProfile;
+    private ControllerPresentation titleControllerPresentation;
+    private ControlDevice titleInputDevice;
     private UiView? savesWindowUi;
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
@@ -21,7 +23,7 @@ internal sealed partial class RecreateGame
     private void DrawTitleUi(Rectangle bounds)
     {
         batch.Draw(pixel, bounds, new Color(22, 22, 22));
-        if (titleWindowUi is null || titleWindowSelection != titleSelection || titleControlsProfile != keyboard.Profile)
+        if (titleWindowUi is null || titleWindowSelection != titleSelection || titleControlsProfile != keyboard.Profile || titleControllerPresentation != keyboard.ControllerPresentation || titleInputDevice != keyboard.LastInputDevice)
         {
             UiAnchorPanel root = new();
             root.Children.Add(new UiSigil { Seed = 8, Anchors = new UiAnchors(0.39f, 0.05f, 0.61f, 0.31f) });
@@ -35,6 +37,8 @@ internal sealed partial class RecreateGame
             titleWindowUi = CreateWindowView(root);
             titleWindowSelection = titleSelection;
             titleControlsProfile = keyboard.Profile;
+            titleControllerPresentation = keyboard.ControllerPresentation;
+            titleInputDevice = keyboard.LastInputDevice;
         }
 
         DrawWindowView(titleWindowUi, bounds);
@@ -50,7 +54,7 @@ internal sealed partial class RecreateGame
         }
 
         entries.AddRange(saveMenu.VisibleEntries);
-        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.CanRecreate, saveMenu.Message, saveMenu.RecreateUnavailableReason, string.Join(";", entries), keyboard.Profile.GetHashCode());
+        string key = string.Join("|", saveMenu.Mode, saveMenu.Bank, saveMenu.Page, saveMenu.SelectedSlot, saveMenu.ConfirmOverwrite, saveMenu.CanRecreate, saveMenu.Message, saveMenu.RecreateUnavailableReason, string.Join(";", entries), keyboard.Profile.GetHashCode(), keyboard.ControllerPresentation, keyboard.LastInputDevice);
         if (savesWindowUi is null || savesWindowKey != key)
         {
             UiAnchorPanel root = new();

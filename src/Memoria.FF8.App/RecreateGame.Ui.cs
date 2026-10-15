@@ -37,7 +37,7 @@ internal sealed partial class RecreateGame
         {
             profile.Save(ControlsPreferencesPath);
             keyboard.Profile = profile;
-        });
+        }, () => keyboard.ControllerPresentation, () => controller!.Generation, () => keyboard.LastInputDevice);
         gameMenus.BattleDebugRequested += OpenBattleDebug;
         if (options.DebugUiScreen is string screen)
         {

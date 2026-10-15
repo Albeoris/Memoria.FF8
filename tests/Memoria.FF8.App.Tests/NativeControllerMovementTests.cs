@@ -96,6 +96,43 @@ public sealed class NativeControllerMovementTests
         Assert.Equal(JsonSerializer.Serialize(scene.State with { Actions = [] }), JsonSerializer.Serialize(other.State with { Actions = [] }));
     }
 
+    [Theory]
+    [InlineData(0.5f, -0.5f, 15, 1)]
+    [InlineData(-0.5f, 0.5f, -16, -1)]
+    public void Secondary_stick_routes_fractional_vehicle_axes_to_the_existing_native_motor(float horizontal, float vertical, int yawDelta, int speed)
+    {
+        GameSession session = FootSession();
+        NativeWorldEntryMemory memory = session.State.WorldEntryMemory!.WriteBytes(256, 2, 40).WriteBytes(265, 1, 128);
+        session.Restore(session.State with { Scene = SceneKind.WorldMap, FieldId = 262, WorldArrival = new WorldTransition(63, 33, -1), WorldEntryMemory = memory });
+        using WorldMapScene scene = new(session, GameDirectory());
+        InputFrame input = new(-1, 1, false, false, false, false, MenuVertical: 1, MenuHorizontal: -1, CameraHorizontal: horizontal, SecondaryVertical: vertical, SecondaryHorizontal: horizontal);
+        InputFrame routed = ControllerGameplayInput.Resolve(input, session.State);
+        Assert.Equal((horizontal, vertical, 0f, 0f), (routed.Horizontal, routed.Vertical, routed.CameraHorizontal, routed.SecondaryVertical));
+        Assert.Equal((1, -1), (routed.MenuVertical, routed.MenuHorizontal));
+        Assert.True(scene.Apply(new PlayerAction(PlayerActionKind.Move, Horizontal: routed.Horizontal, Vertical: routed.Vertical, CameraHorizontal: routed.CameraHorizontal)).Accepted);
+        Assert.Equal(2256 + yawDelta, scene.State.BodyYaw);
+        Assert.Equal(speed, scene.State.NativeCarRuntime!.Speed);
+        Assert.Equal((horizontal, vertical), (session.ReplayJournal!.Endpoint!.Horizontal, session.ReplayJournal.Endpoint.Vertical));
+
+        InputFrame keyboardCamera = new(0.25f, -0.75f, false, false, false, false, CameraHorizontal: 1);
+        InputFrame retained = ControllerGameplayInput.Resolve(keyboardCamera, session.State);
+        Assert.Equal((0.25f, -0.75f), (retained.Horizontal, retained.Vertical));
+        Assert.Equal((0f, 0f), (retained.CameraHorizontal, retained.SecondaryVertical));
+        InputFrame steeringOnly = ControllerGameplayInput.Resolve(input with { SecondaryVertical = 0 }, session.State);
+        Assert.Equal((horizontal, 1f), (steeringOnly.Horizontal, steeringOnly.Vertical));
+        InputFrame throttleOnly = ControllerGameplayInput.Resolve(input with { SecondaryHorizontal = 0 }, session.State);
+        Assert.Equal((-1f, vertical), (throttleOnly.Horizontal, throttleOnly.Vertical));
+    }
+
+    [Theory]
+    [InlineData(SceneKind.Field)]
+    [InlineData(SceneKind.WorldMap)]
+    public void Secondary_stick_preserves_field_and_foot_camera_input(SceneKind scene)
+    {
+        InputFrame input = new(0.75f, -0.25f, false, false, false, false, MenuVertical: 1, CameraHorizontal: -0.5f, SecondaryVertical: 0.25f, SecondaryHorizontal: -0.5f);
+        Assert.Equal(input, ControllerGameplayInput.Resolve(input, new GameState { Scene = scene }));
+    }
+
     [Fact]
     public void Authentic_world_journal_recreates_and_replays_fractional_movement_and_manual_camera()
     {

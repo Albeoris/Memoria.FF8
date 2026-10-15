@@ -10,6 +10,17 @@ public enum ControlDevice
     Controller
 }
 
+public enum ControllerPresentation
+{
+    Automatic,
+    Generic,
+    Xbox,
+    PlayStation,
+    Nintendo
+}
+
+public sealed record ControllerSettings(float LeftStickDeadZone = 0.2f, float RightStickDeadZone = 0.2f, float WalkRunThreshold = 0.5f, ControllerPresentation Presentation = ControllerPresentation.Automatic, bool VibrationEnabled = true);
+
 public enum ControlAction
 {
     MoveUp,
@@ -47,7 +58,9 @@ public sealed record ControlActionDefinition(ControlAction Action, string Label,
 public sealed record InputChord(Keys[] Keys, Buttons[] Buttons)
 {
     [JsonIgnore]
-    public string DisplayName => string.Join(" + ", Keys.OrderBy(key => IsModifier(key) ? 0 : 1).ThenBy(key => key).Select(KeyName).Concat(Buttons.Select(ButtonName)));
+    public string DisplayName => FormatDisplayName(ControllerPresentation.Generic);
+
+    public string FormatDisplayName(ControllerPresentation presentation) => string.Join(" + ", Keys.OrderBy(key => IsModifier(key) ? 0 : 1).ThenBy(key => key).Select(KeyName).Concat(Buttons.Select(button => ButtonName(button, presentation))));
 
     private static bool IsModifier(Keys key) => key is Microsoft.Xna.Framework.Input.Keys.LeftControl or Microsoft.Xna.Framework.Input.Keys.RightControl or Microsoft.Xna.Framework.Input.Keys.LeftShift or Microsoft.Xna.Framework.Input.Keys.RightShift or Microsoft.Xna.Framework.Input.Keys.LeftAlt or Microsoft.Xna.Framework.Input.Keys.RightAlt or Microsoft.Xna.Framework.Input.Keys.LeftWindows or Microsoft.Xna.Framework.Input.Keys.RightWindows;
 
@@ -62,16 +75,48 @@ public sealed record InputChord(Keys[] Keys, Buttons[] Buttons)
         _ => key.ToString()
     };
 
-    internal static string ButtonName(Buttons button) => button switch
+    internal static string ButtonName(Buttons button, ControllerPresentation presentation = ControllerPresentation.Generic) => (button, presentation) switch
     {
-        Microsoft.Xna.Framework.Input.Buttons.A => "A / Cross",
-        Microsoft.Xna.Framework.Input.Buttons.B => "B / Circle",
-        Microsoft.Xna.Framework.Input.Buttons.X => "X / Square",
-        Microsoft.Xna.Framework.Input.Buttons.Y => "Y / Triangle",
-        Microsoft.Xna.Framework.Input.Buttons.LeftShoulder => "LB / L1",
-        Microsoft.Xna.Framework.Input.Buttons.RightShoulder => "RB / R1",
-        Microsoft.Xna.Framework.Input.Buttons.LeftTrigger => "LT / L2",
-        Microsoft.Xna.Framework.Input.Buttons.RightTrigger => "RT / R2",
+        (Microsoft.Xna.Framework.Input.Buttons.A, ControllerPresentation.PlayStation) => "\u00D7",
+        (Microsoft.Xna.Framework.Input.Buttons.B, ControllerPresentation.PlayStation) => "\u25CB",
+        (Microsoft.Xna.Framework.Input.Buttons.X, ControllerPresentation.PlayStation) => "\u25A1",
+        (Microsoft.Xna.Framework.Input.Buttons.Y, ControllerPresentation.PlayStation) => "\u25B3",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftShoulder, ControllerPresentation.PlayStation) => "L1",
+        (Microsoft.Xna.Framework.Input.Buttons.RightShoulder, ControllerPresentation.PlayStation) => "R1",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftTrigger, ControllerPresentation.PlayStation) => "L2",
+        (Microsoft.Xna.Framework.Input.Buttons.RightTrigger, ControllerPresentation.PlayStation) => "R2",
+        (Microsoft.Xna.Framework.Input.Buttons.Back, ControllerPresentation.PlayStation) => "Share / Create",
+        (Microsoft.Xna.Framework.Input.Buttons.Start, ControllerPresentation.PlayStation) => "Options",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftStick, ControllerPresentation.PlayStation) => "L3",
+        (Microsoft.Xna.Framework.Input.Buttons.RightStick, ControllerPresentation.PlayStation) => "R3",
+        (Microsoft.Xna.Framework.Input.Buttons.A, ControllerPresentation.Xbox) => "[A]",
+        (Microsoft.Xna.Framework.Input.Buttons.B, ControllerPresentation.Xbox) => "[B]",
+        (Microsoft.Xna.Framework.Input.Buttons.X, ControllerPresentation.Xbox) => "[X]",
+        (Microsoft.Xna.Framework.Input.Buttons.Y, ControllerPresentation.Xbox) => "[Y]",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftShoulder, ControllerPresentation.Xbox) => "LB",
+        (Microsoft.Xna.Framework.Input.Buttons.RightShoulder, ControllerPresentation.Xbox) => "RB",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftTrigger, ControllerPresentation.Xbox) => "LT",
+        (Microsoft.Xna.Framework.Input.Buttons.RightTrigger, ControllerPresentation.Xbox) => "RT",
+        (Microsoft.Xna.Framework.Input.Buttons.Back, ControllerPresentation.Xbox) => "View",
+        (Microsoft.Xna.Framework.Input.Buttons.Start, ControllerPresentation.Xbox) => "Menu",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftStick, ControllerPresentation.Xbox) => "LS",
+        (Microsoft.Xna.Framework.Input.Buttons.RightStick, ControllerPresentation.Xbox) => "RS",
+        (Microsoft.Xna.Framework.Input.Buttons.A, ControllerPresentation.Nintendo) => "[B]",
+        (Microsoft.Xna.Framework.Input.Buttons.B, ControllerPresentation.Nintendo) => "[A]",
+        (Microsoft.Xna.Framework.Input.Buttons.X, ControllerPresentation.Nintendo) => "[Y]",
+        (Microsoft.Xna.Framework.Input.Buttons.Y, ControllerPresentation.Nintendo) => "[X]",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftShoulder, ControllerPresentation.Nintendo) => "L",
+        (Microsoft.Xna.Framework.Input.Buttons.RightShoulder, ControllerPresentation.Nintendo) => "R",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftTrigger, ControllerPresentation.Nintendo) => "ZL",
+        (Microsoft.Xna.Framework.Input.Buttons.RightTrigger, ControllerPresentation.Nintendo) => "ZR",
+        (Microsoft.Xna.Framework.Input.Buttons.Back, ControllerPresentation.Nintendo) => "Minus",
+        (Microsoft.Xna.Framework.Input.Buttons.Start, ControllerPresentation.Nintendo) => "Plus",
+        (Microsoft.Xna.Framework.Input.Buttons.LeftStick, ControllerPresentation.Nintendo) => "L Stick",
+        (Microsoft.Xna.Framework.Input.Buttons.RightStick, ControllerPresentation.Nintendo) => "R Stick",
+        (Microsoft.Xna.Framework.Input.Buttons.A, _) => "South button",
+        (Microsoft.Xna.Framework.Input.Buttons.B, _) => "East button",
+        (Microsoft.Xna.Framework.Input.Buttons.X, _) => "West button",
+        (Microsoft.Xna.Framework.Input.Buttons.Y, _) => "North button",
         _ => button.ToString()
     };
 
@@ -85,17 +130,26 @@ public sealed record InputChord(Keys[] Keys, Buttons[] Buttons)
 public sealed class ControlsProfile
 {
     private sealed record Binding(ControlAction Action, ControlDevice Device, InputChord Chord);
-    private sealed record Document(int Version, Binding[] Bindings);
+    private sealed record Document(int Version, Binding[] Bindings, ControllerSettings? Controller = null);
     private readonly Binding[] bindings;
 
     public static IReadOnlyList<ControlActionDefinition> Definitions { get; } = Enum.GetValues<ControlAction>().Select(action => new ControlActionDefinition(action, Label(action), action <= ControlAction.MoveRight ? "Movement" : action <= ControlAction.RotateRight ? "Original game" : "Memoria shortcuts")).ToArray();
-    public static IReadOnlyList<Buttons> BindableButtons { get; } = [Buttons.A, Buttons.B, Buttons.X, Buttons.Y, Buttons.LeftShoulder, Buttons.RightShoulder, Buttons.LeftTrigger, Buttons.RightTrigger, Buttons.Back, Buttons.Start, Buttons.DPadUp, Buttons.DPadDown, Buttons.DPadLeft, Buttons.DPadRight];
+    public static IReadOnlyList<Buttons> BindableButtons { get; } = [Buttons.A, Buttons.B, Buttons.X, Buttons.Y, Buttons.LeftShoulder, Buttons.RightShoulder, Buttons.LeftTrigger, Buttons.RightTrigger, Buttons.Back, Buttons.Start, Buttons.LeftStick, Buttons.RightStick, Buttons.DPadUp, Buttons.DPadDown, Buttons.DPadLeft, Buttons.DPadRight];
 
-    private ControlsProfile(IEnumerable<Binding> bindings)
+    private ControlsProfile(IEnumerable<Binding> bindings, ControllerSettings? controller = null)
     {
+        Controller = controller ?? new ControllerSettings();
         this.bindings = bindings.Select(binding => binding with { Chord = Normalize(binding.Chord, binding.Device) }).ToArray();
         Validate();
     }
+
+    public ControllerSettings Controller { get; }
+    public float LeftStickDeadZone => Controller.LeftStickDeadZone;
+    public float RightStickDeadZone => Controller.RightStickDeadZone;
+    public float WalkRunThreshold => Controller.WalkRunThreshold;
+    public bool VibrationEnabled => Controller.VibrationEnabled;
+
+    public ControlsProfile WithControllerSettings(float leftStickDeadZone, float rightStickDeadZone, float walkRunThreshold, ControllerPresentation? presentation = null, bool? vibrationEnabled = null) => new(bindings, new ControllerSettings(leftStickDeadZone, rightStickDeadZone, walkRunThreshold, presentation ?? Controller.Presentation, vibrationEnabled ?? Controller.VibrationEnabled));
 
     public IReadOnlyList<InputChord> GetBindings(ControlAction action, ControlDevice device) => bindings.Where(binding => binding.Action == action && binding.Device == device).Select(binding => binding.Chord with { Keys = [.. binding.Chord.Keys], Buttons = [.. binding.Chord.Buttons] }).ToArray();
 
@@ -113,15 +167,15 @@ public sealed class ControlsProfile
         {
             throw new InvalidOperationException("Already assigned to " + string.Join(", ", conflicts.Select(Label)) + ".");
         }
-        return new ControlsProfile(bindings.Where(binding => binding.Device != device || binding.Action != action && !conflicts.Contains(binding.Action)).Append(new Binding(action, device, chord)));
+        return new ControlsProfile(bindings.Where(binding => binding.Device != device || binding.Action != action && !conflicts.Contains(binding.Action)).Append(new Binding(action, device, chord)), Controller);
     }
 
     public ControlsProfile WithoutBinding(ControlAction action, ControlDevice device)
     {
-        return new ControlsProfile(bindings.Where(binding => binding.Action != action || binding.Device != device));
+        return new ControlsProfile(bindings.Where(binding => binding.Action != action || binding.Device != device), Controller);
     }
 
-    public ControlsProfile Reset(ControlDevice device) => new(bindings.Where(binding => binding.Device != device).Concat(CreateDefault().bindings.Where(binding => binding.Device == device)));
+    public ControlsProfile Reset(ControlDevice device) => new(bindings.Where(binding => binding.Device != device).Concat(CreateDefault().bindings.Where(binding => binding.Device == device)), device == ControlDevice.Controller ? new ControllerSettings() : Controller);
 
     public static ControlsProfile CreateDefault()
     {
@@ -199,7 +253,7 @@ public sealed class ControlsProfile
         {
             throw new InvalidDataException("Unsupported controls profile.");
         }
-        return new ControlsProfile(document.Bindings);
+        return new ControlsProfile(document.Bindings, document.Controller);
     }
 
     public void Save(string path)
@@ -207,7 +261,7 @@ public sealed class ControlsProfile
         Validate();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         string temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(new Document(1, bindings), JsonOptions));
+        File.WriteAllText(temporary, JsonSerializer.Serialize(new Document(1, bindings, Controller), JsonOptions));
         File.Move(temporary, path, true);
     }
 
@@ -215,6 +269,11 @@ public sealed class ControlsProfile
 
     private void Validate()
     {
+        if (!float.IsFinite(LeftStickDeadZone) || LeftStickDeadZone < 0 || LeftStickDeadZone > 0.5f || !float.IsFinite(RightStickDeadZone) || RightStickDeadZone < 0 || RightStickDeadZone > 0.5f || !float.IsFinite(WalkRunThreshold) || WalkRunThreshold < 0.1f || WalkRunThreshold > 0.95f || !Enum.IsDefined(Controller.Presentation))
+        {
+            throw new ArgumentException("Stick deadzones must be between 0% and 50%; run threshold must be between 10% and 95%.");
+        }
+
         foreach (Binding binding in bindings)
         {
             if (!Enum.IsDefined(binding.Action) || !Enum.IsDefined(binding.Device))
@@ -235,7 +294,7 @@ public sealed class ControlsProfile
     {
         if (chord is null || chord.Keys is null || chord.Buttons is null || chord.Count == 0 || chord.Count > 4 || device == ControlDevice.Keyboard && chord.Buttons.Length != 0 || device == ControlDevice.Controller && chord.Keys.Length != 0 || chord.Keys.Any(key => key == Keys.None || !Enum.IsDefined(key)) || chord.Buttons.Any(button => !BindableButtons.Contains(button)))
         {
-            throw new ArgumentException("Use one to four keys or controller buttons. Sticks are reserved for movement and camera rotation.");
+            throw new ArgumentException("Use one to four keys or controller buttons. Stick directions are reserved for movement, camera and vehicle control; stick clicks can be assigned.");
         }
         return new InputChord(chord.Keys.Distinct().Order().ToArray(), chord.Buttons.Distinct().Order().ToArray());
     }

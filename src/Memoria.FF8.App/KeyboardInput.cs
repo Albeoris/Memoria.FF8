@@ -12,8 +12,15 @@ internal sealed class KeyboardInput
     private readonly HashSet<Buttons> consumedButtons = [];
     private readonly HashSet<Keys> disarmedKeys = [];
     private readonly HashSet<Buttons> disarmedButtons = [];
-    private Vector2 previousStick;
+    private bool leftStickDisarmed;
+    private bool rightStickDisarmed;
+    private int previousGeneration;
+    private int menuHorizontal;
+    private int menuVertical;
+    private TimeSpan nextMenuRepeat;
+    private ControllerPresentation connectedPresentation = ControllerPresentation.Generic;
     private KeyboardState previousKeyboard;
+    private GamePadState previousPad;
     private bool previousConnected;
     private bool previousActive = true;
 
@@ -31,6 +38,12 @@ internal sealed class KeyboardInput
             profile = value;
         }
     }
+    public int ControllerGeneration { get; set; }
+    public ControllerPresentation ControllerPresentation
+    {
+        get => Profile.Controller.Presentation == ControllerPresentation.Automatic ? connectedPresentation : Profile.Controller.Presentation;
+        set => connectedPresentation = value == ControllerPresentation.Automatic ? ControllerPresentation.Generic : value;
+    }
     public bool RecoveryNavigationEnabled { get; set; }
     public bool SpeedToggleRequested { get; private set; }
     public bool DebugRoomRequested { get; private set; }
@@ -45,12 +58,23 @@ internal sealed class KeyboardInput
     public bool BattleInstantVictoryRequested { get; private set; }
     public bool BattleAdvanceTurnRequested { get; private set; }
     public ushort HeldFieldButtons { get; private set; }
-    public string BindingHint(ControlAction action) => string.Join(" / ", Profile.GetBindings(action, ControlDevice.Keyboard).Concat(Profile.GetBindings(action, ControlDevice.Controller)).Select(chord => chord.DisplayName));
+    public ControlDevice LastInputDevice { get; private set; }
+    public string BindingHint(ControlAction action)
+    {
+        IReadOnlyList<InputChord> bindings = Profile.GetBindings(action, LastInputDevice);
+        if (bindings.Count == 0)
+        {
+            bindings = Profile.GetBindings(action, LastInputDevice == ControlDevice.Keyboard ? ControlDevice.Controller : ControlDevice.Keyboard);
+        }
+        return bindings.Count == 0 ? "Unbound" : string.Join(" / ", bindings.Select(chord => chord.FormatDisplayName(ControllerPresentation)));
+    }
 
-    public InputFrame Read(bool active) => Read(Keyboard.GetState(), GamePad.GetState(PlayerIndex.One, GamePadDeadZone.None), active);
     internal InputFrame Read(KeyboardState current, bool active) => Read(current, default, active);
 
     internal InputFrame Read(KeyboardState current, GamePadState pad, bool active)
+        => Read(current, pad, active, System.Diagnostics.Stopwatch.GetElapsedTime(0));
+
+    internal InputFrame Read(KeyboardState current, GamePadState pad, bool active, TimeSpan sampleTime)
     {
         if (!pad.IsConnected)
         {
@@ -60,11 +84,12 @@ internal sealed class KeyboardInput
         consumedButtons.RemoveWhere(pad.IsButtonUp);
         disarmedKeys.RemoveWhere(current.IsKeyUp);
         disarmedButtons.RemoveWhere(pad.IsButtonUp);
+        bool deviceChanged = ControllerGeneration != previousGeneration;
         if (!active || !previousActive || profileChanged)
         {
             disarmedKeys.UnionWith(current.GetPressedKeys());
         }
-        if (!active || !previousActive || profileChanged || pad.IsConnected && !previousConnected)
+        if (!active || !previousActive || profileChanged || deviceChanged || pad.IsConnected && !previousConnected)
         {
             disarmedButtons.UnionWith(ControlsProfile.BindableButtons.Where(pad.IsButtonDown));
         }
@@ -78,12 +103,38 @@ internal sealed class KeyboardInput
         bool Down(ControlAction action) => active && effective.Contains(action);
         bool Pressed(ControlAction action) => Down(action) && !previous.Contains(action) && (previousConnected || !pad.IsConnected || Profile.GetBindings(action, ControlDevice.Keyboard).Any(chord => chord.Matches(current, default)));
         bool RecoveryPressed(Keys key) => active && RecoveryNavigationEnabled && !disarmedKeys.Contains(key) && current.IsKeyDown(key) && previousKeyboard.IsKeyUp(key);
-        Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left);
-        Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right);
+        Vector2 movement = ApplyRadialDeadZone(pad.ThumbSticks.Left, Profile.LeftStickDeadZone);
+        Vector2 camera = ApplyRadialDeadZone(pad.ThumbSticks.Right, Profile.RightStickDeadZone);
+        if (!active || !previousActive || profileChanged || deviceChanged || hasSampledInput && pad.IsConnected && !previousConnected)
+        {
+            leftStickDisarmed |= movement != Vector2.Zero;
+            rightStickDisarmed |= camera != Vector2.Zero;
+        }
+        leftStickDisarmed &= movement != Vector2.Zero;
+        rightStickDisarmed &= camera != Vector2.Zero;
+        if (leftStickDisarmed)
+        {
+            movement = Vector2.Zero;
+        }
+        if (rightStickDisarmed)
+        {
+            camera = Vector2.Zero;
+        }
+        if (!pad.IsConnected)
+        {
+            LastInputDevice = ControlDevice.Keyboard;
+        }
+        if (active && current.GetPressedKeys().Any(key => previousKeyboard.IsKeyUp(key) && !disarmedKeys.Contains(key)))
+        {
+            LastInputDevice = ControlDevice.Keyboard;
+        }
+        else if (active && (movement != Vector2.Zero || camera != Vector2.Zero || ControlsProfile.BindableButtons.Any(button => pad.IsButtonDown(button) && previousPad.IsButtonUp(button) && !disarmedButtons.Contains(button))))
+        {
+            LastInputDevice = ControlDevice.Controller;
+        }
         float horizontal = Down(ControlAction.MoveRight) || Down(ControlAction.MoveLeft) ? (Down(ControlAction.MoveRight) ? 1 : 0) - (Down(ControlAction.MoveLeft) ? 1 : 0) : active ? movement.X : 0;
         float vertical = Down(ControlAction.MoveDown) || Down(ControlAction.MoveUp) ? (Down(ControlAction.MoveDown) ? 1 : 0) - (Down(ControlAction.MoveUp) ? 1 : 0) : active ? -movement.Y : 0;
-        int stickHorizontal = active ? (movement.X >= 0.5f && previousStick.X < 0.5f ? 1 : 0) - (movement.X <= -0.5f && previousStick.X > -0.5f ? 1 : 0) : 0;
-        int stickVertical = active ? (movement.Y <= -0.5f && previousStick.Y > -0.5f ? 1 : 0) - (movement.Y >= 0.5f && previousStick.Y < 0.5f ? 1 : 0) : 0;
+        (int stickHorizontal, int stickVertical) = ReadStickNavigation(movement, active, sampleTime);
         SpeedToggleRequested = Pressed(ControlAction.SpeedToggle);
         DebugRoomRequested = Pressed(ControlAction.DebugRoom);
         BattleDebugRequested = Pressed(ControlAction.BattleDebug);
@@ -104,12 +155,18 @@ internal sealed class KeyboardInput
                 HeldFieldButtons |= mask;
             }
         }
+        bool digitalMovement = Down(ControlAction.MoveUp) || Down(ControlAction.MoveDown) || Down(ControlAction.MoveLeft) || Down(ControlAction.MoveRight);
+        if (active && !digitalMovement && movement.LengthSquared() > 0 && movement.Length() < Profile.WalkRunThreshold)
+        {
+            HeldFieldButtons |= 0x10;
+        }
         bool confirm = UiConfirmRequested || RecoveryPressed(Keys.Enter);
         bool cancel = UiCancelRequested || RecoveryPressed(Keys.Escape);
-        InputFrame input = new(horizontal, vertical, confirm, cancel, Pressed(ControlAction.SkipMovie), Pressed(ControlAction.QuickSave), (Pressed(ControlAction.MoveDown) || RecoveryPressed(Keys.Down) ? 1 : 0) - (Pressed(ControlAction.MoveUp) || RecoveryPressed(Keys.Up) ? 1 : 0) + stickVertical, Pressed(ControlAction.QuickLoad), Pressed(ControlAction.SaveMenu), Pressed(ControlAction.LoadMenu), (Pressed(ControlAction.MoveRight) || RecoveryPressed(Keys.Right) ? 1 : 0) - (Pressed(ControlAction.MoveLeft) || RecoveryPressed(Keys.Left) ? 1 : 0) + stickHorizontal, (Pressed(ControlAction.UiPageDown) ? 1 : 0) - (Pressed(ControlAction.UiPageUp) ? 1 : 0), Pressed(ControlAction.RecreateSave), CameraHorizontal: active ? camera.X != 0 ? camera.X : (Down(ControlAction.RotateRight) ? 1 : 0) - (Down(ControlAction.RotateLeft) ? 1 : 0) : 0);
+        InputFrame input = new(horizontal, vertical, confirm, cancel, Pressed(ControlAction.SkipMovie), Pressed(ControlAction.QuickSave), (Pressed(ControlAction.MoveDown) || RecoveryPressed(Keys.Down) ? 1 : 0) - (Pressed(ControlAction.MoveUp) || RecoveryPressed(Keys.Up) ? 1 : 0) + stickVertical, Pressed(ControlAction.QuickLoad), Pressed(ControlAction.SaveMenu), Pressed(ControlAction.LoadMenu), (Pressed(ControlAction.MoveRight) || RecoveryPressed(Keys.Right) ? 1 : 0) - (Pressed(ControlAction.MoveLeft) || RecoveryPressed(Keys.Left) ? 1 : 0) + stickHorizontal, (Pressed(ControlAction.UiPageDown) ? 1 : 0) - (Pressed(ControlAction.UiPageUp) ? 1 : 0), Pressed(ControlAction.RecreateSave), CameraHorizontal: active ? camera.X != 0 ? camera.X : (Down(ControlAction.RotateRight) ? 1 : 0) - (Down(ControlAction.RotateLeft) ? 1 : 0) : 0, SecondaryVertical: active ? -camera.Y : 0, SecondaryHorizontal: active ? camera.X : 0);
         previous = effective;
-        previousStick = movement;
+        previousGeneration = ControllerGeneration;
         previousKeyboard = current;
+        previousPad = pad;
         previousConnected = pad.IsConnected;
         previousActive = active;
         hasSampledInput = true;
@@ -117,9 +174,51 @@ internal sealed class KeyboardInput
         return input with { MenuVertical = Math.Sign(input.MenuVertical), MenuHorizontal = Math.Sign(input.MenuHorizontal) };
     }
 
-    internal static Vector2 ApplyRadialDeadZone(Vector2 value)
+    private (int Horizontal, int Vertical) ReadStickNavigation(Vector2 movement, bool active, TimeSpan sampleTime)
     {
-        const float deadZone = 0.2f;
+        int horizontal = 0;
+        int vertical = 0;
+        if (active)
+        {
+            float threshold = menuHorizontal != 0 || menuVertical != 0 ? 0.35f : 0.5f;
+            bool keepHorizontal = menuHorizontal != 0 && Math.Abs(movement.X) >= threshold && Math.Abs(movement.X) + 0.15f >= Math.Abs(movement.Y);
+            bool keepVertical = menuVertical != 0 && Math.Abs(movement.Y) >= threshold && Math.Abs(movement.Y) + 0.15f >= Math.Abs(movement.X);
+            if (keepHorizontal || !keepVertical && Math.Abs(movement.X) > Math.Abs(movement.Y))
+            {
+                horizontal = Math.Abs(movement.X) >= threshold ? Math.Sign(movement.X) : 0;
+            }
+            else
+            {
+                vertical = Math.Abs(movement.Y) >= threshold ? -Math.Sign(movement.Y) : 0;
+            }
+        }
+        bool changed = horizontal != menuHorizontal || vertical != menuVertical;
+        menuHorizontal = horizontal;
+        menuVertical = vertical;
+        if (horizontal == 0 && vertical == 0)
+        {
+            nextMenuRepeat = TimeSpan.Zero;
+            return (0, 0);
+        }
+        if (changed)
+        {
+            nextMenuRepeat = sampleTime + TimeSpan.FromMilliseconds(350);
+            return (horizontal, vertical);
+        }
+        if (sampleTime >= nextMenuRepeat)
+        {
+            nextMenuRepeat = sampleTime + TimeSpan.FromMilliseconds(100);
+            return (horizontal, vertical);
+        }
+        return (0, 0);
+    }
+
+    internal static Vector2 ApplyRadialDeadZone(Vector2 value, float deadZone = 0.2f)
+    {
+        if (!float.IsFinite(deadZone) || deadZone < 0 || deadZone > 0.5f)
+        {
+            throw new ArgumentOutOfRangeException(nameof(deadZone));
+        }
         float length = value.Length();
         if (!float.IsFinite(length) || length <= deadZone)
         {

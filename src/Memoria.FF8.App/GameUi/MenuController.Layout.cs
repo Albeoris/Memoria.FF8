@@ -20,6 +20,12 @@ public sealed partial class MenuController
     }
     public UiView BuildView()
     {
+        if (_viewControllerPresentation != CurrentControllerPresentation || _viewControlDevice != CurrentControlDevice)
+        {
+            _view = null;
+            _viewControllerPresentation = CurrentControllerPresentation;
+            _viewControlDevice = CurrentControlDevice;
+        }
         if (_view is not null)
         {
             return _view;
@@ -267,7 +273,7 @@ public sealed partial class MenuController
 
     private UiElement Footer()
     {
-        string text = IsCapturingControls ? "Release all to apply · Escape or click Cancel to cancel" : IsControlsScreen ? "Arrow keys: select · Enter: confirm · Escape: back · Mouse supported" : $"{(IsDemo ? "DEMO · " : "")}{Data.Location}    Confirm: {BindingText(ControlAction.Confirm, ControlDevice.Keyboard)}    Back: {BindingText(ControlAction.Cancel, ControlDevice.Keyboard)}    Menu: {BindingText(ControlAction.Menu, ControlDevice.Keyboard)}";
+        string text = IsCapturingControls ? "Release all to apply · Escape or click Cancel to cancel" : IsControlsScreen ? "Arrow keys: select · Enter: confirm · Escape: back · Mouse supported" : $"{(IsDemo ? "DEMO · " : "")}{Data.Location}    Confirm: {CurrentBindingText(ControlAction.Confirm)}    Back: {CurrentBindingText(ControlAction.Cancel)}    Menu: {CurrentBindingText(ControlAction.Menu)}";
         return Panel(null, Label(text, 14));
     }
 
