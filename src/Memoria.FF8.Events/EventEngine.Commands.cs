@@ -463,13 +463,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.LTURNL:
             case Jsm.Opcode.LTURNR:
-                args = Pop(fiber, 2);
-                actor.RotationUsesNativeCosine = false;
-                actor.RotationStart = actor.Direction;
-                actor.RotationTarget = args[0] & 255;
-                actor.RotationFrames = Math.Max(1, args[1]);
-                actor.RotationTotalFrames = actor.RotationFrames;
-                fiber.WaitReason = WaitReason.Rotation;
+                args = ExecuteDirectedLinearTurn(fiber);
                 break;
             case Jsm.Opcode.CTURN:
             case Jsm.Opcode.LTURN:

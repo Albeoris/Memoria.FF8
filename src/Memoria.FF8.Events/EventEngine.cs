@@ -601,7 +601,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
