@@ -20,6 +20,8 @@ public sealed class ActorState
     public int Label { get; }
     [JsonInclude]
     public int ModelId { get; internal set; } = -1;
+    [JsonIgnore]
+    public int RenderModelId => NativeAnimationHeader?.BoundModelId ?? ModelId;
     [JsonInclude]
     public int CharacterId { get; internal set; } = -2;
     [JsonInclude]
@@ -47,6 +49,12 @@ public sealed class ActorState
     public int AnimationId { get; internal set; }
     [JsonInclude]
     public float AnimationFrame { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
+    public NativeActorAnimationHeader? NativeAnimationHeader { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
+    public NativeActorAnimationBackup? NativeAnimationBackup { get; internal set; }
     /// <summary>Physical actor bytes594..596, zeroed by fresh530710 allocation and written by51DA00.</summary>
     [JsonInclude]
     [JsonRequired]

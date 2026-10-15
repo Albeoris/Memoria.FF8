@@ -181,7 +181,7 @@ public sealed partial class EventEngine
         }
         NativeFieldActorPlacement leader = placements[leaderIndex];
         ActorState player = actors[leader.ObjectId];
-        if (player.PushRadius != 48 || !TryReadNativeBaseAnimations(player, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(player.ModelId, animation) is not > 0))
+        if (player.PushRadius != 48 || !TryReadNativeBaseAnimations(player, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(player.RenderModelId, animation) is not > 0))
         {
             throw new NotSupportedException("Opening corridor startup requires original player radius and full idle/walk/run metadata.");
         }
@@ -242,12 +242,12 @@ public sealed partial class EventEngine
         foreach (int objectId in retained)
         {
             ActorState actor = actors[objectId];
-            if (actor.ModelId is -1 or ushort.MaxValue)
+            if (actor.RenderModelId is -1 or ushort.MaxValue)
             {
                 continue;
             }
             int idle = 0;
-            if ((objectId != resetLeader && !TryReadNativeBaseAnimations(actor, out idle, out _, out _)) || AnimationFrameCount?.Invoke(actor.ModelId, idle) is not int frames || frames <= 0)
+            if ((objectId != resetLeader && !TryReadNativeBaseAnimations(actor, out idle, out _, out _)) || AnimationFrameCount?.Invoke(actor.RenderModelId, idle) is not int frames || frames <= 0)
             {
                 throw new NotSupportedException($"Native normal field loader actor{objectId} requires decoded full idle animation metadata before initialization.");
             }
@@ -263,6 +263,10 @@ public sealed partial class EventEngine
             // Native477C90's triangle7FFF branch selects triangle0 and original locomotion defaults.
             ActorState leader = actors[leaderObjectId];
             leader.AnimationSpeed = 16;
+            if (leader.NativeAnimationHeader is { } animation)
+            {
+                leader.NativeAnimationHeader = animation with { Increment = 16 };
+            }
             leader.BaseAnimationId = 0;
             leader.WalkAnimationId = 1;
             leader.RunAnimationId = 2;

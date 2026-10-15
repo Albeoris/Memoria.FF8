@@ -35,7 +35,9 @@ public enum WaitReason
     NativeLadder,
     NativeHalt,
     NativeFaceSync,
-    NativePartyMenu
+    NativePartyMenu,
+    NativeAnimationBlocking,
+    NativeAnimationSync
 }
 
 public sealed partial class EventEngine
@@ -151,6 +153,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved allocation contains the obsolete invented triangle sentinel; recreate the authentic journal.");
             }
         }
+        ValidateNativeAnimationCheckpoint(saved);
         if (snapshot.GetProperty("Dialogues").EnumerateArray().Any(dialogue => !dialogue.TryGetProperty("CanConfirm", out _)))
         {
             throw new InvalidDataException("Saved dialogue lacks native confirmability; recreate the authentic journal.");

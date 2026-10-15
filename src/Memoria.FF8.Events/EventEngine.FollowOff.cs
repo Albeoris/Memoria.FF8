@@ -18,11 +18,11 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.NativeBaseAnimationVersion != 1 || AnimationFrameCount is null || actor.ModelId < 0 || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null)
+        if (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || Scene.FieldPartyNativeActorIds.Count != 3 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || actor.NativeBaseAnimationVersion != 1 || AnimationFrameCount is null || actor.RenderModelId < 0 || actor.NativeScriptMovement is { Active: true } || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null)
         {
             return "FOLLOWOFF requires the original party mapping and known idle animation without unproved active motion";
         }
-        _ = AnimationFrameCount(actor.ModelId, actor.BaseAnimationId);
+        _ = AnimationFrameCount(actor.RenderModelId, actor.BaseAnimationId);
         return null;
     }
 
@@ -34,7 +34,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        int frames = AnimationFrameCount!(actor.ModelId, actor.BaseAnimationId);
+        int frames = AnimationFrameCount!(actor.RenderModelId, actor.BaseAnimationId);
         byte nativeActor = checked((byte)Scene.NativeActorObjectIds.IndexOf(actor.ObjectId));
         // 51EC30 clears only runtime follow mapping1CE4772; saved aliasesB194..196 remain intact.
         Scene.FieldPartyNativeActorIds[slot] = 255;
@@ -42,7 +42,14 @@ public sealed partial class EventEngine
         // 51EC30 resets animation and runtime follow mapping, not575/576.
         actor.BaseFirstFrame = 0;
         actor.BaseLastFrame = frames - 1;
-        actor.SetBaseAnimation();
+        if (NativeRuntimeProfile is { IsVerified: true })
+        {
+            SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationRepeating);
+        }
+        else
+        {
+            actor.SetBaseAnimation();
+        }
         actor.NativeFollowOff = new NativeFollowOffReceipt(1, FieldId, actor.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, slot, nativeActor, (byte)actor.BaseAnimationId, frames);
     }
 

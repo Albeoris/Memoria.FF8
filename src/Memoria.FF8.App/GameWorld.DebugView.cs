@@ -55,7 +55,7 @@ internal sealed partial class GameWorld
                 DebugActorView replacement = previous with { Visible = command.Visible ?? previous.Visible, X = command.X ?? previous.X, Y = command.Y ?? previous.Y, Z = command.Z ?? previous.Z, AnimationId = command.AnimationId ?? previous.AnimationId, Frame = command.Frame ?? previous.Frame, Playing = command.Playing ?? previous.Playing, FramesPerSecond = command.FramesPerSecond ?? previous.FramesPerSecond };
                 if (replacement.AnimationId is not null || replacement.Frame is not null || replacement.Playing)
                 {
-                    int count = Field!.GetAnimationFrameCount(actor.ModelId, replacement.AnimationId ?? actor.AnimationId);
+                    int count = Field!.GetAnimationFrameCount(actor.RenderModelId, replacement.AnimationId ?? actor.AnimationId);
                     replacement = replacement with { Frame = replacement.Frame ?? actor.AnimationFrame };
                     if (replacement.Frame < 0 || replacement.Frame >= count)
                     {
@@ -86,7 +86,7 @@ internal sealed partial class GameWorld
                 continue;
             }
             ActorState actor = Events.Actors.Single(actor => actor.ObjectId == id);
-            int count = Field!.GetAnimationFrameCount(actor.ModelId, actorView.AnimationId ?? actor.AnimationId);
+            int count = Field!.GetAnimationFrameCount(actor.RenderModelId, actorView.AnimationId ?? actor.AnimationId);
             float frame = (float)(((actorView.Frame ?? actor.AnimationFrame) + elapsed.TotalSeconds * actorView.FramesPerSecond) % count);
             actors[id] = actorView with { Frame = frame };
         }
@@ -97,7 +97,7 @@ internal sealed partial class GameWorld
     {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
         bool visible = view?.Visible ?? actor.Active && actor.Visible;
-        IReadOnlyDictionary<int, Vector3>? translations = visible && actor.ModelId >= 0 ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
-        return new ActorVisual(actor.ObjectId, actor.ModelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, actor.Direction, view?.AnimationId ?? actor.AnimationId, view?.Frame ?? actor.AnimationFrame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: actor.FirstControlRotation, AdditionalControlDisabled: actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations);
+        IReadOnlyDictionary<int, Vector3>? translations = visible && actor.RenderModelId >= 0 ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
+        return new ActorVisual(actor.ObjectId, actor.RenderModelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, actor.Direction, view?.AnimationId ?? actor.AnimationId, view?.Frame ?? actor.AnimationFrame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: actor.FirstControlRotation, AdditionalControlDisabled: actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations);
     }
 }

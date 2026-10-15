@@ -74,6 +74,14 @@ public sealed partial class EventEngine
         //4767B0's first resumed callback clears4905 and marks port0 pending before529FF0/VM.
         NativeVibrationProcessState resumedController = (services.VibrationProcess ?? throw new NotSupportedException("Native4767B0 resume requires its actual controller owner.")).MarkControllerPending(0);
         CompleteNativeMenuFieldTail(restoredFade.SetMapFadeDisabled(false), resumedController);
+        foreach (int objectId in Scene.NativeActorObjectIds)
+        {
+            ActorState actor = actors[objectId];
+            if (actor.NativePartyFlags is not { AutoAnimation4: true })
+            {
+                PublishNativeAnimation(actor, true);
+            }
+        }
         foreach (NativeFieldActorAnimation animation in animations)
         {
             SelectFullNativeAnimation(actors[animation.ObjectId], animation.Idle, true);

@@ -25,7 +25,7 @@ public sealed partial class EventEngine
                     throw new NotSupportedException("UCOFF requires its original saved party body mapping.");
                 }
                 ActorState member = actors[Scene.NativeActorObjectIds[nativeId]];
-                if (!HasNativeEmptyAnimationModel(member) && AnimationFrameCount?.Invoke(member.ModelId, member.BaseAnimationId) is not > 0)
+                if (!HasNativeEmptyAnimationModel(member) && AnimationFrameCount?.Invoke(member.RenderModelId, member.BaseAnimationId) is not > 0)
                 {
                     throw new NotSupportedException("UCOFF requires the saved party body's actual full idle animation.");
                 }

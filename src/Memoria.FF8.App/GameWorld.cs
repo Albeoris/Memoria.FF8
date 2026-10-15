@@ -162,14 +162,14 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadNativeModelParts = model => (uint)model < next.Models.Count ? next.Models[model].NativeParts : null;
         Events.ReadFaceBaseline = actor =>
         {
-            next.GetAnimationFrameCount(actor.ModelId, actor.AnimationId);
-            Vector3 rotation = next.Models[actor.ModelId].ReadFirstControlRotation(actor.AnimationId, 0);
+            next.GetAnimationFrameCount(actor.RenderModelId, actor.AnimationId);
+            Vector3 rotation = next.Models[actor.RenderModelId].ReadFirstControlRotation(actor.AnimationId, 0);
             return new FaceDirectionBaseline((int)MathF.Round(rotation.Y * 4096 / MathF.Tau) / 16, (int)MathF.Round(rotation.Z * 4096 / MathF.Tau) / 16, (int)MathF.Round(rotation.X * 4096 / MathF.Tau) / 16);
         };
-        Events.ReadFaceAnchorHeight = actor => next.Models[actor.ModelId].GetFirstControlBoneHeight(actor.AnimationId, actor.AnimationFrame, actor.RootTranslationZ, actor.FirstControlRotation);
+        Events.ReadFaceAnchorHeight = actor => next.Models[actor.RenderModelId].GetFirstControlBoneHeight(actor.AnimationId, actor.AnimationFrame, actor.RootTranslationZ, actor.FirstControlRotation);
         Events.CanDisableAdditionalControl = actor =>
         {
-            FieldModel model = next.Models[actor.ModelId];
+            FieldModel model = next.Models[actor.RenderModelId];
             int additional = model.ControlBones.Additional;
             return (uint)additional >= model.Bones.Count || !model.Bones.Any(bone => bone.Parent == additional);
         };

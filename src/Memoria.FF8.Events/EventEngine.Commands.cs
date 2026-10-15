@@ -603,6 +603,11 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.ANIMESPEED:
                 args = Pop(fiber, 1);
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    SetNativeAnimationIncrement(actor, unchecked((ushort)args[0]));
+                    break;
+                }
                 if (args[0] <= 0)
                 {
                     throw Fault(fiber, "ANIMESPEED must be positive.");
@@ -610,10 +615,28 @@ public sealed partial class EventEngine
                 actor.AnimationSpeed = args[0];
                 break;
             case Jsm.Opcode.ANIMESYNC:
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    if ((RequireNativeAnimationHeader(actor).Flags!.Value & AnimationComplete) == 0)
+                    {
+                        fiber.WaitReason = WaitReason.NativeAnimationSync;
+                    }
+                    break;
+                }
                 fiber.WaitReason = WaitReason.Animation;
                 break;
             case Jsm.Opcode.ANIMESTOP:
+                if (NativeRuntimeProfile is { IsVerified: true })
+                {
+                    SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationRepeating);
+                    WaitFrames(fiber, 1);
+                    break;
+                }
                 actor.AnimationPlaying = false;
+                break;
+            case Jsm.Opcode.PUSHANIME:
+            case Jsm.Opcode.POPANIME:
+                ExecuteNativeAnimationBackup(actor, opcode == Jsm.Opcode.POPANIME);
                 break;
             case Jsm.Opcode.WAIT:
                 args = Pop(fiber, 1);
@@ -1246,6 +1269,11 @@ public sealed partial class EventEngine
 
     private void PlayAnimation(Fiber fiber, ActorState actor, Jsm.Opcode opcode, int animationId, out int[] args)
     {
+        if (NativeRuntimeProfile is { IsVerified: true })
+        {
+            PlayNativeAnimation(fiber, actor, opcode, animationId, out args);
+            return;
+        }
         if (opcode == Jsm.Opcode.RANIMELOOP)
         {
             // Native526A3A selects the signed low WORD of the inline operand.

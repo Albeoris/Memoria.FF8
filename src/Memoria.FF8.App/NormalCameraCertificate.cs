@@ -33,7 +33,7 @@ public static class NormalCameraCertificate
             throw new NotSupportedException("Normal camera tracking requires the current native loader, supported camera metadata and supported scroll state.");
         }
         ActorState? leader = NativeFieldPartyBinding.ResolveActor(scene, actors, 0);
-        if (leader is null || (uint)leader.ModelId >= field.Models.Count)
+        if (leader is null || (uint)leader.RenderModelId >= field.Models.Count)
         {
             throw new NotSupportedException("Normal camera tracking cannot substitute an unproved actor for the compact party leader.");
         }

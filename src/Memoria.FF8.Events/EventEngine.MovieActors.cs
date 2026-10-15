@@ -79,6 +79,10 @@ public sealed partial class EventEngine
             write.Actor.MovementSpeed = write.Speed;
             write.Actor.NativeMovementBaseSpeed = write.BaseSpeed;
             write.Actor.AnimationSpeed = write.AnimationSpeed;
+            if (write.Actor.NativeAnimationHeader is { } animation)
+            {
+                write.Actor.NativeAnimationHeader = animation with { Increment = unchecked((ushort)write.AnimationSpeed) };
+            }
             if (write.Actor.NativeScriptMovement is NativeScriptMovementState movement)
             {
                 write.Actor.NativeScriptMovement = movement with { Speed = write.Speed };

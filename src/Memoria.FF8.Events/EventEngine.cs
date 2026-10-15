@@ -196,6 +196,8 @@ public sealed partial class EventEngine
                 actors[^1].WalkAnimationId = 0;
                 actors[^1].RunAnimationId = 0;
                 actors[^1].NativeBaseAnimationVersion = 1;
+                actors[^1].NativeAnimationHeader = new NativeActorAnimationHeader(1, 255, 0, 16, 0, 0, 0, null);
+                actors[^1].NativeAnimationBackup = new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0);
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
                 actors[^1].PolygonColor = new Vector3(128);
@@ -291,10 +293,7 @@ public sealed partial class EventEngine
         foreach (ActorState actor in NativeCallbackActors())
         {
             // Native529FF0 advances animation on this actor's actual turn before its VM.
-            if (actor.NativePartyFlags is not { AutoAnimation4: true })
-            {
-                actor.StepAnimation();
-            }
+            StepNativeAnimation(actor);
             DispatchNativePushContact(actor);
             DispatchInfAreaEntry(actor);
             DispatchNativeLineCrossing(actor);
@@ -349,6 +348,7 @@ public sealed partial class EventEngine
             {
                 ApplyPendingArrival();
             }
+            BindNativeAnimationResources();
             if (Scene.NativeFieldInitialization is NativeFieldInitializationProof proof)
             {
                 Scene.NativeFieldInitialization = proof with { Stage = NativeFieldInitializationStage.Completed };
@@ -576,6 +576,7 @@ public sealed partial class EventEngine
             }
             bool nativeDialogueCompleted = fiber.WaitReason == WaitReason.Dialogue && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.AMESW or Jsm.Opcode.AASK;
             bool nativeRequestCompleted = NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && fiber.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
+            bool nativeAnimationCompleted = fiber.WaitReason == WaitReason.NativeAnimationBlocking;
             if (fiber.WaitReason == WaitReason.MinimalMenu)
             {
                 Scene.MinimalMenuWaits.Remove(fiber.Sequence);
@@ -591,7 +592,7 @@ public sealed partial class EventEngine
                 // Native closing return3 consumes the held operation and yields.
                 fiber.DialogueChannel = -1;
             }
-            if (nativeRequestCompleted || nativeDialogueCompleted)
+            if (nativeRequestCompleted || nativeDialogueCompleted || nativeAnimationCompleted)
             {
                 return 1;
             }
@@ -607,7 +608,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";
@@ -768,6 +769,7 @@ public sealed partial class EventEngine
             WaitReason.None => true,
             WaitReason.Frames => Frame >= fiber.WaitUntil,
             WaitReason.Animation => !actor.AnimationPlaying || actor.AnimationLoop,
+            WaitReason.NativeAnimationBlocking or WaitReason.NativeAnimationSync => ((RequireNativeAnimationHeader(actor).Flags ?? throw new NotSupportedException("Native animation wait requires its actual completion bit.")) & AnimationComplete) != 0,
             WaitReason.Movement => actor.NativeMovementCompletion542 == 2,
             WaitReason.MoveActor => actor.MovementActorId is null,
             WaitReason.Rotation => actor.RotationTarget is null,

@@ -13,7 +13,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (target.ModelId < 0 || ReadNativeScriptPosition(target) is null || target.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || !movement.Asynchronous && !fibers.Any(owner => owner.Sequence == movement.FiberSequence && owner.ObjectId == target.ObjectId && !owner.Complete && owner.NativeMoveOperation == movement.Operation && owner.WaitReason == WaitReason.NativeScriptMovement) || AnimationFrameCount?.Invoke(target.ModelId, target.BaseAnimationId) is not > 0)
+        if (target.RenderModelId < 0 || ReadNativeScriptPosition(target) is null || target.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || !movement.Asynchronous && !fibers.Any(owner => owner.Sequence == movement.FiberSequence && owner.ObjectId == target.ObjectId && !owner.Complete && owner.NativeMoveOperation == movement.Operation && owner.WaitReason == WaitReason.NativeScriptMovement) || AnimationFrameCount?.Invoke(target.RenderModelId, target.BaseAnimationId) is not > 0)
         {
             return "MOVECANCEL requires its actual mode1 body, issued synchronous consumer and full idle animation";
         }

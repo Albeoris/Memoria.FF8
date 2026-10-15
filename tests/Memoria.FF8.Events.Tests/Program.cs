@@ -25,6 +25,7 @@ internal static partial class Program
                     ["native-party-slots"] = () => NativePartySlotContract(selectedGameDirectory),
                     ["native-train-control-byte"] = () => NativeTrainControlByteContract(selectedGameDirectory),
                     ["native-base-animation"] = NativeBaseAnimationContract,
+                    ["native-animation-backup"] = () => NativeAnimationBackupContract(selectedGameDirectory),
                     ["native-actor-visibility"] = () => NativeActorVisibilityContract(selectedGameDirectory),
                     ["native-request-physical-alias"] = () => NativeRequestPhysicalAliasContract(selectedGameDirectory),
                     ["native-world-entry-memory"] = () => NativeWorldEntryMemoryContract(selectedGameDirectory),

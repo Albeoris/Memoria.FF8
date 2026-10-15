@@ -138,7 +138,7 @@ public sealed partial class EventEngine
         if (animationFlag)
         {
             int animation = restored.Speed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
-            if (actor.AnimationId != animation)
+            if (actor.NativeAnimationHeader?.AnimationId != animation)
             {
                 SelectFullNativeAnimation(actor, animation, true);
             }

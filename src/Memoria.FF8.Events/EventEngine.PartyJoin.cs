@@ -125,7 +125,7 @@ public sealed partial class EventEngine
             {
                 return "Native JOIN requires actual companion movement575 and facing hold576 before issue";
             }
-            if (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.ModelId, animation) is not > 0))
+            if (!TryReadNativeBaseAnimations(actor, out int idle, out int walk, out int run) || new[] { idle, walk, run }.Any(animation => AnimationFrameCount?.Invoke(actor.RenderModelId, animation) is not > 0))
             {
                 return "Unsupported JOIN requires original idle/walk/run IDs and complete model animation metadata";
             }
@@ -198,9 +198,9 @@ public sealed partial class EventEngine
         foreach (PartyJoinTarget target in partyJoin.Targets)
         {
             ActorState actor = actors[target.ObjectId];
-            if (actors[target.ObjectId].NativeMovementCompletion542 == 2 && actor.AnimationId != actor.BaseAnimationId)
+            if (actors[target.ObjectId].NativeMovementCompletion542 == 2 && actor.NativeAnimationHeader?.AnimationId != actor.BaseAnimationId)
             {
-                SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
+                SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationHold);
             }
         }
         if (partyJoin.Targets.Any(target => actors[target.ObjectId].NativeMovementCompletion542 != 2))
@@ -222,15 +222,20 @@ public sealed partial class EventEngine
         partyJoin = null;
     }
 
-    private void SelectFullNativeAnimation(ActorState actor, int animation, bool reset)
+    private void SelectFullNativeAnimation(ActorState actor, int animation, bool reset, bool bodyHeader = true)
     {
+        if (bodyHeader && NativeRuntimeProfile is { IsVerified: true })
+        {
+            SelectNativeBodyAnimation(actor, unchecked((byte)animation), AnimationRepeating);
+            return;
+        }
         if (HasNativeEmptyAnimationModel(actor))
         {
             // 532A40 routes native536=-1 through531D40, which retains an
             // empty model record.532890(mode13) does not select a resource.
             return;
         }
-        int frames = AnimationFrameCount?.Invoke(actor.ModelId, animation) ?? throw new NotSupportedException("Native animation selection requires model frame metadata.");
+        int frames = AnimationFrameCount?.Invoke(actor.RenderModelId, animation) ?? throw new NotSupportedException("Native animation selection requires model frame metadata.");
         if (frames <= 0)
         {
             throw new NotSupportedException("Native animation has no decoded frames.");
@@ -254,7 +259,7 @@ public sealed partial class EventEngine
 
     private bool HasNativeEmptyAnimationModel(ActorState actor)
     {
-        return NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.ModelId is -1 or ushort.MaxValue;
+        return NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.RenderModelId is -1 or ushort.MaxValue;
     }
 
     private bool StepNativeJoinedCompanion(ActorState actor)
@@ -460,7 +465,7 @@ public sealed partial class EventEngine
         PartyTraceState trace = Scene.PartyTrace ?? throw new NotSupportedException("Native party trace is unavailable.");
         ActorState player = ResolvePartyActor(0) ?? throw new NotSupportedException("Native party trace has no leader binding.");
         int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
-        if (!HasNativeEmptyAnimationModel(player) && AnimationFrameCount?.Invoke(player.ModelId, playerAnimation) is not > 0)
+        if (!HasNativeEmptyAnimationModel(player) && AnimationFrameCount?.Invoke(player.RenderModelId, playerAnimation) is not > 0)
         {
             throw new NotSupportedException("Native player trace requires complete animation metadata before movement.");
         }
@@ -476,7 +481,7 @@ public sealed partial class EventEngine
             int offset = slot == 1 ? trace.FirstOffset : trace.SecondOffset;
             PartyTraceSample animation = trail[(trace.Cursor - offset) & 63] ?? throw new NotSupportedException("Native party animation would observe an opaque trace record; original positions preserved.");
             PartyTraceSample sample = trail[(nextCursor - offset) & 63] ?? throw new NotSupportedException("Native party movement would observe an opaque trace record; original positions preserved.");
-            if (!HasNativeEmptyAnimationModel(follower) && (!TryReadNativeBaseAnimations(follower, out int idle, out _, out _) || animation.Animation is < 0 or > 5 || animation.Animation >= 3 && follower.NativeLadderAnimation is null || AnimationFrameCount?.Invoke(follower.ModelId, moved ? LadderAnimationFor(follower, animation.Animation) : idle) is not > 0))
+            if (!HasNativeEmptyAnimationModel(follower) && (!TryReadNativeBaseAnimations(follower, out int idle, out _, out _) || animation.Animation is < 0 or > 5 || animation.Animation >= 3 && follower.NativeLadderAnimation is null || AnimationFrameCount?.Invoke(follower.RenderModelId, moved ? LadderAnimationFor(follower, animation.Animation) : idle) is not > 0))
             {
                 throw new NotSupportedException("Native follower trace requires proved animation mode and model metadata.");
             }
@@ -507,7 +512,7 @@ public sealed partial class EventEngine
         int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
         if (HasNativeEmptyAnimationModel(player))
         {
-            SelectFullNativeAnimation(player, playerAnimation, player.AnimationId != playerAnimation);
+            SelectFullNativeAnimation(player, playerAnimation, player.AnimationId != playerAnimation, false);
         }
         else
         {
@@ -518,7 +523,7 @@ public sealed partial class EventEngine
             int selected = moved ? LadderAnimationFor(follower.Actor, follower.Animation.Animation) : follower.Actor.BaseAnimationId;
             if (HasNativeEmptyAnimationModel(follower.Actor))
             {
-                SelectFullNativeAnimation(follower.Actor, selected, follower.Actor.AnimationId != selected);
+                SelectFullNativeAnimation(follower.Actor, selected, follower.Actor.AnimationId != selected, false);
             }
             else
             {

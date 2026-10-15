@@ -95,9 +95,9 @@ public sealed partial class EventEngine
         foreach (PartyJoinTarget target in partySplit.Targets)
         {
             ActorState actor = actors[target.ObjectId];
-            if (actors[target.ObjectId].NativeMovementCompletion542 == 2 && actor.AnimationId != actor.BaseAnimationId)
+            if (actors[target.ObjectId].NativeMovementCompletion542 == 2 && actor.NativeAnimationHeader?.AnimationId != actor.BaseAnimationId)
             {
-                SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
+                SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationHold);
             }
         }
         if (partySplit.Targets.Any(target => actors[target.ObjectId].NativeMovementCompletion542 != 2))
