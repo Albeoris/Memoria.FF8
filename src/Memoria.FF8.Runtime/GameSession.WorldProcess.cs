@@ -19,6 +19,6 @@ public sealed partial class GameSession
         WorldState before = departure.World ?? throw new NotSupportedException("Native world callbacks require their current world departure.");
         NativeWorldProcess process = departure.WorldProcess ?? throw new NotSupportedException("Native world callbacks require executed process counter and camera cooldown history; recreate authentic inputs.");
         long callbacks = checked(finalWorld.Frame - before.Frame);
-        return process.AdvanceMainLoopCallbacks(callbacks) with { CameraCooldown = finalWorld.NativeFootRuntime?.Forest?.CameraCooldown ?? process.CameraCooldown };
+        return process.AdvanceMainLoopCallbacks(callbacks) with { CameraCooldown = finalWorld.NativeFootRuntime?.Forest?.CameraCooldown ?? process.CameraCooldown, CarCameraFollowSpeed = finalWorld.NativeCarRuntime?.CameraFollowSpeed ?? process.CarCameraFollowSpeed };
     }
 }

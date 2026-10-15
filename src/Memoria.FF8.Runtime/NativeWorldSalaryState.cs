@@ -12,6 +12,8 @@ public sealed record NativeWorldSalaryState
         SoundProcess = departure.GlobalSoundProcess;
         EventRandom = departure.EventRandom;
         VibrationProcess = departure.VibrationProcess;
+        FuelDistance112 = departure.SavedWorld?.FuelDistance112;
+        CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
     }
 
     public GameState Departure { get; }
@@ -23,6 +25,8 @@ public sealed record NativeWorldSalaryState
     public NativeGlobalSoundProcess? SoundProcess { get; private init; }
     public NativeEventRandomState? EventRandom { get; private init; }
     public NativeVibrationProcessState? VibrationProcess { get; private init; }
+    public uint? FuelDistance112 { get; private init; }
+    public int? CarCameraCooldown { get; private init; }
 
     public static NativeWorldSalaryState Begin(GameState departure)
     {
@@ -61,7 +65,7 @@ public sealed record NativeWorldSalaryState
         {
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, VibrationProcess = VibrationProcess };
+        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, VibrationProcess = VibrationProcess, SavedWorld = candidate.SavedWorld is { } saved ? saved with { FuelDistance112 = FuelDistance112 } : null, WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)
@@ -82,5 +86,40 @@ public sealed record NativeWorldSalaryState
         NativeVibrationProcessState next = vibration with { GraphicsSpeed20409F0 = magnitude };
         next.Validate();
         return this with { VibrationProcess = next };
+    }
+
+    public NativeWorldSalaryState PrepareCarFuel(byte entityType, byte groundType, int rawMagnitude)
+    {
+        if (entityType is not (32 or 33) || rawMagnitude is < 0 or > 64)
+        {
+            throw new NotSupportedException("Native car fuel requires the supported entity and actual raw car velocity magnitude.");
+        }
+        if (entityType == 33)
+        {
+            return this;
+        }
+        uint distance = FuelDistance112 ?? throw new NotSupportedException("Native car fuel requires its executed saved-world DWORD112 owner.");
+        NativeEconomy economy = Economy ?? throw new NotSupportedException("Native car fuel requires its canonical original inventory pairs.");
+        economy.Validate();
+        //54FDA0 tests the old unsigned DWORD before adding this callback's raw
+        //velocity. The threshold UI/consumption branch is a distinct boundary.
+        if (distance >= 0x20000)
+        {
+            throw new NotSupportedException("Native car fuel consumption reached its unimplemented original fuel-message process.");
+        }
+        if (!economy.Items.Any(item => item.ItemId == 162 && item.Count != 0))
+        {
+            return this;
+        }
+        int increment = groundType == 28 ? rawMagnitude >> 1 : groundType is 27 or 8 ? 2 * rawMagnitude : rawMagnitude;
+        return this with { FuelDistance112 = unchecked(distance + (uint)increment) };
+    }
+
+    public NativeWorldSalaryState AdvanceCarCameraCooldown(bool throttle, bool steering)
+    {
+        int cooldown = CarCameraCooldown ?? throw new NotSupportedException("Native car camera update requires its retained shared process cooldown.");
+        //557A90's no-collision car pitch stays at the executed loader baseline.
+        //Actual throttle BYTE11 and steering BYTE13 still change this DWORD.
+        return this with { CarCameraCooldown = unchecked(cooldown - (throttle ? 2 : 0) - (steering ? 10 : 0)) };
     }
 }

@@ -16,12 +16,12 @@ public sealed partial class GameSession
         ArgumentNullException.ThrowIfNull(receipt);
         ArgumentNullException.ThrowIfNull(validatePrepared);
         GameState departure = State;
-        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || departure.WorldArrival is not WorldTransition arrival || unchecked((sbyte)arrival.Mode) != 33 || departure.SavedWorld?.Slot4.ShapeId != 73 || departure.WorldControls is null)
+        if (!ReferenceEquals(departure, expectedDeparture) || !ReferenceEquals(departure, salary.Departure) || departure.Scene != SceneKind.WorldMap || departure.World is not WorldState live || live.NativeCarRuntime is not { } car || departure.WorldArrival is not WorldTransition arrival || unchecked((byte)arrival.Mode) != car.EntityType || departure.SavedWorld?.Slot4.ShapeId != car.ShapeId || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native car-to-field entry requires its unchanged active original vehicle departure.");
         }
         receipt.Validate();
-        Validate(departure with { World = finalWorld });
+        Validate(departure with { World = finalWorld, WorldProcess = PrepareWorldProcess(departure, finalWorld) });
         ValidatePreparedWorldActions(live, finalWorld);
         if (transition.FieldId is < 0 or > ushort.MaxValue || receipt.LastFieldId != departure.FieldId || receipt.SourceWorldFrame != finalWorld.Frame || receipt.StoryWord != departure.Variables.GetValueOrDefault(256) || receipt.Pose != new NativeSavedWorldPose(finalWorld.X, finalWorld.Z, checked((short)finalWorld.NativeHeight), checked((ushort)finalWorld.BodyYaw)) || receipt.CameraYaw96 != finalWorld.CameraYaw || finalWorld.NativeCarRuntime is null || receipt.MapDisplayMode110 != finalWorld.NativeCarRuntime.MapDisplayMode)
         {

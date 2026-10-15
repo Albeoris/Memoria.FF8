@@ -125,7 +125,7 @@ public sealed class NativeScriptedWorldModeTwoTests
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();
         if (entity == 66)
         {
-            WorldState previous = new() { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0))) };
+            WorldState previous = new() { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess()) };
             return (initial.WithOrdinaryCarEntry().WithCarReturn(NativeSavedWorldCarReturn.Create(previous, 262, story, 1)), previous);
         }
         WorldState foot = new() { Frame = 500, X = 13895, Z = -27012, NativeHeight = -383, BodyYaw = 2256, CameraYaw = 2256, NativeFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(initial) };

@@ -137,6 +137,9 @@ public sealed record NativeSavedWorldState
     /// <summary>Saved-world +110 initialized by native New Game whole-save zeroing.</summary>
     [JsonRequired]
     public byte? InitialMapDisplayMode110 { get; init; }
+    /// <summary>Saved-world DWORD112, cleared by native New Game and preserved by field CLEAR.</summary>
+    [JsonRequired]
+    public uint? FuelDistance112 { get; init; }
 
     public byte ReadMapDisplayModeForFreshFootLoader()
     {
@@ -169,7 +172,7 @@ public sealed record NativeSavedWorldState
     {
         Validate();
         receipt.Validate();
-        if (Slot4.ShapeId != 73)
+        if (Slot4.ShapeId != (receipt.EntityType105 == 32 ? 74 : 73))
         {
             throw new InvalidDataException("The native car save requires its active shape73 vehicle slot.");
         }
@@ -190,14 +193,15 @@ public sealed record NativeSavedWorldState
         return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt };
     }
 
-    public NativeSavedWorldState WithOrdinaryCarEntry()
+    public NativeSavedWorldState WithOrdinaryCarEntry(byte entityType = 33)
     {
         Validate();
         if (Slot4.ShapeId is not 0 and not 255 || Slot5.ShapeId != 0)
         {
             throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
         }
-        return this with { Slot4 = Slot4 with { ShapeId = 73 }, CarReturn = null, ScriptedReturn = null };
+        byte shape = entityType switch { 32 => 74, 33 => 73, _ => throw new NotSupportedException("Native ordinary car entry requires its supported actual entity type.") };
+        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null };
     }
 
     public static NativeSavedWorldState CreateNewGame()
@@ -226,7 +230,7 @@ public sealed record NativeSavedWorldState
         {
             throw new InvalidDataException("Native car return disagrees with its retired vehicle slot.");
         }
-        if (InitialMapDisplayMode110 != 0)
+        if (InitialMapDisplayMode110 != 0 || FuelDistance112 is null)
         {
             throw new InvalidDataException("Native initial saved-world map-display authority differs from the New Game zeroing proof.");
         }
@@ -241,7 +245,8 @@ public sealed record NativeSavedWorldState
             Origin = origin,
             Slot4 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
             Slot5 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
-            InitialMapDisplayMode110 = 0
+            InitialMapDisplayMode110 = 0,
+            FuelDistance112 = 0
         };
     }
 }

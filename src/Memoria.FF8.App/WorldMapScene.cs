@@ -31,7 +31,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
-        bool car = unchecked((sbyte)arrival.Mode) == 33;
+        bool car = unchecked((byte)arrival.Mode) is 32 or 33;
         bool stationFoot = session.State.World?.NativeFootRuntime?.StationTrains is not null;
         bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
         bool scripted = IsSupportedScriptedPacket(arrival) || ridingTrain;
@@ -46,7 +46,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!scripted && !stationFoot && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
+        if (!scripted && !stationFoot && !car && (footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -70,7 +70,7 @@ internal sealed partial class WorldMapScene : IDisposable
             if (session.State.World is null)
             {
                 carSavedDeparture = session.State.SavedWorld;
-                session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry());
+                session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry(unchecked((byte)arrival.Mode)));
             }
             else if (session.State.World.NativeCarRuntime is null)
             {
@@ -145,7 +145,11 @@ internal sealed partial class WorldMapScene : IDisposable
                 if (car)
                 {
                     WorldGroundSelection initialGround = assets.LookupNativeGround(x, z, replacements, []) ?? throw new NotSupportedException("Original car spawn has no native ground lookup result.");
-                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache));
+                    NativeWorldProcess carProcess = session.State.WorldProcess ?? throw new NotSupportedException("Native car loader requires its executed process camera-follow owner.");
+                    carProcess.Validate();
+                    byte carType = unchecked((byte)arrival.Mode);
+                    NativeWorldFootCameraState? carProjection = carType == 32 ? new NativeWorldFootCameraState(x, z, height, x, z, height - 256, (spawn.Unknown & 255) * 16, -112, -341, -7168) : null;
+                    initialCarRuntime = NativeCarWorldRuntimeState.Create(carSavedDeparture!, NativeWorldGroundCacheState.CreateFresh(initialGround.Identity, session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache), carProcess, carType, carType == 32 ? assets.ReadTrainWorldAllocation(inputs.StoryWord, inputs.EventFlags265) : null, carProjection);
                     ground = initialGround.Ground;
                 }
                 else
@@ -288,6 +292,11 @@ internal sealed partial class WorldMapScene : IDisposable
                     candidate = action.Value == 1 ? CreateTrainDismount(candidate, station) : (train with { Primary = train.Primary with { Pause = 0 }, StationDeclines = train.StationDeclines.Add(train.Callback) }).ToWorldState(candidate);
                 }
                 salary = salary.WithGraphicsSpeed(graphicsSpeed);
+                if (candidate.NativeCarRuntime is { } fuelCar)
+                {
+                    salary = salary.PrepareCarFuel(fuelCar.EntityType, candidate.GroundType ?? throw new NotSupportedException("Native car fuel requires its actual current terrain type."), graphicsSpeed);
+                    salary = salary.AdvanceCarCameraCooldown(action.Kind == PlayerActionKind.Move && ReadSignedMovementComponent(-action.Vertical) != 0, action.Kind == PlayerActionKind.Move && ReadSignedMovementComponent(-action.Horizontal) != 0);
+                }
                 if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
                 {
                     //53FAC0 calls6519D0 with the same accepted-vector /8 units before salary, regardless of its suppression flag.
@@ -383,7 +392,7 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldCamera camera = FootCamera(state);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
         Vector3 position = new(state.X, -state.NativeHeight, state.Z);
-        IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? [new NativeWorldStaticModelDraw(assets.ExamCar, new NativeWorldStaticModelPose(position, new NativeWorldPathAngles(checked((short)car.ModelTilt), unchecked((short)(state.BodyYaw - 1024)), 0)))] : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : state.NativeFootRuntime?.NormalObjects is not null ? ReadNormalFootObjectModels(state) : null;
+        IReadOnlyList<NativeWorldStaticModelDraw>? models = state.NativeCarRuntime is NativeCarWorldRuntimeState car ? ReadCarModels(state, position, car) : state.NativeFootRuntime?.StationTrains is not null ? ReadStationTrainModels(state.NativeFootRuntime) : state.NativeFootRuntime?.NormalObjects is not null ? ReadNormalFootObjectModels(state) : null;
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 

@@ -333,7 +333,7 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("The prepared world entry no longer matches its normal field departure controls.");
         }
         NativeSavedWorldState? saved = preparedSavedWorld ?? departure.SavedWorld;
-        NativeSavedWorldState? expectedSaved = initialState.NativeCarRuntime is null ? departure.SavedWorld : departure.SavedWorld?.WithOrdinaryCarEntry();
+        NativeSavedWorldState? expectedSaved = initialState.NativeCarRuntime is null ? departure.SavedWorld : departure.SavedWorld?.WithOrdinaryCarEntry(initialState.NativeCarRuntime.EntityType);
         if (saved != expectedSaved)
         {
             throw new InvalidOperationException("Prepared world saved-vehicle state differs from its native entry writes.");
@@ -702,6 +702,10 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidDataException("Invalid native previous-field provenance.");
         }
         state.SavedWorld?.Validate();
+        if (state.SavedWorld is not null && (state.Variables.Keys.Any(address => address < 1396 && (long)address + 4 > 1392) || state.NativeVariableValues?.Any(pair => pair.Key < 1396 && (long)pair.Key + pair.Value.Width > 1392) == true))
+        {
+            throw new InvalidDataException("Saved-world fuel DWORD112 overlaps a separately owned event-memory alias.");
+        }
         state.WorldControls?.Validate();
         state.WorldConfiguration?.Validate();
         state.ExamTimer?.Validate();
@@ -789,9 +793,13 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }
-            if (world.NativeCarRuntime is not null && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((sbyte)state.WorldArrival.Mode) != 33 || state.SavedWorld?.Slot4.ShapeId != 73))
+            if (world.NativeCarRuntime is { } car && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != car.EntityType || state.SavedWorld?.Slot4.ShapeId != car.ShapeId))
             {
                 throw new InvalidDataException("Native car world state disagrees with its original transition or active saved vehicle.");
+            }
+            if (world.NativeCarRuntime is { } carCamera && state.WorldProcess?.CarCameraFollowSpeed != carCamera.CameraFollowSpeed)
+            {
+                throw new InvalidDataException("Native car camera follow speed differs from its retained process WORD204DAE4.");
             }
             if (world.NativeTrainRuntime is NativeTrainWorldRuntimeState train && (state.Scene != SceneKind.WorldMap || state.WorldArrival != train.Packet || state.SavedWorld is null || state.DepartingWorldState is null || train.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, train.Load.Allocation)))
             {

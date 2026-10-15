@@ -5,22 +5,22 @@ namespace Memoria.FF8.Runtime;
 public readonly record struct NativeForestCameraResult(short Pitch, NativeWorldProcess Process);
 
 /// <summary>Process-owned main-loop DWORD1A78C14 and camera cooldown DWORD204DAE0, outside the saved-game block.</summary>
-public sealed record NativeWorldProcess([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] uint MainLoopCounter, [property: JsonRequired] long MainLoopCallbacks, [property: JsonRequired] int CameraCooldown)
+public sealed record NativeWorldProcess([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] uint MainLoopCounter, [property: JsonRequired] long MainLoopCallbacks, [property: JsonRequired] int CameraCooldown, [property: JsonRequired] int CarCameraFollowSpeed)
 {
     public const string CurrentRule = "ff8-en-4022b0-557a90-process-v1";
 
     [JsonIgnore]
-    public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0;
+    public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0;
 
     public static NativeWorldProcess FromColdProcess()
     {
         // Both DWORDs are in the preserved executable's zero-filled PE.data virtual tail.
-        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0);
+        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0);
     }
 
     public void Validate()
     {
-        if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks))
+        if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || CarCameraFollowSpeed is < 0 or > 128)
         {
             throw new InvalidDataException("Native world process state lacks its exact cold-process callback history.");
         }

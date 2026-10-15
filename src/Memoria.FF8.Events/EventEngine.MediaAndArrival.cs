@@ -58,6 +58,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        if (UnsupportedWorldFuelMemory(operation) is { } fuelMemory)
+        {
+            return fuelMemory;
+        }
         if (UnsupportedNativeDiscJump(fiber, operation) is string discJump)
         {
             return discJump;

@@ -21,7 +21,7 @@ public sealed class NativeScriptedWorldStateTests
         NativeSavedWorldState saved;
         if (entity == 66)
         {
-            previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0))) };
+            previous = new WorldState { Frame = 500, X = 12390, Z = -26709, NativeHeight = -301, BodyYaw = 2256, CameraYaw = 2256, NativeCarRuntime = NativeCarWorldRuntimeState.Create(initial, NativeWorldGroundCacheState.CreateFresh(new(0, 0, 0, 0)), NativeWorldProcess.FromColdProcess()) };
             NativeSavedWorldCarReturn car = NativeSavedWorldCarReturn.Create(previous, 262, story, 1);
             saved = initial.WithOrdinaryCarEntry().WithCarReturn(car);
         }

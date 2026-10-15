@@ -15,10 +15,14 @@ public static class WorldStationContactCertificate
     private readonly record struct Interval(long Low, long High);
     private readonly record struct Point(Interval X, Interval Z);
 
-    public static WorldStationContactResult Evaluate(WorldAssets assets, NativeTrainWorldAllocation allocation, IReadOnlyList<NativeTrainRailBank> banks, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, NativeWorldPathNodeProjection> projectStatic, Func<NativeWorldPathPosition, bool> proximity, int padding = 0)
+    public static WorldStationContactResult Evaluate(WorldAssets assets, NativeTrainWorldAllocation allocation, IReadOnlyList<NativeTrainRailBank> banks, NativeWorldPathWords player, int playerHeight, Func<NativeWorldPathPosition, NativeWorldPathNodeProjection> projectStatic, Func<NativeWorldPathPosition, bool> proximity, int padding = 0, int probeRadius = 32, int selectedHeight = 180)
     {
         allocation.Validate();
         RequirePadding(padding);
+        if (probeRadius is <= 0 or > 256 || selectedHeight is <= 0 or > short.MaxValue || banks.Count > 0 && (probeRadius != 32 || selectedHeight != 180))
+        {
+            throw new NotSupportedException("Native static contact requires represented selected-body dimensions; car/train overlap is unsupported.");
+        }
         for (int index = 0; index < allocation.Objects.Length; index++)
         {
             NativeTrainWorldObject item = allocation.Objects[index];
@@ -28,13 +32,13 @@ public static class WorldStationContactCertificate
             }
             NativeWorldPathNodeProjection projection = projectStatic(item.Position);
             NativeWorldContactShape shape = assets.ReadNativeContactShape(item.ShapeId);
-            if (player.Y - 180 > projection.Words.Y + padding || player.Y < projection.Words.Y - shape.Height - padding || OutsideBroadPhase(player, projection.Words))
+            if (player.Y - selectedHeight > projection.Words.Y + padding || player.Y < projection.Words.Y - shape.Height - padding || OutsideBroadPhase(player, projection.Words))
             {
                 continue;
             }
             //549770 uses original WORD22 plus54A770's entity-class yaw correction; roll/pitch do not enter contact.
             short yaw = WorldStaticModelTransform.AllocationAngles(item).Yaw;
-            if (EvaluatePolygon(shape, yaw, player, projection.Words, padding))
+            if (EvaluatePolygon(shape, yaw, player, projection.Words, padding, probeRadius))
             {
                 return new WorldStationContactResult(index, null, null);
             }
@@ -89,9 +93,13 @@ public static class WorldStationContactCertificate
     }
 
     /// <summary>54BB10/549770/5498E0/549DD0, including native five-point and reverse containment order.</summary>
-    public static bool EvaluatePolygon(NativeWorldContactShape shape, short yaw, NativeWorldPathWords player, NativeWorldPathWords anchor, int padding = 0)
+    public static bool EvaluatePolygon(NativeWorldContactShape shape, short yaw, NativeWorldPathWords player, NativeWorldPathWords anchor, int padding = 0, int probeRadius = 32)
     {
         RequirePadding(padding);
+        if (probeRadius is <= 0 or > 256)
+        {
+            throw new NotSupportedException("Native contact probe radius lies outside its represented movement footprint.");
+        }
         if (shape.Kind is < 1 or > 3 || shape.Length < 0 || shape.Width < 0)
         {
             throw new NotSupportedException("Native contact reached an unrepresented circle or shape layout.");
@@ -118,13 +126,13 @@ public static class WorldStationContactCertificate
         {
             Interval transformedX = Round(Add(Multiply(cosine, Exact(localX)), Multiply(sine, Exact(localZ))), 4096);
             Interval transformedZ = Round(Add(Multiply(Negate(sine), Exact(localX)), Multiply(cosine, Exact(localZ))), 4096);
-            if (anchor.X + transformedX.Low < short.MinValue || anchor.X + transformedX.High > short.MaxValue || anchor.Z + transformedZ.Low < short.MinValue || anchor.Z + transformedZ.High > short.MaxValue || player.X is < short.MinValue + 32 or > short.MaxValue - 32 || player.Z is < short.MinValue + 32 or > short.MaxValue - 32)
+            if (anchor.X + transformedX.Low < short.MinValue || anchor.X + transformedX.High > short.MaxValue || anchor.Z + transformedZ.Low < short.MinValue || anchor.Z + transformedZ.High > short.MaxValue || player.X < short.MinValue + probeRadius || player.X > short.MaxValue - probeRadius || player.Z < short.MinValue + probeRadius || player.Z > short.MaxValue - probeRadius)
             {
                 throw new NotSupportedException("Native contact polygon crosses its signed-WORD packing boundary.");
             }
             polygon.Add(new Point(Add(transformedX, Exact(anchor.X - player.X)), Add(transformedZ, Exact(anchor.Z - player.Z))));
         }
-        Point[] probes = [At(0, 0), At(-32, 0), At(0, 32), At(32, 0), At(0, -32)];
+        Point[] probes = [At(0, 0), At(-probeRadius, 0), At(0, probeRadius), At(probeRadius, 0), At(0, -probeRadius)];
         Point[] foot = [probes[1], probes[2], probes[3], probes[4]];
         bool uncertain = false;
         foreach (Point probe in probes)
