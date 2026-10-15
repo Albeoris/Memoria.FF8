@@ -2,13 +2,14 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>Memoria.FF8</AssemblyName>
     <RootNamespace>Memoria.FF8</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="System.IO" />
     <PackageReference Include="MonoGame.Framework.WindowsDX" />
-    <PackageReference Include="System.Drawing.Common" />
     <ProjectReference Include="../Memoria.FF8.Runtime/Memoria.FF8.Runtime.csproj" />
     <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.KernelBin/Albeoris.Games.FF8.KernelBin.csproj" />
     <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.MngrpBin/Albeoris.Games.FF8.MngrpBin.csproj" />

@@ -8,11 +8,16 @@ internal sealed class DialoguePageCache
 
     private readonly Dictionary<int, Entry> entries = [];
 
-    public (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) Get(DialogueState dialogue, DialogueWindow? window, string family, float size, string expandedKey, bool valueIdentity, Func<IReadOnlyList<DialogueVisualPage>> create)
+    public (IReadOnlyList<DialogueVisualPage> Pages, DialoguePager Pager) Get(DialogueState dialogue, DialogueWindow? window, string family, float size, string expandedKey, bool valueIdentity, Func<IReadOnlyList<DialogueVisualPage>> create, bool retainPosition = false)
     {
         if (!entries.TryGetValue(dialogue.Channel, out Entry? entry) || entry.ValueIdentity != valueIdentity || !(valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) || entry.Window != window || entry.Family != family || entry.Size != size || entry.ExpandedKey != expandedKey)
         {
+            int previousPage = retainPosition && entry is not null && (valueIdentity ? entry.Dialogue == dialogue : ReferenceEquals(entry.Dialogue, dialogue)) ? entry.Pager.PageIndex : 0;
             entry = new Entry(dialogue, window, family, size, expandedKey, valueIdentity, create(), new DialoguePager());
+            for (int page = 0; page < previousPage; page++)
+            {
+                entry.Pager.Advance(entry.Pages.Count);
+            }
             entries[dialogue.Channel] = entry;
         }
         return (entry.Pages, entry.Pager);

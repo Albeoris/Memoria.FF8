@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Ui;
 
@@ -6,6 +7,31 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class SystemFontTests
 {
+    [Theory]
+    [InlineData("Arial")]
+    [InlineData("Segoe UI Emoji")]
+    public void Supplementary_emoji_are_distinct_real_glyphs_with_selected_font_and_os_fallback(string family)
+    {
+        Assert.Contains("Segoe UI Emoji", SystemFontCatalog.Families);
+        using var woman = SystemTextLayout.Rasterize("👩", 32, float.PositiveInfinity, family);
+        using var rocket = SystemTextLayout.Rasterize("🚀", 32, float.PositiveInfinity, family);
+        using var missing = SystemTextLayout.Rasterize("\U0010FFFF", 32, float.PositiveInfinity, family);
+        using var joined = SystemTextLayout.Rasterize("👩🏽‍🚀", 32, float.PositiveInfinity, family);
+        using var squares = SystemTextLayout.Rasterize("□□□", 32, float.PositiveInfinity, family);
+        Assert.True(woman.Width > 1 && woman.Height > 1);
+        Assert.True(rocket.Width > 1 && rocket.Height > 1);
+        Assert.NotEqual(Signature(woman), Signature(rocket));
+        Assert.NotEqual(Signature(woman), Signature(missing));
+        Assert.NotEqual(Signature(rocket), Signature(missing));
+        Assert.NotEqual(Signature(joined), Signature(squares));
+    }
+
+    private static string Signature(System.Drawing.Bitmap bitmap)
+    {
+        byte[] alpha = SystemTextLayout.PremultipliedPixels(bitmap).Select(pixel => pixel.A).ToArray();
+        return $"{bitmap.Width}x{bitmap.Height}:" + Convert.ToHexString(SHA256.HashData(alpha));
+    }
+
     [Theory]
     [InlineData("𐐀𐐁𐐂")]
     [InlineData("e\u0301a\u0308o\u0302")]

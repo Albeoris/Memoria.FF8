@@ -35,7 +35,7 @@ internal sealed partial class RecreateGame
             string font = uiPreferences.DialogueFontFamily;
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
             return DialogueLayout.Create(document, dialogue, window, measurer.LineHeight, measurer.Measure);
-        });
+        }, retainPosition: dialogue.IsNamePrompt);
     }
 
     private IEnumerable<DialogueState> VisibleDialogues

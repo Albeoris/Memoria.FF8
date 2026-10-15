@@ -1,34 +1,41 @@
-using System.Drawing;
-using System.Drawing.Text;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Media;
 
 namespace Memoria.FF8;
 
-/// <summary>Retains OS shaping resources and candidate advances for one layout operation.</summary>
+/// <summary>Retains the WPF shaping typeface and candidate advances for one layout operation.</summary>
 internal sealed class SystemTextMeasurer : IDisposable
 {
-    private readonly Font font;
-    private readonly Bitmap bitmap;
-    private readonly Graphics graphics;
-    private readonly StringFormat format;
+    private readonly Typeface typeface;
+    private readonly double rasterSize;
     private readonly Dictionary<string, float> advances = new(StringComparer.Ordinal);
 
     internal SystemTextMeasurer(float size, string? fontFamily)
     {
-        font = SystemTextLayout.CreateFont(size, fontFamily);
-        bitmap = new Bitmap(1, 1);
-        graphics = Graphics.FromImage(bitmap);
-        graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
-        format = SystemTextLayout.CreateFormat();
-        LineHeight = font.GetHeight(graphics) / SystemTextLayout.RasterScale;
+        rasterSize = size * SystemTextLayout.RasterScale;
+        // The composite fallback supplies script and supplementary-plane fonts while
+        // keeping the selected installed family first for the glyphs it provides.
+        var family = new FontFamily((fontFamily ?? SystemFontCatalog.DefaultFamily) + ", Global User Interface");
+        typeface = new Typeface(family, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        FormattedText metrics = Format("Mg");
+        LineHeight = (float)metrics.Height / SystemTextLayout.RasterScale;
+        Baseline = (float)metrics.Baseline / SystemTextLayout.RasterScale;
     }
 
     public float LineHeight { get; }
+    internal float Baseline { get; }
+
+    internal FormattedText Format(string value)
+    {
+        return new FormattedText(value, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, rasterSize, Brushes.White, 1);
+    }
 
     public float Measure(string value)
     {
         if (!advances.TryGetValue(value, out float width))
         {
-            width = graphics.MeasureString(value, font, PointF.Empty, format).Width / SystemTextLayout.RasterScale;
+            width = (float)Format(value).WidthIncludingTrailingWhitespace / SystemTextLayout.RasterScale;
             advances.Add(value, width);
         }
         return width;
@@ -36,9 +43,6 @@ internal sealed class SystemTextMeasurer : IDisposable
 
     public void Dispose()
     {
-        format.Dispose();
-        graphics.Dispose();
-        bitmap.Dispose();
-        font.Dispose();
+        advances.Clear();
     }
 }

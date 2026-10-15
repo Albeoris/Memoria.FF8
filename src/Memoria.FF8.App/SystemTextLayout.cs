@@ -1,9 +1,10 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
-using System.Drawing.Text;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using PixelFormat = System.Drawing.Imaging.PixelFormat;
 using XnaColor = Microsoft.Xna.Framework.Color;
 
 namespace Memoria.FF8;
@@ -28,40 +29,34 @@ internal static class SystemTextLayout
 
     internal static int RasterMargin(float size) => (int)MathF.Ceiling(size * RasterScale);
 
-    internal static Font CreateFont(float size, string? fontFamily) => new(fontFamily ?? SystemFontCatalog.DefaultFamily, size * RasterScale, FontStyle.Regular, GraphicsUnit.Pixel);
-
-    internal static StringFormat CreateFormat()
-    {
-        StringFormat format = (StringFormat)StringFormat.GenericTypographic.Clone();
-        // Keep GDI+ language shaping and OS font fallback, including missing-script glyphs.
-        format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
-        return format;
-    }
-
     public static Bitmap Rasterize(string text, float size, float maximumWidth, string? fontFamily = null, bool preserveLineMetrics = false)
     {
-        using var font = CreateFont(size, fontFamily);
-        using var measure = new Bitmap(1, 1);
-        using Graphics measuring = Graphics.FromImage(measure);
-        measuring.TextRenderingHint = TextRenderingHint.AntiAlias;
-        using StringFormat format = CreateFormat();
-        float limit = maximumWidth * RasterScale;
-        List<string> lines = Wrap(text, candidate => measuring.MeasureString(candidate, font, PointF.Empty, format).Width, limit);
-        float width = lines.Max(line => measuring.MeasureString(line, font, PointF.Empty, format).Width);
-        float lineHeight = font.GetHeight(measuring);
-        // Allow glyph overhang while drawing, then remove transparent bearings from the whole block.
+        using SystemTextMeasurer measurer = CreateMeasurer(size, fontFamily);
+        List<string> lines = Wrap(text, measurer.Measure, maximumWidth);
+        float width = lines.Max(measurer.Measure) * RasterScale;
+        float lineHeight = measurer.LineHeight * RasterScale;
         int margin = RasterMargin(size);
-        using var bitmap = new Bitmap(Math.Max(1, (int)MathF.Ceiling(width) + margin * 2), Math.Max(1, (int)MathF.Ceiling(lines.Count * lineHeight) + margin * 2), PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
+        int bitmapWidth = Math.Max(1, (int)MathF.Ceiling(width) + margin * 2);
+        int bitmapHeight = Math.Max(1, (int)MathF.Ceiling(lines.Count * lineHeight) + margin * 2);
+        var visual = new DrawingVisual();
+        TextOptions.SetTextRenderingMode(visual, TextRenderingMode.Grayscale);
+        TextOptions.SetTextFormattingMode(visual, TextFormattingMode.Ideal);
+        using (DrawingContext drawing = visual.RenderOpen())
         {
-            graphics.Clear(Color.Transparent);
-            graphics.CompositingMode = CompositingMode.SourceCopy;
-            graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
             for (int index = 0; index < lines.Count; index++)
             {
-                graphics.DrawString(lines[index], font, Brushes.White, margin, margin + index * lineHeight, format);
+                if (lines[index].Length == 0)
+                {
+                    continue;
+                }
+                FormattedText formatted = measurer.Format(lines[index]);
+                double lineTop = margin + index * lineHeight + measurer.Baseline * RasterScale - formatted.Baseline;
+                drawing.DrawText(formatted, new System.Windows.Point(margin, lineTop));
             }
         }
+        var target = new RenderTargetBitmap(bitmapWidth, bitmapHeight, 96, 96, PixelFormats.Pbgra32);
+        target.Render(visual);
+        using Bitmap bitmap = CopyAlphaBitmap(target);
         if (preserveLineMetrics)
         {
             return (Bitmap)bitmap.Clone();
@@ -122,6 +117,36 @@ internal static class SystemTextLayout
             lines.Add(line);
         }
         return lines;
+    }
+
+    private static Bitmap CopyAlphaBitmap(BitmapSource source)
+    {
+        int stride = source.PixelWidth * 4;
+        byte[] pixels = new byte[source.PixelHeight * stride];
+        source.CopyPixels(pixels, stride, 0);
+        // The renderer tints a white alpha mask. Convert WPF premultiplied BGRA to
+        // straight-alpha white ARGB without losing antialiasing or fallback glyphs.
+        for (int index = 0; index < pixels.Length; index += 4)
+        {
+            byte white = pixels[index + 3] == 0 ? (byte)0 : (byte)255;
+            pixels[index] = white;
+            pixels[index + 1] = white;
+            pixels[index + 2] = white;
+        }
+        var bitmap = new Bitmap(source.PixelWidth, source.PixelHeight, PixelFormat.Format32bppArgb);
+        BitmapData data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                Marshal.Copy(pixels, y * stride, data.Scan0 + y * data.Stride, stride);
+            }
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+        return bitmap;
     }
 
     public static XnaColor[] PremultipliedPixels(Bitmap bitmap)

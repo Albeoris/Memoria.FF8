@@ -160,4 +160,18 @@ public sealed class DialoguePageCacheTests
 
         Assert.NotSame(first.Pager, Get(cache, dialogue).Pager);
     }
+
+    [Fact]
+    public void Editing_a_name_draft_refreshes_text_without_jumping_back_to_the_first_page()
+    {
+        var cache = new DialoguePageCache();
+        var dialogue = new DialogueState(0, 1, "Instruction{Page}Name", 8, 8, IsNamePrompt: true);
+        var first = cache.Get(dialogue, null, "Arial", 8, "Leon", false, CreatePages, retainPosition: true);
+        Assert.True(first.Pager.Advance(first.Pages.Count));
+        var edited = cache.Get(dialogue, null, "Arial", 8, "Cecilia", false, CreatePages, retainPosition: true);
+        Assert.NotSame(first.Pages, edited.Pages);
+        Assert.Equal(1, edited.Pager.PageIndex);
+        var reopened = cache.Get(dialogue with { }, null, "Arial", 8, "Cecilia", false, CreatePages, retainPosition: true);
+        Assert.Equal(0, reopened.Pager.PageIndex);
+    }
 }

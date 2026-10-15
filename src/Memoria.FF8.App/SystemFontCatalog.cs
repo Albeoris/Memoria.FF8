@@ -1,5 +1,4 @@
-using System.Drawing;
-using System.Drawing.Text;
+using System.Windows.Media;
 
 namespace Memoria.FF8;
 
@@ -12,18 +11,6 @@ internal static class SystemFontCatalog
 
     private static string[] ReadFamilies()
     {
-        using var installed = new InstalledFontCollection();
-        FontFamily[] families = installed.Families;
-        try
-        {
-            return families.Where(family => family.IsStyleAvailable(FontStyle.Regular)).Select(family => family.Name).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.CurrentCultureIgnoreCase).ToArray();
-        }
-        finally
-        {
-            foreach (FontFamily family in families)
-            {
-                family.Dispose();
-            }
-        }
+        return Fonts.SystemFontFamilies.Select(family => family.Source).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 }
