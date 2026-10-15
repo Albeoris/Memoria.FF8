@@ -17,6 +17,7 @@ internal static partial class Program
                 string selectedGameDirectory = args.Length >= 3 ? args[2] : @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
+                    ["actor-mode"] = AdditionalActorControlAndGuard,
                     ["message-variable"] = NativeMessageVariableContract,
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
                     ["native-event-memory-ownership"] = NativeEventMemoryOwnershipContract,
@@ -1412,10 +1413,16 @@ internal static partial class Program
 
     private static void AdditionalActorControlAndGuard()
     {
-        GameSession session = new(new GameState());
-        EventEngine engine = new(session) { CanDisableAdditionalControl = _ => true };
-        byte[] program = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
-        engine.LoadField(100, program, []);
+        byte[] ActorProgram(params (Jsm.Opcode Opcode, int Parameter)[] main) => SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 0)], main]);
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        EventEngine engine = new(session) { CanDisableAdditionalControl = _ => true, AnimationFrameCount = (_, _) => 4 };
+        byte[] program = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
+        engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
         engine.Step();
         Require(engine.Actors[0].AdditionalControlDisabled && engine.Actors[0].Active && engine.Actors[0].Visible && engine.Actors[0].CollisionEnabled && engine.IsUserControlEnabled, "ACTORMODE3 changed ordinary actor visibility, collision or control instead of its additional-control flag.");
         var disabled = engine.Capture();
@@ -1423,11 +1430,24 @@ internal static partial class Program
         Require(disabled.GetRawText() == engine.Capture().GetRawText(), "ACTORMODE3 actor state did not round-trip exactly.");
         engine.Step();
         Require(!engine.Actors[0].AdditionalControlDisabled, "ACTORMODE2 failed to clear the additional-control flag.");
-        foreach (int mode in new[] { 0, 1, 4, -1, 65539, 3 })
+        byte[] transparent = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
+        engine.LoadField(602, transparent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        engine.Step();
+        engine.Step();
+        Require(engine.Actors[0].PrimitiveTransparencyEnabled && engine.Actors[0].AdditionalControlDisabled && engine.Actors[0].Active && engine.Actors[0].Visible && engine.Actors[0].CollisionEnabled && engine.IsUserControlEnabled, "ACTORMODE0 must enable primitive transparency without changing the independent additional-control bit or actor control.");
+        var translucent = engine.Capture();
+        engine.Restore(translucent);
+        Require(translucent.GetRawText() == engine.Capture().GetRawText(), "Primitive transparency did not round-trip exactly.");
+        engine.Step();
+        Require(engine.Actors[0].PrimitiveTransparencyEnabled && !engine.Actors[0].AdditionalControlDisabled, "ACTORMODE2 changed the independent transparency bit.");
+        engine.Step();
+        Require(!engine.Actors[0].PrimitiveTransparencyEnabled && !engine.Actors[0].AdditionalControlDisabled, "ACTORMODE1 failed to disable primitive transparency independently.");
+        foreach (int mode in new[] { 4, -1, 65536, 65539, 3 })
         {
-            byte[] guarded = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, mode), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
+            byte[] guarded = ActorProgram((Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, mode), (Jsm.Opcode.ACTORMODE, 0), (Jsm.Opcode.RET, 0));
             engine.CanDisableAdditionalControl = _ => false;
-            engine.LoadField(101, guarded, []);
+            engine.LoadField(601, guarded, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             try
             {
                 engine.Step();
@@ -1437,8 +1457,8 @@ internal static partial class Program
             {
             }
             var frozen = engine.Capture();
-            var caller = frozen.GetProperty("Fibers")[0];
-            Require(caller.GetProperty("Position").GetInt32() == 2 && caller.GetProperty("Stack")[0].GetInt32() == mode && !engine.Actors[0].AdditionalControlDisabled, "Unsupported ACTORMODE consumed or truncated its original32-bit operand before failing.");
+            var caller = frozen.GetProperty("Fibers").EnumerateArray().Single(fiber => !fiber.GetProperty("Initialization").GetBoolean());
+            Require(caller.GetProperty("Position").GetInt32() == 5 && caller.GetProperty("Stack")[0].GetInt32() == mode && !engine.Actors[0].AdditionalControlDisabled, "Unsupported ACTORMODE consumed or truncated its original32-bit operand before failing.");
             engine.Restore(frozen);
             try
             {

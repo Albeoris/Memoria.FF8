@@ -33,10 +33,15 @@ public sealed partial class FieldRenderer
                 DrawMovieMaskTriangle(ToViewport(camera.Project(triangle.A)), ToViewport(camera.Project(triangle.B)), ToViewport(camera.Project(triangle.C)));
             }
         }
+        List<(float Depth, Action Draw)> translucent = [];
         foreach (ActorVisual actor in visible)
         {
             DrawActorShadow(actor);
-            DrawActor(actor);
+            DrawActor(actor, translucent);
+        }
+        foreach (var primitive in translucent.OrderByDescending(primitive => primitive.Depth))
+        {
+            primitive.Draw();
         }
         return pixels;
     }

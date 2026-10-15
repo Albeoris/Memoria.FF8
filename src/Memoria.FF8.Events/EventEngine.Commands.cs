@@ -377,7 +377,14 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.ACTORMODE:
                 args = Pop(fiber, 1);
-                actor.AdditionalControlDisabled = args[0] == 3;
+                if (args[0] is 0 or 1)
+                {
+                    actor.PrimitiveTransparencyEnabled = args[0] == 0;
+                }
+                else
+                {
+                    actor.AdditionalControlDisabled = args[0] == 3;
+                }
                 break;
             case Jsm.Opcode.UNUSE:
                 actor.Active = false;

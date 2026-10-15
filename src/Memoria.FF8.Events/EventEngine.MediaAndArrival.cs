@@ -575,9 +575,9 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.ACTORMODE && fiber.Stack.Count > 0)
         {
             int mode = fiber.Stack.Peek();
-            if (mode is not (2 or 3))
+            if (mode is < 0 or > 3)
             {
-                return $"Unsupported ACTORMODE {mode} requires native primitive-transparency support or unproved mode semantics";
+                return $"Unsupported ACTORMODE {mode} has unproved native mode semantics";
             }
             if (mode == 3 && CanDisableAdditionalControl?.Invoke(actors[fiber.ObjectId]) != true)
             {

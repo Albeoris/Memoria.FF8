@@ -8,7 +8,7 @@ namespace Memoria.FF8.Rendering;
 
 /// <param name="Direction">FF8 direction units, one turn is 256.</param>
 /// <param name="RootTranslationZ">Separate native SETROOTTRANS elevation word; never the SETGETA byte.</param>
-public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null);
+public readonly record struct ActorVisual(int ObjectId, int ModelId, float X, float Y, float Z, float Direction, int AnimationId, float AnimationFrame, bool Visible, Vector3? FirstControlRotation = null, float RootTranslationZ = 0, bool AdditionalControlDisabled = false, Vector3? PolygonColor = null, byte? GroundShadowRadius601To608 = null, byte? GroundShadowLevel609 = null, Vector3? GroundShadowCentre = null, IReadOnlyList<byte>? GroundShadowRadii601To608 = null, IReadOnlyDictionary<int, Vector3>? SkinTranslations = null, bool PrimitiveTransparencyEnabled = false);
 
 public enum ModelTextureSampling
 {
@@ -124,7 +124,7 @@ public sealed partial class FieldRenderer
         }
         MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
         Array.Fill(depth, float.PositiveInfinity);
-        List<TileRaster> blendedBackground = [];
+        List<(float Depth, Action Draw)> translucent = [];
         foreach (TileRaster raster in renderBackground)
         {
             BackgroundTile tile = raster.Tile;
@@ -136,7 +136,7 @@ public sealed partial class FieldRenderer
             DrawTile(raster);
             if (tile.Blend && tile.BlendMode != MapBlendMode.None)
             {
-                blendedBackground.Add(raster);
+                translucent.Add((raster.Depth, () => DrawTile(raster, translucentPass: true)));
             }
         }
         foreach (ActorVisual actor in preparedActors)
@@ -144,14 +144,14 @@ public sealed partial class FieldRenderer
             if (actor.Visible && (uint)actor.ModelId < field.Models.Count)
             {
                 DrawActorShadow(actor);
-                DrawActor(actor);
+                DrawActor(actor, translucent);
             }
         }
         // Native45D080 draws opaque primitives before the translucent pass.
         // STP texels test the completed opaque/model depth without writing it.
-        foreach (TileRaster raster in blendedBackground)
+        foreach (var primitive in translucent.OrderByDescending(primitive => primitive.Depth))
         {
-            DrawTile(raster, translucentPass: true);
+            primitive.Draw();
         }
         return pixels;
     }
@@ -348,7 +348,7 @@ public sealed partial class FieldRenderer
         public float Depth { get; init; }
     }
 
-    private void DrawActor(ActorVisual actor)
+    private void DrawActor(ActorVisual actor, List<(float Depth, Action Draw)> translucent)
     {
         FieldModel model = field.Models[actor.ModelId];
         if (model.Bones.Count == 0)
@@ -384,11 +384,25 @@ public sealed partial class FieldRenderer
                 continue;
             }
             PixelImage texture = model.Textures[face.Texture];
-            Triangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value);
+            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0], face.TextureCoordinates[1], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
             if (face.Quad)
             {
-                Triangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value);
+                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1], face.TextureCoordinates[3], face.TextureCoordinates[2], texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
             }
+        }
+    }
+
+    private void DrawModelTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool transparent, List<(float Depth, Action Draw)> translucent, float orderingDepth)
+    {
+        if (transparent)
+        {
+            // Native 532A40 selects ABR1 and sets STP on every nonzero model CLUT entry.
+            // 45D080 traverses the shared ordering table again after all opaque drawing.
+            translucent.Add((MathF.Floor(orderingDepth / 4) * 4, () => Triangle(a, b, c, uvA, uvB, uvC, texture, polygonColor, true)));
+        }
+        else
+        {
+            Triangle(a, b, c, uvA, uvB, uvC, texture, polygonColor, false);
         }
     }
 
@@ -399,7 +413,7 @@ public sealed partial class FieldRenderer
         return new ProjectedPoint(offsetX + (point.X - 160 + drawingOrigin.X + actorScrollOffset.X) * scale, offsetY + (point.Y - 120 + drawingOrigin.Y + actorScrollOffset.Y) * verticalScale, point.Depth);
     }
 
-    private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor)
+    private void Triangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, Vector2 uvA, Vector2 uvB, Vector2 uvC, PixelImage texture, Vector3 polygonColor, bool primitiveTransparencyEnabled)
     {
         if (a.Depth <= 1 || b.Depth <= 1 || c.Depth <= 1)
         {
@@ -441,8 +455,11 @@ public sealed partial class FieldRenderer
                 {
                     continue;
                 }
-                WritePixel(index, color, MapBlendMode.None);
-                depth[index] = z;
+                WritePixel(index, color, primitiveTransparencyEnabled ? MapBlendMode.Add : MapBlendMode.None);
+                if (!primitiveTransparencyEnabled)
+                {
+                    depth[index] = z;
+                }
             }
         }
     }

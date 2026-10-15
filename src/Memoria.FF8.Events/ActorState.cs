@@ -31,6 +31,8 @@ public sealed class ActorState
     [JsonInclude]
     public bool AdditionalControlDisabled { get; internal set; }
     [JsonInclude]
+    public bool PrimitiveTransparencyEnabled { get; internal set; }
+    [JsonInclude]
     public float X { get; internal set; }
     [JsonInclude]
     public float Y { get; internal set; }
