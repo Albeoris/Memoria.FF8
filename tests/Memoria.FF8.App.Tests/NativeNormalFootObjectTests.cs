@@ -14,6 +14,9 @@ public sealed class NativeNormalFootObjectTests
     [InlineData(344, 3, 9)]
     [InlineData(345, 4, 13)]
     [InlineData(347, 4, 13)]
+    [InlineData(348, 5, 1)]
+    [InlineData(352, 5, 1)]
+    [InlineData(391, 5, 1)]
     public void OriginalSelectedClauseRetainsEveryDenseObjectAndBothFreshRailBanks(ushort story, int clause, int count)
     {
         using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
@@ -92,6 +95,7 @@ public sealed class NativeNormalFootObjectTests
     [Theory]
     [InlineData(315, 9)]
     [InlineData(345, 13)]
+    [InlineData(352, 1)]
     public void OriginalDisabledRailSelectorsRetainStaticAllocationWithoutProducingBankOrMinimumWords(ushort story, int count)
     {
         using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
@@ -147,15 +151,54 @@ public sealed class NativeNormalFootObjectTests
         }
     }
 
-    private static GameSession ComponentSession(byte eventFlags265 = 0)
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void DelingSingleFootAllocationPreservesBoardingBitAndActualRailSelectorsAfterRestore(byte eventFlags265)
+    {
+        GameSession session = ComponentSession(eventFlags265, story: 352, replacementFlags: 8, spawn: 8);
+        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        NativeNormalFootObjectProcess process = world.State.NativeFootRuntime!.NormalObjects!;
+        Assert.Equal(5, process.Allocation.ClauseIndex);
+        Assert.Equal((ushort)348, process.Allocation.MinimumStory);
+        Assert.Equal((ushort)392, process.Allocation.MaximumStory);
+        Assert.Single(process.Allocation.Objects);
+        Assert.Equal(0, process.Allocation.ControlledObjectIndex);
+        Assert.Equal((ushort)0, process.Allocation.Objects[0].RawOperand);
+        Assert.Equal((byte)8, session.WorldEntryMemory!.ReplacementFlags264);
+        Assert.Equal(eventFlags265 == 1, process.Primary is null);
+        Assert.Equal(eventFlags265 == 1, process.Alternate is null);
+        GameSession independentSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        foreach (PlayerAction action in new[] { new PlayerAction(PlayerActionKind.Wait), new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 0) })
+        {
+            Assert.Equal(world.Apply(action), independent.Apply(action));
+            Assert.Equal(JsonSerializer.Serialize(session.State.World), JsonSerializer.Serialize(independentSession.State.World));
+            Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
+        }
+        Assert.Equal(2, world.State.NativeFootRuntime.NormalObjects!.Callback);
+        Assert.Equal(eventFlags265 == 1, world.State.NativeFootRuntime.NormalObjects.PrimaryDistanceSquared is null);
+        Assert.Equal(eventFlags265 == 1, world.State.NativeFootRuntime.NormalObjects.AlternateDistanceSquared is null);
+    }
+
+    [Fact]
+    public void DelingOrdinaryFootStillRefusesUnimplementedAuxiliaryPairsAndFollowingClause()
+    {
+        GameSession pair = ComponentSession(story: 352, replacementFlags: 9, spawn: 8);
+        Assert.Throws<NotSupportedException>(() => new WorldMapScene(pair, LaunchOptions.DefaultGameDirectory));
+        GameSession following = ComponentSession(story: 392, replacementFlags: 8, spawn: 8);
+        Assert.Throws<NotSupportedException>(() => new WorldMapScene(following, LaunchOptions.DefaultGameDirectory));
+    }
+
+    private static GameSession ComponentSession(byte eventFlags265 = 0, ushort story = 315, byte replacementFlags = 0, byte spawn = 5)
     {
         GameSession initialized = GameSession.CreateColdProcess();
         initialized.StartNewGame();
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
         initialized.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         initialized.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
-        initialized.SetWorldEntryMemory(initialized.WorldEntryMemory!.WriteBytes(256, 2, 315).WriteBytes(265, 1, eventFlags265));
-        WorldTransition packet = new(5, 0, -1);
+        initialized.SetWorldEntryMemory(initialized.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(264, 1, replacementFlags).WriteBytes(265, 1, eventFlags265));
+        WorldTransition packet = new(spawn, 0, -1);
         return new GameSession(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 822, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 822), ReplayJournal = null });
     }
 }

@@ -46,7 +46,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!scripted && !stationFoot && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 348))
+        if (!scripted && !stationFoot && (car || footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }

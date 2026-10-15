@@ -154,6 +154,7 @@ internal static partial class Program
                     ["party-follow"] = NativePartyBackgroundScrollContract,
                     ["native-party-linear-turn"] = NativePartyLinearTurnContract,
                     ["native-directed-linear-turn"] = NativeDirectedLinearTurnContract,
+                    ["native-base-animation-allocation"] = () => NativeBaseAnimationAllocationContract(selectedGameDirectory),
                     ["native-push-preemption"] = NativeEmptyPushPreemptionContract,
                     ["push-contact"] = () => GardenNativePushContactBoundary(selectedGameDirectory),
                     ["follow-on"] = NativeFollowOnContract,

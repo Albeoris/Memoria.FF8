@@ -191,6 +191,11 @@ public sealed partial class EventEngine
                 actors[^1].NativePartyFlags = new NativeActorPartyFlags(false, false);
                 actors[^1].NativeSavedCollisionDisabled16 = false;
                 actors[^1].NativeActorWord398 = 0;
+                // 52BC00 clears base bytes591..593; its42 stores target the unrelated bytes568..570.
+                actors[^1].BaseAnimationId = 0;
+                actors[^1].WalkAnimationId = 0;
+                actors[^1].RunAnimationId = 0;
+                actors[^1].NativeBaseAnimationVersion = 1;
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
                 actors[^1].PolygonColor = new Vector3(128);

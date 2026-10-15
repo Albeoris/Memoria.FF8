@@ -8,13 +8,14 @@ internal sealed partial class WorldMapScene
 {
     private WorldState InitializeNormalFootObjects(WorldState world, WorldEntryVariables inputs)
     {
-        if (inputs.StoryWord is < 290 or >= 348)
+        if (inputs.StoryWord is < 290 or >= 392)
         {
             return world;
         }
         RequireUnaliasedFootAuxiliary(session.State);
         NativeSavedWorldState saved = session.State.SavedWorld!;
-        if (saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0 || inputs.ReplacementFlags != 0)
+        // 544860 allocates auxiliary79/80 pairs only from FIELD264 bits0..2.
+        if (saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0 || (inputs.ReplacementFlags & 7) != 0)
         {
             throw new NotSupportedException("Native normal foot allocation requires its actual inactive saved-vehicle slots and disabled auxiliary object pairs.");
         }
@@ -34,7 +35,7 @@ internal sealed partial class WorldMapScene
         process.Validate();
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         NativeSavedWorldState saved = session.State.SavedWorld!;
-        if (saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0 || inputs.ReplacementFlags != 0)
+        if (saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0 || (inputs.ReplacementFlags & 7) != 0)
         {
             throw new NotSupportedException("Native normal foot restoration requires the represented inactive saved vehicles and auxiliary object allocation.");
         }
