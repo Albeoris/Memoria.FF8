@@ -15,6 +15,17 @@ internal sealed partial class GameWorld
         GameState departure = session.State;
         preparedWorldEntry?.Dispose();
         PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, assets.GameDirectory, request.Transition);
+        Action publishMusic;
+        try
+        {
+            using var musicAssets = new WorldAssets(assets.GameDirectory);
+            publishMusic = Events.PrepareWorldMusic(request.Transition, musicAssets.ReadMusicResource);
+        }
+        catch
+        {
+            ticket.Dispose();
+            throw;
+        }
         preparedWorldEntry = ticket;
         bool committed = false;
         return () =>
@@ -31,6 +42,7 @@ internal sealed partial class GameWorld
             committed = true;
             preparedWorldEntry = null;
             ticket.Dispose();
+            publishMusic();
         };
     }
 

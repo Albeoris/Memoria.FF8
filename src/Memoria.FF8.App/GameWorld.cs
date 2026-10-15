@@ -110,6 +110,10 @@ internal sealed partial class GameWorld : IDisposable
             {
                 LoadField(savedField.GetProperty("FieldId").GetInt32(), null, savedField, restoreDeparting: true);
             }
+            if (Events.Scene.WorldMusicLoad is null)
+            {
+                throw new NotSupportedException("World restoration requires its executed native music-loader receipt; recreate the authentic journal.");
+            }
             worldScene = new WorldMapScene(session, assets.GameDirectory);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);

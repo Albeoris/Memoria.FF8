@@ -108,6 +108,8 @@ internal static partial class Program
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
                     ["native-facedir"] = NativeFacePointContract,
                     ["native-facedirp"] = NativePartyFaceContract,
+                    ["native-ranimeloop-yield"] = NativeAnimationLoopYieldContract,
+                    ["native-movement-animation"] = NativeMovementAnimationDisplacementContract,
                     ["native-face-sync"] = NativeFaceSyncContract,
                     ["native-rfacedir"] = NativeAsyncFacePointContract,
                     ["native-rfacedir-off"] = NativeAsyncFaceReturnContract,
@@ -220,6 +222,8 @@ internal static partial class Program
             NativeDoorLineToggleContract();
             NativePartyActorDirectionContract();
             NativePartyFaceContract();
+            NativeAnimationLoopYieldContract();
+            NativeMovementAnimationDisplacementContract();
             NativePlayerScriptHandoffContract(gameDirectory);
             NativeEmptyPartyModelContract();
             NativeVibrationContract();

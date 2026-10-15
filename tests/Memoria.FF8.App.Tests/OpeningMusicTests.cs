@@ -68,7 +68,7 @@ public sealed class OpeningMusicTests
             {
                 next = new PlayerAction(PlayerActionKind.Confirm);
             }
-            else if (world.Field.Id == 229 && world.Events.IsUserControlEnabled)
+            else if (world.Field.Id == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
             {
                 next = centering++ < 2 ? new PlayerAction(PlayerActionKind.Move, Horizontal: -1) : new PlayerAction(PlayerActionKind.Move, Vertical: 1);
             }

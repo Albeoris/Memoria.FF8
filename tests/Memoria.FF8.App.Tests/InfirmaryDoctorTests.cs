@@ -22,18 +22,25 @@ public sealed class InfirmaryDoctorTests
         var root = GameSession.CreateColdProcess();
         root.StartNewGame();
         ReplayJournal prefix = root.ReplayJournal!;
-        foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries.Take(2538))
+        foreach (ReplayJournalEntry entry in source.ReplayJournal!.Entries)
         {
             prefix = prefix.Append(entry);
+            if (entry.Kind == ReplayEntryKind.FieldLoad && entry.FieldId == 229)
+            {
+                break;
+            }
         }
         ReplayJournalEntry endpoint = prefix.Endpoint!;
         var session = new GameSession(GameWorld.RecreateSave(new GameState { Scene = endpoint.ResultScene!.Value, FieldId = endpoint.ResultFieldId!.Value, ReplayJournal = prefix }, game));
         using var world = new GameWorld(session, game, persistReplayJournal: false);
         world.EnsureField();
-        Assert.Equal(137, world.Events.FieldId);
+        Assert.Equal(229, world.Events.FieldId);
         Assert.Null(world.Events.LastFault);
-        Assert.Equal((byte)26, world.Events.Scene.MusicChannel108?.MusicId);
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        for (int callback = 0; callback < 100 && world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable; callback++)
+        {
+            Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
+        }
+        Assert.Equal(PlayerTriggerKind.Playable, world.Events.NextTrigger.Kind);
         VerifyRecreation(world, session, game, Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
     }
 

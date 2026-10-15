@@ -226,14 +226,6 @@ public sealed partial class EventEngine
                 actor.MovementDirectionLimit = 0;
             }
             operands = Pop(fiber, actor.NativeScriptMovement.TargetNativeObjectId is not null ? actor.NativeScriptMovement.Asynchronous ? 2 : 1 : actor.NativeScriptMovement.Accelerated ? 5 : 4);
-            if (actor.NativeScriptMovement.AutomaticAnimation)
-            {
-                int animation = actor.MovementSpeed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
-                if (actor.AnimationId != animation)
-                {
-                    SelectFullNativeAnimation(actor, animation, true);
-                }
-            }
             actor.MovementTarget = new Vector3(actor.NativeScriptMovement.TargetX / 4096f, actor.NativeScriptMovement.TargetY / 4096f, actor.NativeScriptMovement.TargetZ / 4096f);
             actor.MovementStopDistance = actor.NativeScriptMovement.StopDistance;
             actor.MovementFlags = actor.NativeScriptMovement.StopDistance;
@@ -251,7 +243,7 @@ public sealed partial class EventEngine
             {
                 actor.NativeMovementRequest = accelerationBackup with { SavedMovement = accelerationBackup.SavedMovement with { Speed = actor.NativeScriptMovement.Speed } };
             }
-            if (actor.NativeScriptMovement.AnimationFlag40000 ?? actor.NativeScriptMovement.ResetAnimationOnCompletion ?? actor.NativeScriptMovement.AutomaticAnimation)
+            if ((actor.NativeScriptMovement.AnimationFlag40000 ?? actor.NativeScriptMovement.ResetAnimationOnCompletion ?? actor.NativeScriptMovement.AutomaticAnimation) && (!actor.NativeScriptMovement.AutomaticAnimation || actor.AnimationId != actor.BaseAnimationId))
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
             }
@@ -273,11 +265,6 @@ public sealed partial class EventEngine
         }
         if (actor.NativeScriptMovement.Accelerated)
         {
-            int animation = actor.MovementSpeed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
-            if (actor.AnimationId != animation)
-            {
-                SelectFullNativeAnimation(actor, animation, true);
-            }
             actor.NativeTurnAccumulator474 = 0;
             actor.NativeScriptMovement = actor.NativeScriptMovement with { AnimationFlag40000 = true };
         }
@@ -301,7 +288,7 @@ public sealed partial class EventEngine
         // RFMOVE preserves animation; RMOVE additionally carries flag40000.
         if (actor.NativeMovementCompletion542 == 2 && actor.NativeScriptMovement is { Asynchronous: true } completed && (completed.Active || completed.Cancelled))
         {
-            if (completed.AnimationFlag40000 ?? completed.ResetAnimationOnCompletion ?? completed.AutomaticAnimation)
+            if ((completed.AnimationFlag40000 ?? completed.ResetAnimationOnCompletion ?? completed.AutomaticAnimation) && (!completed.AutomaticAnimation || actor.AnimationId != actor.BaseAnimationId))
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
             }
@@ -386,6 +373,20 @@ public sealed partial class EventEngine
             {
                 LastFault = new EventFault(FieldId, objectId, current.ScriptId, current.Operation, program!.Operations[current.Operation].Opcode.ToString(), exception.Message);
                 throw new EventScriptException($"Field{FieldId} native MOVE{current.Operation}: {exception.Message}", exception);
+            }
+            if (current.AutomaticAnimation)
+            {
+                // Automatic locomotion follows the committed body step, rather than a repeatedly issued request.
+                bool moved = current.FixedX != next.FixedX || current.FixedY != next.FixedY || current.FixedZ != next.FixedZ;
+                int animation = actor.BaseAnimationId;
+                if (moved)
+                {
+                    animation = actor.MovementSpeed < 2696 ? actor.WalkAnimationId : actor.RunAnimationId;
+                }
+                if (actor.AnimationId != animation)
+                {
+                    SelectFullNativeAnimation(actor, animation, true);
+                }
             }
             actor.NativeScriptMovement = next;
             actor.NativeMovementCompletion542 = completion;

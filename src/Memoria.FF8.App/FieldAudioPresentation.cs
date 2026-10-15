@@ -57,6 +57,8 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
 
     public string? Error { get; private set; }
     internal bool IsMidiPlaying => music?.IsPlaying == true;
+    internal int PrimaryMusicId => musicIds[0];
+    internal float PrimaryMusicVolume => musicKinds[0] == MusicKind.Midi ? midiVolume : streamVolume;
     private NativeMusicCatalog Catalog => catalog ??= new NativeMusicCatalog(gameDirectory);
     private DirectSoundOutput Sound => sound ??= new DirectSoundOutput(window);
     private DirectMusicOutput Music => music ??= new DirectMusicOutput(window, Path.Combine(gameDirectory, "Data", "Music", "dmusic"));
@@ -76,17 +78,17 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         next.AudioCommandExecuted += Execute;
     }
 
-    public void ResumeMusic(SceneEventState scene, int fieldId)
+    public void ResumeMusic(SceneEventState scene, int fieldId, bool worldMap = false)
     {
         // Saved native channel authority proves the track identity, not its device phase.
         // Resume from the original segment's start; never synthesize effect-buffer activity.
         NativeMusicChannelState? secondary = scene.MusicChannel112;
         NativeMusicChannelState? primary = scene.MusicChannel108;
-        if (primary is { ChannelId: >= 0, MusicId: byte first })
+        if (primary is { ChannelId: >= 0, MusicId: byte first } && first != 255)
         {
-            TryOutput(() => PlayMusic(first, 0, scene.SoundMusicVolume197, fieldId));
+            TryOutput(() => PlayMusic(first, 0, worldMap ? scene.WorldMusicLoad?.TargetVolume ?? throw new NotSupportedException("World music resume requires its executed native loader receipt.") : scene.SoundMusicVolume197, fieldId));
         }
-        if (secondary is { ChannelId: >= 0, MusicId: byte second })
+        if (secondary is { ChannelId: >= 0, MusicId: byte second } && second != 255)
         {
             TryOutput(() => PlayMusic(second, 1, scene.SoundMusicVolume198, fieldId));
         }
@@ -98,6 +100,17 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         {
             switch (command)
             {
+                case NativeWorldMusicLoad world:
+                    if (world.Operation == NativeWorldMusicOperation.Stop)
+                    {
+                        StopMusicSlot(0);
+                    }
+                    else if (world.Music is byte worldMusic)
+                    {
+                        PlayMusic(worldMusic, 0, world.InitialVolume, world.SourceFieldId, forceRestart: world.Operation == NativeWorldMusicOperation.Play);
+                        SetMusicGain(0, false, null, world.TargetVolume, world.DurationMilliseconds);
+                    }
+                    break;
                 case GlobalSoundRequest request when request.Resource.BackendStatus != GlobalSoundBackendStatus.Failed:
                     PlaySound(request);
                     break;
@@ -217,9 +230,14 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
 
     private void SetMusicVolume(NativeMusicVolume request)
     {
-        bool midi = request.BothChannels == true || musicKinds[request.Slot] == MusicKind.Midi;
-        bool stream = request.BothChannels == true || musicKinds[request.Slot] == MusicKind.Stream;
-        if (request.FadeInitialVolumeOperand is int initial && initial is >= 0 and <= 127)
+        SetMusicGain(request.Slot, request.BothChannels == true, request.FadeInitialVolumeOperand, request.RequestedVolume, request.EffectiveDuration);
+    }
+
+    private void SetMusicGain(int slot, bool bothChannels, int? initialVolume, int requestedVolume, int duration)
+    {
+        bool midi = bothChannels || musicKinds[slot] == MusicKind.Midi;
+        bool stream = bothChannels || musicKinds[slot] == MusicKind.Stream;
+        if (initialVolume is int initial && initial is >= 0 and <= 127)
         {
             if (midi)
             {
@@ -232,15 +250,15 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                 streamedMusic?.Volume(OutputGain(Catalog.SoundVolume(initial), musicPreference));
             }
         }
-        if (request.RequestedVolume is >= 0 and <= 127)
+        if (requestedVolume is >= 0 and <= 127)
         {
             if (midi)
             {
-                midiRamp = new Ramp(midiVolume, request.RequestedVolume, request.EffectiveDuration);
+                midiRamp = new Ramp(midiVolume, requestedVolume, duration);
             }
             if (stream)
             {
-                streamRamp = new Ramp(streamVolume, request.RequestedVolume, request.EffectiveDuration);
+                streamRamp = new Ramp(streamVolume, requestedVolume, duration);
             }
         }
     }

@@ -42,7 +42,7 @@ public sealed class IfritCausalRecreationTests
                     Apply(world, new PlayerAction(PlayerActionKind.Move, Horizontal: -1));
                     for (int tick = 0; tick < 3000 && !session.IsMoviePlaying; tick++)
                     {
-                        Apply(world, world.Events.IsDialogueBlocking || !world.Events.IsUserControlEnabled ? NextAutomatic(world, session) : new PlayerAction(PlayerActionKind.Move, Vertical: 1));
+                        Apply(world, world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable ? NextAutomatic(world, session) : new PlayerAction(PlayerActionKind.Move, Vertical: 1));
                     }
                     Assert.True(session.IsMoviePlaying, "The original corridor must naturally request movie0.");
                 }
@@ -199,7 +199,7 @@ public sealed class IfritCausalRecreationTests
             int unchanged = 0;
             for (int tick = 0; tick < 3000 && session.State.Scene == SceneKind.Field && session.State.FieldId == source; tick++)
             {
-                if (!world.Events.IsUserControlEnabled || world.Events.IsDialogueBlocking)
+                if (world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable)
                 {
                     Apply(world, NextAutomatic(world, session));
                     continue;
@@ -231,7 +231,7 @@ public sealed class IfritCausalRecreationTests
         for (int tick = 0; tick < 500 && session.State.Scene == SceneKind.Field && session.State.FieldId == source; tick++)
         {
             Vector2 axes = Vector2.Transform(Vector2.Normalize(forward), Matrix3x2.CreateRotation(-world.Events.InputAxisDirection * MathF.Tau / 256));
-            Apply(world, world.Events.IsDialogueBlocking || !world.Events.IsUserControlEnabled ? NextAutomatic(world, session) : new PlayerAction(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y));
+            Apply(world, world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable ? NextAutomatic(world, session) : new PlayerAction(PlayerActionKind.Move, Horizontal: axes.X, Vertical: axes.Y));
         }
         Assert.True(worldExit ? session.State.Scene == SceneKind.WorldMap : session.State.FieldId == destination, $"Advisory gateway field{source} did not naturally reach{destination}: {world.NextTrigger}.");
         Console.WriteLine($"Fresh route field{source}→{session.State.Scene}/{session.State.FieldId}, native arrival{session.State.FieldArrival}.");
@@ -257,7 +257,7 @@ public sealed class IfritCausalRecreationTests
             {
                 return;
             }
-            if (world.Events.IsDialogueBlocking || !world.Events.IsUserControlEnabled)
+            if (world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable)
             {
                 Apply(world, NextAutomatic(world, session));
                 continue;
@@ -285,6 +285,11 @@ public sealed class IfritCausalRecreationTests
             int unchanged = 0;
             for (int tick = 0; tick < 3000; tick++)
             {
+                if (world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable)
+                {
+                    Apply(world, NextAutomatic(world, session));
+                    continue;
+                }
                 if (world.Events.SelectInteractionTarget() == target)
                 {
                     return;
@@ -302,7 +307,7 @@ public sealed class IfritCausalRecreationTests
         WalkDirectToInteraction(world, session, target);
     }
 
-    private static void WalkAdvisoryPoint(GameWorld world, GameSession session, Vector2 point)
+    internal static void WalkAdvisoryPoint(GameWorld world, GameSession session, Vector2 point)
     {
         int unchanged = 0;
         for (int tick = 0; tick < 3000; tick++)
@@ -314,7 +319,7 @@ public sealed class IfritCausalRecreationTests
                 return;
             }
             Vector2 axes = Vector2.Transform(Vector2.Normalize(delta), Matrix3x2.CreateRotation(-world.Events.InputAxisDirection * MathF.Tau / 256));
-            if (world.Events.IsDialogueBlocking || !world.Events.IsUserControlEnabled)
+            if (world.Events.NextTrigger.Kind != PlayerTriggerKind.Playable)
             {
                 Apply(world, NextAutomatic(world, session));
                 continue;

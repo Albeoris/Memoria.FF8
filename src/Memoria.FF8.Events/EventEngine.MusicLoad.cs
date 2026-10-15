@@ -45,6 +45,8 @@ public sealed partial class EventEngine
         Scene.MusicProcess = previous.MusicProcess;
         Scene.MusicLoadRequest = previous.MusicLoadRequest;
         Scene.MusicPlayRequest = previous.MusicPlayRequest;
+        Scene.WorldMusicSelection = previous.WorldMusicSelection;
+        Scene.WorldMusicLoad = previous.WorldMusicLoad;
     }
 
     private void ValidateNativeMusicFieldLoad(NativeFieldRuntimeProfile? profile)
@@ -72,6 +74,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedMusicLoad(Fiber fiber, JsmOperation operation)
     {
+        if (UnsupportedWorldMusicSelection(fiber, operation) is string selection)
+        {
+            return selection;
+        }
         if (operation.Opcode == Jsm.Opcode.EFFECTLOAD && (fiber.Stack.Count == 0 || !fiber.Stack.PeekValue().IsExact || LoadSoundResource is null || variables.ContainsKey(202) || services.NativeVariableValues?.Any(pair => pair.Key <= 202 && pair.Key + pair.Value.Width > 202) == true))
         {
             return "EFFECTLOAD requires its exact operand, explicit backend and unaliased physical BYTE202 owner";
@@ -177,6 +183,7 @@ public sealed partial class EventEngine
         Pop(fiber, count);
         if (consumed)
         {
+            Scene.WorldMusicLoad = null;
             byte music = prior.Requested213 ?? throw new InvalidDataException("Native pending music has no executed requested byte.");
             Scene.MusicProcess = prior with { Pending = false, Bank201 = bank };
             if (secondary)
@@ -210,6 +217,7 @@ public sealed partial class EventEngine
 
     private void ValidateMusicLoadCheckpoint(Checkpoint saved)
     {
+        ValidateWorldMusicCheckpoint(saved);
         NativeMusicProcessState? process = saved.Scene.MusicProcess;
         if (process is not null && (process.Version != 1 || process.Pending == true && (process.Requested213 is null || process.Complete214 != 1)))
         {
@@ -242,7 +250,7 @@ public sealed partial class EventEngine
         if (saved.Scene.MusicPlayRequest is NativeMusicPlayRequest play)
         {
             bool secondary = play.Opcode == nameof(Jsm.Opcode.DUALMUSIC);
-            if (play.Version != 1 || play.Opcode is not (nameof(Jsm.Opcode.MUSICCHANGE) or nameof(Jsm.Opcode.MUSICSKIP) or nameof(Jsm.Opcode.CROSSMUSIC) or nameof(Jsm.Opcode.DUALMUSIC)) || (play.Opcode == nameof(Jsm.Opcode.MUSICSKIP)) != (play.SkipPosition is not null) || play.Channel != (play.ConsumedPending ? secondary ? 1 : 0 : null) || play.ConsumedPending && play.Music is null || play.Bank != (play.ConsumedPending && !secondary && play.PriorBank is byte bank ? unchecked((byte)(bank ^ 1)) : play.PriorBank) || process?.Bank201 != play.Bank || secondary && (play.Volume is null or < 0 or > 127 || play.Duration is not null) || play.BackendStatus != GlobalSoundBackendStatus.Muted)
+            if (play.Version != 1 || play.Opcode is not (nameof(Jsm.Opcode.MUSICCHANGE) or nameof(Jsm.Opcode.MUSICSKIP) or nameof(Jsm.Opcode.CROSSMUSIC) or nameof(Jsm.Opcode.DUALMUSIC)) || (play.Opcode == nameof(Jsm.Opcode.MUSICSKIP)) != (play.SkipPosition is not null) || play.Channel != (play.ConsumedPending ? secondary ? 1 : 0 : null) || play.ConsumedPending && play.Music is null || play.Bank != (play.ConsumedPending && !secondary && play.PriorBank is byte bank ? unchecked((byte)(bank ^ 1)) : play.PriorBank) || saved.Scene.WorldMusicLoad is null && process?.Bank201 != play.Bank || secondary && (play.Volume is null or < 0 or > 127 || play.Duration is not null) || play.BackendStatus != GlobalSoundBackendStatus.Muted)
             {
                 throw new InvalidDataException("Saved native music play lost its pending branch/channel/bank authority.");
             }

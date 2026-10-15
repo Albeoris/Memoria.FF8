@@ -87,7 +87,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.POPM_B:
             case Jsm.Opcode.POPM_W:
             case Jsm.Opcode.POPM_L:
-                if (TryWriteNativeFadeMemory(fiber, operation, out args) || TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
+                if (TryWriteWorldMusicSelection(fiber, operation, out args) || TryWriteNativeFadeMemory(fiber, operation, out args) || TryWriteNativeDrawPointMemory(fiber, operation, out args) || TryWriteJunctionBackupMemory(fiber, operation, out args) || TryWriteNativeEconomyMemory(fiber, operation, out args) || TryWriteNativeOwnedEventMemory(fiber, operation, out args))
                 {
                     break;
                 }
@@ -1236,6 +1236,11 @@ public sealed partial class EventEngine
 
     private void PlayAnimation(Fiber fiber, ActorState actor, Jsm.Opcode opcode, int animationId, out int[] args)
     {
+        if (opcode == Jsm.Opcode.RANIMELOOP)
+        {
+            // Native526A3A selects the signed low WORD of the inline operand.
+            animationId = unchecked((short)animationId);
+        }
         bool ranged = opcode is Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or Jsm.Opcode.RCANIMELOOP;
         args = ranged ? Pop(fiber, 2) : [];
         int count = ranged ? 0 : AnimationFrameCount?.Invoke(actor.ModelId, animationId) ?? throw Fault(fiber, $"Model {actor.ModelId} animation {animationId} needs actual animation frame metadata.");
@@ -1257,6 +1262,11 @@ public sealed partial class EventEngine
         if (opcode is Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP)
         {
             fiber.WaitReason = WaitReason.Animation;
+        }
+        else if (opcode == Jsm.Opcode.RANIMELOOP)
+        {
+            // Native526A30 returns3: advance the PC and yield this actor's VM turn.
+            WaitFrames(fiber, 1);
         }
     }
 }
