@@ -40,7 +40,8 @@ public enum WaitReason
     NativeAnimationBlocking,
     NativeAnimationSync,
     NativeDoorRequest,
-    NativeBackgroundShade
+    NativeBackgroundShade,
+    NativeTurnCompletion
 }
 
 public sealed partial class EventEngine
@@ -113,6 +114,10 @@ public sealed partial class EventEngine
         if (!HasCanonicalPartySlots(saved.Scene))
         {
             throw new InvalidDataException("Saved VM requires exactly three native party character bytes; compressed or malformed party slots require authentic reconstruction.");
+        }
+        if (NativeRuntimeProfile is { IsVerified: true } && saved.Scene.NativeActorObjectIds.Any(id => saved.Actors[id].NativeTurnMode580 is null or > 3))
+        {
+            throw new InvalidDataException("Saved physical actor requires its explicit native turn mode580; migrate this save explicitly.");
         }
         ValidateNativeModelParts(saved.Scene, saved.Actors, saved.Frame, saved.DefaultsStarted, saved.TransitionRequested);
         if (saved.Scene.MovieActors is NativeMovieActorLifecycle movieActors)

@@ -19,6 +19,7 @@ public sealed partial class EventEngine
             actor.RotationTarget = null;
             actor.RotationUsesNativeCosine = false;
             actor.RotationUsesNativeLinear = false;
+            actor.NativeTurnMode580 = 3;
         }
     }
 }

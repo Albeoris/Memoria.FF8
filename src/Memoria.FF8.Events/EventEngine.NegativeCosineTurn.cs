@@ -26,6 +26,7 @@ public sealed partial class EventEngine
         // changing movement, animation, facing-hold576 or request ownership.
         // Mode2 in4789A0 samples475CA0 at elapsed0..duration. The next
         // opcode poll observes BYTE580=3 and returns2 without another pop.
+        actor.NativeTurnMode580 = 2;
         actor.RotationStart = start;
         actor.RotationTarget = target;
         actor.RotationTotalFrames = unchecked((byte)args[1]);

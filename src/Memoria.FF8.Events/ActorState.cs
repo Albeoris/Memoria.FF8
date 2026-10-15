@@ -33,6 +33,8 @@ public sealed class ActorState
     [JsonInclude]
     public bool PrimitiveTransparencyEnabled { get; internal set; }
     [JsonInclude]
+    public byte? NativeTurnMode580 { get; internal set; }
+    [JsonInclude]
     public float X { get; internal set; }
     [JsonInclude]
     public float Y { get; internal set; }
@@ -320,6 +322,10 @@ public sealed class ActorState
             {
                 Direction = direction;
                 RotationTarget = null;
+                if (NativeTurnMode580 is not null)
+                {
+                    NativeTurnMode580 = 3;
+                }
             }
         }
     }

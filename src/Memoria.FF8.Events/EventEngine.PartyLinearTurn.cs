@@ -2,7 +2,7 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
-    private string? UnsupportedPartyTurn(Fiber fiber, bool cosine)
+    private string? UnsupportedPartyTurn(Fiber fiber, bool cosine, bool asynchronous = false)
     {
         string opcode = cosine ? "PCTURN" : "PLTURN";
         if (fiber.Stack.Count < 2 || fiber.Stack.Capture().Take(2).Any(value => !value.IsExact))
@@ -11,10 +11,10 @@ public sealed partial class EventEngine
         }
         ActorState actor = actors[fiber.ObjectId];
         NativeActorFacingQuery? query = PreparePartyActorFacing(fiber, 1);
-        return query is not null && ResolveNativeActorFacing?.Invoke(query) is not null && float.IsFinite(actor.Direction) && actor.Direction == (byte)actor.Direction && actor.RotationTarget is null ? null : $"{opcode} requires its known saved compact party binding, certified raw actor facing and an idle exact BYTE577 direction; unowned native bodies are unsupported";
+        return query is not null && ResolveNativeActorFacing?.Invoke(query) is not null && float.IsFinite(actor.Direction) && actor.Direction == (byte)actor.Direction && (asynchronous || actor.RotationTarget is null) && (!asynchronous || actor.NativeTurnMode580 is not null) ? null : $"{opcode} requires its known saved compact party binding, certified raw actor facing and exact native turn state; unowned native bodies are unsupported";
     }
 
-    private int[] ExecutePartyTurn(Fiber fiber, bool cosine)
+    private int[] ExecutePartyTurn(Fiber fiber, bool cosine, bool asynchronous = false)
     {
         NativeActorFacingQuery query = PreparePartyActorFacing(fiber, 1)!;
         byte target = ResolveNativeActorFacing!(query)!.Value;
@@ -27,9 +27,17 @@ public sealed partial class EventEngine
         actor.RotationUsesNativeCosine = cosine && actor.RotationTarget is not null;
         actor.RotationUsesNativeLinear = !cosine && actor.RotationTarget is not null;
         actor.RotationFrames = actor.RotationTarget is not null ? actor.RotationTotalFrames + 1 : 0;
+        if (actor.RotationTarget is not null)
+        {
+            actor.NativeTurnMode580 = cosine ? (byte)2 : (byte)1;
+        }
+        else if (asynchronous)
+        {
+            actor.NativeTurnMode580 = 3;
+        }
         //527790/5278A0 use saved BYTE194+slot, including after FOLLOWOFF.
         //Equal direction returns2 immediately; mode1/2 samples elapsed0..duration.
-        fiber.WaitReason = actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
+        fiber.WaitReason = asynchronous || actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
         return operands;
     }
 

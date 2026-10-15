@@ -39,6 +39,7 @@ public sealed partial class EventEngine
         // Native527070/527250/527320 share the signed WORD target, BYTE
         // duration, linear mode1, elapsed0 through the inclusive endpoint.
         // Equal endpoints still return1 on issue and execute the full phase.
+        actor.NativeTurnMode580 = 1;
         actor.RotationStart = start;
         actor.RotationTarget = target;
         actor.RotationTotalFrames = unchecked((byte)operands[1]);

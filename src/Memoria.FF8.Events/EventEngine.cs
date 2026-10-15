@@ -199,6 +199,7 @@ public sealed partial class EventEngine
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
                 actors[^1].NativePartyFlags = new NativeActorPartyFlags(false, false);
+                actors[^1].NativeTurnMode580 = 0;
                 actors[^1].NativeSavedCollisionDisabled16 = false;
                 actors[^1].NativeActorWord398 = 0;
                 // 52BC00 clears base bytes591..593; its42 stores target the unrelated bytes568..570.
@@ -776,6 +777,7 @@ public sealed partial class EventEngine
             WaitReason.Movement => actor.NativeMovementCompletion542 == 2,
             WaitReason.MoveActor => actor.MovementActorId is null,
             WaitReason.Rotation => actor.RotationTarget is null,
+            WaitReason.NativeTurnCompletion => actor.NativeTurnMode580 == 3,
             WaitReason.Dialogue => !dialogues.ContainsKey(fiber.DialogueChannel),
             WaitReason.Movie => !services.IsMoviePlaying,
             WaitReason.Color => true,

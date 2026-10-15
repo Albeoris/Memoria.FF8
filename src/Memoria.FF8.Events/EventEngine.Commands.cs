@@ -239,6 +239,16 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PCTURN:
                 args = ExecutePartyTurn(fiber, opcode == Jsm.Opcode.PCTURN);
                 break;
+            case Jsm.Opcode.Unknown11:
+                args = ExecutePartyTurn(fiber, true, asynchronous: true);
+                break;
+            case Jsm.Opcode.Unknown12:
+                if (actor.NativeTurnMode580 != 3)
+                {
+                    fiber.Position--;
+                    fiber.WaitReason = WaitReason.NativeTurnCompletion;
+                }
+                break;
             case Jsm.Opcode.CMOVE:
                 args = ExecuteNativeScriptMove(fiber);
                 break;
@@ -450,6 +460,7 @@ public sealed partial class EventEngine
                 actor.RotationTotalFrames = (byte)args[1];
                 actor.RotationFrames = actor.RotationTotalFrames + 1;
                 actor.RotationUsesNativeCosine = true;
+                actor.NativeTurnMode580 = 2;
                 fiber.WaitReason = WaitReason.Rotation;
                 break;
             case Jsm.Opcode.LTURNL:
@@ -472,6 +483,10 @@ public sealed partial class EventEngine
                 actor.RotationTarget = nativeRotationStart == nativeRotationTarget ? null : NearestFaceAngle(nativeRotationStart, nativeRotationTarget);
                 actor.RotationTotalFrames = (byte)args[1];
                 actor.RotationUsesNativeCosine = opcode == Jsm.Opcode.CTURN && actor.RotationTarget is not null;
+                if (actor.RotationTarget is not null)
+                {
+                    actor.NativeTurnMode580 = opcode == Jsm.Opcode.CTURN ? (byte)2 : (byte)1;
+                }
                 actor.RotationFrames = actor.RotationTarget is null ? 0 : actor.RotationTotalFrames + (actor.RotationUsesNativeCosine ? 1 : 0);
                 fiber.WaitReason = actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
                 break;

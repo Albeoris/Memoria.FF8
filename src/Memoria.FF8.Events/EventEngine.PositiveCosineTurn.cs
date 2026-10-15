@@ -25,6 +25,7 @@ public sealed partial class EventEngine
         // 5271B0 writes WORD476/478 and BYTE578/579/580, then returns1.
         // 4789A0 samples mode2 through475CA0 at elapsed0..duration;
         // only the subsequent opcode poll observes completion580=3/return2.
+        actor.NativeTurnMode580 = 2;
         actor.RotationStart = start;
         actor.RotationTarget = target;
         actor.RotationTotalFrames = unchecked((byte)args[1]);

@@ -34,7 +34,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SETDCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.SCROLLRATIO2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL or Jsm.Opcode.DSCROLLA or Jsm.Opcode.CSCROLLA or Jsm.Opcode.LSCROLLA or Jsm.Opcode.LSCROLLP or Jsm.Opcode.DSCROLLP or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.CSCROLL or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.PDIRA or Jsm.Opcode.FACEDIR or Jsm.Opcode.RFACEDIR or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.FACEDIRA or Jsm.Opcode.RFACEDIRA or Jsm.Opcode.FACEDIRP or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.RFACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
             Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.PJUMPA or Jsm.Opcode.LADDERUP or Jsm.Opcode.LADDERDOWN or Jsm.Opcode.LADDERUP2 or Jsm.Opcode.LADDERDOWN2 or Jsm.Opcode.Unknown15 or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
             Jsm.Opcode.HIDE or Jsm.Opcode.SHOW or Jsm.Opcode.SET or Jsm.Opcode.SET3 or Jsm.Opcode.DIR or Jsm.Opcode.DIRP or Jsm.Opcode.Unknown8 or Jsm.Opcode.Unknown9 or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or
-            Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.Unknown7 or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MACCEL or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
+            Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.Unknown7 or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.Unknown11 or Jsm.Opcode.Unknown12 or Jsm.Opcode.MSPEED or Jsm.Opcode.MACCEL or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
             Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE or Jsm.Opcode.MOVESYNC or Jsm.Opcode.MOVECANCEL or Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.PMOVEA or Jsm.Opcode.RPMOVEA or Jsm.Opcode.SETGETA or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETROOTTRANS or
             Jsm.Opcode.SHADELEVEL or Jsm.Opcode.SHADEFORM or Jsm.Opcode.SHADESET or Jsm.Opcode.DOFFSET or Jsm.Opcode.BASEANIME or Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIME or
             Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or
@@ -158,6 +158,14 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.PJUMPA)
         {
             return UnsupportedNativeJump(fiber, operation.Parameter, partyTarget: true);
+        }
+        if (operation.Opcode == Jsm.Opcode.Unknown11)
+        {
+            return UnsupportedPartyTurn(fiber, true, asynchronous: true);
+        }
+        if (operation.Opcode == Jsm.Opcode.Unknown12 && actors[fiber.ObjectId].NativeTurnMode580 is null)
+        {
+            return "Native turn synchronization requires its executed BYTE580 owner";
         }
         if (operation.Opcode is Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN)
         {
