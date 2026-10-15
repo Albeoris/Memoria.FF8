@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Albeoris.Games.FF8.Jsm;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -10,9 +11,12 @@ internal static partial class Program
 {
     private static void NativeCurrentFieldPartyBindingContract(string gameDirectory)
     {
-        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>("""
-            {"AudioLoadEpoch":0,"Party":[0,255,5],"NativeActorLayoutVersion":1,"NativeActorObjectIds":[7,2,12],"FieldPartyNativeActorIds":[2,255,0],"NativeSalaryMovementUnits":null}
-            """)!;
+        JsonNode fixture = JsonSerializer.SerializeToNode(new SceneEventState())!;
+        fixture["Party"] = new JsonArray(0, 255, 5);
+        fixture["NativeActorLayoutVersion"] = 1;
+        fixture["NativeActorObjectIds"] = new JsonArray(7, 2, 12);
+        fixture["FieldPartyNativeActorIds"] = new JsonArray(2, 255, 0);
+        SceneEventState scene = fixture.Deserialize<SceneEventState>()!;
         ActorState[] actors = [new(2, 16), new(12, 24), new(7, 8)];
         Require(NativeFieldPartyBinding.TryGetObjectId(scene, 0, out int leader) && leader == 12 && NativeFieldPartyBinding.ResolveActor(scene, actors, 0) == actors[1], "Current runtime leader was confused with canonical character or compact actor index.");
         Require(!NativeFieldPartyBinding.TryGetObjectId(scene, 1, out _) && NativeFieldPartyBinding.TryGetObjectId(scene, 2, out int follower) && follower == 7, "Sparse runtime follower slots were treated as a prefix.");
@@ -30,7 +34,7 @@ internal static partial class Program
 
         (Jsm.Opcode, int)[] Actor(int label, int character, int x) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.PSHN_L, character), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.PSHN_L, x), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1, (8 << 7) | 1, (16 << 7) | 1, (24 << 7) | 1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.REFRESHPARTY, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.SETPARTY, 0), (Jsm.Opcode.INITTRACE, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Actor(8, 8, 88), [(Jsm.Opcode.LBL, 9), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Actor(16, 9, 99), [(Jsm.Opcode.LBL, 17), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)], Actor(24, 0, 11), [(Jsm.Opcode.LBL, 25), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
-        GameSession session = GameSession.CreateColdProcess();
+        GameSession session = new(new GameState());
         using GameAssets assets = new(gameDirectory);
         session.SetCharacterVitals(assets.ReadNewGameCharacterVitals());
         EventEngine engine = new(session, session.State.Variables);

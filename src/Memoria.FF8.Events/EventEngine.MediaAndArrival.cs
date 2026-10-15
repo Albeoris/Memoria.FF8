@@ -32,7 +32,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.POPM_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or
             Jsm.Opcode.SETTIMER or Jsm.Opcode.DISPTIMER or Jsm.Opcode.GETTIMER or Jsm.Opcode.KILLTIMER or Jsm.Opcode.BATTLE or Jsm.Opcode.BATTLEMODE or Jsm.Opcode.BATTLERESULT or
             Jsm.Opcode.RND or Jsm.Opcode.Unknown10 or Jsm.Opcode.GETINFO or Jsm.Opcode.INITTRACE or Jsm.Opcode.SETCAMERA or Jsm.Opcode.SCROLLMODE2 or Jsm.Opcode.SCROLLRATIO2 or Jsm.Opcode.DSCROLL2 or Jsm.Opcode.DSCROLL or Jsm.Opcode.DSCROLLA or Jsm.Opcode.CSCROLLA or Jsm.Opcode.LSCROLLA or Jsm.Opcode.LSCROLLP or Jsm.Opcode.DSCROLLP or Jsm.Opcode.CSCROLLP or Jsm.Opcode.CSCROLL2 or Jsm.Opcode.CSCROLL or Jsm.Opcode.SCROLLSYNC or Jsm.Opcode.DIRA or Jsm.Opcode.PDIRA or Jsm.Opcode.FACEDIR or Jsm.Opcode.RFACEDIR or Jsm.Opcode.FACEDIRLIMIT or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRSYNC or Jsm.Opcode.FACEDIRA or Jsm.Opcode.FACEDIROFF or Jsm.Opcode.RFACEDIROFF or Jsm.Opcode.ISPARTY or Jsm.Opcode.GETPARTY or Jsm.Opcode.PGETINFO or Jsm.Opcode.ISTOUCH or Jsm.Opcode.REQ or Jsm.Opcode.REQSW or
-            Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
+            Jsm.Opcode.REQEW or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.REFRESHPARTY or Jsm.Opcode.JOIN or Jsm.Opcode.SPLIT or Jsm.Opcode.JUMP or Jsm.Opcode.JUMP3 or Jsm.Opcode.LADDERUP2 or Jsm.Opcode.LADDERDOWN2 or Jsm.Opcode.Unknown15 or Jsm.Opcode.CLEAR or Jsm.Opcode.SETMODEL or Jsm.Opcode.SETDRESS or Jsm.Opcode.SETPC or Jsm.Opcode.ACTORMODE or Jsm.Opcode.UNUSE or Jsm.Opcode.USE or
             Jsm.Opcode.HIDE or Jsm.Opcode.SHOW or Jsm.Opcode.SET or Jsm.Opcode.SET3 or Jsm.Opcode.DIR or Jsm.Opcode.DIRP or Jsm.Opcode.Unknown8 or Jsm.Opcode.Unknown9 or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or
             Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.PLTURN or Jsm.Opcode.PCTURN or Jsm.Opcode.MSPEED or Jsm.Opcode.MACCEL or Jsm.Opcode.MLIMIT or Jsm.Opcode.MOVE or
             Jsm.Opcode.RMOVE or Jsm.Opcode.FMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.CMOVE or Jsm.Opcode.MOVESYNC or Jsm.Opcode.MOVECANCEL or Jsm.Opcode.MOVEA or Jsm.Opcode.RMOVEA or Jsm.Opcode.SETGETA or Jsm.Opcode.LADDERANIME or Jsm.Opcode.SETROOTTRANS or
@@ -57,6 +57,14 @@ public sealed partial class EventEngine
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode is Jsm.Opcode.LADDERUP2 or Jsm.Opcode.LADDERDOWN2)
+        {
+            return UnsupportedNativeLadder(fiber, operation.Opcode == Jsm.Opcode.LADDERUP2);
+        }
+        if (operation.Opcode == Jsm.Opcode.Unknown15 && (fiber.Stack.Count < 1 || Scene.NativeLadderSpeed490E is null))
+        {
+            return "Native5258D0 requires an executed speed490E owner and one original DWORD operand";
+        }
         if (UnsupportedNativeMusicStatus(operation) is string musicStatus)
         {
             return musicStatus;

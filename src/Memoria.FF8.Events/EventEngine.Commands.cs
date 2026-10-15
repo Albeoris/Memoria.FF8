@@ -232,6 +232,16 @@ public sealed partial class EventEngine
             case Jsm.Opcode.JUMP3:
                 args = ExecuteNativeJump(fiber, parameter, true);
                 break;
+            case Jsm.Opcode.LADDERUP2:
+                args = ExecuteNativeLadder(fiber, parameter, true);
+                break;
+            case Jsm.Opcode.LADDERDOWN2:
+                args = ExecuteNativeLadder(fiber, parameter, false);
+                break;
+            case Jsm.Opcode.Unknown15:
+                args = Pop(fiber, 1);
+                Scene.NativeLadderSpeed490E = unchecked((byte)args[0]);
+                break;
             case Jsm.Opcode.PLTURN:
                 args = ExecutePartyLinearTurn(fiber);
                 break;
@@ -415,6 +425,7 @@ public sealed partial class EventEngine
                     actor.MovementTarget = null;
                 }
                 actor.NativeJump = null;
+                actor.NativeLadder = null;
                 RecordNativeScriptPlacement(actor);
                 break;
             case Jsm.Opcode.SET:

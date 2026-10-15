@@ -85,6 +85,7 @@ public sealed partial class EventEngine
                 actor.NativeScriptMovement = null;
                 // Native issue replaces mode572=2 with mode1; its former ballistic phase no longer owns this body.
                 actor.NativeJump = null;
+                actor.NativeLadder = null;
                 actor.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(actor, walk ? actor.WalkAnimationId : actor.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed));

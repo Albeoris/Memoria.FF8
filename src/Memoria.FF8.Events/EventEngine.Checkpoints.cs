@@ -32,6 +32,7 @@ public enum WaitReason
     MinimalMenu,
     MinimalBattle,
     NativeJump,
+    NativeLadder,
     NativeHalt,
     NativeFaceSync,
     NativePartyMenu
@@ -282,7 +283,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved ladder animation bytes594..596 require the current explicit native actor allocation.");
             }
-            if (allocated && (actor.NativeMovementCompletion542 is null or > 2 || actor.NativeLandingTriangle508 is null || actor.NativeTurnAccumulator474 is null) || !allocated && (actor.NativeMovementCompletion542 is not null || actor.NativeLandingTriangle508 is not null || actor.NativeTurnAccumulator474 is not null))
+            if (allocated && (actor.NativeMovementCompletion542 is null or > 6 || actor.NativeMovementCompletion542 > 2 && actor.NativeLadder is not { Active: true } || actor.NativeLandingTriangle508 is null || actor.NativeTurnAccumulator474 is null || actor.NativeMovementGroundContact600 is null) || !allocated && (actor.NativeMovementCompletion542 is not null || actor.NativeLandingTriangle508 is not null || actor.NativeTurnAccumulator474 is not null || actor.NativeMovementGroundContact600 is not null))
             {
                 throw new InvalidDataException("Saved physical WORD474/508/542 requires current explicit native allocation state.");
             }
@@ -447,6 +448,7 @@ public sealed partial class EventEngine
         Dictionary<long, Fiber> bySequence = restored.ToDictionary(fiber => fiber.Sequence);
         ValidateNativeDoorSuspensionCheckpoint(saved, restored);
         ValidateNativeJumps(saved, restored);
+        ValidateNativeLadders(saved, restored);
         ValidateNativeActorContactCheckpoint(saved);
         ValidateNativeMovementRequests(saved, restored);
         ValidateNativeJoinedPositions(saved);

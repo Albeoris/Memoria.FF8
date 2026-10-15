@@ -139,6 +139,7 @@ public sealed partial class EventEngine
         InitializeNativeBackgroundScrollSettings();
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0);
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
+        Scene.NativeLadderSpeed490E = nativeRuntimeProfile is { IsVerified: true } ? nativeRuntimeProfile.AllocatedLadderSpeed : null;
         pendingNativePlayerInput = null;
         Scene.SoundVolumeTransition = previousScene.SoundVolumeTransition;
         Scene.SoundVolume = previousScene.SoundVolume;
@@ -192,6 +193,7 @@ public sealed partial class EventEngine
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
                 actors[^1].PolygonColor = new Vector3(128);
                 actors[^1].NativeLadderAnimation = new NativeLadderAnimationState(0, 0, 0);
+                actors[^1].NativeMovementGroundContact600 = 0;
                 actors[^1].NativeFootstepPair = new NativeFootstepPairState(1, 255, 255, new NativeFootstepPairSource(1, "Allocation", fieldId, programHash, nativeRuntimeProfile.ExecutableHash, obj.Index, -1, -1, 0));
             }
             if (obj.BackgroundModuleIndex is int moduleIndex)
@@ -282,7 +284,10 @@ public sealed partial class EventEngine
         foreach (ActorState actor in NativeCallbackActors())
         {
             // Native529FF0 advances animation on this actor's actual turn before its VM.
-            actor.StepAnimation();
+            if (actor.NativePartyFlags is not { AutoAnimation4: true })
+            {
+                actor.StepAnimation();
+            }
             DispatchNativePushContact(actor);
             DispatchInfAreaEntry(actor);
             DispatchNativeLineCrossing(actor);
@@ -313,9 +318,14 @@ public sealed partial class EventEngine
         {
             StepCosineRotation(actor);
         }
+        foreach (int objectId in Scene.NativeActorObjectIds)
+        {
+            actors[objectId].NativeMovementGroundContact600 = 1;
+        }
         StepNativePlayerInput(nativePlayerInput);
         StepNativeScriptMovement();
         StepNativeJump();
+        StepNativeLadder();
         SampleNativeDoorActionEdges();
         StepNativeShake();
         StepNativeActorBackgroundScroll();
@@ -741,6 +751,7 @@ public sealed partial class EventEngine
             WaitReason.PartySplit => true,
             WaitReason.NativeScriptMovement => true,
             WaitReason.NativeJump => true,
+            WaitReason.NativeLadder => true,
             WaitReason.NativeHalt => false,
             WaitReason.WorldJump => false,
             WaitReason.NativePartyMenu => false,

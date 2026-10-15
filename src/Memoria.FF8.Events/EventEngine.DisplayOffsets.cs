@@ -42,6 +42,7 @@ public sealed partial class EventEngine
         NativeDisplayOffsetCommand command = new(1, actor.ObjectId, fiber.Script.Id, operation.Index, Frame, operation.Opcode.ToString(), operation.Parameter, operands.ToImmutableArray(), state.TargetX, state.TargetY, state.TargetZ);
         if (operation.Opcode == Jsm.Opcode.DOFFSET)
         {
+            actor.NativeLadder = null;
             state = state with { X = x, Y = y, Z = z, StartX = x, StartY = y, StartZ = z, Mode = 0, Counter = 0, Command = command };
             actor.DisplayOffset = new Vector3(x, y, z);
             actor.NativeLandingTriangle508 = unchecked((ushort)operation.Parameter);

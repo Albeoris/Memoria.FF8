@@ -108,6 +108,12 @@ public sealed class ActorState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeJumpState? NativeJump { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeLadderState? NativeLadder { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
+    public byte? NativeMovementGroundContact600 { get; internal set; }
+    [JsonInclude]
     public NativeMotionAuthority? NativeMotionAuthority { get; internal set; }
     [JsonInclude]
     [JsonRequired]
@@ -288,6 +294,7 @@ public sealed class ActorState
         NativeMotionAuthority = null;
         NativeScriptMovement = null;
         NativeJump = null;
+        NativeLadder = null;
         NativeJoinedPosition = null;
         NativeSplitPosition = null;
     }

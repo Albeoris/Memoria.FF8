@@ -101,6 +101,9 @@ public sealed class SceneEventState
     [JsonInclude]
     public PartyTraceState? PartyTrace { get; internal set; }
     [JsonInclude]
+    [JsonRequired]
+    public byte? NativeLadderSpeed490E { get; internal set; }
+    [JsonInclude]
     public int NativePartyTraceVersion { get; internal set; }
     [JsonInclude]
     public FieldFixedPosition? NativePlayerPosition { get; internal set; }

@@ -68,6 +68,7 @@ public sealed partial class EventEngine
             bool? asyncFlag = previous is null ? actor.NativeJump?.AsyncFlag20000 : previous.Active && previous.Asynchronous;
             bool? animationFlag = previous is null ? actor.NativeJump?.AnimationFlag40000 : previous.AnimationFlag40000 ?? (previous.Suspended ? previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation : previous.Active && (previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation));
             actor.NativeScriptMovement = null;
+            actor.NativeLadder = null;
             actor.NativeMovementCompletion542 = 0;
             actor.NativeLandingTriangle508 = unchecked((ushort)triangle);
             actor.NativeJoinedPosition = null;

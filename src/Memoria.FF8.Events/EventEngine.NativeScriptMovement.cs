@@ -116,6 +116,10 @@ public sealed partial class EventEngine
 
     private FieldFixedPosition? ReadNativeScriptPosition(ActorState actor)
     {
+        if (actor.NativeLadder is NativeLadderState ladder && MatchesNativeLadderPlacement(actor, ladder))
+        {
+            return new FieldFixedPosition(ladder.FixedX, ladder.FixedY, ladder.FixedZ);
+        }
         if (actor.NativeJump is NativeJumpState jump && MatchesNativeJumpPlacement(actor, jump))
         {
             return new FieldFixedPosition(jump.FixedX, jump.FixedY, jump.FixedZ);
@@ -214,6 +218,7 @@ public sealed partial class EventEngine
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
             actor.NativeJump = null;
+            actor.NativeLadder = null;
             if (actor.NativeScriptMovement.HoldsFacing)
             {
                 // 524490/523AD0 set576=1 and clear610 before mode1's first post-VM step.

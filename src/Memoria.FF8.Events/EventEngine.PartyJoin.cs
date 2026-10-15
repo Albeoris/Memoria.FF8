@@ -184,6 +184,7 @@ public sealed partial class EventEngine
                 target.NativeScriptMovement = null;
                 // Native issue replaces mode572=2 with mode1; its former ballistic phase no longer owns this body.
                 target.NativeJump = null;
+                target.NativeLadder = null;
                 target.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(target, walk ? target.WalkAnimationId : target.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(target.ObjectId, fixedX, fixedY, fixedZ, callerPosition.X, callerPosition.Y, callerPosition.Z, speed));
@@ -475,7 +476,7 @@ public sealed partial class EventEngine
             int offset = slot == 1 ? trace.FirstOffset : trace.SecondOffset;
             PartyTraceSample animation = trail[(trace.Cursor - offset) & 63] ?? throw new NotSupportedException("Native party animation would observe an opaque trace record; original positions preserved.");
             PartyTraceSample sample = trail[(nextCursor - offset) & 63] ?? throw new NotSupportedException("Native party movement would observe an opaque trace record; original positions preserved.");
-            if (!HasNativeEmptyAnimationModel(follower) && (!TryReadNativeBaseAnimations(follower, out int idle, out int walk, out int run) || AnimationFrameCount?.Invoke(follower.ModelId, moved ? animation.Animation switch { 0 => walk, 1 => run, 2 => idle, _ => -1 } : idle) is not > 0))
+            if (!HasNativeEmptyAnimationModel(follower) && (!TryReadNativeBaseAnimations(follower, out int idle, out _, out _) || animation.Animation is < 0 or > 5 || animation.Animation >= 3 && follower.NativeLadderAnimation is null || AnimationFrameCount?.Invoke(follower.ModelId, moved ? LadderAnimationFor(follower, animation.Animation) : idle) is not > 0))
             {
                 throw new NotSupportedException("Native follower trace requires proved animation mode and model metadata.");
             }
@@ -489,6 +490,7 @@ public sealed partial class EventEngine
         PartyTraceState trace = Scene.PartyTrace!;
         WalkmeshPosition display = new(new Vector3(position.X / 4096f, position.Y / 4096f, position.Z / 4096f), player.WalkmeshTriangle);
         var followers = PreparePartyTraceFollowers(display, direction, moved);
+        player.NativeLadder = null;
         int animationMode = moved ? NativePlayerWalking ? 0 : 1 : trace.FirstTrail[trace.Cursor]?.Animation ?? -1;
         int recordedDirection = moved ? direction : trace.FirstTrail[trace.Cursor]?.Direction ?? -1;
         PartyTraceSample sample = new((short)(position.X / 4096), (short)(position.Y / 4096), (short)(position.Z / 4096), player.WalkmeshTriangle, recordedDirection, animationMode);
@@ -503,16 +505,24 @@ public sealed partial class EventEngine
             player.MovementSpeed = (NativePlayerWalking ? 69020 : 203000) * 20 >> 9;
         }
         int playerAnimation = moved ? NativePlayerWalking ? player.WalkAnimationId : player.RunAnimationId : player.BaseAnimationId;
-        if (player.AnimationId != playerAnimation || !player.AnimationPlaying || !player.AnimationLoop)
+        if (HasNativeEmptyAnimationModel(player))
         {
-            SelectFullNativeAnimation(player, playerAnimation, true);
+            SelectFullNativeAnimation(player, playerAnimation, player.AnimationId != playerAnimation);
+        }
+        else
+        {
+            StepLadderAnimation(player, playerAnimation, 1);
         }
         foreach (var follower in followers)
         {
-            int selected = moved ? follower.Animation.Animation switch { 0 => follower.Actor.WalkAnimationId, 1 => follower.Actor.RunAnimationId, _ => follower.Actor.BaseAnimationId } : follower.Actor.BaseAnimationId;
-            if (follower.Actor.AnimationId != selected || !follower.Actor.AnimationPlaying || !follower.Actor.AnimationLoop)
+            int selected = moved ? LadderAnimationFor(follower.Actor, follower.Animation.Animation) : follower.Actor.BaseAnimationId;
+            if (HasNativeEmptyAnimationModel(follower.Actor))
             {
-                SelectFullNativeAnimation(follower.Actor, selected, true);
+                SelectFullNativeAnimation(follower.Actor, selected, follower.Actor.AnimationId != selected);
+            }
+            else
+            {
+                StepLadderAnimation(follower.Actor, selected, moved ? unchecked((sbyte)follower.Animation.SecondFlag) : 1);
             }
             NativeMotionAuthority? authority = follower.Actor.NativeMotionAuthority;
             follower.Actor.InvalidateNativeMotionAuthority();
@@ -523,6 +533,7 @@ public sealed partial class EventEngine
             follower.Actor.Y = follower.Position.Y;
             follower.Actor.Z = follower.Position.Z;
             follower.Actor.WalkmeshTriangle = follower.Position.Triangle;
+            follower.Actor.NativeMovementGroundContact600 = unchecked((byte)follower.Position.FirstFlag);
             if (moved)
             {
                 follower.Actor.Direction = follower.Animation.Direction;

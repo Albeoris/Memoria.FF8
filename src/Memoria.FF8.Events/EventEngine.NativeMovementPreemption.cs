@@ -17,6 +17,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeMovementRequest(ActorState actor, int priority, int scriptId)
     {
+        if (actor.NativeLadder is { Active: true } && priority > CurrentNativeRequestSlot(actor))
+        {
+            return "Native mode4 request preemption requires its physical overlapping backup contract and is unsupported";
+        }
         if (NativeRuntimeProfile is not { IsVerified: true } || priority <= CurrentNativeRequestSlot(actor))
         {
             return null;
@@ -125,6 +129,7 @@ public sealed partial class EventEngine
         actor.NativeMovementCompletion542 = 0;
         actor.NativeTurnAccumulator474 = animationFlag ? (short)0 : turn;
         actor.NativeJump = null;
+        actor.NativeLadder = null;
         actor.NativeMovementRequest = null;
         actor.MovementSpeed = restored.Speed;
         actor.NativeMotionAuthority = authority;

@@ -65,6 +65,7 @@ public sealed partial class EventEngine
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
             actor.NativeJump = null;
+            actor.NativeLadder = null;
             //526E90 returns1: operands are consumed once, and the body runs after this VM budget.
             fiber.Position--;
             fiber.NativeMoveOperation = fiber.Position;
