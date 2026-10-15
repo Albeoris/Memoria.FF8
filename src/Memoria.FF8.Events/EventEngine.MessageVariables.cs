@@ -7,6 +7,9 @@ public sealed partial class EventEngine
 {
     public NativeMessageVariables? MessageVariables => services.MessageVariables;
 
+    // Presentation caches need the canonical opening identity and its live variable template.
+    public IReadOnlyCollection<DialogueState> DialogueTemplates => dialogues.Values.ToArray();
+
     private DialogueState ExpandMessageVariables(DialogueState dialogue)
     {
         return dialogue with { Text = NativeMessageVariables.Expand(dialogue.Text, services.MessageVariables) };

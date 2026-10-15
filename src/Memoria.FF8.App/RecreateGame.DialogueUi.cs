@@ -46,7 +46,7 @@ internal sealed partial class RecreateGame
             {
                 return world?.CurrentDialogue is { } current ? new[] { current } : [];
             }
-            return events is null ? [] : events.Dialogues.OrderBy(dialogue => dialogue.Channel);
+            return events is null ? [] : events.DialogueTemplates.OrderBy(dialogue => dialogue.Channel);
         }
     }
 
@@ -114,13 +114,6 @@ internal sealed partial class RecreateGame
                 text.DrawLine(batch, run.Run.Text, fontSize, position + new Vector2(run.X * scale, 0), run.Run.Color * alpha, family);
             }
             position.Y += lineHeight;
-        }
-        if (presentation.Pages.Count > 1)
-        {
-            string progress = $"{presentation.Pager.PageIndex + 1}/{presentation.Pages.Count}";
-            float progressSize = Math.Min(6, uiPreferences.DialogueFontSize) * scale;
-            float progressWidth = SystemTextLayout.MeasureAdvance(progress, progressSize, family);
-            text.DrawLine(batch, progress, progressSize, new Vector2(panelBounds.X + panelBounds.Width - progressWidth - 3 * scale, panelBounds.Y + panelBounds.Height - 7 * scale), new Color(180, 200, 220), family);
         }
     }
 
