@@ -229,7 +229,7 @@ public sealed class InteractiveBattleCausalTests
                         world.Events.ConfirmDialogue(input.Code == 1 ? input.Value : null, input.Code == 2 ? input.Text : null);
                         break;
                     case ReplayEntryKind.MovieSample:
-                        Assert.Equal(input.MovieSourceHash, MovieClock.GetSourceHash(game, session.State.MovieIndex));
+                        Assert.Equal(input.MovieSourceHash, MovieClock.GetSourceHash(game, session.State));
                         session.SetReplayMovieSourceHash(input.MovieSourceHash!);
                         if (input.MoviePlayback is MoviePlaybackState playback)
                         {
@@ -238,7 +238,7 @@ public sealed class InteractiveBattleCausalTests
                         session.SetMoviePosition(input.MovieSeconds);
                         break;
                     case ReplayEntryKind.MovieComplete:
-                        Assert.Equal(input.MovieSourceHash, MovieClock.GetSourceHash(game, session.State.MovieIndex));
+                        Assert.Equal(input.MovieSourceHash, MovieClock.GetSourceHash(game, session.State));
                         session.SetReplayMovieSourceHash(input.MovieSourceHash!);
                         session.CompleteMovie(input.Skipped);
                         break;

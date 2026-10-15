@@ -26,6 +26,7 @@ internal sealed partial class RecreateGame : Game
     private Texture2D pixel = null!;
     private MoviePresentation? movie;
     private int movieIndex = -1;
+    private int movieDiscIndex = -1;
     private int titleSelection;
     private string? error;
     private GameWorld? world;
@@ -234,21 +235,23 @@ internal sealed partial class RecreateGame : Game
                 world = CreateWorld();
                 world.EnsureField();
             }
-            if (movie is null || movieIndex != session.State.MovieIndex)
+            if (movie is null || movieIndex != session.State.MovieIndex || movieDiscIndex != movieClock.SourceDiscIndex)
             {
                 movie?.Dispose();
                 string directory = movieClock.ToolsDirectory;
-                string path = Path.Combine(options.GameDirectory, "Data", "movies", $"disc00_{session.State.MovieIndex:00}h.avi");
+                string path = movieClock.SourcePath;
                 Memoria.FF8.Media.MovieInformation information = movieClock.Prepare();
                 // Resume from the actual last decoded frame. Wall-clock/audio position can be ahead
                 // when drawing falls behind and must not skip native callbacks on decoder restart.
                 double startSeconds = movieClock.State.FrameIndex / information.FramesPerSecond;
                 movie = new MoviePresentation(GraphicsDevice, directory, path, startSeconds, information, options.AudioEnabled);
                 movieIndex = session.State.MovieIndex;
+                movieDiscIndex = movieClock.SourceDiscIndex;
                 error = null;
             }
             int playbackField = session.State.FieldId;
             int playbackMovie = session.State.MovieIndex;
+            NativeMovieSource playbackSource = MovieClock.RequireSource(session.State);
             movie.Update((playback, seconds) =>
             {
                 if (world is not null && !fieldFaulted)
@@ -263,9 +266,9 @@ internal sealed partial class RecreateGame : Game
                 }
                 session.SetMoviePlayback(playback);
                 session.SetMoviePosition(seconds);
-                return session.State.Scene == SceneKind.Movie && session.State.MovieIndex == playbackMovie && session.State.FieldId == playbackField;
+                return session.State.Scene == SceneKind.Movie && session.State.MovieIndex == playbackMovie && session.State.FieldId == playbackField && session.State.MovieSource == playbackSource;
             });
-            if (session.State.Scene != SceneKind.Movie || session.State.MovieIndex != playbackMovie || session.State.FieldId != playbackField)
+            if (session.State.Scene != SceneKind.Movie || session.State.MovieIndex != playbackMovie || session.State.FieldId != playbackField || session.State.MovieSource != playbackSource)
             {
                 fieldSeconds = 0;
                 return;

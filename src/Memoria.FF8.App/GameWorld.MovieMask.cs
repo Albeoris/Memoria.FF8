@@ -7,20 +7,20 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
-    private readonly Dictionary<int, NativeMovieCameraFlags> movieCameraFlags = [];
-    private readonly Dictionary<int, byte[]> movieCameraBytes = [];
+    private readonly Dictionary<(byte Disc, int Movie), NativeMovieCameraFlags> movieCameraFlags = [];
+    private readonly Dictionary<(byte Disc, int Movie), byte[]> movieCameraBytes = [];
     private FieldRenderer? movieRenderer;
     private FieldAssets? movieRendererField;
 
-    private NativeMovieCameraFlags ReadNativeMovieCameraFlags(int movie)
+    private NativeMovieCameraFlags ReadNativeMovieCameraFlags(byte disc, int movie)
     {
-        if (!movieCameraFlags.TryGetValue(movie, out NativeMovieCameraFlags? flags))
+        if (!movieCameraFlags.TryGetValue((disc, movie), out NativeMovieCameraFlags? flags))
         {
-            string path = Path.Combine(assets.GameDirectory, "Data", "movies", $"disc00_{movie:00}.cam");
+            string path = MovieClock.GetCameraPath(assets.GameDirectory, disc, movie);
             byte[] bytes = File.ReadAllBytes(path);
             flags = NativeMovieCameraReader.Read(bytes);
-            movieCameraFlags.Add(movie, flags);
-            movieCameraBytes.Add(movie, bytes);
+            movieCameraFlags.Add((disc, movie), flags);
+            movieCameraBytes.Add((disc, movie), bytes);
         }
         return flags;
     }
@@ -43,15 +43,16 @@ internal sealed partial class GameWorld
     {
         RequireSupportedMovieMaskRender();
         FieldAssets currentField = Field ?? throw new NotSupportedException("Movie field compositing requires the allocated field.");
-        int movie = session.State.MovieIndex;
-        NativeMovieCameraFlags flags = ReadNativeMovieCameraFlags(movie);
+        NativeMovieSource source = MovieClock.RequireSource(session.State);
+        int movie = source.MovieIndex;
+        NativeMovieCameraFlags flags = ReadNativeMovieCameraFlags(source.DiscIndex, movie);
         NativeMovieMaskPlayback playback = Events.Scene.NativeMovieMask?.Playback ?? throw new NotSupportedException("Movie field compositing requires its current CAM draw receipt.");
         int record = playback.DrawRecord ?? throw new NotSupportedException("Movie field compositing requires its current CAM draw record.");
         if (playback.CameraSha256 != flags.SourceSha256 || (uint)record >= flags.Flags.Length || record < 1)
         {
             throw new InvalidDataException("Movie field compositing differs from its authenticated CAM phase.");
         }
-        FieldCamera camera = FieldCamera.Read(movieCameraBytes[movie].AsSpan(8 + record * 44, 40).ToArray());
+        FieldCamera camera = FieldCamera.Read(movieCameraBytes[(source.DiscIndex, movie)].AsSpan(8 + record * 44, 40).ToArray());
         //4767B0 submits actors before the late55A620 CAM flag update. BYTE490D (bit64)
         //and209A7A0 (bits1/32) therefore come from the previous consumed CAM record.
         byte previousFlags = flags.Flags[record - 1];

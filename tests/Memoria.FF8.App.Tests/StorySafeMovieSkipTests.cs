@@ -126,7 +126,7 @@ public sealed class StorySafeMovieSkipTests
         {
             return;
         }
-        using var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, Path.Combine(game, "Data", "movies", $"disc00_{session.State.MovieIndex:00}h.avi"), information: information);
+        using var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, clock.SourcePath, information: information);
         Stopwatch timeout = Stopwatch.StartNew();
         while (session.State.MoviePlayback!.FrameIndex < target && timeout.Elapsed < TimeSpan.FromSeconds(30))
         {

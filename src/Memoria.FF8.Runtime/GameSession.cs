@@ -581,6 +581,7 @@ public sealed partial class GameSession : IEventServices
         ValidateShopHistoryCheckpoint(state, currentVm);
         ValidateMenuRandomCheckpoint(state, currentVm);
         ValidateDiscCheckpoint(state, currentVm);
+        ValidateMovieSourceCheckpoint(state, currentVm);
         ValidateWeaponRecipesCheckpoint(state, currentVm);
         ValidateWorldEntryMemoryCheckpoint(state, currentVm);
         if (currentVm is JsonElement vitalsVm && vitalsVm.TryGetProperty("CharacterVitals", out JsonElement vitalsJson) && vitalsJson.ValueKind != JsonValueKind.Null)
@@ -720,6 +721,7 @@ public sealed partial class GameSession : IEventServices
         state.GlobalSoundProcess?.Validate();
         state.WorldProcess?.Validate();
         ValidateDiscCheckpoint(state, null);
+        ValidateMovieSourceCheckpoint(state, null);
         state.SalaryPresentation?.Validate();
         state.FieldShake?.Validate();
         state.EventRandom?.Validate();

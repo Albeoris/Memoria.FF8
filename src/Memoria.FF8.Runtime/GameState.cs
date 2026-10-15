@@ -26,6 +26,8 @@ public sealed record GameState
     public int MovieIndex { get; init; } = 30;
     public double MovieSeconds { get; init; }
     public MoviePlaybackState? MoviePlayback { get; init; }
+    [JsonRequired]
+    public NativeMovieSource? MovieSource { get; init; }
     public FieldTransition? FieldArrival { get; init; }
     public WorldTransition? WorldArrival { get; init; }
     public WorldState? World { get; init; }
@@ -109,6 +111,13 @@ public readonly record struct InputFrame(float Horizontal, float Vertical, bool 
 
 public interface IEventServices
 {
+    NativeMovieSource? MovieSource => null;
+    bool CanStoreMovieSource => false;
+    void SetMovieSource(NativeMovieSource source)
+    {
+        throw new NotSupportedException("Native prepared movie resource ownership is not implemented by this service.");
+    }
+
     NativeDiscProcessState? DiscProcess => null;
     bool CanStoreDiscProcess => false;
     void SetDiscProcess(NativeDiscProcessState disc)

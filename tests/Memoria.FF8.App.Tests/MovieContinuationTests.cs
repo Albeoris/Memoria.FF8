@@ -58,7 +58,7 @@ public sealed class MovieContinuationTests
         Assert.Equal(326, information.FrameCount);
         Assert.Equal(325, clock.State.TerminalFrame);
         StorySafeMovieSkipTests.DecodeThrough(session, world, clock, directory, 74);
-        using (var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, Path.Combine(directory, "Data/movies/disc00_00h.avi"), 5, information))
+        using (var decoder = new FfmpegMovieDecoder(clock.ToolsDirectory, clock.SourcePath, 5, information))
         {
             MovieFrame? frame = null;
             Stopwatch timeout = Stopwatch.StartNew();

@@ -146,7 +146,7 @@ internal sealed partial class GameWorld
                         result = world.Apply(new PlayerAction((PlayerActionKind)entry.Code, entry.Value, entry.Text, entry.Horizontal, entry.Vertical, entry.Frames, CameraHorizontal: entry.CameraHorizontal));
                         break;
                     case ReplayEntryKind.MovieSample:
-                        rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State.MovieIndex, gameDirectory));
+                        rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State, gameDirectory));
                         if (entry.MoviePlayback is MoviePlaybackState playback)
                         {
                             rebuilt.SetMoviePlayback(playback);
@@ -154,7 +154,7 @@ internal sealed partial class GameWorld
                         rebuilt.SetMoviePosition(entry.MovieSeconds);
                         break;
                     case ReplayEntryKind.MovieComplete:
-                        rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State.MovieIndex, gameDirectory));
+                        rebuilt.SetReplayMovieSourceHash(ValidateMovieSource(entry, rebuilt.State, gameDirectory));
                         rebuilt.CompleteMovie(entry.Skipped);
                         break;
                     case ReplayEntryKind.BattleInput:
@@ -265,7 +265,7 @@ internal sealed partial class GameWorld
     {
         MovieSkipFrames frames = entry.MovieSkipFrames ?? throw new NotSupportedException("This historical skip closed playback without recording its remaining decoded callbacks. Recreate its authentic prefix before the skip and perform a new skip under current code.");
         frames.Validate();
-        string hash = MovieClock.GetSourceHash(assets.GameDirectory, session.State.MovieIndex);
+        string hash = MovieClock.GetSourceHash(assets.GameDirectory, session.State);
         if (entry.MovieSourceHash != hash)
         {
             throw new InvalidDataException("The accelerated movie samples do not match the installed clip.");
@@ -380,9 +380,9 @@ internal sealed partial class GameWorld
         }
     }
 
-    private static string ValidateMovieSource(ReplayJournalEntry entry, int index, string gameDirectory)
+    internal static string ValidateMovieSource(ReplayJournalEntry entry, GameState state, string gameDirectory)
     {
-        string hash = MovieClock.GetSourceHash(gameDirectory, index);
+        string hash = MovieClock.GetSourceHash(gameDirectory, state);
         if (entry.MovieSourceHash is null || entry.MovieSourceHash != hash)
         {
             throw new InvalidDataException("The recorded movie sample belongs to another installed clip.");

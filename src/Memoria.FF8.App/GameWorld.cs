@@ -96,6 +96,7 @@ internal sealed partial class GameWorld : IDisposable
     {
         int field = session.State.FieldId;
         int movie = session.State.MovieIndex;
+        NativeMovieSource source = MovieClock.RequireSource(session.State);
         session.SetMoviePlayback(playback);
         session.SetMoviePosition(seconds);
         // MOVIE owns startup records0/1; later decoded records each own one ordinary callback.
@@ -106,7 +107,7 @@ internal sealed partial class GameWorld : IDisposable
         {
             Events.Step();
         }
-        return session.IsMoviePlaying && session.State.MovieIndex == movie && session.State.FieldId == field;
+        return session.IsMoviePlaying && session.State.MovieIndex == movie && session.State.FieldId == field && session.State.MovieSource == source;
     }
     public FieldAssets? Field { get; private set; }
     public WorldMapScene? WorldScene => worldScene;

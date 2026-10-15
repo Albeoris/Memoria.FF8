@@ -98,7 +98,7 @@ public sealed class NativeMovieMaskRenderTests
         byte[] cam = File.ReadAllBytes(Path.Combine(GameDirectory(), "Data/movies/disc00_00.cam"));
         FieldRenderer renderer = new(field, 320, 224, nativeMovieViewport: true);
         MovieInformation information = clock.Prepare();
-        using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, Path.Combine(GameDirectory(), "Data/movies/disc00_00h.avi"), information: information);
+        using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, clock.SourcePath, information: information);
         string evidence = Path.Combine(Repository(), "../fixtures");
         Directory.CreateDirectory(evidence);
         List<object> frames = [];

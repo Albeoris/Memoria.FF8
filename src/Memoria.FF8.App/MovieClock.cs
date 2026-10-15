@@ -11,7 +11,7 @@ internal sealed class MovieClock
     private readonly GameSession session;
     private readonly string gameDirectory;
     private readonly string toolsDirectory;
-    private readonly Dictionary<int, MovieInformation> movies = [];
+    private readonly Dictionary<NativeMovieSource, MovieInformation> movies = [];
 
     public MovieClock(GameSession session, string gameDirectory, string? toolsDirectory = null)
     {
@@ -23,16 +23,21 @@ internal sealed class MovieClock
     public MoviePlaybackState State => session.State.MoviePlayback ?? new MoviePlaybackState(0, 0, session.IsMoviePlaying, false, false);
     public string ToolsDirectory => toolsDirectory;
     public Func<MoviePlaybackState, double, bool>? AdvanceFrame { get; set; }
+    public byte SourceDiscIndex => RequireSource(session.State).DiscIndex;
+    public string SourcePath => GetSourcePath(gameDirectory, SourceDiscIndex, RequireSource(session.State).MovieIndex);
 
     public MovieInformation Prepare()
     {
-        int index = session.State.MovieIndex;
-        session.SetReplayMovieSourceHash(GetSourceHash(gameDirectory, index));
-        if (!movies.TryGetValue(index, out MovieInformation? information))
+        if (!session.IsMoviePlaying)
         {
-            string path = Path.Combine(gameDirectory, "Data", "movies", $"disc00_{index:00}h.avi");
-            information = FfmpegMovieDecoder.Probe(toolsDirectory, path);
-            movies.Add(index, information);
+            throw new NotSupportedException("Movie decoding requires an active native playback request.");
+        }
+        NativeMovieSource source = RequireSource(session.State);
+        session.SetReplayMovieSourceHash(GetSourceHash(gameDirectory, source.DiscIndex, source.MovieIndex));
+        if (!movies.TryGetValue(source, out MovieInformation? information))
+        {
+            information = FfmpegMovieDecoder.Probe(toolsDirectory, SourcePath);
+            movies.Add(source, information);
         }
         if (session.State.MoviePlayback is null)
         {
@@ -46,9 +51,46 @@ internal sealed class MovieClock
         return information;
     }
 
-    internal static string GetSourceHash(string gameDirectory, int index)
+    internal static NativeMovieSource RequireSource(GameState state)
     {
-        var file = new FileInfo(Path.Combine(gameDirectory, "Data", "movies", $"disc00_{index:00}h.avi"));
+        NativeMovieSource source = state.MovieSource ?? throw new NotSupportedException("Movie media requires its executed MOVIEREADY disc/resource binding; recreate authentic history.");
+        source.Validate();
+        if (state.Scene == SceneKind.Movie && source.MovieIndex != state.MovieIndex)
+        {
+            throw new InvalidDataException("The active movie differs from its prepared resource index.");
+        }
+        return source;
+    }
+
+    internal static string GetSourcePath(string gameDirectory, int discIndex, int movieIndex)
+    {
+        ValidateResource(discIndex, movieIndex);
+        return Path.Combine(gameDirectory, "Data", "movies", $"disc{discIndex:00}_{movieIndex:00}h.avi");
+    }
+
+    internal static string GetCameraPath(string gameDirectory, int discIndex, int movieIndex)
+    {
+        ValidateResource(discIndex, movieIndex);
+        return Path.Combine(gameDirectory, "Data", "movies", $"disc{discIndex:00}_{movieIndex:00}.cam");
+    }
+
+    private static void ValidateResource(int discIndex, int movieIndex)
+    {
+        if ((uint)discIndex > 3 || (uint)movieIndex > byte.MaxValue)
+        {
+            throw new NotSupportedException("Normal field movie resource selection requires its known native disc0..3 and original clip0..255.");
+        }
+    }
+
+    internal static string GetSourceHash(string gameDirectory, GameState state)
+    {
+        NativeMovieSource source = RequireSource(state);
+        return GetSourceHash(gameDirectory, source.DiscIndex, source.MovieIndex);
+    }
+
+    internal static string GetSourceHash(string gameDirectory, int discIndex, int movieIndex)
+    {
+        var file = new FileInfo(GetSourcePath(gameDirectory, discIndex, movieIndex));
         return SourceHashes.GetOrAdd((file.FullName, file.Length, file.LastWriteTimeUtc.Ticks), identity =>
         {
             using FileStream stream = File.OpenRead(identity.Path);
@@ -72,7 +114,7 @@ internal sealed class MovieClock
         try
         {
             // Decode from the source origin so seek/keyframe rounding cannot omit a causal frame.
-            string path = Path.Combine(gameDirectory, "Data", "movies", $"disc00_{session.State.MovieIndex:00}h.avi");
+            string path = SourcePath;
             using var decoder = new FfmpegMovieDecoder(toolsDirectory, path, information: information);
             Stopwatch timeout = Stopwatch.StartNew();
             bool active = true;

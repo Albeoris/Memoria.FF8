@@ -695,9 +695,9 @@ public sealed partial class EventEngine
                 Scene.RunEnabled = opcode == Jsm.Opcode.RUNENABLE;
                 break;
             case Jsm.Opcode.MOVIEREADY:
+                PrepareNativeMovieMask(fiber, fiber.Stack.Skip(1).First());
                 args = Pop(fiber, 2);
                 preparedMovie = args[0];
-                PrepareNativeMovieMask(preparedMovie);
                 variables[80] = 0;
                 movieProgressExpected = false;
                 Scene.MovieActors = new NativeMovieActorLifecycle(1, preparedMovie, args[1], Frame, null, null);
