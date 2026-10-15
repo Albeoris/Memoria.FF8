@@ -69,7 +69,7 @@ internal static class NativeNonselectedBackgroundScrollCertificate
     private static bool SupportsEndpoint(FieldAssets field, SceneEventState scene, int layer, short x, short y)
     {
         BackgroundScrollSettings settings = BackgroundScrollCertificate.ReadSettings(scene, layer);
-        return InRange(x) && InRange(y) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings, x, y);
+        return InRange(x) && InRange(y) && BackgroundParallaxPlacement.SupportsCameraRange(field, settings, x, y, scene.CameraIndex);
     }
 
     private static bool InRange(short? value)
