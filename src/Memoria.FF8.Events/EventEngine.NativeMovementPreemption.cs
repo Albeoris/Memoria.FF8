@@ -21,10 +21,9 @@ public sealed partial class EventEngine
         {
             return "Native mode3 request preemption requires its unimplemented physical overlapping backup contract";
         }
-        if (actor.NativeLadder is { Active: true } && priority > CurrentNativeRequestSlot(actor))
-        {
-            return "Native mode4 request preemption requires its physical overlapping backup contract and is unsupported";
-        }
+        //51CD60/51CED0/51D060 back up and stop only physical mode572=1.
+        //Mode4 keeps its current body/phase while the higher VM slot runs;
+        //the held lower LADDER consumer neither suspends nor gains a backup.
         if (NativeRuntimeProfile is not { IsVerified: true } || priority <= CurrentNativeRequestSlot(actor))
         {
             return null;

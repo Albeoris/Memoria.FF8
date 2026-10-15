@@ -9,7 +9,7 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static EventEngine CreateNativeLadder(bool up = false, int? speed = null, bool followers = false, bool automatic = false)
+    private static EventEngine CreateNativeLadder(bool up = false, int? speed = null, bool followers = false, bool automatic = false, Jsm.Opcode? request = null)
     {
         (Jsm.Opcode, int)[] Initialize(int label, int character)
         {
@@ -49,6 +49,12 @@ internal static partial class Program
             ResolvePartyTraceTriangle = (_, _, _) => 7
         };
         List<(Jsm.Opcode, int)[]> scripts = [Initialize(0, 0), main.ToArray()];
+        if (request is { } requestOpcode)
+        {
+            scripts.Add([(Jsm.Opcode.LBL, 2), (Jsm.Opcode.HIDE, 0), (Jsm.Opcode.UCOFF, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.POPM_B, 6001), (Jsm.Opcode.RET, 8)]);
+            scripts.Add([(Jsm.Opcode.LBL, 16), (Jsm.Opcode.RET, 8)]);
+            scripts.Add([(Jsm.Opcode.LBL, 17), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHN_L, 6), (Jsm.Opcode.PSHN_L, 2), (requestOpcode, 0), (Jsm.Opcode.PSHN_L, 88), (Jsm.Opcode.POPM_B, 6002), (Jsm.Opcode.RET, 8)]);
+        }
         if (followers)
         {
             foreach (int slot in new[] { 1, 2 })
@@ -57,7 +63,8 @@ internal static partial class Program
                 scripts.Add([(Jsm.Opcode.LBL, slot * 16 + 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]);
             }
         }
-        engine.LoadField(600, SyntheticObjects(followers ? [1, (16 << 7) | 1, (32 << 7) | 1] : [1], scripts), [], new FieldTransition(600, 1, 2, 7, 0), nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        ushort[] groups = request is not null ? [2, (16 << 7) | 1] : followers ? [1, (16 << 7) | 1, (32 << 7) | 1] : [1];
+        engine.LoadField(600, SyntheticObjects(groups, scripts), [], new FieldTransition(600, 1, 2, 7, 0), nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         return engine;
     }
 
@@ -137,6 +144,7 @@ internal static partial class Program
             Require(actor.NativeLadder is not { Active: true } && live.Capture().GetProperty("Variables").GetProperty("6000").GetInt32() == 73, "Ladder completion return2 failed to execute its immediate successor within the same VM budget.");
         }
         NativeLadderAutomaticContract();
+        NativeLadderRequestContract();
         Console.WriteLine("Native mode4 ladder: fullDWORD coordinates, old-counter phases, direction masks/priority, mapped held input, triangle transfer, return2 successor and independent restore passed.");
     }
 
