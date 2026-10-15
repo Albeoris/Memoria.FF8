@@ -117,6 +117,10 @@ public sealed partial class EventEngine
         }
         foreach (ActorState actor in Enumerable.Range(0, 3).Select(ResolveJoinPartyActor).OfType<ActorState>())
         {
+            if (actor.NativeLadderMode3 is { Active: true })
+            {
+                return "Native JOIN cannot replace an active mode3 companion without its physical overlap contract";
+            }
             if (actor.ObjectId != fiber.ObjectId && actor.NativeTurnAccumulator474 is null)
             {
                 return "Native JOIN requires the actual preserved companion WORD474 before target issue";
@@ -185,6 +189,7 @@ public sealed partial class EventEngine
                 // Native issue replaces mode572=2 with mode1; its former ballistic phase no longer owns this body.
                 target.NativeJump = null;
                 target.NativeLadder = null;
+                target.NativeLadderMode3 = null;
                 target.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(target, walk ? target.WalkAnimationId : target.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(target.ObjectId, fixedX, fixedY, fixedZ, callerPosition.X, callerPosition.Y, callerPosition.Z, speed));
@@ -477,6 +482,10 @@ public sealed partial class EventEngine
             {
                 continue;
             }
+            if (follower.NativeLadderMode3 is { Active: true })
+            {
+                throw new NotSupportedException("Native follower trace placement during active mode3 requires its shared physical placement-phase contract.");
+            }
             PartyTraceSample?[] trail = slot == 1 ? trace.FirstTrail : trace.SecondTrail;
             int offset = slot == 1 ? trace.FirstOffset : trace.SecondOffset;
             PartyTraceSample animation = trail[(trace.Cursor - offset) & 63] ?? throw new NotSupportedException("Native party animation would observe an opaque trace record; original positions preserved.");
@@ -496,6 +505,7 @@ public sealed partial class EventEngine
         WalkmeshPosition display = new(new Vector3(position.X / 4096f, position.Y / 4096f, position.Z / 4096f), player.WalkmeshTriangle);
         var followers = PreparePartyTraceFollowers(display, direction, moved);
         player.NativeLadder = null;
+        player.NativeLadderMode3 = null;
         int animationMode = moved ? NativePlayerWalking ? 0 : 1 : trace.FirstTrail[trace.Cursor]?.Animation ?? -1;
         int recordedDirection = moved ? direction : trace.FirstTrail[trace.Cursor]?.Direction ?? -1;
         PartyTraceSample sample = new((short)(position.X / 4096), (short)(position.Y / 4096), (short)(position.Z / 4096), player.WalkmeshTriangle, recordedDirection, animationMode);

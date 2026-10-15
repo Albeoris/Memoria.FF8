@@ -31,6 +31,10 @@ public sealed partial class EventEngine
     private string? UnsupportedNativeJump(Fiber fiber, int triangle, bool includesZ = false)
     {
         ActorState actor = actors[fiber.ObjectId];
+        if (actor.NativeLadderMode3 is { Active: true })
+        {
+            return "Native mode2 cannot replace an active mode3 body without its physical backup contract";
+        }
         if (actor.NativeMovementCompletion542 is null || actor.NativeLandingTriangle508 is null || actor.NativeTurnAccumulator474 is null)
         {
             return "Native JUMP requires allocated physical WORD474/508/542";
@@ -69,6 +73,7 @@ public sealed partial class EventEngine
             bool? animationFlag = previous is null ? actor.NativeJump?.AnimationFlag40000 : previous.AnimationFlag40000 ?? (previous.Suspended ? previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation : previous.Active && (previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation));
             actor.NativeScriptMovement = null;
             actor.NativeLadder = null;
+            actor.NativeLadderMode3 = null;
             actor.NativeMovementCompletion542 = 0;
             actor.NativeLandingTriangle508 = unchecked((ushort)triangle);
             actor.NativeJoinedPosition = null;

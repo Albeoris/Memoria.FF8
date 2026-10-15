@@ -237,6 +237,10 @@ public sealed partial class EventEngine
             case Jsm.Opcode.JUMP3:
                 args = ExecuteNativeJump(fiber, parameter, true);
                 break;
+            case Jsm.Opcode.LADDERUP:
+            case Jsm.Opcode.LADDERDOWN:
+                args = ExecuteNativeLadderMode3(fiber, parameter, opcode == Jsm.Opcode.LADDERUP, out scalarArgs);
+                break;
             case Jsm.Opcode.LADDERUP2:
                 args = ExecuteNativeLadder(fiber, parameter, true);
                 break;
@@ -417,6 +421,7 @@ public sealed partial class EventEngine
                 }
                 actor.NativeJump = null;
                 actor.NativeLadder = null;
+                actor.NativeLadderMode3 = null;
                 RecordNativeScriptPlacement(actor);
                 break;
             case Jsm.Opcode.SET:

@@ -332,6 +332,7 @@ public sealed partial class EventEngine
         StepNativeScriptMovement();
         StepNativeJump();
         StepNativeLadder();
+        StepNativeLadderMode3();
         SampleNativeDoorActionEdges();
         StepNativeShake();
         StepNativeActorBackgroundScroll();
@@ -761,6 +762,7 @@ public sealed partial class EventEngine
             WaitReason.NativeScriptMovement => true,
             WaitReason.NativeJump => true,
             WaitReason.NativeLadder => true,
+            WaitReason.NativeLadderMode3 => true,
             WaitReason.NativeHalt => false,
             WaitReason.WorldJump => false,
             WaitReason.NativePartyMenu => false,

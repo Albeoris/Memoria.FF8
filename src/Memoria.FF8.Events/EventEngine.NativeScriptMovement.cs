@@ -36,6 +36,10 @@ public sealed partial class EventEngine
     private string? UnsupportedNativeScriptMove(Fiber fiber)
     {
         ActorState actor = actors[fiber.ObjectId];
+        if (actor.NativeLadderMode3 is { Active: true })
+        {
+            return "Native mode1 cannot replace an active mode3 body without its physical backup contract";
+        }
         if (actor.NativeMovementCompletion542 is null || actor.NativeTurnAccumulator474 is null)
         {
             return "Native MOVE requires its allocated physical WORD474/542";
@@ -116,6 +120,10 @@ public sealed partial class EventEngine
 
     private FieldFixedPosition? ReadNativeScriptPosition(ActorState actor)
     {
+        if (actor.NativeLadderMode3 is NativeLadderMode3State ladderMode3 && MatchesNativeLadderMode3Placement(actor, ladderMode3))
+        {
+            return new FieldFixedPosition(ladderMode3.FixedX, ladderMode3.FixedY, ladderMode3.FixedZ);
+        }
         if (actor.NativeLadder is NativeLadderState ladder && MatchesNativeLadderPlacement(actor, ladder))
         {
             return new FieldFixedPosition(ladder.FixedX, ladder.FixedY, ladder.FixedZ);
@@ -219,6 +227,7 @@ public sealed partial class EventEngine
             actor.NativeSplitPosition = null;
             actor.NativeJump = null;
             actor.NativeLadder = null;
+            actor.NativeLadderMode3 = null;
             if (actor.NativeScriptMovement.HoldsFacing)
             {
                 // 524490/523AD0 set576=1 and clear610 before mode1's first post-VM step.

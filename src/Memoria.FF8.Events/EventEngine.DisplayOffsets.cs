@@ -20,6 +20,10 @@ public sealed partial class EventEngine
             return "Native display offset requires its complete original operands";
         }
         ActorState actor = actors[fiber.ObjectId];
+        if (opcode == Jsm.Opcode.DOFFSET && actor.NativeLadderMode3 is { Active: true })
+        {
+            return "Native DOFFSET during active mode3 requires its physical completion-word reinitialization contract";
+        }
         if (program is null || !program.NativeObjects.Take(program.NativeActorCount).Contains(actor.ObjectId))
         {
             return "Native display offset requires an original allocated actor record";
@@ -43,6 +47,7 @@ public sealed partial class EventEngine
         if (operation.Opcode == Jsm.Opcode.DOFFSET)
         {
             actor.NativeLadder = null;
+            actor.NativeLadderMode3 = null;
             state = state with { X = x, Y = y, Z = z, StartX = x, StartY = y, StartZ = z, Mode = 0, Counter = 0, Command = command };
             actor.DisplayOffset = new Vector3(x, y, z);
             actor.NativeLandingTriangle508 = unchecked((ushort)operation.Parameter);

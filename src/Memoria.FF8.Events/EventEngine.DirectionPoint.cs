@@ -20,6 +20,10 @@ public sealed partial class EventEngine
     private string? UnsupportedNativeDirectionPoint(Fiber fiber)
     {
         ActorState actor = actors[fiber.ObjectId];
+        if (actor.NativeLadderMode3 is { Active: true })
+        {
+            return "DIRP cannot replace an active mode3 owner without its physical backup contract";
+        }
         if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeMovementCompletion542 is null || actor.NativeTurnAccumulator474 is null || actor.NativeMovementBaseSpeed is null or <= 0 || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || ReadNativeScriptPosition(actor) is null || !float.IsFinite(actor.Direction) || actor.Direction != (byte)actor.Direction || actor.PushRadius is < 0 or > ushort.MaxValue)
         {
             return "DIRP requires its allocated WORD474/512/542, current motion bytes and certified zero-speed native body adapters";
@@ -66,6 +70,7 @@ public sealed partial class EventEngine
             actor.NativeSplitPosition = null;
             actor.NativeJump = null;
             actor.NativeLadder = null;
+            actor.NativeLadderMode3 = null;
             //526E90 returns1: operands are consumed once, and the body runs after this VM budget.
             fiber.Position--;
             fiber.NativeMoveOperation = fiber.Position;

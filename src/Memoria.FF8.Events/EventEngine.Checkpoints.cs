@@ -33,6 +33,7 @@ public enum WaitReason
     MinimalBattle,
     NativeJump,
     NativeLadder,
+    NativeLadderMode3,
     NativeHalt,
     NativeFaceSync,
     NativePartyMenu,
@@ -466,6 +467,7 @@ public sealed partial class EventEngine
         ValidateNativeDoorSuspensionCheckpoint(saved, restored);
         ValidateNativeJumps(saved, restored);
         ValidateNativeLadders(saved, restored);
+        ValidateNativeLaddersMode3(saved, restored);
         ValidateNativeActorContactCheckpoint(saved);
         ValidateNativeMovementRequests(saved, restored);
         ValidateNativeJoinedPositions(saved);

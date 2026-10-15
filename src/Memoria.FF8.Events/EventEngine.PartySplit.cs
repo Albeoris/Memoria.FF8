@@ -40,6 +40,10 @@ public sealed partial class EventEngine
             {
                 continue;
             }
+            if (actor.NativeLadderMode3 is { Active: true })
+            {
+                return "Native SPLIT cannot replace an active mode3 party body without its physical overlap contract";
+            }
             if (actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || ReadNativeSplitPosition(actor) is null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.PushRadius is < 0 or > ushort.MaxValue)
             {
                 return "Native SPLIT requires proved fixed actor positions, completed prior motion and native motion authority";
@@ -86,6 +90,7 @@ public sealed partial class EventEngine
                 // Native issue replaces mode572=2 with mode1; its former ballistic phase no longer owns this body.
                 actor.NativeJump = null;
                 actor.NativeLadder = null;
+                actor.NativeLadderMode3 = null;
                 actor.NativeMovementCompletion542 = 0;
                 SelectFullNativeAnimation(actor, walk ? actor.WalkAnimationId : actor.RunAnimationId, true);
                 targets.Add(new PartyJoinTarget(actor.ObjectId, raw.X, raw.Y, raw.Z, targetX, targetY, targetZ, speed));

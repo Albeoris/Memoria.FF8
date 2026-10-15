@@ -17,7 +17,7 @@ public sealed partial class EventEngine
                 return "Native mode4 requires its original held instruction and preserved physical placement";
             }
         }
-        else if (fiber.Stack.Count < 9 || actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeMovementRequest is not null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null || ReadNativeScriptPosition(actor) is null)
+        else if (fiber.Stack.Count < 9 || actor.NativeScriptMovement is { Active: true } || actor.NativeJump is { Active: true } || actor.NativeLadderMode3 is { Active: true } || actor.NativeMovementRequest is not null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.RotationTarget is not null || ReadNativeScriptPosition(actor) is null)
         {
             return "Native mode4 requires nine original DWORD operands and an idle preserved physical body";
         }
@@ -31,6 +31,10 @@ public sealed partial class EventEngine
         }
         foreach (ActorState member in Enumerable.Range(0, 3).Select(ResolvePartyActor).OfType<ActorState>())
         {
+            if (member.NativeLadderMode3 is { Active: true })
+            {
+                return "Native mode4 follower placement cannot replace an active mode3 body without its physical overlap contract";
+            }
             if (member.NativeLadderAnimation is not { } animation || member.NativePartyFlags is not { AutoAnimation4: true } || member.ObjectId == actor.ObjectId && member.FootstepsEnabled || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 2 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
             {
                 return "Native mode4 requires each present party body's allocated animation bytes, native animation ownership and complete model metadata; enabled ladder footsteps are unsupported";
@@ -66,6 +70,7 @@ public sealed partial class EventEngine
             actor.NativeLandingTriangle508 = unchecked((ushort)triangle);
             actor.NativeScriptMovement = null;
             actor.NativeJump = null;
+            actor.NativeLadderMode3 = null;
             actor.NativeJoinedPosition = null;
             actor.NativeSplitPosition = null;
         }
@@ -80,7 +85,7 @@ public sealed partial class EventEngine
         return operands;
     }
 
-    private static short NativeLadderDuration(FieldFixedPosition approach, FieldFixedPosition end, byte speed)
+    private static short NativeLadderDuration(FieldFixedPosition approach, FieldFixedPosition end, byte speed, bool allowZero = false)
     {
         int x = unchecked(end.X - approach.X) / 1024;
         int y = unchecked(end.Y - approach.Y) / 1024;
@@ -100,9 +105,9 @@ public sealed partial class EventEngine
             root--;
         }
         int duration = root / speed;
-        if (duration is < 1 or > short.MaxValue)
+        if (duration < (allowZero ? 0 : 1) || duration > short.MaxValue)
         {
-            throw new NotSupportedException("Native mode4 traversal duration outside the reached positive signed WORD domain is unsupported");
+            throw new NotSupportedException("Native ladder duration lies outside the represented signed WORD domain for this movement mode");
         }
         return (short)duration;
     }
@@ -349,6 +354,10 @@ public sealed partial class EventEngine
                     if (member is null)
                     {
                         continue;
+                    }
+                    if (member.NativeLadderMode3 is { Active: true })
+                    {
+                        throw new InvalidDataException("Saved native mode4 cannot place a party body owned by active mode3.");
                     }
                     if (member.NativeLadderAnimation is not { } animation || member.NativePartyFlags is not { AutoAnimation4: true } || slot == 0 && member.FootstepsEnabled || !float.IsFinite(member.AnimationFrame) || member.AnimationFrame * 16 is < 0 or > ushort.MaxValue || member.AnimationFrame * 16 != MathF.Truncate(member.AnimationFrame * 16) || member.AnimationSpeed is < short.MinValue or > ushort.MaxValue || new[] { (int)animation.Start594, animation.End596 }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 2 and <= 4095)) || new[] { (int)animation.Loop595, member.BaseAnimationId }.Any(id => AnimationFrameCount?.Invoke(member.RenderModelId, id) is not (> 0 and <= 4095)))
                     {
