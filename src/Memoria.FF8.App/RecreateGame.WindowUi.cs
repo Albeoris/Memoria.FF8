@@ -90,7 +90,7 @@ internal sealed partial class RecreateGame
     private void DrawNativePartyUi(Rectangle bounds)
     {
         NativePartyMenuState menu = events!.PartyMenu!;
-        string title = menu.Kind switch { NativeFieldMenuKind.Normal => "Menu", NativeFieldMenuKind.Shop => "Shop", NativeFieldMenuKind.WeaponShop => "Junk Shop", _ => "Party" };
+        string title = menu.Kind switch { NativeFieldMenuKind.Normal => "Menu", NativeFieldMenuKind.Save => "Save", NativeFieldMenuKind.Shop => "Shop", NativeFieldMenuKind.WeaponShop => "Junk Shop", _ => "Party" };
         string Name(byte row) => row switch
         {
             0 => events.Scene.Names.GetValueOrDefault(0, "Squall"),
@@ -104,14 +104,14 @@ internal sealed partial class RecreateGame
             255 => "Empty",
             _ => throw new NotSupportedException("Party menu labels require native normal character identities.")
         };
-        string party = menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
+        string party = menu.Kind == NativeFieldMenuKind.Save ? "Save slots are unavailable." : menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
         List<string> candidates = Memoria.FF8.GameUi.NativePartyMenuProjection.Inputs(menu).Select(input => input.Kind switch
         {
             PlayerActionKind.SelectPartySlot => $"Slot {input.Value + 1}: {Name(menu.TemporaryCombatParty![input.Value])}",
             PlayerActionKind.SelectPartyMember => input.Value == 255 ? "Reserve: Empty (remove member)" : $"Reserve: {Name((byte)input.Value)}",
             _ => "Confirm party"
         }).ToList();
-        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Esc: return to field" : menu.SelectedPartySlot is not null ? "Select destination   Enter: swap   Esc: cancel selection" : "Select a slot to change, or Confirm party";
+        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Save ? "Esc: continue without saving" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Esc: return to field" : menu.SelectedPartySlot is not null ? "Select destination   Enter: swap   Esc: cancel selection" : "Select a slot to change, or Confirm party";
         string key = string.Join("|", title, party, menu.SelectedPartySlot, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
         if (nativePartyWindowUi is null || nativePartyWindowKey != key)

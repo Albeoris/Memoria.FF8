@@ -57,6 +57,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHM_L:
             case Jsm.Opcode.PSHSM_W:
+                if (services.DiscProcess is NativeDiscProcessState discMemory && parameter == 204 && operation.Opcode is Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B)
+                {
+                    fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)discMemory.SavedDisc204) : discMemory.SavedDisc204);
+                    fiber.StackExpressions.Push($"native[{parameter}]");
+                    return;
+                }
                 if (TryReadWorldEntryMemory(operation, out int nativeEconomy) || TryReadNativeFadeMemory(operation, out nativeEconomy) || TryReadNativeDrawPointMemory(operation, out nativeEconomy) || TryReadJunctionBackupMemory(operation, out nativeEconomy) || TryReadNativeEconomyMemory(operation, out nativeEconomy) || TryReadNativeOwnedEventMemory(operation, out nativeEconomy))
                 {
                     fiber.Stack.Push(opcode == Jsm.Opcode.PSHSM_B ? unchecked((sbyte)nativeEconomy) : opcode == Jsm.Opcode.PSHSM_W ? unchecked((short)nativeEconomy) : nativeEconomy);
@@ -670,6 +676,7 @@ public sealed partial class EventEngine
                 CompleteMinimalMenu(fiber, opcode, args[0]);
                 break;
             case Jsm.Opcode.MENUPHS:
+            case Jsm.Opcode.MENUSAVE:
             case Jsm.Opcode.MENUNORMAL:
                 RequestPartyMenu(fiber, opcode);
                 break;
@@ -736,6 +743,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.WORLDMAPJUMP:
                 args = ExecuteWorldJump(fiber);
                 break;
+            case Jsm.Opcode.DISC:
+                args = AssignNativeDisc(fiber);
+                break;
             case Jsm.Opcode.MAPJUMP:
                 args = Pop(fiber, 4);
                 transitionRequested = true;
@@ -746,6 +756,9 @@ public sealed partial class EventEngine
                 transitionRequested = true;
                 // Native 0x521B1D writes this extra word; field arrival derives height from its triangle instead.
                 services.RequestField(new Memoria.FF8.Runtime.FieldTransition((ushort)args[0], (short)args[1], (short)args[2], (ushort)parameter, (byte)args[4], (short)args[3]));
+                break;
+            case Jsm.Opcode.DISCJUMP:
+                args = ExecuteNativeDiscJump(fiber, parameter);
                 break;
             case Jsm.Opcode.AXIS:
                 args = Pop(fiber, 2);

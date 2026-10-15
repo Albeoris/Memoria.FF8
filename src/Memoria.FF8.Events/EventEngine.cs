@@ -114,6 +114,7 @@ public sealed partial class EventEngine
         partySplit = null;
         preparedGlobalSounds.Clear();
         preparedWorldTransitions.Clear();
+        preparedDiscMounts.Clear();
         fibers.Clear();
         InfGateways = [];
         InfAreaTriggers = [];

@@ -77,6 +77,7 @@ internal sealed partial class GameWorld : IDisposable
         Events.ResolveNativeShopDefinitions = assets.ReadNativeShopDefinitions;
         Events.ResolveNativeWeaponShopDefinitions = assets.ReadNativeWeaponShopDefinitions;
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
+        Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
         if (persistReplayJournal)
         {
             journalArchive = new ReplayJournalArchive(ReplayJournalArchive.DefaultDirectory);
@@ -148,6 +149,7 @@ internal sealed partial class GameWorld : IDisposable
 
     private void LoadField(int fieldId, FieldTransition? arrival, System.Text.Json.JsonElement? snapshot, bool restoreDeparting = false)
     {
+        ValidateDiscJumpArrival(arrival, snapshot is null);
         if (restoreDeparting && (session.EventRandom is null || session.VibrationProcess is null || session.FieldFade is null || session.ShopHistory is null || session.MenuRandom is null || session.WeaponRecipes is null))
         {
             throw new NotSupportedException("Restoring a dormant field cannot supply the unknown current world event/menu random, vibration, fade or shop owners from its earlier snapshot.");
