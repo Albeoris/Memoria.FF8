@@ -141,15 +141,12 @@ public static class LiveMenuData
                     Experience = native.Experience <= int.MaxValue ? (int)native.Experience : null,
                     Learning = native.Learning == 0 ? "--" : catalog?.AbilityName(native.Learning) ?? $"Ability {native.Learning}"
                 };
-                for (int ability = 0; ability < 128; ability++)
-                {
-                    if (native.LearnedBank.Has(ability))
-                    {
-                        guardianForce.Abilities.Add(catalog?.AbilityName(ability) ?? $"Learned ability {ability}");
-                    }
-                }
                 foreach (NativeGuardianForceAbility entry in vitals.GuardianForceAbilities(id))
                 {
+                    if (entry.Learned)
+                    {
+                        guardianForce.Abilities.Add(catalog?.AbilityName(entry.Ability) ?? $"Learned ability {entry.Ability}");
+                    }
                     guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints));
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
@@ -160,7 +157,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "gf-learn"]);
+                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn"]);
             }
         }
         if (state.CardInventory is { } cards)

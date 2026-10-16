@@ -55,8 +55,9 @@ public sealed class BattleActionAssetsTests
             Name = "Installed GF effects with explicit diagnostic actors and seed0",
             NativeSeed = 0,
             NativeBattleSpeed = 0,
+            NativeActions = assets.NativeActions.ToArray(),
             GuardianForces = [new(id, 1000, 1000)],
-            ActionDefinitions = assets.ActionDefinitions.ToArray(),
+            ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce ? action with { NativeGuardianBoostAvailable = false } : action).ToArray(),
             Combatants =
             [
                 new() { Id = "party", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [id], GuardianForceCompatibility = new ushort[16], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
@@ -64,7 +65,7 @@ public sealed class BattleActionAssetsTests
             ]
         }, BattleAtbMode.TurnBased);
         session.QueueAction("party", "enemy", BattleAbility.GuardianForce, id);
-        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        for (int frame = 0; frame < 600 && session.Combatants[1].CurrentHp == 10000; frame++)
         {
             session.Tick();
         }

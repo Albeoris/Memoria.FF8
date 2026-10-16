@@ -7,6 +7,49 @@ namespace Memoria.FF8.Battle.Tests;
 public sealed class GuardianForceCastTests
 {
     [Fact]
+    public void Native_pause_flag_freezes_charge_across_restore_until_it_is_released()
+    {
+        BattleDefinition original = Create(compatibility: 350).Capture().Definition;
+        BattleDefinition definition = original with { Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { NativeCombatantFlags = actor.NativeCombatantFlags | 0x400 } : actor).ToArray() };
+        BattleSession session = new(definition, BattleAtbMode.Normal);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        session.Tick();
+        Assert.Equal((ushort)40, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        BattleSnapshot pending = session.Capture();
+        BattleSession restored = BattleSession.Restore(pending);
+        restored.Tick();
+        Assert.Equal((ushort)40, Assert.Single(restored.GuardianForceCasts).RemainingTicks);
+        BattleCombatantSnapshot player = pending.Combatants[0];
+        pending = pending with { Combatants = [player with { NativeParticipant = player.NativeParticipant! with { NativeCombatantFlags = player.NativeParticipant.NativeCombatantFlags!.Value & ~0x400u } }, .. pending.Combatants.Skip(1)] };
+        BattleSession resumed = BattleSession.Restore(pending);
+        resumed.Tick();
+        Assert.Equal((ushort)38, Assert.Single(resumed.GuardianForceCasts).RemainingTicks);
+    }
+
+    [Fact]
+    public void Defeated_gf_releases_a_paused_callback_instead_of_leaving_actor_busy()
+    {
+        BattleSession session = Create(compatibility: 350);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        BattleSnapshot pending = session.Capture();
+        BattleCombatantSnapshot player = pending.Combatants[0];
+        pending = pending with
+        {
+            GuardianForces = [pending.GuardianForces[0] with { HitPoints = 0 }],
+            Combatants = [player with { NativeParticipant = player.NativeParticipant! with { NativeCombatantFlags = player.NativeParticipant.NativeCombatantFlags!.Value | 0x400u } }, .. pending.Combatants.Skip(1)]
+        };
+        BattleSession restored = BattleSession.Restore(pending);
+        restored.Tick();
+        Assert.Empty(restored.GuardianForceCasts);
+        Assert.Equal((byte)255, restored.Capture().NativeScriptState.Tasks.Tail);
+        Assert.False(restored.Combatants[0].IsBusy);
+        Assert.Single(restored.Events, item => item.Kind == "GuardianForceCancelled");
+        Assert.DoesNotContain(restored.Events, item => item.Kind == "GuardianForceReady");
+        Assert.Equal(0u, restored.Capture().Combatants[0].NativeParticipant!.NativeCombatantFlags!.Value & 0x400u);
+        Assert.Equal(JsonSerializer.Serialize(restored.Capture()), JsonSerializer.Serialize(BattleSession.Restore(restored.Capture()).Capture()));
+    }
+
+    [Fact]
     public void Native_script_pool_owns_the_completion_packet_and_retains_it_while_B8C400_is_set()
     {
         BattleDefinition definition = Create(compatibility: 0).Capture().Definition;

@@ -5,7 +5,7 @@ namespace Memoria.FF8.Events;
 
 public static class NativeJunctionMenuInput
 {
-    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.SetJunctionMagic;
+    public static bool IsMenuAction(PlayerActionKind kind) => kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SetJunctionCommand or PlayerActionKind.SetJunctionAbility or PlayerActionKind.SelectGuardianForceLearning or PlayerActionKind.SetJunctionMagic or PlayerActionKind.RemoveJunctions;
 
     public static void Validate(PlayerAction action)
     {
@@ -14,6 +14,14 @@ public static class NativeJunctionMenuInput
             throw new ArgumentException("Expected a junction or GF learning action.", nameof(action));
         }
         bool learning = action.Kind == PlayerActionKind.SelectGuardianForceLearning;
+        if (action.Kind == PlayerActionKind.RemoveJunctions)
+        {
+            if ((uint)action.Value >= 8u || action.Text is not ("0" or "1") || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+            {
+                throw new ArgumentException("Junction removal requires an explicit character row and Magic (0) or All (1).", nameof(action));
+            }
+            return;
+        }
         if ((uint)action.Value >= (learning ? 16u : 8u) || !int.TryParse(action.Text, NumberStyles.None, CultureInfo.InvariantCulture, out int choice) || choice < 0 || choice >= (action.Kind == PlayerActionKind.JunctionGuardianForce ? 16 : action.Kind == PlayerActionKind.SetJunctionMagic ? 57 : 128) || action.Kind == PlayerActionKind.SetJunctionCommand && action.Quantity is not (>= 0 and < 3) || action.Kind == PlayerActionKind.SetJunctionAbility && action.Quantity is not (>= 0 and < 4) || action.Kind == PlayerActionKind.SetJunctionMagic && action.Quantity is not (>= 0 and < 19) || action.Kind is PlayerActionKind.JunctionGuardianForce or PlayerActionKind.SelectGuardianForceLearning && action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
         {
             throw new ArgumentException("Menu input requires explicit native row/GF, numeric choice, valid slot and one ordinary menu action.", nameof(action));
@@ -31,6 +39,7 @@ public static class NativeJunctionMenuInput
             PlayerActionKind.SetJunctionAbility => vitals.SetJunctionAbility(action.Value, action.Quantity!.Value, choice, false),
             PlayerActionKind.SelectGuardianForceLearning => vitals.SelectGuardianForceLearning(action.Value, choice),
             PlayerActionKind.SetJunctionMagic => vitals.SetJunctionMagic(action.Value, action.Quantity!.Value, choice),
+            PlayerActionKind.RemoveJunctions => vitals.RemoveJunctions(action.Value, choice == 1),
             _ => throw new ArgumentOutOfRangeException(nameof(action))
         };
     }

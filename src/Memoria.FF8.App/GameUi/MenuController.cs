@@ -528,7 +528,7 @@ public sealed partial class MenuController
                 Message = $"Unsupported native contract: {action.Kind}. This view remains read-only.";
                 return;
             }
-            if (action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" && Character is null)
+            if (action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" or "junction-off" && Character is null)
             {
                 Message = "Selected character data is unavailable.";
                 return;
@@ -537,6 +537,7 @@ public sealed partial class MenuController
             {
                 "item-use" => action with { SubjectId = Item?.Id ?? "" },
                 "junction-gf" => action with { TargetId = Character?.Id ?? "" },
+                "junction-off" => action with { TargetId = Character?.Id ?? "" },
                 "junction-command" => action with { TargetId = Character?.Id ?? "", Value = (_commandSlot - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-magic" => action with { TargetId = Character?.Id ?? "", Value = _junctionSlot },

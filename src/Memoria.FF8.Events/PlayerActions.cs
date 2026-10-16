@@ -33,7 +33,8 @@ public enum PlayerActionKind
     TriadSelectCard,
     TriadPlaceCard,
     TriadAutoMove,
-    TriadTradeCard
+    TriadTradeCard,
+    RemoveJunctions
 }
 
 public enum PlayerTriggerKind

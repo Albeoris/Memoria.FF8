@@ -53,9 +53,10 @@ public sealed partial class BattleSession
             if (gf.HitPoints == 0 || (actor.NativeStatus0 & 0x35) != 0 || (actor.NativeStatus1 & 0x14000) != 0 || !actor.IsActive)
             {
                 actor.NativeStatus1 &= 0x7FFFFFFF;
+                actor.NativeCombatantFlags &= ~0x400u;
                 continue;
             }
-            if (actor.Suspended || (actor.NativeStatus1 & 9) != 0)
+            if ((actor.NativeCombatantFlags & 0x400) != 0 || actor.Suspended || (actor.NativeStatus1 & 9) != 0)
             {
                 continue;
             }

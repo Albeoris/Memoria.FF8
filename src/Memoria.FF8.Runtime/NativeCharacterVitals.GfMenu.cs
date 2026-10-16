@@ -229,6 +229,6 @@ public sealed partial record NativeCharacterVitals
         }
         records[row] = records[row] with { Junction = junction with { Commands = commands, Abilities = abilities, MagicJunctions = magic } };
         records[row] = records[row] with { HitPoints = ClampHitPoints(records[row].HitPoints, Definitions.CharacterMaximum(records[row])) };
-        return result;
+        return result.RebuildParty();
     }
 }
