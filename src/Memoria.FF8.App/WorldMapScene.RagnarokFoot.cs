@@ -59,7 +59,7 @@ internal sealed partial class WorldMapScene
         {
             foot.RagnarokDismount.Validate(runtime);
         }
-        else if (foot.Rule != NativeFootWorldRuntimeState.SavedReloadRule || runtime.Allocation.ParkedRagnarokPose2 is null)
+        else if (foot.Rule is not (NativeFootWorldRuntimeState.FirstLoadRule or NativeFootWorldRuntimeState.SavedReloadRule) || runtime.Allocation.ParkedRagnarokPose2 is null)
         {
             throw new InvalidDataException("Parked Ragnarok foot requires its actual landing or saved62 reload owner.");
         }

@@ -714,7 +714,7 @@ public sealed partial class GameSession : IEventServices
         world.NativeRagnarokRuntime?.RequireSceneState();
         if (world.NativeRagnarokRuntime is { } ragnarokWorld)
         {
-            bool parkedReload = world.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.SavedReloadRule && unchecked((byte)ragnarokWorld.Allocation.Packet.Mode) == 0 && ragnarokWorld.Allocation.ParkedRagnarokPose2 is not null;
+            bool parkedReload = world.NativeFootRuntime?.Rule is NativeFootWorldRuntimeState.FirstLoadRule or NativeFootWorldRuntimeState.SavedReloadRule && unchecked((byte)ragnarokWorld.Allocation.Packet.Mode) == 0 && ragnarokWorld.Allocation.ParkedRagnarokPose2 is not null;
             if (world.NativeFootRuntime is not null && world.NativeFootRuntime.RagnarokDismount is null && !parkedReload || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null || world.GroundType is null)
             {
                 throw new InvalidDataException("Ragnarok requires its sole current physical allocation and accepted ground owner.");

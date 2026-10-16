@@ -12,7 +12,7 @@ public static class NativeRagnarokWorldAllocationReader
         entry.Validate();
         memory.Validate();
         saved.Validate();
-        if (unchecked((byte)packet.Mode) is not (0 or 50) || unchecked((byte)packet.Mode) == 0 && (unchecked((sbyte)packet.EntryIndex) != 62 || parkedRagnarokPose2 is null) || unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (unchecked((byte)packet.Mode) is not (0 or 50) || unchecked((byte)packet.Mode) == 0 && parkedRagnarokPose2 is null || unchecked((byte)packet.Mode) == 50 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
             throw new NotSupportedException("Ragnarok allocation requires ordinary controlled50 and the original unoccupied-car allocation branch.");
         }

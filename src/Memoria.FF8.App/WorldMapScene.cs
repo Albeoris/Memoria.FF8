@@ -52,7 +52,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        bool parkedRagnarok = footEntityType == 0 && (session.State.World?.NativeRagnarokRuntime is not null || entry == 62 && session.State.SavedWorld.FootReturn is not null && session.State.DepartingWorldState?.NativeRagnarokRuntime is not null);
+        bool parkedRagnarok = footEntityType == 0 && (session.State.World?.NativeRagnarokRuntime is not null || session.State.SavedWorld.RagnarokPose2 is not null && session.State.DepartingWorldState?.NativeRagnarokRuntime is not null);
         bool parkedGarden = !scripted && !stationFoot && !car && !garden && !ragnarok && !parkedRagnarok && footEntityType == 0 && session.State.SavedWorld.GardenPose3 is not null;
         if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
         {
