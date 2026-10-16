@@ -17,6 +17,8 @@ public sealed partial class BattleHudController
     private readonly Func<int, string> guardianForceName;
     private readonly Func<int, string> itemName;
     private readonly Func<int, string> cardName;
+    private readonly IReadOnlyDictionary<int, string>? battleNames;
+    private readonly bool hasGuardianForceNames;
     private IReadOnlyList<string>? rewardLines;
     private bool completionRequested;
     private int commandIndex;
@@ -27,7 +29,7 @@ public sealed partial class BattleHudController
     private string? selectedActorId;
     private string? selectedTargetId;
 
-    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null, Func<BattleRewardSummary?>? previewRewards = null, Func<int, string>? guardianForceName = null, Func<int, string>? itemName = null, Func<int, string>? cardName = null)
+    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null, Func<BattleRewardSummary?>? previewRewards = null, Func<int, string>? guardianForceName = null, Func<int, string>? itemName = null, Func<int, string>? cardName = null, IReadOnlyDictionary<int, string>? battleNames = null)
     {
         this.session = session;
         this.execute = execute;
@@ -39,6 +41,8 @@ public sealed partial class BattleHudController
         this.guardianForceName = guardianForceName ?? (id => $"GF {id}");
         this.itemName = itemName ?? (id => $"Item {id}");
         this.cardName = cardName ?? (id => $"Card {id}");
+        this.battleNames = battleNames;
+        hasGuardianForceNames = guardianForceName is not null;
         view = new UiView(new BattleHudElement(this)) { Cancel = CancelTarget };
         view.Resize(960, 672);
     }
@@ -156,6 +160,11 @@ public sealed partial class BattleHudController
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight)
         {
+            if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16 && input is MenuInput.PageLeft or MenuInput.PageRight)
+            {
+                RerollNativeSlots();
+                return;
+            }
             int direction = input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft ? -1 : 1;
             if (SelectingTarget)
             {
@@ -207,9 +216,14 @@ public sealed partial class BattleHudController
         }
         if (SelectedCommand != BattleAbility.Attack && !SelectingAction && !SelectingTarget)
         {
+            PrepareNativeLimitChoices();
             SelectingAction = true;
             actionIndex = 0;
             Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Draw ? "Choose magic. Left/Right switches Stock/Cast." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
+            if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
+            {
+                Message = "Choose magic. Page Left/Right: Do over.";
+            }
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }

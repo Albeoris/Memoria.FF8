@@ -24,6 +24,16 @@ public sealed partial class BattleAssets
         var character = battleKernel.Characters[characterId];
         ImmutableArray<byte> timers = NativeKernelRecords.Single(record => record.Section == 29).Bytes;
         BattleNativeLimitDefinition result = new(characterId, character.LimitId, character.LimitParam, character.CrisisLevel, timers.AsSpan().Slice(16, 32).ToArray().ToImmutableArray());
+        if (character.LimitId == 19)
+        {
+            result = result with { InvocationChoices = battleKernel.RinoaLimits.Select((choice, index) => new BattleNativeCommandBinding(19, choice.Name ?? throw new InvalidDataException("Native Rinoa Limit menu choice has no name."), choice.Target, (byte)index)).ToImmutableArray() };
+        }
+        else if (character.LimitId == 16)
+        {
+            ImmutableArray<byte> spellBytes = NativeKernelRecords.Where(record => record.Section == 27).OrderBy(record => record.Index).SelectMany(record => record.Bytes).ToImmutableArray();
+            //1CF8918..1CF8953 is60 bytes; Lv100/crisis4 can index the contiguous following table.
+            result = result with { SlotsSelectionBytes = NativeKernelRecords.Where(record => record.Section == 26).OrderBy(record => record.Index).SelectMany(record => record.Bytes).Concat(spellBytes).ToImmutableArray(), SlotsSpellBytes = spellBytes };
+        }
         result.Validate();
         return result;
     }

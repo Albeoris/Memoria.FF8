@@ -10,7 +10,7 @@ public sealed partial class BattleSession
             return;
         }
         uint before = NativeBattleStatusBits(recipient);
-        bool physical = action.AttackType is 1 or 7 or 9 or 18;
+        bool physical = action.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
         int attack = physical ? actor.Attack : actor.Magic;
         int defense = physical ? recipient.Defense : recipient.Spirit;
         if ((before & 0x1000000) != 0)

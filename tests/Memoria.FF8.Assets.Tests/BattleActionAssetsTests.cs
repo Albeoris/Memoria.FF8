@@ -54,10 +54,12 @@ public sealed class BattleActionAssetsTests
         {
             Name = "Installed GF effects with explicit diagnostic actors and seed0",
             NativeSeed = 0,
+            NativeBattleSpeed = 0,
+            GuardianForces = [new(id, 1000, 1000)],
             ActionDefinitions = assets.ActionDefinitions.ToArray(),
             Combatants =
             [
-                new() { Id = "party", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [id], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
+                new() { Id = "party", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [id], GuardianForceCompatibility = new ushort[16], Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce] },
                 new() { Id = "enemy", Name = "Diagnostic opponent", MaximumHp = 10000, CurrentHp = 10000, Speed = 1 }
             ]
         }, BattleAtbMode.TurnBased);

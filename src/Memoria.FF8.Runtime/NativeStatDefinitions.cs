@@ -47,16 +47,22 @@ public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArr
         NativeStatCurve curve = Characters[character.CharacterId];
         int level = Level(character.Experience, curve);
         byte spell = character.Junction.MagicJunctions[0];
+        int quantity = spell == 0 ? 0 : character.MagicInventory.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0;
+        return CharacterMaximum(character.CharacterId, level, character.HitPointBonus, spell, quantity, character.Junction.Abilities);
+    }
+
+    public ushort CharacterMaximum(int characterId, int level, ushort hitPointBonus, byte spell, int quantity, uint abilities)
+    {
+        NativeStatCurve curve = Characters[characterId];
         if (spell >= MagicHitPoints.Length)
         {
             throw new NotSupportedException("Native HP junction requires its actual magic kernel definition.");
         }
-        int quantity = spell == 0 ? 0 : character.MagicInventory.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0;
-        int baseMaximum = character.HitPointBonus + curve.HitPointConstant + level * curve.HitPointLinear + quantity * MagicHitPoints[spell] - 10 * level * level / curve.HitPointDivisor;
+        int baseMaximum = hitPointBonus + curve.HitPointConstant + level * curve.HitPointLinear + quantity * MagicHitPoints[spell] - 10 * level * level / curve.HitPointDivisor;
         int percentage = 100;
         for (int slot = 0; slot < 4; slot++)
         {
-            byte ability = unchecked((byte)(character.Junction.Abilities >> (slot * 8)));
+            byte ability = unchecked((byte)(abilities >> (slot * 8)));
             if (ability is >= 39 and < 58 && CharacterPassives[ability - 39].Selector == 0)
             {
                 percentage += CharacterPassives[ability - 39].Percentage;

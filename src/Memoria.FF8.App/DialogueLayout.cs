@@ -71,7 +71,7 @@ internal static class DialogueLayout
         return result;
     }
 
-    private static IEnumerable<DialogueVisualLine> Wrap(DialogueLine source, float maximumWidth, Func<string, float> measure, bool choice)
+    internal static IEnumerable<DialogueVisualLine> Wrap(DialogueLine source, float maximumWidth, Func<string, float> measure, bool choice)
     {
         if (choice)
         {

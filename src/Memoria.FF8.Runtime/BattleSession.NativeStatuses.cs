@@ -5,19 +5,6 @@ public sealed partial class BattleSession
     internal static ushort NativeSavedStatusBits(BattleCombatant actor)
     {
         ushort bits = actor.NativeStatus0;
-        if (actor.CurrentHp == 0)
-        {
-            bits |= 1;
-        }
-        bits &= 0xFCFF;
-        if (actor.CurrentHp > 0 && actor.CurrentHp < actor.MaximumHp >> 1)
-        {
-            bits |= 0x200;
-            if (actor.CurrentHp < actor.MaximumHp >> 2)
-            {
-                bits |= 0x100;
-            }
-        }
         foreach (BattleStatusState effect in actor.Effects)
         {
             bits |= effect.Definition.Kind switch
@@ -106,8 +93,7 @@ public sealed partial class BattleSession
     {
         if (snapshot is null)
         {
-            //Earlier valid snapshots own only their retained saved bit and explicit projected effects.
-            return;
+            throw new InvalidDataException("Battle snapshot requires its explicitly migrated complete native status bank.");
         }
         if (snapshot.Timers is null || snapshot.Timers.Length != 14)
         {
@@ -120,10 +106,6 @@ public sealed partial class BattleSession
 
     private static void RemoveNativeStatuses(BattleCombatant recipient, ushort savedMask, uint battleMask)
     {
-        if (recipient.NativeTemplate?.NativeStatusAllocation is { } allocation && (allocation.Saved & 0x40) != 0)
-        {
-            savedMask &= 0xFFBF;
-        }
         //48F140 preserves timed bits whose sentinel marks a permanent installed effect.
         for (int bit = 0; bit < 14; bit++)
         {

@@ -9,8 +9,47 @@ public sealed partial class BattleHudController
     private bool collectedInitialMessages;
     private BattleEvent? activeBattleMessage;
     private double battleMessageFrames;
+    private BattleEvent? formattedBattleMessageEvent;
+    private DialogueDocument? formattedBattleMessage;
+    private double battlePresentationSeconds;
 
-    public string? BattleMessage => activeBattleMessage is { } message && battleMessageFrames >= message.NativeMessageDelayFrames ? message.Message : null;
+    public string? BattleMessage => BattleMessageDocument?.Text;
+
+    internal double BattlePresentationSeconds => battlePresentationSeconds;
+
+    internal DialogueDocument? BattleMessageDocument
+    {
+        get
+        {
+            if (activeBattleMessage is not { } message || battleMessageFrames < message.NativeMessageDelayFrames)
+            {
+                return null;
+            }
+            if (!ReferenceEquals(message, formattedBattleMessageEvent))
+            {
+                Dictionary<int, string> names = battleNames?.ToDictionary(pair => pair.Key, pair => pair.Value) ?? [];
+                foreach (BattleCombatant actor in session.Combatants.Where(actor => actor.IsPlayer && actor.ModelId is >= 0 and <= 10))
+                {
+                    names[GameNames.CharacterSubject(actor.ModelId)] = actor.Name;
+                }
+                for (int id = 0; id < 16; id++)
+                {
+                    int subject = GameNames.GuardianForceSubject(id);
+                    if (hasGuardianForceNames)
+                    {
+                        names[subject] = guardianForceName(id);
+                    }
+                    else if (!names.ContainsKey(subject))
+                    {
+                        names[subject] = GameNames.DefaultName(subject);
+                    }
+                }
+                formattedBattleMessage = DialogueTextFormatter.Parse(message.Message, names);
+                formattedBattleMessageEvent = message;
+            }
+            return formattedBattleMessage;
+        }
+    }
 
     public void AdvancePresentation(TimeSpan elapsed)
     {
@@ -19,6 +58,7 @@ public sealed partial class BattleHudController
             throw new ArgumentOutOfRangeException(nameof(elapsed));
         }
         CollectBattleMessages();
+        battlePresentationSeconds += elapsed.TotalSeconds;
         battleMessageFrames += elapsed.TotalSeconds * BattleSession.FramesPerSecond;
         while (activeBattleMessage is { } message && battleMessageFrames >= message.NativeMessageDelayFrames + Math.Max(1, message.Amount))
         {

@@ -15,7 +15,7 @@ public sealed class NativeBattleAiConditionTests
     [InlineData(255, false)]
     public void GroupDeathChecksEveryPartySlotAndUsesNativeBooleanComparison(int comparison, bool expected)
     {
-        BattleSession battle = Create(200, comparison, 0, Party("living", 0), Party("dead", 3) with { CurrentHp = 0 });
+        BattleSession battle = Create(200, comparison, 0, Party("living", 0), Party("dead", 3) with { NativeStatus0 = 1, CurrentHp = 0 });
         Assert.Equal(expected ? 1u : 0u, battle.Capture().NativeAiVariables![0]);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }
@@ -28,7 +28,7 @@ public sealed class NativeBattleAiConditionTests
     [InlineData(203, false)]
     public void GroupSelectorsUsePhysicalSidesOrAllMatchingModelsWithoutConsumingRandomness(int selector, bool expected)
     {
-        BattleSession battle = Create(selector, 0, 0, Party("party", 0), Enemy("dead", 28) with { CurrentHp = 0, InitialHidden = true, InitialUntargetable = true, InitialSuspended = true });
+        BattleSession battle = Create(selector, 0, 0, Party("party", 0), Enemy("dead", 28) with { NativeStatus0 = 1, CurrentHp = 0, InitialHidden = true, InitialUntargetable = true, InitialSuspended = true });
         Assert.Equal(expected ? 1u : 0u, battle.Capture().NativeAiVariables![0]);
         Assert.Equal(JsonSerializer.Serialize(NativeBattleRandomState.Initialize(0)), JsonSerializer.Serialize(battle.Capture().Random));
     }
@@ -47,7 +47,7 @@ public sealed class NativeBattleAiConditionTests
     {
         BattleCombatantDefinition affected = Enemy("affected", 28) with { StatusEffects = [new() { Kind = kind, Permanent = true }] };
         Assert.Equal(1u, Create(44, 0, status, Party("party", 0), Enemy("unaffected", 28), affected).Capture().NativeAiVariables![0]);
-        Assert.Equal(0u, Create(44, 0, status, Party("party", 0), affected with { CurrentHp = 0 }).Capture().NativeAiVariables![0]);
+        Assert.Equal(0u, Create(44, 0, status, Party("party", 0), affected with { NativeStatus0 = 1, CurrentHp = 0 }).Capture().NativeAiVariables![0]);
         Assert.Equal(0u, Create(44, 0, status, Party("party", 0), affected with { InitialActive = false, SceneSlot = 0 }).Capture().NativeAiVariables![0]);
     }
 
@@ -56,7 +56,7 @@ public sealed class NativeBattleAiConditionTests
     [InlineData(44)]
     public void GroupStatusHonorsTheOriginalFourEnemySlots(int selector)
     {
-        BattleSession battle = Create(selector, 0, 0, Party("party", 0), Enemy("one", 28), Enemy("two", 28), Enemy("three", 28), Enemy("four", 28), Enemy("outside", 28) with { CurrentHp = 0 });
+        BattleSession battle = Create(selector, 0, 0, Party("party", 0), Enemy("one", 28), Enemy("two", 28), Enemy("three", 28), Enemy("four", 28), Enemy("outside", 28) with { NativeStatus0 = 1, CurrentHp = 0 });
         Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
     }
 
@@ -93,7 +93,7 @@ public sealed class NativeBattleAiConditionTests
     [Theory]
     [InlineData(4)]
     [InlineData(5)]
-    public void ConfuseChecksReadTheClearBitWhenNoSupportedProducerCanSetIt(int subject)
+    public void AbsentConfuseReadsClearWithoutChangingOtherNativeStatusBits(int subject)
     {
         Assert.Equal(0u, CreateCondition(subject, 200, 0, 30, Party("party", 0)).Capture().NativeAiVariables![0]);
         Assert.Equal(1u, CreateCondition(subject, 200, 3, 30, Party("party", 0)).Capture().NativeAiVariables![0]);

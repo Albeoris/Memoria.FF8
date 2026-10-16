@@ -26,19 +26,24 @@ public sealed partial class BattleSession
         if (action.NativeAction is { } native)
         {
             ValidateNativeActionContract(native);
+            ValidateIndependentGuardianItem(actor, native);
         }
         bool allies = ability != BattleAbility.Draw && action.Allies;
         if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(ability) || target.Untargetable || !target.IsActive || (actor.IsPlayer == target.IsPlayer) != allies || (!target.IsAlive && !revive) || target.IsAlive && revive || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }
+        int? reservedItemSlot = null;
         switch (ability)
         {
             case BattleAbility.Magic:
-                actor.ConsumeMagic(actionId);
+                if (!actor.MagicStocks.Any(stock => stock.Id == actionId && stock.Count > 0))
+                {
+                    throw new InvalidOperationException("The selected battle magic stock is exhausted.");
+                }
                 break;
             case BattleAbility.Item:
-                ConsumeNativeItem(actionId);
+                reservedItemSlot = ConsumeNativeItem(actionId);
                 break;
             case BattleAbility.Draw:
                 if (!target.DrawSpells.Any(spell => spell.Id == actionId) || (!drawCast && !actor.MagicStocks.Any(stock => stock.Id == actionId) && actor.MagicStocks.Count >= 32) || !drawCast && actor.MagicStocks.Any(stock => stock.Id == actionId && stock.Count >= 100))
@@ -55,7 +60,7 @@ public sealed partial class BattleSession
             default:
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
-        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast);
+        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
         {
             QueueGuardianForce(actor, queued);
@@ -77,8 +82,18 @@ public sealed partial class BattleSession
 
     private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (command.IndependentGuardian is { } guardian)
+        {
+            ResolveIndependentGuardianItem(actor, target, command, guardian);
+            return;
+        }
         if (command.NativeAction is { } native)
         {
+            if (IsGunbladeAction(actor, command) && native.Command is 1 or 12 or 28)
+            {
+                native = native with { Command = native.Command == 28 ? (byte)243 : native.Command == 12 ? (byte)248 : (byte)253, AttackType = 10, Critical = 0 };
+                command = command with { NativeAction = native };
+            }
             BattleActionDefinition nativeDefinition = definition.ActionDefinitions.FirstOrDefault(candidate => candidate.NativeAction?.Command == native.Command && candidate.NativeAction.ActionId == native.ActionId && candidate.NativeAction.CrisisLevel == native.CrisisLevel) ?? new(command.Ability, command.ActionId, native.Name ?? $"Native action {native.Command}/{native.ActionId}", BattleActionEffect.Native, native.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = native };
             ResolveInstalledNativeAction(actor, target, command, nativeDefinition);
             return;
@@ -89,6 +104,14 @@ public sealed partial class BattleSession
         }
         if (command.Ability == BattleAbility.Attack)
         {
+            if (actor.NativeAttack is { } attack)
+            {
+                BattleNativeAction nativeAttack = IsGunbladeAttack(actor, command.Ability) ? attack with { Command = 253, AttackType = 10, Critical = 0 } : attack;
+                BattleActionDefinition installedAttack = new(BattleAbility.Attack, 0, attack.Name ?? "Attack", BattleActionEffect.Native, nativeAttack.Power, false) { NativeAction = nativeAttack };
+                // The original deferred gunblade callback owns type10; its current contact projection is recorded underTD-009.
+                ResolveInstalledNativeAction(actor, target, command, installedAttack);
+                return;
+            }
             // Original492C40/48F600 physical integer damage and mitigation.
             bool gunblade = IsGunbladeAttack(actor, command.Ability);
             int damage = gunblade ? NativeGunbladeAttack.Damage(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte(), ResolveGunbladeTiming(actor, target, command)) : NativeBattleDamage.Physical(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte());
@@ -174,6 +197,7 @@ public sealed partial class BattleSession
                     ApplyHealing(recipient, recipient.MaximumHp * action.Power / 16, action.Name);
                     break;
                 case BattleActionEffect.Revive:
+                    recipient.NativeStatus0 &= 0xFFFE;
                     recipient.CurrentHp = action.Power == 0 ? Math.Max(1, recipient.MaximumHp / 8) : recipient.MaximumHp;
                     Log("Healing", actor.Id, recipient.Id, recipient.CurrentHp, $"{action.Name}: {recipient.Name} revived.");
                     break;
@@ -223,24 +247,19 @@ public sealed partial class BattleSession
     }
     private static bool HasStatus(BattleCombatant actor, BattleStatusKind kind)
     {
-        return actor.Effects.Any(effect => effect.Definition.Kind == kind);
-    }
-
-    private static void Consume(List<BattleStock> stocks, int id)
-    {
-        int index = stocks.FindIndex(stock => stock.Id == id && stock.Count > 0);
-        if (index < 0)
+        return kind switch
         {
-            throw new InvalidOperationException("The selected battle stock is exhausted.");
-        }
-        if (stocks[index].Count == 1)
-        {
-            stocks.RemoveAt(index);
-        }
-        else
-        {
-            stocks[index] = stocks[index] with { Count = stocks[index].Count - 1 };
-        }
+            BattleStatusKind.Poison => (NativeSavedStatusBits(actor) & 2) != 0,
+            BattleStatusKind.Blind => (NativeSavedStatusBits(actor) & 8) != 0,
+            BattleStatusKind.Silence => (NativeSavedStatusBits(actor) & 16) != 0,
+            BattleStatusKind.Sleep => (NativeBattleStatusBits(actor) & 1) != 0,
+            BattleStatusKind.Haste => (NativeBattleStatusBits(actor) & 2) != 0,
+            BattleStatusKind.Slow => (NativeBattleStatusBits(actor) & 4) != 0,
+            BattleStatusKind.Regen => (NativeBattleStatusBits(actor) & 16) != 0,
+            BattleStatusKind.Protect => (NativeBattleStatusBits(actor) & 32) != 0,
+            BattleStatusKind.Shell => (NativeBattleStatusBits(actor) & 64) != 0,
+            _ => false
+        };
     }
 
     private static void ValidateStocks(BattleStock[] stocks, int maximum)

@@ -3,13 +3,21 @@ namespace Memoria.FF8.Runtime;
 public sealed record BattleGuardianForceVital(int Id, ushort HitPoints, ushort MaximumHitPoints, bool Acquired = true);
 public sealed record BattleGuardianForceCast(string ActorId, BattleAttackCommand Command, ushort RemainingTicks, ushort InitialTicks);
 public sealed record BattleGuardianForceChange(int Id, ushort HitPointsBefore, ushort HitPointsAfter);
+public sealed record BattleGuardianForceCompatibilityChange(byte Row, ushort[] Before, ushort[] After);
 
 public sealed partial class BattleSession
 {
     private readonly Dictionary<int, BattleGuardianForceVital> guardianForces = [];
     private readonly Dictionary<string, BattleGuardianForceCast> guardianForceCasts = new(StringComparer.Ordinal);
+    private BattleNativeAction? nativeAffinityAction;
     public IReadOnlyList<BattleGuardianForceVital> GuardianForces => guardianForces.Values.OrderBy(gf => gf.Id).ToArray();
     public IReadOnlyList<BattleGuardianForceCast> GuardianForceCasts => guardianForceCasts.Values.ToArray();
+
+    private void AcquireGuardianForceInBattle(int id)
+    {
+        BattleGuardianForceVital gf = guardianForces.GetValueOrDefault(id) ?? throw new NotSupportedException("Native GF acquisition requires its original saved HP row.");
+        guardianForces[id] = gf with { Acquired = true, HitPoints = Math.Min(gf.HitPoints, gf.MaximumHitPoints) };
+    }
 
     private void QueueGuardianForce(BattleCombatant actor, BattleAttackCommand command)
     {
@@ -87,7 +95,9 @@ public sealed partial class BattleSession
         {
             return;
         }
-        byte level = definition.NativeIndependentGuardianForceLevel ?? throw new NotSupportedException("Moogle Dance requires its original PocketStation level BYTE.");
+        NativePocketStationState pocketStation = definition.NativePocketStation ?? throw new NotSupportedException("Moogle Dance requires its original PocketStation saved block.");
+        pocketStation.Validate();
+        byte level = pocketStation.Level;
         int percentage = level == 0 ? 1 : level;
         foreach (int id in recipient.EquipmentIds)
         {
@@ -97,6 +107,29 @@ public sealed partial class BattleSession
             Log("GuardianForceHealing", actor.Id, recipient.Id, hp - gf.HitPoints, $"Moogle Dance: GF {id} recovers {hp - gf.HitPoints} HP.");
         }
         RecordNativeActionMemory(actor, recipient, command);
+    }
+
+    private void CompleteGuardianForceAffinity(BattleCombatant actor, BattleActionPresentation command)
+    {
+        if (!actor.IsPlayer || !guardianForces.Values.Any(gf => gf.Acquired))
+        {
+            return;
+        }
+        BattleNativeAction? action = nativeAffinityAction;
+        if (action is null || action.Command is not (2 or 6 or 254))
+        {
+            return;
+        }
+        int offset = action.KernelSection == 1 ? 42 : action.KernelSection == 2 ? 112 : throw new InvalidDataException("GF affinity source differs from the original spell/GF invocation owner.");
+        if (action.RawRecord.Length < offset + 16 || actor.MutableGuardianForceCompatibility is not { Length: 16 } compatibility)
+        {
+            throw new NotSupportedException("GF affinity requires its saved compatibility WORDs and original sixteen source bytes.");
+        }
+        foreach (BattleGuardianForceVital gf in guardianForces.Values.Where(gf => gf.Acquired))
+        {
+            ushort updated = unchecked((ushort)(compatibility[gf.Id] + action.RawRecord[offset + gf.Id] - 100));
+            compatibility[gf.Id] = Math.Clamp(updated, (ushort)1000, (ushort)6000);
+        }
     }
 
     private void RestoreGuardianForces(BattleSnapshot saved)
@@ -109,7 +142,8 @@ public sealed partial class BattleSession
         foreach (BattleGuardianForceVital gf in saved.GuardianForces)
         {
             BattleGuardianForceVital initial = definition.GuardianForces.Single(entry => entry.Id == gf.Id);
-            if (gf.MaximumHitPoints != initial.MaximumHitPoints || gf.Acquired != initial.Acquired || gf.Acquired && gf.HitPoints > gf.MaximumHitPoints || !guardianForces.TryAdd(gf.Id, gf))
+            bool acquired = initial.Acquired || saved.NativeScriptState.AcquiredGuardianForces.Contains((byte)gf.Id);
+            if (gf.MaximumHitPoints != initial.MaximumHitPoints || gf.Acquired != acquired || gf.Acquired && gf.HitPoints > gf.MaximumHitPoints || !guardianForces.TryAdd(gf.Id, gf))
             {
                 throw new InvalidDataException("Invalid saved GF HP state.");
             }

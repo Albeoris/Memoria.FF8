@@ -10,11 +10,12 @@ public sealed class BattleActionTests
     {
         BattleSession session = Create();
         session.QueueAction("party", "enemy", BattleAbility.Magic, 1);
-        Assert.Equal(1, session.Combatants[0].MagicStocks.Single(stock => stock.Id == 1).Count);
+        Assert.Equal(2, session.Combatants[0].MagicStocks.Single(stock => stock.Id == 1).Count);
         session.Tick();
         BattleSession restored = BattleSession.Restore(session.Capture());
         Resolve(session);
         Resolve(restored);
+        Assert.Equal(1, session.Combatants[0].MagicStocks.Single(stock => stock.Id == 1).Count);
         Assert.Equal(252, session.Combatants[1].CurrentHp);
         Assert.Equal(JsonSerializer.Serialize(session.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }

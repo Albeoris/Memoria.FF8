@@ -77,6 +77,8 @@ public sealed record BattleStatusEffectDefinition
 
 public sealed record BattleCombatantDefinition
 {
+    public BattleNativeEnemySpecial? NativeSpecial { get; init; }
+    public BattleNativeCharacterGrowth? NativeGrowth { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public int? SceneSlot { get; init; }
     public bool InitialActive { get; init; } = true;
@@ -115,6 +117,7 @@ public sealed record BattleCombatantDefinition
     public BattleStock[] MagicStocks { get; init; } = [];
     public NativeMagicStock[]? NativeMagicInventory { get; init; }
     public BattleDrawSpell[] DrawSpells { get; init; } = [];
+    public NativeBattleMugDefinition? NativeMug { get; init; }
     public int[] DrawGuardianForces { get; init; } = [];
     public int InitialAtb { get; init; }
     public int? WeaponId { get; init; }
@@ -124,6 +127,8 @@ public sealed record BattleCombatantDefinition
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands { get; init; } = [];
     public ImmutableArray<byte> NativeCommandSlots { get; init; } = [];
     public BattleNativeLimitDefinition? NativeLimit { get; init; }
+    public BattleNativeAction? NativeAttack { get; init; }
+    public BattleNativePlayerStatRules? NativePlayerStatRules { get; init; }
     public BattleStatusEffectDefinition[] StatusEffects { get; init; } = [];
     public ushort NativeRetainedStatusBits { get; init; }
     public ushort NativeStatus0 { get; init; }
@@ -133,6 +138,14 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public NativeScannedModels? NativeScannedModels { get; init; }
+    public bool? NativeScanAlwaysShow { get; init; }
+    public NativeCardInventory? NativeCards { get; init; }
+    public NativeCrtRandomState? NativeCrtRandom { get; init; }
+    public uint? NativeElapsedCounter { get; init; }
+    public BattleNativeDevourEffect[] NativeDevourEffects { get; init; } = [];
+    public string?[] NativeCardNames { get; init; } = [];
+    public string?[] NativeItemNames { get; init; } = [];
     public byte? NativeSavedBattleFlags { get; init; }
     public byte NativeSavedBattleFlagsKnownMask { get; init; }
     public bool? NativeExamTimerZero { get; init; }
@@ -149,7 +162,7 @@ public sealed record BattleDefinition
     public BattleNativeAction[] NativeActions { get; init; } = [];
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public byte? NativeBattleSpeed { get; init; }
-    public byte? NativeIndependentGuardianForceLevel { get; init; }
+    public NativePocketStationState? NativePocketStation { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
     public bool? NativeLimitsDisabled { get; init; }
     public byte? NativeFieldBattleRules { get; init; }
@@ -169,12 +182,22 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
+    public byte? NativeQueuedCommand { get; init; }
+    public bool FreeNativeMagic { get; init; }
+    public int? ReservedNativeItemSlot { get; init; }
+    public BattleNativeSpecialContext? NativeSpecial { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
     public byte? NativeSequence { get; init; }
     public ushort NativeTargetMask { get; init; }
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
+    public byte? NativeQueuedCommand { get; init; }
+    public bool FreeNativeMagic { get; init; }
+    public int? ReservedNativeItemSlot { get; init; }
+    public BattleNativeSpecialContext? NativeSpecial { get; init; }
     public short? GunbladeTriggerTiming { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
     public byte? NativeSequence { get; init; }
@@ -188,6 +211,7 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
 public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
 public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)
 {
+    public ushort[]? GuardianForceCompatibility { get; init; }
     public NativeBattleStatusSnapshot? NativeStatus { get; init; }
     public BattleStock[] MagicStocks { get; init; } = [];
     public NativeMagicStock[]? NativeMagicInventory { get; init; }
@@ -196,6 +220,9 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeScannedModels? NativeScannedModels { get; init; }
+    public NativeCardInventory? NativeCards { get; init; }
+    public NativeCrtRandomState? NativeCrtRandom { get; init; }
     public int Version { get; init; } = 1;
     public BattleDefinition Definition { get; init; } = new();
     public BattleAtbMode Mode { get; init; }
@@ -203,6 +230,7 @@ public sealed record BattleSnapshot
     public long Frame { get; init; }
     public BattleOutcome Outcome { get; init; }
     public BattleCombatantSnapshot[] Combatants { get; init; } = [];
+    public NativeBattleEnemyAllocation[] NativeAllocations { get; init; } = [];
     public BattleAttackCommand[] QueuedActions { get; init; } = [];
     public BattleActionPresentation? ActiveAction { get; init; }
     public BattleEvent[] Events { get; init; } = [];
@@ -225,9 +253,12 @@ public sealed record BattleSnapshot
 
 public sealed partial class BattleCombatant
 {
-    internal IReadOnlyList<ushort>? GuardianForceCompatibility => definition.GuardianForceCompatibility;
+    internal ushort[]? MutableGuardianForceCompatibility { get; set; }
+    internal IReadOnlyList<ushort>? GuardianForceCompatibility => MutableGuardianForceCompatibility;
     private uint nativeCombatantFlags;
+    private int currentHp;
     private BattleCombatantDefinition definition;
+    internal BattleCombatantDefinition SourceDefinition => definition;
     internal readonly List<BattleStatusState> Effects;
     internal ushort NativeStatus0 { get; set; }
     internal uint NativeStatus1 { get; set; }
@@ -235,14 +266,26 @@ public sealed partial class BattleCombatant
 
     internal BattleCombatant(BattleCombatantDefinition definition)
     {
+        MutableGuardianForceCompatibility = definition.GuardianForceCompatibility?.ToArray();
         this.definition = definition;
+        NativeGrowth = definition.NativeGrowth;
         nativeCombatantFlags = definition.NativeCombatantFlags | (definition.NativeTemplate?.NativeCombatantFlags ?? 0);
+        if (definition.IsPlayer)
+        {
+            //48B5F0 initializes players to8801; lifecycle assignment below owns the active bit.
+            nativeCombatantFlags |= 0x8800;
+        }
         CurrentHp = definition.CurrentHp;
         NativeKillCount = definition.NativeKillCount;
         Atb = CurrentHp == 0 ? 0 : definition.InitialAtb;
         Effects = definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)).ToList();
         NativeStatus0 = (ushort)((definition.NativeTemplate?.NativeStatusAllocation?.Saved ?? definition.NativeStatus0) | definition.NativeRetainedStatusBits);
+        RefreshNativeHpStatusFlags();
         NativeStatus1 = definition.NativeTemplate?.NativeStatusAllocation?.Battle ?? definition.NativeStatus1;
+        if (definition.NativeCharacterFlag100 == true)
+        {
+            nativeCombatantFlags |= 0x100;
+        }
         RestoreMagicInventory(definition.NativeMagicInventory ?? ExpandMagicStocks(definition.MagicStocks));
         IsActive = definition.InitialActive;
         Hidden = definition.InitialHidden;
@@ -259,6 +302,7 @@ public sealed partial class BattleCombatant
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands => definition.NativeCommands;
     public ImmutableArray<byte> NativeCommandSlots => definition.NativeCommandSlots;
     public BattleNativeLimitDefinition? NativeLimit => definition.NativeLimit;
+    public BattleNativeAction? NativeAttack => definition.NativeAttack;
     public int? SceneSlot => definition.SceneSlot;
     public uint NativeCombatantFlags
     {
@@ -326,7 +370,29 @@ public sealed partial class BattleCombatant
         Effects.AddRange(definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)));
     }
     public int MaximumHp => definition.MaximumHp;
-    public int CurrentHp { get; internal set; }
+    public int CurrentHp
+    {
+        get => currentHp;
+        internal set
+        {
+            currentHp = value;
+            RefreshNativeHpStatusFlags();
+        }
+    }
+
+    private void RefreshNativeHpStatusFlags()
+    {
+        //494360 updates the HP flags at the HP commit boundary, not when AI queries the saved WORD.
+        NativeStatus0 &= 0xFCFF;
+        if (currentHp > 0 && currentHp < MaximumHp >> 1)
+        {
+            NativeStatus0 |= 0x200;
+            if (currentHp < MaximumHp >> 2)
+            {
+                NativeStatus0 |= 0x100;
+            }
+        }
+    }
     public int Speed => ScaleNativeStat(4, definition.Speed);
     public int Attack => ScaleNativeStat(0, definition.Attack);
     public int Defense => ScaleNativeStat(1, definition.Defense);
@@ -374,7 +440,9 @@ public sealed partial class BattleCombatant
     public IReadOnlyList<int> ElementDefenses => Array.AsReadOnly(definition.ElementDefenses);
     internal NativeMagicStock[] NativeMagicInventory { get; } = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
     public IReadOnlyList<BattleStock> MagicStocks => NativeMagicInventory.Where(stock => stock.SpellId != 0 && stock.Count > 0).Select(stock => new BattleStock(stock.SpellId, stock.Count)).ToArray();
+    public IReadOnlyList<NativeMagicStock> NativeMagicSlots => Array.AsReadOnly(NativeMagicInventory);
     public IReadOnlyList<BattleDrawSpell> DrawSpells => Array.AsReadOnly(definition.DrawSpells);
+    public NativeBattleMugDefinition? NativeMug => definition.NativeTemplate?.NativeMug ?? definition.NativeMug;
     public IReadOnlyList<int> DrawGuardianForces => Array.AsReadOnly(definition.DrawGuardianForces);
     public int? WeaponId => definition.WeaponId;
     public string? WeaponName => definition.WeaponName;

@@ -31,10 +31,17 @@ internal sealed class BattleHudElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         BattleSession session = controller.Session;
-        if (controller.BattleMessage is string battleMessage && session.Outcome == BattleOutcome.Active)
+        if (controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
             theme.Panel(canvas, Rect(32, 22, 896, 100));
-            Text(canvas, theme, battleMessage, 52, 36, 856, 76, 20);
+            if (canvas is IBattleMessageCanvas rich)
+            {
+                rich.BattleMessage(battleMessage, 20 * Scale * controller.TextScale, Rect(52, 36, 856, 76), controller.BattlePresentationSeconds);
+            }
+            else
+            {
+                Text(canvas, theme, battleMessage.Text, 52, 36, 856, 76, 20);
+            }
         }
         theme.Panel(canvas, Rect(16, 494, 252, 130));
         theme.Panel(canvas, Rect(280, 494, 664, 130));

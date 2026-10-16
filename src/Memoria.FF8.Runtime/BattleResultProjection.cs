@@ -4,7 +4,7 @@ public sealed record BattleRewardSummary(IReadOnlyDictionary<byte, ushort> Chara
 public sealed record BattleResultOwners(NativeCharacterVitals CharacterVitals, NativeEconomy Economy, NativeCardInventory? Cards, BattleRewardSummary Rewards);
 
 /// <summary>Applies observed persistent battle effects and current reward rules without constructing or dispatching combat.</summary>
-public static class BattleResultProjection
+public static partial class BattleResultProjection
 {
     public static BattleResultOwners Apply(BattleResult result, NativeCharacterVitals sourceVitals, NativeEconomy sourceEconomy, IReadOnlyDictionary<int, int> currentEnemyAbilityPoints, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> currentEnemyRewards, NativeBattleExperienceDefinition experienceDefinition, NativeCardInventory? sourceCards, bool noExperience)
     {
@@ -50,7 +50,21 @@ public static class BattleResultProjection
                 int after = before + change.Change;
                 stocks[slot] = new NativeMagicStock(after == 0 ? (byte)0 : change.SpellId, checked((byte)after));
             }
-            records[member.Row] = record with { HitPoints = new NativeHpWord(member.HitPointsAfter, member.HitPointsAfter), Status = member.StatusAfter, MagicInventory = stocks };
+            if (member.MagicInventoryAfter is { } finalInventory)
+            {
+                BattleCombatant.ValidateMagicInventory(finalInventory);
+                for (int spell = 1; spell < 64; spell++)
+                {
+                    if ((stocks.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0) != (finalInventory.FirstOrDefault(stock => stock.SpellId == spell)?.Count ?? 0))
+                    {
+                        throw new InvalidDataException("Battle physical magic inventory contradicts its observed stock changes.");
+                    }
+                }
+                stocks = finalInventory.ToArray();
+            }
+            //486CD0 retains physical inventory positions and clears any of the twenty junctions whose spell is exhausted.
+            byte[] junctions = record.Junction.MagicJunctions.Select(spell => stocks.Any(stock => stock.SpellId == spell && stock.Count > 0) ? spell : (byte)0).ToArray();
+            records[member.Row] = record with { HitPoints = new NativeHpWord(member.HitPointsAfter, member.HitPointsAfter), Status = member.StatusAfter, MagicInventory = stocks, Junction = record.Junction with { MagicJunctions = junctions } };
         }
         foreach (BattleEnemyDefeat defeat in result.EnemyDefeats.Where(defeat => defeat.Credit == BattleDefeatCredit.Character))
         {
@@ -68,7 +82,33 @@ public static class BattleResultProjection
             byte remaining = checked((byte)(consumption.CountBefore - consumption.Consumed));
             items[slot] = remaining == 0 ? new NativeItemStock(0, 0) : items[slot] with { Count = remaining };
         }
-        vitals = vitals with { Records = records };
+        if (result.NativeItemInventoryAfter is { } finalItems)
+        {
+            BattleSession.ValidateNativeItemInventory(finalItems);
+            foreach (NativeItemStock before in economy.Items.Where(stock => stock.ItemId != 0))
+            {
+                int after = finalItems.FirstOrDefault(stock => stock.ItemId == before.ItemId)?.Count ?? 0;
+                int consumed = result.ItemConsumptions.FirstOrDefault(consumption => consumption.ItemId == before.ItemId)?.Consumed ?? 0;
+                if (after < before.Count ? before.Count - after != consumed : consumed != 0)
+                {
+                    throw new InvalidDataException("Battle physical item inventory contradicts its observed net consumptions.");
+                }
+            }
+            items = finalItems.ToArray();
+        }
+        foreach (BattleGuardianForceCompatibilityChange change in result.GuardianForceCompatibilityChanges)
+        {
+            if (records[change.Row].GuardianForceCompatibility is not { } before || !before.SequenceEqual(change.Before))
+            {
+                throw new InvalidDataException("Battle GF compatibility change disagrees with its canonical saved owner.");
+            }
+            records[change.Row] = records[change.Row] with { GuardianForceCompatibility = change.After.ToArray() };
+        }
+        vitals = vitals with { Records = ApplyNativeGrowthChanges(result, records) };
+        foreach (byte id in result.NativeScriptEffects.AcquiredGuardianForces)
+        {
+            vitals = vitals.AcquireGuardianForce(id);
+        }
         NativeGuardianForceVital[] guardianForces = vitals.GuardianForces.ToArray();
         foreach (BattleGuardianForceChange change in result.GuardianForceChanges)
         {
@@ -81,12 +121,8 @@ public static class BattleResultProjection
             guardianForces[change.Id] = gf with { HitPoints = change.HitPointsAfter };
         }
         vitals = vitals with { GuardianForces = guardianForces };
-        foreach (byte id in result.NativeScriptEffects.AcquiredGuardianForces)
-        {
-            vitals = vitals.AcquireGuardianForce(id);
-        }
         BattleExperienceAwards experience = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>());
-        BattleLootOwners loot = new(economy with { Items = items }, sourceCards?.DeepCopy(), [], []);
+        BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);
         if (result.Outcome == BattleOutcome.Victory && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
         {
             experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience);
@@ -127,7 +163,7 @@ public static class BattleResultProjection
         if (eligible.Length > 0)
         {
             ushort points = 0;
-            foreach (int slot in result.DefeatedEnemySlots)
+            foreach (int slot in result.RewardPolicy == BattleRewardPolicy.NativeCombat ? result.EnemyDefeats.Select(defeat => defeat.Slot) : result.DefeatedEnemySlots)
             {
                 if (!currentEnemyAbilityPoints.TryGetValue(slot, out int amount) || amount is < 0 or > 255)
                 {

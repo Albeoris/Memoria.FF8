@@ -88,6 +88,13 @@ internal sealed class BattleScenePresentation
         }
         List<BattleActorDraw> actors = [];
         impactTimeline.Collect(session);
+        foreach (BattleCombatant actor in session.Combatants.Where(actor => !definitions.ContainsKey(actor.Id)))
+        {
+            BattleCombatantDefinition allocated = session.GetCombatantDefinition(actor.Id);
+            BattleCombatantDefinition prototype = definitions.Values.First(candidate => !candidate.IsPlayer && candidate.SceneSlot == allocated.SceneSlot);
+            definitions.Add(actor.Id, allocated);
+            positions.Add(actor.Id, positions[prototype.Id]);
+        }
         foreach (BattleCombatant actor in session.Combatants)
         {
             if (!actor.IsActive || actor.Hidden)

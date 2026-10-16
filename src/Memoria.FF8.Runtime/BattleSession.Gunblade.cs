@@ -3,7 +3,7 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     public BattleGunbladeMode GunbladeMode { get; private set; }
-    public bool CanTriggerGunblade => Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAttack(byId[action.ActorId], action.Ability);
+    public bool CanTriggerGunblade => Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
     public bool GunbladeTriggerWindowOpen => CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
 
     public void SetGunbladeMode(BattleGunbladeMode mode)
@@ -33,6 +33,11 @@ public sealed partial class BattleSession
         return ability == BattleAbility.Attack && actor.IsPlayer && actor.ModelId is 0 or 6 && actor.WeaponId is not null;
     }
 
+    private static bool IsGunbladeAction(BattleCombatant actor, BattleActionPresentation action)
+    {
+        return actor.IsPlayer && actor.ModelId is 0 or 6 && actor.WeaponId is not null && (action.Ability == BattleAbility.Attack || action.NativeAction?.Command is 1 or 12 or 28 or 243 or 248 or 253);
+    }
+
     private static short ProjectGunbladeTiming(int remainingFrames)
     {
         // TODO(TD-009): Project the native4BA6C0 quarter-pose window onto scaffold contact. The native sequenceVM must own the actual distance-dependent clip contact
@@ -44,7 +49,8 @@ public sealed partial class BattleSession
     private short ResolveGunbladeTiming(BattleCombatant actor, BattleCombatant target, BattleActionPresentation action)
     {
         // Automatic is host assistance supplying one successful native trigger, not the original probabilistic Auto option/4A7080 random owner.
-        short timing = GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
+        //485160 overwrites the single-hit trigger WORD with1 under Blind, without an ordinary accuracy roll.
+        short timing = HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
         if (NativeGunbladeAttack.TriggerSucceeded(timing))
         {
             Log("GunbladeTrigger", actor.Id, target.Id, 0, $"{actor.Name}: Gunblade trigger.");

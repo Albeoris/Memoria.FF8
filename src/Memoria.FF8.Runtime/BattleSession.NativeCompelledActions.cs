@@ -4,6 +4,45 @@ public sealed partial class BattleSession
 {
     private sealed record NativeCompelledCommand(byte Command, ushort ActionId, ushort TargetMask, bool FreeMagic);
 
+    private static bool RequiresNativeCompelledCommand(BattleCombatant actor)
+    {
+        return actor.IsPlayer && ((NativeSavedStatusBits(actor) & 0x20) != 0 || (NativeBattleStatusBits(actor) & 0x2004000) != 0);
+    }
+
+    private void DispatchNativeCompelledActors()
+    {
+        foreach (BattleCombatant actor in combatants.Where(actor => actor.IsReady && RequiresNativeCompelledCommand(actor)))
+        {
+            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.IsActive && candidate.NativeIndex is >= 3 and < 7) ?? actor;
+            EnqueueAttack(actor, target);
+        }
+    }
+
+    private BattleAttackCommand PrepareNativeQueuedCommand(BattleCombatant actor, BattleAttackCommand original)
+    {
+        NativeCompelledCommand? prepared = PrepareNativeCompelledCommand(actor);
+        if (prepared is null)
+        {
+            return original;
+        }
+        int? reserved = prepared.Command == 4 ? ConsumeNativeItem(prepared.ActionId) : null;
+        if (original.ReservedNativeItemSlot is int previousSlot)
+        {
+            RefundNativeReservedItem(previousSlot, original.NativeAction?.ActionId ?? original.ActionId);
+        }
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (prepared.TargetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleNativeAction? native = prepared.Command == 1 ? actor.NativeAttack : FindNativeCommandAction(actor, prepared.Command, prepared.ActionId);
+        BattleAbility ability = prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
+        return new BattleAttackCommand(actor.Id, target.Id, ability, prepared.ActionId)
+        {
+            NativeAction = native,
+            NativeQueuedCommand = prepared.Command,
+            NativeTargetMask = prepared.TargetMask,
+            FreeNativeMagic = prepared.FreeMagic,
+            ReservedNativeItemSlot = reserved
+        };
+    }
+
     private NativeCompelledCommand? PrepareNativeCompelledCommand(BattleCombatant actor)
     {
         if (!actor.IsPlayer)

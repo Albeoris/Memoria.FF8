@@ -36,6 +36,9 @@ public sealed class NativeBattleScriptStateTests
         Assert.Equal(new byte[] { 4, 4 }, state.Cards);
         Assert.Equal(new[] { 127 }, state.UnlockedTutorials);
         Assert.True(state.DisableAutomaticTargetReplacement);
+        BattleGuardianForceVital acquired = Assert.Single(battle.GuardianForces);
+        Assert.True(acquired.Acquired);
+        Assert.Equal((ushort)100, acquired.HitPoints);
         Assert.Equal(new BattleStock(1, 1), Assert.Single(battle.ScriptedRewards));
         Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).NativeScriptState));
         state.Cards[0] = 90;
@@ -74,6 +77,6 @@ public sealed class NativeBattleScriptStateTests
 
     private static BattleSession Create(NativeBattleAiDefinition ai)
     {
-        return new(new() { Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        return new(new() { GuardianForces = [new(2, 200, 100, false)], Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
     }
 }

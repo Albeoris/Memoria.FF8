@@ -1,0 +1,31 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Assets.Tests;
+
+public sealed class NativePocketStationTests
+{
+    [Fact]
+    public void OriginalNewGameClearsTheSavedPocketStationTailBeyondItsCopiedTemplate()
+    {
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativePocketStationState saved = assets.ReadNewGamePocketStation();
+        saved.Validate();
+        Assert.Equal(64, saved.Raw.Length);
+        Assert.All(saved.Raw, value => Assert.Equal((byte)0, value));
+        Assert.Equal((byte)0, saved.Level);
+        Assert.Equal(saved.Raw, JsonSerializer.Deserialize<NativePocketStationState>(JsonSerializer.Serialize(saved))!.Raw);
+    }
+
+    [Fact]
+    public void PocketStationPreservesEveryByteAndUsesTheOriginalFieldWidths()
+    {
+        NativePocketStationState saved = new(NativeInputConfiguration.OriginalInitHash, Enumerable.Range(0, 64).Select(value => (byte)value).ToImmutableArray());
+        saved.Validate();
+        Assert.Equal((byte)0, saved.Flags);
+        Assert.Equal((byte)1, saved.Level);
+        Assert.Equal((byte)45, saved.AttackVariant);
+        Assert.Throws<InvalidDataException>(() => (saved with { Raw = saved.Raw.RemoveAt(0) }).Validate());
+    }
+}

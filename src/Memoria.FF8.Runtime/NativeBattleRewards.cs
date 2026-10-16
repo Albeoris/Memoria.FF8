@@ -20,9 +20,12 @@ public enum BattleDefeatCredit
 /// <summary>Observed death and selected reward branches, without action history or random samples.</summary>
 public sealed record BattleEnemyDefeat([property: JsonRequired] int Slot, [property: JsonRequired] byte Level, [property: JsonRequired] BattleDefeatCredit Credit, [property: JsonRequired] byte? KillerRow, [property: JsonRequired] byte? GuardianForceId, [property: JsonRequired] bool CardSelected, [property: JsonRequired] sbyte DropSelection)
 {
+    public byte? NativeCommand { get; init; }
+    public string? AllocationId { get; init; }
+    public string AllocationKey => AllocationId ?? $"scene-{Slot}";
     public void Validate()
     {
-        if (Slot is < 0 or >= 8 || Level is < 1 or > 100 || !Enum.IsDefined(Credit) || KillerRow is >= 8 || GuardianForceId is >= 16 || DropSelection is < -1 or > 3 || Credit == BattleDefeatCredit.Unattributed && (KillerRow is not null || GuardianForceId is not null) || Credit == BattleDefeatCredit.Character && (KillerRow is null || GuardianForceId is not null) || Credit == BattleDefeatCredit.GuardianForce && (KillerRow is null || GuardianForceId is null))
+        if (Slot is < 0 or >= 8 || AllocationId is not null && string.IsNullOrWhiteSpace(AllocationId) || Level is < 1 or > 100 || !Enum.IsDefined(Credit) || KillerRow is >= 8 || GuardianForceId is >= 16 || DropSelection is < -1 or > 3 || Credit == BattleDefeatCredit.Unattributed && (KillerRow is not null || GuardianForceId is not null) || Credit == BattleDefeatCredit.Character && (KillerRow is null || GuardianForceId is not null) || Credit == BattleDefeatCredit.GuardianForce && (KillerRow is null || GuardianForceId is null))
         {
             throw new InvalidDataException("Enemy defeat fact lacks its observed level, credit or selected reward branch.");
         }
@@ -143,12 +146,17 @@ public static class NativeBattleRewardDistribution
         {
             defeat.Validate();
             BattleEnemyRewardDefinition definition = definitions[defeat.Slot];
+            //494AF0's Card29 and Devour7 branches grant AP without accruing either EXP bank.
+            if (defeat.NativeCommand is 7 or 29)
+            {
+                continue;
+            }
             shared = Accumulate(shared, ScaledExperience(definition.SharedExperience, defeat.Level, averageLevel));
             if (defeat.KillerRow is byte killerRow && !party.Contains(killerRow))
             {
                 throw new InvalidDataException("Enemy defeat credit belongs to a character outside the actual battle party.");
             }
-            if (defeat.Credit == BattleDefeatCredit.Character)
+            if (defeat.Credit == BattleDefeatCredit.Character && defeat.NativeCommand != 246)
             {
                 byte row = defeat.KillerRow!.Value;
                 int level = NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId]);

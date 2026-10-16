@@ -7,13 +7,13 @@ public sealed partial class BattleSession
 
     private void ObserveEnemyDefeat(BattleCombatant? actor, BattleCombatant target)
     {
-        BattleCombatantDefinition source = definition.Combatants.Single(candidate => candidate.Id == target.Id);
+        BattleCombatantDefinition source = target.SourceDefinition;
         if (target.IsPlayer || source.Rewards is not { } rewards)
         {
             return;
         }
         int slot = source.RewardSlot ?? throw new InvalidDataException("Native enemy reward inputs require their actual formation slot.");
-        if (enemyDefeats.Any(defeat => defeat.Slot == slot))
+        if ((target.NativeCombatantFlags & 0x40000) != 0)
         {
             if (source.NativeAi is not null)
             {
@@ -32,8 +32,8 @@ public sealed partial class BattleSession
         }
         // Native494410 grants card486750, then drop486650 before accruing EXP/AP494AF0.
         bool card = rewards.SelectCard(checked((byte)NextRandomByte()));
-        sbyte selection = rewards.SelectDrop(checked((byte)NextRandomByte())) ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
-        BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection);
+        sbyte selection = (target.NativeCombatantFlags & 0x800) != 0 ? (sbyte)-1 : rewards.SelectDrop(checked((byte)NextRandomByte())) ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
+        BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection) { AllocationId = target.Id, NativeCommand = ActiveAction?.NativeQueuedCommand ?? ActiveAction?.NativeAction?.Command ?? (ActiveAction?.Ability == BattleAbility.Attack ? (byte)1 : null) };
         fact.Validate();
         enemyDefeats.Add(fact);
         target.NativeCombatantFlags |= 0x40000;

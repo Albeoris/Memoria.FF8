@@ -13,7 +13,10 @@ public sealed partial class BattleSession
         bool completed = false;
         try
         {
+            nativeAffinityAction = null;
             ResolveAction(actor, target, command);
+            CompleteNativeActionInventory(actor, command);
+            CompleteGuardianForceAffinity(actor, command);
             CompleteNativeActionStatuses(actor);
             completed = true;
         }

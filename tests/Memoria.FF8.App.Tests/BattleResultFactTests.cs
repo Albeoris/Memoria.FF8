@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
@@ -7,6 +8,63 @@ namespace Memoria.FF8.App.Tests;
 // Explicit component facts exercise persistent effect/reward application, not an invented research journal or original playthrough.
 public sealed class BattleResultFactTests
 {
+    [Fact]
+    public void RepeatedSceneAllocationsAwardTheirOwnApWithoutDuplicatingOneAllocationReceipt()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        BattleEnemyDefeat original = fact.EnemyDefeats[0] with { AllocationId = "enemy-0" };
+        BattleEnemyDefeat summoned = original with { AllocationId = "native-allocation-1" };
+        fact = fact with { EnemyDefeats = [original, summoned], DefeatedEnemySlots = [original.Slot] };
+        BattleResultOwners projected = Project(fact, vitals, economy, new Dictionary<int, int> { [original.Slot] = 5 });
+        Assert.Equal((ushort)10, projected.Rewards.GuardianForceAbilityPoints[0]);
+        Assert.Throws<InvalidDataException>(() => (fact with { EnemyDefeats = [original, original] }).Validate());
+    }
+
+    [Fact]
+    public void DirectCardGrowthAndCrtEffectsShareOneAtomicNativeReceipt()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        byte row = fact.Party[0].Row;
+        NativeCharacterVital character = vitals.Records[row];
+        BattleNativeCharacterGrowth beforeGrowth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray());
+        byte[] bonuses = character.StatBonuses.ToArray();
+        bonuses[0] = (byte)Math.Min(255, bonuses[0] + 1);
+        BattleNativeCharacterGrowth afterGrowth = new((ushort)Math.Min(9999, character.HitPointBonus + 10), bonuses.ToImmutableArray());
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        NativeCardInventory afterCards = cards.Acquire(4, out _);
+        NativeCrtRandomState crt = NativeCrtRandomState.FromColdProcess();
+        NativeCrtRandomState afterCrt = crt.Draw(out _);
+        fact = fact with { NativeGrowthChanges = [new(row, beforeGrowth, afterGrowth)], NativeCardChange = new(cards, afterCards), NativeCrtRandomBefore = crt, NativeCrtRandomAfter = afterCrt, EnemyDefeats = fact.EnemyDefeats.Select(defeat => defeat with { NativeCommand = 29 }).ToArray() };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, CardInventory = cards, CrtRandom = crt });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        world.ApplyBattleResult(fact.Encounter, fact);
+        Assert.Equal(afterGrowth.HitPointBonus, session.State.CharacterVitals!.Records[row].HitPointBonus);
+        Assert.Equal(bonuses, session.State.CharacterVitals.Records[row].StatBonuses);
+        Assert.Equal(1, session.State.CardInventory!.AvailableCount(4));
+        Assert.Equal(afterCrt, session.State.CrtRandom);
+        Assert.Equal(character.Experience, session.State.CharacterVitals.Records[row].Experience);
+        Assert.All(world.LastBattleRewards!.CharacterExperience.Values, amount => Assert.Equal(0, amount));
+        Assert.NotEmpty(world.LastBattleRewards.GuardianForceAbilityPoints);
+        string committed = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(committed, JsonSerializer.Serialize(session.State));
+    }
+
+    [Fact]
+    public void StaleCrtOwnerRejectsTheWholeNativeSpecialReceipt()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeCrtRandomState before = NativeCrtRandomState.FromColdProcess();
+        fact = fact with { NativeCrtRandomBefore = before, NativeCrtRandomAfter = before.Draw(out _) };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, CrtRandom = new(5) });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        string original = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(original, JsonSerializer.Serialize(session.State));
+    }
+
     [Fact]
     public void NativeScriptAcquisitionsCommitGfCardsAndTutorialsWithTheSameReceipt()
     {
@@ -114,6 +172,99 @@ public sealed class BattleResultFactTests
         Assert.Throws<InvalidDataException>(() => Project(fact with { RewardEligibleGuardianForceIds = [] }, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1)));
         Assert.Equal(beforeVitals, JsonSerializer.Serialize(vitals));
         Assert.Equal(beforeEconomy, JsonSerializer.Serialize(economy));
+    }
+
+    [Fact]
+    public void PhysicalMagicReceiptPreservesAStockMovedIntoAnEarlierEmptySlot()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeCharacterVital[] records = vitals.Records.ToArray();
+        NativeMagicStock[] before = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
+        before[5] = new(1, 2);
+        before[10] = new(2, 9);
+        records[0] = records[0] with { MagicInventory = before };
+        vitals = vitals with { Records = records };
+        NativeMagicStock[] after = before.ToArray();
+        after[0] = new(1, 5);
+        after[5] = new(0, 0);
+        fact = fact with { Party = [fact.Party[0] with { MagicInventoryAfter = after }] };
+
+        BattleResultOwners projected = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
+
+        Assert.Equal(after, projected.CharacterVitals.Records[0].MagicInventory);
+        after[0] = new(1, 6);
+        Assert.Throws<InvalidDataException>(() => Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1)));
+    }
+
+    [Fact]
+    public void ExhaustedMagicClearsItsPhysicalSlotAndAllReferencesInTheTwentyJunctions()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeCharacterVital[] records = vitals.Records.ToArray();
+        byte[] junctions = new byte[20];
+        junctions[0] = 1;
+        junctions[19] = 1;
+        records[0] = records[0] with { Junction = records[0].Junction with { MagicJunctions = junctions } };
+        vitals = vitals with { Records = records };
+        fact = fact with { Party = [fact.Party[0] with { MagicChanges = [new(1, 2, -2)] }] };
+
+        BattleResultOwners projected = Project(fact, vitals, economy, fact.DefeatedEnemySlots.ToDictionary(slot => slot, _ => 1));
+
+        Assert.Equal(new NativeMagicStock(0, 0), projected.CharacterVitals.Records[0].MagicInventory[0]);
+        Assert.Equal(new byte[20], projected.CharacterVitals.Records[0].Junction.MagicJunctions);
+    }
+
+    [Fact]
+    public void PhysicalItemReceiptPreservesDirectGainsBeforeTheSeparateRewardPolicy()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeEconomy gained = economy.AddItem(178, 7, out _);
+        NativeItemStock[] after = gained.Items.ToArray();
+        BattleItemConsumption consumed = fact.ItemConsumptions.Single();
+        int potion = Array.FindIndex(after, stock => stock.ItemId == consumed.ItemId);
+        after[potion] = after[potion] with { Count = (byte)(after[potion].Count - consumed.Consumed) };
+        fact = fact with { DebugVictory = true, RewardPolicy = BattleRewardPolicy.DebugNoRewards, DefeatedEnemySlots = [], EnemyDefeats = [], RewardEligibleGuardianForceIds = [], NativeItemInventoryAfter = after };
+
+        BattleResultOwners projected = Project(fact, vitals, economy, new Dictionary<int, int>());
+
+        Assert.Equal(after, projected.Economy.Items);
+        NativeItemStock[] invalid = after.ToArray();
+        invalid[potion] = invalid[potion] with { Count = (byte)(invalid[potion].Count - 1) };
+        Assert.Throws<InvalidDataException>(() => Project(fact with { NativeItemInventoryAfter = invalid }, vitals, economy, new Dictionary<int, int>()));
+    }
+
+    [Fact]
+    public void ScanHistoryPublishesOnlyWithItsMatchingCurrentOccurrenceAndBeforeBank()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeScannedModels before = new(NativeInputConfiguration.OriginalInitHash, System.Collections.Immutable.ImmutableArray.Create<uint>(0, 0, 0, 0, 0));
+        NativeScannedModels after = before.Add(159);
+        fact = fact with { NativeScannedModelsBefore = before, NativeScannedModelsAfter = after };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, ScannedModels = before });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+
+        world.ApplyBattleResult(fact.Encounter, fact);
+
+        Assert.True(session.State.ScannedModels!.SameValue(after));
+        GameSession stale = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, ScannedModels = before.Add(3) });
+        stale.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld staleWorld = new(stale, LaunchOptions.DefaultGameDirectory);
+        string unchanged = JsonSerializer.Serialize(stale.State);
+        Assert.Throws<InvalidDataException>(() => staleWorld.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(unchanged, JsonSerializer.Serialize(stale.State));
+    }
+
+    [Fact]
+    public void ScanHistoryHasAnAuthenticatedNewGameClearWithoutInferringOldState()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeScannedModels clear = assets.ReadNewGameScannedModels();
+        Assert.All(clear.Words, word => Assert.Equal(0u, word));
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74 });
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        Assert.Null(session.State.ScannedModels);
+        Assert.Throws<NotSupportedException>(() => session.InitializeNewGameScannedModels(clear));
     }
 
     private static BattleResultOwners Project(BattleResult fact, NativeCharacterVitals vitals, NativeEconomy economy, IReadOnlyDictionary<int, int> points)

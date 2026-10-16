@@ -1,0 +1,99 @@
+namespace Memoria.FF8.Runtime;
+
+/// <summary>A distinct native allocation of one immutable scene resource, including earlier released allocations.</summary>
+public sealed record NativeBattleEnemyAllocation(string Id, int SceneSlot, int Generation);
+
+public sealed partial class BattleSession
+{
+    private readonly List<NativeBattleEnemyAllocation> nativeAllocations = [];
+
+    public BattleCombatantDefinition GetCombatantDefinition(string id)
+    {
+        return CloneDefinition(definition with { Combatants = [GetActor(id).SourceDefinition] }).Combatants[0];
+    }
+
+    private BattleCombatant AllocateNativeEnemy(BattleCombatant caller, int sceneSlot, int requestedIndex, bool activate)
+    {
+        BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == sceneSlot) ?? throw new InvalidDataException($"Native enemy allocation has no scene resource {sceneSlot}.");
+        NativeBattleEnemyTemplate template = prototype.NativeTemplate ?? throw new InvalidDataException("Native enemy allocation lacks its installed resource template.");
+        int physicalIndex = requestedIndex == 0 ? Enumerable.Range(3, 4).FirstOrDefault(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index), -1) : requestedIndex;
+        if (physicalIndex is < 3 or > 6)
+        {
+            throw new InvalidDataException("Native enemy allocation requires one of physical slots3..6 and an available allocation.");
+        }
+        foreach (BattleCombatant replaced in combatants.Where(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex).ToArray())
+        {
+            if (replaced.IsActive)
+            {
+                ReleaseNativeParticipant(replaced);
+            }
+            replaced.NativeIndex = -1;
+        }
+        int generation = checked(nativeAllocations.Count + 1);
+        NativeBattleEnemyAllocation allocation = new($"native-allocation-{generation}", sceneSlot, generation);
+        BattleCombatant spawned = CreateNativeAllocation(allocation);
+        nativeAllocations.Add(allocation);
+        spawned.NativeIndex = physicalIndex;
+        spawned.NativeCombatantFlags = template.NativeCombatantFlags | 1;
+        int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
+        byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
+        byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
+        int level = NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, combatants.Where(candidate => candidate.IsPlayer && candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray(), firstRoll, secondRoll);
+        spawned.BindNativeLevel(level);
+        spawned.ResetNativeStatusAllocation();
+        spawned.CurrentHp = spawned.MaximumHp;
+        nativeLastAllocatedIndex = physicalIndex;
+        Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
+        if (activate)
+        {
+            ActivateNativeParticipant(spawned);
+        }
+        return spawned;
+    }
+
+    private BattleCombatant CreateNativeAllocation(NativeBattleEnemyAllocation allocation)
+    {
+        if (allocation.Generation != nativeAllocations.Count + 1 || allocation.Id != $"native-allocation-{allocation.Generation}" || byId.ContainsKey(allocation.Id))
+        {
+            throw new InvalidDataException("Native allocation identity or generation is invalid.");
+        }
+        BattleCombatantDefinition prototype = definition.Combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.SceneSlot == allocation.SceneSlot) ?? throw new InvalidDataException("Native allocation references an absent scene prototype.");
+        if (prototype.NativeTemplate is null)
+        {
+            throw new InvalidDataException("Native allocation references a scene without an original allocation template.");
+        }
+        BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
+        combatants.Add(actor);
+        byId.Add(actor.Id, actor);
+        return actor;
+    }
+
+    private void RestoreNativeAllocations(NativeBattleEnemyAllocation[] allocations)
+    {
+        if (allocations is null)
+        {
+            throw new InvalidDataException("Native allocation list is missing.");
+        }
+        foreach (NativeBattleEnemyAllocation allocation in allocations)
+        {
+            if (allocation is null)
+            {
+                throw new InvalidDataException("Native allocation list contains an empty owner.");
+            }
+            CreateNativeAllocation(allocation);
+            nativeAllocations.Add(allocation);
+        }
+    }
+
+    private void ReleaseNativeParticipant(BattleCombatant actor)
+    {
+        actor.IsActive = false;
+        actor.Hidden = true;
+        actor.Untargetable = true;
+        actor.Atb = 0;
+        actor.IsBusy = false;
+        pendingNativeReactions.Remove(actor.Id);
+        // TODO(TD-009): Graphics105 completes the release; scaffold presentation commits it at the same dispatch boundary
+        Log("NativeModelRemoved", actor.Id, actor.Id, 0, $"{actor.Name} allocation released.");
+    }
+}

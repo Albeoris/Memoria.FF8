@@ -6,7 +6,7 @@ public sealed partial class BattleSession
     {
         if (action.NativeAction is { } resolved)
         {
-            byte commandByte = action.Ability == BattleAbility.Draw ? (byte)6 : resolved.Command;
+            byte commandByte = action.NativeQueuedCommand ?? (action.Ability == BattleAbility.Draw ? (byte)6 : resolved.Command);
             StoreNativeActionMemory(actor, recipient, action.Ability, commandByte, resolved.ActionId, resolved.Element, (byte)(resolved.AttackFlags & 3));
             return;
         }
@@ -15,7 +15,7 @@ public sealed partial class BattleSession
             BattleActionDefinition definition = FindAction(action.Ability == BattleAbility.Draw ? BattleAbility.Magic : action.Ability, action.ActionId);
             if (definition.NativeAction is { } native)
             {
-                byte commandByte = action.Ability == BattleAbility.Draw ? (byte)6 : native.Command;
+                byte commandByte = action.NativeQueuedCommand ?? (action.Ability == BattleAbility.Draw ? (byte)6 : native.Command);
                 StoreNativeActionMemory(actor, recipient, action.Ability, commandByte, native.ActionId, native.Element, (byte)(native.AttackFlags & 3));
                 return;
             }
@@ -33,21 +33,7 @@ public sealed partial class BattleSession
         }
         else if (action.Ability == BattleAbility.EnemyAbility)
         {
-            NativeBattleAiDefinition ai = actor.NativeAi ?? throw new InvalidDataException("Native enemy action memory requires the installed ability owner.");
-            NativeBattleAiAbility ability = ai.Abilities[16 * ai.LevelBand + action.ActionId];
-            command = ability.Command;
-            id = ability.Id;
-            if (ability.Command == 2)
-            {
-                BattleActionDefinition spell = FindAction(BattleAbility.Magic, ability.Id);
-                element = spell.Element;
-                attackType = spell.NativeAttackFlags is byte flags ? (byte)(flags & 3) : null;
-            }
-            else
-            {
-                element = ability.Element;
-                attackType = ability.NativeAttackFlags is byte flags ? (byte)(flags & 3) : null;
-            }
+            throw new InvalidDataException("Native enemy action memory requires its exact installed command/action metadata.");
         }
         else
         {

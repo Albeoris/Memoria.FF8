@@ -77,12 +77,12 @@ public sealed class NativeBattleAiTests
         Strike(restored, "enemy-0");
         Assert.False(battle.Combatants.Single(actor => actor.SceneSlot == 0).IsActive);
         Assert.False(battle.Combatants.Single(actor => actor.SceneSlot == 1).IsActive);
-        BattleCombatant elvoret = battle.Combatants.Single(actor => actor.SceneSlot == 2);
+        BattleCombatant elvoret = battle.Combatants.Single(actor => actor.SceneSlot == 2 && actor.IsActive);
         Assert.True(elvoret.IsAlive && !elvoret.Hidden && !elvoret.Untargetable);
         Assert.InRange(elvoret.Level, 1, 11);
         Assert.Single(battle.EnemyDefeats, defeat => defeat.Slot == 0);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(battle.Capture()), System.Text.Json.JsonSerializer.Serialize(restored.Capture()));
-        Strike(battle, "enemy-2");
+        Strike(battle, elvoret.Id);
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
         Assert.Contains(battle.ScriptedRewards, reward => reward.Id == 178 && reward.Count == 1);
         Assert.Equal(new[] { 0, 2 }, battle.EnemyDefeats.Select(defeat => defeat.Slot));
@@ -90,9 +90,9 @@ public sealed class NativeBattleAiTests
     }
 
     [Fact]
-    public void SharedActivationProgramUsesFormationSlotsRatherThanEnemyIdentityOrEncounterNumber()
+    public void SharedActivationProgramUsesPhysicalSlotRatherThanScenePrototypeOrEncounterNumber()
     {
-        NativeBattleAiDefinition program = new([[27, 6, 0, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
+        NativeBattleAiDefinition program = new([[27, 1, 0, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleDefinition definition = new()
         {
             Name = "Different native formation topology",

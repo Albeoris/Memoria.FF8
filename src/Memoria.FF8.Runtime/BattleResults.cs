@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -33,16 +33,27 @@ public sealed record BattleEncounterOccurrence([property: JsonRequired] string O
 
 public sealed record BattleMagicChange([property: JsonRequired] byte SpellId, [property: JsonRequired] byte CountBefore, [property: JsonRequired] int Change);
 public sealed record BattleItemConsumption([property: JsonRequired] byte ItemId, [property: JsonRequired] byte CountBefore, [property: JsonRequired] byte Consumed);
-public sealed record BattlePartyResult([property: JsonRequired] byte Row, [property: JsonRequired] byte CharacterId, [property: JsonRequired] ushort HitPointsBefore, [property: JsonRequired] ushort HitPointsAfter, [property: JsonRequired] ushort StatusBefore, [property: JsonRequired] ushort StatusAfter, [property: JsonRequired] BattleMagicChange[] MagicChanges);
+public sealed record BattlePartyResult([property: JsonRequired] byte Row, [property: JsonRequired] byte CharacterId, [property: JsonRequired] ushort HitPointsBefore, [property: JsonRequired] ushort HitPointsAfter, [property: JsonRequired] ushort StatusBefore, [property: JsonRequired] ushort StatusAfter, [property: JsonRequired] BattleMagicChange[] MagicChanges)
+{
+    public NativeMagicStock[]? MagicInventoryAfter { get; init; }
+}
 
 /// <summary>Observed persistent effects of a completed live encounter. Reward amounts are recomputed from current installed rules.</summary>
-public sealed record BattleResult([property: JsonRequired] BattleEncounterOccurrence Encounter, [property: JsonRequired] BattleOutcome Outcome, [property: JsonRequired] BattlePartyResult[] Party, [property: JsonRequired] BattleItemConsumption[] ItemConsumptions, [property: JsonRequired] int[] DefeatedEnemySlots, [property: JsonRequired] int[] RewardEligibleGuardianForceIds, [property: JsonRequired] bool DebugVictory, [property: JsonRequired] BattleRewardPolicy RewardPolicy, [property: JsonRequired] BattleEnemyDefeat[] EnemyDefeats)
+public sealed partial record BattleResult([property: JsonRequired] BattleEncounterOccurrence Encounter, [property: JsonRequired] BattleOutcome Outcome, [property: JsonRequired] BattlePartyResult[] Party, [property: JsonRequired] BattleItemConsumption[] ItemConsumptions, [property: JsonRequired] int[] DefeatedEnemySlots, [property: JsonRequired] int[] RewardEligibleGuardianForceIds, [property: JsonRequired] bool DebugVictory, [property: JsonRequired] BattleRewardPolicy RewardPolicy, [property: JsonRequired] BattleEnemyDefeat[] EnemyDefeats)
 {
+    public BattleNativeGrowthChange[] NativeGrowthChanges { get; init; } = [];
+    public BattleNativeCardChange? NativeCardChange { get; init; }
+    public NativeCrtRandomState? NativeCrtRandomBefore { get; init; }
+    public NativeCrtRandomState? NativeCrtRandomAfter { get; init; }
+    public NativeItemStock[]? NativeItemInventoryAfter { get; init; }
+    public NativeScannedModels? NativeScannedModelsBefore { get; init; }
+    public NativeScannedModels? NativeScannedModelsAfter { get; init; }
     public BattleStock[] ScriptedItems { get; init; } = [];
     public uint[]? PersistentAiVariablesBefore { get; init; }
     public uint[]? PersistentAiVariablesAfter { get; init; }
     public NativeBattleScriptState NativeScriptEffects { get; init; } = new();
     public BattleGuardianForceChange[] GuardianForceChanges { get; init; } = [];
+    public BattleGuardianForceCompatibilityChange[] GuardianForceCompatibilityChanges { get; init; } = [];
 
     public void Validate()
     {
@@ -51,6 +62,16 @@ public sealed record BattleResult([property: JsonRequired] BattleEncounterOccurr
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
+        NativeScannedModels.ValidateReceipt(NativeScannedModelsBefore, NativeScannedModelsAfter);
+        ValidateNativeSpecialEffects();
+        if (NativeItemInventoryAfter is { } finalItems)
+        {
+            BattleSession.ValidateNativeItemInventory(finalItems);
+        }
+        if (GuardianForceCompatibilityChanges is null || GuardianForceCompatibilityChanges.Any(change => change is null || Party is null || !Party.Any(member => member.Row == change.Row) || change.Before is not { Length: 16 } || change.After is not { Length: 16 } || change.Before.SequenceEqual(change.After)) || GuardianForceCompatibilityChanges.Select(change => change.Row).Distinct().Count() != GuardianForceCompatibilityChanges.Length)
+        {
+            throw new InvalidDataException("Battle GF compatibility changes require unique party rows and sixteen before/after WORDs.");
+        }
         if (GuardianForceChanges is null || GuardianForceChanges.Any(change => change is null || change.Id is < 0 or >= 16 || change.HitPointsBefore == change.HitPointsAfter) || GuardianForceChanges.Select(change => change.Id).Distinct().Count() != GuardianForceChanges.Length)
         {
             throw new InvalidDataException("Battle GF HP changes require unique before/after owners.");
@@ -68,11 +89,11 @@ public sealed record BattleResult([property: JsonRequired] BattleEncounterOccurr
         {
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }
-        if (Party.Any(member => ((member.StatusAfter & 1) != 0) != (member.HitPointsAfter == 0)) || Outcome == BattleOutcome.Victory && Party.All(member => member.HitPointsAfter == 0 || (member.StatusAfter & 4) != 0) || Outcome == BattleOutcome.Defeat && Party.Any(member => member.HitPointsAfter > 0 && (member.StatusAfter & 4) == 0))
+        if (Outcome == BattleOutcome.Victory && Party.All(member => (member.StatusAfter & 5) != 0) || Outcome == BattleOutcome.Defeat && Party.Any(member => (member.StatusAfter & 5) == 0))
         {
             throw new InvalidDataException("Battle outcome contradicts its observed party HP or KO effects.");
         }
-        if (!Enum.IsDefined(RewardPolicy) || EnemyDefeats is null || EnemyDefeats.Any(defeat => defeat is null) || EnemyDefeats.Select(defeat => defeat.Slot).Distinct().Count() != EnemyDefeats.Length || DebugVictory != (RewardPolicy == BattleRewardPolicy.DebugNoRewards) || RewardPolicy != BattleRewardPolicy.NativeCombat && EnemyDefeats.Length != 0 || RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && (Outcome != BattleOutcome.Victory || Encounter.ScriptedOwner is null) || RewardPolicy == BattleRewardPolicy.NativeCombat && !EnemyDefeats.Select(defeat => defeat.Slot).Order().SequenceEqual(DefeatedEnemySlots.Order()))
+        if (!Enum.IsDefined(RewardPolicy) || EnemyDefeats is null || EnemyDefeats.Any(defeat => defeat is null) || EnemyDefeats.Select(defeat => defeat.AllocationKey).Distinct(StringComparer.Ordinal).Count() != EnemyDefeats.Length || DebugVictory != (RewardPolicy == BattleRewardPolicy.DebugNoRewards) || RewardPolicy != BattleRewardPolicy.NativeCombat && EnemyDefeats.Length != 0 || RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && (Outcome != BattleOutcome.Victory || Encounter.ScriptedOwner is null) || RewardPolicy == BattleRewardPolicy.NativeCombat && !EnemyDefeats.Select(defeat => defeat.Slot).Distinct().Order().SequenceEqual(DefeatedEnemySlots.Order()))
         {
             throw new InvalidDataException("Battle reward policy contradicts its observed native defeats or declared research/debug backend.");
         }
@@ -84,6 +105,6 @@ public sealed record BattleResult([property: JsonRequired] BattleEncounterOccurr
 
     public BattleResult DeepCopy()
     {
-        return this with { GuardianForceChanges = GuardianForceChanges.ToArray(), Party = Party.Select(member => member with { MagicChanges = member.MagicChanges.ToArray() }).ToArray(), ItemConsumptions = ItemConsumptions.ToArray(), DefeatedEnemySlots = DefeatedEnemySlots.ToArray(), RewardEligibleGuardianForceIds = RewardEligibleGuardianForceIds.ToArray(), EnemyDefeats = EnemyDefeats.ToArray(), ScriptedItems = ScriptedItems.ToArray(), PersistentAiVariablesBefore = PersistentAiVariablesBefore?.ToArray(), PersistentAiVariablesAfter = PersistentAiVariablesAfter?.ToArray(), NativeScriptEffects = NativeScriptEffects.DeepCopy() };
+        return this with { NativeItemInventoryAfter = NativeItemInventoryAfter?.ToArray(), GuardianForceCompatibilityChanges = GuardianForceCompatibilityChanges.Select(change => change with { Before = change.Before.ToArray(), After = change.After.ToArray() }).ToArray(), GuardianForceChanges = GuardianForceChanges.ToArray(), Party = Party.Select(member => member with { MagicChanges = member.MagicChanges.ToArray(), MagicInventoryAfter = member.MagicInventoryAfter?.ToArray() }).ToArray(), ItemConsumptions = ItemConsumptions.ToArray(), DefeatedEnemySlots = DefeatedEnemySlots.ToArray(), RewardEligibleGuardianForceIds = RewardEligibleGuardianForceIds.ToArray(), EnemyDefeats = EnemyDefeats.ToArray(), ScriptedItems = ScriptedItems.ToArray(), PersistentAiVariablesBefore = PersistentAiVariablesBefore?.ToArray(), PersistentAiVariablesAfter = PersistentAiVariablesAfter?.ToArray(), NativeGrowthChanges = NativeGrowthChanges.ToArray(), NativeCardChange = NativeCardChange is { } cardChange ? new(cardChange.Before.DeepCopy(), cardChange.After.DeepCopy()) : null, NativeScriptEffects = NativeScriptEffects.DeepCopy() };
     }
 }

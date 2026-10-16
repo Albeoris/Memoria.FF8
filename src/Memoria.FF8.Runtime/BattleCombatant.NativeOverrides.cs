@@ -2,6 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleCombatant
 {
+    public BattleNativeCharacterGrowth? NativeGrowth { get; internal set; }
+    internal BattleNativeEnemySpecial? NativeSpecial => definition.NativeSpecial ?? definition.NativeTemplate?.NativeSpecial;
     internal int? NativeDisplayNameIndex { get; private set; }
 
     internal void SetNativeDisplayName(int? index)

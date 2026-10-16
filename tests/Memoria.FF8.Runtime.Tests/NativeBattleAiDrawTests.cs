@@ -33,6 +33,12 @@ public sealed class NativeBattleAiDrawTests
 
         battle.QueueAction("party", "enemy", BattleAbility.Magic, 1);
 
+        Assert.Equal(new NativeMagicStock(1, 1), battle.Capture().Combatants.Single(actor => actor.Id == "party").NativeMagicInventory![5]);
+        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        {
+            battle.Tick();
+        }
+
         NativeMagicStock[] current = battle.Capture().Combatants.Single(actor => actor.Id == "party").NativeMagicInventory!;
         Assert.Equal(new NativeMagicStock(0, 0), current[5]);
         Assert.Equal(new NativeMagicStock(2, 9), current[10]);

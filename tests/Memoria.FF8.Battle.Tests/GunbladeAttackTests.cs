@@ -96,14 +96,15 @@ public sealed class GunbladeAttackTests
     }
 
     [Fact]
-    public void GunbladeIgnoresBlindAccuracyAsItsNativeAttackTypeTenDoes()
+    public void BlindKeepsTheGunbladeHitButForcesItsSingleHitTriggerToFail()
     {
         BattleSession session = Create(0, blind: true);
         session.SetGunbladeMode(BattleGunbladeMode.Automatic);
         NativeBattleRandomState expected = session.Capture().Random!.Draw(out _);
         DispatchToContact(session);
-        Assert.Equal(82, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
+        Assert.Equal(54, Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
         Assert.DoesNotContain(session.Events, item => item.Kind == "Miss");
+        Assert.DoesNotContain(session.Events, item => item.Kind == "GunbladeTrigger");
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
     }
 
@@ -121,6 +122,17 @@ public sealed class GunbladeAttackTests
     }
 
     [Fact]
+    public void InstalledOrdinaryWeaponUsesSharedNativeCriticalAndDamageRandomOwnership()
+    {
+        BattleSession session = Create(1, nativeWeapon: true);
+        NativeBattleRandomState expected = session.Capture().Random!.Draw(out _).Draw(out byte damageRoll);
+        DispatchToContact(session);
+        Assert.Equal(2 * NativeBattleDamage.Physical(20, 5, 20, damageRoll), Assert.Single(session.Events, item => item.Kind == "Damage").Amount);
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(session.Capture().Random));
+        Assert.Equal((byte)1, session.Capture().Combatants[1].NativeParticipant!.LastAction!.Command);
+    }
+
+    [Fact]
     public void SnapshotRejectsInvalidOrForeignGunbladeInput()
     {
         BattleSession session = Create(1);
@@ -130,13 +142,14 @@ public sealed class GunbladeAttackTests
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(saved with { GunbladeMode = (BattleGunbladeMode)255 }));
     }
 
-    private static BattleSession Create(int model, bool blind = false)
+    private static BattleSession Create(int model, bool blind = false, bool nativeWeapon = false)
     {
+        BattleNativeAction attack = new(1, 0, 4, 0) { Name = "Attack", MagicId = 0, AttackType = 1, Power = 20, HitCount = 1, TargetFlags = 0x50, AttackFlags = 0, DamagePresentation = 4, Element = 0, ElementPercent = 0, StatusAttack = 100, Statuses0 = 0, Statuses1 = 0, Hit = 255, Critical = 255, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
         BattleSession session = new(new BattleDefinition
         {
             Combatants =
             [
-                new() { Id = "party-0", Name = "Gunblade user", IsPlayer = true, ModelId = model, WeaponId = 0, Attack = 20, PhysicalPower = 20, InitialAtb = BattleSession.AtbMaximum, StatusEffects = blind ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Blind }] : [] },
+                new() { Id = "party-0", Name = "Gunblade user", IsPlayer = true, ModelId = model, WeaponId = 0, Attack = 20, PhysicalPower = 20, NativeAttack = model is 0 or 6 || nativeWeapon ? attack : null, InitialAtb = BattleSession.AtbMaximum, StatusEffects = blind ? [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Blind }] : [] },
                 new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 1_000, CurrentHp = 1_000, Defense = 5 }
             ]
         }, BattleAtbMode.TurnBased);

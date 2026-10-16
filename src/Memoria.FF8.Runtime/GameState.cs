@@ -14,6 +14,8 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    public NativeScannedModels? ScannedModels { get; init; }
+    public NativeCrtRandomState? CrtRandom { get; init; }
     [JsonRequired]
     public BattleEncounterOccurrence? PendingBattleEncounter { get; init; }
     [JsonRequired]
@@ -73,6 +75,8 @@ public sealed record GameState
     [System.Text.Json.Serialization.JsonRequired]
     public NativeShotAvailabilityState? ShotAvailability { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
+    public NativePocketStationState? PocketStation { get; init; }
+    public NativeSavedBattleFlags? SavedBattleFlags { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldLocation? NativeFieldLocation { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

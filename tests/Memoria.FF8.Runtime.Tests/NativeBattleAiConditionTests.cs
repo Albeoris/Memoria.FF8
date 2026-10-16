@@ -60,7 +60,7 @@ public sealed class NativeBattleAiConditionTests
     public void PresenceIncludesDeadModelsWhileLivingPresenceExcludesThem()
     {
         BattleDefinition presence = Definition(Condition(8, 0, 0, 0));
-        presence = presence with { Combatants = [presence.Combatants[0] with { CurrentHp = 0 }, presence.Combatants[1]] };
+        presence = presence with { Combatants = [presence.Combatants[0] with { CurrentHp = 0, NativeStatus0 = 1 }, presence.Combatants[1]] };
         BattleDefinition living = presence with { Combatants = [presence.Combatants[0], presence.Combatants[1] with { NativeAi = Ai(Condition(9, 0, 0, 0)) }] };
 
         Assert.True(Passed(presence));
@@ -147,6 +147,26 @@ public sealed class NativeBattleAiConditionTests
     public void LastCommandWithoutAnExecutedMetadataOwnerFailsAtTheActualCondition()
     {
         Assert.Contains("executed action metadata owner", Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Condition(10, 3, 0, 254)), BattleAtbMode.Normal)).Message);
+    }
+
+    [Fact]
+    public void ScriptedKoControlsLivingCountsWithoutInventingHpDamage()
+    {
+        byte[] initial = [39, 0, 1, .. Condition(6, 201, 0, 0)];
+        BattleSession battle = new(Definition(initial), BattleAtbMode.Normal);
+
+        Assert.Equal(50, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+        Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
+    }
+
+    [Fact]
+    public void ClearingScriptedKoIsNotOverwrittenByAConditionQueryAtZeroHp()
+    {
+        byte[] initial = [39, 0, 0, .. Condition(6, 201, 0, 1)];
+        BattleDefinition definition = Definition(initial);
+        definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { CurrentHp = 0, NativeStatus0 = 1 }] };
+
+        Assert.True(Passed(definition));
     }
 
     private static bool Passed(BattleDefinition definition)

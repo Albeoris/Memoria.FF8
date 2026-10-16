@@ -11,7 +11,7 @@ using Memoria.FF8.Resources;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Reads selected original assets without modifying or extracting the installed game.</summary>
-public sealed class GameAssets : IDisposable
+public sealed partial class GameAssets : IDisposable
 {
     private static readonly ConcurrentDictionary<(string Path, long Length, long ModifiedTicks), string> NativeExecutableHashes = new();
     private readonly IFlArchive outer;
@@ -169,6 +169,26 @@ public sealed class GameAssets : IDisposable
         }
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeLimitProgressInitialization.Read(Read(main, "init.out"));
+    }
+
+    public NativePocketStationState ReadNewGamePocketStation()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("PocketStation initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativePocketStationInitialization.Read(Read(main, "init.out"));
+    }
+
+    public NativeSavedBattleFlags ReadNewGameSavedBattleFlags()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Saved battle flag initialization requires the authenticated original executable.");
+        }
+        //56D9F0/47E410 clear1CFDC58..1CFEFF8.56DA10's init.out payload ends1CFE7A4, before BYTE1CFE97A.
+        return new NativeSavedBattleFlags(NativeInputConfiguration.OriginalInitHash, 0);
     }
     public NativeInputConfiguration ReadNewGameInputConfiguration()
     {

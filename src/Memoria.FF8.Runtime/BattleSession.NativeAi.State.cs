@@ -29,6 +29,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native GF acquisition has no original saved GF record.");
         }
         nativeScriptState = nativeScriptState with { AcquiredGuardianForces = [.. nativeScriptState.AcquiredGuardianForces, id] };
+        AcquireGuardianForceInBattle(id);
     }
 
     private void AwardNativeCard(byte id)

@@ -2,15 +2,27 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private BattleActionPresentation? resolvingNativeAction;
     private BattleNativeAction FindInstalledNativeAction(byte command, ushort id, byte? crisis = null)
     {
         BattleNativeAction[] matches = definition.NativeActions.Where(action => action.Command == command && action.ActionId == id && (action.CrisisLevel is null || action.CrisisLevel == crisis)).ToArray();
         return matches.Length == 1 ? matches[0] : throw new NotSupportedException($"Native command {command}/{id} does not identify one installed action for crisis {crisis}.");
     }
 
+    private BattleNativeAction FindNativeCommandAction(BattleCombatant actor, byte command, ushort id, byte? crisis = null)
+    {
+        if (command is 1 or 12 or 28 && id == 0)
+        {
+            BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
+            BattleNativeCommandBinding? binding = actor.NativeCommands.FirstOrDefault(binding => binding.Command == command);
+            return attack with { Command = command, DispatchCommand = command, Name = binding?.Name ?? attack.Name, TargetFlags = binding?.TargetFlags ?? attack.TargetFlags };
+        }
+        return FindInstalledNativeAction(command, id, crisis);
+    }
+
     private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, byte? crisis = null)
     {
-        BattleNativeAction native = FindInstalledNativeAction(command, id, crisis);
+        BattleNativeAction native = FindNativeCommandAction(actor, command, id, crisis);
         ValidateNativeActionContract(native);
         actor.NativePreviousTargetMask = targetMask;
         if (command is 2 or 4)
@@ -22,9 +34,10 @@ public sealed partial class BattleSession
             targetMask |= 0x4000;
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
         actor.Atb = 0;
         actor.IsBusy = true;
-        actions.Enqueue(new BattleAttackCommand(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask });
+        actions.Enqueue(queued);
         Log("Queued", actor.Id, target.Id, id, $"{actor.Name}: {native.Name ?? $"native command {command}/{id}"} queued.");
     }
 
@@ -43,6 +56,10 @@ public sealed partial class BattleSession
                 return true;
             }
             int selected = targetMask & 0x1FFF;
+            if ((targetMask & 0xA000) == 0 && combatants.Any(candidate => candidate.IsActive && !candidate.Untargetable && candidate.NativeIndex is >= 0 and < 7 && (selected & (1 << candidate.NativeIndex)) != 0 && ((NativeSavedStatusBits(candidate) & 1) == 0 || (targetMask & 0x4000) != 0 && candidate.NativeIndex < 3)))
+            {
+                return true;
+            }
             if (nativeScriptState.DisableAutomaticTargetReplacement && (targetMask & 0xA000) == 0)
             {
                 return combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && (selected & (1 << candidate.NativeIndex)) != 0);
@@ -58,7 +75,7 @@ public sealed partial class BattleSession
 
     private static void ValidateNativeActionContract(BattleNativeAction action)
     {
-        if (action.AttackType is not (0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13 or 15 or 16 or 18 or 20 or 21 or 22 or 24 or 25 or 26 or 27 or 28 or 29 or 32 or 34 or 35 or 36))
+        if (action.AttackType is not (0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 27 or 28 or 29 or 32 or 33 or 34 or 35 or 36))
         {
             throw new NotSupportedException($"Native action {action.Command}/{action.ActionId} attack type {action.AttackType} requires its original invocation or persistent effect owner.");
         }
@@ -72,6 +89,11 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
+        if (actor.IsPlayer && native.Command is 2 or 6 or 254)
+        {
+            nativeAffinityAction = native;
+        }
+        BattleCombatant? firstReflector = null;
         for (int hit = 0; hit < native.HitCount; hit++)
         {
             BattleCombatant[] targets;
@@ -94,8 +116,34 @@ public sealed partial class BattleSession
             }
             foreach (BattleCombatant recipient in targets)
             {
-                ResolveInstalledNativeHit(actor, recipient, command, action, native);
+                if (hit == 0 && (command.NativeQueuedCommand ?? native.Command) == 12)
+                {
+                    ResolveNativeMug(actor, recipient);
+                }
+                if (NativeActionReflects(recipient, native))
+                {
+                    firstReflector ??= recipient;
+                    RecordNativeActionMemory(actor, recipient, command);
+                    DispatchNativeActionCounter(recipient);
+                    Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
+                    continue;
+                }
+                BattleActionPresentation resolved = command.NativeAction is null ? command with { NativeAction = native } : command;
+                BattleActionPresentation? previous = resolvingNativeAction;
+                resolvingNativeAction = resolved;
+                try
+                {
+                    ResolveInstalledNativeHit(actor, recipient, resolved, action, native);
+                }
+                finally
+                {
+                    resolvingNativeAction = previous;
+                }
             }
+        }
+        if (firstReflector is not null)
+        {
+            ResolveNativeReflection(actor, firstReflector, command, native);
         }
     }
 
@@ -169,6 +217,10 @@ public sealed partial class BattleSession
 
     private void ResolveInstalledNativeHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
+        if (TryResolveNativeSpecialHit(actor, recipient, command, native))
+        {
+            return;
+        }
         if (native.AttackType == 24)
         {
             ResolveMoogleDance(actor, recipient, command);
@@ -264,7 +316,11 @@ public sealed partial class BattleSession
         else
         {
             int spirit = (statuses & 0x1000000) != 0 || native.AttackType is 15 or 22 ? 0 : recipient.Spirit;
-            if (!curative && !bypass && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0))
+            bool magic = native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33;
+            bool magicCure = native.AttackType is 3 or 21;
+            bool fixedDamage = native.AttackType is 27 or 28 or 29 or 35;
+            bool earthImmune = (native.Element & 8) != 0 && (statuses & 0x2000) != 0;
+            if (magic && !bypass && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || earthImmune) || magicCure && !bypass && ((saved & 1) != 0 || (statuses & 0x200000) != 0 || earthImmune) || fixedDamage && ((saved & 4) != 0 || (statuses & 0x800) != 0))
             {
                 Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
                 return;
@@ -273,11 +329,12 @@ public sealed partial class BattleSession
             {
                 case 0:
                 case 12:
+                case 14:
                     damage = 0;
                     applyStatuses = false;
                     if (native.AttackType == 12)
                     {
-                        Log("Scan", actor.Id, recipient.Id, 0, $"{recipient.Name} Lv {recipient.Level} HP {recipient.CurrentHp}/{recipient.MaximumHp}.");
+                        ResolveNativeScan(actor, recipient);
                     }
                     break;
                 case 3:
@@ -316,16 +373,24 @@ public sealed partial class BattleSession
                     damage = NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer);
                     break;
                 case 27:
+                    applyStatuses = false;
                     damage = 100 * native.Power - (native.Hit ?? 255);
                     break;
                 case 28:
+                    applyStatuses = false;
                     damage = Math.Max(0, recipient.CurrentHp - 1);
                     break;
                 case 29:
+                    applyStatuses = false;
                     damage = 1000 * (native.Power * action.Level / 1000 + 1);
                     break;
                 case 35:
+                    applyStatuses = false;
                     damage = 1;
+                    break;
+                case 33:
+                    uint counter = definition.NativeElapsedCounter ?? throw new NotSupportedException("Native attack type33 requires its field elapsed counter DWORD at battle entry.");
+                    damage = unchecked((int)(native.Power * (counter / 1000)));
                     break;
                 default:
                     damage = NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer);
@@ -346,7 +411,7 @@ public sealed partial class BattleSession
                     damage = -damage;
                 }
             }
-            else if (native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26)
+            else if (native.AttackType is 2 or 8 or 11 or 15 or 20 or 22 or 26 or 33)
             {
                 damage = ModifyNativeMagicDamage(recipient, native, damage);
             }
@@ -358,6 +423,18 @@ public sealed partial class BattleSession
         if (command.DrawCast)
         {
             damage = damage * (NextRandomByte() + 10) / 150;
+        }
+        if (native.Command is 1 or 12 or 28 or 243 or 248 or 253 && (NativeSavedStatusBits(actor) & 0x20) != 0)
+        {
+            damage = damage * 3 >> 1;
+        }
+        if (native.Command is 28 or 243)
+        {
+            damage *= 3;
+        }
+        if (native.Command == 2 && (NativeBattleStatusBits(actor) & 0x2000000) != 0)
+        {
+            damage *= 5;
         }
         int maximum = (native.AttackFlags & 8) != 0 ? 60_000 : 9_999;
         damage = Math.Clamp(damage, -maximum, maximum);

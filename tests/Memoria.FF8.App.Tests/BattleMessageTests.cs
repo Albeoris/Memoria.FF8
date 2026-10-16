@@ -49,6 +49,24 @@ public sealed class BattleMessageTests
         Assert.Null(hud.BattleMessage);
     }
 
+    [Fact]
+    public void NativeControlTagsResolveNamesLinesAndColorsWithoutChangingTheSavedMessage()
+    {
+        BattleSession original = Create([1, 0, 0]);
+        BattleDefinition definition = original.Capture().Definition;
+        BattleCombatantDefinition enemy = definition.Combatants[1];
+        const string encoded = "{Color Red}{Char Squall} and {Name Shiva}{Line}{Color White}ready";
+        enemy = enemy with { NativeAi = enemy.NativeAi! with { Texts = [encoded] } };
+        BattleSession battle = new(definition with { Combatants = [definition.Combatants[0] with { Name = "Leon" }, enemy] }, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn(), guardianForceName: id => id == 1 ? "Frost" : $"GF {id}");
+
+        hud.BuildView();
+
+        Assert.Equal("Leon and Frost\nready", hud.BattleMessage);
+        Assert.Equal(Microsoft.Xna.Framework.Color.Red, hud.BattleMessageDocument!.Pages[0].Lines[0].Runs[0].Color);
+        Assert.Equal(encoded, Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
+    }
+
     private static TimeSpan FrameDuration(int frames)
     {
         // A native frame is a repeating fraction in TimeSpan ticks; advance to the first representable instant at its boundary.

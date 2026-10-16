@@ -168,22 +168,16 @@ public sealed partial class BattleSession
                         _ = ReadAiByte(code, ref pc);
                         break;
                     case 27:
-                        int sceneSlot = ReadAiByte(code, ref pc);
+                        int entranceIndex = ReadAiByte(code, ref pc) + 3;
                         int sequence = ReadAiByte(code, ref pc);
-                        BattleCombatant activation = FindFormationActor(sceneSlot);
+                        BattleCombatant activation = FindNativeActor(entranceIndex);
                         Log("NativeSequence", actor.Id, activation.Id, sequence, $"Native entrance sequence {sequence}.");
                         ActivateNativeParticipant(activation);
                         break;
                     case 29:
                         int removal = ReadAiByte(code, ref pc);
-                        BattleCombatant removed = removal == 200 ? actor : FindFormationActor(removal);
-                        removed.Hidden = true;
-                        // Graphics105 ->502ED0 ->50C5F0 ->48AE20 releases the actor allocation too.
-                        removed.Untargetable = true;
-                        removed.IsActive = false;
-                        removed.Atb = 0;
-                        removed.IsBusy = false;
-                        Log("NativeModelRemoved", actor.Id, removed.Id, 0, $"{removed.Name} model removed.");
+                        BattleCombatant removed = removal == 200 ? actor : FindNativeActor(removal + 3);
+                        ReleaseNativeParticipant(removed);
                         break;
                     case 30:
                         // Native252 sets the no-damage byte in48FE20. Its operand selects presentation.
@@ -199,32 +193,12 @@ public sealed partial class BattleSession
                     case 31:
                     case 52:
                         int reserve = ReadAiByte(code, ref pc);
-                        BattleCombatant spawned = FindFormationActor(reserve);
-                        if (spawned.IsActive)
-                        {
-                            throw new NotSupportedException("Native battle AI replacement requires an unoccupied actor allocation.");
-                        }
-                        spawned.IsActive = true;
-                        spawned.NativeIndex = Enumerable.Range(3, 8).First(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index));
-                        NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native battle AI reserve requires its installed allocation template.");
-                        spawned.NativeCombatantFlags = template.NativeCombatantFlags | 1;
-                        int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
-                        byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
-                        byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
-                        int level = NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, combatants.Where(candidate => candidate.IsPlayer && candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray(), firstRoll, secondRoll);
-                        spawned.BindNativeLevel(level);
-                        spawned.ResetNativeStatusAllocation();
-                        spawned.SetNativeDisplayName(null);
-                        spawned.CurrentHp = spawned.MaximumHp;
-                        spawned.Atb = 0;
-                        Array.Clear(spawned.AiVariables);
-                        Array.Fill(spawned.NativeStatMultipliers, (byte)10);
-                        nativeLastAllocatedIndex = spawned.NativeIndex;
-                        Log("NativeSpawn", actor.Id, spawned.Id, reserve, $"{spawned.Name} allocated from formation slot {reserve}.");
-                        if (opcode == 31)
-                        {
-                            ActivateNativeParticipant(spawned);
-                        }
+                        AllocateNativeEnemy(actor, reserve, 0, opcode == 31);
+                        break;
+                    case 59:
+                        int replacementScene = ReadAiByte(code, ref pc);
+                        int replacementIndex = ReadAiByte(code, ref pc);
+                        AllocateNativeEnemy(actor, replacementScene, replacementIndex, true);
                         break;
                     case 35:
                         short displacement = unchecked((short)ReadAiWord(code, ref pc));
@@ -296,6 +270,9 @@ public sealed partial class BattleSession
                     case 55:
                         AwardNativeCard((byte)ReadAiByte(code, ref pc));
                         break;
+                    case 54:
+                        CompleteNativeSavedBattleFlags();
+                        break;
                     case 61:
                         UnlockNativeTutorial(127);
                         break;
@@ -356,7 +333,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
         }
-        bool present = combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7 && (selector == 200 ? candidate.NativeIndex < 3 : selector == 201 ? candidate.NativeIndex >= 3 : NativeModelId(candidate) == selector) && (status == 0 || candidate.CurrentHp > 0) && NativeAiStatusPresent(candidate, status));
+        bool present = combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7 && (selector == 200 ? candidate.NativeIndex < 3 : selector == 201 ? candidate.NativeIndex >= 3 : NativeModelId(candidate) == selector) && (status == 0 || (NativeSavedStatusBits(candidate) & 1) == 0) && NativeAiStatusPresent(candidate, status));
         // Native forces equality for each candidate, then inverts the group result for any nonzero comparison.
         return comparison == 0 ? present : !present;
     }
@@ -423,7 +400,6 @@ public sealed partial class BattleSession
         return combatants.FirstOrDefault(candidate => candidate.IsActive && NativeModelId(candidate) == selector) ?? throw new NotSupportedException($"Native battle AI model selector {selector} has no allocated actor.");
     }
 
-    private BattleCombatant FindFormationActor(int slot) => combatants.SingleOrDefault(actor => !actor.IsPlayer && actor.SceneSlot == slot) ?? throw new NotSupportedException($"Native battle AI formation slot {slot} has no retained resource definition.");
     private BattleCombatant FindNativeActor(int index) => combatants.SingleOrDefault(actor => NativeActorIndex(actor) == index && actor.IsActive) ?? throw new NotSupportedException($"Native battle AI actor index {index} has no current allocation.");
     private int NativeActorIndex(BattleCombatant actor) => actor.NativeIndex;
     private static int NativeModelId(BattleCombatant actor) => actor.IsPlayer ? actor.ModelId : actor.ModelId + 16;
@@ -446,7 +422,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -458,7 +434,7 @@ public sealed partial class BattleSession
             }
             return;
         }
-        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < -1 or > 10 || saved.Active && saved.ActorIndex < 0 || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
+        if (saved.Variables is null || saved.Variables.Length != 8 || saved.ActorIndex is < -1 or > 6 || saved.Active && saved.ActorIndex < 0 || saved.Active && actor.IsPlayer != (saved.ActorIndex < 3) || saved.LastAttackerId is not null && !byId.ContainsKey(saved.LastAttackerId) || saved.LastAttackerAbility is { } ability && !Enum.IsDefined(ability))
         {
             throw new InvalidDataException("Battle participant has invalid native allocation or AI owner state.");
         }
@@ -491,13 +467,15 @@ public sealed partial class BattleSession
         }
         actor.NativePreviousTargetMask = saved.PreviousTargetMask;
         actor.NativeDrawnSpell = saved.DrawnSpell;
+        saved.Growth?.Validate();
+        actor.NativeGrowth = saved.Growth ?? actor.NativeGrowth;
         actor.SetNativeDisplayName(saved.DisplayNameIndex);
         if (saved.ElementDefenses is { } defenses)
         {
             actor.SetNativeElementDefenses(defenses);
         }
         actor.LastNativeAction = saved.LastAction;
-        actor.NativeKillCount = saved.KillCount ?? definition.Combatants.Single(candidate => candidate.Id == actor.Id).NativeKillCount;
+        actor.NativeKillCount = saved.KillCount ?? actor.SourceDefinition.NativeKillCount;
         saved.Variables.CopyTo(actor.AiVariables, 0);
         actor.AiTurnCount = saved.TurnCount;
         actor.LastAttackerId = saved.LastAttackerId;

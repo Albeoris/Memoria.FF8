@@ -6,7 +6,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Draws retained controls, system text and the original menu pointer.</summary>
-internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory) : IUiCanvas, IDisposable
+internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory) : IUiCanvas, IBattleMessageCanvas, IDisposable
 {
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;

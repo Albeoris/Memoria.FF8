@@ -16,7 +16,11 @@ public sealed class GuardianForceResultTests
         ushort after = checked((ushort)(before - 10));
         BattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
         BattleEncounterOccurrence encounter = new("gf-hp-component", 512, new string('A', 64), SceneKind.Field, 999, 0, new string('B', 64), null);
-        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { GuardianForceChanges = [new(0, before, after)] };
+        byte row = party[0].Row;
+        ushort[] compatibilityBefore = vitals.Records[row].GuardianForceCompatibility!.ToArray();
+        ushort[] compatibilityAfter = compatibilityBefore.ToArray();
+        compatibilityAfter[0] = (ushort)(compatibilityAfter[0] == 6000 ? 5999 : compatibilityAfter[0] + 1);
+        BattleResult result = new(encounter, BattleOutcome.Victory, party, [], [], [], true, BattleRewardPolicy.DebugNoRewards, []) { GuardianForceChanges = [new(0, before, after)], GuardianForceCompatibilityChanges = [new(row, compatibilityBefore, compatibilityAfter)] };
         string unchanged = JsonSerializer.Serialize(vitals);
         BattleResultOwners Project(NativeCharacterVitals source)
         {
@@ -25,6 +29,7 @@ public sealed class GuardianForceResultTests
         BattleResultOwners preview = Project(vitals);
         Assert.Equal(unchanged, JsonSerializer.Serialize(vitals));
         Assert.Equal(after, preview.CharacterVitals.GuardianForces[0].HitPoints);
+        Assert.Equal(compatibilityAfter, preview.CharacterVitals.Records[row].GuardianForceCompatibility);
         Assert.Equal(JsonSerializer.Serialize(preview), JsonSerializer.Serialize(Project(vitals)));
         Assert.Throws<InvalidDataException>(() => Project(preview.CharacterVitals));
     }

@@ -31,7 +31,7 @@ public sealed partial class BattleSession
                     right = NativeConditionHpThreshold(hpActor, value);
                     break;
                 case 1:
-                    return NativeConditionGroup(selector).Any(candidate => candidate.IsAlive && CompareNativeCondition(candidate.CurrentHp, comparison, NativeConditionHpThreshold(candidate, value)));
+                    return NativeConditionGroup(selector).Any(candidate => candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0 && CompareNativeCondition(candidate.CurrentHp, comparison, NativeConditionHpThreshold(candidate, value)));
                 case 2:
                     if (selector == 0)
                     {
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
                 case 5:
                     return EvaluateNativeAiGroupStatus(selector, comparison, value);
                 case 6:
-                    left = NativeConditionGroup(selector).Count(candidate => candidate.IsAlive);
+                    left = NativeConditionGroup(selector).Count(candidate => (NativeSavedStatusBits(candidate) & 1) == 0);
                     break;
                 case 7:
                     left = FindNativeConditionActor(actor, selector).Level;
@@ -55,7 +55,7 @@ public sealed partial class BattleSession
                 case 8:
                     return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && NativeModelId(candidate) == value), comparison);
                 case 9:
-                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && candidate.CurrentHp > 0 && NativeModelId(candidate) == value), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && (NativeSavedStatusBits(candidate) & 1) == 0 && NativeModelId(candidate) == value), comparison);
                 case 10:
                     return EvaluateNativeActionCondition(actor, selector, comparison, value);
                 case 11:
@@ -67,18 +67,18 @@ public sealed partial class BattleSession
                     left = actor.NativeAi?.LevelBand ?? throw new InvalidDataException("Native battle AI level-band condition requires its installed program.");
                     break;
                 case 15:
-                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex == value && candidate.IsAlive), comparison);
+                    return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex == value && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0), comparison);
                 case 16:
-                    BattleCombatant[] party = combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate.IsAlive).ToArray();
+                    BattleCombatant[] party = combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).ToArray();
                     if (party.Any(candidate => candidate.NativeCharacterFlag100 is null))
                     {
                         throw new NotSupportedException("Native party characteristic condition requires the original kernel character gender flag.");
                     }
-                    return CompareNativeConditionBit(party.Any(candidate => candidate.NativeCharacterFlag100 == (value != 202)), comparison);
+                    return CompareNativeConditionBit(party.Any(candidate => ((candidate.NativeCombatantFlags & 0x100) != 0) == (value != 202)), comparison);
                 case 17:
                     return CompareNativeConditionBit(actor.DrawGuardianForces.Count > 0, comparison);
                 case 18:
-                    byte flags = definition.NativeSavedBattleFlags ?? throw new NotSupportedException("Native saved battle flag condition requires the current1CFE97A owner.");
+                    byte flags = CurrentNativeSavedBattleFlags();
                     byte mask = unchecked((byte)(1u << value));
                     if ((mask & definition.NativeSavedBattleFlagsKnownMask) != mask)
                     {
@@ -88,7 +88,7 @@ public sealed partial class BattleSession
                 case 19:
                     return CompareNativeConditionBit(NativeConditionTimerIsZero(), comparison);
                 case 20:
-                    return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate.IsAlive).All(candidate => NativeAiStatusPresent(candidate, value));
+                    return combatants.Where(candidate => candidate.NativeIndex is >= 0 and < 3 && candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0).All(candidate => NativeAiStatusPresent(candidate, value));
                 default:
                     //The native default condition table deliberately consumes these subjects without branching.
                     return true;

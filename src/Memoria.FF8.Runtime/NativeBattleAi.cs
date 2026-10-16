@@ -17,11 +17,14 @@ public sealed record NativeBattleEnemyLevel(int MaximumHp, int Strength, int Vit
 }
 public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnemyLevel[] Levels)
 {
+    public NativeBattleMugDefinition? NativeMug { get; init; }
+    public BattleNativeEnemySpecial? NativeSpecial { get; init; }
     public NativeBattleStatusAllocation? NativeStatusAllocation { get; init; }
     public uint NativeCombatantFlags { get; init; }
 }
 public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, bool Untargetable, bool Suspended, int ActorIndex, int? ResolvedLevel, uint[] Variables, byte TurnCount, string? LastAttackerId, BattleAbility? LastAttackerAbility, bool DeathHandled)
 {
+    public BattleNativeCharacterGrowth? Growth { get; init; }
     // Older valid snapshots predate opcode40 support, so their six allocation multipliers are still10.
     public byte[] StatMultipliers { get; init; } = [10, 10, 10, 10, 10, 10];
     public NativeBattleLastAction? LastAction { get; init; }

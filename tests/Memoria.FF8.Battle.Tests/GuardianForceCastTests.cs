@@ -83,7 +83,7 @@ public sealed class GuardianForceCastTests
         BattleNativeAction native = Native(4, 1, 24);
         BattleDefinition definition = original.Capture().Definition with
         {
-            NativeIndependentGuardianForceLevel = 50,
+            NativePocketStation = new(NativeInputConfiguration.OriginalInitHash, Enumerable.Range(0, 64).Select(index => index == 1 ? (byte)50 : (byte)0).ToImmutableArray()),
             Items = [new(1, 1)],
             GuardianForces = [new(0, 500, 1000), new(1, 100, 200)],
             Combatants = original.Capture().Definition.Combatants.Select(actor => actor.IsPlayer ? actor with { EquipmentIds = [0, 1], Abilities = [BattleAbility.Item] } : actor).ToArray(),
@@ -108,6 +108,30 @@ public sealed class GuardianForceCastTests
         Assert.Throws<InvalidOperationException>(() => session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0));
     }
 
+    [Theory]
+    [InlineData(1000, 90, 1000)]
+    [InlineData(6000, 200, 6000)]
+    [InlineData(2000, 125, 2025)]
+    [InlineData(0, 0, 6000)]
+    public void CompletedSummonUpdatesAcquiredGfAffinityWithNativeWordWrapBeforeClamping(ushort initial, byte source, ushort expected)
+    {
+        BattleDefinition original = Create(compatibility: initial).Capture().Definition;
+        byte[] raw = Enumerable.Repeat((byte)100, 132).ToArray();
+        raw[112] = source;
+        BattleActionDefinition action = original.ActionDefinitions[0];
+        BattleDefinition definition = original with { ActionDefinitions = [action with { NativeAction = action.NativeAction! with { RawRecord = ImmutableArray.CreateRange(raw) } }] };
+        BattleSession session = new(definition, BattleAtbMode.Normal);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        for (int frame = 0; frame < 1000 && !session.Events.Any(item => item.Kind == "Damage" && item.ActorId == "player"); frame++)
+        {
+            session.Tick();
+        }
+        BattleSnapshot snapshot = session.Capture();
+        Assert.Equal(expected, snapshot.Combatants[0].GuardianForceCompatibility![0]);
+        Assert.Equal(initial, snapshot.Definition.Combatants[0].GuardianForceCompatibility![0]);
+        Assert.Equal(expected, BattleSession.Restore(snapshot).Capture().Combatants[0].GuardianForceCompatibility![0]);
+    }
+
     private static BattleSession Create(ushort compatibility = 35, uint statuses = 0, ushort gfHp = 100, bool enemyReady = false)
     {
         return new(new BattleDefinition
@@ -118,7 +142,7 @@ public sealed class GuardianForceCastTests
             Combatants =
             [
                 new() { Id = "player", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat(compatibility, 16).ToArray(), NativeStatus1 = statuses },
-                new() { Id = "enemy", Name = "Opponent", MaximumHp = 10000, CurrentHp = 10000, Attack = 100, PhysicalPower = 30, InitialAtb = enemyReady ? BattleSession.AtbMaximum : 0 }
+                new() { Id = "enemy", Name = "Opponent", MaximumHp = 10000, CurrentHp = 10000, Attack = 100, PhysicalPower = 30, Speed = 1, InitialAtb = enemyReady ? BattleSession.AtbMaximum : 0 }
             ]
         }, BattleAtbMode.Normal);
     }

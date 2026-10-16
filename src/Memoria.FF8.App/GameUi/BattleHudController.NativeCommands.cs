@@ -1,4 +1,5 @@
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -6,6 +7,25 @@ public sealed partial class BattleHudController
 {
     private string? nativeLimitSelectionActorId;
     private bool nativeLimitSelectionInitialized;
+
+    private void PrepareNativeLimitChoices()
+    {
+        if (SelectedCommand == BattleAbility.LimitBreak && SelectedActor is { NativeLimit.Command: 16 } actor && session.GetNativeSlotsRoll(actor.Id) is null)
+        {
+            session.RollNativeSlots(actor.Id);
+        }
+    }
+
+    public void RerollNativeSlots()
+    {
+        if (!SelectingAction || SelectingTarget || SelectedCommand != BattleAbility.LimitBreak || SelectedActor is not { NativeLimit.Command: 16 } actor)
+        {
+            throw new InvalidOperationException("Do over requires the active Slots choice menu.");
+        }
+        session.RollNativeSlots(actor.Id);
+        Message = "Choose magic. Page Left/Right: Do over.";
+        SoundRequested?.Invoke(MenuSound.Confirm);
+    }
 
     private IReadOnlyList<BattleAbility> GetPlayerCommandChoices()
     {

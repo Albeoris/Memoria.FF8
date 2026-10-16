@@ -24,9 +24,21 @@ internal sealed partial class GameWorld : IDisposable
         this.resources = resources;
         assets = new GameAssets(gameDirectory, resources: resources);
         bool initializedNativeParty = false;
+        if (session.State.ScannedModels is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameScannedModels(assets.ReadNewGameScannedModels());
+        }
+        if (session.State.SavedBattleFlags is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameSavedBattleFlags(assets.ReadNewGameSavedBattleFlags());
+        }
         if (session.State.LimitProgress is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameLimitProgress(assets.ReadNewGameLimitProgress());
+        }
+        if (session.State.PocketStation is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGamePocketStation(assets.ReadNewGamePocketStation());
         }
         if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {

@@ -7,6 +7,9 @@ public sealed record BattleNativeCommandBinding(byte Command, string Name, byte 
 /// <summary>Character/kernel inputs consumed by native4941F0,48CCE0 and48D200.</summary>
 public sealed record BattleNativeLimitDefinition(int CharacterId, byte Command, byte Parameter, byte HitPointCoefficient, ImmutableArray<byte> StatusWeights)
 {
+    public ImmutableArray<BattleNativeCommandBinding> InvocationChoices { get; init; } = [];
+    public ImmutableArray<byte> SlotsSelectionBytes { get; init; } = [];
+    public ImmutableArray<byte> SlotsSpellBytes { get; init; } = [];
     public void Validate()
     {
         if (CharacterId is < 0 or > 10 || StatusWeights.IsDefault || StatusWeights.Length != 32)
@@ -63,6 +66,10 @@ public static class NativeBattleLimitRules
         {
             mask |= 0x2000;
         }
+        if ((targetFlags & 0x80) != 0)
+        {
+            mask |= 0x80;
+        }
         return (ushort)mask;
     }
 
@@ -105,5 +112,22 @@ public static class NativeBattleLimitRules
     public static ushort GuestActionId(int characterId)
     {
         return characterId is >= 6 and <= 10 ? (ushort)(characterId - 6) : throw new InvalidOperationException("Character has no guest Limit source row.");
+    }
+
+    /// <summary>Native48D170 chooses the highest learned Angelo finisher at or below crisis minus one.</summary>
+    public static ushort AngeloActionId(byte crisis, byte learnedFlags)
+    {
+        if (crisis is < 1 or > 4)
+        {
+            throw new ArgumentOutOfRangeException(nameof(crisis));
+        }
+        for (int action = crisis - 1; action >= 0; action--)
+        {
+            if ((learnedFlags & (1 << action)) != 0)
+            {
+                return (ushort)action;
+            }
+        }
+        throw new InvalidDataException("Native Combine has no learned Angelo finisher at or below its crisis level.");
     }
 }
