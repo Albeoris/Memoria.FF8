@@ -87,6 +87,7 @@ public sealed partial class EventEngine
             case Jsm.Opcode.PSHM_W:
             case Jsm.Opcode.PSHSM_W:
             case Jsm.Opcode.PSHM_L:
+            case Jsm.Opcode.PSHSM_L:
                 NativeScalarValue memoryRead = ReadEventMemory(operation);
                 fiber.Stack.Push(memoryRead);
                 fiber.StackExpressions.Push($"native[{parameter}/{NativeMemoryWidth(opcode)}]");

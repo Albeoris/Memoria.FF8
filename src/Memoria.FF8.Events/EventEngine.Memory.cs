@@ -119,12 +119,14 @@ public sealed partial class EventEngine
         NativeEventMemoryOwner owner = ResolveMemoryOwner(address, width);
         if (owner == NativeEventMemoryOwner.Generic)
         {
-            return EventMemory.Read(address, width, signed);
+            NativeScalarValue read = EventMemory.Read(address, width, signed);
+            return operation.Opcode == Jsm.Opcode.PSHSM_L ? read.SaturateSignedLong() : read;
         }
         int value;
         if (TryReadWorldEntryMemory(operation, out value) || TryReadNativeFadeMemory(operation, out value) || TryReadNativeDrawPointMemory(operation, out value) || TryReadJunctionBackupMemory(operation, out value) || TryReadNativeEconomyMemory(operation, out value) || TryReadNativeOwnedEventMemory(operation, out value) || TryReadMusicStopMemory(operation, out value) || TryReadPreviousFieldWord(operation, out value))
         {
-            return NativeScalarValue.Exact(value).ToWidth(width, signed);
+            NativeScalarValue read = NativeScalarValue.Exact(value).ToWidth(width, signed);
+            return operation.Opcode == Jsm.Opcode.PSHSM_L ? read.SaturateSignedLong() : read;
         }
         if (width == 1)
         {

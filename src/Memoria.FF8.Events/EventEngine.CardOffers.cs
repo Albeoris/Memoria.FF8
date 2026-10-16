@@ -90,6 +90,7 @@ public sealed partial class EventEngine
                         case Jsm.Opcode.PSHM_W:
                         case Jsm.Opcode.PSHSM_W:
                         case Jsm.Opcode.PSHM_L:
+                        case Jsm.Opcode.PSHSM_L:
                             int width = NativeMemoryWidth(operation.Opcode);
                             if (Enumerable.Range(parameter, width).Any(branch.Writes.ContainsKey))
                             {
@@ -105,7 +106,7 @@ public sealed partial class EventEngine
                                     int? part = branch.Writes.TryGetValue(parameter + offset, out int? written) ? written : original is int known ? (known >> (offset * 8)) & 255 : null;
                                     stored = stored is int previous && part is int current ? previous | current << (offset * 8) : null;
                                 }
-                                branch.Stack.Add(ProjectCardOfferValue(stored, width, operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W));
+                                branch.Stack.Add(ProjectCardOfferValue(stored, width, operation.Opcode is Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHSM_W, operation.Opcode == Jsm.Opcode.PSHSM_L));
                             }
                             else
                             {
@@ -320,7 +321,7 @@ public sealed partial class EventEngine
                 }
                 InvalidateCardOfferRequest(branch, operation.Parameter, program.Operations[index - 1].Parameter, program.Operations[index - 2].Parameter, visited);
             }
-            else if (CardOfferPresentationOperandCount(operation.Opcode) < 0 && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.RET or Jsm.Opcode.NOP or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.RND or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.MESSYNC or Jsm.Opcode.WAIT))
+            else if (CardOfferPresentationOperandCount(operation.Opcode) < 0 && operation.Opcode is not (Jsm.Opcode.LBL or Jsm.Opcode.RET or Jsm.Opcode.NOP or Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHI_L or Jsm.Opcode.POPI_L or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.CAL or Jsm.Opcode.JMP or Jsm.Opcode.JPF or Jsm.Opcode.RND or Jsm.Opcode.AMESW or Jsm.Opcode.AMES or Jsm.Opcode.RAMESW or Jsm.Opcode.MES or Jsm.Opcode.AASK or Jsm.Opcode.WINCLOSE or Jsm.Opcode.MESSYNC or Jsm.Opcode.WAIT))
             {
                 throw new NotSupportedException("Prerequisite changes challenge ownership or availability.");
             }
@@ -338,9 +339,9 @@ public sealed partial class EventEngine
         _ => -1
     };
 
-    private static int? ProjectCardOfferValue(int? value, int width, bool signed)
+    private static int? ProjectCardOfferValue(int? value, int width, bool signed, bool saturateSignedLong = false)
     {
-        return value is int known ? NativeScalarValue.Exact(known).ToWidth(width, signed).RequireExact() : null;
+        return value is int known ? saturateSignedLong ? Math.Clamp(known, -0x800000, 0x7FFFFF) : NativeScalarValue.Exact(known).ToWidth(width, signed).RequireExact() : null;
     }
 
     private sealed class CardOfferBranch(int position)

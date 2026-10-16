@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeScalarProjection([property: JsonRequired] int Width, [property: JsonRequired] bool Signed);
+public sealed record NativeScalarProjection([property: JsonRequired] int Width, [property: JsonRequired] bool Signed, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool SaturateSignedLong = false);
 public sealed record NativeTimerReadOrigin(int Version, int FieldId, string ProgramHash, int ObjectId, int ScriptId, int Operation, long Frame, NativeExamTimerState Timer, uint Mask = uint.MaxValue, bool SignedWord = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NativeScalarProjection[]? Projections = null);
 
 /// <summary>An executed PGETINFO read outside the retained body table; it supplies no invented memory value.</summary>
@@ -53,7 +53,7 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
             throw new InvalidDataException("Native scalar source has no timer snapshot.");
         }
         Origin.Timer.Validate();
-        if (Origin.Version != 1 || Origin.FieldId < 72 || Origin.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || Origin.ObjectId < 0 || Origin.ScriptId < 0 || Origin.Operation < 0 || Origin.Frame < 0 || Origin.Mask is not (byte.MaxValue or ushort.MaxValue or uint.MaxValue) || Origin.SignedWord && Origin.Mask == uint.MaxValue || Origin.Projections is { Length: > 64 } || Origin.Projections?.Any(projection => projection is null || projection.Width is not (1 or 2 or 4) || projection.Signed && projection.Width == 4) == true || !Values.SequenceEqual(Project(Origin)))
+        if (Origin.Version != 1 || Origin.FieldId < 72 || Origin.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || Origin.ObjectId < 0 || Origin.ScriptId < 0 || Origin.Operation < 0 || Origin.Frame < 0 || Origin.Mask is not (byte.MaxValue or ushort.MaxValue or uint.MaxValue) || Origin.SignedWord && Origin.Mask == uint.MaxValue || Origin.Projections is { Length: > 64 } || Origin.Projections?.Any(projection => projection is null || projection.Width is not (1 or 2 or 4) || projection.Signed && projection.Width == 4 || projection.SaturateSignedLong && (projection.Width != 4 || projection.Signed)) == true || !Values.SequenceEqual(Project(Origin)))
         {
             throw new InvalidDataException("Native scalar values differ from their executed timer read and width projection.");
         }
@@ -96,12 +96,30 @@ public sealed record NativeScalarValue(int[] Values, NativeTimerReadOrigin? Orig
         return FromTimer(origin with { Mask = origin.Mask & mask, SignedWord = width == 4 ? origin.SignedWord : signedWord });
     }
 
+    public NativeScalarValue SaturateSignedLong()
+    {
+        Validate();
+        if (ActorInfoOrigin is not null)
+        {
+            throw new NotSupportedException("An out-of-retained-table actor-info result cannot be projected as signed event memory.");
+        }
+        if (IsExact)
+        {
+            return Exact(Math.Clamp(Values[0], -0x800000, 0x7FFFFF));
+        }
+        if (Values.All(value => value is >= -0x800000 and <= 0x7FFFFF))
+        {
+            return this;
+        }
+        return FromTimer(Origin! with { Projections = [.. Origin!.Projections ?? [], new NativeScalarProjection(4, false, true)] });
+    }
+
     private static int[] Project(NativeTimerReadOrigin origin)
     {
         IEnumerable<int> values = origin.Timer.Alternatives.Select(item => unchecked((int)((uint)item.Remaining & origin.Mask))).Select(value => origin.SignedWord ? unchecked((short)value) : value);
         foreach (NativeScalarProjection projection in origin.Projections ?? [])
         {
-            values = values.Select(value => projection.Width == 1 ? projection.Signed ? unchecked((sbyte)value) : unchecked((byte)value) : projection.Width == 2 ? projection.Signed ? unchecked((short)value) : unchecked((ushort)value) : value).ToArray();
+            values = values.Select(value => projection.SaturateSignedLong ? Math.Clamp(value, -0x800000, 0x7FFFFF) : projection.Width == 1 ? projection.Signed ? unchecked((sbyte)value) : unchecked((byte)value) : projection.Width == 2 ? projection.Signed ? unchecked((short)value) : unchecked((ushort)value) : value).ToArray();
         }
         return values.Distinct().Order().ToArray();
     }

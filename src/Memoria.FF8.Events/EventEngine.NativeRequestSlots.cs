@@ -26,7 +26,7 @@ public sealed partial class EventEngine
             {
                 return "Native result access outside DWORD320..348 requires its unrepresented physical memory alias; PC and operands preserved";
             }
-            int additionalWords = operation.Opcode == Jsm.Opcode.LBL ? 8 : operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHI_L ? 1 : 0;
+            int additionalWords = operation.Opcode == Jsm.Opcode.LBL ? 8 : operation.Opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHAC or Jsm.Opcode.PSHM_B or Jsm.Opcode.PSHSM_B or Jsm.Opcode.PSHM_W or Jsm.Opcode.PSHM_L or Jsm.Opcode.PSHSM_L or Jsm.Opcode.PSHSM_W or Jsm.Opcode.PSHI_L ? 1 : 0;
             // Native LBL51C570 saves eight results; unchecked pushes51C990 and POPI51CC70 can alias the actor header.
             // Refuse the unrepresented write rather than imposing a purported native clamp (NG-002).
             if (additionalWords > 0)

@@ -64,6 +64,7 @@ internal static partial class Program
                     ["native-field-shake"] = () => NativeFieldShakeContract(selectedGameDirectory),
                     ["native-direct-scroll"] = NativeCurrentDirectScrollContract,
                     ["native-scalar-memory"] = NativeScalarMemoryContract,
+                    ["native-signed-long-memory"] = NativeSignedLongMemoryContract,
                     ["native-scalar-calculation"] = NativeScalarCalculationContract,
                     ["linear-scroll"] = () => NativeLinearScrollAndSyncContract(selectedGameDirectory),
                     ["linear-scroll-zero"] = NativeLayerZeroLinearScrollContract,
