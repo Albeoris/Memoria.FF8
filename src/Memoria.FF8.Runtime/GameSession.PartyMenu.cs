@@ -49,6 +49,7 @@ public sealed partial class GameSession
         NativeCharacterVitals nextVitals = characterVitals.DeepCopy();
         NativeEconomy nextEconomy = economy.DeepCopy();
         GameState candidate = State with { CharacterVitals = nextVitals, SavedBattleFlags = SynchronizeSavedBattleFlags(nextVitals), Economy = nextEconomy, ShotAvailability = shots, SalaryPresentation = salaryPresentation, ExamTimer = timer ?? State.ExamTimer, NativeFieldLocation = fieldLocation ?? State.NativeFieldLocation, VibrationProcess = vibrationProcess ?? State.VibrationProcess, WorldProcess = worldProcess ?? State.WorldProcess, FieldFade = fieldFade ?? State.FieldFade, ShopHistory = shopHistory ?? State.ShopHistory, MenuRandom = menuRandom ?? State.MenuRandom, WeaponRecipes = weaponRecipes ?? State.WeaponRecipes };
+        candidate = AdvanceNativePlaytime(candidate);
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = candidate;
     }

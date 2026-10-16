@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
@@ -7,6 +7,7 @@ public sealed partial class GameSession
         ValidateNativeSavedBattleFlagsCheckpoint(state);
         state.BattleVariables?.Validate();
         state.ScannedModels?.Validate();
+        state.KnownMagic?.Validate();
         state.PendingBattleEncounter?.Validate();
         if (state.AppliedBattleResultIds is null || state.AppliedBattleResultIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 160) || state.AppliedBattleResultIds.Distinct(StringComparer.Ordinal).Count() != state.AppliedBattleResultIds.Length || state.PendingBattleEncounter is { } pending && (state.AppliedBattleResultIds.Contains(pending.OccurrenceId, StringComparer.Ordinal) || pending.SourceScene != state.Scene || pending.SourceFieldId != state.FieldId))
         {
@@ -24,10 +25,11 @@ public sealed partial class GameSession
         State = State with { PendingBattleEncounter = encounter };
     }
 
-    public void CommitBattleResult(BattleEncounterOccurrence encounter, NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, NativeBattleVariableState? battleVariables = null, NativeSavedBattleFlags? savedBattleFlags = null, byte? savedBattleFlagsBefore = null, NativeCrtRandomState? crtRandom = null, NativeCrtRandomState? crtRandomBefore = null, byte savedBattleFlagsSetMask = 0, byte savedBattleFlagsClearMask = 0, NativeScannedModels? scannedModelsBefore = null, NativeScannedModels? scannedModelsAfter = null, byte? limitSpecialFlagsBefore = null, byte? limitSpecialFlagsAfter = null, byte limitSpecialSetMask = 0, byte? shotFlagsBefore = null, byte? shotFlagsAfter = null, byte shotFlagsSetMask = 0, NativeGlobalRandomChange? globalRandomChange = null)
+    public void CommitBattleResult(BattleEncounterOccurrence encounter, NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, NativeBattleVariableState? battleVariables = null, NativeSavedBattleFlags? savedBattleFlags = null, byte? savedBattleFlagsBefore = null, NativeCrtRandomState? crtRandom = null, NativeCrtRandomState? crtRandomBefore = null, byte savedBattleFlagsSetMask = 0, byte savedBattleFlagsClearMask = 0, NativeScannedModels? scannedModelsBefore = null, NativeScannedModels? scannedModelsAfter = null, byte? limitSpecialFlagsBefore = null, byte? limitSpecialFlagsAfter = null, byte limitSpecialSetMask = 0, byte? shotFlagsBefore = null, byte? shotFlagsAfter = null, byte shotFlagsSetMask = 0, NativeGlobalRandomChange? globalRandomChange = null, NativeKnownMagic? knownMagicBefore = null, NativeKnownMagic? knownMagicAfter = null)
     {
         encounter.Validate();
         ValidateNativeScanReceipt(scannedModelsBefore, scannedModelsAfter);
+        ValidateNativeKnownMagicReceipt(knownMagicBefore, knownMagicAfter);
         NativeLimitProgress? limitProgress = ProjectNativeLimitLearning(limitSpecialFlagsBefore, limitSpecialFlagsAfter, limitSpecialSetMask);
         NativeShotAvailabilityState? shots = ProjectNativeShotLearning(shotFlagsBefore, shotFlagsAfter, shotFlagsSetMask);
         vitals.Validate();
@@ -48,7 +50,7 @@ public sealed partial class GameSession
             throw new InvalidOperationException("Battle result requires its unapplied current encounter occurrence.");
         }
         NativeGlobalRandomState? globalRandom = ProjectNativeGlobalRandom(globalRandomChange);
-        GameState candidate = State with { GlobalRandom = globalRandom, ShotAvailability = shots, LimitProgress = limitProgress, ScannedModels = scannedModelsAfter ?? State.ScannedModels, CrtRandom = crtRandom ?? State.CrtRandom, CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = savedBattleFlags ?? SynchronizeSavedBattleFlags(vitals), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), BattleVariables = battleVariables ?? State.BattleVariables, AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
+        GameState candidate = State with { KnownMagic = knownMagicAfter ?? State.KnownMagic, GlobalRandom = globalRandom, ShotAvailability = shots, LimitProgress = limitProgress, ScannedModels = scannedModelsAfter ?? State.ScannedModels, CrtRandom = crtRandom ?? State.CrtRandom, CharacterVitals = vitals.DeepCopy(), SavedBattleFlags = savedBattleFlags ?? SynchronizeSavedBattleFlags(vitals), Economy = economy.DeepCopy(), CardInventory = cards?.DeepCopy(), BattleVariables = battleVariables ?? State.BattleVariables, AppliedBattleResultIds = [.. State.AppliedBattleResultIds, encounter.OccurrenceId], PendingBattleEncounter = null };
         ValidateNativeSavedBattleFlagsCheckpoint(candidate);
         ValidateLiveEventMemoryOwners(candidate, State.EventMemory);
         State = candidate;

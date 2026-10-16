@@ -1,17 +1,26 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
     public string ActionName(BattleAbility ability, int id)
     {
-        return ability == BattleAbility.Attack ? "Attack" : ability == BattleAbility.EnemyAbility ? $"Enemy ability {id}" : ability == BattleAbility.Draw ? $"Draw {FindAction(BattleAbility.Magic, id).Name}" : FindAction(ability, id).Name;
+        return ability == BattleAbility.Attack ? "Attack" : ability == BattleAbility.EnemyAbility ? $"Enemy ability {id}" : ability == BattleAbility.Draw ? $"Draw {(id >= 64 ? GameNames.DefaultName(GameNames.GuardianForceSubject(id - 64)) : FindAction(BattleAbility.Magic, id).Name)}" : FindAction(ability, id).Name;
     }
 
-    public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null)
+    public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
         if (magicTargets is not null && ability != BattleAbility.Magic)
         {
             throw new InvalidOperationException("Only a native Magic command can retain several cast targets.");
+        }
+        if (drawCastTargetId is not null && ability != BattleAbility.Draw)
+        {
+            throw new InvalidOperationException("Only Draw can retain a separate spell recipient.");
+        }
+        if (ability == BattleAbility.Draw)
+        {
+            QueuePlayerDraw(actorId, targetId, actionId, drawCast, drawCastTargetId);
+            return;
         }
         if (ability is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
         {
@@ -50,12 +59,6 @@ public sealed partial class BattleSession
             case BattleAbility.Item:
                 reservedItemSlot = ConsumeNativeItem(actionId);
                 break;
-            case BattleAbility.Draw:
-                if (!target.DrawSpells.Any(spell => spell.Id == actionId) || (!drawCast && !actor.MagicStocks.Any(stock => stock.Id == actionId) && actor.MagicStocks.Count >= 32) || !drawCast && actor.MagicStocks.Any(stock => stock.Id == actionId && stock.Count >= 100))
-                {
-                    throw new InvalidOperationException("Draw requires an installed enemy spell and available magic capacity.");
-                }
-                break;
             case BattleAbility.GuardianForce:
                 if ((!actor.EquipmentIds.Contains(actionId) || !action.Available))
                 {
@@ -88,6 +91,11 @@ public sealed partial class BattleSession
 
     private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (command.Ability == BattleAbility.Draw)
+        {
+            ResolvePlayerDraw(actor, target, command);
+            return;
+        }
         if (!command.NativeMagicTargets.IsDefaultOrEmpty)
         {
             ResolveNativeMagicGroup(actor, command);
@@ -162,24 +170,6 @@ public sealed partial class BattleSession
             return;
         }
         BattleActionDefinition action = FindAction(command.Ability == BattleAbility.Draw ? BattleAbility.Magic : command.Ability, command.ActionId);
-        if (command.Ability == BattleAbility.Draw)
-        {
-            BattleDrawSpell spell = target.DrawSpells.Single(draw => draw.Id == command.ActionId);
-            // Native48FD20; the RNG/stat owners remain explicit scaffold inputs under TD-009.
-            int quantity = Math.Clamp(((((actor.Level - target.Level + 10) >> 1) - action.DrawResist + (NextRandomByte() & 31) + 1 + actor.Magic) / 5) - spell.Resistance, 0, 9);
-            if (!command.DrawCast)
-            {
-                int added = actor.AddMagic(command.ActionId, quantity);
-                Log("Draw", actor.Id, target.Id, added, $"{actor.Name} stocks {added} {action.Name}.");
-                return;
-            }
-            if (quantity == 0)
-            {
-                Log("Draw", actor.Id, target.Id, 0, "Draw failed.");
-                return;
-            }
-            target = action.Allies ? actor : target;
-        }
         if (action.NativeAction is not null)
         {
             ResolveInstalledNativeAction(actor, target, command, action);

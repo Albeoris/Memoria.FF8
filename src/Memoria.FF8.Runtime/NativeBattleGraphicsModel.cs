@@ -15,6 +15,7 @@ public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public ushort? ResourceFlags44 { get; init; }
     public byte? Sequence { get; init; }
     public int SequenceFrame { get; init; }
+    public NativeBattleSequenceState? SequenceState { get; init; }
 
     public NativeBattleGraphicsModelCompletion CompletionInputs()
     {
@@ -62,6 +63,11 @@ public static class NativeBattleGraphicsModels
 
     public static NativeBattleGraphicsModel StartRemoval(NativeBattleGraphicsModel model, byte kind)
     {
+        return StartService(model, kind);
+    }
+
+    public static NativeBattleGraphicsModel StartService(NativeBattleGraphicsModel model, byte kind)
+    {
         if ((model.Flags0 & 2) == 0 || model.Flags2 is not ushort flags2)
         {
             throw new InvalidOperationException("Native graphics service requires its loaded model owner.");
@@ -71,11 +77,27 @@ public static class NativeBattleGraphicsModels
         {
             throw new NotSupportedException("Native kind13 removal requires the50C4D0 effect owner.");
         }
-        if (kind is not (5 or 6 or 7))
+        if (kind == 1 && (model.Flags8 & 0x100000) != 0)
+        {
+            throw new NotSupportedException("Native kind10 appearance requires the50C330 effect owner.");
+        }
+        if (kind is not (1 or 2 or 5 or 6 or 7))
         {
             throw new NotSupportedException($"Native graphics removal kind{kind} requires its own original service.");
         }
-        return model with { Kind5 = kind, Phase6 = 0 };
+        return model with { Kind5 = kind, Phase6 = 0, Flags0 = kind == 2 ? (ushort)(model.Flags0 & ~4) : model.Flags0, Flags2 = kind == 2 ? (ushort)(flags2 & ~0x80) : flags2 };
+    }
+
+    public static NativeBattleGraphicsModel AdvanceAppearance(NativeBattleGraphicsModel model, bool graphicsFrozen)
+    {
+        if (model.Kind5 is not (1 or 2))
+        {
+            return model;
+        }
+        byte phase = unchecked((byte)((model.Phase6 ?? throw new InvalidDataException("Native appearance lacks phaseBYTE6.")) + 1));
+        bool complete = phase >= 15;
+        byte alpha = complete ? (byte)0 : (byte)(255 * ((phase << 12) / 15) >> 12);
+        return model with { Kind5 = complete ? (byte)0 : model.Kind5, Alpha7 = alpha, Phase6 = graphicsFrozen ? phase : unchecked((byte)(phase + 1)) };
     }
 
     public static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool graphicsFrozen, bool modelLoadActive, byte cameraTaskMask)

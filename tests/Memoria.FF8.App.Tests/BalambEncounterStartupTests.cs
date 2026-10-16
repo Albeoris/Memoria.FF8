@@ -25,7 +25,8 @@ public sealed class BalambEncounterStartupTests
             CharacterVitals = assets.ReadNewGameCharacterVitals().Rest(),
             CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
             Economy = assets.ReadNewGameEconomy(),
-            BattleVariables = NativeBattleVariableState.CreateNewGame()
+            BattleVariables = NativeBattleVariableState.CreateNewGame(),
+            GlobalRandom = assets.ReadNewGameGlobalRandom()
         });
         using GameWorld world = new(session, directory);
         NativeWorldEncounterDefinition encounters = Assert.IsType<NativeWorldEncounterDefinition>(worldAssets.ReadRandomEncounterDefinition(24576, -29406, ground, 1));
@@ -33,6 +34,7 @@ public sealed class BalambEncounterStartupTests
         foreach (ushort formation in encounters.Formations.Distinct())
         {
             BattleDefinition definition = world.CreateEncounterBattle(formation);
+            AssertEntryAllocationRandomOrder(world, definition);
             BattleSession battle = new(definition, BattleAtbMode.Normal);
 
             Assert.Equal(formation, battle.EncounterId);
@@ -42,5 +44,36 @@ public sealed class BalambEncounterStartupTests
             Assert.Contains(battle.Combatants, actor => !actor.IsPlayer && actor.IsActive);
             Assert.All(definition.Combatants.Where(actor => !actor.IsPlayer), actor => Assert.NotNull(actor.NativeAi));
         }
+    }
+
+    private static void AssertEntryAllocationRandomOrder(GameWorld world, BattleDefinition definition)
+    {
+        NativeBattleRandomState expected = NativeBattleRandomState.Initialize(definition.NativeSeed);
+        foreach (BattleCombatantDefinition party in definition.Combatants.Where(actor => actor.IsPlayer))
+        {
+            if (((party.NativeStatus0 | party.NativeRetainedStatusBits) & 5) != 0)
+            {
+                Assert.Equal(0, party.InitialAtb);
+            }
+            else if ((party.NativePlayerStatRules!.NativeStatusPassiveFlags!.Value & 0x10000) != 0)
+            {
+                Assert.Equal(BattleSession.AtbMaximum, party.InitialAtb);
+            }
+            else
+            {
+                expected = expected.Draw(out byte roll);
+                Assert.Equal(Math.Clamp((party.Speed >> 2) + (roll & 0x7F) - 34, 0, 100) * 100, party.InitialAtb);
+            }
+        }
+        foreach (BattleEnemyPlacement enemy in world.BattleResources.LoadEncounter(definition.EncounterId!.Value).Slots.Where(slot => slot.Enabled))
+        {
+            int draws = BattleEnemyNativeStats.LevelRandomByteCount((byte)enemy.Level) + 1;
+            for (int draw = 0; draw < draws; draw++)
+            {
+                expected = expected.Draw(out _);
+            }
+        }
+        Assert.Equal(expected.Indexes.ToArray(), definition.InitialRandom!.Indexes.ToArray());
+        Assert.Equal(expected.Lane, definition.InitialRandom.Lane);
     }
 }

@@ -1,9 +1,16 @@
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEntryEnemy(ushort SavedStatuses, byte? Information254);
+public sealed record NativeBattleEntryInput(byte FormationFlags, byte EncounterAbilityFlags);
 
 public static class NativeBattleEntryRules
 {
+    public static ushort MergeFlags(ushort requestedFlags, byte formationFlags)
+    {
+        int flags = (formationFlags & 0xE0) != 0 ? requestedFlags & 0xFF1F : requestedFlags;
+        return (ushort)(flags | formationFlags & 0xEF);
+    }
+
     /// <summary>Original48AFD0 advantageBYTE1D28E08 after level/stat allocation and before47DAC0 entry graphics.</summary>
     public static byte Resolve(uint battleFlags, byte fieldEncounterAbilities, IReadOnlyList<NativeBattleEntryEnemy>? enemySlots, ref NativeBattleRandomState random)
     {

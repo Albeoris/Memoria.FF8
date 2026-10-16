@@ -10,7 +10,8 @@ public sealed partial class BattleHudController
 
     private BattleCombatant? NativeShotActor => session.Combatants.FirstOrDefault(actor => session.GetNativeShot(actor.Id) is not null);
     private BattleCombatant? NativeDuelActor => session.Combatants.FirstOrDefault(actor => session.GetNativeDuel(actor.Id) is not null);
-    private bool NativeTimedLimitActive => NativeShotActor is not null || NativeDuelActor is not null;
+    private BattleCombatant? NativeRenzokukenActor => session.Combatants.FirstOrDefault(actor => session.GetNativeRenzokuken(actor.Id) is not null);
+    private bool NativeTimedLimitActive => NativeShotActor is not null || NativeDuelActor is not null || NativeRenzokukenActor is not null;
     public Func<ushort, string> NativeButtonBindingHint { get; set; } = buttons => buttons switch { 0x1000 => "Up", 0x2000 => "Right", 0x4000 => "Down", 0x8000 => "Left", 0x10 => "Triangle", 0x20 => "Circle", 0x40 => "Cross", 0x80 => "Square", _ => "Button" };
     private IReadOnlyList<string>? NativeDuelChoiceLabels => NativeDuelActor is { } actor ? session.GetNativeDuelChoices(actor.Id).Where(choice => choice.Learned).Select(choice => choice.Name + "  " + string.Join(" ", choice.Buttons.Select(NativeButtonBindingHint))).ToArray() : null;
 
@@ -23,6 +24,11 @@ public sealed partial class BattleHudController
         else if (NativeDuelActor is { } duelist)
         {
             Message = session.GetNativeDuel(duelist.Id)!.Phase == BattleNativeDuelPhase.Ready ? "Duel · Enter a button sequence" : "Duel";
+        }
+        else if (NativeRenzokukenActor is { } gunblade)
+        {
+            BattleNativeRenzokukenState state = session.GetNativeRenzokuken(gunblade.Id)!;
+            Message = session.CanTriggerNativeRenzokuken ? $"Renzokuken · {GunbladeBindingHint}: Trigger · Hit {state.Input.ContactIndex + 1}" : "Renzokuken";
         }
     }
 

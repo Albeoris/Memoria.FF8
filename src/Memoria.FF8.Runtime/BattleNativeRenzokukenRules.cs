@@ -4,7 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeRenzokukenTimeline(ImmutableArray<short> InputThresholds, short TotalPoseFrames);
 
-public static class NativeBattleRenzokukenRules
+public static partial class NativeBattleRenzokukenRules
 {
     /// <summary>4BA4C0 receives the AB scan's signed BYTE segment lengths, including its final tail.</summary>
     public static BattleNativeRenzokukenTimeline Timeline(IReadOnlyList<byte> segments)

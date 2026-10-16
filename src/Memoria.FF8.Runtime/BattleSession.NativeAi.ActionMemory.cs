@@ -1,9 +1,14 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
     private void RecordNativeActionMemory(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation action)
     {
+        if (action.Ability == BattleAbility.Draw && action.NativeDraw is { } draw && (!action.DrawCast || draw.Failed))
+        {
+            StoreNativeActionMemory(actor, recipient, BattleAbility.Draw, draw.Failed ? 0 : 6, draw.Failed ? 9 : draw.Selection, 0, 3);
+            return;
+        }
         if (action.NativeAction is { } resolved)
         {
             byte commandByte = action.NativeQueuedCommand ?? (action.Ability == BattleAbility.Draw ? (byte)6 : resolved.Command);

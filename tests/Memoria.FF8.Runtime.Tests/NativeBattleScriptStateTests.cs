@@ -38,7 +38,7 @@ public sealed class NativeBattleScriptStateTests
         Assert.True(state.DisableAutomaticTargetReplacement);
         BattleGuardianForceVital acquired = Assert.Single(battle.GuardianForces);
         Assert.True(acquired.Acquired);
-        Assert.Equal((ushort)100, acquired.HitPoints);
+        Assert.Equal((ushort)200, acquired.HitPoints);
         Assert.Equal(new BattleStock(1, 1), Assert.Single(battle.ScriptedRewards));
         Assert.Equal(JsonSerializer.Serialize(state), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).NativeScriptState));
         state.Cards[0] = 90;

@@ -1,12 +1,38 @@
 using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class BattleStageCameraTests
 {
     private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(23)]
+    [InlineData(31)]
+    public void OriginalCameraTracksDriveTheirOwnCompletionCallbacks(int stageId)
+    {
+        using BattleAssets assets = new(GameDirectory);
+        BattleStage stage = assets.LoadStage(stageId);
+        NativeBattleCameraBank bank = Assert.IsType<NativeBattleCameraBank>(stage.NativeCameraBank);
+        foreach (int selector in stage.IntroductionCameras.Keys)
+        {
+            NativeBattleCameraState camera = NativeBattleCameraState.Initialize().Start(bank, checked((byte)selector));
+            Assert.NotEmpty(camera.Order);
+            int callbacks = 0;
+            while (camera.Order.Length != 0 && callbacks < 5000)
+            {
+                camera = camera.Tick(0);
+                callbacks++;
+            }
+            Assert.Empty(camera.Order);
+            Assert.Equal((ushort)0, camera.Mask);
+            Assert.InRange(callbacks, 1, 5000);
+        }
+    }
 
     [Theory]
     [InlineData(0, 4602, -2830, 8263, -453, -293, 260, 512)]

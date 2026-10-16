@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -14,6 +14,7 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    public NativeKnownMagic? KnownMagic { get; init; }
     public NativeScannedModels? ScannedModels { get; init; }
     public NativeCrtRandomState? CrtRandom { get; init; }
     [JsonRequired]
@@ -48,6 +49,7 @@ public sealed record GameState
     public NativeWorldConfiguration? WorldConfiguration { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public NativeExamTimerState? ExamTimer { get; init; }
+    public NativePlaytimeState? Playtime { get; init; }
     public NativeMessageVariables? MessageVariables { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeEventRandomState? EventRandom { get; init; }

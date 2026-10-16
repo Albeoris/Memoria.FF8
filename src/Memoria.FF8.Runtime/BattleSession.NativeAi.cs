@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -500,7 +500,7 @@ public sealed partial class BattleSession
     }
 
     private static NativeBattleAiDefinition? CloneNativeAi(NativeBattleAiDefinition? source) => source is null ? null : source with { Scripts = source.Scripts.Select(script => script.ToArray()).ToArray(), Abilities = source.Abilities.ToArray(), Texts = source.Texts.ToArray(), NameBuffers = source.NameBuffers.Select(buffer => buffer.ToArray()).ToArray(), DisplayNames = source.DisplayNames.ToArray() };
-    private static NativeBattleEnemyTemplate? CloneNativeTemplate(NativeBattleEnemyTemplate? source) => source is null ? null : source with { Levels = source.Levels.Select(level => level with { BaseStatistics = level.BaseStatistics.ToArray(), ElementDefenses = level.ElementDefenses.ToArray(), DrawSpells = level.DrawSpells.ToArray(), DrawGuardianForces = level.DrawGuardianForces.ToArray() }).ToArray() };
+    private static NativeBattleEnemyTemplate? CloneNativeTemplate(NativeBattleEnemyTemplate? source) => source is null ? null : source with { NativeDrawTables = source.NativeDrawTables?.Select(table => table.ToArray()).ToArray(), Levels = source.Levels.Select(level => level with { BaseStatistics = level.BaseStatistics.ToArray(), ElementDefenses = level.ElementDefenses.ToArray(), DrawSpells = level.DrawSpells.ToArray(), DrawGuardianForces = level.DrawGuardianForces.ToArray() }).ToArray() };
     private static void ValidateNativeAi(BattleCombatantDefinition actor)
     {
         if ((actor.NativeRetainedStatusBits & ~0x80) != 0)
@@ -510,6 +510,17 @@ public sealed partial class BattleSession
         if (actor.DrawGuardianForces.Any(id => id is < 0 or > 15) || actor.DrawGuardianForces.Distinct().Count() != actor.DrawGuardianForces.Length)
         {
             throw new InvalidDataException("Native GF Draw metadata contains an invalid or repeated GF identity.");
+        }
+        if (actor.NativeTemplate?.NativeDrawTables is { } drawTables)
+        {
+            if (drawTables.Length != 3)
+            {
+                throw new InvalidDataException("Native enemy Draw template requires its three original level banks.");
+            }
+            foreach (NativeBattleDrawSlot[] table in drawTables)
+            {
+                BattleCombatant.ValidateDrawSlots(table);
+            }
         }
         if (actor.NativeTemplate is { } template && (template.Levels is null || template.Levels.Length != 101 || template.Levels.Any(level => level.MaximumHp < 0 || level.ElementDefenses.Length != 8 || level.AiLevelBand is < 0 or > 2 || level.Evasion is < 0 or > 255 || level.BaseStatistics is null || level.BaseStatistics.Length is not (0 or 6))))
         {

@@ -3,8 +3,8 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     public BattleGunbladeMode GunbladeMode { get; private set; }
-    public bool CanTriggerGunblade => Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
-    public bool GunbladeTriggerWindowOpen => CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
+    public bool CanTriggerGunblade => CanTriggerNativeRenzokuken || Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
+    public bool GunbladeTriggerWindowOpen => nativeRenzokukenProcesses.Count != 0 ? NativeRenzokukenTriggerWindowOpen : CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
 
     public void SetGunbladeMode(BattleGunbladeMode mode)
     {
@@ -17,6 +17,10 @@ public sealed partial class BattleSession
 
     public bool TriggerGunblade()
     {
+        if (nativeRenzokukenProcesses.Count != 0)
+        {
+            return TriggerNativeRenzokuken();
+        }
         if (!CanTriggerGunblade)
         {
             return false;
@@ -50,7 +54,7 @@ public sealed partial class BattleSession
     {
         // Automatic is host assistance supplying one successful native trigger, not the original probabilistic Auto option/4A7080 random owner.
         //485160 overwrites the single-hit trigger WORD with1 under Blind, without an ordinary accuracy roll.
-        short timing = HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
+        short timing = action.NativeAction?.Command == 251 ? action.GunbladeTriggerTiming ?? throw new InvalidDataException("Native Renzokuken contact lacks its input-owned timing WORD.") : HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
         if (NativeGunbladeAttack.TriggerSucceeded(timing))
         {
             Log("GunbladeTrigger", actor.Id, target.Id, 0, $"{actor.Name}: Gunblade trigger.");

@@ -515,7 +515,7 @@ public sealed partial class BattleSession
         if (recipient.NativeAi is not null)
         {
             QueueNativeReaction(recipient, 2);
-            if ((recipient.NativeCombatantFlags & 0x10) != 0)
+            if (!suppressNativeImmediateCounter && (recipient.NativeCombatantFlags & 0x10) != 0)
             {
                 RunNativeAi(recipient, 4);
             }

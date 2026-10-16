@@ -86,6 +86,7 @@ internal sealed partial class RecreateGame
         battleHud!.AdvancePresentation(elapsed);
         active.AdvanceNativeShotPresentation(elapsed);
         active.AdvanceNativeDuelPresentation(elapsed, keyboard.HeldFieldButtons);
+        active.AdvanceNativeRenzokukenPresentation(elapsed);
         SynchronizeBattleAudio();
         BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
         bool shotInput = keyboard.GunbladeTriggerRequested && shotActor is not null;

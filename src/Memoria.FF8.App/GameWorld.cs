@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
@@ -24,6 +24,10 @@ internal sealed partial class GameWorld : IDisposable
         this.resources = resources;
         assets = new GameAssets(gameDirectory, resources: resources);
         bool initializedNativeParty = false;
+        if (session.State.KnownMagic is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameKnownMagic(assets.ReadNewGameKnownMagic());
+        }
         if (session.State.ScannedModels is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameScannedModels(assets.ReadNewGameScannedModels());

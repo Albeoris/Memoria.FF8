@@ -1,10 +1,33 @@
 using System.Numerics;
 using System.Text.Json;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeRenzokukenMetadataTests
 {
+    [Fact]
+    public void Native_effect_services_replace_the_actor_resource_and_supply_four_through_eight_contacts()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+
+        var resources = game.ReadNativeRenzokukenResources();
+
+        Assert.Equal(5, resources.Length);
+        Assert.Equal(new[] { 4, 5, 6, 7, 8 }, resources.Select(resource => resource.Timeline.InputThresholds.Length));
+        Assert.Equal(new ushort[] { 160, 141, 259, 332, 333 }, resources.Select(resource => resource.MagicId));
+        foreach (var resource in resources)
+        {
+            Assert.True(resource.GraphicsResource.Contains(1));
+            Assert.True(resource.GraphicsResource.Contains(2));
+            Assert.Equal((byte)1, resource.ShowBar);
+            Assert.Equal(resource.Timeline.InputThresholds.Length + 1, resource.Segments.Length);
+            Assert.True(resource.Timeline.TotalPoseFrames > 0);
+            BattleSequenceSet programs = new(resource.GraphicsResource.SequenceSection.ToArray());
+            Assert.Equal(resource.Segments, programs.ReadRenzokukenBlock(1, resource.AbOffset, resource.AnimationFrameCounts).Segments);
+        }
+    }
+
     [Fact]
     public void Installed_target_selectors_and_Squall_entry_program_are_available_without_guessing_hit_count()
     {

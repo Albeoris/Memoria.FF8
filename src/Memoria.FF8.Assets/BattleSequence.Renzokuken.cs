@@ -30,6 +30,11 @@ public sealed partial class BattleSequenceSet
     /// <summary>Decode a reached AB at its exact program offset; selection/branch execution belongs to the native graphics VM.</summary>
     public BattleNativeRenzokukenBlock ReadRenzokukenBlock(int sequence, int opcodeOffset, IReadOnlyList<BattleAnimation> animations)
     {
+        return ReadRenzokukenBlock(sequence, opcodeOffset, animations.Select(animation => checked((byte)animation.Frames.Count)).ToArray());
+    }
+
+    public BattleNativeRenzokukenBlock ReadRenzokukenBlock(int sequence, int opcodeOffset, IReadOnlyList<byte> animationFrameCounts)
+    {
         ImmutableArray<byte> program = ReadRawProgram(sequence);
         if (opcodeOffset < 0 || opcodeOffset + 1 >= program.Length || program[opcodeOffset] != 0xAB)
         {
@@ -50,11 +55,11 @@ public sealed partial class BattleSequenceSet
             }
             else if (opcode < 0x80)
             {
-                if (opcode >= animations.Count || animations[opcode].Frames.Count > 255)
+                if (opcode >= animationFrameCounts.Count)
                 {
                     throw new InvalidDataException("Native AB pose selector lacks its BYTE animation frame count.");
                 }
-                segments[^1] = unchecked((byte)(segments[^1] + animations[opcode].Frames.Count));
+                segments[^1] = unchecked((byte)(segments[^1] + animationFrameCounts[opcode]));
             }
         }
         throw new InvalidDataException("Native AB timing block has no A1 terminator in its original sequence.");

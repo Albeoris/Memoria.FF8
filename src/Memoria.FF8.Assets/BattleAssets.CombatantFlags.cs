@@ -4,6 +4,22 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
+    public byte ReadEnemyNativeEntryFlags(int model)
+    {
+        byte[] bytes = Read($"c0m{model:000}.dat");
+        int sections = bytes.Length >= 8 ? BinaryPrimitives.ReadInt32LittleEndian(bytes) : 0;
+        if (sections is not (2 or 11))
+        {
+            throw new InvalidDataException("Native encounter advantage requires the original DAT information directory.");
+        }
+        int information = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(sections == 11 ? 28 : 4));
+        if (information < 0 || information > bytes.Length - 255)
+        {
+            throw new InvalidDataException("Native encounter advantage flags exceed the original information section.");
+        }
+        return bytes[information + 254];
+    }
+
     public uint ReadEnemyNativeCombatantFlags(int model)
     {
         byte[] bytes = Read($"c0m{model:000}.dat");

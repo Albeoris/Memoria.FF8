@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -15,14 +15,7 @@ public sealed partial class BattleSession
         {
             nativeAffinityAction = null;
             ResolveAction(actor, target, command);
-            CompleteNativeOrdinaryCommand(actor, command);
-            CompleteNativeActionInventory(actor, command);
-            if (command.NativeMagicTargets.IsDefaultOrEmpty)
-            {
-                CompleteGuardianForceAffinity(actor, command);
-            }
-            CompleteNativeOrdinaryCommandCost(actor, command);
-            CompleteNativeActionStatuses(actor);
+            CompleteNativeActionOwners(actor, command);
             completed = true;
         }
         finally
@@ -33,6 +26,8 @@ public sealed partial class BattleSession
                 if (completed)
                 {
                     FlushNativeReactions();
+                    RefreshNativeKnownMagicStocks();
+                    RefreshNativeEnemyDrawSlots();
                 }
                 else
                 {
@@ -40,6 +35,18 @@ public sealed partial class BattleSession
                 }
             }
         }
+    }
+
+    private void CompleteNativeActionOwners(BattleCombatant actor, BattleActionPresentation command)
+    {
+        CompleteNativeOrdinaryCommand(actor, command);
+        CompleteNativeActionInventory(actor, command);
+        if (command.NativeMagicTargets.IsDefaultOrEmpty)
+        {
+            CompleteGuardianForceAffinity(actor, command);
+        }
+        CompleteNativeOrdinaryCommandCost(actor, command);
+        CompleteNativeActionStatuses(actor);
     }
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)

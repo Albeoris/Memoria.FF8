@@ -1,4 +1,7 @@
 using System.Numerics;
+using System.Collections.Immutable;
+using System.Buffers.Binary;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -26,6 +29,25 @@ internal static class BattleStageCameraReader
     // Native509810 command5 selects scene camera variable0; the remaining50DB40 program waits
     // for that introduction, yields, and then stops. No branch or camera motion is approximated here.
     private static ReadOnlySpan<byte> IntroductionScript => [0x05, 0x00, 0xC3, 0x10, 0xE5, 0x7F, 0xC1, 0x00, 0xCB, 0x7F, 0xEA, 0x06, 0xE6, 0x07, 0xE6, 0x02, 0x01, 0xE6, 0xF1, 0x03, 0x02, 0x00, 0x00, 0x00];
+
+    public static NativeBattleCameraBank ReadNativeBank(int stageId, byte[] bytes, int geometryOffset)
+    {
+        if ((uint)stageId >= CameraOffsets.Length)
+        {
+            throw new NotSupportedException($"Stage {stageId} has no original camera initializer contract.");
+        }
+        int offset = CameraOffsets[stageId];
+        if (offset < 0 || offset > bytes.Length - 6 || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset)) != 2)
+        {
+            throw new InvalidDataException("Native stage camera directory header is invalid.");
+        }
+        int directory = offset + BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 4));
+        if (directory < offset + 6 || directory >= geometryOffset || geometryOffset > bytes.Length)
+        {
+            throw new InvalidDataException("Native stage camera track bank exceeds its original resource.");
+        }
+        return new(bytes.AsSpan(directory, geometryOffset - directory).ToArray().ToImmutableArray());
+    }
 
     public static IReadOnlyDictionary<int, BattleStageCamera> Read(int stageId, byte[] bytes, int geometryOffset)
     {

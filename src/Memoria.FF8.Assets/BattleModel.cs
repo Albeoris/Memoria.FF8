@@ -55,6 +55,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
 public sealed record BattleStageCamera(Vector3 NativeEye, Vector3 NativeTarget, int FocalLength);
 public sealed record BattleStage(int Id, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures)
 {
+    public Memoria.FF8.Runtime.NativeBattleCameraBank? NativeCameraBank { get; init; }
     public IReadOnlyDictionary<int, BattleStageCamera> IntroductionCameras { get; init; } = new Dictionary<int, BattleStageCamera>();
 }
 public sealed record BattleEnemyPlacement(int Slot, int ModelId, Vector3 Position, int Level, bool Hidden, bool Untargetable)

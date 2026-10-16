@@ -114,7 +114,7 @@ public static partial class BattleResultProjection
         {
             NativeGuardianForceVital gf = guardianForces[change.Id];
             ushort maximum = vitals.Definitions.GuardianForceMaximum(change.Id, gf);
-            if (gf.HitPoints != change.HitPointsBefore || change.HitPointsAfter > maximum || (gf.Flags & 1) == 0)
+            if (gf.HitPoints != change.HitPointsBefore || change.HitPointsAfter > Math.Max(gf.HitPoints, maximum) || (gf.Flags & 1) == 0)
             {
                 throw new InvalidDataException("Battle GF HP change disagrees with its canonical saved owner.");
             }

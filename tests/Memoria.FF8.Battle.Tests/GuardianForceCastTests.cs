@@ -108,6 +108,20 @@ public sealed class GuardianForceCastTests
         Assert.Throws<InvalidOperationException>(() => session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0));
     }
 
+    [Fact]
+    public void MidbattleAcquisitionOnlySetsTheFlagAndRestoresItsOriginalSavedHp()
+    {
+        NativeBattleAiDefinition ai = new([[49, 0, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
+        BattleDefinition original = Create().Capture().Definition;
+        BattleDefinition definition = original with { GuardianForces = [new(0, 1000, 300, false)], Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeAi = ai }).ToArray() };
+        BattleSession session = new(definition, BattleAtbMode.Normal);
+        BattleGuardianForceVital acquired = Assert.Single(session.GuardianForces);
+        Assert.True(acquired.Acquired);
+        Assert.Equal((ushort)1000, acquired.HitPoints);
+        Assert.Equal((ushort)300, acquired.MaximumHitPoints);
+        Assert.Equal(acquired, Assert.Single(BattleSession.Restore(session.Capture()).GuardianForces));
+    }
+
     [Theory]
     [InlineData(1000, 90, 1000)]
     [InlineData(6000, 200, 6000)]

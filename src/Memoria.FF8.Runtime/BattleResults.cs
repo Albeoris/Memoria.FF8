@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -46,6 +46,8 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
     public NativeCrtRandomState? NativeCrtRandomBefore { get; init; }
     public NativeCrtRandomState? NativeCrtRandomAfter { get; init; }
     public NativeItemStock[]? NativeItemInventoryAfter { get; init; }
+    public NativeKnownMagic? NativeKnownMagicBefore { get; init; }
+    public NativeKnownMagic? NativeKnownMagicAfter { get; init; }
     public NativeScannedModels? NativeScannedModelsBefore { get; init; }
     public NativeScannedModels? NativeScannedModelsAfter { get; init; }
     public BattleStock[] ScriptedItems { get; init; } = [];
@@ -62,6 +64,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle outcome requires its observed encounter occurrence.");
         }
         Encounter.Validate();
+        NativeKnownMagic.ValidateReceipt(NativeKnownMagicBefore, NativeKnownMagicAfter);
         NativeScannedModels.ValidateReceipt(NativeScannedModelsBefore, NativeScannedModelsAfter);
         ValidateNativeSpecialEffects();
         NativeGlobalRandomChange?.Validate();

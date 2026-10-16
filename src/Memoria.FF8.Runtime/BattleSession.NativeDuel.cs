@@ -55,7 +55,7 @@ public sealed partial class BattleSession
     private void BeginNativeDuel(BattleCombatant actor, BattleCombatant target, byte crisis)
     {
         NativeLimitProgress progress = RequireNativeDuelProgress();
-        if (nativeDuelProcesses.Count != 0 || nativeShotProcesses.Count != 0)
+        if (nativeDuelProcesses.Count != 0 || nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
         {
             throw new InvalidOperationException("A native timed Limit input process already owns the battle menu.");
         }

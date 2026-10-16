@@ -16,7 +16,8 @@ public sealed partial class BattleSession
     private void AcquireGuardianForceInBattle(int id)
     {
         BattleGuardianForceVital gf = guardianForces.GetValueOrDefault(id) ?? throw new NotSupportedException("Native GF acquisition requires its original saved HP row.");
-        guardianForces[id] = gf with { Acquired = true, HitPoints = Math.Min(gf.HitPoints, gf.MaximumHitPoints) };
+        //47E480 changes only the acquisition flag;495D80 belongs to later explicit GF refresh/healing producers.
+        guardianForces[id] = gf with { Acquired = true };
     }
 
     private void QueueGuardianForce(BattleCombatant actor, BattleAttackCommand command)
@@ -143,7 +144,7 @@ public sealed partial class BattleSession
         {
             BattleGuardianForceVital initial = definition.GuardianForces.Single(entry => entry.Id == gf.Id);
             bool acquired = initial.Acquired || saved.NativeScriptState.AcquiredGuardianForces.Contains((byte)gf.Id);
-            if (gf.MaximumHitPoints != initial.MaximumHitPoints || gf.Acquired != acquired || gf.Acquired && gf.HitPoints > gf.MaximumHitPoints || !guardianForces.TryAdd(gf.Id, gf))
+            if (gf.MaximumHitPoints != initial.MaximumHitPoints || gf.Acquired != acquired || gf.HitPoints > Math.Max(initial.HitPoints, initial.MaximumHitPoints) || !guardianForces.TryAdd(gf.Id, gf))
             {
                 throw new InvalidDataException("Invalid saved GF HP state.");
             }

@@ -140,6 +140,8 @@ public sealed class HostedAutomaticBattleTests
         session.InitializeNewGameCharacterVitals(vitals);
         session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
         session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        session.InitializeNewGameGlobalRandom(assets.ReadNewGameGlobalRandom());
+        session.InitializeNewGameKnownMagic(assets.ReadNewGameKnownMagic());
         session.Restore(session.State with { Scene = SceneKind.Field, FieldId = 999, FieldName = "synthetic-automatic-battle-component" });
         return (session, learning.LearningIndex);
     }

@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using Albeoris.Games.FF8.TextEncoding;
 using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Runtime;
@@ -22,7 +22,7 @@ public sealed partial class BattleAssets
             NativeBattleAiDefinition ai = ReadEnemyAi(modelId, level);
             levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), ReadEnemyDrawSpells(modelId, level), ReadEnemyDrawGuardianForces(modelId, level), ai.LevelBand) { Evasion = projection.Evasion, BaseStatistics = projection.BaseStatistics.ToArray() };
         }
-        NativeBattleEnemyTemplate template = new(sceneLevel, levels) { NativeMug = ReadEnemyNativeMugData(modelId), NativeSpecial = ReadNativeEnemySpecial(modelId), NativeCombatantFlags = ReadEnemyNativeCombatantFlags(modelId), NativeStatusAllocation = ReadEnemyNativeStatusData(modelId) };
+        NativeBattleEnemyTemplate template = new(sceneLevel, levels) { NativeDrawTables = ReadEnemyDrawTables(modelId), Information254 = ReadEnemyNativeEntryFlags(modelId), NativeMug = ReadEnemyNativeMugData(modelId), NativeSpecial = ReadNativeEnemySpecial(modelId), NativeCombatantFlags = ReadEnemyNativeCombatantFlags(modelId), NativeStatusAllocation = ReadEnemyNativeStatusData(modelId) };
         enemyTemplates.Add((modelId, sceneLevel), template);
         return template;
     }

@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
     private void BeginNativeShot(BattleCombatant actor, BattleCombatant target, BattleNativeAction action, byte crisis)
     {
-        if (nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || actor.NativeLimit!.ShotTimers.IsDefault || actor.NativeLimit.ShotTimers.Length != 4)
+        if (nativeShotProcesses.Count != 0 || nativeDuelProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0 || actor.NativeLimit!.ShotTimers.IsDefault || actor.NativeLimit.ShotTimers.Length != 4)
         {
             throw new InvalidDataException("Shot invocation requires one process and all four original kernel29 timers.");
         }

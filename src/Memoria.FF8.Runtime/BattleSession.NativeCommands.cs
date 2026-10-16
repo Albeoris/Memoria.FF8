@@ -5,6 +5,7 @@ public sealed record BattleNativeLimitState(string ActorId, byte CrisisLevel)
     public BattleNativeSlotsRoll? Slots { get; init; }
     public BattleNativeShotState? Shot { get; init; }
     public BattleNativeDuelState? Duel { get; init; }
+    public BattleNativeRenzokukenState? Renzokuken { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -34,10 +35,10 @@ public sealed partial class BattleSession
             {
                 return [];
             }
-            if (limit.Command == 11)
+            if (limit.Command is 5 or 11)
             {
                 BattleNativeCommandBinding binding = limit.InvocationChoices.Single();
-                return [new(BattleAbility.LimitBreak, 11 << 16, binding.Name, BattleActionEffect.Native, 0, (binding.TargetFlags & 0x40) == 0)];
+                return [new(BattleAbility.LimitBreak, limit.Command << 16, binding.Name, BattleActionEffect.Native, 0, (binding.TargetFlags & 0x40) == 0)];
             }
             if (limit.Command == 15)
             {
@@ -130,6 +131,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native player target has no allocated physical battle slot.");
         }
+        if (command == 5)
+        {
+            QueueNativeRenzokuken(actor, target, crisis!.Value);
+            return;
+        }
         if (command == 11)
         {
             BeginNativeDuel(actor, target, crisis!.Value);
@@ -203,11 +209,11 @@ public sealed partial class BattleSession
                 throw new InvalidOperationException("Shot requires the actual selected ammunition stock.");
             }
         }
-        else if (command == 11)
+        else if (command is 5 or 11)
         {
             if (actionId != 0)
             {
-                throw new InvalidOperationException("Duel invocation does not select an effect row before its native move process.");
+                throw new InvalidOperationException("Timed Limit invocation does not select an effect row before its native move process.");
             }
         }
         else
@@ -218,12 +224,12 @@ public sealed partial class BattleSession
 
     private BattleNativeLimitState[] CaptureNativeLimits()
     {
-        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value) { Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key), Shot = GetNativeShot(pair.Key), Duel = GetNativeDuel(pair.Key) }).ToArray();
+        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value) { Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key), Shot = GetNativeShot(pair.Key), Duel = GetNativeDuel(pair.Key), Renzokuken = GetNativeRenzokuken(pair.Key) }).ToArray();
     }
 
     private void RestoreNativeLimits(BattleNativeLimitState[] states)
     {
-        if (states is not null && states.Sum(state => (state?.Shot is null ? 0 : 1) + (state?.Duel is null ? 0 : 1)) > 1)
+        if (states is not null && states.Sum(state => (state?.Shot is null ? 0 : 1) + (state?.Duel is null ? 0 : 1) + (state?.Renzokuken is null ? 0 : 1)) > 1)
         {
             throw new InvalidDataException("Saved timed Limit processes contradict the single native UI process owner.");
         }
@@ -235,6 +241,7 @@ public sealed partial class BattleSession
         nativeSlotsRolls.Clear();
         nativeShotProcesses.Clear();
         nativeDuelProcesses.Clear();
+        nativeRenzokukenProcesses.Clear();
         foreach (BattleNativeLimitState state in states)
         {
             nativeLimitLevels.Add(state.ActorId, state.CrisisLevel);
@@ -254,6 +261,10 @@ public sealed partial class BattleSession
             if (state.Duel is { } duel)
             {
                 RestoreNativeDuel(state.ActorId, state.CrisisLevel, duel);
+            }
+            if (state.Renzokuken is { } renzokuken)
+            {
+                RestoreNativeRenzokuken(state.ActorId, state.CrisisLevel, renzokuken);
             }
         }
         ValidateNativeLimitCallbacks();

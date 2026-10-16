@@ -400,7 +400,8 @@ internal static class BattleResourceReader
         }
         return new BattleStage(stageId, meshes, textures)
         {
-            IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header)
+            IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header),
+            NativeCameraBank = BattleStageCameraReader.ReadNativeBank(stageId, bytes, header)
         };
     }
 }

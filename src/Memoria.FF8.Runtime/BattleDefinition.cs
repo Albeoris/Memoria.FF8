@@ -1,4 +1,4 @@
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -117,6 +117,7 @@ public sealed record BattleCombatantDefinition
     public int[] ElementDefenses { get; init; } = [800, 800, 800, 800, 800, 800, 800, 800];
     public BattleStock[] MagicStocks { get; init; } = [];
     public NativeMagicStock[]? NativeMagicInventory { get; init; }
+    public NativeBattleDrawSlot[]? NativeDrawSlots { get; init; }
     public BattleDrawSpell[] DrawSpells { get; init; } = [];
     public NativeBattleMugDefinition? NativeMug { get; init; }
     public int[] DrawGuardianForces { get; init; } = [];
@@ -128,6 +129,7 @@ public sealed record BattleCombatantDefinition
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands { get; init; } = [];
     public ImmutableArray<byte> NativeCommandSlots { get; init; } = [];
     public BattleNativeLimitDefinition? NativeLimit { get; init; }
+    public ImmutableArray<ushort> NativeRenzokukenMagicIds { get; init; } = [];
     public BattleNativeAction? NativeAttack { get; init; }
     public BattleNativePlayerStatRules? NativePlayerStatRules { get; init; }
     public BattleStatusEffectDefinition[] StatusEffects { get; init; } = [];
@@ -140,11 +142,16 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
+    public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
+    public NativeBattleEntryInput? NativeEntry { get; init; }
     public NativeGlobalRandomState? NativeGlobalRandom { get; init; }
+    public NativeKnownMagic? NativeKnownMagic { get; init; }
     public NativeScannedModels? NativeScannedModels { get; init; }
     public bool? NativeScanAlwaysShow { get; init; }
     public NativeCardInventory? NativeCards { get; init; }
     public NativeCrtRandomState? NativeCrtRandom { get; init; }
+    public NativeBattleUiRandomState? NativeBattleUiRandom { get; init; }
     public uint? NativeElapsedCounter { get; init; }
     public BattleNativeDevourEffect[] NativeDevourEffects { get; init; } = [];
     public string?[] NativeCardNames { get; init; } = [];
@@ -156,6 +163,7 @@ public sealed record BattleDefinition
     public NativeBattleStatusRules? NativeStatusRules { get; init; }
     public byte? NativeMessageSpeed { get; init; }
     public string?[] NativeGlobalMessages { get; init; } = [];
+    public string[] NativeCommandNames { get; init; } = [];
     public uint[]? PersistentAiVariables { get; init; }
     public string Name { get; init; } = "Debug battle";
     public int? StageId { get; init; }
@@ -168,6 +176,7 @@ public sealed record BattleDefinition
     public NativePocketStationState? NativePocketStation { get; init; }
     public string? NativeChocoboName { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
+    public ImmutableArray<BattleNativeRenzokukenResource> NativeRenzokukenResources { get; init; } = [];
     public NativeShotAvailabilityState? NativeShotAvailability { get; init; }
     public bool? NativeLimitsDisabled { get; init; }
     public byte? NativeFieldBattleRules { get; init; }
@@ -188,7 +197,10 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    public BattleNativeDrawContext? NativeDraw { get; init; }
+    public string? DrawCastTargetId { get; init; }
     public NativeLimitCallback? NativeLimitCallback { get; init; }
     public BattleNativeGraphicCommand? NativeGraphic { get; init; }
     public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
@@ -202,7 +214,10 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    public BattleNativeDrawContext? NativeDraw { get; init; }
+    public string? DrawCastTargetId { get; init; }
     public NativeLimitCallback? NativeLimitCallback { get; init; }
     public int? NativeSequenceFrame { get; init; }
     public BattleNativeGraphicCommand? NativeGraphic { get; init; }
@@ -230,16 +245,22 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
     public NativeBattleStatusSnapshot? NativeStatus { get; init; }
     public BattleStock[] MagicStocks { get; init; } = [];
     public NativeMagicStock[]? NativeMagicInventory { get; init; }
+    public NativeBattleDrawSlot[]? NativeDrawSlots { get; init; }
     public NativeBattleParticipantSnapshot? NativeParticipant { get; init; }
 }
 
 public sealed record BattleSnapshot
 {
+    public NativeBattleTimedAction? NativeTimedAction { get; init; }
+    public NativeBattleCameraState? NativeCamera { get; init; }
+    public byte? NativeEntryAdvantage { get; init; }
     public NativeGlobalRandomState? NativeGlobalRandom { get; init; }
     public ulong NativeGlobalRandomCalls { get; init; }
+    public NativeKnownMagic? NativeKnownMagic { get; init; }
     public NativeScannedModels? NativeScannedModels { get; init; }
     public NativeCardInventory? NativeCards { get; init; }
     public NativeCrtRandomState? NativeCrtRandom { get; init; }
+    public NativeBattleUiRandomState? NativeBattleUiRandom { get; init; }
     public int Version { get; init; } = 1;
     public BattleDefinition Definition { get; init; } = new();
     public BattleAtbMode Mode { get; init; }
@@ -307,6 +328,7 @@ public sealed partial class BattleCombatant
             nativeCombatantFlags |= 0x100;
         }
         RestoreMagicInventory(definition.NativeMagicInventory ?? ExpandMagicStocks(definition.MagicStocks));
+        RestoreDrawSlots(definition.NativeDrawSlots ?? ExpandDrawSlots(definition.DrawSpells, definition.DrawGuardianForces));
         IsActive = definition.InitialActive;
         Hidden = definition.InitialHidden;
         Untargetable = definition.InitialUntargetable;
@@ -322,6 +344,7 @@ public sealed partial class BattleCombatant
     public ImmutableArray<BattleNativeCommandBinding> NativeCommands => definition.NativeCommands;
     public ImmutableArray<byte> NativeCommandSlots => definition.NativeCommandSlots;
     public BattleNativeLimitDefinition? NativeLimit => definition.NativeLimit;
+    public ImmutableArray<ushort> NativeRenzokukenMagicIds => definition.NativeRenzokukenMagicIds;
     public BattleNativeAction? NativeAttack => definition.NativeAttack;
     public int? SceneSlot => definition.SceneSlot;
     public uint NativeCombatantFlags
@@ -474,9 +497,9 @@ public sealed partial class BattleCombatant
     internal NativeMagicStock[] NativeMagicInventory { get; } = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
     public IReadOnlyList<BattleStock> MagicStocks => NativeMagicInventory.Where(stock => stock.SpellId != 0 && stock.Count > 0).Select(stock => new BattleStock(stock.SpellId, stock.Count)).ToArray();
     public IReadOnlyList<NativeMagicStock> NativeMagicSlots => Array.AsReadOnly(NativeMagicInventory);
-    public IReadOnlyList<BattleDrawSpell> DrawSpells => Array.AsReadOnly(definition.DrawSpells);
+    public IReadOnlyList<BattleDrawSpell> DrawSpells => nativeDrawSlots.Where(slot => slot.Id is > 0 and < 64).Select(slot => new BattleDrawSpell(slot.Id, slot.Resistance)).ToArray();
     public NativeBattleMugDefinition? NativeMug => definition.NativeTemplate?.NativeMug ?? definition.NativeMug;
-    public IReadOnlyList<int> DrawGuardianForces => Array.AsReadOnly(definition.DrawGuardianForces);
+    public IReadOnlyList<int> DrawGuardianForces => nativeDrawSlots.Where(slot => slot.Id >= 64).Select(slot => slot.Id - 64).ToArray();
     public int? WeaponId => definition.WeaponId;
     public string? WeaponName => definition.WeaponName;
     public IReadOnlyList<int> EquipmentIds => Array.AsReadOnly(definition.EquipmentIds);

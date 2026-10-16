@@ -9,6 +9,45 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleHudNativeCommandTests
 {
     [Fact]
+    public void Duel_displays_current_native_bindings_and_accepts_raw_edges_without_advancing_gameplay()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = 0 };
+        BattleSession session = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 50000, CurrentHp = 50000 }] }, BattleAtbMode.TurnBased);
+        session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("zell", 1)] });
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId)) { NativeButtonBindingHint = buttons => $"Key{buttons:X4}" };
+        hud.BuildView();
+        hud.Choose(1);
+        hud.Choose(0);
+        hud.Attack();
+        for (int frame = 0; frame < 100 && session.GetNativeDuel("zell")?.Phase != BattleNativeDuelPhase.Ready; frame++)
+        {
+            session.Tick();
+        }
+        Assert.Equal(BattleNativeDuelPhase.Ready, session.GetNativeDuel("zell")!.Phase);
+        BattleNativeDuelChoice choice = session.GetNativeDuelChoices("zell").First(candidate => candidate.Learned);
+        string before = JsonSerializer.Serialize(session.Capture());
+
+        hud.BuildView();
+        hud.BuildView();
+
+        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+        Assert.Empty(hud.Commands);
+        Assert.Contains(choice.Name + "  " + string.Join(" ", choice.Buttons.Select(button => $"Key{button:X4}")), hud.ChoiceLabels);
+        long gameplayFrame = session.Frame;
+        foreach (ushort button in choice.Buttons)
+        {
+            session.AdvanceNativeDuelPresentation(TimeSpan.FromMilliseconds(34), button);
+            session.AdvanceNativeDuelPresentation(TimeSpan.FromMilliseconds(34), 0);
+        }
+
+        Assert.Equal(gameplayFrame, session.Frame);
+        Assert.Equal((ushort)choice.ActionId, Assert.Single(session.QueuedActions).NativeAction!.ActionId);
+        Assert.Equal(BattleNativeDuelPhase.AwaitingEffect, session.GetNativeDuel("zell")!.Phase);
+    }
+
+    [Fact]
     public void Shot_process_holds_command_selection_and_cancel_queues_the_native_end_control()
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);

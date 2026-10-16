@@ -41,6 +41,7 @@ public sealed partial class BattleSession
         int level = NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, combatants.Where(candidate => candidate.IsPlayer && candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray(), firstRoll, secondRoll);
         spawned.BindNativeLevel(level);
         spawned.ResetNativeStatusAllocation();
+        ResetNativeDrawAllocation(spawned);
         spawned.CurrentHp = spawned.MaximumHp;
         nativeLastAllocatedIndex = physicalIndex;
         Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");

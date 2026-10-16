@@ -70,8 +70,7 @@ public static class NativeBattleRewardDistribution
 {
     public static bool NoExperience(ushort activeFlags, byte formationFlags)
     {
-        int merged = (formationFlags & 0xE0) != 0 ? activeFlags & 0xFF1F : activeFlags;
-        return ((merged | formationFlags & 0xEF) & 8) != 0;
+        return (NativeBattleEntryRules.MergeFlags(activeFlags, formationFlags) & 8) != 0;
     }
 
     public static BattleLootOwners Loot(IReadOnlyList<BattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards)

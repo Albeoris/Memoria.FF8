@@ -27,6 +27,7 @@ public sealed partial class GameSession
             throw new InvalidOperationException("The prepared native car save differs from its current world action endpoint.");
         }
         GameState candidate = salary.ApplyTo(departure with { Scene = SceneKind.Field, FieldId = transition.FieldId, PreviousFieldId = receipt.LastFieldId, FieldName = transition.FieldId == 106 ? "bcgate_1" : $"field_{transition.FieldId}", EntryPoint = 0, X = transition.X, Y = transition.Y, EventState = null, DepartingFieldState = departure.DepartingFieldState ?? departure.EventState, DialogueDraft = null, FieldArrival = transition, WorldArrival = null, World = null, DepartingWorldState = finalWorld, DebugView = null, SavedWorld = PrepareOrdinaryWorldFieldEntry(departure.SavedWorld.WithCarReturn(receipt)), WorldControls = departure.WorldControls.WithNormalFieldLoad(), ExamTimer = AdvanceWorldTimer(departure, finalWorld), WorldProcess = PrepareWorldProcess(departure, finalWorld), WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId) }, finalWorld);
+        candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))

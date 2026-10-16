@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Battle.Tests;
@@ -50,7 +50,7 @@ public sealed class BattleActionTests
     public void DrawCastDoesNotConsumeOrStockMagic()
     {
         BattleSession session = Create();
-        session.QueueAction("party", "enemy", BattleAbility.Draw, 1, true);
+        session.QueueAction("party", "enemy", BattleAbility.Draw, 1, true, drawCastTargetId: "enemy");
         Resolve(session);
         Assert.Equal(2, session.Combatants[0].MagicStocks.Single(stock => stock.Id == 1).Count);
         Assert.Equal(105, session.Combatants[1].CurrentHp);

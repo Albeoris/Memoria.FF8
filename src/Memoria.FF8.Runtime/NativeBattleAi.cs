@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleAiAbility(byte Command, byte Sequence, ushort Id, int AttackType = 0, int Power = 0, int Element = 0, ushort Statuses0 = 0, uint Statuses1 = 0, int StatusAttack = 0)
 {
@@ -18,6 +18,8 @@ public sealed record NativeBattleEnemyLevel(int MaximumHp, int Strength, int Vit
 }
 public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnemyLevel[] Levels)
 {
+    public NativeBattleDrawSlot[][]? NativeDrawTables { get; init; }
+    public byte? Information254 { get; init; }
     public NativeBattleMugDefinition? NativeMug { get; init; }
     public BattleNativeEnemySpecial? NativeSpecial { get; init; }
     public NativeBattleStatusAllocation? NativeStatusAllocation { get; init; }

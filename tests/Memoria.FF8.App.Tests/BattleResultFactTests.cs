@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Collections.Immutable;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
@@ -306,6 +306,40 @@ public sealed class BattleResultFactTests
         using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
         Assert.Null(session.State.ScannedModels);
         Assert.Throws<NotSupportedException>(() => session.InitializeNewGameScannedModels(clear));
+    }
+
+    [Fact]
+    public void KnownMagicPublishesOnlyWithItsMatchingCurrentOccurrenceAndBeforeBank()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeKnownMagic before = new(NativeInputConfiguration.OriginalInitHash, System.Collections.Immutable.ImmutableArray.Create<uint>(0, 0));
+        NativeKnownMagic after = before.Add(63);
+        fact = fact with { NativeKnownMagicBefore = before, NativeKnownMagicAfter = after };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, KnownMagic = before });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+
+        world.ApplyBattleResult(fact.Encounter, fact);
+
+        Assert.True(session.State.KnownMagic!.SameValue(after));
+        GameSession stale = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, KnownMagic = before.Add(3) });
+        stale.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld staleWorld = new(stale, LaunchOptions.DefaultGameDirectory);
+        string unchanged = JsonSerializer.Serialize(stale.State);
+        Assert.Throws<InvalidDataException>(() => staleWorld.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(unchanged, JsonSerializer.Serialize(stale.State));
+    }
+
+    [Fact]
+    public void KnownMagicHasAnAuthenticatedNewGameClearWithoutInferringOldState()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeKnownMagic clear = assets.ReadNewGameKnownMagic();
+        Assert.All(clear.Words, word => Assert.Equal(0u, word));
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74 });
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        Assert.Null(session.State.KnownMagic);
+        Assert.Throws<NotSupportedException>(() => session.InitializeNewGameKnownMagic(clear));
     }
 
     private static BattleResultOwners Project(BattleResult fact, NativeCharacterVitals vitals, NativeEconomy economy, IReadOnlyDictionary<int, int> points)

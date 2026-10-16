@@ -38,7 +38,8 @@ public sealed class ArchivedBattleSnapshotTests
         {
             CharacterVitals = componentVitals,
             CharacterAppearance = assets.ReadNewGameCharacterAppearance(),
-            Economy = assets.ReadNewGameEconomy()
+            Economy = assets.ReadNewGameEconomy(),
+            GlobalRandom = assets.ReadNewGameGlobalRandom()
         });
         using GameWorld world = new(component, game);
         BattleDefinition definition = world.CreateEncounterBattle(29, nativeSeed: 7);

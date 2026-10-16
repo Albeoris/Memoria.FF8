@@ -153,7 +153,7 @@ public sealed class BattleAnimationPresentationTests
     {
         using BattleAssets assets = InstalledAssets();
         BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition party = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, InitialAtb = BattleSession.AtbMaximum, Attack = 100, MaximumHp = 100, CurrentHp = 100 };
+        BattleCombatantDefinition party = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, InitialAtb = BattleSession.AtbMaximum, Attack = 100, MaximumHp = 100, CurrentHp = 100, NativeDeathCount = 0 };
         BattleCombatantDefinition enemy = new() { Id = "enemy", Name = "Dummy", ModelId = -1, MaximumHp = 1, CurrentHp = 1, Speed = 1 };
         BattleSession victory = new(new BattleDefinition { Combatants = [party, enemy] }, BattleAtbMode.Normal);
         BattleAnimationPresentation winner = new(model, assets.LoadPlayerSequences(0, 0, model), party);
