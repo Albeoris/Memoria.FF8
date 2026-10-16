@@ -71,11 +71,8 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native initialization trace requires its original automatic field-party setup before compaction and trace reads.");
         }
-        NativeCharacterVitals? reserve = PrepareNativePartyReserveRefresh();
-        if (reserve is not null)
-        {
-            services.SetCharacterVitals(reserve);
-        }
+        // Native 52BC00 rebuilds actor bindings directly after 52C650; it does
+        // not call the 52D050 reserve producer used by REFRESHPARTY/menu return.
         CompactNativeActors();
         if (nativeLoad is not null)
         {

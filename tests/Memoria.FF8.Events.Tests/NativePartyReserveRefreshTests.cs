@@ -65,10 +65,11 @@ internal static partial class Program
         }
 
         (EventEngine loading, GameSession loadingSession, byte[] content) = Create(true);
-        //Fresh normal load executes the same52D050 producer without requiring an explicit opcode.
+        byte[] beforeLoad = loadingSession.CharacterVitals!.JunctionPartyBackup.ToArray();
+        // Normal52BC00 binds actors directly and must not invoke52D050.
         loading.LoadField(556, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SETPC, 0), (Jsm.Opcode.RET, 8)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         loading.Step();
-        Require(loadingSession.CharacterVitals!.JunctionPartyBackup.SequenceEqual(new byte[] { 2, 3, 4, 2, 3, 4 }), "Normal field initialization omitted the shared52D050 reserve branch.");
+        Require(loadingSession.CharacterVitals!.JunctionPartyBackup.SequenceEqual(beforeLoad), "Normal field initialization incorrectly invoked the52D050 reserve producer.");
 
         (EventEngine refused, GameSession refusedSession, byte[] _) = Create(true, true);
         JsonElement beforeRefusal = JsonSerializer.SerializeToElement(refusedSession.CharacterVitals);
@@ -83,6 +84,6 @@ internal static partial class Program
             JsonElement fiber = refused.Capture().GetProperty("Fibers").EnumerateArray().Single(row => !row.GetProperty("Complete").GetBoolean());
             Require(fiber.GetProperty("Position").GetInt32() == refused.LastFault.Operation && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([271828]) && refused.Scene.PartyBindingMemory == binding && JsonElement.DeepEquals(beforeRefusal, JsonSerializer.SerializeToElement(refusedSession.CharacterVitals)), "Refused reserve overflow changed PC, stack, saved backup or actor binding before refusal.");
         }
-        Console.WriteLine("52D050 reserve refresh: canonical104&800 branch, raw ascending complement in both banks, flag-clear preservation, no operands/R0/stat/party mutation, normal postload producer, independent restore and fail-before-mutation overflow PASS.");
+        Console.WriteLine("52D050 reserve refresh: canonical104&800 branch, raw ascending complement in both banks, flag-clear preservation, no operands/R0/stat/party mutation, normal load preserves reserves, independent restore and fail-before-mutation overflow PASS.");
     }
 }
