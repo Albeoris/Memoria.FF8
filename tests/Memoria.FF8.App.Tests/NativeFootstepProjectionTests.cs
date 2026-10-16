@@ -91,18 +91,25 @@ public sealed class NativeFootstepProjectionTests
     }
 
     [Fact]
-    public void MissingMalformedAndUnsupportedReceiptsFailAtActualContact()
+    public void MissingAndUnsupportedProjectionRetainIdentityWhileMalformedReceiptsRefuse()
     {
         FieldAssets field = InstalledField();
         NativeFootstepSound Resolve(ActorState actor)
         {
             return NativeFootstepSoundAdapter.Resolve(field.GetCamera(0), actor, 0, () => throw new InvalidOperationException());
         }
-        Assert.Throws<NotSupportedException>(() => Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), null))));
+        NativeFootstepSound unknown = Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), null)));
+        Assert.Equal((3u, 0x400000u), Identity(unknown));
+        Assert.Null(unknown.Spatialization);
+        Assert.NotNull(unknown.UnsupportedProjectionReason);
+        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(unknown));
         NativeFootstepModelOrigin origin = Actor().NativeFootstepModelOrigin!;
         Assert.Throws<NotSupportedException>(() => Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), origin with { Version = 2 }))));
         Assert.Throws<NotSupportedException>(() => Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), origin with { Frame = -1 }))));
-        Assert.Throws<NotSupportedException>(() => Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), origin with { Translation = null, UnsupportedReason = "Unproved movie camera origin." }))));
+        NativeFootstepSound unsupported = Resolve(Actor((nameof(ActorState.NativeFootstepModelOrigin), origin with { Translation = null, UnsupportedReason = "Unproved movie camera origin." })));
+        Assert.Null(unsupported.Spatialization);
+        Assert.Equal("Unproved movie camera origin.", unsupported.UnsupportedProjectionReason);
+        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(unsupported));
     }
 
     private static (uint Effect, uint Flags) Identity(NativeFootstepSound sound)

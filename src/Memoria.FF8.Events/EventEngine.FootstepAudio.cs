@@ -3,7 +3,21 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Events;
 
 /// <summary>Transient output of the original animation contact callback, outside saved VM state.</summary>
-public sealed record NativeFootstepSound(int ObjectId, int Mode, uint EffectId, uint Pan, uint Volume, uint Flags);
+public sealed record NativeFootstepSpatialization(uint Pan, uint Volume);
+public sealed record NativeFootstepSound(int ObjectId, int Mode, uint EffectId, NativeFootstepSpatialization? Spatialization, uint Flags, string? UnsupportedProjectionReason)
+{
+    public NativeFootstepSound(int objectId, int mode, uint effectId, uint pan, uint volume, uint flags) : this(objectId, mode, effectId, new NativeFootstepSpatialization(pan, volume), flags, null)
+    {
+    }
+
+    public uint Pan => RequireSpatialization().Pan;
+    public uint Volume => RequireSpatialization().Volume;
+
+    public NativeFootstepSpatialization RequireSpatialization()
+    {
+        return Spatialization ?? throw new NotSupportedException(UnsupportedProjectionReason ?? "Native footstep spatialization is unavailable.");
+    }
+}
 
 public sealed partial class EventEngine
 {

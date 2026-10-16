@@ -41,18 +41,6 @@ internal static class NativeFootstepSoundAdapter
         {
             throw new ArgumentOutOfRangeException(nameof(mode));
         }
-        NativeFootstepModelOrigin origin = actor.NativeFootstepModelOrigin ?? throw new NotSupportedException("Native footstep sound requires a previously executed model-origin draw sample.");
-        if (origin.Version != 1 || origin.Frame < 0 || origin.ModelId < 0 || origin.CameraIndex < 0 || origin.Translation is not NativeFootstepOrigin translation || origin.UnsupportedReason is not null)
-        {
-            throw new NotSupportedException(origin.UnsupportedReason ?? "Native footstep model-origin receipt is unsupported.");
-        }
-        //529FF0 precedes camera selection;4789A0 follows it. The caller supplies
-        //that phase's CA/CAM focal; the origin remains the last enabled draw.
-        if (!float.IsFinite(camera.FocalLength) || camera.FocalLength != MathF.Truncate(camera.FocalLength) || camera.FocalLength is < 1 or > ushort.MaxValue)
-        {
-            throw new NotSupportedException("Footstep projection requires the original positive focal WORD.");
-        }
-        (uint pan, uint volume) = Spatialize(translation, (ushort)camera.FocalLength);
         uint flags = 0x400000;
         uint effect;
         if (actor.NativeLadder is not null || actor.NativeLadderMode3 is not null)
@@ -79,6 +67,29 @@ internal static class NativeFootstepSoundAdapter
                 flags = mode == 1 ? 0x800000u : 0x400000u;
             }
         }
+        // Effect selection and46B2A0's voice identity do not depend on the
+        // model matrix. A never-drawn hidden model has no proved translation;
+        // retain that unknown explicitly for the presentation consumer.
+        NativeFootstepModelOrigin? origin = actor.NativeFootstepModelOrigin;
+        if (origin is null)
+        {
+            return new NativeFootstepSound(actor.ObjectId, mode, effect, null, flags, "Native footstep spatialization requires a previously executed model-origin draw sample.");
+        }
+        if (origin.Version != 1 || origin.Frame < 0 || origin.ModelId < 0 || origin.CameraIndex < 0 || (origin.Translation is null) == (origin.UnsupportedReason is null) || origin.UnsupportedReason is not null && string.IsNullOrWhiteSpace(origin.UnsupportedReason))
+        {
+            throw new NotSupportedException("Native footstep model-origin receipt is malformed.");
+        }
+        if (origin.UnsupportedReason is string reason)
+        {
+            return new NativeFootstepSound(actor.ObjectId, mode, effect, null, flags, reason);
+        }
+        //529FF0 precedes camera selection;4789A0 follows it. The caller supplies
+        //that phase's CA/CAM focal; the origin remains the last enabled draw.
+        if (!float.IsFinite(camera.FocalLength) || camera.FocalLength != MathF.Truncate(camera.FocalLength) || camera.FocalLength is < 1 or > ushort.MaxValue)
+        {
+            throw new NotSupportedException("Footstep projection requires the original positive focal WORD.");
+        }
+        (uint pan, uint volume) = Spatialize(origin.Translation!, (ushort)camera.FocalLength);
         return new NativeFootstepSound(actor.ObjectId, mode, effect, pan, volume, flags);
     }
 

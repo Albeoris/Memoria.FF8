@@ -14,7 +14,7 @@ public sealed class NativeFootstepPlaybackTests
         NativeFootstepSound right = new(4, 1, 220037, 0, 119, 0x800000);
         Assert.Equal((3, 23, 17u, 127u), FieldAudioPresentation.ResolveFootstepPlayback(left));
         Assert.Equal((217, 24, 119u, 0u), FieldAudioPresentation.ResolveFootstepPlayback(right));
-        Assert.Equal((3, 23, 17u, 64u), FieldAudioPresentation.ResolveFootstepPlayback(left with { Pan = 129 }));
+        Assert.Equal((3, 23, 17u, 64u), FieldAudioPresentation.ResolveFootstepPlayback(left with { Spatialization = new NativeFootstepSpatialization(129, 17) }));
         Assert.Equal(23, FieldAudioPresentation.ResolveFootstepPlayback(right with { Flags = 0x400000 }).Voice);
     }
 
@@ -26,8 +26,8 @@ public sealed class NativeFootstepPlaybackTests
         {
             Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(footstep with { Flags = mask }));
         }
-        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(footstep with { Pan = 256 }));
-        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(footstep with { Volume = 128 }));
+        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(footstep with { Spatialization = new NativeFootstepSpatialization(256, 119) }));
+        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveFootstepPlayback(footstep with { Spatialization = new NativeFootstepSpatialization(128, 128) }));
     }
 
     [Fact]

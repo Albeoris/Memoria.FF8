@@ -69,24 +69,18 @@ public sealed record FieldCamera(Vector3 AxisX, Vector3 AxisY, Vector3 AxisZ, Ve
 
     public static IReadOnlyList<FieldCamera> ReadAll(byte[] bytes)
     {
-        // Selected PC fields have padded 40-byte or compact 38-byte records.
-        int stride;
-        if (bytes.Length > 0 && bytes.Length % 40 == 0)
+        // Native 4767B0 selects CA base or base+40 and consumes through focal WORD+36.
+        // An incomplete trailing record does not invalidate the preceding complete camera.
+        const int stride = 40;
+        const int payloadSize = 38;
+        if (bytes.Length < payloadSize)
         {
-            stride = 40;
+            throw new InvalidDataException("A CA section requires at least one complete 38-byte camera payload.");
         }
-        else if (bytes.Length > 0 && bytes.Length % 38 == 0)
-        {
-            stride = 38;
-        }
-        else
-        {
-            throw new InvalidDataException("CA section size is not a whole number of 38-byte or 40-byte camera records.");
-        }
-        FieldCamera[] cameras = new FieldCamera[bytes.Length / stride];
+        FieldCamera[] cameras = new FieldCamera[1 + (bytes.Length - payloadSize) / stride];
         for (int index = 0; index < cameras.Length; index++)
         {
-            cameras[index] = Read(bytes.AsSpan(index * stride, stride).ToArray());
+            cameras[index] = Read(bytes.AsSpan(index * stride, payloadSize).ToArray());
         }
         return Array.AsReadOnly(cameras);
     }

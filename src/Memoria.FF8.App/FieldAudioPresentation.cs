@@ -185,6 +185,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
 
     internal static (int SampleIndex, int Voice, uint Volume, uint EffectivePan) ResolveFootstepPlayback(NativeFootstepSound footstep)
     {
+        _ = footstep.RequireSpatialization();
         if (footstep.Flags is not (0x400000 or 0x800000) || footstep.Pan > 255 || footstep.Volume > 127)
         {
             throw new NotSupportedException("Footstep output requires the original520260 channel mask, unsigned pan and volume.");
