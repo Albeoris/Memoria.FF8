@@ -13,15 +13,15 @@ public sealed class GameplayPreferencesTests
         {
             GameSession first = GameSession.CreateColdProcess();
             first.StartNewGame();
-            first.SetGameplayPreferences(new GameplayPreferences { AtbMode = BattleAtbMode.TurnBased, GunbladeMode = BattleGunbladeMode.Manual });
+            first.SetGameplayPreferences(new GameplayPreferences { AtbMode = BattleAtbMode.Normal, GunbladeMode = BattleGunbladeMode.Manual });
             first.Save(path);
             GameSession second = GameSession.CreateColdProcess();
             second.StartNewGame();
-            Assert.Equal(BattleAtbMode.Normal, second.State.GameplayPreferences.AtbMode);
+            Assert.Equal(BattleAtbMode.TurnBased, second.State.GameplayPreferences.AtbMode);
             second.Restore(GameSession.Load(path));
             Assert.Equal(first.State.GameplayPreferences, second.State.GameplayPreferences);
             second.SetGameplayPreferences(new GameplayPreferences());
-            Assert.Equal(BattleAtbMode.TurnBased, GameSession.Load(path).GameplayPreferences.AtbMode);
+            Assert.Equal(BattleAtbMode.Normal, GameSession.Load(path).GameplayPreferences.AtbMode);
             first.StartNewGame();
             Assert.Equal(new GameplayPreferences(), first.State.GameplayPreferences);
         }
@@ -32,7 +32,7 @@ public sealed class GameplayPreferencesTests
     }
 
     [Fact]
-    public void Existing_checkpoint_without_gameplay_owner_defaults_to_classic_without_native_changes()
+    public void Existing_checkpoint_without_gameplay_owner_defaults_to_turn_based_without_native_changes()
     {
         string path = Path.Combine(Path.GetTempPath(), "ff8-legacy-gameplay-" + Guid.NewGuid().ToString("N") + ".json");
         try
@@ -44,7 +44,7 @@ public sealed class GameplayPreferencesTests
             original.Remove(nameof(GameState.GameplayPreferences));
             File.WriteAllText(path, original.ToJsonString());
             GameState loaded = GameSession.Load(path);
-            Assert.Equal(BattleAtbMode.Normal, loaded.GameplayPreferences.AtbMode);
+            Assert.Equal(BattleAtbMode.TurnBased, loaded.GameplayPreferences.AtbMode);
             Assert.Equal(BattleGunbladeMode.Automatic, loaded.GameplayPreferences.GunbladeMode);
             Assert.Equal(session.State.InputConfiguration, loaded.InputConfiguration);
             Assert.Equal(session.State.LimitProgress, loaded.LimitProgress);

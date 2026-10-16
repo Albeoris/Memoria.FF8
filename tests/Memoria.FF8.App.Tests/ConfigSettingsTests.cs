@@ -125,8 +125,10 @@ public sealed class ConfigSettingsTests
     public void In_game_changes_do_not_replace_installation_gameplay_defaults()
     {
         UiPreferences defaults = new();
-        Assert.Equal(defaults, defaults.WithInstallationSetting("Battle ATB mode", "Turn Based", activeGame: true));
-        Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.TurnBased, defaults.WithInstallationSetting("Battle ATB mode", "Turn Based", activeGame: false).AtbMode);
+        Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.TurnBased, defaults.AtbMode);
+        Assert.True(defaults.VSync);
+        Assert.Equal(defaults, defaults.WithInstallationSetting("Battle ATB mode", "Classic", activeGame: true));
+        Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.Normal, defaults.WithInstallationSetting("Battle ATB mode", "Classic", activeGame: false).AtbMode);
         UiPreferences volume = defaults.WithInstallationSetting("Music volume", "25%", activeGame: true);
         Assert.Equal(25, volume.MusicVolume);
         Assert.Equal(defaults.AtbMode, volume.AtbMode);
