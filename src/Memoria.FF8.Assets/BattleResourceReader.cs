@@ -62,13 +62,15 @@ internal static partial class BattleResourceReader
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
         //5077B0 retains the ordinary body camera at DAT DWORD5 when a linked weapon replaces its sequence.
         int cameraSection = offsets.Length is 7 or 8 ? 4 : offsets.Length is 9 or 10 ? 6 : -1;
+        int bodyTextureSection = offsets.Length is 7 or 8 ? 5 : offsets.Length is 9 or 10 ? 8 : -1;
+        int bodyTextureEnd = bodyTextureSection >= 0 && bodyTextureSection + 1 < offsets.Length ? offsets[bodyTextureSection + 1] : bytes.Length;
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
         {
             TextureRegions = textures.Select(texture => new TextureSourceRegion(texture.Tim.X, texture.Tim.Y, 0, texture.Image.Width, texture.Image.Height)).ToArray(),
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             NativeActionCameraBank = cameraSection >= 0 && offsets[cameraSection] != offsets[cameraSection + 1] ? new(bytes.AsSpan(offsets[cameraSection], offsets[cameraSection + 1] - offsets[cameraSection]).ToArray().ToImmutableArray()) : null,
             NativeTextureAnimations = offsets.Length is 7 or 8 ? bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray() : null,
-            NativeBodyTexturePack = offsets.Length is 7 or 8 ? new(name + ":body-textures", bytes.AsSpan(offsets[5], offsets[6] - offsets[5]).ToArray().ToImmutableArray()) : null,
+            NativeBodyTexturePack = bodyTextureSection >= 0 ? new(name + ":body-textures", bytes.AsSpan(offsets[bodyTextureSection], bodyTextureEnd - offsets[bodyTextureSection]).ToArray().ToImmutableArray()) : null,
             Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
         };
     }
@@ -79,7 +81,7 @@ internal static partial class BattleResourceReader
         int[] offsets = Directory(reader);
         if (offsets.Length is 7 or 8)
         {
-            return ReadModel(name, bytes, 6) with { Sequences = Sequences(bytes, offsets, 3) };
+            return ReadModel(name, bytes, 6) with { Sequences = Sequences(bytes, offsets, 3), NativeWeaponTexturePack = new(name + ":weapon-textures", bytes.AsSpan(offsets[6], offsets.Where(offset => offset > offsets[6]).DefaultIfEmpty(bytes.Length).Min() - offsets[6]).ToArray().ToImmutableArray()), NativeWeaponUsesBodySkeleton = false };
         }
         if (offsets.Length != 5)
         {
@@ -89,6 +91,8 @@ internal static partial class BattleResourceReader
         return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures), textures.Select(texture => texture.Image).ToArray(), character.Animations, character.Scale)
         {
             NativePoseSource = character.NativePoseSource,
+            NativeWeaponTexturePack = new(name + ":weapon-textures", bytes.AsSpan(offsets[4], bytes.Length - offsets[4]).ToArray().ToImmutableArray()),
+            NativeWeaponUsesBodySkeleton = true,
             Sequences = Sequences(bytes, offsets, 1)
         };
     }
@@ -352,7 +356,7 @@ internal static partial class BattleResourceReader
         }
         return new BattleStage(stageId, meshes, textures)
         {
-            NativeSource = NativeBattleStageSourceReader.Read(stageId, bytes, header),
+            NativeSource = NativeBattleStageSourceReader.Read(stageId, bytes, header) with { Geometry = NativeBattleGeometryMetadata.FromMeshes(meshes) },
             IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header),
             NativeCameraBank = BattleStageCameraReader.ReadNativeBank(stageId, bytes, header),
             NativeCameraControl = BattleStageCameraReader.ReadNativeControl(stageId, bytes, header)

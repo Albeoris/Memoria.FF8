@@ -64,6 +64,6 @@ public sealed class NativeBattleStageTests
         BinaryPrimitives.WriteInt32LittleEndian(animations.AsSpan(4), 8);
         animations[8] = 3;
         NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), animations.ToImmutableArray());
-        return new(16, [source, source, source, source], [], new("stage:TIM", []));
+        return new(16, [source, source, source, source], [], new("stage:TIM", [])) { ModelColors = new(0x00464B6E, 0x32464646) };
     }
 }

@@ -11,8 +11,6 @@ internal sealed class BattleScenePresentation
 {
     private readonly BattleStage stage;
     private readonly BattleAssets assets;
-    private readonly IReadOnlyList<NativeBattleDefensiveResource> defensiveResources;
-    private readonly IReadOnlyList<NativeBattleStaticMeshResource> effectMeshes;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
     private readonly Dictionary<string, BattleModel?> weapons = [];
@@ -30,8 +28,6 @@ internal sealed class BattleScenePresentation
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
         this.assets = assets;
-        defensiveResources = definition.NativeDefensiveResources;
-        effectMeshes = definition.NativeEffectMeshes;
         renzokukenResources = definition.NativeRenzokukenResources.ToDictionary(resource => resource.MagicId);
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
@@ -97,22 +93,14 @@ internal sealed class BattleScenePresentation
             renderer = new BattleRenderer(width, height);
         }
         BattleCamera? selectedCamera = camera;
-        if (session.NativeGraphics is not null)
+        if (session.NativeGraphics is { } rawGraphics)
         {
-            if (session.NativeCamera?.CurrentPose is not { FocalLength: short focal } nativeCamera)
+            if (session.NativeCamera?.CurrentPose is { FocalLength: > 0 } nativeCamera)
             {
-                //5041E0 retains the preceding camera pose; no guessed bootstrap or settled endpoint replaces an unknown owner.
-                byte[] loading = new byte[checked(width * height * 4)];
-                for (int pixel = 0; pixel < loading.Length; pixel += 4)
-                {
-                    loading[pixel] = 17;
-                    loading[pixel + 1] = 20;
-                    loading[pixel + 2] = 29;
-                    loading[pixel + 3] = 255;
-                }
-                return loading;
+                selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
-            selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), focal), nativeCamera.Roll);
+            renderedCamera = selectedCamera;
+            return renderer.RenderNativePrimitiveFrame(rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly."), session.NativeEffectMemory?.Textures, selectedCamera);
         }
         renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];
@@ -126,8 +114,7 @@ internal sealed class BattleScenePresentation
         }
         foreach (BattleCombatant actor in session.Combatants)
         {
-            int nativeIndex = session.NativeGraphics?.ActorIds.IndexOf(actor.Id) ?? -1;
-            if (session.NativeGraphics is { } nativeGraphics ? nativeIndex < 0 || (nativeGraphics.Models[nativeIndex].Flags0 & 6) != 2 : !actor.IsActive || actor.Hidden)
+            if (!actor.IsActive || actor.Hidden)
             {
                 continue;
             }
@@ -138,7 +125,7 @@ internal sealed class BattleScenePresentation
             BattleModel? shownWeapon = weapons[actor.Id];
             BattleAnimationPresentation animation = animations[actor.Id];
             BattleAnimationSample pose;
-            if (session.GetNativeRenzokuken(actor.Id) is { } renzokuken && (session.NativeGraphics is null || session.NativeGraphics.Models[nativeIndex].ResourceMagicId is not null))
+            if (session.GetNativeRenzokuken(actor.Id) is { } renzokuken)
             {
                 var key = (actor.Id, renzokuken.MagicId);
                 if (!renzokukenModels.TryGetValue(key, out var replacement))
@@ -150,7 +137,7 @@ internal sealed class BattleScenePresentation
                 shownModel = replacement.Models.Body;
                 shownWeapon = replacement.Models.Weapon;
                 animation = replacement.Animation;
-                pose = session.NativeGraphics is { } graphics ? animation.SampleNativeModel(graphics.Models[nativeIndex]) : animation.SampleNativeSequence(1, renzokuken.PoseFrames);
+                pose = animation.SampleNativeSequence(1, renzokuken.PoseFrames);
             }
             else
             {
@@ -173,22 +160,10 @@ internal sealed class BattleScenePresentation
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)
             {
-                if (session.NativeGraphics is { } raw)
-                {
-                    BattleAnimationSample linkedPose = BattleAnimationPresentation.SampleNativeLinkedModel(raw.Models[nativeIndex], weapon);
-                    actors.Add(drawing with { Model = weapon, NativePose = linkedPose.NativePose, Animation = linkedPose.Animation, Frame = linkedPose.Frame, Opacity = linkedPose.Opacity, MeshMask = uint.MaxValue, NativeTextureBinding = null, NativeTextures = null });
-                }
-                else
-                {
-                    actors.Add(drawing with { Model = weapon });
-                }
+                actors.Add(drawing with { Model = weapon });
             }
         }
         byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
-        if (session.NativeGraphics is { ModuleDraws.IsEmpty: false } effects)
-        {
-            renderer.DrawNativeModuleEffects(effects.ModuleDraws, session.NativeEffectMemory?.Textures, defensiveResources, meshes: effectMeshes);
-        }
         return pixels;
     }
 

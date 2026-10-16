@@ -10,6 +10,7 @@ public sealed partial class BattleAssets : IDisposable
 {
     private readonly IFlArchive archive;
     private readonly IResourceSource? ownedSource;
+    private readonly string gameDirectory;
     private readonly Dictionary<string, IFlArchiveEntry> entries;
     private readonly Dictionary<string, BattleModel> models = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, BattleStage> stages = [];
@@ -22,6 +23,7 @@ public sealed partial class BattleAssets : IDisposable
 
     public BattleAssets(string gameDirectory, ResourceService? resources = null)
     {
+        this.gameDirectory = gameDirectory;
         this.resources = resources;
         textureScope = new AssetTextureScope(resources);
         IGameArchiveSource archiveSource;

@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Owned fields of one156-byte native graphics model, distinct from the208-byte battle participant.</summary>
-public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
+public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
 {
     public byte? ModelId4 { get; init; }
     public byte? Kind5 { get; init; }
@@ -27,6 +27,7 @@ public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public NativeBattleSequenceState? SequenceState { get; init; }
     public ushort? TextureAllocationMask { get; init; }
     public NativeBattleModelTextureBinding? BodyTextureSlots { get; init; }
+    public int? TextureResourceIndex { get; init; }
 
     public NativeBattleGraphicsModelCompletion CompletionInputs()
     {
@@ -154,7 +155,7 @@ public static class NativeBattleGraphicsModels
         return model with { Kind5 = complete ? (byte)0 : model.Kind5, Alpha7 = alpha, Phase6 = graphicsFrozen ? phase : unchecked((byte)(phase + 1)) };
     }
 
-    public static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool graphicsFrozen, bool modelLoadActive, byte cameraTaskMask)
+    public static NativeBattleGraphicsRemoval AdvanceRemoval(NativeBattleGraphicsModel model, bool graphicsFrozen, bool soundBusy, byte cameraTaskMask)
     {
         if (model.Kind5 is not (5 or 6 or 7))
         {
@@ -176,7 +177,7 @@ public static class NativeBattleGraphicsModels
                 phase = 1;
                 release = true;
             }
-            else if (!modelLoadActive && cameraTaskMask == 0)
+            else if (!soundBusy && cameraTaskMask == 0)
             {
                 return new(model with { Flags0 = 0, Kind5 = 0 }, false);
             }

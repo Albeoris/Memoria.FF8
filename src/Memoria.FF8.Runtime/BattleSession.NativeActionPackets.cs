@@ -8,6 +8,7 @@ public sealed partial class BattleSession
     public NativeBattlePartyStatusMirrors NativePartyStatusMirrors => nativePartyStatusMirrors;
     public int? NativeEffectIoResult { get; private set; }
     public NativeBattleEffectMemory? NativeEffectMemory { get; private set; }
+    public NativeBattleModelTextureCache? NativeModelTextureCache { get; private set; }
 
     private void InitializeNativeRetainedMemory()
     {
@@ -23,6 +24,12 @@ public sealed partial class BattleSession
         RestoreNativeElementAttack(memory.ElementAttack);
         NativeEffectIoResult = memory.EffectIoResult;
         NativeEffectMemory = memory.EffectMemory;
+        NativeStage = memory.Stage;
+        NativeModelTextureCache = memory.ModelTextureCache;
+        if (NativeCamera is not null)
+        {
+            NativeCamera = NativeBattleCameraState.Initialize5041E0(memory.Camera);
+        }
         RestoreNativeActionMemory(memory.ActionMemory);
         nativeScriptState = nativeScriptState with { AllocationControl = memory.AllocationControl };
     }

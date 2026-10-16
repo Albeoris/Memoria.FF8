@@ -41,6 +41,7 @@ public sealed partial class BattleRenderer
     private Matrix4x4 view;
     private float focal;
     private float centerY;
+    private bool sceneProjectionReady;
     private readonly record struct Vertex(Vector3 Position, Vector2 Uv);
     private readonly record struct Screen(float X, float Y, float InverseZ, Vector2 UvOverZ);
 
@@ -62,6 +63,11 @@ public sealed partial class BattleRenderer
 
     public bool TryProject(Vector3 position, out Vector2 screen)
     {
+        if (!sceneProjectionReady)
+        {
+            screen = default;
+            return false;
+        }
         Vector3 transformed = Vector3.Transform(position, view);
         if (transformed.Z >= -0.25f)
         {
@@ -88,7 +94,7 @@ public sealed partial class BattleRenderer
 
     private void Begin(BattleCamera camera)
     {
-        nativeRoll = camera.NativeRoll;
+        sceneProjectionReady = true;
         if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1)
         {
             throw new ArgumentOutOfRangeException(nameof(camera));

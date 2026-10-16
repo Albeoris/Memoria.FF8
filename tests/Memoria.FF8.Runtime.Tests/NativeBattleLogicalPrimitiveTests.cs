@@ -1,0 +1,92 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+
+namespace Memoria.FF8.Runtime.Tests;
+
+public sealed class NativeBattleLogicalPrimitiveTests
+{
+    [Fact]
+    public void Logical_banks_preserve_native_descending_bucket_and_same_bucket_LIFO_without_fake_addresses()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ordering = ordering.Prepend(17, new("off_B6D070", 0, 0), Tile(10), 1, []);
+        ordering = ordering.Prepend(18, new("off_B6D070", 0, 16), Tile(20), 1, []);
+        ordering = ordering.Prepend(17, new("off_B6D070", 0, 32), Tile(30), 1, []);
+        ImmutableArray<NativeBattleLogicalCommand> commands = ordering.Traverse(Tables().WordLengths);
+        Assert.Equal(new int[] { 16, 32, 0 }, commands.Select(command => command.Packet.ByteOffset));
+        Assert.Equal(new int?[] { 18, 17, 17 }, commands.Select(command => command.OrderingBucket));
+        NativeBattleLogicalOrdering restored = JsonSerializer.Deserialize<NativeBattleLogicalOrdering>(JsonSerializer.Serialize(ordering))!;
+        Assert.Equal(JsonSerializer.Serialize(commands), JsonSerializer.Serialize(restored.Traverse(Tables().WordLengths)));
+    }
+
+    [Fact]
+    public void Preprocessing_and_opaque_pass_publish_texture_page_for_the_earlier_second_pass_flat_draw()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();
+        ordering = ordering.Prepend(10, new("off_B6D070", 0, 0), Triangle(0x20), 0, [100, 100, 100, 0]);
+        ordering = ordering.Prepend(20, new("off_B6D070", 0, 32), Triangle(0x40), 0, [200, 200, 200, 0]);
+        ordering = ordering.Prepend(30, new("off_B6D070", 0, 64), Tile(128), 1, [], 0);
+        var actual = NativeBattleLogicalPasses.Execute(ordering, Tables(), new(null), 1);
+        Assert.Equal((ushort)0x20, actual.Final.TexturePage);
+        NativeBattleLogicalResolvedCommand flat = Assert.Single(actual.Commands, command => command.Pass == 2 && command.Command.Opcode == 0x62);
+        Assert.Equal(1, flat.DrawMode.BlendMode);
+        Assert.Equal(0, flat.Command.ModuleDraw);
+        Assert.Equal(2, actual.Commands.Count(command => command.Pass == 0 && command.Command.Opcode == 0x24));
+    }
+
+    [Fact]
+    public void Native_flagged_command_admission_does_not_allow_an_offscreen_polygon_to_change_texture_page()
+    {
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear().Prepend(17, new("off_B6D070", 0, 0), Triangle(0x40), 0, [100, 100, 100, 0]);
+        var actual = NativeBattleLogicalPasses.Execute(ordering, Tables(), new(0x20), 2);
+        Assert.Empty(actual.Commands);
+        Assert.Equal((ushort)0x20, actual.Final.TexturePage);
+    }
+
+    [Fact]
+    public void Physical_packet_alias_cycle_is_retained_and_rejected_instead_of_flattened_into_a_sort()
+    {
+        NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
+        NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear().Prepend(17, reference, Tile(10), 1, []).Prepend(17, reference, Tile(20), 1, []);
+        Assert.Throws<InvalidDataException>(() => ordering.Traverse(Tables().WordLengths));
+    }
+
+    [Fact]
+    public void Only_original_initialization_and_tail_reset_publish_the_selected_OT_descriptor()
+    {
+        NativeBattlePrimitiveProcess cold = NativeBattlePrimitiveProcess.FromColdProcess();
+        Assert.All(cold.TablePerspective, value => Assert.Null(value));
+        NativeBattlePrimitiveProcess initialized = cold.Initialize500400();
+        Assert.False(initialized.TablePerspective[0]);
+        Assert.Null(initialized.TablePerspective[1]);
+        NativeBattlePrimitiveProcess tail = initialized.Reset500900(0x80);
+        Assert.True(tail.TablePerspective[0]);
+        Assert.Null(tail.TablePerspective[1]);
+        Assert.Equal("off_B6D094", tail.PacketBank);
+        Assert.Equal((ushort)0, tail.TexturePage);
+        Assert.Equal(0, tail.Depth!.BucketMix);
+        Assert.Equal(0.99f, tail.Depth.RemainingWeight);
+        Assert.Throws<NotSupportedException>(() => (initialized with { DisableTableReset = null }).Reset500900(0));
+        Assert.Throws<NotSupportedException>(() => (initialized with { DisableTableReset = true }).Reset500900(0));
+    }
+
+    private static ImmutableArray<uint> Tile(byte intensity) => [0x3000000, 0x62000000u | (uint)(intensity | intensity << 8 | intensity << 16), 0, 216u << 16 | 320];
+    private static ImmutableArray<uint> Triangle(ushort page) => [0x7000000, 0x24808080, 0, 0, 80, (uint)page << 16, 80u << 16, 0];
+
+    private static NativeBattlePrimitiveTables Tables()
+    {
+        byte[] lengths = new byte[256];
+        byte[] flagged = new byte[256];
+        uint[] pre = new uint[256];
+        uint[] first = new uint[256];
+        uint[] second = new uint[256];
+        lengths[0x24] = 7;
+        lengths[0x62] = 3;
+        flagged[0x24] = 1;
+        flagged[0x62] = 1;
+        pre[0x24] = 0x462F60;
+        first[0x24] = 0x4617F0;
+        second[0x62] = 0x462720;
+        return new(lengths.ToImmutableArray(), flagged.ToImmutableArray(), pre.ToImmutableArray(), first.ToImmutableArray(), second.ToImmutableArray());
+    }
+}

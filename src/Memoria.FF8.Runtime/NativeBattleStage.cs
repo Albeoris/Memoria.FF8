@@ -3,17 +3,28 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleStageSource(short RotationSpeed, ImmutableArray<NativeBattlePoseSource?> Groups, ImmutableArray<byte> TextureAnimations, NativeBattleEffectHeapAllocation Texture);
+public sealed partial record NativeBattleStageSource(short RotationSpeed, ImmutableArray<NativeBattlePoseSource?> Groups, ImmutableArray<byte> TextureAnimations, NativeBattleEffectHeapAllocation Texture)
+{
+    public NativeBattleStageCallback? Callback { get; init; }
+    public NativeBattleStageColors? ModelColors { get; init; }
+}
+public sealed record NativeBattleStageColors(uint Color40, uint Color44);
+public sealed record NativeBattleStageCallback(uint Address, bool? UpdateTexture0);
+public sealed record NativeBattleStageTask(NativeBattleStageCallback Callback, short Phase);
 public sealed record NativeBattleStageGroup([property: JsonRequired] byte Flags, [property: JsonRequired] short ColorDepth, [property: JsonRequired] uint ColorFlags, [property: JsonRequired] byte Animation, [property: JsonRequired] byte PoseFlags, [property: JsonRequired] byte Counter, [property: JsonRequired] byte FrameCount, [property: JsonRequired] NativeBattlePoseSource? Source, [property: JsonRequired] ImmutableArray<NativeBattleActionMatrix> Matrices);
 
 /// <summary>506C50/500EA0/500FD0's four physical44-byte stage rows and rotating group3 DWORD.</summary>
 public sealed record NativeBattleStageState([property: JsonRequired] uint Flags, [property: JsonRequired] int Rotation, [property: JsonRequired] short RotationSpeed, [property: JsonRequired] ImmutableArray<NativeBattleStageGroup> Groups)
 {
-    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray());
+    public NativeBattleStageTask? Task { get; init; }
+    public NativeBattleStagePaletteAllocation? PaletteAllocation { get; init; }
+    public ImmutableArray<byte>? TextureAnimations { get; init; }
+    public NativeBattleStageColors? ModelColors { get; init; }
+    public static NativeBattleStageState FromColdProcess() => new(0, 0, 0, Enumerable.Range(0, 4).Select(_ => new NativeBattleStageGroup(0, 0, 0, 0, 0, 0, 0, null, [])).ToImmutableArray()) { ModelColors = new(0x00808080, 0x32808080) };
 
     public void Validate()
     {
-        if (Groups.IsDefault || Groups.Length != 4 || Groups.Any(group => group is null || group.Matrices.IsDefault || group.Source is null && !group.Matrices.IsEmpty || group.Source is not null && group.Matrices.Length != group.Source.BoneCount || group.Counter > group.FrameCount))
+        if (TextureAnimations is { IsDefault: true } || Task is { } task && (task.Callback is null || task.Callback.Address == 0 || task.Callback.UpdateTexture0 is null) || Groups.IsDefault || Groups.Length != 4 || Groups.Any(group => group is null || group.Matrices.IsDefault || group.Source is null && !group.Matrices.IsEmpty || group.Source is not null && group.Matrices.Length != group.Source.BoneCount || group.Counter > group.FrameCount))
         {
             throw new InvalidDataException("Native stage requires its four physical group rows, decoded counters and bone matrix banks.");
         }
@@ -30,7 +41,7 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
     public NativeBattleStageState Reset506C50()
     {
         Validate();
-        return this with { Flags = 0, Groups = Groups.Select(group => group with { Flags = (byte)(group.Flags & 0xF8), ColorDepth = 0, PoseFlags = 0 }).ToImmutableArray() };
+        return this with { Flags = 0, Task = null, Groups = Groups.Select(group => group with { Flags = (byte)(group.Flags & 0xF8), ColorDepth = 0, PoseFlags = 0 }).ToImmutableArray() };
     }
 
     public NativeBattleStageState Initialize500EA0(NativeBattleStageSource source)
@@ -40,13 +51,14 @@ public sealed record NativeBattleStageState([property: JsonRequired] uint Flags,
         {
             throw new InvalidDataException("Native500EA0 requires its original four group sections.");
         }
+        NativeBattleStageColors colors = source.ModelColors ?? throw new NotSupportedException("Native500EA0 requires its original initializer color producers; process-global color input is unknown.");
         ImmutableArray<NativeBattleStageGroup>.Builder groups = Groups.ToBuilder();
         for (int index = 0; index < 4; index++)
         {
             NativeBattleStageGroup group = groups[index];
             groups[index] = source.Groups[index] is { } pose ? Select509440(group with { Flags = (byte)(group.Flags | 7), Source = pose }) : group with { Flags = (byte)(group.Flags & 0xF8) };
         }
-        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable() };
+        NativeBattleStageState result = this with { Rotation = 0, RotationSpeed = source.RotationSpeed, Groups = groups.ToImmutable(), TextureAnimations = source.TextureAnimations, ModelColors = colors };
         result.Validate();
         return result;
     }

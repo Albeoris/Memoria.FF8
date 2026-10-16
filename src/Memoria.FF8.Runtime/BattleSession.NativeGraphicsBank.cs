@@ -24,13 +24,20 @@ public sealed partial class BattleSession
             return;
         }
         ValidateNativeGraphicsDefinition(source);
+        if (NativeCamera is not null)
+        {
+            NativeCamera = NativeCamera.Initialize500400();
+        }
+        NativeStage = NativeStage?.Reset506C50();
         if (NativeEffectMemory is { } effectMemory)
         {
             //500870 calls501160: DB8 is reset, while the pending DB4 field is retained.
             NativeEffectMemory = effectMemory with { SoundPublishedFlags = 0, Textures = effectMemory.Textures?.Initialize500400() };
         }
         InitializeNativePartyPresentation();
+        NativeModelTextureCache = NativeBattleModelTextureCache.Initialize508260(NativeModelTextureCache);
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        graphics = InitializeNativePrimitiveFrame500400(graphics);
         NativeGraphics = QueueNativeEntryLoads(graphics);
     }
 
@@ -61,6 +68,16 @@ public sealed partial class BattleSession
                 if (state.ActorIds[index] is string id && (!byId.ContainsKey(id) || FindNativeGraphicsBinding(id) is null))
                 {
                     throw new InvalidDataException("Native graphics row does not identify its actual allocation and immutable resource.");
+                }
+                NativeBattleGraphicsModel model = state.Models[index];
+                if ((model.Flags0 & 2) != 0 && model.TextureResourceIndex is int resourceIndex)
+                {
+                    NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new InvalidDataException("Saved native graphics resource index has no retained texture cache owner.");
+                    NativeBattleModelTextureCacheRow row = cache.Rows[resourceIndex];
+                    if (row.Kind == 0 || row.ModelId != model.ModelId4 || row.Binding is not { } binding || model.BodyTextureSlots is not { } material || !binding.PaletteRows.SequenceEqual(material.PaletteRows))
+                    {
+                        throw new InvalidDataException("Saved native graphics material differs from its physical texture resource row.");
+                    }
                 }
             }
         }

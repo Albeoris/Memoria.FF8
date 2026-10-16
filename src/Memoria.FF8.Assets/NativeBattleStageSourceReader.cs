@@ -59,7 +59,7 @@ public static class NativeBattleStageSourceReader
             source.Validate();
             groups.Add(source);
         }
-        return new(RotationSpeeds[stageId], groups.MoveToImmutable(), bytes.AsSpan(sections[4], sections[5] - sections[4]).ToArray().ToImmutableArray(), new($"a0stg{stageId:000}.x:TIM", bytes.AsSpan(sections[5], sections[6] - sections[5]).ToArray().ToImmutableArray()));
+        return new(RotationSpeeds[stageId], groups.MoveToImmutable(), bytes.AsSpan(sections[4], sections[5] - sections[4]).ToArray().ToImmutableArray(), new($"a0stg{stageId:000}.x:TIM", bytes.AsSpan(sections[5], sections[6] - sections[5]).ToArray().ToImmutableArray())) { Callback = NativeBattleStageCallbackReader.Read(stageId), ModelColors = NativeBattleStageColorsReader.Read(stageId).Colors };
 
         int Word32(int offset)
         {

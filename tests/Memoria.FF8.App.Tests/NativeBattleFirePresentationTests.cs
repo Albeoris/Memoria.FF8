@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Text.Json;
@@ -44,10 +45,16 @@ public sealed class NativeBattleFirePresentationTests
             NativeEffectCatalog = game.ReadNativeEffectCatalog(),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
+            NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
             NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
             NativeStageCameraControl = stage.NativeCameraControl
         };
+        if (casting)
+        {
+            NativeBattleGraphicsResource resource = definition.NativeGraphics!.Bindings[0].Resource;
+            Assert.Equal(Convert.FromHexString("C308D40002E57FC100CB7FE90DC308DC0002E508E607E602A1E6E5"), resource.SequenceSection.AsSpan().Slice(resource.SequenceStart(11) + 0x38, 27).ToArray());
+        }
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
@@ -78,13 +85,25 @@ public sealed class NativeBattleFirePresentationTests
         bool cameraProgramCompleted = false;
         bool sawCastingLoadWait = false;
         bool sawCastingReady = false;
+        bool sawCastingCompletionConsumed = false;
         int peakDifferencePixels = 0;
         BattleSnapshot? peakSnapshot = null;
         byte[]? peakVisible = null;
         byte[]? peakPlain = null;
         for (int callback = 0; callback < 360 && HasActionDescriptor(battle); callback++)
         {
+            bool castingCompletionPending = casting && battle.NativeGraphics!.Descriptors.Tasks.Any(task => task.Kind == NativeBattleDescriptorTaskKind.Action104 && task.Phase == 7);
             battle.AdvanceNativeGraphicsPresentation(Callback);
+            if (castingCompletionPending && !HasActionDescriptor(battle))
+            {
+                NativeBattleGraphicsModel actor = battle.NativeGraphics!.Models[0];
+                //50A9A0 sets WORD44 bit200 before504290; original sequence11 XOR-clears it and selects pose22 in the same callback.
+                Assert.Equal((byte)11, actor.Sequence);
+                Assert.Equal((ushort)0x54, actor.SequenceState!.Offset46);
+                Assert.Equal((byte)22, actor.SequenceState.Pose);
+                Assert.Equal(0, actor.ResourceFlags44 & 0x200);
+                sawCastingCompletionConsumed = true;
+            }
             audio.Update(battle);
             audio.Update(battle);
             selected |= battle.NativeGraphics!.ActionGraphics?.Callback == (casting ? 0x50A9A0 : 0x50B190);
@@ -124,7 +143,11 @@ public sealed class NativeBattleFirePresentationTests
                 }
                 throw;
             }
-            BattleSession withoutSprites = BattleSession.Restore(snapshot with { NativeGraphics = snapshot.NativeGraphics! with { ModuleDraws = [] } });
+            NativeBattleGraphicsState currentGraphics = snapshot.NativeGraphics!;
+            NativeBattlePrimitiveFrame currentFrame = currentGraphics.PrimitiveFrame ?? throw new InvalidDataException("Native Fire pixel comparison requires its actual executed primitive frame.");
+            HashSet<int> spriteDraws = currentGraphics.ModuleDraws.Select((draw, index) => (draw, index)).Where(pair => pair.draw.Kind == NativeBattleModuleDrawKind.Sprite).Select(pair => pair.index).ToHashSet();
+            NativeBattlePrimitiveFrame withoutSpritePackets = currentFrame with { LastCommands = currentFrame.LastCommands.Where(command => command.Command.ModuleDraw is not int drawIndex || !spriteDraws.Contains(drawIndex)).ToImmutableArray() };
+            BattleSession withoutSprites = BattleSession.Restore(snapshot with { NativeGraphics = currentGraphics with { PrimitiveFrame = withoutSpritePackets } });
             byte[] plain = scene.Render(withoutSprites, 320, 224).ToArray();
             int changedPixels = DifferentPixels(visible, plain);
             if (changedPixels > peakDifferencePixels)
@@ -169,7 +192,7 @@ public sealed class NativeBattleFirePresentationTests
         {
             Assert.True(sawCastingLoadWait, "Original casting service did not wait in its load/camera phase3.");
             Assert.True(sawCastingReady, "Original model casting sequence did not acknowledge resourceWORD44 with bit20 in phase4.");
-            Assert.NotEqual(0, battle.NativeGraphics!.Models[0].ResourceFlags44 & 0x200);
+            Assert.True(sawCastingCompletionConsumed, "Original sequence11 did not consume the50A9A0 completion signal in its native model callback.");
         }
         Assert.False(HasActionDescriptor(battle), "Original Fire104 descriptor did not finish within360 callbacks.");
         Assert.Equal(0u, battle.NativeGraphics!.OriginalEffect!.ReturnedDescriptor);

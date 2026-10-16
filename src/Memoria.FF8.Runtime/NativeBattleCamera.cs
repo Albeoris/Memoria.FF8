@@ -46,6 +46,7 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
 
     public void Validate()
     {
+        Projection?.View?.Validate();
         if (ControlResource is { } control && (control.Source is null || control.Source.Data.IsDefault || control.StreamOffset < 0 || control.StreamOffset >= control.Source.Data.Length || control.ModelTableOffset < 0 || control.ModelTableOffset > control.Source.Data.Length - 2))
         {
             throw new InvalidDataException("Native509610 camera control source leaves its original effect resource.");

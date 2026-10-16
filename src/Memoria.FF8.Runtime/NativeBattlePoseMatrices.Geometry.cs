@@ -13,13 +13,35 @@ public static partial class NativeBattlePoseMatrices
         {
             throw new NotSupportedException("Native502D40 billboard geometry requires its original50CDC0 angle owner.");
         }
-        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502D40 requires its actual model transform.");
         NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502D40 requires its decoded pose owner.");
         NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native geometry has no selected pose."), state.PoseFrame114 ?? throw new NotSupportedException("Native geometry has no decoded frame."), state.PoseFlags109);
         Matrix[] bones = BoneMatrices(source, pose);
-        Matrix world = ModelMatrix(model, transform, bones[0]);
+        NativeBattleActionMatrix previous = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native502D40 requires its prior502AB0 model matrix; reconstructing it after the current service is unsupported.");
+        Matrix world = new(previous.Rotation.ToArray(), previous.X, previous.Y, previous.Z);
         Matrix view = new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z);
         Matrix modelView = Compose(view, world);
         return bones.Select(bone => Compose(modelView, bone)).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
+    }
+
+    public static NativeBattleActionMatrix PublishGeometryWorldMatrix502AB0(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502AB0 requires its model transform WORDs.");
+        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502AB0 requires its decoded pose owner.");
+        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native502AB0 lacks its selected pose."), state.PoseFrame114 ?? throw new NotSupportedException("Native502AB0 lacks its decoded pose frame."), state.PoseFlags109);
+        Matrix matrix = ModelMatrix(model, transform, BoneMatrices(source, pose)[0]);
+        return new(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096);
+    }
+
+    public static ImmutableArray<NativeBattleActionMatrix> LinkedGeometryMatrices502D40(NativeBattleGraphicsModel model, NativeBattlePoseSource source, NativeBattleActionMatrix camera)
+    {
+        NativeBattleActionMatrix previous = model.GeometryWorldMatrix ?? throw new NotSupportedException("Native linked geometry requires its retained parent model matrix.");
+        NativeBattleLinkedModelTransform local = model.LinkedTransform ?? throw new NotSupportedException("Native linked geometry requires its actual local WORDs20..32.");
+        NativeBattlePoseProgress progress = model.SequenceState?.LinkedPose ?? throw new NotSupportedException("Native linked geometry requires its independent pose owner.");
+        NativeBattleDecodedPose pose = source.Sample(progress.Pose, progress.Frame, progress.Flags);
+        Matrix world = new(previous.Rotation.ToArray(), previous.X, previous.Y, previous.Z);
+        Matrix view = new(camera.Rotation.ToArray(), camera.X, camera.Y, camera.Z);
+        Matrix localMatrix = Rotation(local.Rotation) with { X = local.Position.X, Y = local.Position.Y, Z = local.Position.Z };
+        Matrix combined = Compose(Compose(view, world), localMatrix);
+        return BoneMatrices(source, pose).Select(bone => Compose(combined, bone)).Select(matrix => new NativeBattleActionMatrix(matrix.Rotation.ToImmutableArray(), matrix.X, matrix.Y, matrix.Z, 4096)).ToImmutableArray();
     }
 }

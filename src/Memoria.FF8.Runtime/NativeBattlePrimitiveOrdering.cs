@@ -34,7 +34,12 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
     /// <summary>Apply only commands whose native dispatch handler executes in this pass.</summary>
     public NativeBattlePrimitiveDrawMode Execute(NativeBattlePrimitiveCommand command)
     {
-        int pageWord = command.Opcode == 0xE1 ? 0 : (command.Opcode & 0xFC) switch
+        return ExecuteWords(command.Opcode, command.Words);
+    }
+
+    public NativeBattlePrimitiveDrawMode ExecuteWords(byte opcode, ImmutableArray<uint> words)
+    {
+        int pageWord = opcode == 0xE1 ? 0 : (opcode & 0xFC) switch
         {
             0x24 or 0x2C => 4,
             0x34 or 0x3C => 5,
@@ -44,12 +49,12 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
         {
             return this;
         }
-        if (pageWord >= command.Words.Length)
+        if (pageWord >= words.Length)
         {
             throw new InvalidDataException("Native textured primitive lacks its physical texture-page WORD.");
         }
         //E1 handlers462EB0/463210 and textured-polygon helper461A30 call45B960.
-        ushort page = command.Opcode == 0xE1 ? unchecked((ushort)command.Words[pageWord]) : unchecked((ushort)(command.Words[pageWord] >> 16));
+        ushort page = opcode == 0xE1 ? unchecked((ushort)words[pageWord]) : unchecked((ushort)(words[pageWord] >> 16));
         return this with { TexturePage = page };
     }
 }

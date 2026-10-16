@@ -2,19 +2,20 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleCameraProjection(NativeBattleActionMatrix View, ushort? FocalLength, short? OffsetX, short? OffsetY)
+public sealed record NativeBattleCameraProjection(NativeBattleActionMatrix? View, ushort? FocalLength, short? OffsetX, short? OffsetY)
 {
     public byte ReadPan(NativeBattleVector point)
     {
-        View.Validate();
+        NativeBattleActionMatrix view = View ?? throw new NotSupportedException("Native5011B0 requires its actual5033E0 view matrix.");
+        view.Validate();
         ushort h = FocalLength ?? throw new NotSupportedException("Native5011B0 requires its actual GTE projection H.");
         short ox = OffsetX ?? throw new NotSupportedException("Native5011B0 requires its actual GTE screen offset X.");
-        ImmutableArray<short> r = View.Rotation;
+        ImmutableArray<short> r = view.Rotation;
         //45D7F0 stores rotation rows as float Q12 coefficients;45FAA0 rounds
         //the transformed DWORDs with the executable's biased-double conversion.
         int Row(int row) => NativeBattlePoseMatrices.RoundNative((float)(r[row * 3 + 2] / 4096d) * (double)point.Z + (float)(r[row * 3 + 1] / 4096d) * (double)point.Y + (float)(r[row * 3] / 4096d) * (double)point.X);
-        int x = unchecked(Row(0) + View.X);
-        int z = unchecked(Row(2) + View.Z);
+        int x = unchecked(Row(0) + view.X);
+        int z = unchecked(Row(2) + view.Z);
         uint depth = (uint)Math.Clamp(z, 0, 65535);
         uint denominator = Math.Max(depth, (uint)(h >> 1));
         if (denominator == 0)
@@ -38,7 +39,7 @@ public sealed partial record NativeBattleCameraState
     {
         NativeBattleActionMatrix? view = CurrentPose is { } pose ? NativeBattlePoseMatrices.CameraView(pose) : Projection?.View;
         bool published = (graphicsFlags & 4) != 0;
-        NativeBattleCameraProjection? projection = view is null ? null : new(view, published && FocalLength is short focal ? unchecked((ushort)focal) : Projection?.FocalLength, published ? ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
+        NativeBattleCameraProjection? projection = view is null && Projection is null && !published ? null : new(view, published ? FocalLength is short focal ? unchecked((ushort)focal) : null : Projection?.FocalLength, published ? ProjectionOffsetsCleared ? (short)160 : null : Projection?.OffsetX, published ? ProjectionOffsetsCleared ? (short)108 : null : Projection?.OffsetY);
         //500900 writes the screen offsets, then unconditionally clears their
         //two scratch WORDs. Unknown retained first-frame offsets stay unknown.
         return this with { Projection = projection, ProjectionOffsetsCleared = ProjectionOffsetsCleared || published };

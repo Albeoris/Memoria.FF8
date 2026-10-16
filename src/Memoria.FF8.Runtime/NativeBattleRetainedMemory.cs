@@ -32,6 +32,9 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
 {
     [JsonRequired]
     public NativeBattleEffectMemory? EffectMemory { get; init; }
+    public NativeBattleStageState? Stage { get; init; }
+    public NativeBattleModelTextureCache? ModelTextureCache { get; init; }
+    public NativeBattleCameraState? Camera { get; init; }
     [JsonRequired]
     public NativeBattleActionMemory ActionMemory { get; init; } = NativeBattleActionMemory.Unknown();
 
@@ -42,13 +45,13 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
     {
         //Authenticated FF8_EN .data zero-fill: packet arenas, DF9/DFD/E01 and the three party E30/E38 mirrors.
         NativeBattleActionScratch scratch = new() { DeferredEffectsE00 = false, GuardianFormulaE1E = false, GuardianBoostPercent = 0, FinisherPendingE03 = false, LastPublishedTargetCountE05 = 0, FinisherActionIndexE2E = 0, ActorIndex = 0, Command = 0, Action = 0, EventActorB0F = 0, EventLane = 0 };
-        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ElementAttack = [0, 0, 0, 0, 0, 0, 0], EffectMemory = NativeBattleEffectMemory.FromColdProcess(), ActionMemory = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
+        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ElementAttack = [0, 0, 0, 0, 0, 0, 0], EffectMemory = NativeBattleEffectMemory.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), Camera = NativeBattleCameraState.FromColdProcess(), ActionMemory = NativeBattleActionMemory.FromLoaderBytes(new byte[56]) };
     }
 
     public static NativeBattleRetainedMemory Capture(BattleSnapshot snapshot, string? coldExecutableSha256)
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
-        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
+        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ElementAttack = snapshot.NativeElementAttack, EffectMemory = snapshot.NativeEffectMemory, Stage = snapshot.NativeStage, ModelTextureCache = snapshot.NativeModelTextureCache, Camera = snapshot.NativeCamera, ActionMemory = snapshot.NativeActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.") };
         result.Validate();
         return result;
     }
@@ -64,5 +67,8 @@ public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeB
         ActionScratch.Validate();
         (ActionMemory ?? throw new InvalidDataException("Native retained action memory is missing.")).Validate();
         EffectMemory?.Validate();
+        Stage?.Validate();
+        ModelTextureCache?.Validate();
+        Camera?.Validate();
     }
 }

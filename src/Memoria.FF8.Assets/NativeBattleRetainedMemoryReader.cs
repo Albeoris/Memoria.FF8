@@ -53,17 +53,57 @@ public static class NativeBattleRetainedMemoryReader
         {
             throw new InvalidDataException("Authenticated cold effect allocator unexpectedly contains a live heap pointer or cursor.");
         }
+        RequireSingle(0xB69544, 1);
+        RequireSingle(0xB69568, 0);
+        RequireSingle(0xB695E0, 1f / 65536);
+        RequireSingle(0xB69608, NativeBattlePrimitiveDepthState.DepthBias);
+        RequireSingle(0xB69618, NativeBattlePrimitiveDepthState.VertexDepthScale);
+        RequireSingle(0xB7CEE0, 1f / 65536);
+        RequireSingle(0xB7CEE4, 0.99f);
+        RequireSingle(0x1CA9E9C, 0);
+        if (BitConverter.ToDouble(ReadLoaderBytes(0xB695E8, 8)) != 0.9985 || BitConverter.ToDouble(ReadLoaderBytes(0xB695F0, 8)) != 1d / 65536 || BitConverter.ToDouble(ReadLoaderBytes(0xB69610, 8)) != 0.99999999 || BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CFF834, 4)) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA8A00, 4)) != 0 || BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1CA89E8, 4)) != 0)
+        {
+            throw new InvalidDataException("Authenticated cold primitive depth/OT reset globals contradict the executable profile.");
+        }
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
             Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
             SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
             SoundPendingFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB4, 4)),
-            SoundPublishedFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB8, 4))
+            SoundPublishedFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB8, 4)),
+            PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0] }
         };
         NativeBattleActionMemory actionMemory = new(Enumerable.Range(0, 7).Select(index => ReadLoaderBytes(checked(0x1D27B98u + 208u * (uint)index), 8).Select(value => (byte?)value).ToImmutableArray()).ToImmutableArray());
-        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ActionMemory = actionMemory };
+        if (ReadLoaderBytes(0x1D99768, 11 * 52).Any(value => value != 0) || ReadLoaderBytes(0x1D98B54, 2).Any(value => value != 0))
+        {
+            throw new InvalidDataException("Authenticated cold texture-resource globals contradict their zero-filled process image.");
+        }
+        if (ReadLoaderBytes(0x1D98988, 0xCC).Any(value => value != 0) || ReadLoaderBytes(0x1D96DA4, 4).Any(value => value != 0))
+        {
+            throw new InvalidDataException("Authenticated cold stage globals contradict the loader's zero-filled process image.");
+        }
+        NativeBattleCameraState camera = NativeBattleCameraState.FromColdProcess();
+        if (ReadLoaderBytes(0x1D97778, 44).Any(value => value != 0) || ReadLoaderBytes(0x1D8E038, 8).Any(value => value != 0) || ReadLoaderBytes(0x1CA92DC, 12).Any(value => value != 0) || camera.CurrentPose!.Eye != ReadPoint(0xB8B7F0) || camera.CurrentPose.Target != ReadPoint(0xB8B7F8))
+        {
+            throw new InvalidDataException("Authenticated cold camera/GTE owners contradict the loader image profile.");
+        }
+        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), Camera = camera, ActionMemory = actionMemory };
         result.Validate();
         return result;
+
+        NativeBattleCameraPoint ReadPoint(uint address)
+        {
+            byte[] bytes = ReadLoaderBytes(address, 6);
+            return new(BinaryPrimitives.ReadInt16LittleEndian(bytes), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(2)), BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(4)));
+        }
+
+        void RequireSingle(uint address, float expected)
+        {
+            if (BitConverter.ToSingle(ReadLoaderBytes(address, 4)) != expected)
+            {
+                throw new InvalidDataException($"Authenticated primitive depth constant{address:X8} contradicts the executable profile.");
+            }
+        }
 
         byte[] ReadLoaderBytes(uint address, int length)
         {

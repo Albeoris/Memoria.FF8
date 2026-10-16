@@ -280,6 +280,8 @@ public sealed partial class BattleSession
             NativePartyPresentation = nativePartyPresentation,
             NativeEffectIoResult = NativeEffectIoResult,
             NativeEffectMemory = NativeEffectMemory,
+            NativeStage = NativeStage,
+            NativeModelTextureCache = NativeModelTextureCache,
             NativeActionMemory = nativeActionMemory.State,
             NativeActionScratch = nativeActionScratch,
             NativeElementAttack = nativeElementAttack,
@@ -958,6 +960,10 @@ public sealed partial class BattleSession
         NativeEffectIoResult = snapshot.NativeEffectIoResult;
         snapshot.NativeEffectMemory?.Validate();
         NativeEffectMemory = snapshot.NativeEffectMemory;
+        snapshot.NativeStage?.Validate();
+        NativeStage = snapshot.NativeStage;
+        snapshot.NativeModelTextureCache?.Validate();
+        NativeModelTextureCache = snapshot.NativeModelTextureCache;
         RestoreNativeActionMemory(snapshot.NativeActionMemory);
         nativeActionScratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native action scratch owner is missing; explicitly migrate the standalone snapshot.");
         nativeActionScratch.Validate();
@@ -1232,6 +1238,8 @@ public sealed partial class BattleSession
         nativePartyPresentation = candidate.nativePartyPresentation;
         NativeEffectIoResult = candidate.NativeEffectIoResult;
         NativeEffectMemory = candidate.NativeEffectMemory;
+        NativeStage = candidate.NativeStage;
+        NativeModelTextureCache = candidate.NativeModelTextureCache;
         nativeActionScratch = candidate.nativeActionScratch;
         RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
         RestoreNativeLimits(candidate.CaptureNativeLimits());

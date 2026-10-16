@@ -6,10 +6,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleEffectAnimationRegisters([property: JsonRequired] NativeBattleEffectHeapAllocation Source, [property: JsonRequired] int BaseOffset, [property: JsonRequired] int StreamOffset, [property: JsonRequired] int ModelTableOffset);
 public sealed record NativeBattleEffectVramCopy(short SourceX, short SourceY, short Width, short Height, short DestinationX, short DestinationY);
+public sealed record NativeBattleEffectTextureRectangle(short X, short Y, short Width, short Height);
 public sealed record NativeBattleEffectTimUpload([property: JsonRequired] NativeBattleEffectHeapAllocation? Source, [property: JsonRequired] int Offset)
 {
     public byte Kind { get; init; } = 1;
     public NativeBattleEffectVramCopy? Copy { get; init; }
+    public NativeBattleEffectTextureRectangle? Rectangle { get; init; }
 }
 public sealed record NativeBattleEffectVramUpload(short X, short Y, short Width, short Height, ImmutableArray<byte> Bytes)
 {
@@ -41,6 +43,11 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             if (slot is { Kind: 1 })
             {
                 RequireSource(slot.Source!, slot.Offset, 12);
+            }
+            else if (slot is { Kind: 0, Rectangle: { } rectangle })
+            {
+                RequireRectangle(rectangle);
+                RequireSource(slot.Source!, slot.Offset, checked(2 * rectangle.Width * rectangle.Height));
             }
             else if (slot is not null && (slot.Kind != 3 || slot.Copy is null))
             {
@@ -93,6 +100,19 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
+    public NativeBattleEffectTextureState EnqueueRectangle505DF0(NativeBattleEffectTextureRectangle rectangle, NativeBattleEffectHeapAllocation source, int offset = 0)
+    {
+        Validate();
+        RequireRectangle(rectangle);
+        RequireSource(source, offset, checked(2 * rectangle.Width * rectangle.Height));
+        if (Count == 31)
+        {
+            throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
+        }
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Kind = 0, Source = source, Offset = offset, Rectangle = rectangle };
+        return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
+    }
+
     public NativeBattleEffectTextureDrain Drain505D20()
     {
         Validate();
@@ -111,6 +131,12 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 continue;
             }
             NativeBattleEffectHeapAllocation source = pending.Source ?? throw new InvalidDataException("Native TIM upload lost its source.");
+            if (pending.Kind == 0)
+            {
+                NativeBattleEffectTextureRectangle rectangle = pending.Rectangle!;
+                Write(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, source.Data.AsSpan().Slice(pending.Offset, checked(2 * rectangle.Width * rectangle.Height)));
+                continue;
+            }
             int first = pending.Offset + 8;
             Upload(first);
             Upload(checked(first + BlockLength(source, first)));
@@ -127,7 +153,12 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 {
                     throw new InvalidDataException("Native45BD30 upload leaves its source block or1024x512 word VRAM.");
                 }
-                ImmutableArray<byte> bytes = data.Slice(12, checked(2 * width * height)).ToArray().ToImmutableArray();
+                Write(x, y, width, height, data.Slice(12, checked(2 * width * height)));
+            }
+
+            void Write(short x, short y, short width, short height, ReadOnlySpan<byte> data)
+            {
+                ImmutableArray<byte> bytes = data.ToArray().ToImmutableArray();
                 for (int row = 0; row < height; row++)
                 {
                     bank = bank.Write(checked(2 * ((y + row) * 1024 + x)), bytes.AsSpan().Slice(2 * row * width, 2 * width));
@@ -190,6 +221,14 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         }
         RequireSource(source, offset, (int)length);
         return (int)length;
+    }
+
+    private static void RequireRectangle(NativeBattleEffectTextureRectangle rectangle)
+    {
+        if (rectangle.X < 0 || rectangle.Y < 0 || rectangle.Width < 0 || rectangle.Height < 0 || rectangle.X + rectangle.Width > 1024 || rectangle.Y + rectangle.Height > 512)
+        {
+            throw new InvalidDataException("Native505DF0 rectangle leaves its1024x512 word VRAM.");
+        }
     }
 
     private static void RequireSource(NativeBattleEffectHeapAllocation source, int offset, int length)

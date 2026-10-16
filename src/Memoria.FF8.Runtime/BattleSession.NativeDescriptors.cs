@@ -154,13 +154,15 @@ public sealed partial class BattleSession
                     // TODO(TD-009): The authenticated stage is already loaded; retain native506CF0 phases while materializing its IO-ready input.
                     if (phase == 1)
                     {
-                        InitializeNativeStageCamera();
+                        LoadNativeStage500EA0();
                         graphics = graphics with { Flags = graphics.Flags | 8, UiServices = NativeBattleUiServices.Initialize() };
+                        LoadNativeStagePalette506CF0();
                     }
                     completed = phase == 3;
                     phase++;
                     break;
                 case NativeBattleDescriptorTaskKind.Texture506DE0:
+                    RegisterNativeStage506DE0();
                     completed = true;
                     phase = 1;
                     break;
@@ -270,23 +272,30 @@ public sealed partial class BattleSession
         int index = RequireDescriptorModel(packet.Index);
         BattleCombatant actor = FindNativeActor(index);
         NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(actor.Id) ?? throw new InvalidDataException("Native103 has no original allocation/resource binding.");
+        if (binding.ModelId == 143)
+        {
+            throw new NotSupportedException("Native model143 requires its separate507F80 resource producer.");
+        }
         NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
         uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], binding.ModelId, flags, ref randomState);
+        NativeBattleEffectHeapAllocation pack = binding.Resource.BodyTexturePack ?? throw new NotSupportedException("Native5077B0/5079B0/507120 requires its original DAT texture pack.");
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native507400 requires the retained process texture-upload owner.");
+        NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native507400 requires observed VRAM and upload slots; migrate the named standalone snapshot explicitly.");
+        NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native model loading requires its original508260 texture-resource owner.");
+        NativeBattleModelTextureCacheLoad textureLoad = actor.IsPlayer ? cache.LoadPlayer(binding.ModelId, index, pack) : cache.LoadEnemy(binding.ModelId, pack);
+        if (textureLoad.Upload is { } upload)
+        {
+            NativeEffectMemory = memory with { Textures = NativeBattleModelTextures.Enqueue507400(textures, upload) };
+        }
+        NativeModelTextureCache = textureLoad.Cache;
+        model = model with { TextureAllocationMask = textureLoad.Cache.Rows[textureLoad.ResourceIndex].TextureMask, TextureResourceIndex = textureLoad.ResourceIndex, BodyTextureSlots = textureLoad.Binding };
         if (actor.IsPlayer)
         {
-            NativeBattleEffectHeapAllocation pack = binding.Resource.BodyTexturePack ?? throw new NotSupportedException("Native5077B0 requires its original player DAT texture pack.");
-            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native507400 requires the retained process texture-upload owner.");
-            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native507400 requires observed VRAM and upload slots; migrate the named standalone snapshot explicitly.");
-            ushort mask = checked((ushort)(3 << (2 * index)));
-            NativeBattleModelTextureLoad load = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
-            NativeEffectMemory = memory with { Textures = NativeBattleModelTextures.Enqueue507400(textures, load) };
-            model = model with { TextureAllocationMask = mask, BodyTextureSlots = load.Binding };
+            model = CompleteNativeLinkedWeaponTexture507BF0(model, binding.Resource);
         }
-        if (definition.NativeGraphics!.Rules.SummonColors is { } colors)
-        {
-            model = model with { Color40 = colors.Transition, Color44 = colors.Normal };
-        }
+        NativeBattleStageColors colors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native5027D0 requires the actual stage500EA0 color DWORD producers.");
+        model = model with { Color40 = colors.Color40, Color44 = colors.Color44 };
         if (binding.InitialPosition is NativeBattleVector position)
         {
             NativeBattlePoseSource pose = binding.Resource.PoseSource ?? throw new NotSupportedException("Native103 transform requires its original skeleton scaleWORD2.");

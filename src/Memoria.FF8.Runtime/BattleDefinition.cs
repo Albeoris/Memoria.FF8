@@ -154,6 +154,7 @@ public sealed record BattleDefinition
     public NativeBattleEffectInitializerAsset? NativeCommonEffectTexture { get; init; }
     public NativeBattleActionCameraRules? NativeActionCameraRules { get; init; }
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
+    public NativeBattleStageSource? NativeStageSource { get; init; }
     public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
     public ImmutableArray<byte> NativeStageCameraControl { get; init; } = [];
     public NativeBattleEntryInput? NativeEntry { get; init; }
@@ -284,6 +285,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeBattleModelTextureCache? NativeModelTextureCache { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleGuardianBoost? NativeGuardianBoost { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -292,6 +294,7 @@ public sealed record BattleSnapshot
     public int? NativeEffectIoResult { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleEffectMemory? NativeEffectMemory { get; init; }
+    public NativeBattleStageState? NativeStage { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleActionMemory? NativeActionMemory { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

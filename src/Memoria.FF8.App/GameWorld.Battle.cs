@@ -101,6 +101,7 @@ internal sealed partial class GameWorld
             NativeRetainedMemory = session.State.NativeBattleMemory,
             NativeEntry = new(encounter.Flags, session.State.CharacterVitals!.GetEncounterAbilityFlags()),
             NativeStageCameraBank = BattleResources.LoadStage(encounter.StageId).NativeCameraBank,
+            NativeStageSource = BattleResources.LoadStage(encounter.StageId).NativeSource,
             NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera],
             NativeStageCameraControl = BattleResources.LoadStage(encounter.StageId).NativeCameraControl,
             NativeRenzokukenResources = assets.ReadNativeRenzokukenResources(),

@@ -13,7 +13,7 @@ public sealed partial class BattleAssets
         ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), ReadNativeGraphicsResource(actor)) { InitialPosition = actor.IsPlayer ? NativeBattleFormation.PartyPosition(Array.IndexOf(party, actor), party.Length) : encounter is null ? null : encounter.Slots.Single(slot => slot.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Native graphics formation lacks its original scene position WORDs.") }).ToImmutableArray();
         //47DAC0 queues enemy103 completions before47DD30/47DBA0 player102/103 descriptors.
         ImmutableArray<string> order = actors.Where(actor => !actor.IsPlayer && actor.InitialActive).Concat(actors.Where(actor => actor.IsPlayer)).Select(actor => actor.Id).ToImmutableArray();
-        return new(rules, bindings, order);
+        return new(rules, bindings, order) { PrimitiveTables = ReadNativePrimitiveTables() };
     }
 
     public NativeBattleGraphicsResource ReadNativeGraphicsResource(BattleCombatantDefinition actor)
@@ -24,7 +24,7 @@ public sealed partial class BattleAssets
             BattleModel owner = LoadPlayerSequenceOwner(actor.ModelId, actor.WeaponId, body);
             BattleModel? linked = actor.WeaponId is int weapon ? ResolveWeaponModel(actor.ModelId, weapon, body) : null;
             //507BF0/507E20 replace the primary resource's sequence pointer while retaining its body animation pointer.
-            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource, HasActionCamera = body.NativeActionCameraBank is not null, ActionCameraBank = body.NativeActionCameraBank, TextureAnimations = body.NativeTextureAnimations, BodyTexturePack = body.NativeBodyTexturePack };
+            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource, HasActionCamera = body.NativeActionCameraBank is not null, ActionCameraBank = body.NativeActionCameraBank, TextureAnimations = body.NativeTextureAnimations, BodyTexturePack = body.NativeBodyTexturePack, LinkedTexturePack = owner.NativeWeaponTexturePack, LinkedGeometryUsesBodySkeleton = owner.NativeWeaponUsesBodySkeleton, Geometry = NativeBattleGeometryMetadata.FromMeshes(body.Meshes), LinkedGeometry = owner.NativeWeaponUsesBodySkeleton == true ? NativeBattleGeometryMetadata.FromMeshes(owner.Meshes) : linked is null ? [] : NativeBattleGeometryMetadata.FromMeshes(linked.Meshes) };
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);
     }
@@ -59,7 +59,8 @@ public sealed partial class BattleAssets
         //507080 dispatches enemy models to507120, whose resource DWORD44 addresses DAT DWORD6.
         int cameraStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(24));
         int cameraEnd = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
-        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, start - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()) };
+        int textureStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(44));
+        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, start - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()), BodyTexturePack = new($"c0m{model:000}.dat:body-textures", bytes.AsSpan(textureStart).ToArray().ToImmutableArray()), Geometry = NativeBattleGeometryMetadata.FromMeshes(LoadEnemy(model).Meshes), LinkedGeometry = [], LinkedGeometryUsesBodySkeleton = false };
         resource.Validate();
         return resource;
     }

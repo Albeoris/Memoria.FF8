@@ -13,15 +13,11 @@ public static class NativeBattleActorPackets
     public static NativeBattleGeometrySubmission SubmitPlayerBody502D40(NativeBattlePrimitiveOrdering ordering, uint packetAddress, BattleModel asset, NativeBattleGraphicsModel model, NativeBattleCameraProjection projection)
     {
         byte id = model.ModelId4 ?? throw new NotSupportedException("Native502D40 requires its actual model ID BYTE4.");
-        if (id >= 16)
-        {
-            throw new NotSupportedException("Native enemy packet materials require their original dynamic507400 relocation owner.");
-        }
         NativeBattleModelTextureBinding binding = model.BodyTextureSlots ?? throw new NotSupportedException("Native player packets require their original507400 texture allocation.");
         NativeBattlePoseSource source = asset.NativePoseSource ?? throw new NotSupportedException("Native player packets require their original DAT skeleton/pose source.");
         uint color = model.Color40 ?? throw new NotSupportedException("Native502D40 requires its original model color DWORD40.");
         uint mask = model.SequenceState?.MeshMask124 ?? throw new NotSupportedException("Native502D40 requires its original mesh mask DWORD124.");
-        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.GeometryMatrices(model, source, projection.View);
+        ImmutableArray<NativeBattleActionMatrix> matrices = NativeBattlePoseMatrices.GeometryMatrices(model, source, projection.View ?? throw new NotSupportedException("Native actor packets require the actual5033E0 view matrix."));
         NativeBattlePrimitiveOrdering result = ordering;
         uint cursor = packetAddress;
         int emitted = 0;
@@ -80,9 +76,14 @@ public static class NativeBattleActorPackets
         {
             throw new NotSupportedException("Native507550 requires the original polygon record and material WORDs.");
         }
-        NativeBattleFaceMaterial material = NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial, binding);
         byte[] polygon = face.NativePolygon.ToArray();
         bool quad = face.Vertices.Length == 4;
+        if (polygon.Length == (quad ? 24 : 20))
+        {
+            //507550 visits only the two plain groups; the colored groups retain their original material and command.
+            return polygon;
+        }
+        NativeBattleFaceMaterial material = NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial, binding);
         int[] uvOffsets = quad ? [8, 12, 16, 18] : [6, 8, 12];
         if (material.Uv.Length != uvOffsets.Length || polygon.Length != (quad ? 20 : 16))
         {

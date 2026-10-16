@@ -14,16 +14,17 @@ public sealed class NativeAutomaticGuardianTests
     {
         using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
+        BattleEncounter formation = assets.LoadEncounter(94);
+        BattleStage stage = assets.LoadStage(formation.StageId);
         byte[] resistances = Enumerable.Repeat((byte)100, 40).ToArray();
         resistances[0] = deathResistance;
         resistances[24] = ejectResistance;
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "party-0", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum },
-            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = resistances }
+            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = formation.Enemies.Single(enemy => enemy.ModelId == 61).Slot, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = resistances }
         ];
-        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), assets.ReadNativeGraphicsResource(actor))).ToImmutableArray();
-        BattleDefinition definition = Definition(game, assets, savedFlags, actors) with { NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], NativeGraphics = new(game.ReadNativeBattleGraphicsRules(), bindings, ["enemy", "party-0"]) };
+        BattleDefinition definition = Definition(game, assets, savedFlags, actors) with { EncounterId = 94, StageId = formation.StageId, NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(1), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageSource = stage.NativeSource, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation) };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         Assert.False(battle.Capture().NativeSupport!.EntryInitialized);
         Assert.Empty(battle.QueuedActions);

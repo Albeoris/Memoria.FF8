@@ -74,6 +74,7 @@ public sealed partial class BattleSession
         graphics = AdvanceNativeAuxiliary(graphics);
         graphics = AdvanceNativeModuleEffects(graphics);
         graphics = AdvanceNativeOriginalEffect(graphics);
+        graphics = SubmitNativeModulePackets(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
         models = graphics.Models;
         NativeBattleEffectsStep effects = graphics.Effects.Advance(models);
@@ -97,17 +98,31 @@ public sealed partial class BattleSession
                 if (model.Kind5 is 11 or 12)
                 {
                     NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native summon model service requires its authenticated color constants.");
+                    NativeBattleStageColors stageColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native50C4D0/50C330 requires its retained stage color DWORD producers.");
+                    colors = colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 };
                     model = NativeBattleSummonModels.Advance(model, (flags & 1) != 0, colors);
                 }
                 byte camera = model.Kind5 == 5 && model.Phase6 > 0 ? NativeCameraTaskMask : (byte)0;
-                NativeBattleGraphicsRemoval removal = NativeBattleGraphicsModels.AdvanceRemoval(model, (flags & 1) != 0, graphics.ModelLoadCount != 0, camera);
+                NativeBattleGraphicsModel beforeRemoval = model;
+                bool soundBusy = model.Kind5 == 5 && model.Phase6 > 0 && NativeOriginalSoundBusy();
+                NativeBattleGraphicsRemoval removal = NativeBattleGraphicsModels.AdvanceRemoval(model, (flags & 1) != 0, soundBusy, camera);
                 model = removal.Model;
+                if ((model.Flags0 & 2) == 0 && beforeRemoval.ModelId4 != 143)
+                {
+                    NativeBattleModelTextureCache cache = NativeModelTextureCache ?? throw new NotSupportedException("Native5080D0 requires its original resource-row texture owner.");
+                    NativeModelTextureCache = cache.Release5080D0(beforeRemoval.TextureResourceIndex ?? throw new NotSupportedException("Native5080D0 requires the original model DWORD100 resource-row binding."));
+                }
                 if (removal.ReleaseParticipant)
                 {
                     BattleCombatant actor = GraphicsActor(graphics, index);
                     actor.NativeCombatantFlags = (actor.NativeCombatantFlags | 0x40) & ~1u;
                     actor.NativeStatus0 |= 1;
                 }
+            }
+            if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
+            {
+                NativeBattleGraphicsResource drawResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                graphics = SubmitNativeModelPackets502D40(graphics, model, drawResource);
             }
             if ((model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
             {
@@ -166,9 +181,15 @@ public sealed partial class BattleSession
                     }
                 }
             }
+            if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
+            {
+                NativeBattleGraphicsResource matrixResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                model = model with { GeometryWorldMatrix = NativeBattlePoseMatrices.PublishGeometryWorldMatrix502AB0(model, matrixResource.PoseSource ?? throw new NotSupportedException("Native502AB0 requires its actual body skeleton source.")) };
+            }
             models = models.SetItem(index, model);
         }
-        NativeGraphics = graphics with { Models = models, Callback = checked(graphics.Callback + 1) };
+        graphics = AdvanceNativeStage506C30(graphics with { Models = models });
+        NativeGraphics = graphics with { Callback = checked(graphics.Callback + 1) };
         AdvanceNativeCamera(flags);
         if (NativeCamera is not null)
         {
@@ -183,6 +204,7 @@ public sealed partial class BattleSession
             }
             NativeEffectMemory = effectMemory;
         }
+        NativeGraphics = FinishNativePrimitiveFrame500900(NativeGraphics!);
     }
 
     private NativeBattleGraphicsState AdvanceNativeGraphicsRequests(NativeBattleGraphicsState graphics)

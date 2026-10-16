@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Original model sequence directory/bytecode at graphics resource+12.</summary>
-public sealed record NativeBattleGraphicsResource(ImmutableArray<byte> SequenceSection)
+public sealed partial record NativeBattleGraphicsResource(ImmutableArray<byte> SequenceSection)
 {
     public ImmutableArray<byte> AnimationFrames { get; init; }
     public NativeBattlePoseSource? PoseSource { get; init; }

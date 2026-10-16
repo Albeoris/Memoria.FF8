@@ -7,12 +7,12 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleEffectHeapAllocation([property: JsonRequired] string Identity, [property: JsonRequired] ImmutableArray<byte> Data);
 
 /// <summary>Process-retained571870 allocator and501230 publication fields. Only571870 proves the arena clear.</summary>
-public sealed record NativeBattleEffectMemory([property: JsonRequired] NativeBattleEffectArena? Arena, [property: JsonRequired] int Cursor, [property: JsonRequired] int AllocationCount, [property: JsonRequired] ImmutableArray<NativeBattleEffectHeapAllocation?> Allocations, [property: JsonRequired] int Active, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] uint SoundPendingFlags, [property: JsonRequired] uint SoundPublishedFlags)
+public sealed partial record NativeBattleEffectMemory([property: JsonRequired] NativeBattleEffectArena? Arena, [property: JsonRequired] int Cursor, [property: JsonRequired] int AllocationCount, [property: JsonRequired] ImmutableArray<NativeBattleEffectHeapAllocation?> Allocations, [property: JsonRequired] int Active, [property: JsonRequired] int SelectedIndex, [property: JsonRequired] uint SoundPendingFlags, [property: JsonRequired] uint SoundPublishedFlags)
 {
     public NativeBattleEffectTextureState? Textures { get; init; }
     public byte? Parameter80 { get; init; }
 
-    public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0 };
+    public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() };
 
     public void Validate()
     {
@@ -22,6 +22,7 @@ public sealed record NativeBattleEffectMemory([property: JsonRequired] NativeBat
         }
         Arena?.Validate();
         Textures?.Validate();
+        PrimitiveProcess?.Validate();
     }
 
     public NativeBattleEffectMemory BeginLoad(int selectedIndex)

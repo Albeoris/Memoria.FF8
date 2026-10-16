@@ -31,9 +31,10 @@ public sealed class NativeBattleControlGraphicsTests
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
-            NativeStageCameraBank = new([0, 0]),
-            NativeStageCameraSelectors = [0, 0],
-            NativeStageCameraControl = [2]
+            NativeStageSource = assets.LoadStage(formation.StageId).NativeSource,
+            NativeStageCameraBank = assets.LoadStage(formation.StageId).NativeCameraBank,
+            NativeStageCameraSelectors = [formation.PrimaryCamera, formation.AlternativeCamera],
+            NativeStageCameraControl = assets.LoadStage(formation.StageId).NativeCameraControl
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         for (int entry = 0; entry < 200 && !battle.NativeEntryReady; entry++)

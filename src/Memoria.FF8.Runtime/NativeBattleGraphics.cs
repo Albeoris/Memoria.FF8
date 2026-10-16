@@ -7,9 +7,9 @@ public sealed record NativeBattleGraphicsBinding(string ActorId, byte ModelId, N
 {
     public NativeBattleVector? InitialPosition { get; init; }
 }
-public sealed record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder);
+public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder);
 public sealed record NativeBattleGraphicsRequest(ushort Command, byte? ModelIndex, byte State = 0, bool Entry = false);
-public sealed record NativeBattleGraphicsState([property: JsonRequired] ImmutableArray<NativeBattleGraphicsModel> Models, [property: JsonRequired] ImmutableArray<string?> ActorIds, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
+public sealed partial record NativeBattleGraphicsState([property: JsonRequired] ImmutableArray<NativeBattleGraphicsModel> Models, [property: JsonRequired] ImmutableArray<string?> ActorIds, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
 {
     [JsonRequired]
     public ImmutableArray<NativeBattleContactPacket> PendingContacts { get; init; } = [];
@@ -80,6 +80,10 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
                 throw new InvalidDataException("Loaded native graphics row lacks its actor, resource or model fields.");
             }
             model.SequenceState?.Validate();
+            if (model.TextureResourceIndex is < 0 or >= 11)
+            {
+                throw new InvalidDataException("Native model texture resource does not identify its physical52-byte cache row.");
+            }
             if (model.StatusTimers.IsDefault || model.StatusTimers.Length != 32)
             {
                 throw new InvalidDataException("Native model requires its32 status-effect timer fields.");
