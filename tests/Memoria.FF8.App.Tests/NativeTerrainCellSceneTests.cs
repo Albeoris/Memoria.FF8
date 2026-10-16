@@ -7,6 +7,28 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeTerrainCellSceneTests
 {
     [Fact]
+    public void ActualEstharRoadCallbackExcludesUngeneratedCellAndColdRestores()
+    {
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
+        {
+            root = Directory.GetParent(root)!.FullName;
+        }
+        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        world.EnsureField();
+        Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: -0.018045771313400415f, Vertical: -0.9998371618107144f, Frames: 16)).Accepted);
+        Assert.Equal(SceneKind.WorldMap, session.State.Scene);
+        GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
+        GameSession restoredSession = new(saved);
+        using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        restored.EnsureField();
+        Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);
+        Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restoredSession.State)));
+    }
+
+    [Fact]
     public void ActualEstharFootCallbackPassesNativeFarCellOcclusionAndColdRestore()
     {
         string root = AppContext.BaseDirectory;

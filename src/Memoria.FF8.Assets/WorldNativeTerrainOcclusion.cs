@@ -85,21 +85,41 @@ public sealed partial class NativeWorldPathProjectionCertificate
         return new(screenX, screenX, screenY, screenY, roundedDepth, roundedDepth);
     }
 
-    internal bool DefinitelyRendersTerrainCell(int cell, int entityType)
+    private bool? GeneratesTerrainCell(int cell)
     {
         int bodyCell = Sector(Origin);
         int dx = SectorX(cell, bodyCell);
         int dz = SectorZ(cell, bodyCell);
         int x = bodyCell % 128 + dx;
         int z = bodyCell / 128 + dz;
+        //53DDA0 generates only this proximity-centered inclusive rectangle.
+        //Outside even its widest rounding envelope is a proved exclusion;
+        //inside the narrower envelope is a proved generated cell.
+        if (x < (int)Math.Floor((Origin.X + 131072d + proximity[0].Low - 10239) / 2048)
+            || x > (int)Math.Floor((Origin.X + 131072d + proximity[0].High + 10239) / 2048)
+            || z < (int)Math.Floor((-Origin.Z + 98304d + proximity[2].Low - 10239) / 2048)
+            || z > (int)Math.Floor((-Origin.Z + 98304d + proximity[2].High + 10239) / 2048))
+        {
+            return false;
+        }
         bool generated = x >= (int)Math.Floor((Origin.X + 131072d + proximity[0].High - 10239) / 2048)
             && x <= (int)Math.Floor((Origin.X + 131072d + proximity[0].Low + 10239) / 2048)
             && z >= (int)Math.Floor((-Origin.Z + 98304d + proximity[2].High - 10239) / 2048)
             && z <= (int)Math.Floor((-Origin.Z + 98304d + proximity[2].Low + 10239) / 2048);
-        if (!generated)
+        return generated ? true : null;
+    }
+
+    internal bool DefinitelyExcludesTerrainCell(int cell) => GeneratesTerrainCell(cell) == false;
+
+    internal bool DefinitelyRendersTerrainCell(int cell, int entityType)
+    {
+        if (GeneratesTerrainCell(cell) != true)
         {
             return false;
         }
+        int bodyCell = Sector(Origin);
+        int dx = SectorX(cell, bodyCell);
+        int dz = SectorZ(cell, bodyCell);
         int radius = entityType == 50 || entityType is >= 64 and <= 66 ? 3 : 1;
         if (Math.Abs(dx) <= radius && Math.Abs(dz) <= radius)
         {
@@ -177,6 +197,11 @@ public sealed partial class WorldAssets
             {
                 int cellX = (centerCell % 128 + dx + 128) % 128;
                 int cellZ = (centerCell / 128 + dz + 96) % 96;
+                int cell = cellZ * 128 + cellX;
+                if (projection.DefinitelyExcludesTerrainCell(cell))
+                {
+                    continue;
+                }
                 int map = cellZ / 4 * 32 + cellX / 4;
                 int block = cellZ % 4 * 4 + cellX % 4;
                 WorldSegment segment = GetSegment(map, replacements);
@@ -232,7 +257,6 @@ public sealed partial class WorldAssets
                     bool clippingAdmitted = direct
                         ? points.Any(point => MaximumUnsigned(point.MinimumX, point.MaximumX) <= 0xA00) && points.Any(point => MaximumUnsigned(point.MinimumY, point.MaximumY) <= 0x780)
                         : points.All(point => point.MinimumDepth > 0 && point.MaximumDepth < 0x8000) && points.Any(point => point.MinimumX >= 0 && point.MaximumX < 0xA00) && points.Any(point => point.MinimumY >= 0 && point.MaximumY < 0x700);
-                    int cell = cellZ * 128 + cellX;
                     //552380 has original per-polygon exclusions for a finite
                     //set of railway cells; no positive claim bypasses those.
                     bool polygonFilterKnown = direct || !NativeFastTerrainHasPolygonFilter(cell);

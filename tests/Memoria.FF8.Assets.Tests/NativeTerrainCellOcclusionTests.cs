@@ -5,6 +5,15 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeTerrainCellOcclusionTests
 {
     [Fact]
+    public void ActualEstharRoadCameraExcludesTheOccluderCellOutsideNativeGeneration()
+    {
+        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeWorldFootCameraState camera = new(56746, 13229, -400, 56749, 13197, -656, 2132, -124, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, -400, WorldTerrainSelection.Replacements(320), 0);
+        Assert.True(result.Occluded == false, result.Reason);
+    }
+
+    [Fact]
     public void ActualEstharFootCameraAdmitsTheFartherGeneratedCellThroughNativeBoundTriangles()
     {
         using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
