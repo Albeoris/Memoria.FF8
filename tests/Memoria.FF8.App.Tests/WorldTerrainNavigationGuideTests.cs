@@ -8,7 +8,7 @@ public sealed class WorldTerrainNavigationGuideTests
     [Fact]
     public void Fire_cavern_advice_routes_around_the_actual_cliff_and_keeps_the_original_gate_identity()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Original world terrain is required.");
         using WorldAssets assets = new(directory);
         var replacements = WorldTerrainSelection.Replacements(285);

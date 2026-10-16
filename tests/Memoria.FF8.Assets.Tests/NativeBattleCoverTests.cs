@@ -86,7 +86,7 @@ public sealed class NativeBattleCoverTests
 
     private static string GameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         return directory;
     }

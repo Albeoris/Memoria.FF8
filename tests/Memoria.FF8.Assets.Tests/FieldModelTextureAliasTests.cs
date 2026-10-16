@@ -19,7 +19,7 @@ public sealed class FieldModelTextureAliasTests
     [Fact]
     public void NativeClassNibblePreservesDReferenceAndAReferenceAboveFifteen()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using IFlArchive outer = FlArchive.OpenForRead(Path.Combine(directory, "Data", "lang-en", "field.fs"), FlArchiveRepresentation.Files);
         byte[] Read(IFlArchive archive, string name)
@@ -61,7 +61,7 @@ public sealed class FieldModelTextureAliasTests
     [Fact]
     public void OriginalPartyModelKeepsOwnGeometryAndAnimationsWithNativeAliasedTexture()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(221);

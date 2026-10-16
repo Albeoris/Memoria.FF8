@@ -13,7 +13,7 @@ public sealed class SoundStopContinuationTests
     [Fact]
     public void Actual_cavern_arrival_stops_voice_one_and_restores_full_vm_and_pixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

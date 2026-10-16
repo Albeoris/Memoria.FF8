@@ -301,7 +301,7 @@ public sealed class NativeTutorialWorldTests
 
     private static (string Directory, GameState State) Source()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original resources are required.");
         using GameAssets assets = new(directory);
         // A fresh diagnostic allocation, not gameplay reconstruction or an old-save migration.

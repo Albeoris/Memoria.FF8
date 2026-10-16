@@ -415,6 +415,6 @@ public sealed class WorldFieldEntryReaderTests
 
     private static string GameDirectory()
     {
-        return Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        return TestResources.GameDirectory;
     }
 }

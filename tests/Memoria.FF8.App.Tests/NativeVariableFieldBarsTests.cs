@@ -40,7 +40,7 @@ public sealed class NativeVariableFieldBarsTests
     [Fact]
     public void Original948BuildsBoth120PixelBarsWithoutYieldingAndRestoresItsNextCallback()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field948 is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));

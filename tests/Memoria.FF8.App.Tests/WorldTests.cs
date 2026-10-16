@@ -10,7 +10,7 @@ public sealed class WorldTests
     public void Host_world_preserves_custom_name_across_actual_fields_and_composites_real_side_view_ramp()
     {
         Assert.Equal("Squall\nQuistis\nZell", DialogueTextFormatter.Format("{Char Squall}{Line}{Char Quistis}{Next}{Char Zell}{End}"));
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();

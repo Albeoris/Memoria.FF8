@@ -8,7 +8,7 @@ public sealed class NativePlayerDrawMetadataTests
     [Fact]
     public void EveryInstalledSpellSupportsDrawCastWithASeparateRecipientAndStandaloneRestore()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
@@ -49,7 +49,7 @@ public sealed class NativePlayerDrawMetadataTests
     [InlineData(65, false)]
     public void InstalledStockAndFailurePublishTheOriginalFactualPacketExactlyOnceAcrossRestore(int selection, bool failed)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
@@ -100,7 +100,7 @@ public sealed class NativePlayerDrawMetadataTests
     [Fact]
     public void OriginalIfritDrawTablePreservesFourPhysicalPairsAndAllThreeLevelBands()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
         NativeBattleEnemyTemplate template = assets.ReadEnemyTemplate(61, 6);

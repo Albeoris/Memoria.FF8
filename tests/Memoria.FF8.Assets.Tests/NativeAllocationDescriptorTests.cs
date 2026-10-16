@@ -8,7 +8,7 @@ public sealed class NativeAllocationDescriptorTests
     [Fact]
     public void GuardianCancellation114ClearsTheGraphicsCastingFlagAndRefreshesThePendingStandingSequence()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, [0]);
         for (int callback = 0; callback < 300 && !battle.NativeEntryReady; callback++)
@@ -35,7 +35,7 @@ public sealed class NativeAllocationDescriptorTests
     [InlineData(59, true)]
     public void AllocationThenScriptedExitWaitsForTheActual113StatisticsAnd4876B0Gate(byte opcode, bool activated)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         byte[] program = opcode switch { 53 => [52, 6, 53, 209, 57, 0], 59 => [59, 6, 4, 57, 0], _ => [opcode, 6, 57, 0] };
         BattleSession battle = Create(game, assets, program);

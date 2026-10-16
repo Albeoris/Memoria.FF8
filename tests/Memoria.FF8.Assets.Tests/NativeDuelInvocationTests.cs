@@ -9,7 +9,7 @@ public sealed class NativeDuelInvocationTests
     [Fact]
     public void A_completed_finisher_queues_native239_then_releases_the_Duel_process()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(game, assets);
         battle.QueueNativePlayerCommand("zell", "enemy", 11, 0);
@@ -38,7 +38,7 @@ public sealed class NativeDuelInvocationTests
     [Fact]
     public void Duel_restores_a_partial_native_input_ring_and_queues_only_a_completed_combo()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(game, assets);
         BattleActionDefinition invocation = Assert.Single(battle.GetNativePlayerActionChoices("zell", true));
@@ -83,7 +83,7 @@ public sealed class NativeDuelInvocationTests
     [Fact]
     public void Manual_native_matching_accepts_an_unlearned_finisher_and_uses_its_exact_button_words()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleNativeLimitDefinition rules = assets.ReadNativeLimitDefinition(1);
         BattleNativeDuelChoice finisher = Enumerable.Range(0, rules.DuelMoveSets.Length / 4).SelectMany(set => NativeBattleDuelRules.Choices(rules, (byte)set, 0, assets.NativeActions)).First(choice => choice.Finisher);
@@ -105,7 +105,7 @@ public sealed class NativeDuelInvocationTests
     [Fact]
     public void Duel_timeout_changes_no_gameplay_clock_or_hp_and_automatic_mode_uses_the_owned_UI_draw()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession manual = CreateBattle(game, assets);
         manual.QueueNativePlayerCommand("zell", "enemy", 11, 0);
@@ -140,7 +140,7 @@ public sealed class NativeDuelInvocationTests
     [InlineData(27525u, 32767, true)]
     public void Automatic_three_choice_boundary_preserves_the_native_UI_draw_and_unknown_stack_read(uint seed, int roll, bool invalidStackRead)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(game, assets, 2, 4);
         battle.QueueNativePlayerCommand("zell", "enemy", 11, 0);

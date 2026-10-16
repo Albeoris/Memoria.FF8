@@ -12,7 +12,7 @@ public sealed class MinimalBattleAndGuardianForceTests
 {
     private static readonly Lazy<NativeCharacterVitals> InitialVitals = new(() =>
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         return assets.ReadNewGameCharacterVitals();
     });
@@ -170,7 +170,7 @@ public sealed class MinimalBattleAndGuardianForceTests
     [InlineData(true)]
     public void OriginalSphinxVictoryBranchReleasesGuardianAndRequestsSealScreen(bool hosted)
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         JsmProgram original = JsmProgram.Read(assets.LoadField(570).Jsm);
         // Retain the exact native BATTLE operands and result-dependent tail;
         // battle-music presentation before/after the request is outside this component.
@@ -258,7 +258,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         JsonElement history = original.EventState!.Value.GetProperty("Scene").GetProperty("NativeBattleCompletions");
         Assert.Equal(61, history.GetArrayLength());
         GameSession session = new(original);
-        using GameWorld world = new(session, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.Null(world.Events.PendingHostedBattle);
         JsonElement restoredHistory = world.Events.Capture().GetProperty("Scene").GetProperty("NativeBattleCompletions");
@@ -270,7 +270,7 @@ public sealed class MinimalBattleAndGuardianForceTests
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(InitialVitals.Value.DeepCopy());
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         session.Restore(session.State with { FieldId = 999, FieldName = "synthetic-bare-battle-menu-component", WorldControls = controls });
         var engine = new EventEngine(session);

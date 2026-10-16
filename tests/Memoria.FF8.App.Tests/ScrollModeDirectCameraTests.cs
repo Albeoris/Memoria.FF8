@@ -87,7 +87,7 @@ public sealed class ScrollModeDirectCameraTests
 
     private static GameAssets OpenAssets()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         return new GameAssets(directory);
     }

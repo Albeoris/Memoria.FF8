@@ -71,7 +71,7 @@ public sealed class NativeMagicMenuProjectionTests
     [Fact]
     public void InstalledFieldMenuCastsAndTransfersCanonicalStocks()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native magic and character resources are required.");
         using GameAssets assets = new(directory);
         using BattleAssets battle = new(directory);

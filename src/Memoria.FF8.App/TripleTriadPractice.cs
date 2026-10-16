@@ -30,7 +30,7 @@ internal static class TripleTriadPractice
 
     public static int Run(string[] args)
     {
-        string gameDirectory = LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = LaunchOptions.ConfiguredGameDirectory;
         string savePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "triple-triad-practice.json");
         string? source = null;
         string? load = null;

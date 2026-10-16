@@ -11,7 +11,7 @@ public sealed class NativeTutorialPlaybackTests
     [Fact]
     public void StatusLessonsShowOriginalResistanceCompatibilityAndLearnedLimitData()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
         using GameAssets assets = new(directory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
@@ -59,7 +59,7 @@ public sealed class NativeTutorialPlaybackTests
     [InlineData(8)]
     public void EveryOriginalLessonCompletesWithExactRestoreAtMenuInputsAndBarriers(int id)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
         using GameAssets assets = new(directory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();

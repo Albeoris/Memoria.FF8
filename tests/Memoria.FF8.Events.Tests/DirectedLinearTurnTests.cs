@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeDirectedLinearTurnContract()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown6, Jsm.Opcode.Unknown7 })

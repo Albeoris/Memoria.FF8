@@ -11,7 +11,7 @@ public sealed class NativeAnalogFieldMovementTests
     [Fact]
     public void Native_field_movement_retains_full_circle_heading_and_mapped_walk_run()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed field corpus is required.");
         using GameAssets assets = new(gameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();

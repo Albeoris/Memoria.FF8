@@ -10,7 +10,7 @@ public sealed class BattlePartyProjectionTests
     [Fact]
     public void Laboratory_uses_current_party_order_names_hp_costume_weapon_and_gf_owners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         BattleAssets resources = new(directory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
@@ -36,7 +36,7 @@ public sealed class BattlePartyProjectionTests
     [Fact]
     public void Title_laboratory_uses_the_authentic_new_game_party_without_changing_a_session()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         BattleAssets resources = new(directory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
@@ -56,7 +56,7 @@ public sealed class BattlePartyProjectionTests
     [Fact]
     public void Saved_status_bit7_has_a_battle_owner_and_survives_restore_and_factual_result_capture()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         using BattleAssets resources = new(directory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);

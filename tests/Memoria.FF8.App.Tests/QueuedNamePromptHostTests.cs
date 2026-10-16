@@ -15,7 +15,7 @@ public sealed class QueuedNamePromptHostTests
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         long frame = world.Events.Frame;
         // Explicit host fixture: the queue starts after the item's already-tested inventory transaction.
@@ -29,7 +29,7 @@ public sealed class QueuedNamePromptHostTests
         menus.EnterNameText("Жёлтый👩🏽‍🚀");
         Invoke(host, "CaptureSession");
         GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
-        using GameWorld restored = new(restoredSession, LaunchOptions.DefaultGameDirectory);
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
         restored.EnsureField();
         MenuController restoredMenus = new();
         RecreateGame restoredHost = Host(restoredSession, restored, restoredMenus);

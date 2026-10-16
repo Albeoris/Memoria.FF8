@@ -10,7 +10,7 @@ public sealed class NativePolygonColorRenderTests
     [Fact]
     public void ActualMagazineUsesOnePerInstancePrimitiveRgbAndRequiresKnownBytesBeforePixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         FieldAssets original = assets.LoadField(895);
         FieldModel magazine = original.Models[6];

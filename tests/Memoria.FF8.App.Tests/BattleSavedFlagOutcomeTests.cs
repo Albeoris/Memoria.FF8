@@ -9,7 +9,7 @@ public sealed class BattleSavedFlagOutcomeTests
     [Fact]
     public void Factual_opcode54_receipt_checks_the_current_byte_and_commits_once_with_the_battle_result()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().Rest();
         NativeSavedBattleFlags originalFlags = new(NativeInputConfiguration.OriginalInitHash, 0xF6);
         GameSession session = new(new GameState { NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), SavedBattleFlags = originalFlags, BattleVariables = NativeBattleVariableState.CreateNewGame(), GlobalRandom = assets.ReadNewGameGlobalRandom() });

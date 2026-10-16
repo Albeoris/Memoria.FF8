@@ -94,7 +94,7 @@ public sealed class DebugNameMenuTests
             TextTagCharacter character = (TextTagCharacter)((int)TextTagCharacter.Squall + identity);
             Assert.Equal(names[GameNames.CharacterSubject(identity)], DialogueTextFormatter.Format($"{{Char {character}}}", names));
         }
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         for (int identity = 0; identity < 16; identity++)
         {

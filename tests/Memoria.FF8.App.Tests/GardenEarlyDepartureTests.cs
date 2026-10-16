@@ -90,7 +90,7 @@ public sealed class GardenEarlyDepartureTests
 
     private static string GameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field and world resources are required.");
         return directory;
     }

@@ -8,7 +8,7 @@ public sealed class NativeBattleOrdinaryGraphicsTests
     [Fact]
     public void Actual104OrdinaryServiceRunsIfritSequenceAndContactsWithoutReplayingGameplayAcrossRestore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(formation.StageId);

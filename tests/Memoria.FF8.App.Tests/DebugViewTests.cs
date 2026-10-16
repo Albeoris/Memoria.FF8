@@ -9,7 +9,7 @@ public sealed class DebugViewTests
     [Fact]
     public void Typed_debug_view_hides_moves_and_animates_without_changing_story_and_restores_exactly()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");

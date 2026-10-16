@@ -8,7 +8,7 @@ public sealed class NativeBattleRetainedMemoryTests
     [Fact]
     public void AuthenticatedLoaderImageProvesTheRuntimeColdProcessContract()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleRetainedMemory actual = assets.ReadColdProcessNativeBattleMemory();
         Assert.Equal(JsonSerializer.Serialize(NativeBattleRetainedMemory.FromColdProcess()), JsonSerializer.Serialize(actual));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());

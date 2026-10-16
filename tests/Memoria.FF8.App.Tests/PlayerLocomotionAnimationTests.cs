@@ -9,7 +9,7 @@ public sealed class PlayerLocomotionAnimationTests
     [Fact]
     public void OrdinarySquallWalkAdvancesOncePerCallbackWrapsAndRecreatesFromNewGame()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();

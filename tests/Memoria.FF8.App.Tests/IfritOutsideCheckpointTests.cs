@@ -9,7 +9,7 @@ public sealed class IfritOutsideCheckpointTests
     [Fact]
     public void OutsideSnapshotRetainsIfritAndCurrentTimerAcrossQuickAndManualLoad()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);

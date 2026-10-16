@@ -20,7 +20,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     public BattlePreviewCanvas(Bitmap bitmap, string? gameDirectory = null)
     {
-        this.gameDirectory = gameDirectory ?? LaunchOptions.DefaultGameDirectory;
+        this.gameDirectory = gameDirectory ?? LaunchOptions.ConfiguredGameDirectory;
         artwork = new MenuArtworkProvider(this.gameDirectory);
         graphics = Graphics.FromImage(bitmap);
         graphics.CompositingMode = CompositingMode.SourceOver;

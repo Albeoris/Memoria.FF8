@@ -29,7 +29,7 @@ internal static class BattlePreview
         string? scenarioPath = null;
         string? snapshotPath = null;
         string? outputPath = null;
-        string gameDirectory = LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = LaunchOptions.ConfiguredGameDirectory;
         int width = 960;
         int height = 672;
         int frames = 0;

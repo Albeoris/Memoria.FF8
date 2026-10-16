@@ -11,7 +11,7 @@ public sealed class NativeTutorialBindingsTests
     [Fact]
     public void CopiedCustomNamesRemainPrivateAndRestoreExactly()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
         using GameAssets assets = new(directory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
@@ -33,7 +33,7 @@ public sealed class NativeTutorialBindingsTests
     [Fact]
     public void PreparedOriginalGfLearningInputKeepsItsSemanticTargetWhenRowsReorder()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
         using GameAssets assets = new(directory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
@@ -62,7 +62,7 @@ public sealed class NativeTutorialBindingsTests
     [Fact]
     public void OriginalMagicCursorPreviewsStatsWithoutCommittingUntilNativeConfirm()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
         using GameAssets assets = new(directory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
@@ -92,7 +92,7 @@ public sealed class NativeTutorialBindingsTests
     [Fact]
     public void OriginalCureElementCursorRetainsItsPreviousEligibleJunctionUntilCancel()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
         using GameAssets assets = new(directory);
         NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();

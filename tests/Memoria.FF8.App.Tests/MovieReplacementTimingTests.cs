@@ -62,7 +62,7 @@ public sealed class MovieReplacementTimingTests
     [Fact]
     public void Resolved_media_is_pinned_together_for_the_active_playback()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original movie and field corpus is required.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -87,7 +87,7 @@ public sealed class MovieReplacementTimingTests
     [Fact]
     public void Compatible_standalone_movie_snapshot_continues_without_migration()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_MOVIE_SAVE");
         Assert.SkipUnless(Directory.Exists(game) && !string.IsNullOrEmpty(source), "Set MEMORIA_FF8_MOVIE_SAVE to an authentic compatible standalone active-movie save.");
         GameSession session = new(GameSession.Load(source!));
@@ -120,7 +120,7 @@ public sealed class MovieReplacementTimingTests
     [Fact]
     public void Installed_cinema_movie_uses_resolved_video_camera_and_actual_decoded_pixels()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         string package = Path.Combine(game, "Mods", "Junction", "cinema-rf.iroj");
         Assert.SkipUnless(File.Exists(package), "The actual installed cinema-rf Junction package is required.");
         string applicationBase = Path.Combine(Path.GetTempPath(), "Memoria.FF8.MovieTimingTests", Guid.NewGuid().ToString("N"));

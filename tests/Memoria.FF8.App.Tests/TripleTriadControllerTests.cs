@@ -95,7 +95,7 @@ public sealed class TripleTriadControllerTests
     [Fact]
     public void OriginalCollectionProjectsPrintedRanksElementAndRecipeEvenWhenOutputIsNotOwned()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(gameDirectory, "FF8_EN.exe")), "Original game resources required.");
         using GameAssets assets = new(gameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);

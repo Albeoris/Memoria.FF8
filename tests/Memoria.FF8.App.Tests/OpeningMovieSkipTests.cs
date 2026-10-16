@@ -14,7 +14,7 @@ public sealed class OpeningMovieSkipTests(ITestOutputHelper output)
     [InlineData(2800)]
     public void PreparedOpeningSkipsWithoutDecoderAndMatchesDecodedCallbacks(int startFrame)
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
         GameSession referenceSession = GameSession.CreateColdProcess();
         referenceSession.StartNewGame();

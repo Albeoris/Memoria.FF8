@@ -14,7 +14,7 @@ public sealed class ExamTimerContinuationTests
     [Fact]
     public void AuthenticGuardChoicePreservesProcessClockAndIndependentCurrentOwners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_GUARD_TIMER_CHOICE_SNAPSHOT", 129));

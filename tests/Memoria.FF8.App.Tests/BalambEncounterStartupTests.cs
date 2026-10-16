@@ -12,7 +12,7 @@ public sealed class BalambEncounterStartupTests
     [InlineData(24)]
     public void OriginalBalambFormationsStartThroughTheCurrentGameHost(byte ground)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original encounter and participant resources are required.");
         using GameAssets assets = new(directory);
         using WorldAssets worldAssets = new(directory);

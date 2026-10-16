@@ -9,7 +9,7 @@ public sealed class NativeInitialModelPresentationTests
     [Fact]
     public void AuthenticInfirmaryAdmissionWaitsForItsFirstExecutedSkinCallback()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original opening movie and field corpus is required.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();

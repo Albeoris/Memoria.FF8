@@ -12,7 +12,7 @@ public sealed class ScriptedInterfaceClockTests
     [InlineData(232, false)]
     public void Original_terminal_interfaces_keep_real_time_while_classroom_events_accelerate(int fieldId, bool scriptedInterface)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(fieldId);

@@ -8,7 +8,7 @@ public sealed class NativeGuardianBoostProjectionTests
     [Fact]
     public void Boost_uses_the_selected_guardians_learned_modifier_flag_and_original_kernel_timers()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         using BattleAssets resources = new(assets.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         int bit = Assert.Single(Enumerable.Range(19, 9), index => (vitals.Definitions.GuardianForceModifiers[index - 19].Flags & 1) != 0);

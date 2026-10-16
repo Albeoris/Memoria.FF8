@@ -8,7 +8,7 @@ public sealed class NativeActionProductionTests
     [Fact]
     public void InterpreterObservesAppliedHitBeforeItsNextPredicateAndPresentationDoesNotReplayIt()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleNativeAction hit = assets.NativeActions.First(action => action.Command == 8) with { ActionId = 100, AttackType = 35, Power = 0, HitCount = 1, AttackFlags = 0, DamagePresentation = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };
         //Queue one fixed1HP self hit, then test HP<10000 before setting global96 to77.
         byte[] initializer = [4, 200, 7, 100, 6, 2, 0, 200, 1, 0x10, 0x27, 3, 0, 15, 96, 77, 0];
@@ -56,7 +56,7 @@ public sealed class NativeActionProductionTests
     [Fact]
     public void GunbladePublishesZeroThenRecomputesItsContactOnceAndCompletesVictory()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreatePhysicalBattle(game, assets, true, false);
         battle.SetGunbladeMode(BattleGunbladeMode.Automatic);
@@ -86,7 +86,7 @@ public sealed class NativeActionProductionTests
     [Fact]
     public void PoisonProducesOneSeparateFactualCommandAtCompletionAndE120DoesNotRepeatIt()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreatePhysicalBattle(game, assets, false, true);
         battle.QueueAttack("party-0", "enemy");
@@ -121,7 +121,7 @@ public sealed class NativeActionProductionTests
     [Fact]
     public void Ordinary_attack_does_not_invent_a_clear_for_historical_unknown_E03()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreatePhysicalBattle(game, assets, true, false);
         battle.SetGunbladeMode(BattleGunbladeMode.Automatic);

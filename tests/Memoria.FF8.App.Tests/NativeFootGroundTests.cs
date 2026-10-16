@@ -89,7 +89,7 @@ public sealed class NativeFootGroundTests
 
     private static string GameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         return directory;
     }

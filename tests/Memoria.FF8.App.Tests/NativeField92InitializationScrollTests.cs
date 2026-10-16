@@ -11,7 +11,7 @@ public sealed class NativeField92InitializationScrollTests
     [Fact]
     public void ActualEntryDirectTargetUsesAuthenticatedInitializationWithoutConsumingCurrentWords()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");

@@ -10,7 +10,7 @@ public sealed class NativeDressContinuationTests
     [Fact]
     public void Actual_uniform_choice_reloads_original_same_field_model_and_preserves_pending_save_replay_and_pixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

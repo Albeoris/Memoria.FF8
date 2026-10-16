@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static GameSession CreateNativeJumpSession()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         return CreateDirectedLinearTurnSession(assets.ReadNewGameCharacterVitals(), assets.ReadNewGameEconomy());
     }
 

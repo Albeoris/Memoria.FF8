@@ -9,7 +9,7 @@ public sealed class NativeDisplayOffsetTests
     [Fact]
     public void Reached_chamber_linear_offset_consumes_original_operands_and_restores_VM_and_pixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

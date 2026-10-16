@@ -9,7 +9,7 @@ public sealed class WorldFieldReentryTests
     [Fact]
     public void ActualNaturalFireCavernEntranceRestoresItsNativePacketFootReceiptAndFieldVm()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world/field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string prefix = Path.Combine(repository!.FullName, "../fixtures");

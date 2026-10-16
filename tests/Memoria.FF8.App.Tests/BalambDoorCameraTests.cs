@@ -9,7 +9,7 @@ public sealed class BalambDoorCameraTests
     [Fact]
     public void SuppliedBalambSaveRendersOrdinaryMovementAndRestoresNextInput()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);

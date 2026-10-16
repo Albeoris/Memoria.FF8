@@ -9,7 +9,7 @@ public sealed class InfirmaryNativeMovementTests
     [Fact]
     public void FreshClassroomCancelsAsyncMovementWithoutInventingCompletionAndRestoresModeZero()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -83,7 +83,7 @@ public sealed class InfirmaryNativeMovementTests
     [Fact]
     public void FreshOpeningRetainsOriginalMovementAndReachesCorridor()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();

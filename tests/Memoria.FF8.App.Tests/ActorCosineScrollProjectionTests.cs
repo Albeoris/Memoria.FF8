@@ -11,7 +11,7 @@ public sealed class ActorCosineScrollProjectionTests
     [Fact]
     public void AuthenticSquarePrefixUsesSelectedActorProjectionAndRestoresTheMovingCurve()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic square snapshot and installed original resources are required.");

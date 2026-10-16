@@ -12,7 +12,7 @@ public sealed class BattleTurnBasedPresentationClockTests
     [Fact]
     public void First_Ifrit_turn_does_not_make_idle_animation_wait_for_simulation_time_to_catch_up()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
         BattleEncounter encounter = assets.LoadEncounter(94);

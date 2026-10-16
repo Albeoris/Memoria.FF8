@@ -7,7 +7,7 @@ public sealed class NativeBattleCommandSequenceTests
     [Fact]
     public void Executable_table_retains_the_original_thirty_nine_player_command_sequence_bytes()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
 
         var sequences = assets.ReadNativeBattleCommandSequences();
 

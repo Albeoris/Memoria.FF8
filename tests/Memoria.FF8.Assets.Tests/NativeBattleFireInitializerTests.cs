@@ -7,7 +7,7 @@ public sealed class NativeBattleFireInitializerTests
     [Fact]
     public void InstalledFireInitializerLoadsTheOriginalMagicArchiveResourceWithoutInventedIoTiming()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleEffectBinding fire = assets.ReadNativeEffectCatalog()[1];
         Assert.Equal(0x629880u, fire.Initializer);
         Assert.Equal(0x6298A0u, fire.Entry);

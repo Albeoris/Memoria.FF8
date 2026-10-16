@@ -8,7 +8,7 @@ public sealed class NativeCallbackQueueTests
     [Fact]
     public void InitialAiEffectPrecedesDeferredGuardianExpansionAndRestoresTheRemainingCallback()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(assets);
         NativeBattleRandomState random = battle.Capture().Random!;
@@ -39,7 +39,7 @@ public sealed class NativeCallbackQueueTests
     [Fact]
     public void ReleasedPhysicalSlotSkipsLaterCallbackAndStillExpandsTheFollowingGuardian()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot saved = CreateBattle(assets, additionalEnemy: true).Capture();
         NativeBattleAiDefinition initializer = saved.Definition.Combatants[1].NativeAi! with { Scripts = [[44, 0], [0], [0], [0], [0]] };
@@ -70,7 +70,7 @@ public sealed class NativeCallbackQueueTests
     [Fact]
     public void PeriodicAngeloCallbackReadsTheSavedSharedSelectorAndMaskOnlyWhenDispatched()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot saved = CreateBattle(assets).Capture();
         BattleSession battle = BattleSession.Restore(saved with
@@ -99,7 +99,7 @@ public sealed class NativeCallbackQueueTests
     [Fact]
     public void CallbackRequiresItsScratchOwnersAndCannotAlsoContainAnEffect()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot saved = CreateBattle(assets).Capture();
         BattleAttackCommand callback = saved.NativeCommandBanks!.BoundCommands.Last();

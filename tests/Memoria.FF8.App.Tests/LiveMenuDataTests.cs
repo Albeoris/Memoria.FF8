@@ -33,7 +33,7 @@ public sealed class LiveMenuDataTests
     [Fact]
     public void GuardianForceChoicesProjectOriginalDescriptionsWithoutChangingProgression()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native menu resources are required.");
         using GameAssets assets = new(directory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
@@ -109,7 +109,7 @@ public sealed class LiveMenuDataTests
     [Fact]
     public void LiveProjectionPreservesPhysicalPartyOrderIntervalsAndAuthenticText()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native initialization resources are required.");
         using GameAssets assets = new(directory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals().WithMemberFlags(1, true).AcquireGuardianForce(0);
@@ -178,7 +178,7 @@ public sealed class LiveMenuDataTests
     [Fact]
     public void DemoArtworkIdentitiesMatchOriginalCatalogRatherThanFixtureOrder()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native menu resources are required.");
         using GameAssets assets = new(directory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);

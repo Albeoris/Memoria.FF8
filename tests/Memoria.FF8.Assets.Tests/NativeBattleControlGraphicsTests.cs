@@ -11,7 +11,7 @@ public sealed class NativeBattleControlGraphicsTests
     [InlineData(0, true, 0x50BD80)]
     public void ControlHeadersCompleteTheirActualDescriptorWithoutReplayingGameplayAcrossRestore(byte sequence, bool contact, uint callback)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleCombatantDefinition[] actors =

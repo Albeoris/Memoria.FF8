@@ -14,7 +14,7 @@ public sealed class OriginalIfritBattleMessageTests
     [Fact]
     public void OriginalIfritCounterReachesItsShivaMessageAndTheHudResolvesTheCurrentGfName()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         const int model = 61;
         const int level = 6;
         NativeBattleAiDefinition ai = assets.ReadEnemyAi(model, level);
@@ -59,7 +59,7 @@ public sealed class OriginalIfritBattleMessageTests
         {
             Directory.CreateDirectory(evidence);
             using Bitmap bitmap = new(960, 720, PixelFormat.Format32bppArgb);
-            using (BattlePreviewCanvas canvas = new(bitmap, LaunchOptions.DefaultGameDirectory))
+            using (BattlePreviewCanvas canvas = new(bitmap, TestResources.GameDirectory))
             {
                 BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
                 canvas.DrawRgba(scene.Render(battle, 960, 720), 960, 720, new UiRect(0, 0, 960, 720));

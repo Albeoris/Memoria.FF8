@@ -183,7 +183,7 @@ public sealed class WorldMapSceneTests
 
     private static string GameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world corpus is required for this isolated component fixture.");
         return directory;
     }

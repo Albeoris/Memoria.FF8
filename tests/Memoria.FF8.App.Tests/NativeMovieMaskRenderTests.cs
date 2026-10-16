@@ -243,7 +243,7 @@ public sealed class NativeMovieMaskRenderTests
 
     private static string GameDirectory()
     {
-        return Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        return TestResources.GameDirectory;
     }
 
     private static byte[] MoviePixels()

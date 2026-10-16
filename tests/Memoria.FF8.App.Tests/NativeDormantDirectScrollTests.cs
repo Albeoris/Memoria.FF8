@@ -29,7 +29,7 @@ public sealed class NativeDormantDirectScrollTests
             actor["NativeEyes"] = null;
         }
         ActorState[] actors = migratedActors.Deserialize<ActorState[]>(options)!;
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldAssets field = assets.LoadField(688);
         JsmProgram original = JsmProgram.Read(field.Jsm);
         Assert.Equal("DSCROLL", original.Operations[210].Opcode.ToString());

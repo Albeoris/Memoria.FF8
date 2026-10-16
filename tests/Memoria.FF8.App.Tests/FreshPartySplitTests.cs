@@ -9,7 +9,7 @@ public sealed class FreshPartySplitTests
     [Fact]
     public void GameRecordedNewGamePrefixUsesNativePartySplitGeometryAndRestoresEveryStep()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SPLIT_PREFIX") ?? Path.Combine(FindRepository(), "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         Assert.True(File.Exists(source), "The tracked game-recorded New Game prefix is required.");

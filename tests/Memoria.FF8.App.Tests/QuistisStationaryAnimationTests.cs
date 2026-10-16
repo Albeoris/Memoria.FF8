@@ -9,7 +9,7 @@ public sealed class QuistisStationaryAnimationTests
     [Fact]
     public void CorridorFollowerIdlesWithQuistisMessageStillOpen()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -95,7 +95,7 @@ public sealed class QuistisStationaryAnimationTests
     [Fact]
     public void FinalQuistisMessagePreservesScriptedStationaryAnimation()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();

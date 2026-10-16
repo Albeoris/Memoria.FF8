@@ -13,7 +13,7 @@ public sealed class BattleComponentGuardianBoostTests
     [Fact]
     public void Learned_Boost_holds_component_GF_contact_until_the_real_widget_closes_and_restores_without_repeating_math()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         BattleSession battle = CreateBattle(assets, true);
         StartGuardian(battle);
         NativeBattleGuardianBoost initial = battle.NativeGuardianBoost!;
@@ -93,7 +93,7 @@ public sealed class BattleComponentGuardianBoostTests
         Assert.False(keyboard.GunbladeTriggerRequested);
         keyboard.Read(new KeyboardState(Keys.T), true);
         Assert.False(keyboard.GuardianBoostRequested);
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         BattleSession battle = CreateBattle(assets, true);
         StartGuardian(battle);
         UntilPresentation(battle, () => battle.NativeGuardianBoost?.Phase == 4);
@@ -114,7 +114,7 @@ public sealed class BattleComponentGuardianBoostTests
     [Fact]
     public void A_current_press_on_the_last_allowed_window_callback_is_consumed_before_that_window_closes()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         BattleSession battle = CreateBattle(assets, true);
         StartGuardian(battle);
         UntilPresentation(battle, () => battle.NativeGuardianBoost?.Phase == 4);
@@ -136,7 +136,7 @@ public sealed class BattleComponentGuardianBoostTests
     [Fact]
     public void Unlearned_Boost_keeps_the_declared_component_contact_and_an_unknown_learned_owner_is_not_assumed_false()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         BattleSession battle = CreateBattle(assets, false);
         StartGuardian(battle);
         Assert.Null(battle.NativeGuardianBoost);

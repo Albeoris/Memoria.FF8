@@ -23,7 +23,7 @@ public sealed class GlobalSoundCheckpointTests
     [Fact]
     public void GenuineNewGameFieldSaveLoadsStringEnumProcessOwnersAndReproducesNextCallback()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed New Game field assets are required.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -60,7 +60,7 @@ public sealed class GlobalSoundCheckpointTests
     [Fact]
     public void ReachedAmbientRequestUsesOriginalGlobalDescriptorAndRestoresItsMutedLoopPolicy()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field and global audio corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

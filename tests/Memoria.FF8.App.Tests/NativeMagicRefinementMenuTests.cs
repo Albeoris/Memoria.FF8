@@ -11,7 +11,7 @@ public sealed class NativeMagicRefinementMenuTests
     [Fact]
     public void InstalledRecipeFlowsThroughLiveMenuAndRefreshesBothOwners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original refinement resources are required.");
         using GameAssets assets = new(directory);
         NativeRefinementDefinitions recipes = assets.ReadNativeRefinementDefinitions();

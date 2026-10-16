@@ -10,7 +10,7 @@ internal static partial class Program
 {
     private static void NativeChangePartyContract()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         (EventEngine Engine, GameSession Session) Create(byte[]? restoredCombat = null, int slot = 0)
         {
             GameSession session = GameSession.CreateColdProcess();

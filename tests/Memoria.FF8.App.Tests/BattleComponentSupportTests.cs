@@ -10,7 +10,7 @@ public sealed class BattleComponentSupportTests
     [Fact]
     public void Live_turn_based_component_automatically_refills_after_queued_action_completion_and_restores_at_the_boundary()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         using GameWorld world = new(CreateSession(assets, 0), assets.GameDirectory);
         BattleDefinition seed = ComponentDefinition(world, 512);
         BattleCombatantDefinition party = seed.Combatants.First(actor => actor.IsPlayer) with { Speed = 1_000 };
@@ -59,7 +59,7 @@ public sealed class BattleComponentSupportTests
     [InlineData(8, 10)]
     public void Live_component_entry_uses_saved_guardian_flags_once_and_restores_without_another_draw(byte flags, byte expectedAction)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = CreateSession(assets, flags);
         using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition definition = ComponentDefinition(world, 512);
@@ -92,7 +92,7 @@ public sealed class BattleComponentSupportTests
     [Fact]
     public void Periodic_Angelo_uses_admitted_component_callbacks_and_waiting_or_rendering_cannot_consume_its_cooldown()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = CreateSession(assets, 0, rinoa: true);
         using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition definition = ComponentDefinition(world, 512);

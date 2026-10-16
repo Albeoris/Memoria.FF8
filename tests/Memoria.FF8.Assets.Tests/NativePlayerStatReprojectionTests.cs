@@ -9,7 +9,7 @@ public sealed class NativePlayerStatReprojectionTests
     [Fact]
     public void Status_resistance_reuses_the_original_junction_formula_after_stock_changes()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals original = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = original.Records[0];
@@ -37,7 +37,7 @@ public sealed class NativePlayerStatReprojectionTests
     [Fact]
     public void Current_magic_stock_and_saved_growth_recompute_original_stats_without_incrementing_projected_values()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals original = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = original.Records[0];
@@ -68,7 +68,7 @@ public sealed class NativePlayerStatReprojectionTests
     [Fact]
     public void Immutable_projector_and_attack_inputs_survive_an_independent_round_trip()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = vitals.Records[0];

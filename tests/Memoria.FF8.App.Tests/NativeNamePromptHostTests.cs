@@ -12,7 +12,7 @@ public sealed class NativeNamePromptHostTests
     [Fact]
     public void Actual_native_prompt_uses_shared_editor_and_restores_its_draft_before_game_owned_confirmation()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field resources are required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));

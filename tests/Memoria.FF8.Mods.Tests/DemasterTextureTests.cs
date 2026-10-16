@@ -318,7 +318,7 @@ public sealed class DemasterTextureTests
     public void InstalledClassicRoadsResolveUnmodifiedTimRegionsBeforeDerivedAtlas()
     {
         string? package = Environment.GetEnvironmentVariable("FF8_DEMASTER_PACKAGE");
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(package) && Directory.Exists(game), "Installed Classic source and FF8_DEMASTER_PACKAGE are required.");
         string path = Path.Combine(package!, "textures", "world", "dat", "wmset", "wmset_029_0.png");
         ModFile file = new("Demaster/HorizonPack-Remastered", ModFormat.Demaster, "textures/world/dat/wmset/wmset_029_0.png", 1, () => File.ReadAllBytes(path));

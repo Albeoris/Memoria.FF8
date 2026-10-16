@@ -15,7 +15,7 @@ public sealed class NativeThreePartyMovementBindingTests
     [InlineData(255, 255)]
     public void NativeThreeSlotsAdmitIndependentAbsentFollowersAndPreserveSavedBindings(int second, int third)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(260);
@@ -50,7 +50,7 @@ public sealed class NativeThreePartyMovementBindingTests
     [InlineData(0, 255, 3)]
     public void MissingLeaderAndMalformedPresentFollowersStillRefuse(int first, int second, int third)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(260);
@@ -64,7 +64,7 @@ public sealed class NativeThreePartyMovementBindingTests
     [Fact]
     public void ThreeSlotAdmissionRetainsDynamicLeaderAndCanonicalPartyBounds()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(260);
@@ -86,7 +86,7 @@ public sealed class NativeThreePartyMovementBindingTests
     [Fact]
     public void SparseCanonicalPartyRetainsThirdSlotAndSkipsOnlyTheAbsentFollower()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(260);

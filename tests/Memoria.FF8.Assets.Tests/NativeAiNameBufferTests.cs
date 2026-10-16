@@ -8,7 +8,7 @@ public sealed class NativeAiNameBufferTests
     [Fact]
     public void Ifrit_message_prefix_preserves_the_native_buffer_without_decoding_a_cut_name_control_token()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
 

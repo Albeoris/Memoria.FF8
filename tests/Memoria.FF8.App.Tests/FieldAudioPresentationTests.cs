@@ -128,7 +128,7 @@ public sealed class FieldAudioPresentationTests
 
     private static string InstalledGame()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original audio corpus is required.");
         return directory;
     }
@@ -136,7 +136,7 @@ public sealed class FieldAudioPresentationTests
     private static string Tools()
     {
         var session = new GameSession(new GameState());
-        return new MovieClock(session, LaunchOptions.DefaultGameDirectory).ToolsDirectory;
+        return new MovieClock(session, TestResources.GameDirectory).ToolsDirectory;
     }
 
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[] operations)

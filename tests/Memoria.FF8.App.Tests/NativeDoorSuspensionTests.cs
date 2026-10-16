@@ -9,7 +9,7 @@ public sealed class NativeDoorSuspensionTests
     [Fact]
     public void AuthenticEarthquakeCrossingSuspendsAndResumesMeaningfulDefaultAcrossRestore()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_DOOR_SUSPENSION_SNAPSHOT", 328, 95);

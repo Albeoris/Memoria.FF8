@@ -11,7 +11,7 @@ public sealed class NativeAiInstalledInvocationTests
     [InlineData(61, 2, 6)]
     public void InstalledZeroAbilityRowsSkipDispatchWithoutInventingAnActionOrDrawingRandom(int model, int band, byte slot)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleAiDefinition installed = assets.ReadEnemyAi(model, 7);
         Assert.Equal((ushort)0, installed.Abilities[16 * band + slot].Id);
         NativeBattleAiDefinition program = installed with { LevelBand = band, Scripts = [[12, slot, 0], [0], [0], [0], [0]] };
@@ -29,7 +29,7 @@ public sealed class NativeAiInstalledInvocationTests
     [InlineData(7)]
     public void DirectZeroPreparedIdUsesTheSameNativeGuard(byte opcode)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         byte[] script = opcode == 6 ? [6, 0] : [opcode, 0, 6, 0];
         NativeBattleAiDefinition program = assets.ReadEnemyAi(0, 7) with { Scripts = [script, [0], [0], [0], [0]] };
 
@@ -42,7 +42,7 @@ public sealed class NativeAiInstalledInvocationTests
     [Fact]
     public void RandomZeroAbilityStillConsumesItsOriginalSelectionByteButNoDispatchRandom()
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleAiDefinition program = assets.ReadEnemyAi(0, 7) with { Scripts = [[11, 4, 4, 4, 0], [0], [0], [0], [0]] };
         NativeBattleRandomState expected = NativeBattleRandomState.Initialize(0).Draw(out _);
 
@@ -57,7 +57,7 @@ public sealed class NativeAiInstalledInvocationTests
     [InlineData(2, 330)]
     public void InstalledCommand236PreservesItsWordIdAndOriginalEnemyRecordAcrossRestore(byte slot, ushort id)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleAiDefinition program = assets.ReadEnemyAi(128, 7) with { Scripts = [[4, 200, 12, slot, 0], [0], [0], [0], [0]] };
         BattleSession battle = AdmitInitial(Definition(assets, 128, program));
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);

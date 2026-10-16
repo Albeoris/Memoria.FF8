@@ -12,7 +12,7 @@ public sealed class BattleVictoryAnimationTests
     [InlineData(3)]
     public void Victory_replaces_recent_attack_and_hit_sequences_on_the_first_result_frame(int character)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
         BattleModel model = assets.LoadPlayer(character);

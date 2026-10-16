@@ -36,7 +36,7 @@ internal static partial class Program
         {
             GameSession session = GameSession.CreateColdProcess();
             session.StartNewGame();
-            using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
+            using GameAssets assets = new(TestResources.GameDirectory);
             session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             EventEngine engine = new(session) { CanSetBackgroundScrollRatio = (_, _) => true };
             engine.LoadField(100, allocated, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

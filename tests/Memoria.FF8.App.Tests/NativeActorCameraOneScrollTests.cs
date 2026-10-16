@@ -21,7 +21,7 @@ public sealed class NativeActorCameraOneScrollTests
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(checkpoint.GetProperty("Scene"), options)!;
         ActorState[] actors = JsonSerializer.Deserialize<ActorState[]>(checkpoint.GetProperty("Actors"), options)!;
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldAssets field = assets.LoadField(882);
         Assert.Null(scene.ActorBackgroundScroll);
         Assert.Equal(1, scene.CameraIndex);
@@ -110,7 +110,7 @@ public sealed class NativeActorCameraOneScrollTests
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(checkpoint.GetProperty("Scene"), options)!;
         ActorState[] actors = JsonSerializer.Deserialize<ActorState[]>(checkpoint.GetProperty("Actors"), options)!;
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldAssets field = assets.LoadField(879);
         Assert.Equal(1, scene.CameraIndex);
         Assert.Equal(((short)0, (short)0), ActorBackgroundScrollCertificate.Resolve(field, scene, actors, 4));
@@ -140,7 +140,7 @@ public sealed class NativeActorCameraOneScrollTests
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(checkpoint.GetProperty("Scene"), options)!;
         ActorState[] actors = JsonSerializer.Deserialize<ActorState[]>(checkpoint.GetProperty("Actors"), options)!;
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldAssets field = assets.LoadField(879);
         Assert.Equal(1, scene.CameraIndex);
         Assert.Equal(((short)0, (short)-8), (scene.NormalBackgroundScrollCenter!.X, scene.NormalBackgroundScrollCenter.Y));

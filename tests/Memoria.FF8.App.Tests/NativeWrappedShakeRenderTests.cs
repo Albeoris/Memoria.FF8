@@ -14,7 +14,7 @@ public sealed class NativeWrappedShakeRenderTests
     [Fact]
     public void ActualTrainWrappingKeepsItsWindowThenAddsTheSignedDrawingOriginOnce()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(902);
         Dictionary<int, BackgroundScrollSettings> settings = Enumerable.Range(0, 8).ToDictionary(layer => layer, _ => new BackgroundScrollSettings(0, 0, 256, 256));

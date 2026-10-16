@@ -10,7 +10,7 @@ public sealed class NativeLinkedWeaponPoseTests
     [InlineData(4)]
     public void Installed_linked_resource_retains_its_own_animation_source_and_frame_counts(int character)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         int weaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == character).Id;
         BattleModel body = assets.LoadPlayer(character);
         BattleModel weapon = assets.ResolveWeaponModel(character, weaponId, body)!;

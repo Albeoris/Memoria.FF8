@@ -40,7 +40,7 @@ public sealed class SceneCollectionCheckpointTests
     [Fact]
     public void MemberAndGuardianForceViewsComeFromRequiredSavedRowsWithoutSceneDuplicates()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native initialization resources are required.");
         using GameAssets assets = new(directory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithMemberFlags(1, true).WithMemberFlags(5, true).AcquireGuardianForce(1).AcquireGuardianForce(7);

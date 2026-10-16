@@ -10,7 +10,7 @@ public sealed class NativeDepartingModelPartsTests
     [Fact]
     public void AuthenticWorldEntryRetainsItsLastExecutedFieldSkinSampleAndRestoresTheNextWorldDraw()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original world and field corpus is required.");
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");

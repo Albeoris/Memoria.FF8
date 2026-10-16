@@ -49,7 +49,7 @@ public sealed class NativeWorldStaticRotationTests
     [Fact]
     public void OriginalStory345AllocationMapsTheCompletePackedCoordinateAngles()
     {
-        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(345, 0);
         Assert.Equal(4, allocation.ClauseIndex);
         Assert.Equal(13, allocation.Objects.Length);
@@ -71,20 +71,20 @@ public sealed class NativeWorldStaticRotationTests
         // This is an explicit component allocation, not a fabricated player journey.
         GameSession initialized = GameSession.CreateColdProcess();
         initialized.StartNewGame();
-        using (GameAssets assets = new(LaunchOptions.DefaultGameDirectory))
+        using (GameAssets assets = new(TestResources.GameDirectory))
         {
             initialized.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
             initialized.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         }
         WorldTransition packet = new(6, 0, -1);
         GameSession session = new(initialized.State with { Scene = SceneKind.WorldMap, FieldId = 713, WorldArrival = packet, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(packet, 713), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 345 }) });
-        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene world = new(session, TestResources.GameDirectory);
         Assert.Equal(13, world.State.NativeFootRuntime!.NormalObjects!.Allocation.Objects.Length);
         byte[] pixels = world.Render(320, 224).ToArray();
         Assert.Equal(320 * 224 * 4, pixels.Length);
         GameState independentState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession independentSession = new(independentState);
-        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene independent = new(independentSession, TestResources.GameDirectory);
         Assert.Equal(pixels, independent.Render(320, 224));
         PlayerAction wait = new(PlayerActionKind.Wait);
         Assert.Equal(world.Apply(wait), independent.Apply(wait));

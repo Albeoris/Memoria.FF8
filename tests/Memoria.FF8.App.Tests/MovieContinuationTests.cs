@@ -11,7 +11,7 @@ public sealed class MovieContinuationTests
     [Fact]
     public void Actual_classroom_fault_retry_preserves_declared_control_bone_face_wait()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         string source = Path.Combine(FindRepository(), "../fixtures/external-fixture.json");
         Assert.True(File.Exists(source), "The independently reached pre-dispatch face checkpoint is required.");
@@ -46,7 +46,7 @@ public sealed class MovieContinuationTests
     [Fact]
     public async Task Actual_corridor_movie_clock_restore_and_terminal_skip_preserve_coordinate_arrival()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         string repository = FindRepository();
         var session = GameSession.CreateColdProcess();

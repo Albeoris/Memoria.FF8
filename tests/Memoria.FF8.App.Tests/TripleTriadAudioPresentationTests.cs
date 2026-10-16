@@ -28,7 +28,7 @@ public sealed class TripleTriadAudioPresentationTests
     [Fact]
     public void InstalledNativeCardMusicAndEffectPcmReachSilentWindowsDevices()
     {
-        string directory = LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         var catalog = new NativeMusicCatalog(directory);
         Assert.Equal("070s-card.sgt", Path.GetFileName(catalog.MusicFile(FieldAudioPresentation.TripleTriadMusicTrack, -1)));
         Assert.Equal("001s-Win.sgt", Path.GetFileName(catalog.MusicFile(FieldAudioPresentation.TripleTriadVictoryTrack, -1)));

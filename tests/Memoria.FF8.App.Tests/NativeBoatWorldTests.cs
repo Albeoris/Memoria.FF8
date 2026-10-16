@@ -10,7 +10,7 @@ public sealed class NativeBoatWorldTests
     [Fact]
     public void PreparedBoatDefersAllocationDrawThenReplaysActualCallbacksAndRejectsAlteredProjectionWords()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world corpus is required.");
         // Isolated component fixture; no live boarding, session history or field VM is fabricated.
         NativeSavedWorldState initial = NativeSavedWorldState.CreateNewGame();

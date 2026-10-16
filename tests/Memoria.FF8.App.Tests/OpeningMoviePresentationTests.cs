@@ -13,7 +13,7 @@ public sealed class OpeningMoviePresentationTests
     [Fact]
     public async Task NewGameHostPresentsVisibleOpeningMovieOnTheBackBuffer()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
         string root = Path.Combine(Path.GetTempPath(), "memoria-opening-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "requests"));
@@ -86,7 +86,7 @@ public sealed class OpeningMoviePresentationTests
     [Fact]
     public void FreshOpeningDisplaysDecodedMovieDespiteRetainedBlackFieldFade()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original opening movie and field corpus is required.");
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();

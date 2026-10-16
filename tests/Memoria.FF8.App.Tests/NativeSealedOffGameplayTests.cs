@@ -9,7 +9,7 @@ public sealed class NativeSealedOffGameplayTests
     [Fact]
     public void OriginalSphinxRewardChoiceReleasesDrawAndRestoresBothAliases()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original resources are required.");
         DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");

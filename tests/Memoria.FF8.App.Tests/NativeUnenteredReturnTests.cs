@@ -37,7 +37,7 @@ public sealed class NativeUnenteredReturnTests
     [Fact]
     public void Original948Ret5ConsumesStalePhysicalWordAndEntersQueuedLowerLbl()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameState initial = GameSession.Load(source);
         JsonNode explicitMigration = JsonNode.Parse(initial.EventState!.Value.GetRawText())!;

@@ -9,7 +9,7 @@ public sealed class RareCardMarkerIntegrationTests
     [Fact]
     public void NativeMartineOfferRendersBothFacesWithoutMutationAndResumesFromStandaloneSave()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string source = FixturePath();
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Installed resources and the standalone Martine diagnostic are required.");
         var session = new GameSession(GameSession.Load(source));
@@ -51,7 +51,7 @@ public sealed class RareCardMarkerIntegrationTests
     [Fact]
     public void NativeLocationTransferToPlayerRemovesMartineOfferAndItsRenderedMarker()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string source = FixturePath();
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Installed resources and the standalone Martine diagnostic are required.");
         var session = new GameSession(GameSession.Load(source));

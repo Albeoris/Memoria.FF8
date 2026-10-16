@@ -141,7 +141,7 @@ public sealed class FieldPresentationReadinessTests
 
     private static string GameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field/shake corpus is required.");
         return directory;
     }

@@ -2,8 +2,8 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record LaunchOptions
 {
-    public static string DefaultGameDirectory => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? string.Empty;
-    public string GameDirectory { get; init; } = DefaultGameDirectory;
+    public static string ConfiguredGameDirectory => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? string.Empty;
+    public string GameDirectory { get; init; } = ConfiguredGameDirectory;
     public string? StatePath { get; init; }
     public string SavePath { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Memoria.FF8", "checkpoint.json");
     public string? MediaToolsDirectory { get; init; }

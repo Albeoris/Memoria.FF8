@@ -15,7 +15,7 @@ public sealed class SameFieldWorldReturnTests
     [InlineData(true)]
     public void Cavern_exit_and_immediate_world_return_allocate_a_fresh_field_and_recreate_the_visit(bool afterIfrit)
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original field and world corpus is required.");
         string repository = Repository();
         GameState source = GameSession.Load(Path.Combine(repository, "../fixtures/external-fixture.json"));

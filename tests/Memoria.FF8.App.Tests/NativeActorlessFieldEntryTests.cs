@@ -14,7 +14,7 @@ public sealed class NativeActorlessFieldEntryTests
     [InlineData(581, 1, 557)]
     public void OriginalPaintingFieldCompletesUnboundNativeLoadShowsTitleAndReturnsWithIndependentRestoration(int field, int painting, int destination)
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original resources are required.");
         DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");

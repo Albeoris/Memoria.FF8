@@ -10,7 +10,7 @@ public sealed class NativeQuistisGlassesTests
     [Fact]
     public void OriginalQuistisPreservesTheEightTransparentGlassesFaces()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldModel quistis = assets.LoadField(180).Models[4];
         Assert.Equal("d021pxx", quistis.Name);
         Assert.Equal(Enumerable.Range(734, 8), quistis.Faces.Select((face, index) => (face, index)).Where(item => item.face.SemiTransparent).Select(item => item.index));
@@ -24,7 +24,7 @@ public sealed class NativeQuistisGlassesTests
     [Fact]
     public void OriginalGlassesRevealTheFaceAndAddHighlightsWithoutDarkeningIt()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldModel quistis = assets.LoadField(180).Models[4];
         // A declared portrait camera isolates the actual model's glasses from field placement and VM state.
         FieldAssets field = new(180, "quistis-glasses-component", [], [], [], new FieldCamera(-Vector3.UnitY, -Vector3.UnitZ, Vector3.UnitX, new Vector3(0, 305, 256), Vector2.Zero, 1600), new FieldWalkmesh([]), [quistis]);

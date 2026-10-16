@@ -23,7 +23,7 @@ public sealed class WorldMusicTests
     [InlineData(26, null, 26)]
     public void NativePreloadedSelectionStopAndKeepPreserveSavedVolumeAndRejectMalformedAuthority(int selected, NativeWorldMusicOperation? expected, int actualMusic)
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
@@ -88,7 +88,7 @@ public sealed class WorldMusicTests
     [Fact]
     public void AuthenticGardenDepartureChangesNativeMusicAndDeviceOutputAndRecreates()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
         string repository = Repository();
         var session = GameSession.CreateColdProcess();

@@ -54,7 +54,7 @@ public sealed class BattleScenePresentationTests
     [Fact]
     public void Installed_scene_uses_its_native_introduction_subject_angle_and_lens_without_actor_bounds_fitting()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
         BattleDefinition single = ReadyBattle().Capture().Definition;
@@ -72,7 +72,7 @@ public sealed class BattleScenePresentationTests
     [Fact]
     public void Inactive_information_only_reserve_waits_for_activation_before_graphics_are_required()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
         BattleDefinition original = ReadyBattle().Capture().Definition;
@@ -125,7 +125,7 @@ public sealed class BattleScenePresentationTests
     [Fact]
     public void Installed_scene_draws_hit_and_HP_value_through_the_shared_live_preview_canvas()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         BattleSession session = ReadyBattle();
         session.QueueAttack("party", "enemy");

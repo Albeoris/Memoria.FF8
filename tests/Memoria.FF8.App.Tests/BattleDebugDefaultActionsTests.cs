@@ -9,7 +9,7 @@ public sealed class BattleDebugDefaultActionsTests
     [Fact]
     public void DefaultEditorCopiesProjectedActionsAndOwnedStocksThroughPresetRoundTrip()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         using BattleAssets resources = new(assets.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         BattleActionDefinition[] actions = BattlePartyProjection.CreateActions(vitals, resources.ActionDefinitions);

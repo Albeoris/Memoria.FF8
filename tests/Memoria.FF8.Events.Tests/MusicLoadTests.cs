@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static GameSession CreateNativeMusicSession()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

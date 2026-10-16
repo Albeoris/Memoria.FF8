@@ -9,7 +9,7 @@ public sealed class BackgroundScrollCertificateTests
     [Fact]
     public void FirstFloorParallaxUsesSharedMetadataInsteadOfFieldIdentityOrOneSetting()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using var assets = new GameAssets(directory);
         FieldAssets field = assets.LoadField(172);

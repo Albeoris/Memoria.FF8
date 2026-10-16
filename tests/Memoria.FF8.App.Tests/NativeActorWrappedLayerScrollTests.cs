@@ -13,7 +13,7 @@ public sealed class NativeActorWrappedLayerScrollTests
     [Fact]
     public void ExactRetainedActorProjectionSurvivesConcurrentWrappedLinearLayer()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(931);
         NativeFieldInitializationProof proof = new(1, NativeFieldRuntimeProfile.FF8EnExecutableHash, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm)), 20, NativeFieldInitializationStage.Completed);

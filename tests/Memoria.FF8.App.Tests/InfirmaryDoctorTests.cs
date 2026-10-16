@@ -10,7 +10,7 @@ public sealed class InfirmaryDoctorTests
     [Fact]
     public void EarlyDoctorConversationRendersAndRecreatesFromOrdinaryInputs()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);

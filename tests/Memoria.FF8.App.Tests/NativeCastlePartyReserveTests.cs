@@ -14,7 +14,7 @@ public sealed class NativeCastlePartyReserveTests
         Assert.SkipUnless(source is not null && File.Exists(source), "The preserved original575 party-menu standalone is required.");
         GameState original = GameSession.Load(source!);
         GameSession session = new(original);
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         using GameWorld world = new(session, gameDirectory);
         world.EnsureField();
         Assert.Equal((575, 7, 110, 975), (world.Events.FieldId, world.Events.PartyMenu!.ObjectId, world.Events.PartyMenu.ScriptId, world.Events.PartyMenu.Operation));

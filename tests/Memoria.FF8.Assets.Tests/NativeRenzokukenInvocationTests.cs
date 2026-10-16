@@ -9,7 +9,7 @@ public sealed class NativeRenzokukenInvocationTests
     [Fact]
     public void Unknown_retained_finisher_byte_is_preserved_through_intermediate_contacts_and_required_at_the_last()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets);
         battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
@@ -38,7 +38,7 @@ public sealed class NativeRenzokukenInvocationTests
     [InlineData(3)]
     public void FinisherCallbackAppendsAppliedFactsBeforeTheFirstTriggerAndDoesNotReplayAtTheEnd(int finisher)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, enemyHp: 1000000, crisis: 4, finisher: true, chosenFinisher: (byte)finisher);
         battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
@@ -73,7 +73,7 @@ public sealed class NativeRenzokukenInvocationTests
     [Fact]
     public void Contacts_restore_the_deferred_reaction_and_finish_poison_and_counter_only_once()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, poison: true, counter: true);
         battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
@@ -115,7 +115,7 @@ public sealed class NativeRenzokukenInvocationTests
     [Fact]
     public void Queued_Renzokuken_waits_for_the_preceding_action_and_retains_its_typed_invocation_on_restore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, precedingActor: true);
         battle.QueueAttack("ally", "enemy");
@@ -142,7 +142,7 @@ public sealed class NativeRenzokukenInvocationTests
     [Fact]
     public void Defeated_original_target_is_retained_and_victory_waits_for_the_whole_process()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession single = Create(game, assets, enemyHp: 1);
         single.QueueNativePlayerCommand("squall", "enemy", 5, 0);
@@ -167,7 +167,7 @@ public sealed class NativeRenzokukenInvocationTests
     [Fact]
     public void Host_gunblade_assistance_does_not_replace_Renzokuken_contact_input()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession manual = Create(game, assets);
         BattleSession assisted = Create(game, assets);
@@ -193,7 +193,7 @@ public sealed class NativeRenzokukenInvocationTests
     [Fact]
     public void Original_auto_option_uses_its_owned_UI_random_and_finisher_stays_inside_the_same_command()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, options: 1, crisis: 4, finisher: true, poison: true);
         NativeBattleUiRandomState before = battle.Capture().NativeBattleUiRandom!;

@@ -8,7 +8,7 @@ public sealed class OpeningDialoguePagingTests
     [Fact]
     public void Opening_doctor_message_keeps_its_advanced_page_until_native_confirmation()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();

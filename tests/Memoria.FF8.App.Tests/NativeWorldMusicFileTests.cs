@@ -17,7 +17,7 @@ public sealed class NativeWorldMusicFileTests
     [InlineData(5, 89)]
     public void OriginalExecutableTableAndArchiveSupplyCompletedAkaoPayload(int index, byte music)
     {
-        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldMusicResource resource = assets.ReadMusicFileResource(index);
         resource.Validate();
         Assert.Equal(music, resource.MusicId);
@@ -32,7 +32,7 @@ public sealed class NativeWorldMusicFileTests
     public void Actual827RagnarokDepartureCompletesOriginalLoaderAndColdRestores()
     {
         GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         NativeMusicProcessState before = world.Events.Scene.MusicProcess!;
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
@@ -65,7 +65,7 @@ public sealed class NativeWorldMusicFileTests
             Assert.True(JsonElement.DeepEquals(receipt, world.Events.Capture()));
         }
         GameSession restoredSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
-        using GameWorld restored = new(restoredSession, LaunchOptions.DefaultGameDirectory);
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
@@ -80,8 +80,8 @@ public sealed class NativeWorldMusicFileTests
         string source = RootFile("../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
         GameSession restoredSession = new(GameSession.Load(source));
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
-        using GameWorld restored = new(restoredSession, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
         world.EnsureField();
         restored.EnsureField();
         NativeWorldMusicLoad load = Assert.IsType<NativeWorldMusicLoad>(world.Events.Scene.WorldMusicLoad);

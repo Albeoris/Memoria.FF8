@@ -11,7 +11,7 @@ public sealed class TowerParallaxContinuationTests
     [Fact]
     public void OriginalTowerCameraMetadataUsesItsActualSharedPanAndSelectedNormalCenter()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed tower resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(325);
@@ -32,7 +32,7 @@ public sealed class TowerParallaxContinuationTests
     [Fact]
     public void AuthenticTowerPrefixUsesPanSplitAndRestoresTheReachedParallaxPixelsAndCallbacks()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower snapshot and installed resources are required.");

@@ -80,7 +80,7 @@ public sealed class NativeGfJunctionRemovalTests
 
     private static GameAssets InstalledAssets()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original GF/kernel resources are required.");
         return new GameAssets(directory);
     }

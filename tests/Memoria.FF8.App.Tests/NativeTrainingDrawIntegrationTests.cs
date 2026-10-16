@@ -9,7 +9,7 @@ public sealed class NativeTrainingDrawIntegrationTests
     [Fact]
     public void ActualTwoGratLiveComponentPublishesDrawAfterTheWholeAnimationAndRestoresWithoutRepeatingStock()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         FieldAssets field = assets.LoadField(215);
         Assert.Equal("bgmon_2", field.Name);
         Assert.Contains((ushort)59, field.RandomEncounters!.Formations);

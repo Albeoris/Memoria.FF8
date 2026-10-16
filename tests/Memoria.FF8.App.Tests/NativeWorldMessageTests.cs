@@ -10,7 +10,7 @@ public sealed class NativeWorldMessageTests
     [Fact]
     public void ActualTutorialRestoresAndClosesOnlyThroughAuthoredConfirmCommands()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "The installed original world resources are required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
@@ -39,7 +39,7 @@ public sealed class NativeWorldMessageTests
     [Fact]
     public void OriginalRagnarokMessageUsesItsPhysicalWindowAndRetainsUnknownTextReadiness()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "The installed original world resources are required.");
         using WorldAssets assets = new(directory);
         NativeWorldMessage message = assets.ReadNativeWorldMessage(9, 52);

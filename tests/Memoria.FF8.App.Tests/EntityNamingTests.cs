@@ -13,9 +13,9 @@ public sealed class EntityNamingTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         int itemId = Enumerable.Range(1, 197).Single(id => catalog.FieldItem(id)?.SupportsInventoryUse == true);
         NativeFieldItem ring = catalog.FieldItem(itemId)!;
@@ -50,7 +50,7 @@ public sealed class EntityNamingTests
     [InlineData("debug:67", 2)]
     public void Saved_required_names_reject_unowned_or_malformed_sources(string source, int subject)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         GameState before = session.State with { CharacterVitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0) };
@@ -63,7 +63,7 @@ public sealed class EntityNamingTests
     [InlineData(13, 0, GameNames.BokoSubject)]
     public void Installed_naming_items_consume_before_editor_and_preserve_saved_pending_draft(byte type, int target, int subject)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         int itemId = Enumerable.Range(1, 197).Single(id => catalog.FieldItem(id)?.Type == type);
         NativeFieldItem item = catalog.FieldItem(itemId)!;
@@ -92,7 +92,7 @@ public sealed class EntityNamingTests
     [Fact]
     public void Naming_item_refuses_unacquired_gf_or_wrong_target_without_inventory_change()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         int itemId = Enumerable.Range(1, 197).Single(id => catalog.FieldItem(id)?.Type == 11);
@@ -109,7 +109,7 @@ public sealed class EntityNamingTests
     {
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         session.EnqueueEntityNames([new PendingEntityName(2, "Angelo", "item:66"), new PendingEntityName(GameNames.BokoSubject, "Boko", "item:67")]);
         long frame = world.Events.Frame;
@@ -121,7 +121,7 @@ public sealed class EntityNamingTests
         Assert.Equal(frame, world.Events.Frame);
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession restored = new(saved);
-        using GameWorld loaded = new(restored, LaunchOptions.DefaultGameDirectory);
+        using GameWorld loaded = new(restored, TestResources.GameDirectory);
         loaded.EnsureField();
         loaded.CompleteEntityName("{Color Red}");
         Assert.Null(loaded.PendingEntityName);

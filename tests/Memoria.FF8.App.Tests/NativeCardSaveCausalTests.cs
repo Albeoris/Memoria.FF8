@@ -15,7 +15,7 @@ public sealed class NativeCardSaveCausalTests
     [InlineData(165)]
     public void Ordinary_original_card_and_save_point_scripts_complete_and_continue_from_saved_snapshots(int fieldId)
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original game corpus is required.");
         string repository = Repository();
         var session = new GameSession(SnapshotFixtures.Require($"MEMORIA_FF8_CARD_SAVE_{fieldId}_SNAPSHOT", fieldId));

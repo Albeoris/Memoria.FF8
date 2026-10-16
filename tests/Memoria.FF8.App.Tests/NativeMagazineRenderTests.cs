@@ -265,7 +265,7 @@ public sealed class NativeMagazineRenderTests
     }
     private static GameAssets Assets()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original magazine resources are required.");
         return new GameAssets(directory);
     }

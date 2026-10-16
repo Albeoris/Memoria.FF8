@@ -9,7 +9,7 @@ public sealed class BattleSlotsLearningOutcomeTests
     [Fact]
     public void Shot_learning_preserves_its_canonical_metadata_and_commits_with_the_encounter_receipt()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeShotAvailabilityState original = assets.ReadNewGameShotAvailability() with { Flags770 = 0x40 };
@@ -27,7 +27,7 @@ public sealed class BattleSlotsLearningOutcomeTests
     [Fact]
     public void Slots_learning_copies_back_once_and_rejects_a_stale_canonical_before_byte_atomically()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeLimitProgress original = assets.ReadNewGameLimitProgress() with { SpecialMagicFlags = 0x80 };

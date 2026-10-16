@@ -10,7 +10,7 @@ public sealed class CheckpointTests
     [Fact]
     public void Opening_movie_checkpoint_preserves_native_script_continuation_and_movie_seek_time()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         string checkpoint = Path.Combine(Path.GetTempPath(), "Memoria.FF8-movie-" + Guid.NewGuid().ToString("N") + ".json");
         try

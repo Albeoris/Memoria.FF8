@@ -7,7 +7,7 @@ public sealed class MovieSourceDiscTests
     [Fact]
     public void Prepared_resources_keep_their_disc_across_probe_cam_cache_and_source_hash_validation()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original movie corpus is required.");
         //Declared resource component: explicit native loader requests, no fabricated gameplay history.
         GameSession session = GameSession.CreateColdProcess();

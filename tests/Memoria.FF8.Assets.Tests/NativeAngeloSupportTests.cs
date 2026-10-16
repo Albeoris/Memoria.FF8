@@ -11,7 +11,7 @@ public sealed class NativeAngeloSupportTests
     [InlineData(3, BattleNativePlayerReaction.AngeloRecover, 12, 1)]
     public void DamageCallbackUsesLearnedPriorityAndTheOriginalAttackerOrSelfMask(byte learned, BattleNativePlayerReaction reaction, int id, ushort mask)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, learned, false);
         AdvanceUntilSupport(battle);
@@ -28,7 +28,7 @@ public sealed class NativeAngeloSupportTests
     [Fact]
     public void LethalReverseRetainsItsKoActorAndPreventsOutcomeUntilTheRevivalPacketCompletes()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 4, true);
         AdvanceUntilSupport(battle);
@@ -51,7 +51,7 @@ public sealed class NativeAngeloSupportTests
     [Fact]
     public void SavedAngeloProhibitionDoesNotConsumeAnInvocationRoll()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 3, false, 0x10);
         NativeBattleRandomState random = battle.Capture().Random!;

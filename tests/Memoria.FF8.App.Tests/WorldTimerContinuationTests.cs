@@ -10,7 +10,7 @@ public sealed class WorldTimerContinuationTests
     [Fact]
     public void Actual_after_Ifrit_world_timer_recreates_loads_and_continues_without_restarting_the_frozen_field_clock()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field/world corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string sourcePath = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

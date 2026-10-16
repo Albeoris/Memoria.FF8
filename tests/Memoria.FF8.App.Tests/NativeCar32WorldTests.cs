@@ -10,7 +10,7 @@ public sealed class NativeCar32WorldTests
     [Fact]
     public void OriginalType32UsesItsOwnModelFuelAndPersistentProcessOwners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original car/world resources are required.");
         using GameAssets assets = new(directory);
         GameSession session = GameSession.CreateColdProcess();

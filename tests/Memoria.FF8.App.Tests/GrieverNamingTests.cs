@@ -128,7 +128,7 @@ public sealed class GrieverNamingTests
 
     private static string GameDirectory()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field resources are required.");
         return game;
     }

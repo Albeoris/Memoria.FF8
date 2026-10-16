@@ -171,7 +171,7 @@ public sealed class BattleAudioPresentationTests
 
     private static string InstalledGame()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original audio corpus is required.");
         return directory;
     }

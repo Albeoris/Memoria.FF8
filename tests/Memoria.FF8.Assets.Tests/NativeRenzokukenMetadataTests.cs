@@ -9,7 +9,7 @@ public sealed class NativeRenzokukenMetadataTests
     [Fact]
     public void Embedded_Renzokuken_body_and_linked_weapon_reuse_geometry_and_decode_their_own_animation_sections()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleModel body = assets.LoadPlayer(0);
         BattleModel weapon = assets.ResolveWeaponModel(0, game.ReadNewGameCharacterVitals().Records[0].Weapon, body) ?? throw new InvalidDataException("Installed Squall weapon has no linked model.");
@@ -43,7 +43,7 @@ public sealed class NativeRenzokukenMetadataTests
     [Fact]
     public void Native_effect_services_replace_the_actor_resource_and_supply_four_through_eight_contacts()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
 
         var resources = game.ReadNativeRenzokukenResources();
 
@@ -65,7 +65,7 @@ public sealed class NativeRenzokukenMetadataTests
     [Fact]
     public void Installed_target_selectors_and_Squall_entry_program_are_available_without_guessing_hit_count()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleModel body = assets.LoadPlayer(0);
         int weapon = game.ReadNewGameCharacterVitals().Records[0].Weapon;

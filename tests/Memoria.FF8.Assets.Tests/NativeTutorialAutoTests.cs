@@ -78,7 +78,7 @@ public sealed class NativeTutorialAutoTests
 
     private static GameAssets InstalledAssets()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "Data", "lang-en", "menu.fs")), "Installed original tutorial resources are required.");
         return new GameAssets(directory);
     }

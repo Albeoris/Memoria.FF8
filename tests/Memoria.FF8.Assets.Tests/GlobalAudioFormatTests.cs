@@ -64,7 +64,7 @@ public sealed class GlobalAudioFormatTests
     [Fact]
     public void SelectedOriginalSample69MatchesDirectEffectLoopMetadata()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "Data", "Sound", "audio.fmt")), "Installed selected global audio corpus is required.");
         GlobalAudioSampleDescriptor sample = GlobalAudioFormat.Read(directory, 69);
         Assert.Equal(69, sample.SampleIndex);

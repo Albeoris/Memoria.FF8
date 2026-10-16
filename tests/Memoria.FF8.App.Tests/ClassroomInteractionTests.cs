@@ -9,7 +9,7 @@ public sealed class ClassroomInteractionTests
     [Fact]
     public void PersonalDeskUsesNativeRetainedLineActionAndNaturallyEntersTerminalField()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         GameState classroom = RecreateClassroom(directory);
         var session = new GameSession(classroom with { EventMemory = classroom.EventMemory});
@@ -58,7 +58,7 @@ public sealed class ClassroomInteractionTests
     [Fact]
     public void OrdinaryClassroomPushAndScriptControlHandoffPreserveNativeContinuation()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         GameState classroom = RecreateClassroom(directory);
         var session = new GameSession(classroom with { EventMemory = classroom.EventMemory});

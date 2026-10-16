@@ -10,7 +10,7 @@ public sealed class NativeBattleBoneParticleTests
     [Fact]
     public void PublicEntryB1UsesTheSharedPoolAndRestoresItsLiveProgramBeforeTheParticleThreshold()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(94);
         BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0 }, new() { Id = "enemy", Name = "Ifrit", ModelId = 61, SceneSlot = 0, Speed = 1 }];
@@ -46,7 +46,7 @@ public sealed class NativeBattleBoneParticleTests
     [Fact]
     public void OriginalB1ResourceThreeUsesPlacementThreeAndClearsHeightBeforeItsActualSpriteCallback()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleModuleResource resource = game.ReadNativeBattleModuleResources().Single(resource => resource.Id == 3);
         Assert.Equal(0x570CC0u, resource.WrapperCallback);
         Assert.Equal(0x570BC0u, resource.Callback);

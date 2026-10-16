@@ -11,7 +11,7 @@ public sealed class NativeLinearWrappingTests
     [Fact]
     public void ActualFreshIfritStartsBothOriginalLinearLayersAndRestoresIndependentVmAndPixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

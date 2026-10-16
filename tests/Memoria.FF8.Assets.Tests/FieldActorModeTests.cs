@@ -8,7 +8,7 @@ public sealed class FieldActorModeTests
     [Fact]
     public void ActualCorridorAdditionalGroupSuppressionPreservesTheOtherFourHundredFaces()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(139);

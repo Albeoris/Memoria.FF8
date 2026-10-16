@@ -13,7 +13,7 @@ public sealed class TripleTriadHostIntegrationTests
     [Fact]
     public void OriginalMartineChallengeRestoresAndCompletesTheNativeHost()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Original diagnostic standalone and installed resources are required.");
         string output = OutputDirectory();
@@ -126,7 +126,7 @@ public sealed class TripleTriadHostIntegrationTests
     [Fact]
     public void UnmigratedDiagnosticRefusesUnknownPhysicalReturnMemory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Original diagnostic standalone and installed resources are required.");
         using GameWorld world = new(new GameSession(GameSession.Load(source)), directory);

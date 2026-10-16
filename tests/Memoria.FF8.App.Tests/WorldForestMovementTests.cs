@@ -121,7 +121,7 @@ public sealed class WorldForestMovementTests
         return session;
     }
 
-    private static string GameDirectory() => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+    private static string GameDirectory() => TestResources.GameDirectory;
 
     private static string Repository()
     {

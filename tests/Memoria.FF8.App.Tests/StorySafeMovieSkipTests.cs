@@ -14,7 +14,7 @@ public sealed class StorySafeMovieSkipTests
     [InlineData(143, false)]
     public void CorridorSkipExecutesIntermediateScriptEventsAndRecreatesWithoutDecoder(int skipFrame, bool userPrefix)
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original movie and field corpus is required.");
         GameSession session;
         if (userPrefix)

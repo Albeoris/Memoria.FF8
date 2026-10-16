@@ -87,7 +87,7 @@ public sealed class JunctionResourceHostTests : IDisposable
     [Fact]
     public void InstalledCinemaArchivePublishesMovieAndCameraReplacementsWithoutReadingMoviesIntoMemory()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         string archive = Environment.GetEnvironmentVariable("MEMORIA_FF8_JUNCTION_CINEMA_ARCHIVE") ?? Path.Combine(game, "Mods/Junction/cinema-rf.iroj");
         Assert.SkipUnless(File.Exists(archive), "The installed cinema-rf Junction archive is required.");
         JunctionModPackage package = JunctionModImporter.Open(archive);

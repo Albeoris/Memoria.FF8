@@ -12,7 +12,7 @@ public sealed class NativeSelectedDirectScrollTests
     [Fact]
     public void ActualPrisonSelectedCameraAdmitsDirectRecordWithoutInventingCurrentWords()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_DIRECT_SOURCE");
         Assert.SkipUnless(Directory.Exists(directory) && source is not null && File.Exists(source), "Select the genuine field809 DSCROLL2 failed diagnostic.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source!));

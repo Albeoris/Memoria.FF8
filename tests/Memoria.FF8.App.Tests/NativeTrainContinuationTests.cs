@@ -9,7 +9,7 @@ public sealed class NativeTrainContinuationTests
     [Fact]
     public void Station_snapshot_boards_the_five_node_train_and_recreates_its_actual_field_endpoint()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original train and field corpus is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameState state = GameSession.Load(source);

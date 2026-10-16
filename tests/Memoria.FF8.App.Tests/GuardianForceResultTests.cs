@@ -9,7 +9,7 @@ public sealed class GuardianForceResultTests
     [Fact]
     public void ObservedGfHpChangeIsPureDuringPreviewAndCommittedOnlyAgainstItsOriginalOwner()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).RebuildParty().Rest();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         ushort before = vitals.GuardianForces[0].HitPoints;

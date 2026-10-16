@@ -12,7 +12,7 @@ public sealed class NativePendingDirectScrollTests
     public void AuthenticTrainInteriorIssuesTwoDirectRowsBeforePostVmAndRestoresTheirNextCallback()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_PENDING_DIRECT_SOURCE");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(source is not null && File.Exists(source) && Directory.Exists(directory), "Select the genuinely recreated pre-DSCROLL field265/frame2 save.");
         GameState initial = GameSession.Load(source!);
         Assert.Equal(265, initial.FieldId);

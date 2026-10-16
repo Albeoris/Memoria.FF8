@@ -11,7 +11,7 @@ public sealed class CavernNativePartyMoveJoinTests
     [Fact]
     public void ActualCompletedMoveThenBodyTurnRestoresRawCoordinatesAndIndependentContinuation()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
@@ -44,7 +44,7 @@ public sealed class CavernNativePartyMoveJoinTests
     [Fact]
     public void HistoricalWrongSpeedFractionalCompanionIsNotUpgradedOnRestore()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
@@ -76,7 +76,7 @@ public sealed class CavernNativePartyMoveJoinTests
     [Fact]
     public void FreshOriginalGuardActionsFinishNativeCompanionMoveBeforeNativeJoinAndRestoreIndependently()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string evidence = Path.Combine(repository!.FullName, "../fixtures");

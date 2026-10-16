@@ -11,7 +11,7 @@ public sealed class NativeBlockedMovementTests
     [Fact]
     public void NaturalWorldReturnRecordsLoaderRetryClearAndAcceptsOriginalThirdProposal()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world/field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
@@ -62,7 +62,7 @@ public sealed class NativeBlockedMovementTests
     [Fact]
     public void ActualFireCavernUnknownRetryStateRefusesAtomicallyAndOrdinarySidestepRestores()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

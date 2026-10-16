@@ -12,7 +12,7 @@ public sealed class NativeSavedBattleFlagBit4Tests
     [Fact]
     public void OriginalRaw358DispatchAndBit4HelpersMatchTheAuthenticatedExecutable()
     {
-        byte[] executable = File.ReadAllBytes(Path.Combine(LaunchOptions.DefaultGameDirectory, "FF8_EN.exe"));
+        byte[] executable = File.ReadAllBytes(Path.Combine(TestResources.GameDirectory, "FF8_EN.exe"));
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(executable)));
         Assert.Equal(0x529EB0u, BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(0x78DE94 + 358 * 4)));
         Assert.Equal("800D7AE9CF0110C3", Convert.ToHexString(executable.AsSpan(0x16DAC0, 8)));
@@ -23,7 +23,7 @@ public sealed class NativeSavedBattleFlagBit4Tests
     public void ActualLunarGate358PublishesOnlyKnownBit4AndColdRestores()
     {
         GameSession session = new(GameSession.Load(Source()));
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.Null(session.State.SavedBattleFlags);
         bool dream = session.State.CharacterVitals!.DreamEnabled;
@@ -45,7 +45,7 @@ public sealed class NativeSavedBattleFlagBit4Tests
         Assert.Equal(dream, session.State.CharacterVitals.DreamEnabled);
         session.SetEventState(world.Events.Capture());
         GameSession coldSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
-        using GameWorld cold = new(coldSession, LaunchOptions.DefaultGameDirectory);
+        using GameWorld cold = new(coldSession, TestResources.GameDirectory);
         cold.EnsureField();
         Assert.Equal(flags, coldSession.State.SavedBattleFlags);
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), cold.Events.Capture()));
@@ -60,7 +60,7 @@ public sealed class NativeSavedBattleFlagBit4Tests
     [InlineData(-65536, 16)]
     public void Native529Eb0PopsOneFullDwordWithoutYieldOrChangingOtherResults(int raw, int expected)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

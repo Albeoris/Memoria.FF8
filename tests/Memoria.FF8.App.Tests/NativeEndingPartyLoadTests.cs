@@ -21,7 +21,7 @@ public sealed class NativeEndingPartyLoadTests
         Assert.Equal(0x800u, original.WorldControls!.EventFlags104 & 0x800u);
         NativeCharacterVitals before = original.CharacterVitals!.DeepCopy();
         GameSession session = new(original);
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         using GameWorld world = new(session, gameDirectory);
         world.EnsureField();
         Assert.Equal(979, world.Events.FieldId);

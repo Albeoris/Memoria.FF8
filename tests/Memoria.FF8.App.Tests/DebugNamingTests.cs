@@ -228,7 +228,7 @@ public sealed class DebugNamingTests
         }
     }
 
-    private static string GameDirectory() => Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+    private static string GameDirectory() => TestResources.GameDirectory;
 
     private static string RepositoryRoot()
     {

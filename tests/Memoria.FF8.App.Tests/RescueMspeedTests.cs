@@ -84,7 +84,7 @@ public sealed class RescueMspeedTests
     public void Actual878ReleaseExecutesOrdinaryMspeedAndColdRestoresSignedMovement()
     {
         GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         bool ordinary = false;
         world.Events.CommandExecuted += command => ordinary |= command.Name == "MSPEED" && command.Arguments.Single() == 42704;
         Assert.True(world.Apply(new(PlayerActionKind.FieldButtons, Value: 0)).Accepted);
@@ -99,7 +99,7 @@ public sealed class RescueMspeedTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, LaunchOptions.DefaultGameDirectory);
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             for (int callback = 0; callback < 12; callback++)
             {
                 Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);

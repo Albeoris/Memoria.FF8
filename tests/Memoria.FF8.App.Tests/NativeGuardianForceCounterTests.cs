@@ -9,7 +9,7 @@ public sealed class NativeGuardianForceCounterTests
     [Fact]
     public void AuthenticSavedRowsOwnBothCountersAndReceiptPublicationChecksTheCurrentBeforeRow()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().RebuildParty().Rest();
         Assert.All(vitals.GuardianForces, gf =>
         {

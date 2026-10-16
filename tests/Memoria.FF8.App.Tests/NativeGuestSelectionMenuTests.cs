@@ -15,7 +15,7 @@ public sealed class NativeGuestSelectionMenuTests
     [InlineData(65539)]
     public void GuestRequestPreservesBackupsAndResetsNormalRowsBeforeSelection(int operand)
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals().WithMemberFlags(1, true).WithMemberFlags(5, true);
         NativeCharacterVital[] rows = initial.Records.ToArray();
         rows[0] = rows[0] with { Junction = rows[0].Junction with { GuardianForces = 1 } };
@@ -51,7 +51,7 @@ public sealed class NativeGuestSelectionMenuTests
     [Fact]
     public void Original180Junction22WaitsForExplicitGuestMappingAndRestoresEveryMenuPhase()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field180 is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameState initial = GameSession.Load(source);

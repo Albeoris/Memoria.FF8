@@ -15,7 +15,7 @@ public sealed class QuistisMoviePresentationTests
     [InlineData("fresh-field181-movie1-admitted.json", 640, 448, 3)]
     public void QuistisMovieUsesOnlyTheRendererOwnedByEachCallbackPhase(string checkpoint, int width, int height, int speed)
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original movie and field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures", checkpoint);

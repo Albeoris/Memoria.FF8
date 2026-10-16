@@ -13,7 +13,7 @@ public sealed class InteractiveBattleCausalTests
     [Fact]
     public void IfritSnapshotContinuesFightRestoresAndReturnsWithoutDebugVictory()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed game corpus is required for the authentic interactive battle journey.");
         string root = RepositoryRoot();
         string evidence = Path.Combine(root, "../fixtures");

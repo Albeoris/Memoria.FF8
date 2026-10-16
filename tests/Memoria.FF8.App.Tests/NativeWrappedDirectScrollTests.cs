@@ -13,7 +13,7 @@ public sealed class NativeWrappedDirectScrollTests
     [Fact]
     public void SelectedLinearCenterUsesExistingModeFourAndIndependentWrappedPixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(930);
         SceneEventState scene = ComponentScene(field);
@@ -47,7 +47,7 @@ public sealed class NativeWrappedDirectScrollTests
     [Fact]
     public void ActualRoofDirectLayerUsesTheSharedCurrentPlacementAndKeepsUnwrappedOrigins()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(930);
         Assert.Equal(4, field.Information!.BackgroundWrapMask);

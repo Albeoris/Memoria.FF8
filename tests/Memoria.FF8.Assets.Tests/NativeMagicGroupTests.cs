@@ -161,7 +161,7 @@ public sealed class NativeMagicGroupTests
 
     private static BattleSession Create(uint status, uint passive, int stock, int enemyHp = 10000, bool includeAffinity = false)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();

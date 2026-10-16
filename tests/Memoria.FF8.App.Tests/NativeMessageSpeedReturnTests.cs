@@ -70,13 +70,13 @@ public sealed class NativeMessageSpeedReturnTests
     public void Original828PeeksBothChannelsAndRestoresTheirRetainedWords()
     {
         GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 4)).Accepted);
         Assert.Null(world.Events.LastFault);
         Assert.Equal(new NativeMessageChannelTiming(6144, 0), world.Events.Scene.MessageChannelTiming[0]);
         Assert.Equal(new NativeMessageChannelTiming(6144, 0), world.Events.Scene.MessageChannelTiming[1]);
         JsonElement before = world.Events.Capture();
-        using GameWorld restored = new(new GameSession(session.State with { EventState = before }), LaunchOptions.DefaultGameDirectory);
+        using GameWorld restored = new(new GameSession(session.State with { EventState = before }), TestResources.GameDirectory);
         world.Apply(new(PlayerActionKind.Wait));
         restored.Apply(new(PlayerActionKind.Wait));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
@@ -84,7 +84,7 @@ public sealed class NativeMessageSpeedReturnTests
 
     private static EventEngine Engine(byte[] content)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

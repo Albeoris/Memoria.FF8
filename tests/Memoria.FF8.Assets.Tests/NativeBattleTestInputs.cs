@@ -7,7 +7,7 @@ internal static class NativeBattleTestInputs
 {
     private static readonly Lazy<(ImmutableArray<byte> Sequences, NativeBattleRetainedMemory ColdMemory)> Inputs = new(() =>
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         return (assets.ReadNativeBattleCommandSequences(), assets.ReadColdProcessNativeBattleMemory());
     });
 

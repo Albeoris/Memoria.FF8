@@ -10,7 +10,7 @@ public sealed class NativePlayerBindingTests
     [Fact]
     public void OriginalLibraryAisleVariantMovesItsActualCompactLeaderAndRestoresVmAndPixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = new GameSession(GameSession.Load(FindSource()));
         using var world = new GameWorld(session, directory);
@@ -47,7 +47,7 @@ public sealed class NativePlayerBindingTests
     [Fact]
     public void AdmissionRejectsOriginalObjectZeroAndInvalidModelCharacterOrCanonicalBinding()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using var world = new GameWorld(new GameSession(GameSession.Load(FindSource())), directory);
         world.EnsureField();
@@ -80,7 +80,7 @@ public sealed class NativePlayerBindingTests
     [Fact]
     public void OriginalLibraryPlayerUsesItsNonzeroCompactBindingAndRejectsMalformedCanonicalSlots()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using var world = new GameWorld(new GameSession(GameSession.Load(FindSource("player-garden-library-scroll-boundary-preboundary-checkpoint.json"))), directory);
         world.EnsureField();

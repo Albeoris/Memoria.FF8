@@ -9,7 +9,7 @@ public sealed class NativeOrdinaryCommandTests
     [Fact]
     public void OrdinaryCommandSubmissionClearsDefendAndChargedWhileGfSubmissionPreservesThem()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot snapshot = Create(game, assets, 23).Capture();
         snapshot.Combatants[0] = snapshot.Combatants[0] with { NativeStatus = snapshot.Combatants[0].NativeStatus! with { Battle = 0x880000 } };
@@ -30,7 +30,7 @@ public sealed class NativeOrdinaryCommandTests
     [Fact]
     public void InstalledAbsorbDamagesItsRecipientAndHealsItsCommandOwner()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot snapshot = Create(game, assets, 32).Capture();
         snapshot.Combatants[0] = snapshot.Combatants[0] with { CurrentHp = 500 };
@@ -46,7 +46,7 @@ public sealed class NativeOrdinaryCommandTests
     [InlineData(34, 40)]
     public void InstalledLevelCommandsRebindOriginalEnemyStatisticsAndPublishNativeText(byte command, int expectedLevel)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot snapshot = Create(game, assets, command).Capture();
         NativeBattleEnemyTemplate template = assets.ReadEnemyTemplate(0, 20);
@@ -68,7 +68,7 @@ public sealed class NativeOrdinaryCommandTests
     [InlineData(true)]
     public void DarksidePaysItsOriginalFixedHpCostAfterTheAttackAndBeforePoison(bool poison)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 28);
         if (poison)
@@ -109,7 +109,7 @@ public sealed class NativeOrdinaryCommandTests
     [Fact]
     public void KamikazeCommitsItsNativeSelfEjectionAndDeathCounterAndSurvivesRestore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleNativeCommandBinding binding = assets.ReadNativeCommand(31);
         BattleSession battle = Create(game, assets, 31);
@@ -131,7 +131,7 @@ public sealed class NativeOrdinaryCommandTests
     [InlineData(30, 0x400)]
     public void InstalledStatusCommandsUseTheirActualAdditionalKernelRows(byte command, uint statuses)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, command);
         QueueAndHit(battle, command == 30 ? "enemy" : "actor", command, assets.ReadNativeCommand(command).ActionId);
@@ -150,7 +150,7 @@ public sealed class NativeOrdinaryCommandTests
     [InlineData(27, 0, 1, 1000)]
     public void InstalledTreatmentRecoverAndReviveApplyTheirActualCurativeEffects(byte command, int hp, ushort status, int expectedHp)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, command, hp, status);
         QueueAndHit(battle, "ally", command, assets.ReadNativeCommand(command).ActionId);

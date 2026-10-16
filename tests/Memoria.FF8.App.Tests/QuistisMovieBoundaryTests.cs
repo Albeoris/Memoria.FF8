@@ -9,7 +9,7 @@ public sealed class QuistisMovieBoundaryTests
     [Fact]
     public void PublishedAfterMovieCheckpointRestoresAndAdvancesWithoutReplayingTheOpening()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
@@ -33,7 +33,7 @@ public sealed class QuistisMovieBoundaryTests
     [InlineData(true)]
     public void MovieCleanupWaitsForTheFirstOrdinaryFieldDraw(bool skip)
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original Quistis movie and field corpus is required.");
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         Assert.NotNull(directory);

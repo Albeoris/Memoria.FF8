@@ -11,7 +11,7 @@ public sealed class NormalCameraTests
     [Fact]
     public void NaturalQuadMatrixBoundaryRendersAndIndependentlyRestoresContinuation()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
@@ -44,7 +44,7 @@ public sealed class NormalCameraTests
     [Fact]
     public void NaturalInfirmaryCorridorUsesOriginalWideCameraAndRestoresPixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
@@ -81,7 +81,7 @@ public sealed class NormalCameraTests
     [Fact]
     public void NaturalWestLobbyRoundingBoundaryRendersAndReplaysFromPreservedState()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string evidence = Path.Combine(repository!.FullName, "../fixtures");
@@ -138,7 +138,7 @@ public sealed class NormalCameraTests
     [Fact]
     public void NaturalLobbyInitializationUsesInfInputAndNativeNormalTracking()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");

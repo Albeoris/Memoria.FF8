@@ -10,7 +10,7 @@ public sealed class NativeMovieFootstepTests
     [Fact]
     public void ActualOutsideMovieRetainsSuppressedDrawsThenProjectsContactsFromCamAndRestoresBothPhases()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field and CAM corpus is required.");
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");

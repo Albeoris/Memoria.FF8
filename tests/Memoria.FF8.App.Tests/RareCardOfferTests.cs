@@ -60,7 +60,7 @@ public sealed class RareCardOfferTests
     [InlineData(165, 18, 31, 1132)]
     public void ActualNativeChallengeUsesItsSavedOwnerWithoutMutation(int field, int actor, int owner, int operation)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native field corpus is required.");
         using GameAssets assets = new(directory);
         byte[] native = assets.LoadField(field).Jsm;
@@ -93,7 +93,7 @@ public sealed class RareCardOfferTests
     [Fact]
     public void ActualHiddenTwinProxyMarksTheVisibleRequestedCardOwners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed native field corpus is required.");
         using GameAssets assets = new(directory);
         byte[] native = assets.LoadField(156).Jsm;

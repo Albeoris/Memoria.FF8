@@ -11,7 +11,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [InlineData(512)]
     public void Installed_stage_camera_and_model_entry_resume_together_before_the_real_barrier(int encounterId)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(encounterId);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -34,7 +34,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [Fact]
     public void OriginalBalambAndIfritEntryProgramsResumeTheirModelsWhileTurnBasedGameplayWaits()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         foreach (int model in assets.LoadEncounter(512).Enemies.Select(enemy => enemy.ModelId).Append(61).Distinct())
         {
@@ -64,7 +64,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [Fact]
     public void HeadlessEntryDoesNotAdvanceGameplayOrAtbBeforeItsActualBarrierCompletes()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 61, ready: false);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
@@ -90,7 +90,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [Fact]
     public void OriginalHostPumpAdvancesRawAtbFourTimesAndKeepsGraphicsAliveAtReadyDecision()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession seed = Create(game, assets, 61, ready: false);
         BattleDefinition definition = seed.Capture().Definition with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Capture().Definition.Combatants.Select(actor => actor with { Speed = 1 }).ToArray() };
@@ -133,7 +133,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [InlineData(BattleAtbMode.TurnBased)]
     public void Initially_full_native_gauge_queues_ui_ready_once_then_wait_menu_stops_atb(BattleAtbMode mode)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot seed = Create(game, assets, 61).Capture();
         BattleSession battle = new(seed.Definition with { NativeClockRules = new(10), NativeBattleSpeed = 2, NativeSavedOptions = 1, Combatants = seed.Definition.Combatants.Select(actor => actor with { Speed = 1 }).ToArray() }, mode);
@@ -175,7 +175,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [InlineData(true)]
     public void TurnBased_raw_host_automatically_reaches_readiness_and_explicit_advance_preserves_waiting_actor(bool presentationDriven)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleDefinition seed = Create(game, assets, 61, ready: false).Capture().Definition;
         BattleDefinition definition = seed with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Combatants.Select((actor, index) => actor with { Speed = index == 0 ? 100 : actor.IsPlayer ? 10 : 1 }).ToArray() };
@@ -225,7 +225,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [Fact]
     public void NativePartyHudCacheKeepsItsContactBoundaryWhenLogicalHpAlreadyChanged()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 61, ready: false);
         BattleSnapshot snapshot = battle.Capture();
@@ -244,7 +244,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [Fact]
     public void PresentationClockSurvivesRestoreWithoutPersistingTheHostTransportPolicy()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 61);
         battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(500_000));
@@ -267,7 +267,7 @@ public sealed class NativeBattleGraphicsEntryTests
     [Fact]
     public void OriginalIfritMessageSequenceOwnsTextAndAaReceiptAcrossGameplayWaitAndRestore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeBattleAiDefinition original = assets.ReadEnemyAi(61, 1);
         NativeBattleAiDefinition ai = original with { Scripts = [[4, 200, 5, 14, 7, 89, 6, 0], [0], [0], [0], [0]] };

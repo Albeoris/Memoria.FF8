@@ -109,7 +109,7 @@ public sealed class NativeDrawPointParticleTests
     [Fact]
     public void ActualBalambAssetsPlaceVisibleSparksAtTheirOriginalScriptAnchor()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Original field assets are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(102);
@@ -182,7 +182,7 @@ public sealed class NativeDrawPointParticleTests
 
     private static NativeDrawPointParticleTables Tables()
     {
-        string executable = Path.Combine(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory, "FF8_EN.exe");
+        string executable = Path.Combine(TestResources.GameDirectory, "FF8_EN.exe");
         Assert.SkipUnless(File.Exists(executable), "Original executable tables are required.");
         return NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(executable));
     }

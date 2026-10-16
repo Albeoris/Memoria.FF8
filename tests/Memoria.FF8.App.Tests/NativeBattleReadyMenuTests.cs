@@ -11,7 +11,7 @@ public sealed class NativeBattleReadyMenuTests
     [Fact]
     public void Raw_hud_waits_for_ready_registration_and_switches_in_the_registered_order()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets);
         BattleHudController hud = Hud(battle);
@@ -42,7 +42,7 @@ public sealed class NativeBattleReadyMenuTests
     [Fact]
     public void Logical_formula_status_does_not_invalidate_a_registered_menu_before_UI18_publication()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets);
         battle.Tick();
@@ -65,7 +65,7 @@ public sealed class NativeBattleReadyMenuTests
     [InlineData((ushort)1, false)]
     public void Contact_publication_uses_the_physical_queue_before_removing_ready_and_queued_commands(ushort savedStatus, bool retainsQueuedCommand)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets);
         battle.Tick();

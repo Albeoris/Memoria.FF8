@@ -10,7 +10,7 @@ public sealed class NativeBarCameraTests
     [Fact]
     public void AuthenticBarCameraZeroIgnoresTheUnselectedRecordAndRestoresItsActualPresentation()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original bar field corpus is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameState recreated = GameSession.Load(source);

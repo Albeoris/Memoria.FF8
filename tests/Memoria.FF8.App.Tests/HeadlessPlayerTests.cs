@@ -9,7 +9,7 @@ public sealed class HeadlessPlayerTests
     [Fact]
     public void ExplicitMovieSkipUsesTheInstalledTerminalAndPreservesTheOrdinaryVm()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed movie and field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8-headless-movie-" + Guid.NewGuid().ToString("N"));
@@ -49,7 +49,7 @@ public sealed class HeadlessPlayerTests
     [Fact]
     public void NaturalFieldTransitionKeepsTheDepartingVmSeparateFromDestinationRestore()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8-headless-" + Guid.NewGuid().ToString("N"));

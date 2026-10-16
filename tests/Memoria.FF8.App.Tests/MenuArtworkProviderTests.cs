@@ -85,7 +85,7 @@ public sealed class MenuArtworkProviderTests(ITestOutputHelper output)
     }
     private static string InstalledGameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "FF8_EN.exe")) && File.Exists(Path.Combine(directory, "Data", "lang-en", "menu.fs")), "Installed original card resources are required.");
         return directory;
     }

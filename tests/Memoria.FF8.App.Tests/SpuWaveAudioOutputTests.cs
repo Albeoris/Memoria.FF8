@@ -19,7 +19,7 @@ public sealed class SpuWaveAudioOutputTests
     [Fact]
     public void InstalledCueDecodesWithoutClaimingPlaybackForMutedOutput()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         MusicCueResource resource = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
         Assert.SkipUnless(File.Exists(Path.Combine(game, resource.RelativePath)), "The installed EyesOnMe resource is required.");
         MovieClock tools = new(new GameSession(new GameState()), game);
@@ -39,7 +39,7 @@ public sealed class SpuWaveAudioOutputTests
     [Fact]
     public void InstalledCueStartsAndStopsExistingWindowsAudioOutput()
     {
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         MusicCueResource resource = new ClassicMusicCueResolver().Resolve(MusicCue.EyesOnMe);
         Assert.SkipUnless(File.Exists(Path.Combine(game, resource.RelativePath)), "The installed EyesOnMe resource is required.");
         MovieClock tools = new(new GameSession(new GameState()), game);

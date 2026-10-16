@@ -12,7 +12,7 @@ public sealed class NativeRenzokukenPresentationTests
     [Fact]
     public void Renzokuken_renders_embedded_body_and_weapon_poses_and_restores_the_same_process_pose()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = vitals.Records[0];

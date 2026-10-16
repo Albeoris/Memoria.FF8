@@ -10,7 +10,7 @@ public sealed class NativeRevivalRulesTests
     [InlineData(2, 250)]
     public void Native_item_revival_uses_quarter_max_HP_only_with_the_equipped_item_passive(uint passive, int expectedHp)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = vitals.Records[0];
@@ -45,7 +45,7 @@ public sealed class NativeRevivalRulesTests
     [InlineData(6, 0x40, 1000, false)]
     public void Native_field_prohibition_retains_KO_while_the_revive_formula_still_returns_its_HP(byte type, byte rules, int hp, bool alive)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleActionDefinition life = assets.ActionDefinitions.First(action => action.Ability == BattleAbility.Magic && action.NativeAction?.AttackType == type);
         BattleSession battle = new(new BattleDefinition
         {

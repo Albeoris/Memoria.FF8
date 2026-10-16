@@ -13,7 +13,7 @@ public sealed class NativeDirectWrappingTests
     [Fact]
     public void SharedDirectCenterUsesOriginalWrappingPeriodsAndMatchesIndependentPlacementPixels()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(251);
@@ -60,7 +60,7 @@ public sealed class NativeDirectWrappingTests
     [Fact]
     public void WrappedNormalCameraProducerPublishesItsActualProjectionWithoutAFieldAdmissionList()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(251);
@@ -83,7 +83,7 @@ public sealed class NativeDirectWrappingTests
     [Fact]
     public void SavedPartyActorProjectionUsesTheSameWrappedFrameThroughoutCosineAndContinuousModes()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(251);

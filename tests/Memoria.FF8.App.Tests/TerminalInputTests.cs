@@ -12,7 +12,7 @@ public sealed class TerminalInputTests
     [Fact]
     public void PersonalDeskTerminalPollsHeldButtonsAndRecreatesOrdinaryNavigation()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = new GameSession(RecreateClassroom(directory));
         using var world = new GameWorld(session, directory);
@@ -58,7 +58,7 @@ public sealed class TerminalInputTests
     [Fact]
     public void PersonalDeskTutorialBrowserNaturallyNamesGuardianForcesAndRecreatesItsYield()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         var session = new GameSession(RecreateClassroom(directory));
         using var world = new GameWorld(session, directory);

@@ -11,7 +11,7 @@ public sealed class LayerZeroLinearScrollProjectionTests
     [Fact]
     public void AuthenticTowerRoadPrefixUsesItsActualDirectStartAndRestoresTheLinearCamera()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower-road snapshot and installed original resources are required.");

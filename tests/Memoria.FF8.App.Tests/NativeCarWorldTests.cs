@@ -10,7 +10,7 @@ public sealed class NativeCarWorldTests
     [Fact]
     public void Native_alternate_ground_selection_retains_the_original_candidate_yaw_and_cache()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         using var assets = new WorldAssets(directory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
@@ -67,7 +67,7 @@ public sealed class NativeCarWorldTests
     [Fact]
     public void Original_overlap_lookup_obeys_retained_polygon_precedence_without_populating_or_reordering_the_cache()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         using var assets = new WorldAssets(directory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(WorldTerrainSelection.ReplacementMask(0, 0));
@@ -101,7 +101,7 @@ public sealed class NativeCarWorldTests
     [Fact]
     public void Original_car_spawn_controls_mesh_and_independent_restore_preserve_native_vehicle_authority()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         // Isolated component fixture; actual gameplay acceptance belongs to the live New Game journey.
         var session = GameSession.CreateColdProcess();
@@ -156,7 +156,7 @@ public sealed class NativeCarWorldTests
     [Fact]
     public void Native_car_field_entry_selects_the_actual_entrance_polygon_and_atomically_retires_shape73()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
@@ -202,7 +202,7 @@ public sealed class NativeCarWorldTests
     [Fact]
     public void Refused_car_batch_does_not_commit_partial_pose_speed_timer_or_snapshot_changes()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);
@@ -219,7 +219,7 @@ public sealed class NativeCarWorldTests
     [Fact]
     public void Prepared_car_entry_saved_slot_writes_are_validated_before_live_publication()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original world resources are required.");
         var session = GameSession.CreateColdProcess();
         InitializeNativeOwners(session, directory);

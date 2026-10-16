@@ -11,7 +11,7 @@ public sealed class NativeBattlePosePresentationTests
     [Fact]
     public void Native_module_sound_is_committed_at_its_callback_and_played_once_without_an_actor_substitute()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
@@ -55,7 +55,7 @@ public sealed class NativeBattlePosePresentationTests
     [InlineData(2, 2, 1)]
     public void Raw_pose_uses_the_decoded_frame_counter_including_slow_and_fast_modes(byte counter, byte flags, float expected)
     {
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleModel body = assets.LoadPlayer(0);
         BattleAnimationPresentation animation = new(body, null, new() { Id = "squall", IsPlayer = true });
         NativeBattleGraphicsModel row = new(0, 3) { Flags2 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = counter, PoseFlags109 = flags } };
@@ -73,7 +73,7 @@ public sealed class NativeBattlePosePresentationTests
     [Fact]
     public void Installed_entry_pose_changes_pixels_while_gameplay_waits_and_restore_renders_identically()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);

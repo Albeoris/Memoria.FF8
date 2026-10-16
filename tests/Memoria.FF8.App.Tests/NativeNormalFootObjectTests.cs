@@ -19,7 +19,7 @@ public sealed class NativeNormalFootObjectTests
     [InlineData(391, 5, 1)]
     public void OriginalSelectedClauseRetainsEveryDenseObjectAndBothFreshRailBanks(ushort story, int clause, int count)
     {
-        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(story, 0);
         NativeTrainRailBank primary = NativeTrainRailBank.Create(assets.ReadScriptedPath(0), 1);
         NativeTrainRailBank alternate = NativeTrainRailBank.Create(assets.ReadScriptedPath(1), 1);
@@ -46,7 +46,7 @@ public sealed class NativeNormalFootObjectTests
     [Fact]
     public void PriorProximityWordSelectsNativeThirtyTwoZeroCycleWithoutChangingModeThreeDefault()
     {
-        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(0);
         NativeTrainRailBank initial = NativeTrainRailBank.Create(definition, 1);
         Assert.Null(NativeNormalFootObjectProcess.SelectSpeed(initial, 0, 48));
@@ -71,7 +71,7 @@ public sealed class NativeNormalFootObjectTests
     public void FreshStory315FootLoaderRendersAndContinuesItsOwnPhysicalObjectsAfterIndependentRestore()
     {
         GameSession session = ComponentSession();
-        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene world = new(session, TestResources.GameDirectory);
         Assert.Equal(new WorldTransition(5, 0, -1), session.State.WorldArrival);
         NativeFootWorldRuntimeState foot = world.State.NativeFootRuntime!;
         Assert.Null(foot.StationTrains);
@@ -81,7 +81,7 @@ public sealed class NativeNormalFootObjectTests
         Assert.Equal(320 * 224 * 4, world.Render(320, 224).Length);
         GameState independentState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession independentSession = new(independentState);
-        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene independent = new(independentSession, TestResources.GameDirectory);
         Assert.Equal(world.Render(320, 224), independent.Render(320, 224));
         PlayerAction wait = new(PlayerActionKind.Wait);
         Assert.Equal(world.Apply(wait), independent.Apply(wait));
@@ -98,7 +98,7 @@ public sealed class NativeNormalFootObjectTests
     [InlineData(352, 1)]
     public void OriginalDisabledRailSelectorsRetainStaticAllocationWithoutProducingBankOrMinimumWords(ushort story, int count)
     {
-        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeTrainWorldAllocation allocation = assets.ReadTrainWorldAllocation(story, 1);
         var camera = new NativeWorldFootCameraState(-32742, -26874, -755, -32742, -26874, -1011, 3760, -341, -341, -7168);
         var process = new NativeNormalFootObjectProcess(1, allocation, 0, null, null, camera, null, null);
@@ -121,14 +121,14 @@ public sealed class NativeNormalFootObjectTests
     public void DisabledRailFootLoaderRendersStaticObjectsAndContinuesAfterIndependentRestore()
     {
         GameSession session = ComponentSession(1);
-        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene world = new(session, TestResources.GameDirectory);
         AssertAbsentRails(world.State);
         Assert.Equal(9, world.State.NativeFootRuntime!.NormalObjects!.Allocation.Objects.Length);
         byte[] pixels = world.Render(320, 224);
         Assert.Equal(320 * 224 * 4, pixels.Length);
         GameState independentState = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession independentSession = new(independentState);
-        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene independent = new(independentSession, TestResources.GameDirectory);
         Assert.Equal(pixels, independent.Render(320, 224));
         foreach (PlayerAction action in new[] { new PlayerAction(PlayerActionKind.Wait), new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 0) })
         {
@@ -157,7 +157,7 @@ public sealed class NativeNormalFootObjectTests
     public void DelingSingleFootAllocationPreservesBoardingBitAndActualRailSelectorsAfterRestore(byte eventFlags265)
     {
         GameSession session = ComponentSession(eventFlags265, story: 352, replacementFlags: 8, spawn: 8);
-        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene world = new(session, TestResources.GameDirectory);
         NativeNormalFootObjectProcess process = world.State.NativeFootRuntime!.NormalObjects!;
         Assert.Equal(5, process.Allocation.ClauseIndex);
         Assert.Equal((ushort)348, process.Allocation.MinimumStory);
@@ -169,7 +169,7 @@ public sealed class NativeNormalFootObjectTests
         Assert.Equal(eventFlags265 == 1, process.Primary is null);
         Assert.Equal(eventFlags265 == 1, process.Alternate is null);
         GameSession independentSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
-        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene independent = new(independentSession, TestResources.GameDirectory);
         foreach (PlayerAction action in new[] { new PlayerAction(PlayerActionKind.Wait), new PlayerAction(PlayerActionKind.Move, Horizontal: 1, Vertical: 0) })
         {
             Assert.Equal(world.Apply(action), independent.Apply(action));
@@ -185,16 +185,16 @@ public sealed class NativeNormalFootObjectTests
     public void DelingOrdinaryFootStillRefusesUnimplementedAuxiliaryPairsAndFollowingClause()
     {
         GameSession pair = ComponentSession(story: 352, replacementFlags: 9, spawn: 8);
-        Assert.Throws<NotSupportedException>(() => new WorldMapScene(pair, LaunchOptions.DefaultGameDirectory));
+        Assert.Throws<NotSupportedException>(() => new WorldMapScene(pair, TestResources.GameDirectory));
         GameSession following = ComponentSession(story: 392, replacementFlags: 8, spawn: 8);
-        Assert.Throws<NotSupportedException>(() => new WorldMapScene(following, LaunchOptions.DefaultGameDirectory));
+        Assert.Throws<NotSupportedException>(() => new WorldMapScene(following, TestResources.GameDirectory));
     }
 
     [Fact]
     public void NormalTrainEndpointRetainsContactMinimumAndDrawProjectionThroughItsPhysicalReset()
     {
         GameSession session = ComponentSession(story: 352, replacementFlags: 8, spawn: 8);
-        using WorldMapScene world = new(session, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene world = new(session, TestResources.GameDirectory);
         PlayerAction wait = new(PlayerActionKind.Wait);
         for (int callback = 0; callback < 2000 && world.State.NativeFootRuntime!.NormalObjects!.Alternate!.EndpointProjection is null; callback++)
         {
@@ -205,7 +205,7 @@ public sealed class NativeNormalFootObjectTests
         NativeTrainRailEndpointProjection receipt = Assert.IsType<NativeTrainRailEndpointProjection>(endpoint.EndpointProjection);
         Assert.Equal(world.State.Frame, receipt.Callback);
         Assert.NotEqual(endpoint.Nodes[0].Position, endpoint.Presentation[0].Projection!.Source);
-        using WorldAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(endpoint.TrackIndex);
         endpoint.Validate(definition);
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(process.Camera);
@@ -215,7 +215,7 @@ public sealed class NativeNormalFootObjectTests
         Assert.NotEqual(retainedMinimum, Minimum(true));
         byte[] pixels = world.Render(320, 224);
         GameSession independentSession = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
-        using WorldMapScene independent = new(independentSession, LaunchOptions.DefaultGameDirectory);
+        using WorldMapScene independent = new(independentSession, TestResources.GameDirectory);
         Assert.Equal(pixels, independent.Render(320, 224));
         PlayerAction move = new(PlayerActionKind.Move, Horizontal: 1, Vertical: 0);
         Assert.Equal(world.Apply(move), independent.Apply(move));
@@ -249,7 +249,7 @@ public sealed class NativeNormalFootObjectTests
     {
         GameSession initialized = GameSession.CreateColdProcess();
         initialized.StartNewGame();
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         initialized.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
         initialized.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
         initialized.SetWorldEntryMemory(initialized.WorldEntryMemory!.WriteBytes(256, 2, story).WriteBytes(264, 1, replacementFlags).WriteBytes(265, 1, eventFlags265));

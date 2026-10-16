@@ -12,7 +12,7 @@ public sealed class NativeSelectedCameraWrappedScrollTests
     [Fact]
     public void ActualTvCameraOneUsesItsOwnMatrixClampAndNonselectedLayerTwoPhase()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field assets are required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);

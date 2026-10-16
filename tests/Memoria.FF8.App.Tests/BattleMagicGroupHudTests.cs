@@ -10,7 +10,7 @@ public sealed class BattleMagicGroupHudTests
     [Fact]
     public void TripleSelectsThreeTargetsBeforeSubmittingOneOriginalSpellPacket()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = vitals.Records[0];

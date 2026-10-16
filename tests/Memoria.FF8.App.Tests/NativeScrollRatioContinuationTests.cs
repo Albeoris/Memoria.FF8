@@ -13,7 +13,7 @@ public sealed class NativeScrollRatioContinuationTests
     public void AuthenticNightVisitUsesRetainedRatiosAndNonselectedCurrentWithoutMovingCommonCamera()
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SCROLL_RATIO_SOURCE");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(source is not null && File.Exists(source) && Directory.Exists(directory), "Select a genuinely regenerated current field248 visit with MEMORIA_FF8_SCROLL_RATIO_SOURCE.");
         GameState actual = GameSession.Load(source!);
         Assert.Equal(248, actual.FieldId);

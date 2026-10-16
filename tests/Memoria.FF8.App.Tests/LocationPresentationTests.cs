@@ -11,7 +11,7 @@ public sealed class LocationPresentationTests
     [Fact]
     public void OriginalPlaceNamesUsePersistentFieldWordAndCurrentWorldCoordinates()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed area and world resources are required.");
         using GameAssets assets = new(directory);
         LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);

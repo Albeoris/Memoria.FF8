@@ -8,7 +8,7 @@ public sealed class NativeShotInvocationTests
     [Fact]
     public void Shot_timeout_queues_its_zero_damage_end_control_and_preserves_fractional_presentation_time()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(game, assets, 2);
         battle.QueueNativePlayerCommand("irvine", "enemy", 14, 0);
@@ -35,7 +35,7 @@ public sealed class NativeShotInvocationTests
     [Fact]
     public void Shot_control_commands_do_not_damage_and_each_accepted_trigger_consumes_one_ammunition()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(game, assets, 2);
         int initialHp = battle.Combatants[1].CurrentHp;
@@ -65,7 +65,7 @@ public sealed class NativeShotInvocationTests
     [Fact]
     public void Shot_ui_time_and_ready_callback_restore_without_advancing_the_battle_gameplay_clock()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateBattle(game, assets, 1);
         battle.QueueNativePlayerCommand("irvine", "enemy", 14, 0);

@@ -90,7 +90,7 @@ public sealed class UiCheckpointTests
 
     private static string InstalledGameDirectory()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field resources are required for the CPU comparison.");
         return directory;
     }

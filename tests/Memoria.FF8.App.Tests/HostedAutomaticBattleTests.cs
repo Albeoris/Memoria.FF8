@@ -16,7 +16,7 @@ public sealed class HostedAutomaticBattleTests
     public void CurrentPolicyCanFinishAPendingOrActiveBattleImmediatelyWithoutAdvancingCombat(bool alreadyStarted)
     {
         (GameSession session, _) = Fixture();
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigurePlaythrough, FullCombat: true));
         // Formation 34 is a supported early world encounter; this synthetic owner isolates policy timing.
         world.Events.LoadField(999, Program(34), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -80,11 +80,11 @@ public sealed class HostedAutomaticBattleTests
     public void ResearchHostPublishesCurrentInstalledApWithoutSimulatedCombat()
     {
         (GameSession session, int learningIndex) = Fixture();
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         int expectedAp = assets.LoadEncounter(512).Enemies.Sum(enemy => assets.ReadEnemyAbilityPoints(enemy.ModelId));
         NativeCharacterVitals before = session.State.CharacterVitals!.DeepCopy();
         string items = JsonSerializer.Serialize(session.State.Economy!.Items);
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         world.Events.Step();
         world.Events.Step();
@@ -110,7 +110,7 @@ public sealed class HostedAutomaticBattleTests
     {
         (GameSession session, _) = Fixture();
         session.SetFullBattlePlaythrough(true);
-        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(session, TestResources.GameDirectory);
         // This component exercises native ownership, independently of interactive presentation assets.
         world.Events.ValidateInteractiveBattle = (_, _) => null;
         world.Events.LoadField(999, Program(), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
@@ -121,7 +121,7 @@ public sealed class HostedAutomaticBattleTests
         session.SetPendingBattleEncounter(random);
         NativeCharacterVitals vitals = session.State.CharacterVitals!;
         BattlePartyResult[] party = vitals.CombatParty.Where(row => row != 255).Select(row => new BattlePartyResult(row, vitals.Records[row].CharacterId, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].HitPoints.Minimum, vitals.Records[row].Status, vitals.Records[row].Status, [])).ToArray();
-        using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleResult result = new(random, BattleOutcome.Victory, party, [], assets.LoadEncounter(random.Formation).Enemies.Select(enemy => enemy.Slot).ToArray(), [], true, BattleRewardPolicy.DebugNoRewards, []);
         string before = JsonSerializer.Serialize(session.State);
         Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(random, result));
@@ -131,7 +131,7 @@ public sealed class HostedAutomaticBattleTests
 
     private static (GameSession Session, int LearningIndex) Fixture()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
         NativeGuardianForceAbility learning = vitals.GuardianForceAbilities(0).First(ability => !ability.Learned && ability.RequiredPoints >= 20);
         vitals = vitals.SelectGuardianForceLearning(0, learning.Ability);

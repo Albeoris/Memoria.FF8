@@ -14,7 +14,7 @@ public sealed class ArchivedBattleSnapshotTests
     public void Encounter29AcceptsSuppliedPartyRecordsWithInstalledComponentOwners()
     {
         string archivePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_REGRESSION_ARCHIVE") ?? string.Empty;
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(archivePath) && Directory.Exists(game), "The preserved user archive and installed original resources are required.");
         using (FileStream archiveBytes = File.OpenRead(archivePath))
         {

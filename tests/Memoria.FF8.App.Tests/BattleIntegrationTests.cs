@@ -33,7 +33,7 @@ public sealed class BattleIntegrationTests
     private const int FixtureField = 999;
     private static readonly Lazy<NativeCharacterVitals> InitialVitals = new(() =>
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         using GameAssets assets = new(directory);
         return assets.ReadNewGameCharacterVitals();
     });
@@ -198,7 +198,7 @@ public sealed class BattleIntegrationTests
         {
             UseInteractiveBattle = (_, _) => true,
             ValidateInteractiveBattle = (_, _) => null,
-            ReadMovieCameraFlags = (disc, movie) => NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory, disc, movie)))
+            ReadMovieCameraFlags = (disc, movie) => NativeMovieCameraReader.Read(File.ReadAllBytes(MovieClock.GetCameraPath(TestResources.GameDirectory, disc, movie)))
         };
     }
 

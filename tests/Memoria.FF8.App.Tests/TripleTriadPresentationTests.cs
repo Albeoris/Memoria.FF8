@@ -97,7 +97,7 @@ public sealed class TripleTriadPresentationTests
     [Fact]
     public void OriginalArtworkRendersSelectionPlacementAndBothSidesOfCapture()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Original resources required.");
         TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory);
         TripleTriadController controller = new(catalog.Cards, Enumerable.Range(0, 110).ToDictionary(id => id, _ => 1), [0, 1, 2, 3, 4], catalog.Name);

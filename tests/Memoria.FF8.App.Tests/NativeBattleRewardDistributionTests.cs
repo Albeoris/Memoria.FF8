@@ -11,7 +11,7 @@ public sealed class NativeBattleRewardDistributionTests
     [Fact]
     public void NativeSharedAndKillerExperienceUseActualLevelsAndGfSharesWhileApRemainsSeparate()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).AcquireGuardianForce(1).ToggleGuardianForceJunction(0, 0).ToggleGuardianForceJunction(0, 1).RebuildParty().Rest();
         byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
         Dictionary<int, BattleEnemyRewardDefinition> definitions = new() { [0] = Definition() };
@@ -32,7 +32,7 @@ public sealed class NativeBattleRewardDistributionTests
     [InlineData(246)]
     public void AutomaticAndInternalCommandsRetainSharedExperienceWithoutPersonalKillerExperience(byte command)
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
         byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
         BattleEnemyDefeat defeat = new(0, level, BattleDefeatCredit.Character, 0, null, false, -1) { NativeCommand = command };
@@ -46,7 +46,7 @@ public sealed class NativeBattleRewardDistributionTests
     [Fact]
     public void CharacterAndGfExperienceHaveDifferentKoPetrifyRulesAndNoExperienceClearsBoth()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
         byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
         NativeCharacterVital[] records = vitals.Records.ToArray();
@@ -69,7 +69,7 @@ public sealed class NativeBattleRewardDistributionTests
     [Fact]
     public void SelectedCurrentItemAndCardRewardsUseCanonicalCapsAndLeaveSourceOwnersUntouched()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeItemStock[] stocks = economy.Items.ToArray();
         int potion = Array.FindIndex(stocks, stock => stock.ItemId == 1);
@@ -100,7 +100,7 @@ public sealed class NativeBattleRewardDistributionTests
     [Fact]
     public void SharedNativeRewardBankMergesBeforeInventoryClampAndStopsAtZeroSentinel()
     {
-        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeEconomy economy = assets.ReadNewGameEconomy();
         economy.Items[0] = new NativeItemStock(1, 0);
         BattleLootOwners merged = NativeBattleRewardDistribution.Loot([], new Dictionary<int, BattleEnemyRewardDefinition>(), economy, null, [new BattleStock(1, 150), new BattleStock(1, 150)]);

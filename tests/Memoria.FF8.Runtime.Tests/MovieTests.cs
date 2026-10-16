@@ -10,7 +10,7 @@ public sealed class MovieTests
     public async Task Installed_short_movie_next_frame_preserves_every_decoded_callback_when_late()
     {
         string tools = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../../tools/ffmpeg/ffmpeg-9.0.2-essentials_build/bin"));
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         string path = Path.Combine(game, "Data", "movies", "disc00_01h.avi");
         Assert.SkipUnless(File.Exists(Path.Combine(tools, "ffmpeg.exe")) && File.Exists(Path.Combine(tools, "ffprobe.exe")) && File.Exists(path), "Installed short AVI corpus and cached FFmpeg are required.");
         using var decoder = new FfmpegMovieDecoder(tools, path);
@@ -61,7 +61,7 @@ public sealed class MovieTests
     public async Task Installed_opening_and_next_movie_decode_frames_audio_and_dispose_processes()
     {
         string tools = Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../../../tools/ffmpeg/ffmpeg-9.0.2-essentials_build/bin"));
-        string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string game = TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(tools, "ffmpeg.exe")) && Directory.Exists(game), "Installed AVI corpus and cached FFmpeg are required.");
         HashSet<int> before = Process.GetProcessesByName("ffmpeg").Select(process => process.Id).ToHashSet();
         foreach (int index in new[] { 30, 1 })

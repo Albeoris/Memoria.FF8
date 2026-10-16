@@ -14,7 +14,7 @@ internal static class MenuPreview
     {
         string screen = "debug-room";
         string? output = null;
-        string gameDirectory = LaunchOptions.DefaultGameDirectory;
+        string gameDirectory = LaunchOptions.ConfiguredGameDirectory;
         int width = 960;
         int height = 672;
         bool expanded = false;

@@ -15,7 +15,7 @@ public sealed class NativeSoundPositionPresentationTests
     public void SilentLivePrimaryAndLoopReceiveExecutedPanTransitionAndImmediatePosition()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "DirectSound output requires Windows.");
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original audio sample is required.");
         Exception? failure = null;
         Thread thread = new(() =>

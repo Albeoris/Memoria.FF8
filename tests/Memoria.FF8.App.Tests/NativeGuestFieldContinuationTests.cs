@@ -11,7 +11,7 @@ public sealed class NativeGuestFieldContinuationTests
     [Fact]
     public void AuthenticDreamForestTracksAndMovesTheBoundGuestAndRestoresItsCurrentOwners()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original dream field corpus is required.");
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         GameState recreated = GameSession.Load(source);

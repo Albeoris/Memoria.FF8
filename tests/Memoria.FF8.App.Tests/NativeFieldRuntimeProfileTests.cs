@@ -12,7 +12,7 @@ public sealed class NativeFieldRuntimeProfileTests
     [Fact]
     public void SharedAllocationRuleDoesNotDependOnFieldOrScriptIdentity()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         using var assets = new GameAssets(directory);
         Assert.Equal(NativeFieldRuntimeProfile.FF8En, assets.NativeRuntimeProfile);
@@ -71,7 +71,7 @@ public sealed class NativeFieldRuntimeProfileTests
 
     private static (string Directory, string Source) Corpus()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(System.IO.Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);

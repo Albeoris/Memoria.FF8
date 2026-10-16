@@ -12,7 +12,7 @@ public sealed class NativeAutomaticGuardianTests
     [InlineData(8, 100, 0, 10, 1)]
     public void EntryBarrierOwnsOdinResistanceAdmissionAndGilgameshQuartileSelection(byte savedFlags, byte ejectResistance, byte deathResistance, int expectedId, byte gilgameshUsed)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         byte[] resistances = Enumerable.Repeat((byte)100, 40).ToArray();
         resistances[0] = deathResistance;
@@ -56,7 +56,7 @@ public sealed class NativeAutomaticGuardianTests
     [Fact]
     public void FatalPartyDamageQueuesPhoenixAndSeparateRevivalAndKeepsTheKoActorAcrossRestore()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateFatalBattle(game, assets, 4, 0, 1);
         for (int frame = 0; frame < 128 && !battle.QueuedActions.Any(command => command.NativeCallback?.Stage == 7); frame++)
@@ -85,7 +85,7 @@ public sealed class NativeAutomaticGuardianTests
     [InlineData(4, 0, 2, true)]
     public void PhoenixNegativeGuardsAndFailedSingleRollPublishDefeatWithoutInventingAnotherAttempt(byte flags, int encounterId, byte randomIndex, bool consumesRoll)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateFatalBattle(game, assets, flags, encounterId, randomIndex);
         NativeBattleRandomState expected = battle.Capture().Random!;
@@ -109,7 +109,7 @@ public sealed class NativeAutomaticGuardianTests
     [InlineData(65, BattleOutcome.Defeat)]
     public void PhoenixChanceIncludesTheOriginalBoundaryByte(byte roll, BattleOutcome expected)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         byte index = Enumerable.Range(0, 256).Select(value => (byte)value).Single(value =>
         {

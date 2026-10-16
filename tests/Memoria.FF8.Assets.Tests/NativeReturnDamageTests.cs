@@ -9,7 +9,7 @@ public sealed class NativeReturnDamageTests
     [Fact]
     public void SynchronousReturnFactsAndPresentationReferencesFollowThePublishedHeaderOrder()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 0, twice: true);
         Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
@@ -36,7 +36,7 @@ public sealed class NativeReturnDamageTests
     [InlineData(65530, 248)]
     public void EnemyAiCompletionAggregatesTheWrappedWordAndReturnsAQuarterOnceAcrossRestore(ushort before, int returned)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, before);
         Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
@@ -64,7 +64,7 @@ public sealed class NativeReturnDamageTests
     [Fact]
     public void FollowingAiInstructionObservesReturnedDamageBeforeItQueuesItsNextAttack()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 0, twice: true);
         Until(battle, () => battle.NativeActionPackets.ActionCount != 0);
@@ -78,7 +78,7 @@ public sealed class NativeReturnDamageTests
     [InlineData(65530, 994)]
     public void ActualDeathCallbackCollectsWrappedPartyWordsButDoesNotIssueReturnDamage(ushort before, ushort accumulated)
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, before, deathCallback: true);
         battle.QueueAction("party", "enemy", BattleAbility.Magic, 1);
@@ -103,7 +103,7 @@ public sealed class NativeReturnDamageTests
     [Fact]
     public void UnknownOldWordIsPreservedAndFailsWhenThePassiveNeedsIt()
     {
-        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSnapshot saved = Create(game, assets, 0).Capture();
         BattleSession missingParticipant = BattleSession.Restore(saved with { Combatants = [saved.Combatants[0] with { NativeParticipant = null }, saved.Combatants[1]] });
