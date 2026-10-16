@@ -14,9 +14,9 @@ internal static partial class Program
         using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown6, Jsm.Opcode.Unknown7 })
         {
-            (int, int, int, int)[] cases = opcode == Jsm.Opcode.Unknown7 ? [(248, 56, 15, 312), (10, 200, 4, 200), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 261), (195, 32767, 4, 32767), (255, -32768, 4, -32512)] : [(195, 184, 30, 184), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 5), (195, 32767, 4, 32511), (255, -32768, 4, -32512)];
+            (int, int, int, int)[] cases = opcode == Jsm.Opcode.Unknown6 ? [(20, 159, 30, -97), (56, 248, 15, -8), (200, 10, 4, 10), (5, 65530, 65540, -6), (0, 128, 4, -128), (5, 5, 2, 5), (5, 10, 0, -246), (195, 32767, 4, 32511), (255, -32768, 4, -32768)] : opcode == Jsm.Opcode.Unknown7 ? [(248, 56, 15, 312), (10, 200, 4, 200), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 261), (195, 32767, 4, 32767), (255, -32768, 4, -32512)] : [(195, 184, 30, 184), (234, 65541, 65540, 261), (0, 128, 4, 128), (5, 5, 2, 5), (10, 5, 0, 5), (195, 32767, 4, 32511), (255, -32768, 4, -32512)];
             foreach ((int start, int rawTarget, int rawDuration, int target) in cases)
             {
                 byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, rawTarget), (Jsm.Opcode.PSHN_L, rawDuration), (opcode, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
@@ -58,7 +58,7 @@ internal static partial class Program
             }
         }
         NativeDirectedLinearTurnMoveConcurrency(vitals, economy);
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown6, Jsm.Opcode.Unknown7 })
         {
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine unknown = new(session);
@@ -77,7 +77,7 @@ internal static partial class Program
             JsonElement fiber = unknown.Capture().GetProperty("Fibers")[0];
             Require(unknown.LastFault?.Operation == 3 && fiber.GetProperty("Position").GetInt32() == 3 && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 30, 184 }) && unknown.Actors[0].RotationTarget is null && unknown.Actors[0].Direction == 193.9f, "Unproved linear turn changed original PC, operands or facing state.");
         }
-        Console.WriteLine("Native LTURNR/LTURNL/opcode364: signed WORD targets, BYTE durations, nearest and positive-wrap selection, equal/zero issue waits, integer inclusive samples, MOVE concurrency and independent restoration pass.");
+        Console.WriteLine("Native LTURNR/LTURNL/opcode363/364: signed WORD targets, BYTE durations, nearest and negative/positive-wrap selection, equal/zero issue waits, integer inclusive samples, MOVE concurrency and independent restoration pass.");
     }
 
     private static GameSession CreateDirectedLinearTurnSession(NativeCharacterVitals vitals, NativeEconomy economy)
@@ -91,11 +91,11 @@ internal static partial class Program
 
     private static void NativeDirectedLinearTurnMoveConcurrency(NativeCharacterVitals vitals, NativeEconomy economy)
     {
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown7 })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.LTURNR, Jsm.Opcode.LTURNL, Jsm.Opcode.Unknown6, Jsm.Opcode.Unknown7 })
         {
-            int start = opcode == Jsm.Opcode.Unknown7 ? 248 : 195;
-            int rawTarget = opcode == Jsm.Opcode.Unknown7 ? 56 : 184;
-            int target = opcode == Jsm.Opcode.Unknown7 ? 312 : 184;
+            int start = opcode == Jsm.Opcode.Unknown6 ? 56 : opcode == Jsm.Opcode.Unknown7 ? 248 : 195;
+            int rawTarget = opcode == Jsm.Opcode.Unknown6 ? 248 : opcode == Jsm.Opcode.Unknown7 ? 56 : 184;
+            int target = opcode == Jsm.Opcode.Unknown6 ? -8 : opcode == Jsm.Opcode.Unknown7 ? 312 : 184;
             short duration = opcode == Jsm.Opcode.Unknown7 ? (short)15 : (short)30;
             (Jsm.Opcode, int)[] peer = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 10000), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.RET, 8)];
             (Jsm.Opcode, int)[] actor = [(Jsm.Opcode.LBL, 16), (Jsm.Opcode.SETMODEL, 1), (Jsm.Opcode.PSHN_L, start), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)];

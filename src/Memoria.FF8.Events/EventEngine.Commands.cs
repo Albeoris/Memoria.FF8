@@ -512,6 +512,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.LTURNL:
             case Jsm.Opcode.LTURNR:
+            case Jsm.Opcode.Unknown6:
             case Jsm.Opcode.Unknown7:
                 args = ExecuteDirectedLinearTurn(fiber, opcode);
                 break;

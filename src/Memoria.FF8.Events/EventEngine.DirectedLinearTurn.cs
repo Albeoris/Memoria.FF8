@@ -6,7 +6,7 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedDirectedLinearTurn(Fiber fiber, JsmOperation operation)
     {
-        if (operation.Opcode is not (Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.Unknown7))
+        if (operation.Opcode is not (Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.Unknown6 or Jsm.Opcode.Unknown7))
         {
             return null;
         }
@@ -24,7 +24,15 @@ public sealed partial class EventEngine
         ActorState actor = actors[fiber.ObjectId];
         int start = (byte)actor.Direction;
         short target = unchecked((short)operands[0]);
-        if (opcode == Jsm.Opcode.Unknown7)
+        if (opcode == Jsm.Opcode.Unknown6)
+        {
+            // Native526FD0 (opcode363) makes one negative-wrap adjustment to the signed WORD target.
+            if (start < target)
+            {
+                target = unchecked((short)(target - 256));
+            }
+        }
+        else if (opcode == Jsm.Opcode.Unknown7)
         {
             // Native527070 (opcode364) makes one positive-wrap adjustment to the signed WORD target.
             if (start > target)
@@ -36,7 +44,7 @@ public sealed partial class EventEngine
         {
             target = unchecked((short)(start >= target ? target + 256 : target - 256));
         }
-        // Native527070/527250/527320 share the signed WORD target, BYTE
+        // Native526FD0/527070/527250/527320 share the signed WORD target, BYTE
         // duration, linear mode1, elapsed0 through the inclusive endpoint.
         // Equal endpoints still return1 on issue and execute the full phase.
         actor.NativeTurnMode580 = 1;
