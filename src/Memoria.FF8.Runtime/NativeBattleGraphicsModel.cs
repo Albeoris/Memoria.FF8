@@ -16,6 +16,7 @@ public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public short? Rotation14 { get; init; }
     public short? Rotation16 { get; init; }
     public ushort? ResourceMagicId { get; init; }
+    public NativeBattleModelTransform? Transform { get; init; }
     public System.Collections.Immutable.ImmutableArray<byte?> StatusTimers { get; init; } = System.Collections.Immutable.ImmutableArray.CreateRange(new byte?[32]);
     public ushort? ResourceFlags44 { get; init; }
     public byte? Sequence { get; init; }
@@ -94,11 +95,45 @@ public static class NativeBattleGraphicsModels
         {
             throw new NotSupportedException("Native kind10 appearance requires the50C330 effect owner.");
         }
-        if (kind is not (1 or 2 or 5 or 6 or 7))
+        if (kind is not (1 or 2 or 5 or 6 or 7 or 9))
         {
             throw new NotSupportedException($"Native graphics removal kind{kind} requires its own original service.");
         }
         return model with { Kind5 = kind, Phase6 = 0, Flags0 = kind == 2 ? (ushort)(model.Flags0 & ~4) : model.Flags0, Flags2 = kind == 2 ? (ushort)(flags2 & ~0x80) : flags2 };
+    }
+
+    public static NativeBattleGraphicsModel AdvanceCover(NativeBattleGraphicsModel model)
+    {
+        if (model.Kind5 != 9)
+        {
+            return model;
+        }
+        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native50C6D0 Cover movement requires the original model positionsWORD24/30/32.");
+        byte phase = model.Phase6 ?? throw new InvalidDataException("Native Cover service lacks its BYTE6 phase.");
+        NativeBattleVector position = transform.Position28;
+        byte kind = 9;
+        if (phase >= 15)
+        {
+            int step = phase - 15;
+            if (step < 2)
+            {
+                int progress = (step + 1) << 12;
+                short z = unchecked((short)(transform.Initial20.Z + (160 * (4 * (progress / -2) - progress / 2) >> 12) + 800));
+                short y = unchecked((short)(-100 * NativeBattleCameraMath.Sine(progress / 2 / 2) >> 12));
+                position = position with { Y = y, Z = z };
+            }
+            else
+            {
+                position = position with { Z = transform.Initial20.Z };
+                kind = 0;
+            }
+        }
+        else if (phase == 0)
+        {
+            position = position with { Z = unchecked((short)(transform.Initial20.Z + 800)) };
+        }
+        //50C6D0 advances even under graphics pause bit1, unlike the fade services.
+        return model with { Kind5 = kind, Phase6 = unchecked((byte)(phase + 1)), Transform = transform with { Position28 = position } };
     }
 
     public static NativeBattleGraphicsModel AdvanceAppearance(NativeBattleGraphicsModel model, bool graphicsFrozen)

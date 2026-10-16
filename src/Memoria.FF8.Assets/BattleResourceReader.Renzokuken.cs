@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -19,9 +20,11 @@ internal static partial class BattleResourceReader
         {
             throw new InvalidDataException("Decoded Renzokuken poses disagree with their original timing frame counts.");
         }
-        BattleModel changedBody = body with { Animations = bodyAnimations, Sequences = new(resource.GraphicsResource.SequenceSection.ToArray()) };
+        NativeBattlePoseSource? bodySource = body.NativePoseSource is { } originalBody ? originalBody with { Animations = resource.RawResource.AsSpan().Slice(offsets[0], offsets[1] - offsets[0]).ToArray().ToImmutableArray() } : null;
+        BattleModel changedBody = body with { Animations = bodyAnimations, Sequences = new(resource.GraphicsResource.SequenceSection.ToArray()), NativePoseSource = bodySource };
         //5022C0 passes mask4 to502270 for the linked weapon: replace only animation pointer+8, retain its original sequence pointer+12.
-        BattleModel? changedWeapon = weapon is null ? null : weapon with { Animations = Animations(reader, offsets[2], weapon.Bones.Count) };
+        NativeBattlePoseSource? weaponSource = weapon?.NativePoseSource is { } originalWeapon ? originalWeapon with { Animations = resource.RawResource.AsSpan().Slice(offsets[2]).ToArray().ToImmutableArray() } : null;
+        BattleModel? changedWeapon = weapon is null ? null : weapon with { Animations = Animations(reader, offsets[2], weapon.Bones.Count), NativePoseSource = weaponSource };
         return new(changedBody, changedWeapon);
     }
 }

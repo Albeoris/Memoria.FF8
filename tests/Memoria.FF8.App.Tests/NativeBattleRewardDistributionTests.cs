@@ -26,6 +26,23 @@ public sealed class NativeBattleRewardDistributionTests
         Assert.Equal((ushort)40, gf.GuardianForces[1]);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(245)]
+    [InlineData(246)]
+    public void AutomaticAndInternalCommandsRetainSharedExperienceWithoutPersonalKillerExperience(byte command)
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
+        byte level = NativeStatDefinitions.Level(vitals.Records[0].Experience, vitals.Definitions.Characters[vitals.Records[0].CharacterId]);
+        BattleEnemyDefeat defeat = new(0, level, BattleDefeatCredit.Character, 0, null, false, -1) { NativeCommand = command };
+        BattleExperienceAwards awards = NativeBattleRewardDistribution.Experience([defeat], vitals, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = Definition() }, false);
+        Assert.Equal((ushort)80, awards.Characters[0]);
+        Assert.Equal((ushort)80, awards.GuardianForces[0]);
+        BattleExperienceAwards normal = NativeBattleRewardDistribution.Experience([defeat with { NativeCommand = 1 }], vitals, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = Definition() }, false);
+        Assert.Equal((ushort)120, normal.Characters[0]);
+    }
+
     [Fact]
     public void CharacterAndGfExperienceHaveDifferentKoPetrifyRulesAndNoExperienceClearsBoth()
     {

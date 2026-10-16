@@ -5,7 +5,10 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 internal readonly record struct BattleSequenceSoundCue(string ActorId, long ActionFrame, int CueIndex, int SoundId, bool ActorSound, int Attribute);
-internal readonly record struct BattleAnimationSample(int Animation, float Frame, Vector3 Offset, float Opacity = 1, bool Loop = false);
+internal readonly record struct BattleAnimationSample(int Animation, float Frame, Vector3 Offset, float Opacity = 1, bool Loop = false)
+{
+    public NativeBattleDecodedPose? NativePose { get; init; }
+}
 
 /// <summary>Projects installed skeletal action clips onto the existing deterministic combat scaffold.</summary>
 internal sealed class BattleAnimationPresentation(BattleModel model, BattleSequenceSet? sequences, BattleCombatantDefinition definition)
@@ -22,6 +25,11 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
 
     public BattleAnimationSample Sample(BattleSession session, BattleCombatant actor, Vector3 origin, Vector3 target)
     {
+        if (session.NativeGraphics is { } graphics)
+        {
+            int index = graphics.ActorIds.IndexOf(actor.Id);
+            return index < 0 ? new BattleAnimationSample(0, 0, Vector3.Zero, 0) : SampleNativeModel(graphics.Models[index]);
+        }
         idleOriginFrame ??= session.Frame - frames;
         if (sequences is null)
         {
@@ -92,6 +100,27 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
     public bool Melee { get; init; }
     public int AttackSequence { get; init; } = definition.IsPlayer ? 13 : 0;
 
+    internal BattleAnimationSample SampleNativeModel(NativeBattleGraphicsModel graphics)
+    {
+        //502AB0 draws only loaded, visible models; the pose is not initialized before the first509440 callback.
+        if ((graphics.Flags0 & 6) != 2 || graphics.Flags2 is not ushort flags2 || (flags2 & 0x84) != 0 || graphics.SequenceState is not { Pose: byte pose, PoseFrame114: byte counter } state)
+        {
+            return new(0, 0, Vector3.Zero, 0);
+        }
+        if (pose >= model.Animations.Count || counter == 0)
+        {
+            throw new InvalidDataException($"{model.Name} native pose has no decoded animation frame.");
+        }
+        //509440 decodes the first frame immediately.508F90 advances twice for fast and half-deltas for slow poses.
+        float frame = (counter - 1) / ((state.PoseFlags109 & 1) != 0 ? 2f : 1f);
+        if (frame >= model.Animations[pose].Frames.Count)
+        {
+            throw new InvalidDataException($"{model.Name} native pose counter exceeds its original body animation.");
+        }
+        NativeBattlePoseSource source = model.NativePoseSource ?? throw new NotSupportedException($"{model.Name} raw pose rendering requires its original compressed source.");
+        return new(pose, frame, Vector3.Zero) { NativePose = source.Sample(pose, counter, state.PoseFlags109) };
+    }
+
     internal BattleAnimationSample SampleNativeSequence(int sequence, double poseFrames)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(poseFrames);
@@ -107,11 +136,16 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
     public float GroundOffset(BattleAnimationSample sample, bool alive, float standingOffset)
     {
         // TODO(TD-009): Ground fallen geometry at the selected pose instead of subtracting the standing-foot anchor from a flat KO pose
-        return alive ? standingOffset : model.Pose(sample.Animation, sample.Frame, sample.Loop).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
+        return alive ? standingOffset : (sample.NativePose is { } pose ? model.PoseNative(pose) : model.Pose(sample.Animation, sample.Frame, sample.Loop)).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
     }
 
     public IReadOnlyList<BattleSequenceSoundCue> CollectSounds(BattleSession session)
     {
+        if (session.NativeGraphics is not null)
+        {
+            //An event index is stable across restore even when gameplayFrame is frozen for many graphics callbacks.
+            return session.Events.Select((item, index) => (item, index)).Where(entry => entry.item.ActorId == definition.Id && entry.item.NativeSound is not null).Select(entry => new BattleSequenceSoundCue(definition.Id, entry.item.Frame, entry.index, entry.item.NativeSound!.SoundId, entry.item.NativeSound.ActorSound, entry.item.NativeSound.Volume)).ToArray();
+        }
         if (sequences is null)
         {
             return [];

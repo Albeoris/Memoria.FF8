@@ -21,6 +21,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native enemy allocation requires one of physical slots3..6 and an available allocation.");
         }
+        BattleCombatant? previous = combatants.SingleOrDefault(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex);
         foreach (BattleCombatant replaced in combatants.Where(candidate => !candidate.IsPlayer && candidate.NativeIndex == physicalIndex).ToArray())
         {
             if (replaced.IsActive)
@@ -34,7 +35,39 @@ public sealed partial class BattleSession
         BattleCombatant spawned = CreateNativeAllocation(allocation);
         nativeAllocations.Add(allocation);
         spawned.NativeIndex = physicalIndex;
-        spawned.NativeCombatantFlags = template.NativeCombatantFlags | 1;
+        spawned.LastNativeHealing = previous?.LastNativeHealing;
+        spawned.LastNativeAction = previous?.LastNativeAction is { } last ? last with { AttackType = 0, AttackerIndex = 0 } : null;
+        nativeLastAllocatedIndex = physicalIndex;
+        Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
+        if (NativeGraphics is not null)
+        {
+            spawned.NativeCombatantFlags = 0;
+            spawned.NativeStatus0 = (ushort)((previous is null ? 0 : NativeSavedStatusBits(previous)) | 1);
+            spawned.NativeAllocationPendingStatistics = true;
+            nativeScriptState = nativeScriptState with { AllocationControl = new(checked((byte)sceneSlot), true, true) };
+            SetNativeBattleClockActive(false);
+            NativeBattleGraphicsState graphics = QueueNativeDescriptor(NativeGraphics, 102, NativeParticipantAddress(physicalIndex), checked((ushort)physicalIndex), checked((ushort)(spawned.ModelId + 16)));
+            graphics = QueueNativeDescriptor(graphics, 113, 0x48AD10);
+            if (activate)
+            {
+                graphics = QueueNativeDescriptor(graphics, 113, 0x487670, checked((ushort)physicalIndex));
+            }
+            NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x4876B0);
+            return spawned;
+        }
+        // TODO(TD-009): Components without a native graphics owner materialize102/113 at this explicit boundary
+        InitializeNativeAllocatedStatistics(spawned);
+        if (activate)
+        {
+            ActivateNativeParticipant(spawned);
+        }
+        return spawned;
+    }
+
+    private void InitializeNativeAllocatedStatistics(BattleCombatant spawned)
+    {
+        NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
+        spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
@@ -43,13 +76,16 @@ public sealed partial class BattleSession
         spawned.ResetNativeStatusAllocation();
         ResetNativeDrawAllocation(spawned);
         spawned.CurrentHp = spawned.MaximumHp;
-        nativeLastAllocatedIndex = physicalIndex;
-        Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
-        if (activate)
-        {
-            ActivateNativeParticipant(spawned);
-        }
-        return spawned;
+        spawned.Hidden = spawned.SourceDefinition.InitialHidden;
+        spawned.Untargetable = spawned.SourceDefinition.InitialUntargetable;
+        spawned.Suspended = spawned.SourceDefinition.InitialSuspended;
+        spawned.AiTurnCount = 0;
+        Array.Fill(spawned.NativeStatMultipliers, (byte)10);
+        Array.Clear(spawned.AiVariables);
+        //48BBD0 always invokes4844D0, even for a fixed scene level.
+        // TODO(TD-009): Gauge projection still requires the retained physical-slot speedBYTE193; preserve its unconditional RNG draw
+        _ = NextRandomByte();
+        spawned.NativeAllocationPendingStatistics = false;
     }
 
     private BattleCombatant CreateNativeAllocation(NativeBattleEnemyAllocation allocation)

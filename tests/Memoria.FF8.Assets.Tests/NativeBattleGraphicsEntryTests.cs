@@ -6,6 +6,31 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeBattleGraphicsEntryTests
 {
+    [Theory]
+    [InlineData(94)]
+    [InlineData(512)]
+    public void Installed_stage_camera_and_model_entry_resume_together_before_the_real_barrier(int encounterId)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleEncounter encounter = assets.LoadEncounter(encounterId);
+        BattleStage stage = assets.LoadStage(encounter.StageId);
+        BattleSession seed = Create(game, assets, encounter.Enemies.First().ModelId, formation: encounter);
+        BattleDefinition definition = seed.Capture().Definition with { EncounterId = encounterId, NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.Tick();
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int callback = 0; callback < 1200 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.True(battle.NativeEntryReady);
+        Assert.Equal(0, battle.NativeCameraTaskMask);
+        Assert.Equal(0, battle.Frame);
+    }
+
     [Fact]
     public void OriginalBalambAndIfritEntryProgramsResumeTheirModelsWhileTurnBasedGameplayWaits()
     {
@@ -13,9 +38,9 @@ public sealed class NativeBattleGraphicsEntryTests
         using BattleAssets assets = new(game.GameDirectory);
         foreach (int model in assets.LoadEncounter(512).Enemies.Select(enemy => enemy.ModelId).Append(61).Distinct())
         {
-            BattleSession battle = Create(game, assets, model);
+            BattleSession battle = Create(game, assets, model, formation: assets.LoadEncounter(model == 61 ? 94 : 512));
             Assert.Throws<InvalidOperationException>(() => battle.QueueAttack("party-0", "enemy"));
-            Assert.Equal(13ul, battle.Capture().NativeGlobalRandomCalls);
+            Assert.Equal(0ul, battle.Capture().NativeGlobalRandomCalls);
             battle.Tick();
             Assert.False(battle.NativeGraphics!.EntryReady);
             Assert.Equal(0, battle.Frame);
@@ -29,6 +54,7 @@ public sealed class NativeBattleGraphicsEntryTests
                 Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
             }
             Assert.True(battle.NativeGraphics.EntryReady);
+            Assert.True(battle.Capture().NativeGlobalRandomCalls >= 13);
             Assert.Equal((byte)255, battle.NativeGraphics.EntryBarrierCompletion);
             Assert.All(battle.NativeGraphics.Models.Where(row => (row.Flags0 & 2) != 0), row => Assert.Equal((byte)0, row.Kind5));
             Assert.Equal(0, battle.Frame);
@@ -130,16 +156,16 @@ public sealed class NativeBattleGraphicsEntryTests
         Assert.Equal(texts, battle.Events.Count(item => item.Kind == "NativeText"));
     }
 
-    private static BattleSession Create(GameAssets game, BattleAssets assets, int model, bool ready = true, NativeBattleAiDefinition? ai = null)
+    private static BattleSession Create(GameAssets game, BattleAssets assets, int model, bool ready = true, NativeBattleAiDefinition? ai = null, BattleEncounter? formation = null)
     {
+        formation ??= assets.LoadEncounter(94);
         List<BattleCombatantDefinition> actors = [];
         foreach (int character in new[] { 0, 3, 4 })
         {
             actors.Add(new() { Id = $"party-{character}", Name = $"Character{character}", IsPlayer = true, ModelId = character, WeaponId = assets.WeaponDefinitions.First(weapon => weapon.CharacterId == character).Id, InitialAtb = ready ? BattleSession.AtbMaximum : 0, NativeDeathCount = 0 });
         }
-        actors.Add(new() { Id = "enemy", Name = "Enemy", ModelId = model, Speed = 1, NativeAi = ai });
-        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), assets.ReadNativeGraphicsResource(actor))).ToImmutableArray();
-        NativeBattleGraphicsDefinition graphics = new(game.ReadNativeBattleGraphicsRules(), bindings, new[] { "enemy" }.Concat(actors.Where(actor => actor.IsPlayer).Select(actor => actor.Id)).ToImmutableArray());
-        return new(new() { Name = "Installed raw entry component", NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        actors.Add(new() { Id = "enemy", Name = "Enemy", ModelId = model, Speed = 1, NativeAi = ai, NativeCombatantFlags = ai is null ? 0u : 0x10u, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == model).Slot });
+        NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
+        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
     }
 }

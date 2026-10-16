@@ -142,7 +142,10 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public NativeBattleClockRules? NativeClockRules { get; init; }
+    public NativeBattleSupportRules? NativeSupportRules { get; init; }
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
+    public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
     public ImmutableArray<byte> NativeStageCameraControl { get; init; } = [];
@@ -238,6 +241,7 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
 }
 public sealed record BattleEvent(long Frame, string Kind, string? ActorId, string? TargetId, int Amount, string Message, BattleAbility Ability = BattleAbility.Attack)
 {
+    public NativeBattleSequenceSound? NativeSound { get; init; }
     public byte? NativeGraphicMagicId { get; init; }
     public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }
@@ -256,6 +260,8 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeBattleClockState? NativeClock { get; init; }
+    public NativeBattleSupportState? NativeSupport { get; init; }
     public NativeBattleGraphicsState? NativeGraphics { get; init; }
     public NativeBattleTimedAction? NativeTimedAction { get; init; }
     public NativeBattleCameraState? NativeCamera { get; init; }
@@ -388,6 +394,7 @@ public sealed partial class BattleCombatant
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
     internal byte? LastNativeHealing { get; set; }
+    internal bool NativeAllocationPendingStatistics { get; set; }
     internal NativeBattleLastAction? LastNativeAction { get; set; }
     internal ushort NativePreviousTargetMask { get; set; }
     internal byte? NativeDrawnSpell { get; set; }

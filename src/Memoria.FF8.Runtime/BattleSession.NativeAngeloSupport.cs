@@ -4,12 +4,17 @@ public sealed partial class BattleSession
 {
     private static bool CanRetainNativeSupportActor(BattleCombatant actor, BattleNativePlayerReaction? reaction)
     {
-        return actor.IsAlive || actor.IsActive && reaction == BattleNativePlayerReaction.AngeloReverse;
+        return actor.IsAlive || actor.IsActive && IsNativeSupportInvocation(reaction);
     }
 
     private static bool CanNativeSupportCommandAct(BattleCombatant actor, BattleNativePlayerReaction? reaction)
     {
-        return CanNativeBattleActorAct(actor) || actor.IsActive && reaction == BattleNativePlayerReaction.AngeloReverse;
+        return CanNativeBattleActorAct(actor) || actor.IsActive && IsNativeSupportInvocation(reaction);
+    }
+
+    private static bool IsNativeSupportInvocation(BattleNativePlayerReaction? reaction)
+    {
+        return reaction is BattleNativePlayerReaction.AngeloReverse or BattleNativePlayerReaction.AngeloPeriodic or BattleNativePlayerReaction.AutomaticGuardian or BattleNativePlayerReaction.PhoenixRevival;
     }
 
     private bool NativeAngeloDisabled()

@@ -65,6 +65,7 @@ public sealed class InstalledBattleActionCoverageTests
         return new(new BattleDefinition
         {
             Name = "Declared exhaustive installed player action component",
+            NativeFieldBattleRules = 0,
             NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(),
             GuardianForces = Enumerable.Range(0, 16).Select(id => new BattleGuardianForceVital(id, 1000, 1000)).ToArray(), NativeBattleSpeed = 0,
             NativePocketStation = game.ReadNewGamePocketStation(), NativeSavedBattleFlags = 0, NativeSavedBattleFlagsKnownMask = 255,

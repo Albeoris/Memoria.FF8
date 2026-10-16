@@ -24,29 +24,8 @@ public sealed partial class BattleSession
             return;
         }
         ValidateNativeGraphicsDefinition(source);
-        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank();
-        string?[] actors = new string?[7];
-        foreach (string id in source.InitialLoadOrder)
-        {
-            BattleCombatant actor = GetActor(id);
-            NativeBattleGraphicsBinding binding = source.Bindings.Single(binding => binding.ActorId == id);
-            int index = actor.NativeIndex;
-            if (index is < 0 or >= 7 || actors[index] is not null)
-            {
-                throw new InvalidDataException("Native graphics load order does not identify unique allocated physical rows.");
-            }
-            NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native model initialization requires saved534AA0 random state.");
-            uint flags = source.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
-            NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(models[index], binding.ModelId, flags, ref randomState);
-            nativeGlobalRandom = randomState;
-            nativeGlobalRandomCalls = checked(nativeGlobalRandomCalls + 3);
-            byte standing = actor.IsPlayer ? NativeStandingSequence(flags) : (byte)1;
-            models[index] = model with { Flags0 = actor.Hidden ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = new() { Default2 = standing, Pending3 = actor.IsPlayer && standing != 8 ? standing : (byte)0 } };
-            actors[index] = id;
-        }
-        // TODO(TD-009): This loaded-resource boundary materializes native103 callbacks without reproducing asynchronous disk IO latency. Their exact ordering and three RNG calls per model are retained
-        //500870 clears flags, queued500520 sets bit4 before the native model initialization descriptors.
-        NativeGraphics = new(models.ToImmutableArray(), actors.ToImmutableArray(), 4, 0);
+        NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
+        NativeGraphics = QueueNativeEntryLoads(graphics);
     }
 
     private static byte NativeStandingSequence(uint flags)

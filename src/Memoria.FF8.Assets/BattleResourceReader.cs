@@ -1,5 +1,6 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
+using System.Collections.Immutable;
 using Albeoris.Games.FF8.Imaging.Tim;
 
 namespace Memoria.FF8.Assets;
@@ -60,6 +61,7 @@ internal static partial class BattleResourceReader
         IReadOnlyList<BattleAnimation> animations = Animations(reader, offsets[2], bones.Length);
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
         {
+            NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
         };
     }
@@ -79,6 +81,7 @@ internal static partial class BattleResourceReader
         IReadOnlyList<ModelTexture> textures = Textures(reader, bytes, offsets[4]);
         return new BattleModel(name, character.Bones, Geometry(reader, offsets[0], character.Bones.Count, textures), textures.Select(texture => texture.Image).ToArray(), character.Animations, character.Scale)
         {
+            NativePoseSource = character.NativePoseSource,
             Sequences = Sequences(bytes, offsets, 1)
         };
     }
@@ -206,81 +209,11 @@ internal static partial class BattleResourceReader
         return TimFile.Read(bytes.AsSpan(offset, checked((int)reader.BaseStream.Position - offset)));
     }
 
-    private sealed class Bits(BinaryReader reader)
-    {
-        private int remaining;
-        private int value;
-        public int Read(int length)
-        {
-            int result = 0;
-            for (int bit = 0; bit < length; bit++)
-            {
-                if (remaining == 0)
-                {
-                    value = reader.ReadByte();
-                    remaining = 8;
-                }
-                result |= (value & 1) << bit;
-                value >>= 1;
-                remaining--;
-            }
-            return result;
-        }
-        public int Signed(int length) => (Read(length) << (32 - length)) >> (32 - length);
-        public int Position() => Signed(new[] { 3, 6, 9, 16 }[Read(2)]);
-        public int Rotation() => Read(1) == 0 ? 0 : Signed(new[] { 3, 6, 8, 12 }[Read(2)]);
-    }
-
     private static IReadOnlyList<BattleAnimation> Animations(BinaryReader reader, int offset, int bones)
     {
         reader.BaseStream.Position = offset;
-        int count = Count(reader.ReadInt32(), 256, "animations");
-        int[] pointers = Enumerable.Range(0, count).Select(_ => checked(offset + reader.ReadInt32())).ToArray();
-        List<BattleAnimation> animations = [];
-        foreach (int pointer in pointers)
-        {
-            reader.BaseStream.Position = pointer;
-            int frames = reader.ReadByte();
-            if (frames == 0)
-            {
-                throw new InvalidDataException("Battle animation has no frames.");
-            }
-            Bits bits = new(reader);
-            List<BattlePose> poses = [];
-            Vector3 position = Vector3.Zero;
-            Vector3[] previous = new Vector3[bones];
-            for (int frame = 0; frame < frames; frame++)
-            {
-                position += new Vector3(bits.Position(), bits.Position(), bits.Position()) / 100f;
-                bool scalePresent = bits.Read(1) != 0;
-                Vector3[] rotations = new Vector3[bones];
-                Vector3[] scales = Enumerable.Repeat(Vector3.One, bones).ToArray();
-                for (int bone = 0; bone < bones; bone++)
-                {
-                    rotations[bone] = previous[bone] + new Vector3(bits.Rotation(), bits.Rotation(), bits.Rotation()) * (MathF.Tau / 4096);
-                    if (scalePresent)
-                    {
-                        for (int axis = 0; axis < 3; axis++)
-                        {
-                            if (bits.Read(1) != 0)
-                            {
-                                float scale = (bits.Signed(16) + 1024) / 1024f;
-                                scales[bone] = axis switch
-                                {
-                                    0 => scales[bone] with { X = scale },
-                                    1 => scales[bone] with { Y = scale },
-                                    _ => scales[bone] with { Z = scale }
-                                };
-                            }
-                        }
-                    }
-                }
-                poses.Add(new BattlePose(position, rotations, scales));
-                previous = rotations;
-            }
-            animations.Add(new BattleAnimation(poses));
-        }
-        return animations;
+        byte[] section = reader.ReadBytes(checked((int)(reader.BaseStream.Length - offset)));
+        return Memoria.FF8.Runtime.NativeBattlePoseDecoder.DecodeFrames(section, bones).Select(frames => new BattleAnimation(frames.Select(pose => new BattlePose(new Vector3(pose.Translation.X, pose.Translation.Y, pose.Translation.Z) / 100f, pose.Bones.Select(bone => new Vector3(bone.Rotation.X, bone.Rotation.Y, bone.Rotation.Z) * (MathF.Tau / 4096)).ToArray(), pose.Bones.Select(bone => new Vector3(bone.Scale.X, bone.Scale.Y, bone.Scale.Z) / 1024f).ToArray())).ToArray())).ToArray();
     }
 
     public static BattleStage ReadStage(int stageId, byte[] bytes)

@@ -21,7 +21,8 @@ internal sealed class BattleScenePresentation
     private readonly Dictionary<ushort, BattleNativeRenzokukenResource> renzokukenResources;
     private readonly Dictionary<(string ActorId, ushort MagicId), (BattleRenzokukenModels Models, BattleAnimationPresentation Animation)> renzokukenModels = [];
     private readonly BattleImpactTimeline impactTimeline = new();
-    private readonly BattleCamera camera;
+    private readonly BattleCamera? camera;
+    private BattleCamera? renderedCamera;
     private BattleRenderer? renderer;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
@@ -33,14 +34,16 @@ internal sealed class BattleScenePresentation
         BattleCombatantDefinition[] party = definition.Combatants.Where(actor => actor.IsPlayer).ToArray();
         BattleCombatantDefinition[] enemies = definition.Combatants.Where(actor => !actor.IsPlayer).ToArray();
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
-        // TODO(TD-009): Show the primary native introduction's settled pose immediately; random alternative
-        // selection, introduction motion and action camera scripts remain unsupported
-        int cameraId = (encounter?.PrimaryCamera ?? 0) & 0xF7;
-        if (!stage.IntroductionCameras.TryGetValue(cameraId, out BattleStageCamera? introduction))
+        if (definition.NativeGraphics is null)
         {
-            throw new NotSupportedException($"Stage {stage.Id} camera {cameraId} requires an unsupported native endpoint resolver.");
+            //TODO(TD-009): Component battles without the raw graphics owner retain their declared settled introduction view
+            int cameraId = (encounter?.PrimaryCamera ?? 0) & 0xF7;
+            if (!stage.IntroductionCameras.TryGetValue(cameraId, out BattleStageCamera? introduction))
+            {
+                throw new NotSupportedException($"Stage {stage.Id} camera {cameraId} requires an unsupported native endpoint resolver.");
+            }
+            camera = BattleCamera.FromNative(introduction);
         }
-        camera = BattleCamera.FromNative(introduction);
         for (int index = 0; index < party.Length; index++)
         {
             positions[party[index].Id] = BattleFormationPresentation.PartyPosition(index, party.Length);
@@ -56,7 +59,7 @@ internal sealed class BattleScenePresentation
         }
     }
 
-    internal BattleCamera Camera => camera;
+    internal BattleCamera Camera => renderedCamera ?? camera ?? throw new InvalidOperationException("The original camera has not published its first pose.");
 
     private void EnsureActorResources(string actorId)
     {
@@ -89,6 +92,25 @@ internal sealed class BattleScenePresentation
         {
             renderer = new BattleRenderer(width, height);
         }
+        BattleCamera? selectedCamera = camera;
+        if (session.NativeGraphics is not null)
+        {
+            if (session.NativeCamera?.CurrentPose is not { FocalLength: short focal } nativeCamera)
+            {
+                //5041E0 retains the preceding camera pose; no guessed bootstrap or settled endpoint replaces an unknown owner.
+                byte[] loading = new byte[checked(width * height * 4)];
+                for (int pixel = 0; pixel < loading.Length; pixel += 4)
+                {
+                    loading[pixel] = 17;
+                    loading[pixel + 1] = 20;
+                    loading[pixel + 2] = 29;
+                    loading[pixel + 3] = 255;
+                }
+                return loading;
+            }
+            selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), focal), nativeCamera.Roll);
+        }
+        renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];
         impactTimeline.Collect(session);
         foreach (BattleCombatant actor in session.Combatants.Where(actor => !definitions.ContainsKey(actor.Id)))
@@ -100,7 +122,8 @@ internal sealed class BattleScenePresentation
         }
         foreach (BattleCombatant actor in session.Combatants)
         {
-            if (!actor.IsActive || actor.Hidden)
+            int nativeIndex = session.NativeGraphics?.ActorIds.IndexOf(actor.Id) ?? -1;
+            if (session.NativeGraphics is { } nativeGraphics ? nativeIndex < 0 || (nativeGraphics.Models[nativeIndex].Flags0 & 6) != 2 : !actor.IsActive || actor.Hidden)
             {
                 continue;
             }
@@ -111,7 +134,7 @@ internal sealed class BattleScenePresentation
             BattleModel? shownWeapon = weapons[actor.Id];
             BattleAnimationPresentation animation = animations[actor.Id];
             BattleAnimationSample pose;
-            if (session.GetNativeRenzokuken(actor.Id) is { } renzokuken)
+            if (session.GetNativeRenzokuken(actor.Id) is { } renzokuken && (session.NativeGraphics is null || session.NativeGraphics.Models[nativeIndex].ResourceMagicId is not null))
             {
                 var key = (actor.Id, renzokuken.MagicId);
                 if (!renzokukenModels.TryGetValue(key, out var replacement))
@@ -123,23 +146,27 @@ internal sealed class BattleScenePresentation
                 shownModel = replacement.Models.Body;
                 shownWeapon = replacement.Models.Weapon;
                 animation = replacement.Animation;
-                pose = animation.SampleNativeSequence(1, renzokuken.PoseFrames);
+                pose = session.NativeGraphics is { } graphics ? animation.SampleNativeModel(graphics.Models[nativeIndex]) : animation.SampleNativeSequence(1, renzokuken.PoseFrames);
             }
             else
             {
                 pose = animation.Sample(session, actor, positions[actor.Id], target);
             }
+            if (pose.Opacity == 0)
+            {
+                continue;
+            }
             float ground = animation.GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
             // bases yields renderer partyPI/enemy0
-            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop);
+            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose };
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)
             {
                 actors.Add(drawing with { Model = weapon });
             }
         }
-        return renderer!.Render(stage, actors, camera);
+        return renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
     }
 
     public void DrawEffects(BattleSession session, IUiCanvas canvas, UiRect viewport)

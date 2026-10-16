@@ -1,0 +1,152 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Assets.Tests;
+
+public sealed class NativeAutomaticGuardianTests
+{
+    [Theory]
+    [InlineData(2, 100, 255, 0, 0)]
+    [InlineData(2, 200, 0, -1, 0)]
+    [InlineData(8, 100, 0, 10, 1)]
+    public void EntryBarrierOwnsOdinResistanceAdmissionAndGilgameshQuartileSelection(byte savedFlags, byte ejectResistance, byte deathResistance, int expectedId, byte gilgameshUsed)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        byte[] resistances = Enumerable.Repeat((byte)100, 40).ToArray();
+        resistances[0] = deathResistance;
+        resistances[24] = ejectResistance;
+        BattleCombatantDefinition[] actors =
+        [
+            new() { Id = "party-0", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum },
+            new() { Id = "enemy", Name = "Ifrit", ModelId = 61, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = resistances }
+        ];
+        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), assets.ReadNativeGraphicsResource(actor))).ToImmutableArray();
+        BattleDefinition definition = Definition(game, assets, savedFlags, actors) with { NativeClockRules = assets.ReadNativeClockRules(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], NativeGraphics = new(game.ReadNativeBattleGraphicsRules(), bindings, ["enemy", "party-0"]) };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        Assert.False(battle.Capture().NativeSupport!.EntryInitialized);
+        Assert.Empty(battle.QueuedActions);
+        for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
+        {
+            battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(333_334));
+        }
+        Assert.True(battle.NativeEntryReady);
+        NativeBattleSupportState state = battle.Capture().NativeSupport!;
+        Assert.True(state.EntryInitialized);
+        Assert.Equal((ushort)assets.ReadNativeSupportRules().Cooldown, state.Cooldown);
+        Assert.Equal(gilgameshUsed, state.GilgameshUsed);
+        if (expectedId < 0)
+        {
+            Assert.Empty(battle.QueuedActions);
+            Assert.Equal(definition.InitialRandom, battle.Capture().Random);
+        }
+        else
+        {
+            BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+            Assert.Equal(BattleNativePlayerReaction.AutomaticGuardian, queued.NativePlayerReaction);
+            Assert.Equal((byte)245, queued.NativeQueuedCommand);
+            Assert.Equal(expectedId, queued.ActionId);
+        }
+        Assert.Equal(0, battle.Frame);
+        string snapshot = JsonSerializer.Serialize(battle.Capture());
+        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!).Capture()));
+        for (int callback = 0; callback < 20; callback++)
+        {
+            battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(333_334));
+        }
+        Assert.Equal(state, battle.Capture().NativeSupport);
+    }
+
+    [Fact]
+    public void FatalPartyDamageQueuesPhoenixAndSeparateRevivalAndKeepsTheKoActorAcrossRestore()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreateFatalBattle(game, assets, 4, 0, 1);
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.False(battle.Combatants[0].IsAlive);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal(new byte?[] { 245, 0 }, battle.QueuedActions.Select(command => command.NativeQueuedCommand));
+        Assert.Equal(new[] { 1, 8 }, battle.QueuedActions.Select(command => command.ActionId));
+        Assert.Equal((ushort)0xC007, battle.QueuedActions[1].NativeTargetMask);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 80 && !battle.Combatants[0].IsAlive; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.True(battle.Combatants[0].IsAlive);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        Assert.Equal((ushort)1, battle.Combatants[0].NativeDeathCount);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1, false)]
+    [InlineData(4, 317, 1, false)]
+    [InlineData(4, 0, 2, true)]
+    public void PhoenixNegativeGuardsAndFailedSingleRollPublishDefeatWithoutInventingAnotherAttempt(byte flags, int encounterId, byte randomIndex, bool consumesRoll)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreateFatalBattle(game, assets, flags, encounterId, randomIndex);
+        NativeBattleRandomState expected = battle.Capture().Random!;
+        if (consumesRoll)
+        {
+            expected = expected.Draw(out _);
+        }
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(BattleOutcome.Defeat, battle.Outcome);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(expected.Indexes, battle.Capture().Random!.Indexes);
+        battle.Tick();
+        Assert.Equal(expected.Indexes, battle.Capture().Random!.Indexes);
+    }
+
+    [Theory]
+    [InlineData(64, BattleOutcome.Active)]
+    [InlineData(65, BattleOutcome.Defeat)]
+    public void PhoenixChanceIncludesTheOriginalBoundaryByte(byte roll, BattleOutcome expected)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        byte index = Enumerable.Range(0, 256).Select(value => (byte)value).Single(value =>
+        {
+            NativeBattleRandomState state = new(Enumerable.Repeat(value, 8).ToImmutableArray(), 0);
+            state.Draw(out byte sample);
+            return sample == roll;
+        });
+        BattleSession battle = CreateFatalBattle(game, assets, 4, 0, index);
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(expected, battle.Outcome);
+        Assert.Equal(expected == BattleOutcome.Active ? 2 : 0, battle.QueuedActions.Count);
+    }
+
+    private static BattleSession CreateFatalBattle(GameAssets game, BattleAssets assets, byte flags, int encounterId, byte randomIndex)
+    {
+        BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8) with { ActionId = 1000, AttackType = 27, Power = 1, Hit = 0, HitCount = 1, AttackFlags = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };
+        BattleCombatantDefinition[] actors =
+        [
+            new() { Id = "party-0", Name = "Squall", IsPlayer = true, MaximumHp = 100, CurrentHp = 10, NativeDeathCount = 0, Speed = 1 },
+            new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = new byte[40] }
+        ];
+        BattleDefinition definition = Definition(game, assets, flags, actors) with { EncounterId = encounterId, NativeActions = [.. assets.NativeActions, attack], InitialRandom = new(Enumerable.Repeat(randomIndex, 8).ToImmutableArray(), 0) };
+        BattleSession initial = new(definition, BattleAtbMode.TurnBased);
+        BattleAttackCommand hit = new("enemy", "party-0", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = 1 };
+        return BattleSession.Restore(initial.Capture() with { NativeSupport = new(true, assets.ReadNativeSupportRules().Cooldown, 0), QueuedActions = [hit] });
+    }
+
+    private static BattleDefinition Definition(GameAssets game, BattleAssets assets, byte flags, BattleCombatantDefinition[] actors)
+    {
+        return new() { StageId = 0, NativeFieldBattleRules = 0, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeSupportRules = assets.ReadNativeSupportRules(), NativeSavedBattleFlags = flags, NativeSavedBattleFlagsKnownMask = 255, InitialRandom = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0), GuardianForces = [new(0, 100, 100) { KillCount = 0, DeathCount = 0 }], Combatants = actors };
+    }
+}

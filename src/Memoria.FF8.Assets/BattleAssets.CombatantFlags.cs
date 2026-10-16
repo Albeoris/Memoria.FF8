@@ -34,7 +34,7 @@ public sealed partial class BattleAssets
             throw new InvalidDataException("Native combatant flags exceed the original information section.");
         }
         //48BBD0: static properties, independent of allocation/visibility/status flags.
-        uint flags = ((bytes[information + 247] & 8) != 0 ? 0x8000u : 0) | ((bytes[information + 247] & 16) != 0 ? 0x2000u : 0) | ((bytes[information + 254] & 64) != 0 ? 0x10000u : 0);
+        uint flags = 0x10 | ((bytes[information + 247] & 8) != 0 ? 0x8000u : 0) | ((bytes[information + 247] & 16) != 0 ? 0x2000u : 0) | ((bytes[information + 254] & 64) != 0 ? 0x10000u : 0);
         //48BBD0 marks allocations whose original death callback begins with a nonzero opcode.
         if (ReadEnemyAi(model, 1).Scripts[3][0] != 0)
         {

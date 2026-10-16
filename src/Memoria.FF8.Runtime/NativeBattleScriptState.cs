@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Allocation-independent battle script owners from487DF0, retained without replaying callbacks.</summary>
 public sealed record NativeBattleScriptState
 {
+    public NativeBattleAllocationControl? AllocationControl { get; init; }
+    public int[] PendingInitializations { get; init; } = [];
     public bool DisableAutomaticTargetReplacement { get; init; }
     public bool ScriptedExitRequested { get; init; }
     public byte ResultFlags { get; init; }
@@ -32,7 +34,7 @@ public sealed record NativeBattleScriptState
         {
             throw new InvalidDataException("Native saved battle flag effects require their exact before/after BYTE owners and native producer masks.");
         }
-        if (WaitCounters is null || WaitCounters.Length > 255 || AcquiredGuardianForces is null || AcquiredGuardianForces.Length > 255 || AcquiredGuardianForces.Any(id => id >= 16) || Cards is null || Cards.Length > 255 || Cards.Any(id => id >= NativeCardInventory.CardCount) || UnlockedTutorials is null || UnlockedTutorials.Any(id => id is < 0 or >= 128) || UnlockedTutorials.Distinct().Count() != UnlockedTutorials.Length)
+        if (AllocationControl?.SceneSlot >= 8 || PendingInitializations is null || PendingInitializations.Any(index => index is < 0 or >= 7) || WaitCounters is null || WaitCounters.Length > 255 || AcquiredGuardianForces is null || AcquiredGuardianForces.Length > 255 || AcquiredGuardianForces.Any(id => id >= 16) || Cards is null || Cards.Length > 255 || Cards.Any(id => id >= NativeCardInventory.CardCount) || UnlockedTutorials is null || UnlockedTutorials.Any(id => id is < 0 or >= 128) || UnlockedTutorials.Distinct().Count() != UnlockedTutorials.Length)
         {
             throw new InvalidDataException("Native battle script state has invalid callback, acquisition or persistent flag owners.");
         }
@@ -49,6 +51,6 @@ public sealed record NativeBattleScriptState
     public NativeBattleScriptState DeepCopy()
     {
         Validate();
-        return this with { WaitCounters = WaitCounters.ToArray(), AcquiredGuardianForces = AcquiredGuardianForces.ToArray(), Cards = Cards.ToArray(), UnlockedTutorials = UnlockedTutorials.ToArray() };
+        return this with { PendingInitializations = PendingInitializations.ToArray(), WaitCounters = WaitCounters.ToArray(), AcquiredGuardianForces = AcquiredGuardianForces.ToArray(), Cards = Cards.ToArray(), UnlockedTutorials = UnlockedTutorials.ToArray() };
     }
 }

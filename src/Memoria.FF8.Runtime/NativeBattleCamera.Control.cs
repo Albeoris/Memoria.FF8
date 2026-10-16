@@ -40,7 +40,7 @@ public sealed partial record NativeBattleCameraState
                 case 2:
                     return result with { ControlCursor = null };
                 case 3:
-                    result = result with { ForceCamera = false, PoseCaptureCount = checked(result.PoseCaptureCount + 1) };
+                    result = result with { ForceCamera = false, PoseCaptureCount = checked(result.PoseCaptureCount + 1), CapturedPose = result.CurrentPose };
                     break;
                 case 4:
                     (inputs.ScheduleBlend ?? throw new NotSupportedException("Native camera command4 requires its506C10/509930 auxiliary task producer."))(ReadByte());

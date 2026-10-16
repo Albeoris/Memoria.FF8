@@ -1,0 +1,187 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleModelTransform(NativeBattleVector Initial20, NativeBattleVector Position28, short Vertical34, short Angle36, short Scale38)
+{
+    public NativeBattleVector Scale148 { get; init; } = new(4096, 4096, 4096);
+    public short Scale154 { get; init; } = 4096;
+}
+
+/// <summary>508C90 bone matrices and502170/571400 model anchors, with native WORD stores and biased-double matrix conversion.</summary>
+public static class NativeBattlePoseMatrices
+{
+    private sealed record Matrix(short[] Rotation, int X = 0, int Y = 0, int Z = 0);
+
+    public static NativeBattleModuleAnchor ReadAnchor(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native571400 requires the model's original position/scale WORD owners.");
+        NativeBattleVector first = ReadBone(model, source, 240, 0);
+        NativeBattleVector second = ReadBone(model, source, 241, 0);
+        //571400 averages signed WORDs with IDIV-style truncation;570CC0 then replaces W with WORD38's scale.
+        return new(unchecked((short)((first.X + second.X) / 2)), unchecked((short)((first.Y + second.Y) / 2)), unchecked((short)((first.Z + second.Z) / 2)), unchecked((short)(transform.Scale38 * 2000 >> 12)));
+    }
+
+    public static NativeBattleVector ReadBone(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte selector, short fraction)
+    {
+        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native502170 requires its model transform owner.");
+        if ((model.Flags0 & 2) == 0)
+        {
+            return transform.Position28;
+        }
+        if (model.ModelId4 == 0x8F)
+        {
+            throw new NotSupportedException("Native model8F bone selectors require its B8B6EC source table.");
+        }
+        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native502170 requires a decoded model pose.");
+        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native502170 pose selector is not initialized."), state.PoseFrame114 ?? throw new NotSupportedException("Native502170 pose frame is not initialized."), state.PoseFlags109);
+        Matrix[] bones = BoneMatrices(source, pose);
+        int bone = selector;
+        if (selector >= 240)
+        {
+            int offset = selector - 236;
+            if (offset >= 16)
+            {
+                throw new NotSupportedException("Native selector exceeds its skeleton header aliases.");
+            }
+            bone = source.Skeleton[offset];
+            if ((bone & 0x80) != 0)
+            {
+                fraction = 4096;
+                bone &= 0x7F;
+            }
+        }
+        if (bone >= bones.Length)
+        {
+            throw new InvalidDataException("Native502170 bone alias exceeds its original skeleton.");
+        }
+        Matrix world = ModelMatrix(model, transform, bones[0]);
+        Matrix selected = Compose(world, bones[bone]);
+        short parent = ReadWord(source.Skeleton, 16 + bone * 48);
+        int distance = parent < 0 ? 0 : fraction * ReadWord(source.Skeleton, 18 + bone * 48) >> 12;
+        //56C820/GTE MVMVA publishes signed MAC DWORDs;502170 stores their low WORDs.
+        return new(unchecked((short)(selected.X + ((long)selected.Rotation[2] * distance >> 12))), unchecked((short)(selected.Y + ((long)selected.Rotation[5] * distance >> 12))), unchecked((short)(selected.Z + ((long)selected.Rotation[8] * distance >> 12))));
+    }
+
+    public static NativeBattleVector TransformCameraPoint(NativeBattleGraphicsModel model, NativeBattlePoseSource source, byte lowNibble, NativeBattleVector local, bool mirror)
+    {
+        if (lowNibble > 15)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lowNibble));
+        }
+        NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native actor-relative camera requires its position/scale WORD owners.");
+        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native actor-relative camera requires its decoded model pose.");
+        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native camera actor has no selected pose."), state.PoseFrame114 ?? throw new NotSupportedException("Native camera actor has no decoded frame."), state.PoseFlags109);
+        Matrix matrix = ModelMatrix(model, transform, BoneMatrices(source, pose)[0]);
+        if (lowNibble != 15)
+        {
+            NativeBattleVector bone = ReadBone(model, source, (byte)(0xF0 | lowNibble), 2048);
+            matrix = matrix with { X = bone.X, Y = bone.Y, Z = bone.Z };
+        }
+        int scale = unchecked(2 * transform.Scale38 * transform.Scale154) >> 12;
+        matrix = Scale(matrix, [scale, scale, scale]);
+        short x = mirror ? unchecked((short)-local.X) : local.X;
+        (int dx, int dy, int dz) = ApplyRounded(matrix, x, local.Y, local.Z);
+        return new(unchecked((short)(matrix.X + dx)), unchecked((short)(matrix.Y + dy)), unchecked((short)(matrix.Z + dz)));
+    }
+
+    private static Matrix[] BoneMatrices(NativeBattlePoseSource source, NativeBattleDecodedPose pose)
+    {
+        Matrix[] result = new Matrix[source.BoneCount];
+        Matrix[] unscaled = new Matrix[result.Length];
+        int[][] scales = new int[result.Length][];
+        int skeletonScale = ReadWord(source.Skeleton, 2);
+        for (int bone = 0; bone < result.Length; bone++)
+        {
+            Matrix local = Rotation(pose.Bones[bone].Rotation);
+            int parent = ReadWord(source.Skeleton, 16 + bone * 48);
+            NativeBattleVector scale = pose.Bones[bone].Scale;
+            if (parent < 0)
+            {
+                unscaled[bone] = Scale(local, [skeletonScale, skeletonScale, skeletonScale]);
+                scales[bone] = [4 * scale.X, 4 * scale.Y, 4 * scale.Z];
+                Matrix root = pose.HasScale ? Scale(unscaled[bone], scales[bone]) : unscaled[bone];
+                result[bone] = root with { X = skeletonScale * pose.Translation.X >> 8, Y = skeletonScale * pose.Translation.Y >> 8, Z = skeletonScale * pose.Translation.Z >> 8 };
+            }
+            else
+            {
+                int length = ReadWord(source.Skeleton, 18 + parent * 48);
+                if (pose.HasScale)
+                {
+                    unscaled[bone] = Multiply(unscaled[parent], local);
+                    scales[bone] = [scales[parent][0] * scale.X >> 10, scales[parent][1] * scale.Y >> 10, scales[parent][2] * scale.Z >> 10];
+                    (int x, int y, int z) = ApplyRounded(result[parent], 0, 0, length);
+                    result[bone] = Scale(unscaled[bone], scales[bone]) with { X = unchecked(x + result[parent].X), Y = unchecked(y + result[parent].Y), Z = unchecked(z + result[parent].Z) };
+                }
+                else
+                {
+                    result[bone] = Compose(result[parent], local with { Z = length });
+                }
+            }
+        }
+        return result;
+    }
+
+    private static Matrix ModelMatrix(NativeBattleGraphicsModel model, NativeBattleModelTransform transform, Matrix root)
+    {
+        Matrix rotation = Rotation(new(model.Rotation12 ?? throw new NotSupportedException("Native model lacks rotationWORD12."), model.Rotation14 ?? throw new NotSupportedException("Native model lacks rotationWORD14."), model.Rotation16 ?? throw new NotSupportedException("Native model lacks rotationWORD16.")));
+        int[] scale = [transform.Scale154 * transform.Scale148.X >> 12, transform.Scale154 * transform.Scale148.Y >> 12, transform.Scale154 * transform.Scale148.Z >> 12];
+        var (beforeX, _, beforeZ) = ApplyRounded(rotation, root.X, root.Y, root.Z);
+        Matrix scaled = Scale(rotation, scale);
+        var (afterX, _, afterZ) = ApplyRounded(scaled, root.X, root.Y, root.Z);
+        return scaled with { X = unchecked(transform.Position28.X + beforeX - afterX), Y = unchecked(transform.Position28.Y + transform.Vertical34), Z = unchecked(transform.Position28.Z + beforeZ - afterZ) };
+    }
+
+    private static Matrix Rotation(NativeBattleVector rotation)
+    {
+        short cx = unchecked((short)NativeBattleCameraMath.Cosine(rotation.X));
+        short sx = unchecked((short)NativeBattleCameraMath.Sine(rotation.X));
+        short cy = unchecked((short)NativeBattleCameraMath.Cosine(rotation.Y));
+        short sy = unchecked((short)NativeBattleCameraMath.Sine(rotation.Y));
+        short cz = unchecked((short)NativeBattleCameraMath.Cosine(rotation.Z));
+        short sz = unchecked((short)NativeBattleCameraMath.Sine(rotation.Z));
+        Matrix z = new([cz, unchecked((short)-sz), 0, sz, cz, 0, 0, 0, 4096]);
+        Matrix x = new([4096, 0, 0, 0, cx, unchecked((short)-sx), 0, sx, cx]);
+        Matrix y = new([cy, 0, sy, 0, 4096, 0, unchecked((short)-sy), 0, cy]);
+        return Multiply(y, Multiply(x, z));
+    }
+
+    private static Matrix Scale(Matrix matrix, int[] scale)
+    {
+        return matrix with { Rotation = matrix.Rotation.Select((value, index) => unchecked((short)(scale[index % 3] * value >> 12))).ToArray() };
+    }
+
+    private static Matrix Multiply(Matrix left, Matrix right)
+    {
+        short[] result = new short[9];
+        for (int row = 0; row < 3; row++)
+        {
+            for (int column = 0; column < 3; column++)
+            {
+                double value = 0;
+                for (int inner = 0; inner < 3; inner++)
+                {
+                    value += left.Rotation[row * 3 + inner] / 4096d * right.Rotation[inner * 3 + column];
+                }
+                result[row * 3 + column] = unchecked((short)ConvertRounded(value));
+            }
+        }
+        return new(result);
+    }
+
+    private static Matrix Compose(Matrix left, Matrix right)
+    {
+        (int x, int y, int z) = ApplyRounded(left, right.X, right.Y, right.Z);
+        return Multiply(left, right) with { X = unchecked(x + left.X), Y = unchecked(y + left.Y), Z = unchecked(z + left.Z) };
+    }
+
+    private static (int X, int Y, int Z) ApplyRounded(Matrix matrix, int x, int y, int z)
+    {
+        int Row(int row) => ConvertRounded(matrix.Rotation[row * 3 + 2] * (z / 4096d) + matrix.Rotation[row * 3 + 1] * (y / 4096d) + matrix.Rotation[row * 3] * (x / 4096d));
+        return (Row(0), Row(1), Row(2));
+    }
+
+    private static int ConvertRounded(double value) => unchecked((int)((uint)BitConverter.DoubleToInt64Bits(value + 4503601774854144d) + 0x80000000u));
+    private static short ReadWord(ImmutableArray<byte> data, int offset) => BinaryPrimitives.ReadInt16LittleEndian(data.AsSpan().Slice(offset));
+}

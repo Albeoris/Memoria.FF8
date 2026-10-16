@@ -23,6 +23,16 @@ public sealed class NativeRenzokukenMetadataTests
             Assert.Same(weapon.Bones, changed.Weapon!.Bones);
             Assert.Same(weapon.Meshes, changed.Weapon.Meshes);
             Assert.Same(weapon.Sequences, changed.Weapon.Sequences);
+            Assert.NotNull(changed.Body.NativePoseSource);
+            Assert.NotNull(changed.Weapon.NativePoseSource);
+            Assert.Equal(body.NativePoseSource!.Skeleton, changed.Body.NativePoseSource.Skeleton);
+            Assert.Equal(weapon.NativePoseSource!.Skeleton, changed.Weapon.NativePoseSource.Skeleton);
+            Assert.False(body.NativePoseSource.Animations.SequenceEqual(changed.Body.NativePoseSource.Animations));
+            Assert.False(weapon.NativePoseSource.Animations.SequenceEqual(changed.Weapon.NativePoseSource.Animations));
+            NativeBattleGraphicsResource bound = resource.BindGraphicsResource(body.NativePoseSource);
+            Assert.Equal(changed.Body.NativePoseSource.Animations, bound.PoseSource!.Animations);
+            Assert.Equal(body.Bones.Count, bound.PoseSource.Sample(0, 1, 0).Bones.Length);
+            Assert.Equal(weapon.Bones.Count, changed.Weapon.NativePoseSource.Sample(0, 1, 0).Bones.Length);
             Assert.Equal(resource.AnimationFrameCounts, changed.Body.Animations.Select(animation => (byte)animation.Frames.Count));
             Assert.Equal(changed.Body.Animations.Count, changed.Weapon.Animations.Count);
             Assert.NotEmpty(changed.Body.Pose(0, 0));
@@ -85,6 +95,7 @@ public sealed class NativeRenzokukenMetadataTests
         Assert.Equal(new byte[] { 21, 14, 8 }, block.Segments);
         Assert.Equal(new short[] { 65, 121 }, block.Timeline.InputThresholds);
         Assert.Equal((short)45, block.Timeline.TotalPoseFrames);
+        Assert.Equal(8, block.EndOffset);
         BattleSequenceSet wrapped = new([1, 0, 4, 0, 0xAB, 0, 0, 1, 0xA0, 2, 0xA1]);
         BattleNativeRenzokukenBlock overflow = wrapped.ReadRenzokukenBlock(1, 0, [Animation(255), Animation(2), Animation(8)]);
         Assert.Equal(new byte[] { 2, 8 }, overflow.Segments);

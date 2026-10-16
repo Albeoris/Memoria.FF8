@@ -27,6 +27,7 @@ public sealed partial class BattleSession
             {
                 case 0:
                     BattleCombatant hpActor = FindNativeConditionActor(actor, selector);
+                    RequireNativeAllocationStatistics(hpActor);
                     left = unchecked((uint)hpActor.CurrentHp);
                     right = NativeConditionHpThreshold(hpActor, value);
                     break;
@@ -50,7 +51,9 @@ public sealed partial class BattleSession
                     left = NativeConditionGroup(selector).Count(candidate => (NativeSavedStatusBits(candidate) & 1) == 0);
                     break;
                 case 7:
-                    left = FindNativeConditionActor(actor, selector).Level;
+                    BattleCombatant levelActor = FindNativeConditionActor(actor, selector);
+                    RequireNativeAllocationStatistics(levelActor);
+                    left = levelActor.Level;
                     break;
                 case 8:
                     return CompareNativeConditionBit(combatants.Any(candidate => candidate.NativeIndex is >= 0 and < 7 && NativeModelId(candidate) == value), comparison);

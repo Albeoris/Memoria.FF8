@@ -33,8 +33,18 @@ public sealed partial class BattleSession
             {
                 NativeCamera = NativeCamera.AdvanceControl(definition.NativeStageCameraBank!, definition.NativeStageCameraControl, new() { GlobalRandom = NextNativeGlobalRandom, ReadExternal = ReadNativeCameraExternal, ScheduleBlend = ScheduleNativeCameraBlend });
             }
-            NativeCamera = NativeCamera.Tick(graphicsFlags);
+            NativeCamera = NativeCamera.Tick(graphicsFlags, new() { TransformReference = (reference, local) => TransformNativeCameraReference(reference, local, graphicsFlags) });
         }
+    }
+
+    private NativeBattleCameraPoint TransformNativeCameraReference(byte reference, NativeBattleCameraPoint local, uint graphicsFlags)
+    {
+        int model = reference >> 4;
+        if (model >= 7)
+        {
+            throw new NotSupportedException($"Native camera reference{reference:X2} requires its active command or auxiliary matrix owner.");
+        }
+        return TransformNativeGraphicsCameraPoint(model, (byte)(reference & 15), local, (graphicsFlags & 0x20) != 0);
     }
 
     private void ScheduleNativeCameraBlend(byte duration)

@@ -64,6 +64,7 @@ public sealed class NativePlayerDrawMetadataTests
     {
         return new(new BattleDefinition
         {
+            NativeFieldBattleRules = 0,
             Name = "Installed Draw Cast component",
             NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(),
             NativeKnownMagic = game.ReadNewGameKnownMagic(), NativeScannedModels = game.ReadNewGameScannedModels(), NativeScanAlwaysShow = false,

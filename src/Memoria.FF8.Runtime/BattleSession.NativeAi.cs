@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 
 namespace Memoria.FF8.Runtime;
 
@@ -21,6 +21,10 @@ public sealed partial class BattleSession
         {
             actor.NativeIndex = actor.IsPlayer ? partySlot++ : actor.IsActive ? enemySlot++ : -1;
         }
+        if (NativeGraphics is not null)
+        {
+            return;
+        }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsActive && !actor.Suspended && actor.NativeAi is not null).ToArray())
         {
             RunNativeAi(actor, 0);
@@ -39,7 +43,7 @@ public sealed partial class BattleSession
         RunNativeAi(actor, 0);
     }
 
-    private void RunNativeAi(BattleCombatant actor, int callback)
+    private void InterpretNativeAi(BattleCombatant actor, int callback)
     {
         NativeBattleAiDefinition? program = actor.NativeAi;
         if (program is null)
@@ -303,7 +307,7 @@ public sealed partial class BattleSession
                         break;
                     case 53:
                         int activationIndex = ReadAiByte(code, ref pc);
-                        ActivateNativeParticipant(FindNativeActor(activationIndex == 209 ? nativeLastAllocatedIndex : activationIndex));
+                        QueueNativeActivation(activationIndex == 209 ? nativeLastAllocatedIndex : activationIndex);
                         break;
                     case 58:
                         FindNativeActor(ReadAiByte(code, ref pc)).Untargetable = false;
@@ -372,6 +376,10 @@ public sealed partial class BattleSession
 
     private bool NativeAiStatusPresent(BattleCombatant actor, int status)
     {
+        if (status != 0)
+        {
+            RequireNativeAllocationStatistics(actor);
+        }
         if ((uint)status >= 48)
         {
             throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
@@ -434,7 +442,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant FindNativeActor(int index) => combatants.SingleOrDefault(actor => NativeActorIndex(actor) == index && actor.IsActive) ?? throw new NotSupportedException($"Native battle AI actor index {index} has no current allocation.");
     private int NativeActorIndex(BattleCombatant actor) => actor.NativeIndex;
-    private static int NativeModelId(BattleCombatant actor) => actor.IsPlayer ? actor.IsActive ? actor.ModelId : 255 : actor.ModelId + 16;
+    private static int NativeModelId(BattleCombatant actor) => actor.NativeAllocationPendingStatistics ? 255 : actor.IsPlayer ? actor.IsActive ? actor.ModelId : 255 : actor.ModelId + 16;
     private static int ReadAiByte(byte[] code, ref int pc)
     {
         if ((uint)pc >= code.Length)
@@ -454,7 +462,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -510,6 +518,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native last healing flag must retain the original494410 BYTE boolean.");
         }
+        actor.NativeAllocationPendingStatistics = saved.AllocationPendingStatistics;
         actor.LastNativeHealing = saved.LastHealing;
         actor.LastNativeAction = saved.LastAction;
         actor.NativeKillCount = saved.KillCount ?? actor.SourceDefinition.NativeKillCount;

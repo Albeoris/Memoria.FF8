@@ -31,6 +31,14 @@ public sealed class BattleStageCameraTests
             Assert.Empty(camera.Order);
             Assert.Equal((ushort)0, camera.Mask);
             Assert.Equal(1ul, camera.PoseCaptureCount);
+            NativeBattleCameraPose pose = Assert.IsType<NativeBattleCameraPose>(camera.CurrentPose);
+            if (selector == 0)
+            {
+                BattleStageCamera expected = stage.IntroductionCameras[selector];
+                Assert.Equal(expected.NativeEye, new Vector3(pose.Eye.X, pose.Eye.Y, pose.Eye.Z));
+                Assert.Equal(expected.NativeTarget, new Vector3(pose.Target.X, pose.Target.Y, pose.Target.Z));
+                Assert.Equal((short?)expected.FocalLength, pose.FocalLength);
+            }
         }
     }
 
@@ -80,6 +88,20 @@ public sealed class BattleStageCameraTests
         Assert.Equal(new Vector3(2593, -2363, -7284), stage.IntroductionCameras[1].NativeEye);
         Assert.Equal(new Vector3(6508, -2060, 5110), stage.IntroductionCameras[0x12].NativeEye);
         Assert.NotEqual(stage.IntroductionCameras[0], stage.IntroductionCameras[0x12]);
+    }
+
+    [Theory]
+    [InlineData(0, 211.2f, 108f)]
+    [InlineData(1024, 160f, 159.2f)]
+    [InlineData(-1024, 160f, 56.8f)]
+    [InlineData(2048, 108.8f, 108f)]
+    public void NativeRollRotatesTheProjectedBasisAroundTheViewAxis(short roll, float x, float y)
+    {
+        BattleStageCamera native = new(new(0, 0, -1000), Vector3.Zero, 512);
+        BattleRenderer renderer = new(320, 240);
+        renderer.Render(new BattleStage(0, [], []), [], BattleCamera.FromNative(native, roll));
+        Assert.True(renderer.TryProject(Vector3.UnitX, out Vector2 actual));
+        Assert.InRange(Vector2.Distance(new(x, y), actual), 0, 0.001f);
     }
 
     [Theory]

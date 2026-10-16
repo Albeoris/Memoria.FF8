@@ -51,7 +51,7 @@ public sealed class NativeOrdinaryCommandTests
         BattleSnapshot snapshot = Create(game, assets, command).Capture();
         NativeBattleEnemyTemplate template = assets.ReadEnemyTemplate(0, 20);
         NativeBattleEnemyLevel level = template.Levels[20];
-        BattleCombatantDefinition enemy = snapshot.Definition.Combatants[2] with { ModelId = 0, Level = 20, MaximumHp = level.MaximumHp, CurrentHp = level.MaximumHp / 2, NativeTemplate = template };
+        BattleCombatantDefinition enemy = snapshot.Definition.Combatants[2] with { ModelId = 0, Level = 20, MaximumHp = level.MaximumHp, CurrentHp = level.MaximumHp / 2, NativeTemplate = template, NativeAi = assets.ReadEnemyAi(0, 20) with { Scripts = [[0], [0], [0], [0], [0]] } };
         BattleDefinition definition = snapshot.Definition with { Combatants = [snapshot.Definition.Combatants[0], snapshot.Definition.Combatants[1], enemy] };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
         QueueAndHit(battle, "enemy", command, assets.ReadNativeCommand(command).ActionId);
@@ -145,6 +145,7 @@ public sealed class NativeOrdinaryCommandTests
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         return new(new BattleDefinition
         {
+            NativeFieldBattleRules = 0,
             NativeActions = assets.NativeActions.ToArray(),
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),

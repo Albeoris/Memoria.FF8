@@ -45,6 +45,7 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException($"Native battle AI variable {variable} aliases unowned actor memory at slot{index}+{member}.");
         }
+        RequireNativeAllocationStatistics(owner);
         return (owner, member);
     }
 }

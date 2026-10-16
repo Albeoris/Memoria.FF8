@@ -30,7 +30,7 @@ public sealed record NativeBattleCameraBank(ImmutableArray<byte> Data)
     }
 }
 
-public sealed record NativeBattleCameraTask(byte Channel, NativeBattleCameraBank Bank, int ProgramOffset, ushort Elapsed, ushort Duration);
+public sealed partial record NativeBattleCameraTask(byte Channel, NativeBattleCameraBank Bank, int ProgramOffset, ushort Elapsed, ushort Duration);
 
 /// <summary>5041E0/503520/5035E0 two-slot camera callback owner; mask includes the separately written high bits.</summary>
 public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray<NativeBattleCameraTask?> Tasks, ImmutableArray<int> Order)
@@ -45,7 +45,7 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
 
     public void Validate()
     {
-        if (Variables.IsDefault || Variables.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || ControlCursor < 0 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2)))
+        if (Variables.IsDefault || Variables.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || RetainedPoses.IsDefault || RetainedPoses.Length != 2 || SelectedSlot is < 0 or >= 2 || ControlCursor < 0 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2 || task.Elapsed != 0 && task.Pose is null)))
         {
             throw new InvalidDataException("Native camera task owner requires its two original slots and bounded resource cursors.");
         }
@@ -66,13 +66,14 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
             return result;
         }
         byte channel = (byte)(selector & 7);
-        return result with { Mask = (ushort)(Mask | 1 << channel), Tasks = Tasks.SetItem(slot, new(channel, bank, track.Value, 0, 0)), Order = Order.Add(slot), BlendProgress = 0 };
+        return result with { Mask = (ushort)(Mask | 1 << channel), Tasks = Tasks.SetItem(slot, new(channel, bank, track.Value, 0, 0) { Pose = RetainedPoses[slot] }), Order = Order.Add(slot), BlendProgress = 0, SelectedSlot = slot };
     }
 
-    public NativeBattleCameraState Tick(uint graphicsFlags)
+    public NativeBattleCameraState Tick(uint graphicsFlags, NativeBattleCameraPoseInputs? inputs = null)
     {
         Validate();
         NativeBattleCameraState result = this;
+        inputs ??= new();
         foreach (int slot in Order)
         {
             if (Tasks[slot] is not { } task)
@@ -81,65 +82,30 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
             }
             while (task.Elapsed >= task.Duration)
             {
-                (int next, ushort? duration) = ReadSegment(task.Bank, task.ProgramOffset);
+                (int next, ushort? duration, NativeBattleCameraTrackPose? pose) = result.ReadPoseSegment(task, inputs, graphicsFlags);
                 if (duration is null)
                 {
                     result = result with { Mask = (ushort)(result.Mask & ~(1 << task.Channel)), Tasks = result.Tasks.SetItem(slot, null), Order = result.Order.Remove(slot) };
                     break;
                 }
-                task = task with { ProgramOffset = next, Elapsed = 0, Duration = duration.Value };
+                task = task with { ProgramOffset = next, Elapsed = 0, Duration = duration.Value, Pose = pose };
+                if ((pose!.Flags & 0x3E) == 0x1E)
+                {
+                    result = result with { CapturedPose = result.CurrentPose, PoseCaptureCount = checked(result.PoseCaptureCount + 1) };
+                }
             }
             if (result.Tasks[slot] is not null)
             {
                 //5035E0 freezes only elapsed increments under graphics bits101; the callback still polls segments.
+                task = task with { Pose = result.SampleCameraTrack(task, inputs, graphicsFlags) };
                 task = task with { Elapsed = (graphicsFlags & 0x101) == 0 ? unchecked((ushort)(task.Elapsed + 16)) : task.Elapsed };
+                int fraction = (unchecked((short)task.Elapsed) << 12) / unchecked((short)task.Duration);
+                short? focal = task.Pose.FocalStart is short focalStart && task.Pose.FocalEnd is short focalEnd ? unchecked((short)(focalStart + (unchecked(fraction * (focalEnd - focalStart)) >> 12))) : null;
+                short roll = unchecked((short)(task.Pose.RollStart + (unchecked(fraction * (task.Pose.RollEnd - task.Pose.RollStart)) >> 12)));
+                result = result with { FocalLength = focal, Roll = roll, RetainedPoses = result.RetainedPoses.SetItem(slot, task.Pose) };
                 result = result with { Tasks = result.Tasks.SetItem(slot, task) };
             }
         }
-        return result;
-    }
-
-    private static (int Next, ushort? Duration) ReadSegment(NativeBattleCameraBank bank, int offset)
-    {
-        ushort ReadWord()
-        {
-            if (offset < 0 || offset > bank.Data.Length - 2)
-            {
-                throw new InvalidDataException("Native camera segment exceeds its original track resource.");
-            }
-            ushort value = BinaryPrimitives.ReadUInt16LittleEndian(bank.Data.AsSpan().Slice(offset));
-            offset += 2;
-            return value;
-        }
-        ushort flags = ReadWord();
-        if (flags == ushort.MaxValue)
-        {
-            return (offset, null);
-        }
-        int lens = flags >> 6 & 3;
-        int roll = flags >> 8 & 3;
-        int parameters = Math.Max(0, lens - 1) + Math.Max(0, roll - 1);
-        for (int parameter = 0; parameter < parameters; parameter++)
-        {
-            _ = ReadWord();
-        }
-        ushort duration = 0;
-        for (int knot = 0; ; knot++)
-        {
-            short frames = unchecked((short)ReadWord());
-            if (frames < 0)
-            {
-                return (offset, duration);
-            }
-            if (knot >= 32)
-            {
-                throw new InvalidDataException("Native camera segment exceeds its thirty-two-knot storage.");
-            }
-            duration = unchecked((ushort)(duration + 16 * frames));
-            for (int coordinate = 0; coordinate < 8; coordinate++)
-            {
-                _ = ReadWord();
-            }
-        }
+        return result.PublishCameraPose();
     }
 }

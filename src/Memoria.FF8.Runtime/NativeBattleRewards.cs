@@ -155,7 +155,8 @@ public static class NativeBattleRewardDistribution
             {
                 throw new InvalidDataException("Enemy defeat credit belongs to a character outside the actual battle party.");
             }
-            if (defeat.Credit == BattleDefeatCredit.Character && defeat.NativeCommand != 246)
+            //494AF0 retains shared EXP but skips personal EXP for internal0, automatic GF245 and scripted death246.
+            if (defeat.Credit == BattleDefeatCredit.Character && defeat.NativeCommand is not (0 or 245 or 246))
             {
                 byte row = defeat.KillerRow!.Value;
                 int level = NativeStatDefinitions.Level(vitals.Records[row].Experience, vitals.Definitions.Characters[vitals.Records[row].CharacterId]);

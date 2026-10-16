@@ -57,6 +57,7 @@ public sealed class NativeBattleContactEffectTests
         NativeBattleContactHalf half = new(3, 5, 0x40, 0, 4, 1, 0x890000);
         NativeBattleContactEffectPlan secondary = NativeBattleContactEffects.Plan(half, Model() with { Flags0 = 0, ModelId4 = null, Flags8 = null, ResourceFlags44 = null }, Rules(), 0, secondary: true);
         Assert.True(secondary.Loaded);
+        Assert.True(secondary.Secondary);
         Assert.False(secondary.DeferPetrify);
         Assert.False(secondary.SpecialSound);
         Assert.False(secondary.EjectionService7);

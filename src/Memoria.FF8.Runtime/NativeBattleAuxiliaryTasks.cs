@@ -79,8 +79,7 @@ public sealed record NativeBattleAuxiliaryState([property: JsonRequired] Immutab
             task = task with { Payload = task.Payload.SetItem(0, frame) };
             //509930 increments itsBYTE before signed IDIV; duration0 faults in the original too.
             int angle = (frame << 10) / duration;
-            double value = Math.Sin(angle * (double)0.0015339808f) * (double)4096f + 4503601774854144d;
-            blend = unchecked((ushort)((uint)BitConverter.DoubleToInt64Bits(value) + 0x80000000u));
+            blend = unchecked((ushort)NativeBattleCameraMath.Sine(angle));
             next = task.Next;
             if (frame >= duration)
             {

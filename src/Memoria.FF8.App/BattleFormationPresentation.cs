@@ -8,16 +8,8 @@ internal static class BattleFormationPresentation
     // Slots follow the canonical combat party order.
     public static Vector3 PartyPosition(int slot, int count)
     {
-        if (count is < 1 or > 3 || slot < 0 || slot >= count)
-        {
-            throw new ArgumentOutOfRangeException(nameof(slot));
-        }
-        return count switch
-        {
-            1 => new Vector3(0, 0, -18),
-            2 => new Vector3(slot == 0 ? -10 : 10, 0, -18),
-            _ => new Vector3((slot - 1) * 12, 0, slot == 1 ? -15 : -21)
-        };
+        Memoria.FF8.Runtime.NativeBattleVector position = Memoria.FF8.Runtime.NativeBattleFormation.PartyPosition(slot, count);
+        return new Vector3(position.X, -position.Y, -position.Z) / 100f;
     }
 
     public static Vector3 DebugEnemyPosition(int slot, int count)

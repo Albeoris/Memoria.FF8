@@ -26,6 +26,7 @@ public static class BattleFormationReader
             Vector3 coordinates = new Vector3(BinaryPrimitives.ReadInt16LittleEndian(position), -BinaryPrimitives.ReadInt16LittleEndian(position[2..]), -BinaryPrimitives.ReadInt16LittleEndian(position[4..])) / 100f;
             slots[slot] = new BattleEnemyPlacement(slot, originalFormation[56 + slot] - 16, coordinates, originalFormation[120 + slot], (originalFormation[4] & mask) != 0, (originalFormation[6] & mask) != 0)
             {
+                NativePosition = new(BinaryPrimitives.ReadInt16LittleEndian(position), BinaryPrimitives.ReadInt16LittleEndian(position[2..]), BinaryPrimitives.ReadInt16LittleEndian(position[4..])),
                 Enabled = (originalFormation[7] & mask) != 0,
                 // 48BA10 stores this as actor flag0x80; 47D970 still loads its model.
                 // 47D8A0 defers its initial AI; 487670 clears it on explicit activation.

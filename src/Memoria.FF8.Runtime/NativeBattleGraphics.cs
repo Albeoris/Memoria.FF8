@@ -3,7 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleGraphicsBinding(string ActorId, byte ModelId, NativeBattleGraphicsResource Resource);
+public sealed record NativeBattleGraphicsBinding(string ActorId, byte ModelId, NativeBattleGraphicsResource Resource)
+{
+    public NativeBattleVector? InitialPosition { get; init; }
+}
 public sealed record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder);
 public sealed record NativeBattleGraphicsRequest(ushort Command, byte? ModelIndex, byte State = 0, bool Entry = false);
 public sealed record NativeBattleGraphicsState([property: JsonRequired] ImmutableArray<NativeBattleGraphicsModel> Models, [property: JsonRequired] ImmutableArray<string?> ActorIds, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
@@ -15,6 +18,10 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     [JsonRequired]
     public NativeBattleAuxiliaryState Auxiliary { get; init; } = NativeBattleAuxiliaryState.Clear();
     [JsonRequired]
+    public NativeBattleModuleState ModuleEffects { get; init; } = NativeBattleModuleState.Clear();
+    [JsonRequired]
+    public ImmutableArray<NativeBattleModuleDraw> ModuleDraws { get; init; } = [];
+    [JsonRequired]
     public byte EntryGatePhase { get; init; }
     [JsonRequired]
     public byte EntryBarrierCompletion { get; init; }
@@ -23,7 +30,15 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     [JsonRequired]
     public bool EntryReady { get; init; }
     [JsonRequired]
-    public ImmutableArray<NativeBattleGraphicsRequest> Requests { get; init; } = [new(112, null, Entry: true)];
+    public NativeBattleDescriptorState Descriptors { get; init; } = NativeBattleDescriptorState.Clear();
+    [JsonRequired]
+    public byte EntryLifecycle { get; init; }
+    [JsonRequired]
+    public int? EntryBarrierPacket { get; init; }
+    [JsonRequired]
+    public bool? NativeMenuControl942Bit8 { get; init; }
+    [JsonIgnore]
+    public ImmutableArray<NativeBattleGraphicsRequest> Requests => Descriptors.Queue.Select(slot => new NativeBattleGraphicsRequest(Descriptors.Packets[slot].Command, Descriptors.Packets[slot].Index is >= 0 and < 7 ? (byte)Descriptors.Packets[slot].Index : null, Descriptors.Packets[slot].PriorityState == 255 ? (byte)255 : (byte)(Descriptors.Packets[slot].PriorityState & 15), slot == EntryBarrierPacket)).ToImmutableArray();
     [JsonRequired]
     public string? ActionActorId { get; init; }
     [JsonRequired]
@@ -33,7 +48,7 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
 
     public void Validate()
     {
-        if (Models.IsDefault || Models.Length != 7 || ActorIds.IsDefault || ActorIds.Length != 7 || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || PendingContacts.IsDefault || Requests.IsDefault || Requests.Any(request => request is null || request.Command is not (105 or 106 or 112) || request.State is not (0 or 8 or 255) || request.Command != 112 && request.ModelIndex is not (< 7)) || Models.Where((model, index) => model is null || model.Index != index).Any())
+        if (Models.IsDefault || Models.Length != 7 || ActorIds.IsDefault || ActorIds.Length != 7 || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 3 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
         {
             throw new InvalidDataException("Native graphics state requires seven physical model owners and valid callback gates.");
         }
@@ -50,7 +65,13 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
             }
         }
         Effects.Validate();
+        Descriptors.Validate();
         Auxiliary.Validate();
+        ModuleEffects.Validate();
+        if (ModuleDraws.IsDefault || ModuleDraws.Any(draw => draw is null || !Enum.IsDefined(draw.Kind)))
+        {
+            throw new InvalidDataException("Native effect module requires its current graphics callback draw receipts.");
+        }
         foreach (NativeBattleContactPacket packet in PendingContacts)
         {
             packet.Validate();

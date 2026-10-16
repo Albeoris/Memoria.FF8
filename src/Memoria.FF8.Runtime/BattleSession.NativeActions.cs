@@ -11,6 +11,10 @@ public sealed partial class BattleSession
 
     private BattleNativeAction FindNativeCommandAction(BattleCombatant actor, byte command, ushort id, byte? crisis = null)
     {
+        if (command == 0 && id == 8)
+        {
+            return NativePhoenixRevivalAction();
+        }
         if (command is 1 or 12 or 28 && id == 0)
         {
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
@@ -269,7 +273,15 @@ public sealed partial class BattleSession
             else if ((saved & 1) != 0 || recipient.CurrentHp == 0)
             {
                 MarkNativeContactFlags(4, 1);
-                ApplyNativeActionStatuses(actor, recipient, native with { Statuses0 = 1, Statuses1 = 0 }, true);
+                byte fieldRules = definition.NativeFieldBattleRules ?? throw new NotSupportedException("Native revival requires the current field battle prohibition byte.");
+                if ((fieldRules & 0x40) == 0)
+                {
+                    ApplyNativeActionStatuses(actor, recipient, native with { Statuses0 = 1, Statuses1 = 0 }, true);
+                }
+                else
+                {
+                    MarkNativeContactFlags(0, 4);
+                }
                 int revived = native.AttackType == 6 ? recipient.MaximumHp : Math.Max(1, recipient.MaximumHp / 8);
                 SetNativeContactDamage(-revived);
                 FinalizeNativeContactPresentation();

@@ -25,6 +25,7 @@ public sealed partial class BattleSession
             {
                 if (completed)
                 {
+                    QueueNativeActionClockCompletion(0x47DE70);
                     FlushNativeReactions();
                     RefreshNativeKnownMagicStocks();
                     RefreshNativeEnemyDrawSlots();

@@ -22,6 +22,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native timed transaction lacks its original Renzokuken command owner.");
         }
+        BeginNativeBattleActionPause();
         nativeTimedAction = new(command, 0, [], nativeReactionOrder);
         nativeAffinityAction = null;
         nativeActionCommitDepth = 1;
@@ -83,6 +84,7 @@ public sealed partial class BattleSession
         CompleteNativeActionOwners(actor, timed.Command);
         nativeTimedAction = null;
         nativeActionCommitDepth = 0;
+        QueueNativeActionClockCompletion(0x47DE70);
         FlushNativeReactions();
         RefreshNativeKnownMagicStocks();
         RefreshNativeEnemyDrawSlots();

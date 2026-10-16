@@ -48,6 +48,10 @@ public sealed partial class BattleSession
     private BattleAttackCommand PrepareIndependentGuardianItem(BattleCombatant actor, BattleAttackCommand command)
     {
         BattleNativeAction? item = IndependentGuardianItem(command);
+        if (item?.Command is 240 or 245)
+        {
+            return command with { IndependentGuardian = new(item, IndependentGuardianLevel(), null) };
+        }
         if (!actor.IsPlayer || item?.AttackType != 14)
         {
             return command;
@@ -115,7 +119,7 @@ public sealed partial class BattleSession
     private void CompletePhoenixRevival(BattleCombatant actor, BattleActionPresentation source, BattleNativeAction phoenix)
     {
         //485460 ->484050 follows Phoenix's damage with command0/8 and the nativeC007 party mask.
-        BattleNativeAction revival = phoenix with { Command = 0, ActionId = 8, AttackType = 5, Power = 0, HitCount = 1, Element = 0, StatusAttack = 255, Statuses0 = 1, Statuses1 = 0 };
+        BattleNativeAction revival = NativePhoenixRevivalAction();
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 8, "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
         BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, NativeTargetMask = 0xC007 };
         ResolveInstalledNativeAction(actor, actor, command, action);
@@ -124,6 +128,15 @@ public sealed partial class BattleSession
     private void ValidateIndependentGuardianInvocation(BattleCombatant actor, BattleActionPresentation command)
     {
         BattleNativeAction? item = command.NativeAction ?? (command.Ability == BattleAbility.Item ? FindAction(BattleAbility.Item, command.ActionId).NativeAction : null);
+        if (item?.Command is 240 or 245)
+        {
+            BattleIndependentGuardianInvocation support = command.IndependentGuardian ?? throw new InvalidDataException("Native support action lacks its prepared acquired-GF level owner.");
+            if (support.Level != IndependentGuardianLevel() || support.FailureMessage is not null || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(support.Action), System.Text.Json.JsonSerializer.SerializeToElement(item)))
+            {
+                throw new InvalidDataException("Saved native support invocation differs from its original action and acquired-GF level.");
+            }
+            return;
+        }
         if (!actor.IsPlayer || item?.AttackType != 14)
         {
             if (command.IndependentGuardian is not null)

@@ -86,6 +86,7 @@ public sealed class IndependentGuardianItemTests
         pocket[1] = 10;
         return new(new BattleDefinition
         {
+            NativeFieldBattleRules = 0,
             NativeActions = assets.NativeActions.ToArray(),
             ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce ? action with { Level = 10 } : action).ToArray(),
             GuardianForces = [new(0, 1000, 1000)],

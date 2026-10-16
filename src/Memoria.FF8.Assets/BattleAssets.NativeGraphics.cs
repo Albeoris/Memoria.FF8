@@ -6,10 +6,11 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
-    public NativeBattleGraphicsDefinition ReadNativeGraphicsDefinition(IReadOnlyList<BattleCombatantDefinition> actors, NativeBattleGraphicsRules rules)
+    public NativeBattleGraphicsDefinition ReadNativeGraphicsDefinition(IReadOnlyList<BattleCombatantDefinition> actors, NativeBattleGraphicsRules rules, BattleEncounter? encounter = null)
     {
         rules.Validate();
-        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), ReadNativeGraphicsResource(actor))).ToImmutableArray();
+        BattleCombatantDefinition[] party = actors.Where(actor => actor.IsPlayer).ToArray();
+        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), ReadNativeGraphicsResource(actor)) { InitialPosition = actor.IsPlayer ? NativeBattleFormation.PartyPosition(Array.IndexOf(party, actor), party.Length) : encounter is null ? null : encounter.Slots.Single(slot => slot.Slot == actor.SceneSlot).NativePosition ?? throw new InvalidDataException("Native graphics formation lacks its original scene position WORDs.") }).ToImmutableArray();
         //47DAC0 queues enemy103 completions before47DD30/47DBA0 player102/103 descriptors.
         ImmutableArray<string> order = actors.Where(actor => !actor.IsPlayer && actor.InitialActive).Concat(actors.Where(actor => actor.IsPlayer)).Select(actor => actor.Id).ToImmutableArray();
         return new(rules, bindings, order);
@@ -21,7 +22,8 @@ public sealed partial class BattleAssets
         {
             BattleModel body = LoadPlayer(actor.ModelId, actor.Costume);
             BattleModel owner = LoadPlayerSequenceOwner(actor.ModelId, actor.WeaponId, body);
-            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = owner.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray() };
+            //507BF0/507E20 replace the primary resource's sequence pointer while retaining its body animation pointer.
+            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource };
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);
     }
@@ -52,7 +54,8 @@ public sealed partial class BattleAssets
             }
             frames.Add(bytes[pointer]);
         }
-        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable() };
+        int skeletonStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4));
+        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, start - animationStart).ToArray().ToImmutableArray()) };
         resource.Validate();
         return resource;
     }

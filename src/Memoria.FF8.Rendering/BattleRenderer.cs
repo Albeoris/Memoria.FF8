@@ -1,16 +1,18 @@
 using System.Numerics;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
 public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float FieldOfView = 0.8f, float VerticalCenter = 0.5f)
 {
+    public short NativeRoll { get; init; }
     // Original B8B7F0/B8B800 bootstrap tuple,500541/500560 focal512,500900 projection center(160,108).
     // The live scene selects its installed introduction endpoint instead of this bootstrap view.
     public static BattleCamera NativeInitial => FromNative(new BattleStageCamera(new Vector3(10000, -3000, 5000), new Vector3(0, -500, 0), 512));
 
-    public static BattleCamera FromNative(BattleStageCamera camera)
+    public static BattleCamera FromNative(BattleStageCamera camera, short roll = 0)
     {
         if (camera.FocalLength <= 0)
         {
@@ -19,11 +21,14 @@ public readonly record struct BattleCamera(Vector3 Eye, Vector3 Target, float Fi
         // Native50CBA0/50F900 use positive-down Y and positive-forward Z. A half-turn about X
         // reconciles that camera basis with CreateLookAt without reversing projected winding.
         Vector3 World(Vector3 native) => new Vector3(native.X, -native.Y, -native.Z) / 100f;
-        return new BattleCamera(World(camera.NativeEye), World(camera.NativeTarget), 2 * MathF.Atan(120f / camera.FocalLength), 108f / 240);
+        return new BattleCamera(World(camera.NativeEye), World(camera.NativeTarget), 2 * MathF.Atan(120f / camera.FocalLength), 108f / 240) { NativeRoll = roll };
     }
 }
 
-public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0, bool LoopAnimation = true);
+public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float Facing = 0, int Animation = 0, float Frame = 0, Vector3 AttackOffset = default, bool Visible = true, float Opacity = 1, float GroundOffset = 0, bool LoopAnimation = true)
+{
+    public NativeBattleDecodedPose? NativePose { get; init; }
+}
 
 /// <summary>Perspective-correct CPU battle renderer for original stage and skeletal DAT assets.</summary>
 public sealed class BattleRenderer
@@ -84,7 +89,10 @@ public sealed class BattleRenderer
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
         }
-        view = Matrix4x4.CreateLookAt(camera.Eye, camera.Target, Vector3.UnitY);
+        //5033E0 first rotates both native eye/target around Z, then composes the look-at matrix with that rotation.
+        //The renderer's half-turn about X reverses the native Z rotation angle.
+        Matrix4x4 roll = Matrix4x4.CreateRotationZ(-camera.NativeRoll * (2 * MathF.PI / 4096));
+        view = roll * Matrix4x4.CreateLookAt(Vector3.Transform(camera.Eye, roll), Vector3.Transform(camera.Target, roll), Vector3.UnitY);
         focal = Height / (2 * MathF.Tan(camera.FieldOfView / 2));
         centerY = Height * camera.VerticalCenter;
         Array.Clear(pixels);
@@ -101,7 +109,7 @@ public sealed class BattleRenderer
 
     private void DrawActor(BattleActorDraw actor)
     {
-        IReadOnlyList<Vector3[]> pose = actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
+        IReadOnlyList<Vector3[]> pose = actor.NativePose is { } native ? actor.Model.PoseNative(native) : actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
         Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.Facing) * Matrix4x4.CreateTranslation(actor.Position + actor.AttackOffset - Vector3.UnitY * actor.GroundOffset);
         for (int mesh = 0; mesh < actor.Model.Meshes.Count; mesh++)
         {

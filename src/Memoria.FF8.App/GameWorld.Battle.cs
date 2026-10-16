@@ -95,9 +95,15 @@ internal sealed partial class GameWorld
             NativeStageCameraControl = BattleResources.LoadStage(encounter.StageId).NativeCameraControl,
             NativeRenzokukenResources = assets.ReadNativeRenzokukenResources(),
             NativeCommandSequences = assets.ReadNativeBattleCommandSequences(),
+            NativeModuleResources = assets.ReadNativeBattleModuleResources(),
             NativeBattleUiRandom = session.State.Playtime?.CreateBattleUiRandom(),
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeRenzokukenMagicIds = BattleResources.ReadNativeRenzokukenMagicIds(actor.ModelId) }).ToArray()
         };
+        // TODO(TD-009): Native clock/support initialization belongs to the raw descriptor entry callback
+        if (definition.NativeGraphics is not null)
+        {
+            definition = definition with { NativeSupportRules = BattleResources.ReadNativeSupportRules(), NativeClockRules = BattleResources.ReadNativeClockRules() };
+        }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
     }

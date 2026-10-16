@@ -23,7 +23,7 @@ public static partial class NativeBattleRenzokukenRules
             if (opcode == 0xA1)
             {
                 ImmutableArray<byte> lengths = segments.ToImmutableArray();
-                return new(program[opcodeOffset + 1], lengths, Timeline(lengths)) { EndOffset = position };
+                return new(program[opcodeOffset + 1], lengths, Timeline(lengths)) { EndOffset = position + 1 };
             }
             if (opcode == 0xA0)
             {
