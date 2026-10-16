@@ -9,14 +9,43 @@ namespace Memoria.FF8;
 internal sealed partial class RecreateGame
 {
     private double tripleTriadDelay;
+    private TripleTriadController? presentedTripleTriad;
+    private TripleTriadAudioPresentation? tripleTriadAudio;
+    private TripleTriadMatch? preparedTripleTriadMatch;
+    private readonly UiNavigationRepeat tripleTriadVertical = new();
+    private readonly UiNavigationRepeat tripleTriadHorizontal = new();
 
     private bool UpdateTripleTriadUi(TimeSpan elapsed, InputFrame input)
     {
         if (events?.PendingTripleTriad is null)
         {
+            if (presentedTripleTriad is not null)
+            {
+                tripleTriadAudio?.Dispose();
+                tripleTriadAudio = null;
+                presentedTripleTriad = null;
+                if (world is { Field: { } field })
+                {
+                    fieldAudio?.ResumeMusic(world.Events.Scene, field.Id, session.State.Scene == SceneKind.WorldMap);
+                }
+            }
             return false;
         }
         TripleTriadController controller = world!.EnsureTripleTriad()!;
+        if (!ReferenceEquals(presentedTripleTriad, controller))
+        {
+            tripleTriadAudio?.Dispose();
+            presentedTripleTriad = controller;
+            if (fieldAudio is not null)
+            {
+                tripleTriadAudio = new TripleTriadAudioPresentation(fieldAudio, controller);
+            }
+            controller.EnablePresentation();
+            uiCanvas!.PrepareTripleTriad(controller);
+            preparedTripleTriadMatch = controller.Match;
+            tripleTriadDelay = 0;
+        }
+        controller.AdvancePresentation(elapsed);
         if (UpdatePlayerSaves(input))
         {
             return true;
@@ -24,19 +53,21 @@ internal sealed partial class RecreateGame
         UiView view = controller.BuildView();
         TripleTriadPromptState? beforePrompt = session.State.TripleTriadPlay?.Prompt;
         view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
-        if (input.MenuVertical < 0)
+        int vertical = tripleTriadVertical.Update(Math.Abs(input.Vertical) >= 0.5f ? Math.Sign(input.Vertical) : 0, input.MenuVertical, elapsed);
+        int horizontal = tripleTriadHorizontal.Update(Math.Abs(input.Horizontal) >= 0.5f ? Math.Sign(input.Horizontal) : 0, input.MenuHorizontal, elapsed);
+        if (vertical < 0)
         {
             view.Key(UiKey.Up);
         }
-        if (input.MenuVertical > 0)
+        if (vertical > 0)
         {
             view.Key(UiKey.Down);
         }
-        if (input.MenuHorizontal < 0)
+        if (horizontal < 0)
         {
             view.Key(UiKey.Left);
         }
-        if (input.MenuHorizontal > 0)
+        if (horizontal > 0)
         {
             view.Key(UiKey.Right);
         }
@@ -54,14 +85,26 @@ internal sealed partial class RecreateGame
         }
         MouseState mouse = Mouse.GetState();
         view.Pointer(mouse.X, mouse.Y, IsActive && mouse.LeftButton == ButtonState.Pressed);
+        if (!ReferenceEquals(preparedTripleTriadMatch, controller.Match))
+        {
+            uiCanvas!.PrepareTripleTriadImages(controller.Match?.InitialHands.SelectMany(hand => hand) ?? []);
+            preparedTripleTriadMatch = controller.Match;
+        }
         if (controller.AwaitingRules && beforePrompt == session.State.TripleTriadPlay?.Prompt)
         {
             world.AdvanceTripleTriadPrompt();
         }
-        tripleTriadDelay += elapsed.TotalSeconds;
-        if (tripleTriadDelay >= 0.45 && events.PendingTripleTriad is not null)
+        if (!controller.IsAnimating && controller.Match is { CurrentPlayer: 1, Outcome: TripleTriadOutcome.InProgress })
         {
-            controller.AdvanceOpponent();
+            tripleTriadDelay += elapsed.TotalSeconds;
+            if (tripleTriadDelay >= 0.45 && events.PendingTripleTriad is not null)
+            {
+                controller.AdvanceOpponent();
+                tripleTriadDelay = 0;
+            }
+        }
+        else
+        {
             tripleTriadDelay = 0;
         }
         fieldSeconds = 0;

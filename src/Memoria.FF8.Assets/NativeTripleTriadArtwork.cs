@@ -1,0 +1,102 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using Albeoris.Games.FF8.Imaging;
+using Albeoris.Games.FF8.Imaging.Tim;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Assets;
+
+/// <summary>Native Triple Triad sprites embedded in the authenticated original executable.</summary>
+public sealed class NativeTripleTriadArtwork
+{
+    private readonly PixelImage[] elements;
+    private readonly PixelImage[] fronts;
+
+    private NativeTripleTriadArtwork(PixelImage[] elements, PixelImage[] fronts, PixelImage back)
+    {
+        this.elements = elements;
+        this.fronts = fronts;
+        Back = back;
+    }
+
+    /// <summary>The original gold back used by native 53A590 for hidden opponent cards.</summary>
+    public PixelImage Back { get; }
+
+    public PixelImage GetFront(int cardId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(cardId);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(cardId, fronts.Length);
+        return fronts[cardId];
+    }
+
+    public PixelImage GetElement(TripleTriadElement element)
+    {
+        int index = (int)element - 1;
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, elements.Length);
+        return elements[index];
+    }
+
+    public static NativeTripleTriadArtwork Load(string gameDirectory)
+    {
+        return ReadExecutable(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+    }
+
+    public static NativeTripleTriadArtwork ReadExecutable(byte[] executable)
+    {
+        if (Convert.ToHexString(SHA256.HashData(executable)) != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        {
+            throw new NotSupportedException("Triple Triad artwork requires the authenticated original English executable.");
+        }
+        // Native 5343xx loads B96A90 via 539450. 53A100 draws each element with tpage 0xC,
+        // UV (index%4*64,(index/4+1)*16), CLUT (x0,y225+index); the CLUT is 48 words wide.
+        TimImage sprites = ReadTim(executable, 0x796A90);
+        if (sprites.PixelWidth != 768 || sprites.Height != 192 || sprites.Clut is not { Width: 48, Height: 32 })
+        {
+            throw new InvalidDataException("Native Triple Triad sprite texture has unexpected dimensions.");
+        }
+        PixelImage[] elements = new PixelImage[8];
+        for (int index = 0; index < elements.Length; index++)
+        {
+            elements[index] = CropIndexed(sprites, index % 4 * 64, (index / 4 + 1) * 16, 16, 16, (index + 1) * 48);
+        }
+        // Native 53A428..53A4BA uses a separate 128-color half-row CLUT for each card.
+        // Its keyed background differs from the opaque inventory-menu mcXX.TEX artwork.
+        TimImage cards = ReadTim(executable, 0x7A9B10);
+        if (cards.PixelWidth != 1792 || cards.Height != 256 || cards.Clut is not { Width: 256, Height: 56 })
+        {
+            throw new InvalidDataException("Native Triple Triad card texture has unexpected dimensions.");
+        }
+        PixelImage[] fronts = new PixelImage[CardArtwork.CardCount];
+        for (int cardId = 0; cardId < fronts.Length; cardId++)
+        {
+            fronts[cardId] = CropIndexed(cards, (cardId >> 3) * 128 + (cardId % 2) * 64, ((cardId >> 1) & 3) * 64, 64, 64, (cardId >> 1) * 256 + (cardId % 2) * 128);
+        }
+        // Native 53A590: tpage 0x9D, UV (0,192)..(63,255), CLUT 0x3FF0.
+        PixelImage back = CropIndexed(cards, 1664, 192, 64, 64, 55 * 256);
+        return new NativeTripleTriadArtwork(elements, fronts, back);
+    }
+
+    private static TimImage ReadTim(byte[] executable, int offset)
+    {
+        int position = offset + 8;
+        int clutBytes = BinaryPrimitives.ReadInt32LittleEndian(executable.AsSpan(position));
+        position += clutBytes;
+        int imageBytes = BinaryPrimitives.ReadInt32LittleEndian(executable.AsSpan(position));
+        return TimFile.Read(executable.AsSpan(offset, position + imageBytes - offset)).Images.Single();
+    }
+
+    private static PixelImage CropIndexed(TimImage image, int left, int top, int width, int height, int paletteOffset)
+    {
+        PixelImage result = new(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int index = image.Pixels[(top + y) * image.PixelWidth + left + x];
+                result[x, y] = Rgba32.FromPsxBgr555Display(image.Clut!.Colors[paletteOffset + index]);
+            }
+        }
+        return result;
+    }
+}

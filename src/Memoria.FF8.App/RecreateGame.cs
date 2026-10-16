@@ -903,7 +903,7 @@ internal sealed partial class RecreateGame : Game
     {
         UpdateLocationWindowTitle();
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
-        if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
+        if (ActiveBattle is null && world?.ActiveTripleTriad is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
         {
             try
             {

@@ -1,5 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Security.Cryptography;
+using Albeoris.Games.FF8.Jsm;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 
@@ -14,7 +17,8 @@ public sealed class TripleTriadHostIntegrationTests
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Original diagnostic standalone and installed resources are required.");
         string output = OutputDirectory();
-        string migrated = Path.Combine(output, "martine-field621-source-migrated.json");
+        string migrated = Path.Combine(output, "martine-field621-source-physical-reset-migrated.json");
+        Assert.Equal("564A32FC6A26F8EB174E117A17546523914E39560DDA0FA2317D6E5AA7C65B62", Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(source))));
         JsonObject root = JsonNode.Parse(File.ReadAllText(source))!.AsObject();
         root["FieldBars"] = null;
         root["EventState"]!["FieldBars"] = null;
@@ -31,6 +35,7 @@ public sealed class TripleTriadHostIntegrationTests
         {
             actor!["NativeEyes"] = null;
         }
+        MigrateHaltedDefaultOperandDepths(root, directory);
         File.WriteAllText(migrated, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         GameSession session = new(GameSession.Load(migrated));
         using GameWorld world = new(session, directory);
@@ -116,6 +121,72 @@ public sealed class TripleTriadHostIntegrationTests
         session.Save(final);
         _ = GameSession.Load(final);
         Console.WriteLine($"Native match outcome: {outcome}; final field/frame: {world.Events.FieldId}/{world.Events.Frame}; midmatch: {midmatch}; settled standalone: {final}");
+    }
+
+    [Fact]
+    public void UnmigratedDiagnosticRefusesUnknownPhysicalReturnMemory()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Original diagnostic standalone and installed resources are required.");
+        using GameWorld world = new(new GameSession(GameSession.Load(source)), directory);
+        world.EnsureField();
+        Assert.Null(world.Events.Actors[9].NativeOperandMemory);
+        Assert.True(world.Events.TalkTo(6, true));
+        EventScriptException exception = Assert.Throws<EventScriptException>(() =>
+        {
+            for (int callback = 0; callback < 120 && world.Events.PendingTripleTriad is null; callback++)
+            {
+                if (world.Events.CurrentDialogue is { CanConfirm: true } dialogue)
+                {
+                    world.Events.ConfirmDialogue(dialogue.FirstChoice);
+                }
+                else
+                {
+                    world.Events.Step();
+                }
+            }
+        });
+        Assert.Contains("Native RET requires eight actual retained physical DWORDs", exception.Message);
+        JsonElement blocked = world.Events.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 9 && fiber.GetProperty("ScriptId").GetInt32() == 60 && !fiber.GetProperty("Complete").GetBoolean());
+        Assert.Equal(940, blocked.GetProperty("Position").GetInt32());
+        Assert.Empty(blocked.GetProperty("Stack").EnumerateArray());
+        Assert.Null(world.Events.Actors[9].NativeOperandMemory!.LiveDepth);
+    }
+
+    private static void MigrateHaltedDefaultOperandDepths(JsonObject root, string directory)
+    {
+        JsonObject events = root["EventState"]!.AsObject();
+        Assert.Equal(621, events["FieldId"]!.GetValue<int>());
+        Assert.Equal(17, events["Frame"]!.GetValue<int>());
+        Assert.True(events["DefaultsStarted"]!.GetValue<bool>());
+        long[] sequences = events["Fibers"]!.AsArray().Select(item => item!["Sequence"]!.GetValue<long>()).Order().ToArray();
+        Assert.Equal(Enumerable.Range(0, sequences.Length).Select(index => sequences[0] + index), sequences);
+        Assert.Equal(sequences[^1], events["Sequence"]!.GetValue<long>());
+        using GameAssets assets = new(directory);
+        byte[] original = assets.LoadField(621).Jsm;
+        Assert.Equal("415FDCF94D0476A9218322F75384CE5E3FDE056C73610F32893BEB43AEE481A4", Convert.ToHexString(SHA256.HashData(original)));
+        Assert.Equal(Convert.ToHexString(SHA256.HashData(original)), events["ProgramHash"]!.GetValue<string>());
+        JsmProgram program = JsmProgram.Read(original);
+        foreach (int objectId in new[] { 6, 9 })
+        {
+            JsonObject actor = events["Actors"]![objectId]!.AsObject();
+            Assert.Equal(objectId, actor["ObjectId"]!.GetValue<int>());
+            Assert.Null(actor["NativeOperandMemory"]);
+            JsonNode fiber = Assert.Single(events["Fibers"]!.AsArray(), item => item!["ObjectId"]!.GetValue<int>() == objectId && !item["Complete"]!.GetValue<bool>())!;
+            var script = program.Objects[objectId].Scripts[1];
+            Assert.Equal(script.Id, fiber["ScriptId"]!.GetValue<int>());
+            Assert.True(fiber["NativeDoorDefaultFrame"]!.GetValue<bool>());
+            Assert.False(fiber["NativeResultFrameEntered"]!.GetValue<bool>());
+            Assert.Equal("NativeHalt", fiber["WaitReason"]!.GetValue<string>());
+            Assert.Empty(fiber["Stack"]!.AsArray());
+            Assert.Equal(script.Start + 1, fiber["Position"]!.GetValue<int>());
+            Assert.Equal(Jsm.Opcode.LBL, program.Operations[script.Start].Opcode);
+            Assert.Equal(Jsm.Opcode.HALT, program.Operations[script.Start + 1].Opcode);
+            // Native52C960 reset depth388 to FF; this immediate HALT executed no operands.
+            // Preserve every unobserved physical DWORD and saved-slot depth as unknown.
+            actor["NativeOperandMemory"] = JsonSerializer.SerializeToNode(NativeActorOperandMemory.Unknown() with { LiveDepth = -1 });
+        }
     }
 
     private static string OutputDirectory()

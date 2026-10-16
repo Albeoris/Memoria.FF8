@@ -6,7 +6,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Device output is transient. Executed VM audio receipts keep their deterministic headless contract.</summary>
-internal sealed class FieldAudioPresentation(nint window, string gameDirectory, string toolsDirectory) : IDisposable
+internal sealed partial class FieldAudioPresentation(nint window, string gameDirectory, string toolsDirectory) : IDisposable
 {
     private readonly Dictionary<int, PcmAudio> samples = [];
     private readonly Dictionary<int, Voice> voices = [];

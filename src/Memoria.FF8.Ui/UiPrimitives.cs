@@ -124,6 +124,11 @@ public interface IUiCanvas
     }
     void MenuPointer(UiRect bounds);
     void Image(UiImageSource source, UiRect bounds);
+    /// <summary>Maps artwork to the complete destination, including nonuniform animation scaling.</summary>
+    void ImageStretched(UiImageSource source, UiRect bounds)
+    {
+        Image(source, bounds);
+    }
     void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily)
     {
         Text(text, fontSize, bounds, color);

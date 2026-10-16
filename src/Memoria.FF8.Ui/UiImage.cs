@@ -9,7 +9,9 @@ public enum UiImageKind
     CardBack,
     NativeTutorialPage,
     Magazine,
-    MagazineButton
+    MagazineButton,
+    CardFace,
+    CardElement
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

@@ -41,7 +41,11 @@ public enum TripleTriadOutcome
 public sealed record TripleTriadCard(int Id, int Top, int Right, int Bottom, int Left, TripleTriadElement Element);
 public sealed record TripleTriadPlacedCard([property: JsonRequired] int CardId, [property: JsonRequired] int Owner, [property: JsonRequired] int SourcePlayer, [property: JsonRequired] int SourceHandIndex);
 public sealed record TripleTriadMove(int HandIndex, int CellIndex);
-public sealed record TripleTriadMoveResult(int CardId, int Player, int HandIndex, int CellIndex, IReadOnlyList<int> CapturedCells, bool Same, bool Plus, bool Combo, TripleTriadOutcome Outcome);
+public sealed record TripleTriadCapture(int CellIndex, int SourceCellIndex, int Wave);
+public sealed record TripleTriadMoveResult(int CardId, int Player, int HandIndex, int CellIndex, IReadOnlyList<int> CapturedCells, bool Same, bool Plus, bool Combo, TripleTriadOutcome Outcome)
+{
+    public IReadOnlyList<TripleTriadCapture> Captures { get; init; } = [];
+}
 
 /// <summary>A standalone state, independent of field saves and native card inventory.</summary>
 public sealed record TripleTriadSnapshot
@@ -317,6 +321,7 @@ public sealed class TripleTriadMatch
         }
         CaptureWeakerNeighbors(cellIndex, player, captured, null);
         // 53AD70 promotes every flipped card to the next wave when 53ACF0 returned a Same/Plus effect.
+        List<TripleTriadCapture> captures = captured.Select(cell => new TripleTriadCapture(cell, cellIndex, 0)).ToList();
         Queue<int> combo = propagateCombo && (sameTriggered || plusTriggered) ? new Queue<int>(captured) : new Queue<int>();
         bool comboTriggered = false;
         while (combo.TryDequeue(out int source))
@@ -324,9 +329,11 @@ public sealed class TripleTriadMatch
             int previousCount = captured.Count;
             CaptureWeakerNeighbors(source, player, captured, combo);
             comboTriggered |= captured.Count != previousCount;
+            int wave = captures.Single(capture => capture.CellIndex == source).Wave + 1;
+            captures.AddRange(captured.Skip(previousCount).Select(cell => new TripleTriadCapture(cell, source, wave)));
         }
         CurrentPlayer = 1 - player;
-        return new TripleTriadMoveResult(cardId, player, handIndex, cellIndex, captured.AsReadOnly(), sameTriggered, plusTriggered, comboTriggered, Outcome);
+        return new TripleTriadMoveResult(cardId, player, handIndex, cellIndex, captured.AsReadOnly(), sameTriggered, plusTriggered, comboTriggered, Outcome) { Captures = captures.AsReadOnly() };
     }
 
     public void RestartSuddenDeath(int startingPlayer, IReadOnlyList<TripleTriadElement>? boardElements = null)

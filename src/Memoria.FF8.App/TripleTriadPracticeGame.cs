@@ -18,6 +18,10 @@ internal sealed class TripleTriadPracticeGame : Game
     private Texture2D pixel = null!;
     private MonoGameUiCanvas canvas = null!;
     private KeyboardState previousKeys;
+    private readonly UiNavigationRepeat horizontalRepeat = new();
+    private readonly UiNavigationRepeat verticalRepeat = new();
+    private FieldAudioPresentation? audio;
+    private TripleTriadAudioPresentation? cardAudio;
     private double opponentDelay;
     private string? notice;
 
@@ -27,6 +31,7 @@ internal sealed class TripleTriadPracticeGame : Game
         this.gameDirectory = gameDirectory;
         this.save = save;
         this.load = load;
+        controller.EnablePresentation();
         view = controller.BuildView();
         _ = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = 960, PreferredBackBufferHeight = 672, SynchronizeWithVerticalRetrace = true };
         Window.Title = "Triple Triad · Practice";
@@ -41,6 +46,9 @@ internal sealed class TripleTriadPracticeGame : Game
         pixel = new Texture2D(GraphicsDevice, 1, 1);
         pixel.SetData([Color.White]);
         canvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, gameDirectory);
+        canvas.PrepareTripleTriad(controller);
+        audio = new FieldAudioPresentation(Window.Handle, gameDirectory, "");
+        cardAudio = new TripleTriadAudioPresentation(audio, controller);
     }
 
     protected override void Update(GameTime gameTime)
@@ -48,10 +56,19 @@ internal sealed class TripleTriadPracticeGame : Game
         KeyboardState keys = Keyboard.GetState();
         if (IsActive)
         {
-            Route(Keys.Up, UiKey.Up);
-            Route(Keys.Down, UiKey.Down);
-            Route(Keys.Left, UiKey.Left);
-            Route(Keys.Right, UiKey.Right);
+            controller.AdvancePresentation(gameTime.ElapsedGameTime);
+            int vertical = verticalRepeat.Update(Direction(Keys.Up, Keys.Down), PressedDirection(Keys.Up, Keys.Down), gameTime.ElapsedGameTime);
+            int horizontal = horizontalRepeat.Update(Direction(Keys.Left, Keys.Right), PressedDirection(Keys.Left, Keys.Right), gameTime.ElapsedGameTime);
+            if (vertical != 0)
+            {
+                view.Key(vertical < 0 ? UiKey.Up : UiKey.Down);
+                notice = null;
+            }
+            if (horizontal != 0)
+            {
+                view.Key(horizontal < 0 ? UiKey.Left : UiKey.Right);
+                notice = null;
+            }
             Route(Keys.PageUp, UiKey.PageUp);
             Route(Keys.PageDown, UiKey.PageDown);
             Route(Keys.Enter, UiKey.Confirm);
@@ -66,6 +83,9 @@ internal sealed class TripleTriadPracticeGame : Game
                 if (Pressed(Keys.F9))
                 {
                     load();
+                    opponentDelay = 0;
+                    cardAudio?.Dispose();
+                    cardAudio = new TripleTriadAudioPresentation(audio!, controller);
                     notice = "Practice match loaded.";
                 }
             }
@@ -76,17 +96,34 @@ internal sealed class TripleTriadPracticeGame : Game
             MouseState mouse = Mouse.GetState();
             view.Resize(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
             view.Pointer(mouse.X, mouse.Y, mouse.LeftButton == ButtonState.Pressed);
-            opponentDelay += gameTime.ElapsedGameTime.TotalSeconds;
-            if (opponentDelay >= 0.45)
+            if (!controller.IsAnimating && controller.Match is { CurrentPlayer: 1, Outcome: Runtime.TripleTriadOutcome.InProgress } && !controller.AwaitingRules && controller.TradingHand is null)
             {
-                controller.AdvanceOpponent();
+                opponentDelay += gameTime.ElapsedGameTime.TotalSeconds;
+                if (opponentDelay >= 0.45)
+                {
+                    controller.AdvanceOpponent();
+                    opponentDelay = 0;
+                }
+            }
+            else
+            {
                 opponentDelay = 0;
             }
+        }
+        audio?.Update();
+        if (!IsActive)
+        {
+            view.Pointer(0, 0, false);
+            horizontalRepeat.Update(0, 0, TimeSpan.Zero);
+            verticalRepeat.Update(0, 0, TimeSpan.Zero);
+            opponentDelay = 0;
         }
         previousKeys = keys;
         base.Update(gameTime);
 
         bool Pressed(Keys key) => keys.IsKeyDown(key) && previousKeys.IsKeyUp(key);
+        int Direction(Keys negative, Keys positive) => (keys.IsKeyDown(positive) ? 1 : 0) - (keys.IsKeyDown(negative) ? 1 : 0);
+        int PressedDirection(Keys negative, Keys positive) => (Pressed(positive) ? 1 : 0) - (Pressed(negative) ? 1 : 0);
         void Route(Keys key, UiKey uiKey)
         {
             if (Pressed(key))
@@ -115,6 +152,8 @@ internal sealed class TripleTriadPracticeGame : Game
 
     protected override void UnloadContent()
     {
+        cardAudio?.Dispose();
+        audio?.Dispose();
         canvas.Dispose();
         text.Dispose();
         pixel.Dispose();

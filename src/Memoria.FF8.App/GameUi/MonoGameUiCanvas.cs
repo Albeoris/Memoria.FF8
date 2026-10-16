@@ -12,31 +12,108 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
     private Texture2D? menuPointer;
     private readonly MenuArtworkProvider artwork = new(gameDirectory);
     private readonly Dictionary<UiImageSource, Texture2D> images = [];
+    private string? cardFontFamily;
+
+    public void PrepareTripleTriad(TripleTriadController controller)
+    {
+        PrepareTripleTriadImages(controller.Available.Concat(controller.Match?.InitialHands.SelectMany(hand => hand) ?? []));
+        float scale = Math.Min(device.Viewport.Width / 960f, device.Viewport.Height / 672f);
+        foreach (int id in controller.Available)
+        {
+            string name = controller.Name(id);
+            text.Preload(name, 26 * scale, 440 * scale);
+            text.Preload(name, 19 * scale, 292 * scale);
+            text.Preload($"\u00d7{controller.Remaining(id)}", 18 * scale, 50 * scale);
+        }
+        foreach (int level in controller.Available.Select(id => id / 11 + 1).Distinct())
+        {
+            for (int selected = 0; selected <= 5; selected++)
+            {
+                text.Preload($"Level {level}     {selected} / 5 cards selected", 17 * scale, 440 * scale);
+            }
+        }
+    }
+
+    public void PrepareTripleTriadImages(IEnumerable<int> cardIds)
+    {
+        foreach (int id in cardIds.Distinct())
+        {
+            _ = GetImage(new UiImageSource(UiImageKind.CardFace, id, 0));
+            _ = GetImage(new UiImageSource(UiImageKind.CardFace, id, 1));
+        }
+        _ = GetImage(new UiImageSource(UiImageKind.CardBack, 0));
+        foreach (var element in Enum.GetValues<Memoria.FF8.Runtime.TripleTriadElement>().Where(element => element != Memoria.FF8.Runtime.TripleTriadElement.None))
+        {
+            _ = GetImage(new UiImageSource(UiImageKind.CardElement, (int)element));
+        }
+    }
+
+    public void PreloadImages(IEnumerable<UiImageSource> sources)
+    {
+        foreach (UiImageSource source in sources)
+        {
+            _ = GetImage(source);
+        }
+    }
 
     public void Image(UiImageSource source, UiRect bounds)
+    {
+        DrawImage(source, bounds, stretch: false);
+    }
+
+    public void ImageStretched(UiImageSource source, UiRect bounds)
+    {
+        DrawImage(source, bounds, stretch: true);
+    }
+
+    private Texture2D GetImage(UiImageSource source)
+    {
+        if (source.Kind == UiImageKind.CardFace && cardFontFamily != text.FontFamily)
+        {
+            foreach (UiImageSource key in images.Keys.Where(key => key.Kind == UiImageKind.CardFace).ToArray())
+            {
+                images[key].Dispose();
+                images.Remove(key);
+            }
+            cardFontFamily = text.FontFamily;
+        }
+        if (!images.TryGetValue(source, out Texture2D? texture))
+        {
+            var image = artwork.Read(source, text.FontFamily);
+            texture = new Texture2D(device, image.Width, image.Height);
+            try
+            {
+                texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+                images.Add(source, texture);
+            }
+            catch
+            {
+                texture.Dispose();
+                throw;
+            }
+        }
+        return texture;
+    }
+
+    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch)
     {
         if (bounds.IsEmpty)
         {
             return;
         }
-        if (!images.TryGetValue(source, out Texture2D? texture))
-        {
-            var image = artwork.Read(source);
-            texture = new Texture2D(device, image.Width, image.Height);
-            texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
-            images.Add(source, texture);
-        }
-        UiRect destination = source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, texture.Width, texture.Height);
+        Texture2D texture = GetImage(source);
+        UiRect destination = stretch || source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, texture.Width, texture.Height);
         Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
-        float scaleX = destination.Width / texture.Width;
-        float scaleY = destination.Height / texture.Height;
-        int left = Math.Clamp((int)MathF.Ceiling((clip.Left - destination.X) / scaleX), 0, texture.Width);
-        int top = Math.Clamp((int)MathF.Ceiling((clip.Top - destination.Y) / scaleY), 0, texture.Height);
-        int right = Math.Clamp((int)MathF.Floor((clip.Right - destination.X) / scaleX), left, texture.Width);
-        int bottom = Math.Clamp((int)MathF.Floor((clip.Bottom - destination.Y) / scaleY), top, texture.Height);
+        Vector2 scale = new(destination.Width / texture.Width, destination.Height / texture.Height);
+        int left = Math.Clamp((int)MathF.Ceiling((clip.Left - destination.X) / scale.X), 0, texture.Width);
+        int top = Math.Clamp((int)MathF.Ceiling((clip.Top - destination.Y) / scale.Y), 0, texture.Height);
+        int right = Math.Clamp((int)MathF.Floor((clip.Right - destination.X) / scale.X), left, texture.Width);
+        int bottom = Math.Clamp((int)MathF.Floor((clip.Bottom - destination.Y) / scale.Y), top, texture.Height);
         if (right > left && bottom > top)
         {
-            batch.Draw(texture, new Vector2(destination.X + left * scaleX, destination.Y + top * scaleY), new Rectangle(left, top, right - left, bottom - top), Color.White, 0, Vector2.Zero, new Vector2(scaleX, scaleY), SpriteEffects.None, 0);
+            Rectangle sourceBounds = new(left, top, right - left, bottom - top);
+            Vector2 position = new(destination.X + left * scale.X, destination.Y + top * scale.Y);
+            batch.Draw(texture, position, sourceBounds, Color.White, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
     }
 

@@ -4,7 +4,7 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Deck selection and human input for the single Triple Triad match implementation.</summary>
-public sealed class TripleTriadController
+public sealed partial class TripleTriadController
 {
     private readonly IReadOnlyList<TripleTriadCard> definitions;
     private readonly IReadOnlyDictionary<int, int> collection;
@@ -73,6 +73,7 @@ public sealed class TripleTriadController
             return;
         }
         deck.Add(id);
+        RequestSound(TripleTriadSound.Confirm);
         if (deck.Count == 5)
         {
             Match = CreateMatch?.Invoke(deck) ?? TripleTriadMatch.Create(definitions, deck, opponent, Rules);
@@ -85,6 +86,7 @@ public sealed class TripleTriadController
     public void RestoreMatch(TripleTriadMatch match)
     {
         ArgumentNullException.ThrowIfNull(match);
+        ClearPresentation();
         Match = TripleTriadMatch.Restore(definitions, match.CaptureSnapshot());
         ChoosingCell = false;
         SelectFirstHand();
@@ -101,7 +103,7 @@ public sealed class TripleTriadController
         deck.AddRange(selected);
     }
 
-    public void Navigate(UiKey key)
+    private void NavigateCore(UiKey key)
     {
         if (AwaitingRules)
         {
@@ -238,9 +240,16 @@ public sealed class TripleTriadController
         if ((uint)handIndex >= 5 || (uint)cellIndex >= 9 || Match is null || Match.CurrentPlayer != 0 || Match.Outcome != TripleTriadOutcome.InProgress || Match.Hands[0][handIndex] is null || Match.Board[cellIndex] is not null)
         {
             Message = "Choose an empty square.";
+            RequestSound(TripleTriadSound.Error);
             return;
         }
-        Match.Play(handIndex, cellIndex);
+        if (IsAnimating)
+        {
+            return;
+        }
+        TripleTriadPlacedCard?[] before = Match.Board.ToArray();
+        TripleTriadMoveResult result = Match.Play(handIndex, cellIndex);
+        PresentMove(result, before);
         ChoosingCell = false;
         SelectFirstHand();
         Message = Match.Outcome == TripleTriadOutcome.InProgress ? "Opponent is thinking…" : ResultText();
@@ -249,12 +258,14 @@ public sealed class TripleTriadController
 
     public bool AdvanceOpponent()
     {
-        if (Match is null || Match.CurrentPlayer != 1 || Match.Outcome != TripleTriadOutcome.InProgress)
+        if (IsAnimating || Match is null || Match.CurrentPlayer != 1 || Match.Outcome != TripleTriadOutcome.InProgress)
         {
             return false;
         }
         TripleTriadMove move = ChooseOpponentMove?.Invoke(Match) ?? Match.ChooseMove();
-        Match.Play(move.HandIndex, move.CellIndex);
+        TripleTriadPlacedCard?[] before = Match.Board.ToArray();
+        TripleTriadMoveResult result = Match.Play(move.HandIndex, move.CellIndex);
+        PresentMove(result, before);
         SelectFirstHand();
         Message = Match.Outcome == TripleTriadOutcome.InProgress ? "Choose a card, then a square." : ResultText();
         Changed?.Invoke();
@@ -263,7 +274,7 @@ public sealed class TripleTriadController
 
     public void SelectHand(int index)
     {
-        if ((uint)index < 5 && Match?.Hands[0][index] is not null)
+        if (!IsAnimating && (uint)index < 5 && Match is { CurrentPlayer: 0, Outcome: TripleTriadOutcome.InProgress } && Match.Hands[0][index] is not null)
         {
             SelectedHand = index;
             ChoosingCell = true;
@@ -315,6 +326,7 @@ public sealed class TripleTriadController
         {
             return;
         }
+        RequestSound(TripleTriadSound.Confirm);
         tradeSelection.Add(slot);
         if (tradeSelection.Count == RequiredTradeCards)
         {

@@ -70,6 +70,16 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
 
     public void Image(UiImageSource source, UiRect bounds)
     {
+        DrawImage(source, bounds, stretch: false);
+    }
+
+    public void ImageStretched(UiImageSource source, UiRect bounds)
+    {
+        DrawImage(source, bounds, stretch: true);
+    }
+
+    private void DrawImage(UiImageSource source, UiRect bounds, bool stretch)
+    {
         if (bounds.IsEmpty)
         {
             return;
@@ -80,7 +90,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
             bitmap = BitmapFromRgba(image.Pixels.SelectMany(color => new[] { color.R, color.G, color.B, color.A }).ToArray(), image.Width, image.Height);
             images.Add(source, bitmap);
         }
-        UiRect destination = source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, bitmap.Width, bitmap.Height);
+        UiRect destination = stretch || source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, bitmap.Width, bitmap.Height);
         GraphicsState previous = graphics.Save();
         try
         {

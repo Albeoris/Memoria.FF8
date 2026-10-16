@@ -50,6 +50,7 @@ public sealed class TripleTriadMatchTests
         Assert.True(move.Same);
         Assert.True(move.Combo);
         Assert.Equal(new[] { 1, 2 }, move.CapturedCells);
+        Assert.Equal(new[] { new TripleTriadCapture(1, 4, 0), new TripleTriadCapture(2, 1, 1) }, move.Captures);
         Assert.Equal(0, match.Board[2]!.Owner);
     }
 

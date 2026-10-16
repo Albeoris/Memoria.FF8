@@ -39,6 +39,43 @@ public sealed class BattlePreviewCanvasTests
         Assert.True(colored > 20, $"Original {kind} {id} was not visible.");
     }
 
+    [Fact]
+    public void Stretched_card_animation_preserves_height_and_nested_clipping_when_squeezed()
+    {
+        using Bitmap bitmap = new(80, 160, PixelFormat.Format32bppArgb);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            canvas.PushClip(new UiRect(14, 20, 8, 100));
+            canvas.ImageStretched(new UiImageSource(UiImageKind.CardBack, 0), new UiRect(10, 10, 16, 128));
+            canvas.PopClip();
+        }
+        int upper = 0;
+        int lower = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                Color pixel = bitmap.GetPixel(x, y);
+                if (pixel.R == 0 && pixel.G == 0 && pixel.B == 0)
+                {
+                    continue;
+                }
+                Assert.InRange(x, 14, 21);
+                Assert.InRange(y, 20, 119);
+                if (y < 45)
+                {
+                    upper++;
+                }
+                if (y > 95)
+                {
+                    lower++;
+                }
+            }
+        }
+        Assert.True(upper > 0);
+        Assert.True(lower > 0);
+    }
+
     [Theory]
     [InlineData(14, 240)]
     [InlineData(24, 240)]

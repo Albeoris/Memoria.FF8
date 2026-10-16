@@ -22,6 +22,11 @@ internal sealed class SystemTextRenderer(GraphicsDevice device) : IDisposable
         }
     }
 
+    public void Preload(string value, float size, float maximumWidth)
+    {
+        _ = GetTexture(value, size, maximumWidth);
+    }
+
     public void DrawWrappedClipped(SpriteBatch batch, string value, float size, XnaVector2 position, float maximumWidth, XnaColor color, Microsoft.Xna.Framework.Rectangle clip, string? fontFamily = null)
     {
         Texture2D texture = GetTexture(value, size, maximumWidth, fontFamily);
