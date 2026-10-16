@@ -166,15 +166,20 @@ public sealed class FieldNativeMovementProbeTests
     }
 
     [Fact]
-    public void AmbiguousRoundingDegenerateGeometryAndUnknownContactsRemainUnsupported()
+    public void SelectedPcPrecision53ResolvesTheFormerCrossModeRoundingBoundary()
     {
         // Normal cross/256 = (6,0,-413), normalized X =59.4997746399... .
-        // Precision53 rounds to59; precision64 double-rounds to60. Do not pick a mode.
+        //The existing PC027F profile selects precision53, which rounds to59;
+        //the unselected precision64 alternative would double-round to60.
         WalkmeshTriangle rounding = new(Vector3.Zero, new Vector3(0, 256, 0), new Vector3(413, 0, 6), -1, -1, -1);
-        FieldNativeMovementResult ambiguous = FieldNativeMovementProbe.Resolve(new FieldWalkmesh([rounding]), Request(0, 20, 20, 0, 64, radius: 0));
-        Assert.Equal(FieldNativeMovementStatus.Unsupported, ambiguous.Status);
-        Assert.Contains("rounding", ambiguous.UnsupportedReason!);
-        Assert.Empty(ambiguous.Proposals);
+        FieldNativeMovementResult result = FieldNativeMovementProbe.Resolve(new FieldWalkmesh([rounding]), Request(0, 20, 20, 0, 64, radius: 0));
+        Assert.Equal(FieldNativeMovementStatus.Accepted, result.Status);
+        Assert.Equal(59, result.Factors!.Value.NormalX);
+    }
+
+    [Fact]
+    public void DegenerateGeometryAndUnknownContactsRemainUnsupported()
+    {
         WalkmeshTriangle tiny = new(Vector3.Zero, new Vector3(0, 10, 0), new Vector3(10, 0, 0), -1, -1, -1);
         Assert.Equal(FieldNativeMovementStatus.Unsupported, FieldNativeMovementProbe.Resolve(new FieldWalkmesh([tiny]), Request(0, 2, 2, 0, 0)).Status);
         Assert.Equal(FieldNativeMovementStatus.Unsupported, FieldNativeMovementProbe.Resolve(Square(), Request(0, 500, 500, 40, 0) with { ActorEnvelopesClear = false }).Status);

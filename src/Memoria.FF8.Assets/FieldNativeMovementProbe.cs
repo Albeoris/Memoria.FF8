@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -262,18 +263,14 @@ public static class FieldNativeMovementProbe
             return false;
         }
 
-        // Cross/256 is bounded by 2^23; its three integer squares sum exactly in binary64 and x87.
-        // Enclose the extended-precision sqrt/divide/multiply in outward-rounded binary64 intervals.
+        //56BC50 uses the selected PC precision53 profile, shared with camera
+        //and world conversion. Cross/256 is bounded by2^23, so the squared sum
+        //is exact; Y/Z are stored as FLOAT before the magic DOUBLE conversion.
         double root = Math.Sqrt(squaredLength);
-        double rootLow = Math.BitDecrement(root);
-        double rootHigh = Math.BitIncrement(root);
-        double scaleLow = Math.BitDecrement(4096.0 / rootHigh);
-        double scaleHigh = Math.BitIncrement(4096.0 / rootLow);
-        if (!TryNormalizedComponent(nx, scaleLow, scaleHigh, false, out nx) || !TryNormalizedComponent(ny, scaleLow, scaleHigh, true, out ny) || !TryNormalizedComponent(nz, scaleLow, scaleHigh, true, out nz))
-        {
-            reason = "x87 normalization crosses a float32 or magic-add integer rounding boundary.";
-            return false;
-        }
+        double scale = 4096.0 / root;
+        nx = NativePrecision53.RoundInteger(nx * scale);
+        ny = NativePrecision53.RoundInteger((float)(ny * scale));
+        nz = NativePrecision53.RoundInteger((float)(nz * scale));
         int dx = NativeSquareRoot(unchecked(nx * nx / 4096 + nz * nz / 4096));
         int dy = NativeSquareRoot(unchecked(ny * ny / 4096 + nz * nz / 4096));
         if (dx == 0)
@@ -285,35 +282,6 @@ public static class FieldNativeMovementProbe
         int fy = dy == 0 ? 0 : Math.Abs(Math.Clamp(unchecked(nz << 12) / dy, -4096, 4096));
         factors = new FieldNativeSlopeFactors(nx, ny, nz, fx, fy);
         return true;
-    }
-
-    private static bool TryNormalizedComponent(int component, double scaleLow, double scaleHigh, bool floatStorage, out int normalized)
-    {
-        double low = Math.BitDecrement(component * (component < 0 ? scaleHigh : scaleLow));
-        double high = Math.BitIncrement(component * (component < 0 ? scaleLow : scaleHigh));
-        if (floatStorage)
-        {
-            float lowFloat = (float)low;
-            float highFloat = (float)high;
-            if (lowFloat != highFloat)
-            {
-                normalized = 0;
-                return false;
-            }
-            low = lowFloat;
-            high = highFloat;
-        }
-        // At magic2^52+2^31, precision64 first rounds on the1/2048 grid;
-        // the binary64 store then rounds to an integer. Precision53 rounds
-        // directly. The magic base is even on both grids, so nearest-even
-        // ties have the same parity as these signed component coordinates.
-        // Preserve both native modes and accept only their common result.
-        int low53 = (int)Math.Round(low, MidpointRounding.ToEven);
-        int high53 = (int)Math.Round(high, MidpointRounding.ToEven);
-        int low64 = (int)Math.Round(Math.Round(low * 2048, MidpointRounding.ToEven) / 2048, MidpointRounding.ToEven);
-        int high64 = (int)Math.Round(Math.Round(high * 2048, MidpointRounding.ToEven) / 2048, MidpointRounding.ToEven);
-        normalized = low53;
-        return low53 == high53 && low53 == low64 && low64 == high64;
     }
 
     private static int NativeSquareRoot(int value)
