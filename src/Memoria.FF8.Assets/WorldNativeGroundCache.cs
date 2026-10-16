@@ -3,18 +3,28 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Assets;
 
 public sealed record WorldGroundSelection(NativeWorldGroundIdentity Identity, WorldGround Ground);
-public sealed record WorldNativeGroundResult(WorldGroundSelection? Center, NativeWorldGroundCacheState Cache, int X, int Z, int GroundYaw, bool Blocked);
+public sealed record WorldNativeGroundResult(WorldGroundSelection? Center, NativeWorldGroundCacheState Cache, int X, int Z, int GroundYaw, bool Blocked)
+{
+    public int? PrimaryContact { get; init; }
+    public int? BroadContact { get; init; }
+    public bool GroundCommitted { get; init; }
+    public bool PositionCommitted { get; init; }
+}
 
 public sealed partial class WorldAssets
 {
     private readonly Dictionary<NativeWorldGroundIdentity, WorldTriangle> nativeGroundPolygons = [];
     private sealed class NativeGroundProbe(int x, int z)
     {
+        public int RawX { get; } = x;
+        public int RawZ { get; } = z;
         public int X { get; } = (int)Wrap(x, 262144);
         public int Z { get; } = (int)Wrap(z, 196608);
         public int Cell => NativeCell(X, Z);
         public int Status { get; set; } = 2;
         public WorldGroundSelection? Selected { get; set; }
+        public short GroundHeight { get; set; }
+        public ushort Flags { get; set; }
     }
 
     public WorldGroundSelection? LookupNativeGround(int x, int z, IReadOnlyDictionary<int, int> replacements, IReadOnlyList<NativeWorldGroundIdentity> cache)
@@ -73,7 +83,7 @@ public sealed partial class WorldAssets
         }
     }
 
-    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false, Func<int, int, int, bool>? contact = null)
+    public WorldNativeGroundResult ResolveNativeGround(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int previousGroundHeight, int? selectedGroup, NativeWorldGroundCacheState prior, IReadOnlyDictionary<int, int> replacements, byte entityType = 33, bool selectionMayRetainGroup = false, Func<int, int, int, bool>? contact = null, Func<IReadOnlyList<WorldNativeGardenProbe>, int, int>? footprintContact = null, bool commitSuppressed = false)
     {
         bool foot = entityType < 10 || entityType == 128;
         bool car = entityType is >= 32 and <= 40 or 132;
@@ -84,71 +94,31 @@ public sealed partial class WorldAssets
         }
         int radius = NativeWorldTerrain.ProbeRadius(entityType);
         byte permission = NativeWorldTerrain.PermissionMask(entityType);
+        if (contact is not null && footprintContact is not null)
+        {
+            throw new ArgumentException("Native ground contact requires one canonical callback owner.");
+        }
         ValidateNativeGroundCache(prior, replacements);
         List<NativeWorldGroundAlternative> alternatives = [];
         WorldGroundSelection? center = null;
-        (int X, int Z, int Yaw, bool Blocked)? physical = null;
+        (int X, int Z, int Yaw, bool Blocked, bool Committed, int? Primary, int? Broad)? physical = null;
         foreach (NativeWorldGroundAlternative alternative in prior.Alternatives)
         {
             List<NativeWorldGroundIdentity> cache = [.. alternative.Entries];
-            NativeGroundProbe[][][] groups = new NativeGroundProbe[2][][];
-            for (int group = 0; group < 2; group++)
-            {
-                groups[group] = new NativeGroundProbe[8][];
-                for (int candidate = 0; candidate < 8; candidate++)
-                {
-                    (int dx, int dz) = RotateNativeGroundProbe(moveX, graphicsMoveZ, candidate * (group == 0 ? -160 : 160));
-                    int x = beforeX + dx;
-                    int z = beforeZ - dz;
-                    groups[group][candidate] = [new(x, z), new(x - radius, z), new(x, z - radius), new(x + radius, z), new(x, z + radius)];
-                }
-            }
-            Queue<int> cells = new();
-            HashSet<int> queued = [];
-            Enqueue(groups[0][0][0].Cell);
+            NativeGroundProbe[][][] groups = CreateNativeGroundGroups(beforeX, beforeZ, moveX, graphicsMoveZ, radius);
             byte oldType = ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).GroundType;
-            while (cells.TryDequeue(out int cell))
+            ResolveNativeGroundCells(groups, alternative.PreferredGroup, probe =>
             {
-                foreach (int group in new[] { alternative.PreferredGroup, 1 - alternative.PreferredGroup })
+                probe.Selected = ResolveNativeGroundProbe(probe, previousGroundHeight, oldType, cache, replacements);
+                //53E6B0 has no permission bit for16..22: those native entities return1.
+                probe.Status = probe.Selected is not null && (permission == 0 || (probe.Selected.Ground.Triangle.VertexFlags & permission) != 0) ? 0 : 1;
+                probe.GroundHeight = probe.Selected is null ? (short)-1 : unchecked((short)-(int)probe.Selected.Ground.Height);
+                probe.Flags = probe.Selected is null ? (ushort)0 : NativeGardenFlags(probe.Selected);
+                if (probe.Status != 0)
                 {
-                    int? unmatched = null;
-                    foreach (NativeGroundProbe[] candidate in groups[group])
-                    {
-                        foreach (NativeGroundProbe probe in candidate)
-                        {
-                            if (probe.Status != 2)
-                            {
-                                continue;
-                            }
-                            if (probe.Cell != cell)
-                            {
-                                unmatched ??= probe.Cell;
-                                continue;
-                            }
-                            probe.Selected = ResolveNativeGroundProbe(probe, previousGroundHeight, oldType, cache, replacements);
-                            //53E6B0 has no permission bit for16..22: those native entities return1.
-                            probe.Status = probe.Selected is not null && (permission == 0 || (probe.Selected.Ground.Triangle.VertexFlags & permission) != 0) ? 0 : 1;
-                        }
-                        if (candidate.All(probe => probe.Status == 0))
-                        {
-                            break;
-                        }
-                    }
-                    if (unmatched is int next)
-                    {
-                        Enqueue(next);
-                    }
+                    probe.Selected = null;
                 }
-                // Native53BB90 marks unprocessed probes in a completed block3;
-                // they cannot acquire later cache writes from an omitted candidate.
-                foreach (NativeGroundProbe probe in groups.SelectMany(group => group).SelectMany(candidate => candidate))
-                {
-                    if (probe.Status == 2 && probe.Cell == cell)
-                    {
-                        probe.Status = 3;
-                    }
-                }
-            }
+            });
             int[] selections = selectedGroup is int explicitGroup ? selectionMayRetainGroup && explicitGroup != alternative.PreferredGroup ? [explicitGroup, alternative.PreferredGroup] : [explicitGroup] : [alternative.PreferredGroup];
             foreach (int selection in selections)
             {
@@ -173,6 +143,17 @@ public sealed partial class WorldAssets
                     NativeGroundProbe? acceptedProbe = blocked ? null : groups[chosen][acceptedIndex][0];
                     WorldGroundSelection? selected = acceptedProbe?.Selected;
                     bool contactBlocked = false;
+                    int? primaryContact = null;
+                    int? broadContact = null;
+                    if (footprintContact is not null)
+                    {
+                        NativeGroundProbe[] footprint = blocked ? groups[selection][0] : groups[chosen][acceptedIndex];
+                        int currentHeight = unchecked((short)(-previousGroundHeight + (oldType <= 5 ? 320 : 0)));
+                        short height = unchecked((short)(selected is null ? currentHeight : NativeWorldTerrain.ResolveHeight(entityType, -(int)selected.Ground.Height, selected.Ground.Triangle.GroundType, currentHeight).Height));
+                        primaryContact = footprintContact(PublishNativeGardenProbes(footprint, height), 0);
+                        broadContact = primaryContact >= 0 ? primaryContact : footprintContact(PublishNativeGardenProbes(footprint, height), 200);
+                        contactBlocked = primaryContact >= 0;
+                    }
                     if (selected is not null && contact is not null)
                     {
                         //53BB90 commits the candidate height to all five probes before548CD0.
@@ -182,15 +163,18 @@ public sealed partial class WorldAssets
                         contactBlocked = contact(acceptedProbe!.X, acceptedProbe.Z, height);
                     }
                     bool rejected = blocked || contactBlocked;
-                    WorldGroundSelection? committed = rejected ? null : selected;
-                    var outcome = (X: rejected ? beforeX : acceptedProbe!.X, Z: rejected ? beforeZ : acceptedProbe!.Z, Yaw: rejected ? 0 : acceptedIndex * (chosen == 0 ? -160 : 160), Blocked: rejected);
+                    bool publication = !rejected && !commitSuppressed;
+                    WorldGroundSelection? committed = publication ? selected : null;
+                    var outcome = (X: publication ? acceptedProbe!.X : beforeX, Z: publication ? acceptedProbe!.Z : beforeZ, Yaw: publication ? acceptedIndex * (chosen == 0 ? -160 : 160) : 0, Blocked: rejected, Committed: publication, Primary: primaryContact, Broad: broadContact);
                     if (physical is not null && physical.Value != outcome || center is not null && committed is not null && (center.Ground.Height != committed.Ground.Height || center.Ground.Triangle.GroundType != committed.Ground.Triangle.GroundType || center.Ground.Triangle.TextureFlags != committed.Ground.Triangle.TextureFlags))
                     {
                         throw new NotSupportedException("Retained native world cache/input alternatives disagree on the physical ground result.");
                     }
                     physical ??= outcome;
                     center ??= committed;
-                    NativeWorldGroundAlternative nextAlternative = new(contactBlocked ? selection : chosen, cache.ToArray(), committed?.Identity ?? alternative.CurrentGround, rejected ? alternative.PreviousGround : alternative.CurrentGround) { FailedSelections = blocked ? alternative.FailedSelections is int failures ? unchecked(failures + 1) : null : 0 };
+                    bool countFailure = blocked && (footprintContact is null || !contactBlocked);
+                    int? failures = blocked ? countFailure && alternative.FailedSelections is int count ? unchecked(count + 1) : alternative.FailedSelections : 0;
+                    NativeWorldGroundAlternative nextAlternative = new(rejected ? selection : chosen, cache.ToArray(), committed?.Identity ?? alternative.CurrentGround, publication ? alternative.CurrentGround : alternative.PreviousGround) { FailedSelections = failures };
                     if (!alternatives.Any(existing => existing.PreferredGroup == nextAlternative.PreferredGroup && existing.FailedSelections == nextAlternative.FailedSelections && existing.CurrentGround == nextAlternative.CurrentGround && existing.PreviousGround == nextAlternative.PreviousGround && existing.Entries.SequenceEqual(nextAlternative.Entries)))
                     {
                         alternatives.Add(nextAlternative);
@@ -201,18 +185,84 @@ public sealed partial class WorldAssets
             {
                 throw new NotSupportedException("Native retained world ground alternatives exceed the bounded current query representation.");
             }
-
-            void Enqueue(int cell)
-            {
-                if (queued.Add(cell))
-                {
-                    cells.Enqueue(cell);
-                }
-            }
         }
         NativeWorldGroundCacheState result = prior with { Alternatives = alternatives.ToArray() };
         result.Validate();
-        return new WorldNativeGroundResult(center, result, physical!.Value.X, physical.Value.Z, physical.Value.Yaw, physical.Value.Blocked);
+        return new WorldNativeGroundResult(center, result, physical!.Value.X, physical.Value.Z, physical.Value.Yaw, physical.Value.Blocked) { PrimaryContact = physical.Value.Primary, BroadContact = physical.Value.Broad, GroundCommitted = physical.Value.Committed, PositionCommitted = physical.Value.Committed };
+    }
+
+    private static NativeGroundProbe[][][] CreateNativeGroundGroups(int beforeX, int beforeZ, int moveX, int graphicsMoveZ, int radius)
+    {
+        NativeGroundProbe[][][] groups = new NativeGroundProbe[2][][];
+        for (int group = 0; group < 2; group++)
+        {
+            groups[group] = new NativeGroundProbe[8][];
+            for (int candidate = 0; candidate < 8; candidate++)
+            {
+                (int dx, int dz) = RotateNativeGroundProbe(moveX, graphicsMoveZ, candidate * (group == 0 ? -160 : 160));
+                groups[group][candidate] = CreateNativeGroundProbes(beforeX + dx, beforeZ - dz, radius);
+            }
+        }
+        return groups;
+    }
+
+    private static NativeGroundProbe[] CreateNativeGroundProbes(int x, int z, int radius)
+    {
+        return [new(x, z), new(x - radius, z), new(x, z - radius), new(x + radius, z), new(x, z + radius)];
+    }
+
+    private static void ResolveNativeGroundCells(NativeGroundProbe[][][] groups, int preferredGroup, Action<NativeGroundProbe> resolve)
+    {
+        Queue<int> cells = new();
+        HashSet<int> queued = [];
+        Enqueue(groups[0][0][0].Cell);
+        while (cells.TryDequeue(out int cell))
+        {
+            foreach (int group in new[] { preferredGroup, 1 - preferredGroup })
+            {
+                int? unmatched = null;
+                foreach (NativeGroundProbe[] candidate in groups[group])
+                {
+                    foreach (NativeGroundProbe probe in candidate)
+                    {
+                        if (probe.Status != 2)
+                        {
+                            continue;
+                        }
+                        if (probe.Cell != cell)
+                        {
+                            unmatched ??= probe.Cell;
+                            continue;
+                        }
+                        resolve(probe);
+                    }
+                    if (candidate.All(probe => probe.Status == 0))
+                    {
+                        break;
+                    }
+                }
+                if (unmatched is int next)
+                {
+                    Enqueue(next);
+                }
+            }
+            //53BB90 marks the omitted candidates in a completed block3.
+            foreach (NativeGroundProbe probe in groups.SelectMany(group => group).SelectMany(candidate => candidate))
+            {
+                if (probe.Status == 2 && probe.Cell == cell)
+                {
+                    probe.Status = 3;
+                }
+            }
+        }
+
+        void Enqueue(int cell)
+        {
+            if (queued.Add(cell))
+            {
+                cells.Enqueue(cell);
+            }
+        }
     }
 
     private WorldGroundSelection? ResolveNativeGroundProbe(NativeGroundProbe probe, int previousHeight, byte oldType, List<NativeWorldGroundIdentity> cache, IReadOnlyDictionary<int, int> replacements)

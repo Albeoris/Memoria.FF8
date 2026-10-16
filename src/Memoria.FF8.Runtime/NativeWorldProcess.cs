@@ -35,14 +35,24 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
 
     public NativeForestCameraResult StepNormalFootCamera(short pitch, byte groundType, bool collision = false, bool held8 = false, bool held11 = false, bool held13 = false)
     {
+        return StepOrdinaryCamera(pitch, groundType, 0, collision, held8, held11, held13);
+    }
+
+    public NativeForestCameraResult StepOrdinaryCamera(short pitch, byte groundType, int entityType, bool collision = false, bool held8 = false, bool held11 = false, bool held13 = false)
+    {
         Validate();
+        if (entityType is not (>= 0 and < 10 or 128 or 49 or >= 32 and <= 40 or 132 or 48))
+        {
+            throw new NotSupportedException("Ordinary terrain camera requires its native foot or ground-vehicle entity branch.");
+        }
         int cooldown = CameraCooldown;
-        if (groundType <= 5 || collision)
+        bool forestPitch = groundType <= 5 && entityType is >= 0 and < 10 or 128 or 49;
+        if (forestPitch || collision)
         {
             // Native557A90 writes the low WORD before its signed clamp.
             pitch = unchecked((short)(pitch - 6));
             pitch = (short)Math.Clamp((int)pitch, -512, 0);
-            if (groundType > 5 && collision)
+            if (!forestPitch && collision)
             {
                 cooldown = 60;
             }

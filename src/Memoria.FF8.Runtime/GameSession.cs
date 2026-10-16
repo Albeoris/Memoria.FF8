@@ -182,7 +182,7 @@ public sealed partial class GameSession : IEventServices
             World = null,
             DepartingWorldState = finalWorldState,
             DebugView = null,
-            SavedWorld = departure.SavedWorld.WithFootReturn(receipt),
+            SavedWorld = PrepareGardenParkingForFootReturn(departure.SavedWorld, finalWorldState).WithFootReturn(receipt),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorldState),
@@ -637,9 +637,18 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType)))
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival))))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
+            }
+            if (world.NativeGardenRuntime is NativeGardenWorldRuntimeState garden)
+            {
+                if (state.Scene != SceneKind.WorldMap || state.WorldArrival != garden.Allocation.Packet || state.WorldProcess is null)
+                {
+                    throw new InvalidDataException("Native Garden world state lost its original allocation packet or retained process owner.");
+                }
+                garden.Validate(state.WorldProcess);
+                world.NativeFootRuntime?.GardenDismount?.Validate(garden, state.WorldProcess);
             }
             if (world.NativeCarRuntime is { } car && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != car.EntityType || state.SavedWorld?.Slot4.ShapeId != car.ShapeId))
             {
@@ -670,9 +679,49 @@ public sealed partial class GameSession : IEventServices
         world.NativeCarRuntime?.Validate();
         world.NativeScriptedRuntime?.Validate();
         world.NativeTrainRuntime?.Validate();
+        world.NativeGardenRuntime?.Validate();
         if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeScriptedRuntime is not null ? 1 : 0) + (world.NativeTrainRuntime is not null ? 1 : 0) > 1)
         {
             throw new InvalidDataException("A world scene cannot simultaneously own foot, car and scripted runtime authority.");
+        }
+        if (world.NativeGardenRuntime is NativeGardenWorldRuntimeState garden)
+        {
+            if (world.NativeCarRuntime is not null || world.NativeScriptedRuntime is not null || world.NativeTrainRuntime is not null || world.GroundType is null || garden.ProjectionCamera is null)
+            {
+                throw new InvalidDataException("Native Garden state requires its sole allocation, selected ground and actual projection camera.");
+            }
+            NativeWorldPathPosition body = new(world.X, world.NativeHeight, -world.Z);
+            NativeGardenWorldObject controlled = garden.Objects[world.NativeFootRuntime is null ? garden.Allocation.Garden64Index : garden.Allocation.FootObjectIndex];
+            if (controlled.Position != body || ((controlled.RotationY % 4096 + 4096) % 4096) != world.BodyYaw)
+            {
+                throw new InvalidDataException("World globals disagree with their actual controlled Garden-allocation body.");
+            }
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState gardenFoot)
+            {
+                gardenFoot.RequireNativeGroundState();
+                gardenFoot.GardenDismount?.Validate(garden);
+                if (gardenFoot.StationTrains is not null || gardenFoot.NormalObjects is not null || gardenFoot.GardenDismount?.Transfer.LastLoweringFrame > world.Frame || gardenFoot.GroundYaw != garden.GroundYaw || gardenFoot.AnimationVariant != garden.AnimationVariant || gardenFoot.MapDisplayMode != garden.MapDisplayMode || gardenFoot.CameraOffsetY != garden.ProjectionCamera.OffsetY || gardenFoot.CameraOffsetZ != garden.ProjectionCamera.OffsetZ || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(gardenFoot.GroundCache), JsonSerializer.SerializeToElement(garden.GroundCache)) || !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(gardenFoot.Forest), JsonSerializer.SerializeToElement(garden.Forest)))
+                {
+                    throw new InvalidDataException("Parked Garden and controlled foot state disagree on their shared physical ground, forest or camera owners.");
+                }
+            }
+            else if (garden.Transfer is null)
+            {
+                NativeGardenWorldObject footObject = garden.Objects[garden.Allocation.FootObjectIndex];
+                NativeGardenWorldObject pairedObject = garden.Objects[garden.Allocation.Garden65Index];
+                if (footObject.Position != body || pairedObject.Position != body || ((footObject.RotationY % 4096 + 4096) % 4096) != world.BodyYaw || ((pairedObject.RotationY % 4096 + 4096) % 4096) != world.BodyYaw)
+                {
+                    throw new InvalidDataException("Ordinary controlled Garden lost548300's shared foot/shape64/shape65 pose publication.");
+                }
+            }
+            else if (garden.Transfer.Counter == 31)
+            {
+                throw new InvalidDataException("Completed Garden lowering must publish its destination foot runtime in the same callback.");
+            }
+        }
+        else if (world.NativeFootRuntime?.GardenDismount is not null)
+        {
+            throw new InvalidDataException("Native Garden dismount foot state lost its actual parked Garden allocation.");
         }
         if (world.NativeTrainRuntime is NativeTrainWorldRuntimeState train && world != train.ToWorldState(world))
         {

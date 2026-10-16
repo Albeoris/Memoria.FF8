@@ -11,15 +11,17 @@ public static class WorldStaticModelTransform
     public static NativeWorldPathAngles AllocationAngles(NativeTrainWorldObject item)
     {
         item.Validate();
-        int entity = item.EntityType;
-        int yawCorrection = entity is >= 0 and < 10 or 128 || item.ShapeId is 2 or 3 ? -2048 : entity is >= 32 and <= 40 or 132 ? -1024 : entity == 50 ? 2048 : entity == 48 || item.ShapeId == 79 ? 1024 : item.ShapeId == 80 ? 2048 : 0;
         // Native544860's WORD zero followed by the coordinate's packed DWORD
         // becomes native XYZ at20/22/24 through545280. Managed path Pitch
         // denotes native Z slope, while managed Roll denotes native X.
-        short nativeX = 0;
-        short nativeY = unchecked((short)(item.PackedOrientation + yawCorrection));
-        short nativeZ = item.Roll;
-        return new NativeWorldPathAngles(nativeZ, nativeY, nativeX);
+        return AllocationAngles(item.ShapeId, 0, unchecked((short)item.PackedOrientation), item.Roll);
+    }
+
+    public static NativeWorldPathAngles AllocationAngles(byte shape, short nativeX, short nativeY, short nativeZ)
+    {
+        int entity = NativeTrainWorldObject.ClassifyShape(shape);
+        int yawCorrection = entity is >= 0 and < 10 or 128 || shape is 2 or 3 ? -2048 : entity is >= 32 and <= 40 or 132 ? -1024 : entity == 50 ? 2048 : entity == 48 || shape == 79 ? 1024 : shape == 80 ? 2048 : 0;
+        return new NativeWorldPathAngles(nativeZ, unchecked((short)(nativeY + yawCorrection)), nativeX);
     }
 
     public static Matrix4x4 CreateRotation(byte shape, NativeWorldPathAngles angles)

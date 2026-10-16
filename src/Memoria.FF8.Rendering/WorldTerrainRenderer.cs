@@ -203,7 +203,7 @@ public sealed class WorldTerrainRenderer
             int frame = Math.Clamp(particle.Age / effect.FrameDuration, 0, effect.Frames - 1);
             PixelImage texture = assets.GetForestTexture(particle.Type, frame);
             int halfSize = particle.Scale * effect.HalfSize >> 13;
-            Matrix4x4 rotation = Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f);
+            Matrix4x4 rotation = Matrix4x4.CreateRotationZ(particle.Roll * 0.0015339808305725455f) * Matrix4x4.CreateRotationY(particle.Yaw * 0.0015339808305725455f) * Matrix4x4.CreateRotationX(particle.RotationX * 0.0015339808305725455f);
             //555B80 ->5470E0 selects the nearest periodic image around the current world entity.
             float nearX = position.X + WorldAssets.Wrap(particle.X - position.X, 262144);
             float nearZ = position.Z + WorldAssets.Wrap(-particle.GraphicsZ - position.Z, 196608);

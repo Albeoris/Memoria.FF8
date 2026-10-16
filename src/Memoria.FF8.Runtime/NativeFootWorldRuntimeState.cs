@@ -2,6 +2,38 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
+/// <summary>Completed54B460 case8 transfer, retaining the physical Garden and camera observations before control changes to foot.</summary>
+public sealed record NativeWorldGardenDismountReceipt([property: JsonRequired] int Version, [property: JsonRequired] string Rule, [property: JsonRequired] NativeGardenTransferState Transfer, [property: JsonRequired] int FootObjectIndex, [property: JsonRequired] short FootBodyYaw, [property: JsonRequired] NativeWorldFootCameraState ProjectionCamera, [property: JsonRequired] long SourceProcessCallbacks)
+{
+    public const string DismountRule = "ff8-en-garden-dismount-54b460-53e200-retained-process-v1";
+
+    public void Validate(NativeGardenWorldRuntimeState? garden = null, NativeWorldProcess? process = null)
+    {
+        Transfer?.Validate();
+        ProjectionCamera?.Validate();
+        if (Version != 1 || Rule != DismountRule || Transfer is null || Transfer.Counter != 31 || Transfer.DestinationEntity != 0 || Transfer.InitialGardenPosition is null || Transfer.LastGardenPosition is null || Transfer.LastLoweringFrame is null || FootObjectIndex < 0 || ProjectionCamera is null || SourceProcessCallbacks < 0)
+        {
+            throw new InvalidDataException("Native Garden foot handoff requires the completed thirty-one-callback lowering and retained camera/process observations.");
+        }
+        if (garden is not null)
+        {
+            garden.Validate();
+            if (FootObjectIndex != garden.Allocation.FootObjectIndex || Transfer.GardenObjectIndex != garden.Allocation.Garden64Index || garden.Objects[Transfer.GardenObjectIndex].Position != Transfer.LastGardenPosition || FootBodyYaw != garden.Objects[Transfer.GardenObjectIndex].RotationY)
+            {
+                throw new InvalidDataException("Native Garden dismount receipt differs from its actual parked shape64 or controlled foot allocation.");
+            }
+        }
+        if (process is not null)
+        {
+            process.Validate();
+            if (process.MainLoopCallbacks < SourceProcessCallbacks)
+            {
+                throw new InvalidDataException("Native Garden dismount cannot precede its retained main-loop process observations.");
+            }
+        }
+    }
+}
+
 /// <summary>Executed normal-foot loader authority for native 20409E4 and C75CF8; absence in historical world snapshots remains unknown.</summary>
 public sealed record NativeFootWorldRuntimeState
 {
@@ -9,6 +41,7 @@ public sealed record NativeFootWorldRuntimeState
     public const string FirstLoadRule = "ff8-en-first-foot-542b90-548080-save110-v1";
     public const string SavedReloadRule = "ff8-en-foot-entry62-548080-54a0d0-v1";
     public const string TrainDismountRule = "ff8-en-foot-train-dismount-548af0-retained-process-v1";
+    public const string GardenDismountRule = NativeWorldGardenDismountReceipt.DismountRule;
 
     [JsonRequired]
     public required int ProofVersion { get; init; }
@@ -48,6 +81,47 @@ public sealed record NativeFootWorldRuntimeState
     public NativeStationTrainProcess? StationTrainProcess { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeNormalFootObjectProcess? NormalObjects { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldGardenDismountReceipt? GardenDismount { get; init; }
+
+    public static NativeFootWorldRuntimeState CreateGardenDismount(NativeGardenWorldRuntimeState garden, NativeGardenTransferState completedTransfer, NativeWorldProcess process, int? previousHorizontalInput)
+    {
+        ArgumentNullException.ThrowIfNull(garden);
+        ArgumentNullException.ThrowIfNull(completedTransfer);
+        ArgumentNullException.ThrowIfNull(process);
+        garden.Validate();
+        completedTransfer.Validate();
+        process.Validate();
+        if (garden.Transfer != completedTransfer || completedTransfer.Counter != 31 || completedTransfer.DestinationEntity != 0 || garden.Forest.CameraCooldown != process.CameraCooldown || garden.CameraFollowSpeed != process.CarCameraFollowSpeed)
+        {
+            throw new InvalidOperationException("Native foot handoff requires this Garden's completed actual transfer and current shared process owners.");
+        }
+        NativeWorldFootCameraState camera = garden.ProjectionCamera ?? throw new NotSupportedException("Native Garden dismount requires its retained actual projection camera.");
+        var receipt = new NativeWorldGardenDismountReceipt(1, GardenDismountRule, completedTransfer, garden.Allocation.FootObjectIndex, garden.Objects[garden.Allocation.Garden64Index].RotationY, camera, process.MainLoopCallbacks);
+        receipt.Validate(garden, process);
+        //54B460 resets animation variant and53E200 clears only the twelve cache entries.
+        //It does not execute53F310/555B20/557250 or replace current/previous polygons.
+        NativeWorldGroundCacheState cache = garden.GroundCache with { Alternatives = garden.GroundCache.Alternatives.Select(alternative => alternative with { Entries = [] }).ToArray() };
+        var state = new NativeFootWorldRuntimeState
+        {
+            ProofVersion = CurrentProofVersion,
+            Rule = GardenDismountRule,
+            EntityType = 0,
+            AnimationVariant = 0,
+            MapDisplayMode = garden.MapDisplayMode,
+            CameraOffsetY = camera.OffsetY,
+            CameraOffsetZ = camera.OffsetZ,
+            ReloadSourceWorldFrame = null,
+            GroundCache = cache,
+            GroundYaw = garden.GroundYaw,
+            PreviousHorizontalInput = previousHorizontalInput,
+            Forest = garden.Forest,
+            GardenDismount = receipt
+        };
+        state.RequireNativeGroundState();
+        state.RequireSupportedNormalFoot();
+        return state;
+    }
 
     public static NativeFootWorldRuntimeState CreateTrainDismount(NativeTrainWorldRuntimeState train, NativeWorldTrainStation station, short cameraPitch)
     {
@@ -131,7 +205,19 @@ public sealed record NativeFootWorldRuntimeState
         GroundCache?.Validate();
         StationTrains?.Validate();
         NormalObjects?.Validate();
-        if (Rule == TrainDismountRule)
+        if (Rule == GardenDismountRule)
+        {
+            if (GardenDismount is null || GardenDismount.ProjectionCamera is null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant != 0 || CameraOffsetY != GardenDismount.ProjectionCamera.OffsetY || CameraOffsetZ != GardenDismount.ProjectionCamera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
+            {
+                throw new InvalidDataException("Native Garden foot handoff lost its completed transfer or retained ground/forest/camera owners.");
+            }
+            GardenDismount.Validate();
+        }
+        else if (GardenDismount is not null)
+        {
+            throw new InvalidDataException("Native foot cannot acquire a Garden dismount receipt without its executed completion rule.");
+        }
+        else if (Rule == TrainDismountRule)
         {
             if (NormalObjects is not null || StationTrains is null || TrainDismount is null || StationTrainProcess is null || ReloadSourceWorldFrame is not null || EntityType != StationTrains.ControlledObjectEntityType || AnimationVariant != 0 || MapDisplayMode != StationTrains.Load.MapDisplayMode || CameraOffsetY != 0 || CameraOffsetZ != StationTrains.CameraGeometry.OffsetZ)
             {
@@ -156,7 +242,7 @@ public sealed record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule or GardenDismountRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

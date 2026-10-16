@@ -1,11 +1,12 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Transaction-local owners accumulated over actual world callbacks.</summary>
-public sealed record NativeWorldSalaryState
+public sealed partial record NativeWorldSalaryState
 {
     private NativeWorldSalaryState(GameState departure)
     {
         Departure = departure;
+        WorldEntryMemory = departure.WorldEntryMemory;
         SeeD = departure.SeeD;
         Economy = departure.Economy;
         Presentation = departure.SalaryPresentation;
@@ -73,7 +74,8 @@ public sealed record NativeWorldSalaryState
         {
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, SavedWorld = candidate.SavedWorld is { } saved ? saved with { FuelDistance112 = FuelDistance112 } : null, WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
+        WorldEntryMemory?.ValidateEventMemory(candidate.EventMemory);
+        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = candidate.SavedWorld is { } saved ? saved with { FuelDistance112 = FuelDistance112 } : null, WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)

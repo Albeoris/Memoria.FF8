@@ -86,6 +86,11 @@ internal sealed partial class GameWorld
             NativeSavedWorldCarReturn carReceipt = NativeSavedWorldCarReturn.Create(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
             return () => session.CommitPreparedCarFieldEntry(departure, finalWorld, transition, carReceipt, salary, candidate => ValidatePreparedField(candidate));
         }
+        if (finalWorld.NativeGardenRuntime is not null && finalWorld.NativeFootRuntime is null)
+        {
+            NativeSavedWorldGardenReturn gardenReceipt = NativeSavedWorldGardenReturn.Create(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
+            return () => session.CommitPreparedGardenFieldEntry(departure, finalWorld, transition, gardenReceipt, salary, candidate => ValidatePreparedField(candidate));
+        }
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.RecordFootDeparture(finalWorld, checked((ushort)departure.FieldId), inputs.StoryWord, mapLocationId);
         return () => session.CommitPreparedWorldFieldEntry(departure, finalWorld, transition, receipt, salary, candidate =>
         {

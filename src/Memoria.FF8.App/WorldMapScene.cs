@@ -36,11 +36,12 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
         bool car = unchecked((byte)arrival.Mode) is 32 or 33;
+        bool garden = unchecked((byte)arrival.Mode) == 48;
         bool stationFoot = session.State.World?.NativeFootRuntime?.StationTrains is not null;
         bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
         bool scripted = IsSupportedScriptedPacket(arrival) || ridingTrain;
         byte footEntityType = stationFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
-        if (footEntityType is not (0 or 1) && !car && !scripted)
+        if (footEntityType is not (0 or 1) && !car && !garden && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }
@@ -50,7 +51,8 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        if (!scripted && !stationFoot && !car && (footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
+        bool parkedGarden = !scripted && !stationFoot && !car && !garden && footEntityType == 0 && session.State.SavedWorld.GardenPose3 is not null;
+        if (!scripted && !stationFoot && !car && !garden && !parkedGarden && (footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -81,7 +83,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 throw new NotSupportedException("Native car restoration has no executed vehicle runtime authority.");
             }
         }
-        else if (session.State.World is null)
+        else if (!garden && session.State.World is null)
         {
             RequireUnaliasedFootAuxiliary(session.State);
             if (entry == 62)
@@ -99,9 +101,9 @@ internal sealed partial class WorldMapScene : IDisposable
             }
             initialFootRuntime.RequireSupportedNormalFoot();
         }
-        else
+        else if (!garden)
         {
-            NativeFootWorldRuntimeState runtime = session.State.World.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
+            NativeFootWorldRuntimeState runtime = session.State.World!.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
             runtime.RequireSupportedNormalFoot();
             if (runtime.EntityType != footEntityType)
             {
@@ -116,6 +118,12 @@ internal sealed partial class WorldMapScene : IDisposable
         try
         {
             storyByte = inputs.StoryByte;
+            if (garden)
+            {
+                replacements = WorldTerrainSelection.Replacements(session.State.World?.ReplacementMask ?? WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, storyByte));
+                InitializeGarden(arrival, inputs);
+                return;
+            }
             if (scripted)
             {
                 if (session.State.World is null)
@@ -181,7 +189,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 };
                 if (!car)
                 {
-                    initial = InitializeNormalFootObjects(initial, inputs);
+                    initial = parkedGarden ? InitializeParkedGarden(initial, arrival, inputs, unchecked((short)-(int)ground!.Value.Height)) : InitializeNormalFootObjects(initial, inputs);
                 }
                 EnsureContactCertificate(initial);
                 session.SetWorldState(initial);
@@ -198,6 +206,10 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     State.NativeCarRuntime!.Validate();
                     assets.ValidateNativeGroundCache(State.NativeCarRuntime!.GroundCache!, replacements);
+                }
+                if (parkedGarden)
+                {
+                    ValidateParkedGarden(State, arrival, inputs);
                 }
                 EnsureContactCertificate(State);
                 if (State.NativeFootRuntime?.NormalObjects is not null)
@@ -279,7 +291,8 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Native world station choices use visible lines1 and2.");
         }
-        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice;
+        bool gardenAction = State.NativeGardenRuntime is not null && action.Kind == PlayerActionKind.Confirm;
+        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || gardenAction;
         int advanced = 0;
         WorldState candidate = State;
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
@@ -295,7 +308,18 @@ internal sealed partial class WorldMapScene : IDisposable
                     salary = salary.PrepareCarVibration(car.EntityType, assets.VibrationBank);
                 }
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
+                bool gardenFootAtCallback = candidate.NativeGardenRuntime is not null && candidate.NativeFootRuntime is not null;
+                uint buttons = gardenAction && index == 0 ? 0x40u : 0;
+                if (action.Kind == PlayerActionKind.Move)
+                {
+                    buttons |= action.Vertical < 0 ? 0x80u : action.Vertical > 0 ? 0x10u : 0;
+                    buttons |= action.Horizontal < 0 ? 0x2000u : action.Horizontal > 0 ? 0x8000u : 0;
+                }
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
+                if (consumeGardenRequest)
+                {
+                    salary = salary.ConsumeGardenScriptRequest();
+                }
                 if (stationChoice)
                 {
                     NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
@@ -336,17 +360,25 @@ internal sealed partial class WorldMapScene : IDisposable
                 salary = salary.Advance(salaryResult, effects.Presentation?.Advance(advanceUi ? 2 : 0), effects.SoundProcess, movementUnits, advanceUi ? 2 : 0);
                 salaryRequests.AddRange(effects.Requests);
                 advanced++;
-                if (fieldEntry is null && ProcessRandomEncounters is not null)
+                if (fieldEntry is null && ProcessRandomEncounters is not null && (candidate.NativeGardenRuntime is null || gardenFootAtCallback))
                 {
                     var encounterResult = ProcessRandomEncounters(candidate, encounterMovementMagnitude, salary.RandomEncounters);
                     candidate = encounterResult.World;
                     salary = salary with { RandomEncounters = encounterResult.Encounters };
-                    if (salary.RandomEncounters?.Pending is not null)
-                    {
-                        break;
-                    }
                 }
-                if (fieldEntry is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice)
+                if (fieldEntry is null && salary.RandomEncounters?.Pending is null && gardenFootAtCallback)
+                {
+                    candidate = StepGardenCactuar(candidate, out fieldEntry);
+                }
+                if (boardingTarget is not null)
+                {
+                    if (fieldEntry is not null || salary.RandomEncounters?.Pending is not null)
+                    {
+                        throw new NotSupportedException("Simultaneous Garden reboarding and field/battle departure requires the native pre-transfer saved-pose transaction.");
+                    }
+                    candidate = CompleteGardenReboarding(candidate, boardingTarget);
+                }
+                if (fieldEntry is not null || salary.RandomEncounters?.Pending is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice)
                 {
                     break;
                 }
@@ -400,6 +432,10 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             return RenderScripted(state);
         }
+        if (state.NativeGardenRuntime is not null)
+        {
+            return RenderGarden(state);
+        }
         EnsureContactCertificate(state);
         WorldCamera camera = FootCamera(state);
         WorldSky sky = WorldTerrainSelection.SelectSky(assets.Skies, state.X, state.Z, storyByte);
@@ -408,9 +444,11 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         encounterMovementMagnitude = 0;
+        consumeGardenRequest = false;
+        boardingTarget = null;
         if (before.NativeTrainRuntime is not null)
         {
             return StepTrainRide(before, horizontal, vertical, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
@@ -428,6 +466,19 @@ internal sealed partial class WorldMapScene : IDisposable
             // admits manual vehicle camera offset14 only for variant1.
             return StepCar(before, horizontal, vertical, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
+        if (before.NativeGardenRuntime is not null && before.NativeFootRuntime is null)
+        {
+            return StepGarden(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+        }
+        if (before.NativeGardenRuntime is not null)
+        {
+            return StepGardenFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, out consumeGardenRequest, out boardingTarget, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+        }
+        return StepFoot(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+    }
+
+    private WorldState StepFoot(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    {
         //53FAC0 seeds24 on the first normal loader callback and decrements before559140.
         //Frame is the actual callback age: callbacks1..23 retain the native zero-input hold.
         if (NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) > 0)
@@ -470,10 +521,17 @@ internal sealed partial class WorldMapScene : IDisposable
         int targetHeight = (3 * before.CameraTargetNativeHeight + before.NativeHeight - 256) >> 2;
         byte currentGroundType = before.GroundType ?? throw new NotSupportedException("Native forest camera/emission requires the current selected polygon type.");
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest camera has no executed process history.");
-        NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType);
+        bool priorTerrainOcclusion = before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : false;
+        NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion);
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
         forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         foot = foot with { Forest = forest };
+        WorldState? gardenCameraState = null;
+        if (before.NativeGardenRuntime is not null)
+        {
+            gardenCameraState = PrepareGardenFootCallback(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
+            foot = gardenCameraState.NativeFootRuntime!;
+        }
         int animation = moving ? 1 : 0;
         int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;
         int x = WrapCoordinate(before.X + moveX, 262144);
@@ -489,7 +547,7 @@ internal sealed partial class WorldMapScene : IDisposable
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
         int previousGroundHeight = -unchecked((short)(before.NativeHeight - (before.GroundType is <= 5 ? 320 : 0)));
         int? selectedGroup = inputX != 0 && foot.PreviousHorizontalInput != inputX ? inputX > 0 ? 1 : 0 : null;
-        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null);
+        WorldNativeGroundResult ground = assets.ResolveNativeGround(before.X, before.Z, moveX, graphicsMoveZ, previousGroundHeight, selectedGroup, foot.GroundCache!, replacements, foot.EntityType, foot.PreviousHorizontalInput is null, foot.StationTrains is not null ? (candidateX, candidateZ, candidateHeight) => HasStationContact(foot, candidateX, candidateZ, candidateHeight) : foot.NormalObjects is not null ? (candidateX, candidateZ, candidateHeight) => HasNormalFootObjectContact(foot, candidateX, candidateZ, candidateHeight) : null, footprintContact: gardenCameraState is null ? null : (probes, padding) => GardenFootContact(gardenCameraState, probes, foot.EntityType, padding), commitSuppressed: gardenFootCallback?.BoardingTarget is not null);
         x = ground.X;
         z = ground.Z;
         EnsureContactCertificate(before with { X = x, Z = z, CameraYaw = cameraYaw, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
@@ -510,9 +568,9 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             foot = CompleteNormalFootObjectCallback(foot, x, z, nativeHeight);
         }
-        salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsMoveZ);
-        encounterMovementMagnitude = ground.Blocked ? 0 : graphicsSpeed;
-        return before with
+        salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.PositionCommitted ? moveX : 0, 0, ground.PositionCommitted ? graphicsMoveZ : 0);
+        encounterMovementMagnitude = ground.PositionCommitted ? graphicsSpeed : 0;
+        WorldState after = before with
         {
             Frame = before.Frame + 1,
             X = x,
@@ -529,6 +587,7 @@ internal sealed partial class WorldMapScene : IDisposable
             GroundType = groundType,
             NativeFootRuntime = foot with { GroundCache = ground.Cache, GroundYaw = ground.GroundYaw, PreviousHorizontalInput = inputX }
         };
+        return gardenCameraState is null ? after : CompleteGardenFootCallback(after, ground, graphicsSpeed);
     }
 
     private void EnsureContactCertificate(WorldState state)
@@ -546,6 +605,12 @@ internal sealed partial class WorldMapScene : IDisposable
         if (state.NativeCarRuntime is not null)
         {
             EnsureCarContactCertificate(state);
+            return;
+        }
+        if (state.NativeGardenRuntime is not null)
+        {
+            state.NativeGardenRuntime.Validate();
+            assets.ValidateNativeGroundCache(state.NativeGardenRuntime.GroundCache, replacements);
             return;
         }
         if (state.NativeFootRuntime?.StationTrains is not null)

@@ -27,6 +27,8 @@ public sealed record WorldState
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeCarWorldRuntimeState? NativeCarRuntime { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeGardenWorldRuntimeState? NativeGardenRuntime { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeScriptedWorldRuntimeState? NativeScriptedRuntime { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeTrainWorldRuntimeState? NativeTrainRuntime { get; init; }

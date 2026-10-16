@@ -4,7 +4,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.Assets;
 
 /// <summary>552EB0/544490/5470E0 sector-relative scripted node projection with explicit native rounding intervals.</summary>
-public sealed class NativeWorldPathProjectionCertificate
+public sealed partial class NativeWorldPathProjectionCertificate
 {
     private readonly record struct Range(int Low, int High)
     {

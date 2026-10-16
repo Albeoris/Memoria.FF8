@@ -72,9 +72,9 @@ public sealed class WorldForestTests
     public void Native_effect_records_decode_original_six_palettes_and_four_frames()
     {
         using WorldAssets assets = new(GameDirectory);
-        Assert.Equal(new ushort[] { 227, 229, 231, 228, 226, 230 }, assets.ForestTables.PaletteY);
+        Assert.Equal(new ushort[] { 227, 229, 231, 228, 226, 230 }, assets.ForestTables.PaletteY.Take(6));
         Assert.Equal(256, assets.ForestTables.Random.Length);
-        foreach (NativeWorldForestEffect effect in assets.ForestTables.Effects)
+        foreach (NativeWorldForestEffect effect in assets.ForestTables.Effects.Take(6))
         {
             Assert.Equal((3968, 8, 4, 2, 255), ((int)effect.Shrink, (int)effect.Lifetime, (int)effect.Frames, (int)effect.FrameDuration, (int)effect.HalfSize));
             for (int frame = 0; frame < effect.Frames; frame++)

@@ -72,7 +72,12 @@ internal sealed partial class GameWorld
             NativeWorldForestState? forest = worldState.NativeFootRuntime?.Forest;
             NativeWorldRandomEncounterResult result = NativeRandomEncounter.AdvanceWorld(encounter.Native, definition, tables.WorldRandom.AsSpan(), tables.WorldWeights.AsSpan(), input, forest?.RandomCursor ?? 0, forest?.RandomOffset ?? 0);
             RandomEncounterRequest? pending = result.Formation is ushort formation ? new(SceneKind.WorldMap, session.State.FieldId, worldState.Frame, formation, scene.AllocationProgramSha256) : null;
-            WorldState next = forest is null ? worldState : worldState with { NativeFootRuntime = worldState.NativeFootRuntime! with { Forest = forest with { RandomCursor = result.RandomCursor, RandomOffset = result.RandomOffset } } };
+            NativeWorldForestState? nextForest = forest is null ? null : forest with { RandomCursor = result.RandomCursor, RandomOffset = result.RandomOffset };
+            WorldState next = nextForest is null ? worldState : worldState with
+            {
+                NativeFootRuntime = worldState.NativeFootRuntime! with { Forest = nextForest },
+                NativeGardenRuntime = worldState.NativeGardenRuntime is { } garden ? garden with { Forest = nextForest } : null
+            };
             return (next, encounter with { Native = result.State, Pending = pending });
         };
     }

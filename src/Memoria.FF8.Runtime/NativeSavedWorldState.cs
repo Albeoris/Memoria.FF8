@@ -127,6 +127,11 @@ public sealed record NativeSavedWorldState
     public required NativeSavedWorldVehicleSlot Slot4 { get; init; }
     /// <summary>Saved-world pose +60 and shape-ID byte +99.</summary>
     public required NativeSavedWorldVehicleSlot Slot5 { get; init; }
+    /// <summary>Native pose3/+36; a missing older value remains unknown until the authentic fresh Garden loader overwrites it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldPose? GardenPose3 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSavedWorldGardenReturn? GardenReturn { get; init; }
     /// <summary>Absent older checkpoints have no inferred slot0 pose, camera or last return frame.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldFootReturn? FootReturn { get; init; }
@@ -144,6 +149,10 @@ public sealed record NativeSavedWorldState
     public byte ReadMapDisplayModeForFreshFootLoader()
     {
         Validate();
+        if (GardenReturn is NativeSavedWorldGardenReturn garden)
+        {
+            return garden.MapDisplayMode110;
+        }
         if (ScriptedReturn is NativeSavedWorldScriptedReturn boat)
         {
             return boat.MapDisplayMode110;
@@ -165,7 +174,27 @@ public sealed record NativeSavedWorldState
         ArgumentNullException.ThrowIfNull(receipt);
         Validate();
         receipt.Validate();
-        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null };
+        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null, GardenReturn = null };
+    }
+
+    public NativeSavedWorldState WithGardenReturn(NativeSavedWorldGardenReturn receipt)
+    {
+        Validate();
+        receipt.Validate();
+        return this with { GardenPose3 = receipt.Pose3, GardenReturn = receipt, FootReturn = null, CarReturn = null, ScriptedReturn = null };
+    }
+
+    public NativeSavedWorldState WithGardenParking(NativeGardenWorldRuntimeState garden)
+    {
+        Validate();
+        garden.Validate();
+        NativeGardenWorldObject body = garden.Objects[garden.Allocation.Garden64Index];
+        NativeSavedWorldPose pose = new(body.Position.X, unchecked(-body.Position.Z), unchecked((short)body.Position.Y), unchecked((ushort)body.RotationY));
+        if (pose.Yaw >= 4096)
+        {
+            throw new InvalidDataException("Parked Garden yaw is outside the normalized native object angle.");
+        }
+        return this with { GardenPose3 = pose, GardenReturn = null };
     }
 
     public NativeSavedWorldState WithCarReturn(NativeSavedWorldCarReturn receipt)
@@ -176,7 +205,7 @@ public sealed record NativeSavedWorldState
         {
             throw new InvalidDataException("The native car save requires its active shape73 vehicle slot.");
         }
-        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null };
+        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null };
     }
 
     public NativeSavedWorldState WithScriptedReturn(NativeSavedWorldScriptedReturn receipt)
@@ -190,7 +219,7 @@ public sealed record NativeSavedWorldState
         {
             throw new InvalidDataException("Native scripted save differs from its preceding return and retained original object/vehicle records.");
         }
-        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt };
+        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt, GardenReturn = null };
     }
 
     public NativeSavedWorldState WithOrdinaryCarEntry(byte entityType = 33)
@@ -201,7 +230,7 @@ public sealed record NativeSavedWorldState
             throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
         }
         byte shape = entityType switch { 32 => 74, 33 => 73, _ => throw new NotSupportedException("Native ordinary car entry requires its supported actual entity type.") };
-        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null };
+        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, GardenReturn = null };
     }
 
     public static NativeSavedWorldState CreateNewGame()
@@ -222,6 +251,11 @@ public sealed record NativeSavedWorldState
         FootReturn?.Validate();
         CarReturn?.Validate();
         ScriptedReturn?.Validate();
+        GardenReturn?.Validate();
+        if (GardenPose3 is not null && (GardenPose3.X is < -131072 or >= 131072 || GardenPose3.RawZ is < -98304 or >= 98304 || GardenPose3.Yaw >= 4096) || GardenReturn is not null && (GardenPose3 != GardenReturn.Pose3 || FootReturn is not null || CarReturn is not null || ScriptedReturn is not null))
+        {
+            throw new InvalidDataException("Native Garden parking/return differs from its distinct pose3 or current return owner.");
+        }
         if (ScriptedReturn is not null && (FootReturn is not null || CarReturn is not null || Slot4 != ScriptedReturn.Load.Slot4 || Slot5 != ScriptedReturn.Load.Slot5))
         {
             throw new InvalidDataException("Native scripted return disagrees with its retained saved vehicle slots.");
@@ -245,6 +279,7 @@ public sealed record NativeSavedWorldState
             Origin = origin,
             Slot4 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
             Slot5 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
+            GardenPose3 = new NativeSavedWorldPose(0, 0, 0, 0),
             InitialMapDisplayMode110 = 0,
             FuelDistance112 = 0
         };
