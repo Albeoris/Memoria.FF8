@@ -11,7 +11,7 @@ public sealed partial class EventEngine
         }
         ActorState actor = actors[fiber.ObjectId];
         NativeActorFacingQuery? query = PreparePartyActorFacing(fiber, 1);
-        return query is not null && ResolveNativeActorFacing?.Invoke(query) is not null && float.IsFinite(actor.Direction) && actor.Direction == (byte)actor.Direction && (asynchronous || actor.RotationTarget is null) && (!asynchronous || actor.NativeTurnMode580 is not null) ? null : $"{opcode} requires its known saved compact party binding, certified raw actor facing and exact native turn state; unowned native bodies are unsupported";
+        return query is not null && ResolveNativeActorFacing?.Invoke(query) is not null && float.IsFinite(actor.Direction) && actor.Direction == (byte)actor.Direction && actor.NativeTurnMode580 is <= 3 ? null : $"{opcode} requires its known saved compact party binding, certified raw actor facing and exact native turn state; unowned native bodies are unsupported";
     }
 
     private int[] ExecutePartyTurn(Fiber fiber, bool cosine, bool asynchronous = false)
@@ -21,23 +21,29 @@ public sealed partial class EventEngine
         int[] operands = Pop(fiber, 2);
         ActorState actor = actors[fiber.ObjectId];
         int start = (byte)actor.Direction;
-        actor.RotationStart = start;
-        actor.RotationTotalFrames = unchecked((byte)operands[1]);
-        actor.RotationTarget = start == target ? null : NearestFaceAngle(start, target);
-        actor.RotationUsesNativeCosine = cosine && actor.RotationTarget is not null;
-        actor.RotationUsesNativeLinear = !cosine && actor.RotationTarget is not null;
-        actor.RotationFrames = actor.RotationTarget is not null ? actor.RotationTotalFrames + 1 : 0;
-        if (actor.RotationTarget is not null)
+        bool equal = start == target;
+        byte mode = actor.NativeTurnMode580!.Value;
+        if (!equal)
         {
-            actor.NativeTurnMode580 = cosine ? (byte)2 : (byte)1;
+            mode = cosine ? (byte)2 : (byte)1;
         }
         else if (asynchronous)
         {
-            actor.NativeTurnMode580 = 3;
+            mode = 3;
         }
+        actor.RotationStart = start;
+        actor.RotationTotalFrames = unchecked((byte)operands[1]);
+        actor.RotationTarget = mode is 1 or 2 ? NearestFaceAngle(start, target) : null;
+        actor.RotationUsesNativeCosine = mode == 2;
+        actor.RotationUsesNativeLinear = mode == 1;
+        actor.RotationFrames = actor.RotationTarget is not null ? actor.RotationTotalFrames + 1 : 0;
+        actor.NativeTurnMode580 = mode;
         //527790/5278A0 use saved BYTE194+slot, including after FOLLOWOFF.
-        //Equal direction returns2 immediately; mode1/2 samples elapsed0..duration.
-        fiber.WaitReason = asynchronous || actor.RotationTarget is null ? WaitReason.None : WaitReason.Rotation;
+        //Their first-entry stores replace the actor's shared turn words even
+        //while another request waits. Equal direction returns2 but preserves
+        //580, so an existing mode1/2 still samples the newly written words.
+        //Blocking polls observe that same physical580, not a fiber-owned turn.
+        fiber.WaitReason = asynchronous || equal ? WaitReason.None : WaitReason.NativeTurnCompletion;
         return operands;
     }
 
