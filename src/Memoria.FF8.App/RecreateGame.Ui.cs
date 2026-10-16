@@ -35,10 +35,13 @@ internal sealed partial class RecreateGame
         {
             if (!gameMenus.IsDemo && screen is "main" or "card")
             {
-                session.VisitCardMenu();
-                if (events?.FieldId == session.State.FieldId)
+                if (session.VisitCardMenu())
                 {
-                    session.SetEventState(events.Capture());
+                    gameMenus.InvalidateLiveData();
+                    if (events?.FieldId == session.State.FieldId)
+                    {
+                        session.SetEventState(events.Capture());
+                    }
                 }
             }
         };

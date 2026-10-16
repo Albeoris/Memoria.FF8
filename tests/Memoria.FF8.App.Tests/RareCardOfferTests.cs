@@ -111,7 +111,7 @@ public sealed class RareCardOfferTests
         SetActor(fixture.Engine, nameof(ActorState.Visible), false, 18);
         SetActor(fixture.Engine, nameof(ActorState.ModelId), 18, 19);
         SetActor(fixture.Engine, nameof(ActorState.ModelId), 19, 20);
-        var expected = new[] { new RareCardOffer(19, 84), new RareCardOffer(20, 85) };
+        var expected = new[] { new RareCardOffer(19, 84), new RareCardOffer(19, 103), new RareCardOffer(20, 85) };
         JsonElement before = fixture.Engine.Capture();
         Assert.Equal(expected, fixture.Engine.GetRareCardOffers().OrderBy(offer => offer.ObjectId));
         Assert.True(JsonElement.DeepEquals(before, fixture.Engine.Capture()));

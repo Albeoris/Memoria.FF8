@@ -18,14 +18,11 @@ public sealed class TripleTriadHostIntegrationTests
         JsonObject root = JsonNode.Parse(File.ReadAllText(source))!.AsObject();
         root["FieldBars"] = null;
         root["EventState"]!["FieldBars"] = null;
-        root["CardInventory"]!["TripleTriadRandomState"] = 0;
-        root["EventState"]!["CardInventory"]!["TripleTriadRandomState"] = 0;
-        root["CardInventory"]!["Rule"] = NativeCardInventory.InitializationRule;
-        root["EventState"]!["CardInventory"]!["Rule"] = NativeCardInventory.InitializationRule;
-        root["CardInventory"]!["TripleTriadStatistics"] = JsonSerializer.SerializeToNode(new TripleTriadStatistics(0, 0, 0));
-        root["EventState"]!["CardInventory"]!["TripleTriadStatistics"] = JsonSerializer.SerializeToNode(new TripleTriadStatistics(0, 0, 0));
-        root["CardInventory"]!["CollectionFlags"] = 0;
-        root["EventState"]!["CardInventory"]!["CollectionFlags"] = 0;
+        NativeCardInventory legacyCards = root["CardInventory"]!.Deserialize<NativeCardInventory>()!;
+        // Preserve every diagnostic ownership byte; no missing historical rare-card state is inferred.
+        NativeCardInventory migratedCards = NativeCardInventoryMigration.MigrateLegacyInitialization(legacyCards, [], 0, new TripleTriadStatistics(0, 0, 0), 0);
+        root["CardInventory"] = JsonSerializer.SerializeToNode(migratedCards);
+        root["EventState"]!["CardInventory"] = JsonSerializer.SerializeToNode(migratedCards);
         root["InputConfiguration"]!["BattleMessageSpeed"] = null;
         root["InputConfiguration"]!["NativeBattleSpeedByte"] = null;
         root["EventState"]!["InputConfiguration"]!["BattleMessageSpeed"] = null;

@@ -28,17 +28,19 @@ public sealed partial class GameSession
         return vitals is not null && Enumerable.Range(0, 16).Any(id => (vitals.GuardianForces[id].Flags & 1) != 0 && vitals.GuardianForceAbilities(id).Any(ability => ability.Learned && ability.Ability == 115));
     }
 
-    public void VisitCardMenu()
+    public bool VisitCardMenu()
     {
         if (State.CardInventory is not { } cards)
         {
-            return;
+            return false;
         }
         NativeCardInventory candidate = cards.NativeVisitNormalMenu();
         if (candidate.CollectionFlags != cards.CollectionFlags)
         {
             SetCardInventory(candidate);
+            return true;
         }
+        return false;
     }
 
     public bool RefineCard(TripleTriadRefinement recipe, int batches = 1)

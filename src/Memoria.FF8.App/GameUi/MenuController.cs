@@ -126,10 +126,12 @@ public sealed partial class MenuController
         Message = "";
         _view = null;
         ScreenOpened?.Invoke(ScreenId);
-        if (!IsDemo)
-        {
-            _liveData = null;
-        }
+    }
+
+    public void InvalidateLiveData()
+    {
+        _liveData = null;
+        _view = null;
     }
 
     public void Close()
@@ -234,10 +236,6 @@ public sealed partial class MenuController
         _history.Push(ScreenId);
         ScreenId = screenId;
         ScreenOpened?.Invoke(ScreenId);
-        if (!IsDemo)
-        {
-            _liveData = null;
-        }
         Message = "";
         _view = null;
     }
@@ -261,10 +259,6 @@ public sealed partial class MenuController
         {
             ScreenId = previous;
             ScreenOpened?.Invoke(ScreenId);
-            if (!IsDemo)
-            {
-                _liveData = null;
-            }
             Message = "";
             _view = null;
         }
