@@ -31,11 +31,7 @@ public sealed partial class BattleSession
         //50B0C0 only advances its WORD watchdog after the returned module descriptor has gone away.
         if (NativeOriginalEffectDescriptorReleased(graphics))
         {
-            ushort watchdog = unchecked((ushort)((context.ReflectionWatchdog4A ?? throw new InvalidDataException("Native50B0C0 lost its initialized watchdog WORD.")) + 1));
-            if (watchdog >= 900)
-            {
-                throw new InvalidDataException("Native50B0C0 reached the original46B440 stalled-effect boundary after900 callbacks.");
-            }
+            ushort watchdog = AdvanceNativeEffectSoundWatchdog(context.ReflectionWatchdog4A ?? throw new InvalidDataException("Native50B0C0 lost its initialized watchdog WORD."));
             graphics = graphics with { ActionGraphics = context with { ReflectionWatchdog4A = watchdog } };
         }
         return (graphics, phase, false);

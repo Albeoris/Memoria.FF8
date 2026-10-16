@@ -4,7 +4,10 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>50AFC0's parameter block beginning1D99A78;7C is a logical physical-header reference.</summary>
-public sealed record NativeBattleEffectParameters([property: JsonRequired] byte Actor78, [property: JsonRequired] byte Flags79, [property: JsonRequired] ushort TargetMask7A, [property: JsonRequired] int HeaderIndex7C, [property: JsonRequired] byte Parameter81, [property: JsonRequired] byte Parameter83);
+public sealed record NativeBattleEffectParameters([property: JsonRequired] byte Actor78, [property: JsonRequired] byte Flags79, [property: JsonRequired] ushort TargetMask7A, [property: JsonRequired] int HeaderIndex7C, [property: JsonRequired] byte Parameter81, [property: JsonRequired] byte Parameter83)
+{
+    public byte? Parameter80 { get; init; }
+}
 public sealed record NativeBattleEffectResourcePointer([property: JsonRequired] uint GlobalAddress, [property: JsonRequired] int ArenaOffset);
 
 /// <summary>50AF20's selected module and the descriptor returned by its original entry.</summary>
@@ -16,6 +19,7 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public ImmutableArray<NativeBattleEffectResourcePointer> ResourcePointers { get; init; } = [];
     [JsonRequired]
     public uint? FireDrawBuffer { get; init; }
+    public ImmutableArray<int>? FireModelCompletion { get; init; }
 
     public void Validate()
     {
@@ -26,6 +30,10 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
         foreach (NativeBattleEffectTaskPool pool in Pools)
         {
             pool.Validate();
+        }
+        if (FireModelCompletion is { } completion && (completion.IsDefault || completion.Length != 7))
+        {
+            throw new InvalidDataException("Native6298A0 requires its seven DEE360 completion DWORDs.");
         }
     }
 }

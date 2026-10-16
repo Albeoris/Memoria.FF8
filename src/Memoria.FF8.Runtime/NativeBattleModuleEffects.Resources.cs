@@ -156,7 +156,7 @@ public sealed partial record NativeBattleModuleState
         NativeBattleModuleAnchor anchor = ReadAnchor(task.Payload, 4);
         uint packed = U32(task.Payload, 16);
         int scale = (int)((packed >> 16) & 0x7F) << 8;
-        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Anchor = anchor, Phase = phase, Scale = scale, DepthOffset = -(anchor.W == 0 ? scale >> 4 : anchor.W), Rotation = unchecked((short)(((packed >> 8) & 255) << 4)), Direction = (packed & 0x800000) != 0 ? -4096 : 4096, PackedParameters = packed, Resource = resource, SpriteFrame = frame };
+        NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Sprite, 0) { Anchor = anchor, Phase = phase, Scale = scale, DepthOffset = -(anchor.W == 0 ? scale >> 4 : anchor.W), Rotation = unchecked((short)(((packed >> 8) & 255) << 4)), Direction = (packed & 0x800000) != 0 ? -4096 : 4096, PackedParameters = packed, Resource = resource, SpriteFrame = frame, SpriteFlags = (ushort)((packed & 0x80000000) != 0 ? 0x13 : 3), SpritePaletteOffsets = (packed & 0x80000000) != 0 ? [(byte)((packed >> 24) & 0x7F), 0, 0, 0] : [] };
         if ((inputs.GraphicsFlags & 1) != 0)
         {
             return new(this, false, [draw]);

@@ -12,6 +12,7 @@ public sealed record NativeBattleGraphicsResource(ImmutableArray<byte> SequenceS
     public NativeBattlePoseSource? LinkedPoseSource { get; init; }
     public bool? HasActionCamera { get; init; }
     public NativeBattleCameraBank? ActionCameraBank { get; init; }
+    public ImmutableArray<byte>? TextureAnimations { get; init; }
 
     public void Validate()
     {

@@ -106,7 +106,9 @@ internal sealed partial class GameWorld
             NativeRenzokukenResources = assets.ReadNativeRenzokukenResources(),
             NativeCommandSequences = assets.ReadNativeBattleCommandSequences(),
             NativeModuleResources = assets.ReadNativeBattleModuleResources(),
+            NativeDefensiveResources = assets.ReadNativeBattleDefensiveResources(),
             NativeEffectCatalog = assets.ReadNativeEffectCatalog(),
+            NativeCommonEffectTexture = assets.ReadNativeCommonEffectTexture(),
             NativeActionCameraRules = assets.ReadNativeActionCameraRules(),
             NativeBattleUiRandom = session.State.Playtime?.CreateBattleUiRandom(),
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeRenzokukenMagicIds = BattleResources.ReadNativeRenzokukenMagicIds(actor.ModelId) }).ToArray()

@@ -7,7 +7,8 @@ public enum NativeBattleAuxiliaryKind
 {
     None,
     CameraBlend509930,
-    SoundParticle50F830
+    SoundParticle50F830,
+    TextureAnimation5057D0
 }
 
 public sealed record NativeBattleAuxiliaryTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleAuxiliaryKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -55,6 +56,14 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
             {
                 throw new InvalidDataException("Native509930 lacks its written frame/duration BYTEs.");
             }
+            else if (Slots[index].Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
+            {
+                (Slots[index].Program ?? throw new InvalidDataException("Native5057D0 lacks its original deadline pointer.")).Validate();
+                if ((Slots[index].UnknownByteMask & 0xF0F) != 0)
+                {
+                    throw new InvalidDataException("Native5057D0 lacks its model pointer, toggle, sequence and elapsed WORD.");
+                }
+            }
         }
     }
 
@@ -97,7 +106,11 @@ public sealed partial record NativeBattleAuxiliaryState([property: JsonRequired]
         {
             NativeBattleAuxiliaryTask task = slots[index];
             bool release;
-            if (task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830)
+            if (task.Kind == NativeBattleAuxiliaryKind.TextureAnimation5057D0)
+            {
+                (task, release) = AdvanceTextureAnimation(task, inputs);
+            }
+            else if (task.Kind == NativeBattleAuxiliaryKind.SoundParticle50F830)
             {
                 (NativeBattleAuxiliaryTask updated, bool completed, NativeBattleAuxiliaryEmission? emission) = AdvanceSoundParticle(task, inputs);
                 task = updated;

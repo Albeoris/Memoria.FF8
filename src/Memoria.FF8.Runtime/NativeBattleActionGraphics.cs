@@ -10,6 +10,7 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] in
 
     [JsonRequired]
     public ushort? ReflectionWatchdog4A { get; init; }
+    public ushort? CastingWatchdog8E { get; init; }
 }
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
 
@@ -106,6 +107,9 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
 {
     public bool? InitializerIsRet { get; init; }
     public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
+    public NativeBattleEffectProgramResources? ProgramResources { get; init; }
 }
 
 public sealed record NativeBattleEffectInitializerAsset(string Name, System.Collections.Immutable.ImmutableArray<byte> Data);
+
+public sealed record NativeBattleEffectProgramResources(NativeBattleEffectHeapAllocation Animation, System.Collections.Immutable.ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound);

@@ -17,6 +17,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
     public BattleSequenceSet? Sequences { get; init; }
     public Memoria.FF8.Runtime.NativeBattlePoseSource? NativePoseSource { get; init; }
     public Memoria.FF8.Runtime.NativeBattleCameraBank? NativeActionCameraBank { get; init; }
+    public System.Collections.Immutable.ImmutableArray<byte>? NativeTextureAnimations { get; init; }
 
     public IReadOnlyList<Vector3[]> Pose(int animation, float frame, bool loop = true)
     {

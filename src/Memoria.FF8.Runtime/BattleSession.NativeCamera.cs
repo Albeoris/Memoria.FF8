@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
@@ -17,7 +19,7 @@ public sealed partial class BattleSession
         }
         ushort roll = NextNativeGlobalRandom();
         byte selector = definition.NativeStageCameraSelectors[definition.EncounterId == 33 ? 0 : roll & 1];
-        NativeCamera = NativeCamera! with { Variables = NativeCamera.Variables.SetItem(0, selector), ControlCursor = 0 };
+        NativeCamera = NativeCamera! with { Variables = NativeCamera.Variables.SetItem(0, selector), ControlCursor = 0, ControlResource = null };
     }
 
     internal void StartNativeCamera(NativeBattleCameraBank bank, byte selector)
@@ -29,9 +31,12 @@ public sealed partial class BattleSession
     {
         if (NativeCamera is not null)
         {
-            if ((graphicsFlags & 0x101) == 0)
+            if ((graphicsFlags & 0x101) == 0 && NativeCamera.ControlCursor is not null)
             {
-                NativeCamera = NativeCamera.AdvanceControl(definition.NativeStageCameraBank!, definition.NativeStageCameraControl, new() { GlobalRandom = NextNativeGlobalRandom, ReadExternal = ReadNativeCameraExternal, ScheduleBlend = ScheduleNativeCameraBlend });
+                NativeBattleEffectAnimationRegisters? resource = NativeCamera.ControlResource;
+                NativeBattleCameraBank bank = resource is null ? definition.NativeStageCameraBank! : new(resource.Source.Data.AsSpan().Slice(resource.ModelTableOffset).ToArray().ToImmutableArray());
+                ImmutableArray<byte> program = resource is null ? definition.NativeStageCameraControl : resource.Source.Data.AsSpan().Slice(resource.StreamOffset).ToArray().ToImmutableArray();
+                NativeCamera = NativeCamera.AdvanceControl(bank, program, new() { GlobalRandom = NextNativeGlobalRandom, ReadExternal = ReadNativeCameraExternal, ScheduleBlend = ScheduleNativeCameraBlend });
             }
             NativeCamera = NativeCamera.Tick(graphicsFlags, new() { TransformReference = (reference, local) => TransformNativeCameraReference(reference, local, graphicsFlags) });
         }
@@ -67,7 +72,14 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeAuxiliary(NativeBattleGraphicsState graphics)
     {
-        NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance(new() { ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction), ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point) });
+        NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance(new()
+        {
+            ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction),
+            ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point),
+            ReadModel = model => graphics.Models[model],
+            ApplyTexture = (model, selector, variant) => ApplyNativeTextureMotion(graphics, model, selector, variant),
+            RestoreTextureBlink = model => graphics = graphics with { Models = graphics.Models.SetItem(model, graphics.Models[model] with { Flags0 = (ushort)(graphics.Models[model].Flags0 | 0x400) }) }
+        });
         if (step.CameraBlend is ushort blend)
         {
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native509930 requires its initialized camera owner.")) with { BlendProgress = blend };
@@ -95,7 +107,8 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native battle camera task owner is missing; migrate the snapshot explicitly.");
         }
         snapshot.NativeCamera?.Validate();
-        if (snapshot.NativeCamera?.ControlCursor is int cursor && (definition.NativeStageCameraControl.IsDefault || cursor >= definition.NativeStageCameraControl.Length))
+        int programLength = snapshot.NativeCamera?.ControlResource is { } control ? control.Source.Data.Length - control.StreamOffset : definition.NativeStageCameraControl.IsDefault ? 0 : definition.NativeStageCameraControl.Length;
+        if (snapshot.NativeCamera?.ControlCursor is int cursor && cursor >= programLength)
         {
             throw new InvalidDataException("Native camera control cursor exceeds its saved original program.");
         }

@@ -178,6 +178,13 @@ public static class NativeBattleSequenceMachine
                     case 0x9D:
                         cues.Add(new(NativeBattleSequenceCueKind.SuspendParticipant));
                         break;
+                    case 0x9F:
+                        NativeBattleAuxiliaryProgram textureProgram = new(resource.SequenceSection, position);
+                        (inputs.ScheduleTextureAnimation ?? throw new NotSupportedException("Native9F requires its shared506C10/5057D0 texture animation task owner."))(textureProgram, sequence);
+                        model = model with { Flags0 = (ushort)(model.Flags0 & ~0x400) };
+                        (inputs.ApplyTexture ?? throw new NotSupportedException("Native9F requires the actual50C780 texture rectangle copy owner."))(0, 0);
+                        position = NativeBattleAuxiliaryState.SkipSoundParticleProgram(resource.SequenceSection, position);
+                        break;
                     case 0xA0:
                         byte pose = ReadByte();
                         if (state.Pose != pose || (flags & 4) != 0)

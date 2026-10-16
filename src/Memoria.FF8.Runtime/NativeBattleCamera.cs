@@ -35,6 +35,7 @@ public sealed partial record NativeBattleCameraTask(byte Channel, NativeBattleCa
 /// <summary>5041E0/503520/5035E0 two-slot camera callback owner; mask includes the separately written high bits.</summary>
 public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray<NativeBattleCameraTask?> Tasks, ImmutableArray<int> Order)
 {
+    public NativeBattleEffectAnimationRegisters? ControlResource { get; init; }
     public ImmutableArray<short> Variables { get; init; } = [0, 0, 0, 0, 0, 0, 0, 0];
     public ImmutableArray<short?> Scratch { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public int? ControlCursor { get; init; }
@@ -45,6 +46,10 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
 
     public void Validate()
     {
+        if (ControlResource is { } control && (control.Source is null || control.Source.Data.IsDefault || control.StreamOffset < 0 || control.StreamOffset >= control.Source.Data.Length || control.ModelTableOffset < 0 || control.ModelTableOffset > control.Source.Data.Length - 2))
+        {
+            throw new InvalidDataException("Native509610 camera control source leaves its original effect resource.");
+        }
         if (Variables.IsDefault || Variables.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || RetainedPoses.IsDefault || RetainedPoses.Length != 2 || SelectedSlot is < 0 or >= 2 || ControlCursor < 0 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2 || task.Elapsed != 0 && task.Pose is null)))
         {
             throw new InvalidDataException("Native camera task owner requires its two original slots and bounded resource cursors.");

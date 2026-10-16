@@ -11,6 +11,7 @@ internal sealed class BattleScenePresentation
 {
     private readonly BattleStage stage;
     private readonly BattleAssets assets;
+    private readonly IReadOnlyList<NativeBattleDefensiveResource> defensiveResources;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
     private readonly Dictionary<string, BattleModel?> weapons = [];
@@ -28,6 +29,7 @@ internal sealed class BattleScenePresentation
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
         this.assets = assets;
+        defensiveResources = definition.NativeDefensiveResources;
         renzokukenResources = definition.NativeRenzokukenResources.ToDictionary(resource => resource.MagicId);
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
@@ -174,7 +176,12 @@ internal sealed class BattleScenePresentation
                 }
             }
         }
-        return renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
+        byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
+        if (session.NativeGraphics is { ModuleDraws.IsEmpty: false } effects)
+        {
+            renderer.DrawNativeModuleEffects(effects.ModuleDraws, session.NativeEffectMemory?.Textures, defensiveResources);
+        }
+        return pixels;
     }
 
     public void DrawEffects(BattleSession session, IUiCanvas canvas, UiRect viewport)
@@ -203,18 +210,6 @@ internal sealed class BattleScenePresentation
                 float x = viewport.X + projected.X * viewport.Width / renderer.Width;
                 float y = viewport.Y + projected.Y * viewport.Height / renderer.Height;
                 byte alpha = (byte)(255 * Math.Min(1, (BattleImpactPresentation.Duration - cue.Age) / 8f));
-                if (cue.IsPhysical && cue.Age < 7)
-                {
-                    float radius = (8 + cue.Age * 3) * scale;
-                    for (int ray = 0; ray < 8; ray++)
-                    {
-                        float angle = ray * MathF.PI / 4 + 0.2f;
-                        float dx = MathF.Cos(angle);
-                        float dy = MathF.Sin(angle);
-                        canvas.Line(x + dx * radius * 0.2f, y + dy * radius * 0.2f, x + dx * radius, y + dy * radius, new UiColor(255, 220, 135, alpha), 3 * scale);
-                        canvas.Line(x, y, x + dx * radius * 0.65f, y + dy * radius * 0.65f, new UiColor(255, 255, 255, alpha), scale);
-                    }
-                }
                 UiColor color = cue.IsHealing ? new UiColor(105, 255, 130, alpha) : cue.IsPhysical ? new UiColor(255, 255, 255, alpha) : new UiColor(220, 130, 255, alpha);
                 float rise = (cue.Age * 0.8f + MathF.Sin(Math.Min(1, cue.Age / 12f) * MathF.PI) * 10) * scale;
                 canvas.Text(cue.Event.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), 24 * scale, new UiRect(x - 30 * scale, y - 24 * scale - rise, 120 * scale, 38 * scale), color);

@@ -20,6 +20,9 @@ public sealed record NativeBattleAuxiliaryInputs
 {
     public Func<int, byte, short, NativeBattleVector>? ReadBone { get; init; }
     public Func<NativeBattleVector, byte>? ReadPan { get; init; }
+    public Func<int, NativeBattleGraphicsModel>? ReadModel { get; init; }
+    public Action<int, byte, byte>? ApplyTexture { get; init; }
+    public Action<int>? RestoreTextureBlink { get; init; }
 }
 
 public sealed partial record NativeBattleAuxiliaryState

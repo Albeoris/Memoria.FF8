@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         if (NativeEffectMemory is { } effectMemory)
         {
             //500870 calls501160: DB8 is reset, while the pending DB4 field is retained.
-            NativeEffectMemory = effectMemory with { SoundPublishedFlags = 0 };
+            NativeEffectMemory = effectMemory with { SoundPublishedFlags = 0, Textures = effectMemory.Textures?.Initialize500400() };
         }
         InitializeNativePartyPresentation();
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);

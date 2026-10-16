@@ -307,16 +307,41 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         {
             uint pan = ResolveNativeModuleSoundPan(sound);
             // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output.
-            PlayPresentationSound(sound.Sound, -10 - battleVoice++ % 16, pan);
+            int transientVoice = sound.Flags == 0 ? -10 - battleVoice++ % 16 : 0;
+            PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound, transientVoice), pan);
         });
     }
 
     internal static uint ResolveNativeModuleSoundPan(NativeBattleModuleSound sound)
     {
+        bool supported = sound.Flags switch
+        {
+            0 => sound.Sound is 2 or 3,
+            8 => sound.Sound == 0x0D,
+            16 => sound.Sound == 0x0E,
+            0x100 => sound.Sound == 300000,
+            0x8000 => sound.Sound == 0x72,
+            _ => false
+        };
+        if (!supported)
+        {
+            throw new NotSupportedException("Native effect-module audio requires its reached original sound identity and flags.");
+        }
+        byte nativePan = sound.Pan ?? throw new NotSupportedException("Native501740/5017A0 sound requires its actual5011B0 projected pan BYTE.");
+        //46B2A0 passes its unsigned pan argument shifted right once to4699A0.
+        return (uint)nativePan >> 1;
+    }
+
+    internal static int ResolveNativeModuleSoundVoice(NativeBattleModuleSound sound, int transientVoice)
+    {
+        //46B0F0 numbers the lowest selected attribute bit from1;46B2A0 replaces that voice.
         return sound.Flags switch
         {
-            0 when sound.Sound is 2 or 3 => sound.Pan ?? throw new NotSupportedException("Native501740 sound requires its actual5011B0 projected pan BYTE."),
-            0x8000 => (uint?)sound.Pan ?? 64u,
+            0 => transientVoice,
+            8 => 4,
+            16 => 5,
+            0x100 => 9,
+            0x8000 => 16,
             _ => throw new NotSupportedException("Native effect-module audio requires its reached original sound flags.")
         };
     }
@@ -525,12 +550,17 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         musicIds[slot] = -1;
     }
 
-    public void StopAll()
+    public void StopSounds()
     {
         foreach (int voice in voices.Keys.ToArray())
         {
             TryOutput(() => StopVoice(voice));
         }
+    }
+
+    public void StopAll()
+    {
+        StopSounds();
         TryOutput(() => StopMusicSlot(0));
         TryOutput(() => StopMusicSlot(1));
     }

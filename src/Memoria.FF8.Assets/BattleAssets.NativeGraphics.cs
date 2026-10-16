@@ -24,7 +24,7 @@ public sealed partial class BattleAssets
             BattleModel owner = LoadPlayerSequenceOwner(actor.ModelId, actor.WeaponId, body);
             BattleModel? linked = actor.WeaponId is int weapon ? ResolveWeaponModel(actor.ModelId, weapon, body) : null;
             //507BF0/507E20 replace the primary resource's sequence pointer while retaining its body animation pointer.
-            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource, HasActionCamera = body.NativeActionCameraBank is not null, ActionCameraBank = body.NativeActionCameraBank };
+            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource, HasActionCamera = body.NativeActionCameraBank is not null, ActionCameraBank = body.NativeActionCameraBank, TextureAnimations = body.NativeTextureAnimations };
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);
     }

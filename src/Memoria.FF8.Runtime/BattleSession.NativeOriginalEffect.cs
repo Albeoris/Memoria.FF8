@@ -19,9 +19,9 @@ public sealed partial class BattleSession
         return graphics with { OriginalEffect = effect with { Parameters = parameters } };
     }
 
-    private static NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleActionGraphicsState context, byte parameterFlags = 0)
+    private NativeBattleEffectParameters CreateNativeOriginalEffectParameters(NativeBattleActionGraphicsState context, byte parameterFlags = 0)
     {
-        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0);
+        return new(context.ActorIndex, (byte)(context.HitFlags | parameterFlags), context.TargetMask, context.HeaderIndex, 0, 0) { Parameter80 = NativeEffectMemory?.Parameter80 };
     }
 
     private NativeBattleGraphicsState InvokeNativeOriginalEffect(NativeBattleGraphicsState graphics, NativeBattleActionGraphicsState context, byte parameterFlags = 0)
@@ -43,7 +43,18 @@ public sealed partial class BattleSession
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
         if (effect.Binding.Entry == 0x6298A0)
         {
-            throw new NotSupportedException("Native Fire6298A0 requires509970 material registers and505E30's physical32-slot texture-upload owner before starting its62A610/62A380 callbacks.");
+            if ((effect.Parameters.Flags79 & 1) == 0)
+            {
+                NativeBattleEffectProgramResources resources = effect.Binding.ProgramResources ?? throw new NotSupportedException("Native Fire6298A0 requires its original DED5FC camera descriptor and sprite resources.");
+                NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native Fire lost its original571870 arena owner.");
+                NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native Fire requires the retained505E30 upload slots and VRAM; migrate the named standalone snapshot explicitly.");
+                textures = textures.Register5099A0(resources.Animation);
+                NativeBattleEffectInitializerAsset asset = effect.Binding.InitializerAsset ?? throw new InvalidDataException("Native Fire lost its loaded mag001.tim resource.");
+                (textures, _) = textures.EnqueueTim505E30(new(asset.Name, asset.Data));
+                NativeEffectMemory = memory with { Textures = textures };
+                NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native Fire camera registration requires its actual camera owner.")) with { ControlResource = textures.Animation, ControlCursor = 0 };
+            }
+            return graphics with { OriginalEffect = NativeBattleFireEffect.InitializePools(effect, nativeActionPackets) };
         }
         throw new NotSupportedException($"Native effect{effect.Binding.Effect} entry{effect.Binding.Entry:X} requires its original module callback and graphics-resource contract.");
     }

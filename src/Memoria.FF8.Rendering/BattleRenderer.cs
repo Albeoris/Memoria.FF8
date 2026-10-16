@@ -32,7 +32,7 @@ public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float 
 }
 
 /// <summary>Perspective-correct CPU battle renderer for original stage and skeletal DAT assets.</summary>
-public sealed class BattleRenderer
+public sealed partial class BattleRenderer
 {
     private readonly byte[] pixels;
     private readonly float[] depth;
@@ -86,6 +86,7 @@ public sealed class BattleRenderer
 
     private void Begin(BattleCamera camera)
     {
+        nativeRoll = camera.NativeRoll;
         if (camera.Eye == camera.Target || camera.FieldOfView <= 0 || camera.FieldOfView >= MathF.PI || camera.VerticalCenter is <= 0 or >= 1)
         {
             throw new ArgumentOutOfRangeException(nameof(camera));

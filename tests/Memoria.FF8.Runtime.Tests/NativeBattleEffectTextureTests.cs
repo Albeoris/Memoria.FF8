@@ -1,0 +1,78 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Runtime.Tests;
+
+public sealed class NativeBattleEffectTextureTests
+{
+    [Fact]
+    public void QueueDrainUploadsBothBlocksInOrderAndRetainsPhysicalSlotsAcrossInitialization()
+    {
+        NativeBattleEffectHeapAllocation source = Tim();
+        NativeBattleEffectTextureState cold = NativeBattleEffectTextureState.FromColdProcess();
+        var queued = cold.EnqueueTim505E30(source);
+        Assert.Equal(source.Data.Length, queued.NextOffset);
+        Assert.Equal(1, queued.State.Count);
+        Assert.Equal(0, cold.Count);
+        Assert.All(cold.ReadVram(), value => Assert.Equal(0, value));
+        NativeBattleEffectTextureDrain drained = queued.State.Drain505D20();
+        Assert.Equal(2, drained.Uploads.Length);
+        Assert.Equal((short)0, drained.Uploads[0].X);
+        Assert.Equal((short)64, drained.Uploads[1].X);
+        Assert.Equal((short)256, drained.Uploads[1].Y);
+        Assert.Equal(0x3210, BinaryPrimitives.ReadUInt16LittleEndian(drained.State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
+        Assert.Equal(0, drained.State.Count);
+        Assert.Equal(source, drained.State.Slots[0]!.Source);
+        Assert.Equal(drained.State.VramRegions, drained.State.Initialize500400().VramRegions);
+        Assert.Equal(queued.State.Slots, queued.State.Initialize500400().Slots);
+        Assert.Empty(drained.State.Drain505D20().Uploads);
+        NativeBattleEffectTextureState restored = JsonSerializer.Deserialize<NativeBattleEffectTextureState>(JsonSerializer.Serialize(drained.State))!;
+        restored.Validate();
+        Assert.Equal(drained.State.ReadVram(), restored.ReadVram());
+    }
+
+    [Fact]
+    public void QueueHonorsTheNativeThirtyOneSuccessfulUploadsAndRejectsMalformedSource()
+    {
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess();
+        for (int index = 0; index < 31; index++)
+        {
+            state = state.EnqueueTim505E30(Tim()).State;
+        }
+        Assert.Equal(31, state.Count);
+        Assert.Throws<NotSupportedException>(() => state.EnqueueTim505E30(Tim()));
+        Assert.Throws<InvalidDataException>(() => NativeBattleEffectTextureState.FromColdProcess().EnqueueTim505E30(new("bad", [0, 0, 0])));
+    }
+
+    [Fact]
+    public void AnimationRegistrationUsesUnsignedRelativeWordOffsetsAndSurvivesQueueInitialization()
+    {
+        byte[] bytes = new byte[0x8010];
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2), 0x8000);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 0x8002);
+        NativeBattleEffectTextureState state = NativeBattleEffectTextureState.FromColdProcess().Register5099A0(new("original-descriptor", bytes.ToImmutableArray()));
+        Assert.Equal(0x8000, state.Animation!.StreamOffset);
+        Assert.Equal(0x8002, state.Animation.ModelTableOffset);
+        Assert.Equal(state.Animation, state.Initialize500400().Animation);
+    }
+
+    private static NativeBattleEffectHeapAllocation Tim()
+    {
+        byte[] data = new byte[66];
+        BinaryPrimitives.WriteUInt32LittleEndian(data, 16);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4), 8);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(8), 44);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(16), 16);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(18), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(22), 31);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(52), 14);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(56), 64);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(58), 256);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(60), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(62), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(64), 0x3210);
+        return new("tim", data.ToImmutableArray());
+    }
+}

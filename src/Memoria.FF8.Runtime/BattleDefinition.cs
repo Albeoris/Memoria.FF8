@@ -148,7 +148,9 @@ public sealed record BattleDefinition
     public NativeBattleRetainedMemory? NativeRetainedMemory { get; init; }
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
+    public ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; init; } = [];
     public ImmutableArray<NativeBattleEffectBinding> NativeEffectCatalog { get; init; } = [];
+    public NativeBattleEffectInitializerAsset? NativeCommonEffectTexture { get; init; }
     public NativeBattleActionCameraRules? NativeActionCameraRules { get; init; }
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
@@ -261,6 +263,7 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
 {
     public NativeBattleSequenceSound? NativeSound { get; init; }
     public NativeBattleModuleSound? NativeModuleSound { get; init; }
+    public bool NativeStopAllSounds { get; init; }
     public byte? NativeGraphicMagicId { get; init; }
     public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }

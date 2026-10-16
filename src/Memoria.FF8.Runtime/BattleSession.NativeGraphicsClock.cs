@@ -73,6 +73,7 @@ public sealed partial class BattleSession
         flags = graphics.Flags;
         graphics = AdvanceNativeAuxiliary(graphics);
         graphics = AdvanceNativeModuleEffects(graphics);
+        graphics = AdvanceNativeOriginalEffect(graphics);
         graphics = ConsumeNativeGraphicsContacts(graphics);
         models = graphics.Models;
         NativeBattleEffectsStep effects = graphics.Effects.Advance(models);
@@ -118,6 +119,8 @@ public sealed partial class BattleSession
                     GlobalRandom = NextNativeGlobalRandom,
                     ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable),
                     ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
+                    ScheduleTextureAnimation = (program, sequence) => graphics = ScheduleNativeTextureAnimation(graphics, index, program, sequence),
+                    ApplyTexture = (selector, variant) => ApplyNativeTextureMotion(graphics, index, selector, variant),
                     ApplyActionContacts = current =>
                     {
                         models = models.SetItem(index, current);
@@ -172,7 +175,12 @@ public sealed partial class BattleSession
         }
         if (NativeEffectMemory is { } effectMemory)
         {
-            NativeEffectMemory = effectMemory.PublishSound();
+            effectMemory = effectMemory.PublishSound();
+            if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
+            {
+                effectMemory = effectMemory with { Textures = textures.Drain505D20().State };
+            }
+            NativeEffectMemory = effectMemory;
         }
     }
 
@@ -240,7 +248,9 @@ public sealed partial class BattleSession
             model = NativeBattleGraphicsModels.StartService(model, 7);
             NativeBattleVector position = model.Transform?.Position28 ?? throw new NotSupportedException("Native ejection sound requires its current model positionWORD28.");
             NativeBattleModuleAnchor anchor = new(position.X, position.Y, position.Z, 0);
-            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015), ModuleDraws = graphics.ModuleDraws.Add(new(NativeBattleModuleDrawKind.Sound, 0) { Anchor = anchor, Sound = 0x0D, SoundFlags = 8 }).Add(new(NativeBattleModuleDrawKind.Sound, 0) { Anchor = anchor, Sound = 0x0E, SoundFlags = 16 }) };
+            graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendModelResource(index, resource, 0x200015) };
+            PublishNativeModuleSound(0x0D, 8, anchor, graphics.ActorIds[index]);
+            PublishNativeModuleSound(0x0E, 16, anchor, graphics.ActorIds[index]);
         }
         if (plan.SelectSequence)
         {

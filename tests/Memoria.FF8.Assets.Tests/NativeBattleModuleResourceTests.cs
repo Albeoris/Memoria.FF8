@@ -89,6 +89,17 @@ public sealed class NativeBattleModuleResourceTests
         Assert.Equal((byte)0, state.PublishedCount);
     }
 
+    [Fact]
+    public void PackedPaletteOverridePublishesItsOriginal571C80FlagsAndFourByteRegisters()
+    {
+        using GameAssets assets = new(GameDirectory());
+        ImmutableArray<NativeBattleModuleResource> resources = assets.ReadNativeBattleModuleResources();
+        NativeBattleModuleState state = NativeBattleModuleState.Clear().AppendModelResource(0, resources[21], 0x84200015);
+        NativeBattleModuleDraw draw = Assert.Single(state.Advance(Inputs(resources, new(7))).Draws);
+        Assert.Equal((ushort)0x13, draw.SpriteFlags);
+        Assert.Equal(new byte[] { 4, 0, 0, 0 }, draw.SpritePaletteOffsets.ToArray());
+    }
+
     private static NativeBattleModuleInputs Inputs(ImmutableArray<NativeBattleModuleResource> resources, NativeCrtRandomState crt)
     {
         return new(0) { Resources = resources, CrtRandom = crt, ReadModelAnchor = _ => new(10, 20, 30, 40), ReadModelRotation14 = _ => 123 };

@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Runtime;
 
 /// <summary>The original6298A0 physical pool setup and62A610 scheduler, independent of its unported draw callbacks.</summary>
-public static class NativeBattleFireEffect
+public static partial class NativeBattleFireEffect
 {
     public static NativeBattleOriginalEffectState InitializePools(NativeBattleOriginalEffectState effect, NativeBattleActionPacketsState packets)
     {
@@ -26,7 +26,7 @@ public static class NativeBattleFireEffect
             child = child.WriteWord(32, packets.ReadContact(first).Primary.ActorIndex);
         }
         children = children with { Slots = children.Slots.SetItem(childSlot, child) };
-        return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress };
+        return effect with { Pools = [main, children], ReturnedDescriptor = main.DescriptorAddress, FireModelCompletion = System.Collections.Immutable.ImmutableArray.Create(1, 1, 1, 1, 1, 1, 1) };
     }
 
     public static NativeBattleOriginalEffectState Advance(NativeBattleOriginalEffectState effect, Func<NativeBattleEffectTaskPool, int, uint, NativeBattleEffectTaskCallback> childCallback)
