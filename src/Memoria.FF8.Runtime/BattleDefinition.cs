@@ -335,6 +335,7 @@ public sealed record BattleSnapshot
     public uint[]? NativeAiVariables { get; init; }
     public uint[]? PersistentAiVariables { get; init; }
     public BattleStock[] ScriptedRewards { get; init; } = [];
+    public BattleStock[]? NativeRewardItems { get; init; }
     public int NativeLastAllocatedIndex { get; init; } = -1;
     public NativeBattleScriptState NativeScriptState { get; init; } = new();
     public BattleNativeLimitState[] NativeLimits { get; init; } = [];

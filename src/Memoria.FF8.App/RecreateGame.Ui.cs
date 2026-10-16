@@ -17,6 +17,7 @@ internal sealed partial class RecreateGame
     private UiPreferences uiPreferences = new();
     private bool uiMovieSuspended;
     private LiveMenuCatalog? liveMenuCatalog;
+    private NativeRefinementDefinitions? nativeRefinementDefinitions;
     private bool previousUiMousePressed;
     private bool uiControlPointerPressed;
     private bool drainUiButtons;
@@ -53,7 +54,7 @@ internal sealed partial class RecreateGame
         MenuData data;
         if (IsNativeWeaponShopActive)
         {
-            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!);
+            data = NativeWeaponShopMenuProjection.Build(events!.PartyMenu!.WeaponShop!, session.State.CharacterVitals);
         }
         else if (IsNativeShopActive)
         {
@@ -65,8 +66,10 @@ internal sealed partial class RecreateGame
             {
                 using var assets = new Memoria.FF8.Assets.GameAssets(options.GameDirectory);
                 liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
+                nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
             }
             data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog);
+            NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog);
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
@@ -132,12 +135,56 @@ internal sealed partial class RecreateGame
             fieldSeconds = 0;
             return;
         }
-        if (action.Kind == "shop-buy" && IsNativeShopActive)
+        if (action.Kind == "native-refine")
+        {
+            PlayerActionResult result = world!.Apply(NativeRefinementMenuProjection.PlayerAction(action));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail ?? "The current owners cannot refine this recipe.");
+            }
+            fieldSeconds = 0;
+            return;
+        }
+        if (action.Kind is "shop-buy" or "shop-sell" && IsNativeShopActive)
         {
             PlayerActionResult result = world!.Apply(NativeShopMenuProjection.PurchaseAction(action));
             if (!result.Accepted)
             {
                 throw new NotSupportedException(result.Detail);
+            }
+            fieldSeconds = 0;
+            return;
+        }
+        if (action.Kind is "weapon-character" or "weapon-remodel" && IsNativeWeaponShopActive)
+        {
+            PlayerActionResult result = world!.Apply(NativeWeaponShopMenuProjection.PlayerAction(action));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail);
+            }
+            fieldSeconds = 0;
+            return;
+        }
+        if (action.Kind == "item-use" && session.State.Scene is SceneKind.Field or SceneKind.WorldMap)
+        {
+            int itemId = int.Parse(action.SubjectId.AsSpan("item-".Length), System.Globalization.CultureInfo.InvariantCulture);
+            int row = int.Parse(action.TargetId.AsSpan(action.TargetId.StartsWith("item-target-", StringComparison.Ordinal) ? "item-target-".Length : "character-".Length), System.Globalization.CultureInfo.InvariantCulture);
+            PlayerActionResult result = world!.Apply(new PlayerAction(PlayerActionKind.UseFieldItem, itemId, Text: string.IsNullOrEmpty(action.Value) ? null : action.Value, Quantity: row));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail ?? "The current field cannot accept item use.");
+            }
+            fieldSeconds = 0;
+            return;
+        }
+        if (action.Kind == "magazine-read" && session.State.Scene is SceneKind.Field or SceneKind.WorldMap)
+        {
+            int itemId = int.Parse(action.SubjectId.AsSpan("item-".Length), System.Globalization.CultureInfo.InvariantCulture);
+            int pageId = int.Parse(action.Value, System.Globalization.CultureInfo.InvariantCulture);
+            PlayerActionResult result = world!.Apply(new PlayerAction(PlayerActionKind.ReadMagazinePage, itemId, Quantity: pageId));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail ?? "The current field cannot open this magazine page.");
             }
             fieldSeconds = 0;
             return;
@@ -203,7 +250,7 @@ internal sealed partial class RecreateGame
         }
         if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
         {
-            gameMenus.Open(IsNativeWeaponShopActive ? "shop-junk" : IsNativeShopActive ? "shop-buy" : "main", false);
+            gameMenus.Open(IsNativeWeaponShopActive ? "shop-junk" : IsNativeShopActive ? "shop" : "main", false);
         }
         bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         bool menuWasOpen = gameMenus.IsOpen;

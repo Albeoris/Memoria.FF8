@@ -7,6 +7,21 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeWeaponShopUiTests
 {
+    [Theory]
+    [InlineData(Memoria.FF8.Events.PlayerActionKind.SelectWeaponShopCharacter, -1)]
+    [InlineData(Memoria.FF8.Events.PlayerActionKind.SelectWeaponShopCharacter, 6)]
+    [InlineData(Memoria.FF8.Events.PlayerActionKind.RemodelWeapon, -1)]
+    [InlineData(Memoria.FF8.Events.PlayerActionKind.RemodelWeapon, 28)]
+    public void InvalidWeaponInputRefusesBeforeSessionMutation(Memoria.FF8.Events.PlayerActionKind kind, int value)
+    {
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        Memoria.FF8.Events.EventEngine events = new(session, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
+        GameState before = session.State;
+        Assert.Throws<ArgumentException>(() => events.Apply(new Memoria.FF8.Events.PlayerAction(kind, value)));
+        Assert.Same(before, session.State);
+    }
+
     [Fact]
     public void InitialNativeCharacterOffersShowExactRecipesFeesAndMaterialsWithoutMutation()
     {
@@ -31,13 +46,13 @@ public sealed class NativeWeaponShopUiTests
                 Assert.Contains($"Item {material.ItemId}: {shop.Counts[material.ItemId]}/{material.Count}", item.Description);
             }
         }
-        Assert.Empty(data.SupportedActions);
+        Assert.Contains("weapon-character:character-0", data.SupportedActions);
         Assert.False(data.SaveAvailable);
         Assert.Equal(before, JsonSerializer.Serialize(shop));
     }
 
     [Fact]
-    public void ReadOnlyRecipeConfirmCannotUpgradeAndCancelClosesThePanel()
+    public void CharacterSelectionDispatchesAndUnaffordableRecipeCannotUpgrade()
     {
         using GameAssets assets = InstalledAssets();
         NativeWeaponShopTransaction shop = OriginalShop(assets);
@@ -46,14 +61,15 @@ public sealed class NativeWeaponShopUiTests
         MenuController controller = new(() => NativeWeaponShopMenuProjection.Build(shop), actions.Add);
         controller.Open("shop-junk");
         Assert.NotEmpty(controller.Entries);
-        Assert.All(controller.Entries, entry => Assert.False(entry.Enabled));
+        Assert.True(controller.Entries[0].Enabled);
+        Assert.All(controller.Entries.Skip(shop.EligibleMask == 1 ? 1 : 0), entry => Assert.False(entry.Enabled));
         Assert.NotNull(controller.BuildView());
         controller.Navigate(MenuInput.Confirm);
         Assert.True(controller.IsOpen);
-        Assert.Empty(actions);
+        Assert.Equal(new MenuAction("weapon-character", "character-0"), Assert.Single(actions));
         controller.Navigate(MenuInput.Cancel);
         Assert.False(controller.IsOpen);
-        Assert.Empty(actions);
+        Assert.Single(actions);
         Assert.Equal(before, JsonSerializer.Serialize(shop));
     }
 
@@ -61,6 +77,22 @@ public sealed class NativeWeaponShopUiTests
     {
         //Declared installed-data/UI component, without a field visit or fabricated replay.
         return NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), assets.ReadNewGameEconomy(), assets.ReadNewGameCharacterVitals(), assets.ReadNewGameWeaponRecipes()).Shop;
+    }
+
+    [Fact]
+    public void AffordableRecipeDispatchesRemodelAndEquippedRecipeIsDisabled()
+    {
+        using GameAssets assets = InstalledAssets();
+        NativeEconomy economy = assets.ReadNewGameEconomy().DeepCopy();
+        economy.Items[0] = new(66, 2);
+        economy.Items[1] = new(118, 8);
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), economy, assets.ReadNewGameCharacterVitals(), assets.ReadNewGameWeaponRecipes());
+        MenuData data = NativeWeaponShopMenuProjection.Build(prepared.Shop, prepared.Vitals);
+        Assert.Contains("weapon-remodel:weapon-1", data.SupportedActions);
+        Assert.Equal(new Memoria.FF8.Events.PlayerAction(Memoria.FF8.Events.PlayerActionKind.RemodelWeapon, 1), NativeWeaponShopMenuProjection.PlayerAction(new MenuAction("weapon-remodel", "weapon-1")));
+        var remodeled = prepared.Shop.Remodel(1, prepared.Vitals, prepared.Recipes, out bool accepted);
+        Assert.True(accepted);
+        Assert.DoesNotContain("weapon-remodel:weapon-1", NativeWeaponShopMenuProjection.Build(remodeled.Shop, remodeled.Vitals).SupportedActions);
     }
 
     private static GameAssets InstalledAssets()

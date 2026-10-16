@@ -281,6 +281,7 @@ public sealed partial class BattleSession
             NativeAiVariables = combatants.Any(actor => actor.NativeAi is not null) ? nativeAiVariables.ToArray() : null,
             PersistentAiVariables = persistentAiVariables?.ToArray(),
             ScriptedRewards = scriptedRewards.ToArray(),
+            NativeRewardItems = nativeRewardItems.ToArray(),
             NativeLimits = CaptureNativeLimits(),
             GuardianForces = GuardianForces.ToArray(),
             GuardianForceCasts = GuardianForceCasts.ToArray(),
@@ -1087,6 +1088,9 @@ public sealed partial class BattleSession
         }
         ValidateStocks(snapshot.ScriptedRewards, 198);
         scriptedRewards.AddRange(snapshot.ScriptedRewards);
+        BattleStock[] rewardItems = snapshot.NativeRewardItems ?? (snapshot.ScriptedRewards.Length == 0 && snapshot.EnemyDefeats.All(defeat => defeat.DropSelection < 0) ? [] : throw new InvalidDataException("Battle snapshot requires an explicitly migrated ordered native item reward bank; prior drop/script ordering cannot be inferred."));
+        NativeBattleRewardDistribution.ValidateItemBank(rewardItems);
+        nativeRewardItems.AddRange(rewardItems);
         random = snapshot.Random ?? throw new InvalidDataException("Battle snapshot lacks its owned native RNG.");
         random.Validate();
         if (snapshot.NativeLastAllocatedIndex is < -1 or > 6)
@@ -1187,6 +1191,8 @@ public sealed partial class BattleSession
         persistentAiVariables = candidate.persistentAiVariables?.ToArray();
         scriptedRewards.Clear();
         scriptedRewards.AddRange(candidate.scriptedRewards);
+        nativeRewardItems.Clear();
+        nativeRewardItems.AddRange(candidate.nativeRewardItems);
         enemyDefeats.Clear();
         enemyDefeats.AddRange(candidate.enemyDefeats);
         nativeLastAllocatedIndex = candidate.nativeLastAllocatedIndex;

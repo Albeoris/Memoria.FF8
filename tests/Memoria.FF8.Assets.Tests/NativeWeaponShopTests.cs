@@ -99,6 +99,73 @@ public sealed class NativeWeaponShopTests
     }
 
     [Fact]
+    public void RemodelConsumesLocalMaterialsEquipsImmediatelyAndCommitsOnlyOnExit()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeEconomy economy = assets.ReadNewGameEconomy().DeepCopy();
+        economy.Items[0] = new(66, 1);
+        economy.Items[1] = new(118, 4);
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), economy, assets.ReadNewGameCharacterVitals(), assets.ReadNewGameWeaponRecipes());
+        var remodeled = prepared.Shop.Remodel(1, prepared.Vitals, prepared.Recipes, out bool accepted);
+        Assert.True(accepted);
+        Assert.Equal(1, remodeled.Vitals.Records[0].Weapon);
+        Assert.Equal(0, prepared.Vitals.Records[0].Weapon);
+        Assert.Equal(prepared.Shop.Gil - prepared.Shop.Price(1), remodeled.Shop.Gil);
+        Assert.Equal(0, remodeled.Shop.Counts[66]);
+        Assert.Equal(0, remodeled.Shop.Counts[118]);
+        Assert.Equal(economy.Gil, prepared.Economy.Gil);
+        Assert.Equal(1, prepared.Shop.Counts[66]);
+        Assert.Contains((byte)0x41, remodeled.Shop.AvailableRecipes);
+        var rejected = remodeled.Shop.Remodel(1, remodeled.Vitals, remodeled.Recipes, out accepted);
+        Assert.False(accepted);
+        Assert.Same(remodeled.Shop, rejected.Shop);
+        NativeWeaponShopTransaction restored = JsonSerializer.Deserialize<NativeWeaponShopTransaction>(JsonSerializer.Serialize(remodeled.Shop))!;
+        NativeEconomy committed = restored.Commit(prepared.Economy);
+        Assert.Equal(remodeled.Shop.Gil, committed.Gil);
+        Assert.DoesNotContain(committed.Items, item => item.ItemId is 66 or 118);
+        Assert.Equal(economy.PastGil, committed.PastGil);
+    }
+
+    [Fact]
+    public void CharacterSelectionUsesPhysicalRowsAndRejectsAnotherCharactersRecipe()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();
+        vitals.Records[1] = vitals.Records[1] with { MemberFlags = (ushort)(vitals.Records[1].MemberFlags | 1) };
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), assets.ReadNewGameEconomy(), vitals, assets.ReadNewGameWeaponRecipes());
+        var selected = prepared.Shop.SelectCharacter(1, prepared.Recipes);
+        Assert.Equal(1, selected.Shop.SelectedCharacter);
+        Assert.NotEmpty(selected.Shop.AvailableRecipes);
+        Assert.All(selected.Shop.AvailableRecipes, offer => Assert.Equal(1, selected.Shop.Definitions.Recipes[offer & 0x3F].Character));
+        selected.Shop.Remodel(0, prepared.Vitals, selected.Recipes, out bool accepted);
+        Assert.False(accepted);
+        Assert.Throws<ArgumentOutOfRangeException>(() => prepared.Shop.SelectCharacter(6, prepared.Recipes));
+    }
+
+    [Fact]
+    public void RemodelUsesDiscountButAdmissionStillRequiresBaseFeeAndRejectsEquippedRecipe()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeEconomy economy = assets.ReadNewGameEconomy().DeepCopy();
+        economy.Items[0] = new(66, 2);
+        economy.Items[1] = new(118, 8);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().DeepCopy();
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { Flags = 1, LearnedBank = new(0, 1UL << (92 - 64)) };
+        var prepared = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), economy with { Gil = 200 }, vitals, assets.ReadNewGameWeaponRecipes());
+        Assert.Equal(150u, prepared.Shop.Price(1));
+        var remodeled = prepared.Shop.Remodel(1, prepared.Vitals, prepared.Recipes, out bool accepted);
+        Assert.True(accepted);
+        Assert.Equal(50u, remodeled.Shop.Gil);
+        NativeWeaponShopTransaction funded = remodeled.Shop with { Gil = 200, AvailableRecipes = prepared.Shop.AvailableRecipes };
+        var repeated = funded.Remodel(1, remodeled.Vitals, remodeled.Recipes, out accepted);
+        Assert.False(accepted);
+        Assert.Same(funded, repeated.Shop);
+        var poor = NativeWeaponShopTransaction.Begin(34, assets.ReadNativeWeaponShopDefinitions(), economy with { Gil = 199 }, vitals, assets.ReadNewGameWeaponRecipes());
+        poor.Shop.Remodel(1, poor.Vitals, poor.Recipes, out accepted);
+        Assert.False(accepted);
+    }
+
+    [Fact]
     public void AmbiguousNativeHpStatusRefusesBeforeAnyInputOwnerMutation()
     {
         using GameAssets assets = new(GameDirectory);

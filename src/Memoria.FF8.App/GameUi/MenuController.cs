@@ -36,6 +36,7 @@ public sealed partial class MenuController
         _liveAction = liveAction;
         MenuCatalog.Register(this);
         RegisterNamingScreens();
+        RegisterMagazineScreens();
     }
 
     public bool IsOpen { get; private set; }
@@ -442,6 +443,13 @@ public sealed partial class MenuController
                 return;
             case "select-item":
                 _itemId = action.SubjectId;
+                if (!IsDemo && ScreenId == "item-use" && Item?.NativeMagazinePages.Length > 0)
+                {
+                    ShowMagazinePage(0);
+                }
+                return;
+            case "magazine-page":
+                ShowMagazinePage(_magazineIndex + int.Parse(action.Value, System.Globalization.CultureInfo.InvariantCulture));
                 return;
             case "select-magic":
                 _magicId = action.SubjectId;
@@ -517,6 +525,7 @@ public sealed partial class MenuController
             }
             action = action.Kind switch
             {
+                "item-use" => action with { SubjectId = Item?.Id ?? "" },
                 "junction-gf" => action with { TargetId = Character?.Id ?? "" },
                 "junction-command" => action with { TargetId = Character?.Id ?? "", Value = (_commandSlot - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) },
                 "junction-ability" => action with { TargetId = Character?.Id ?? "", Value = _abilitySlot.ToString(System.Globalization.CultureInfo.InvariantCulture) },

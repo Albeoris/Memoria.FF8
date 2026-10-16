@@ -91,6 +91,23 @@ public sealed partial class EventEngine
         return true;
     }
 
+    private bool SellNativeShopItem(int itemId, int quantity)
+    {
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.Shop, Shop: not null } current)
+        {
+            return false;
+        }
+        NativeShopTransaction next = current.Shop.Sell(itemId, quantity, out bool accepted);
+        if (!accepted)
+        {
+            return false;
+        }
+        NativePartyMenuState nextMenu = current with { Shop = next, Callbacks = checked(current.Callbacks + 1) };
+        PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true);
+        partyMenu = nextMenu;
+        return true;
+    }
+
     private bool CloseNativeShop()
     {
         if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.Shop, Shop: not null } current)

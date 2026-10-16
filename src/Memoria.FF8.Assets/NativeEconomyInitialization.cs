@@ -25,6 +25,7 @@ public static class NativeEconomyInitialization
             Rule = NativeEconomy.InitializationRule,
             InitOutSha256 = Convert.ToHexString(SHA256.HashData(initial)),
             Items = items,
+            ItemOrder = initial.AsSpan(2772, 32).ToArray(),
             Gil = BinaryPrimitives.ReadUInt32LittleEndian(initial.AsSpan(2748)),
             PastGil = BinaryPrimitives.ReadUInt32LittleEndian(initial.AsSpan(2752)),
             // Executed52CA90(1) clears248 bytes at the separate native event-bank base1CFE9B8.

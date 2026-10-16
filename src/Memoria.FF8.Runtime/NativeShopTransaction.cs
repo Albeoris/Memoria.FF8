@@ -157,10 +157,7 @@ public sealed record NativeShopTransaction([property: JsonRequired] int RawArgum
                 throw new NotSupportedException("Native shop commit would write beyond the retained198 physical item pairs.");
             }
             result.Items[destination] = new NativeItemStock((byte)id, counts[id]);
-            //4EB9F0 now calls4AD0C0; IDs>=33 return immediately, while
-            //the just-inserted nonzero pair makes its low-ID scan return
-            //before changing the separate sorting permutation. Any mask
-            //built from preceding rows is discarded on that return.
+            result = result.UpdateItemOrder(id);
         }
         return past ? result with { PastGil = gil } : result with { Gil = gil };
     }

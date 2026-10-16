@@ -132,7 +132,7 @@ public sealed partial class MenuController
             commands.Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Name ?? entry.Label).ToList();
             var stock = Grid([1], [2, 1], 2);
             Place(stock, commands, 0);
-            Place(stock, new UiList { ShowSelection = false, Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.Price / 2 : item.Price) + " G" : "--").ToList(), RowHeight = commands.RowHeight, FontSize = commands.FontSize, SelectedIndex = SelectedIndex, SelectionChanged = index => Select(index, Entries.Count), Confirmed = Activate }, 0, 1);
+            Place(stock, new UiList { ShowSelection = false, Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.SalePrice ?? item.Price / 2 : item.Price) + " G" : "--").ToList(), RowHeight = commands.RowHeight, FontSize = commands.FontSize, SelectedIndex = SelectedIndex, SelectionChanged = index => Select(index, Entries.Count), Confirmed = Activate }, 0, 1);
             Place(page, Panel("ITEM", stock), 1);
         }
         else

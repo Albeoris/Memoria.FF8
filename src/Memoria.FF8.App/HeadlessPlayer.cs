@@ -13,6 +13,8 @@ internal static class HeadlessPlayer
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, Converters = { new JsonStringEnumConverter() } };
 
+    internal static PlayerAction[] ReadActions(string json) => JsonSerializer.Deserialize<PlayerAction[]>(json, JsonOptions) ?? throw new InvalidDataException("Missing ordinary action array.");
+
     public static int Run(string[] args)
     {
         string? actionsPath = null;
@@ -84,7 +86,7 @@ internal static class HeadlessPlayer
         {
             throw new NotSupportedException("Headless play requires an exact field, world or movie checkpoint.");
         }
-        PlayerAction[] actions = actionsPath is null ? [] : JsonSerializer.Deserialize<PlayerAction[]>(File.ReadAllText(actionsPath), JsonOptions) ?? throw new InvalidDataException("Missing ordinary action array.");
+        PlayerAction[] actions = actionsPath is null ? [] : ReadActions(File.ReadAllText(actionsPath));
         if (worldPathFile is not null)
         {
             worldPath = JsonSerializer.Deserialize<int[][]>(File.ReadAllText(worldPathFile)) ?? throw new InvalidDataException("Missing world guide path.");

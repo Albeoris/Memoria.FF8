@@ -129,7 +129,8 @@ public sealed class BattleResultFactTests
     public void NativeScriptItemRewardsShareTheAtomicOccurrenceReceipt()
     {
         (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
-        fact = fact with { ScriptedItems = [new BattleStock(178, 1)], PersistentAiVariablesBefore = new uint[8], PersistentAiVariablesAfter = [0, 0, 0, 0, 2, 0, 0, 0] };
+        fact = fact with { ScriptedItems = [new BattleStock(178, 1)], NativeRewardItems = [new BattleStock(178, 1)], PersistentAiVariablesBefore = new uint[8], PersistentAiVariablesAfter = [0, 0, 0, 0, 2, 0, 0, 0] };
+        Assert.Throws<InvalidDataException>(() => (fact with { NativeRewardItems = null }).Validate());
         GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, BattleVariables = NativeBattleVariableState.CreateNewGame() });
         session.SetPendingBattleEncounter(fact.Encounter);
         using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);

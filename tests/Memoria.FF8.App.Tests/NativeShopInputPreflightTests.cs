@@ -23,6 +23,8 @@ public sealed class NativeShopInputPreflightTests
 
         Assert.Throws<ArgumentException>(() => events.Apply(new PlayerAction(PlayerActionKind.BuyShopItem, itemId, Quantity: quantity)));
 
+        Assert.Throws<ArgumentException>(() => events.Apply(new PlayerAction(PlayerActionKind.SellShopItem, itemId, Quantity: quantity)));
+
         Assert.Same(originalState, session.State);
         Assert.True(JsonElement.DeepEquals(before, JsonSerializer.SerializeToElement(session.State)));
     }

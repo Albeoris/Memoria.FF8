@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     private readonly List<BattleEnemyDefeat> enemyDefeats = [];
+    private readonly List<BattleStock> nativeRewardItems = [];
+    public IReadOnlyList<BattleStock> NativeRewardItems => nativeRewardItems.AsReadOnly();
     public IReadOnlyList<BattleEnemyDefeat> EnemyDefeats => enemyDefeats.AsReadOnly();
 
     private void ObserveEnemyDefeat(BattleCombatant? actor, BattleCombatant target)
@@ -33,8 +35,13 @@ public sealed partial class BattleSession
             guardianForce = checked((byte)(action!.NativeAction is { } native ? native.ActionId - 64 : action.ActionId));
         }
         // Native494410 grants card486750, then drop486650 before accruing EXP/AP494AF0.
-        bool card = rewards.SelectCard(checked((byte)NextRandomByte()));
-        sbyte selection = (target.NativeCombatantFlags & 0x800) != 0 ? (sbyte)-1 : rewards.SelectDrop(checked((byte)NextRandomByte())) ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
+        //Both chance rolls precede their bank-capacity checks. A full item bank suppresses only the rarity roll; stolen800 suppresses both item rolls.
+        bool card = rewards.SelectCard(checked((byte)NextRandomByte())) && enemyDefeats.Count(defeat => defeat.CardSelected) < 8;
+        sbyte selection = (target.NativeCombatantFlags & 0x800) != 0 ? (sbyte)-1 : rewards.SelectDrop(checked((byte)NextRandomByte())) && nativeRewardItems.Count < 24 ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
+        if (selection >= 0)
+        {
+            nativeRewardItems.Add(rewards.Drop(target.Level, selection));
+        }
         BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection) { AllocationId = target.Id, NativeCommand = nativeCommand };
         fact.Validate();
         if (guardianForce is byte id)

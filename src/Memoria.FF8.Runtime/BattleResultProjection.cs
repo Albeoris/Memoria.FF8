@@ -128,20 +128,7 @@ public static partial class BattleResultProjection
         {
             experience = NativeBattleRewardDistribution.Experience(result.EnemyDefeats, vitals, currentEnemyRewards, noExperience);
             vitals = vitals.AwardBattleExperience(experience.Characters, experience.GuardianForces, experienceDefinition);
-            loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards);
-            List<BattleStock> granted = [.. loot.ItemsGranted];
-            foreach (BattleStock reward in result.ScriptedItems)
-            {
-                int before = loot.Economy.Items.FirstOrDefault(item => item.ItemId == reward.Id)?.Count ?? 0;
-                NativeEconomy next = loot.Economy.AddItem(reward.Id, reward.Count, out _);
-                int after = next.Items.FirstOrDefault(item => item.ItemId == reward.Id)?.Count ?? 0;
-                if (after > before)
-                {
-                    granted.Add(new BattleStock(reward.Id, after - before));
-                }
-                loot = loot with { Economy = next };
-            }
-            loot = loot with { ItemsGranted = granted.GroupBy(item => item.Id).Select(items => new BattleStock(items.Key, items.Sum(item => item.Count))).ToArray() };
+            loot = NativeBattleRewardDistribution.Loot(result.EnemyDefeats, currentEnemyRewards, loot.Economy, loot.Cards, result.NativeRewardItems);
             List<byte> grantedCards = [.. loot.CardsGranted];
             foreach (byte id in result.NativeScriptEffects.Cards)
             {

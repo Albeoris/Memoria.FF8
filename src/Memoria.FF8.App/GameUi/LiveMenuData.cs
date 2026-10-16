@@ -28,8 +28,12 @@ public static class LiveMenuData
             result.Currency = checked((int)economy.Gil);
             foreach (NativeItemStock item in economy.Items.Where(item => item.ItemId != 0 && item.Count != 0))
             {
-                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Name = catalog?.ItemName(item.ItemId) ?? $"Item {item.ItemId}", Quantity = item.Count, Description = catalog?.ItemDescription(item.ItemId) ?? "Item effect unavailable; using, discarding and refining are unsupported." });
+                result.Items.Add(new MenuItem { Id = $"item-{item.ItemId}", Name = catalog?.ItemName(item.ItemId) ?? $"Item {item.ItemId}", Quantity = item.Count, NativeMagazinePages = state.Scene is SceneKind.Field or SceneKind.WorldMap ? catalog?.MagazinePages(item.ItemId) ?? [] : [], Description = catalog?.ItemDescription(item.ItemId) ?? "Item effect unavailable; using, discarding and refining are unsupported.", NativeFieldUseSupported = state.Scene is SceneKind.Field or SceneKind.WorldMap && catalog?.FieldItem(item.ItemId) is { } definition && (definition.SupportsCharacterUse || definition.SupportsGuardianForceUse || definition.SupportsBlueMagicUse && state.LimitProgress is not null), NativeFieldTargetsGuardianForce = catalog?.FieldItem(item.ItemId)?.SupportsGuardianForceUse == true, NativeFieldQuistisOnly = catalog?.FieldItem(item.ItemId)?.SupportsBlueMagicUse == true, NativeFieldForgetsAbility = catalog?.FieldItem(item.ItemId)?.Type == 18 });
             }
+        }
+        if (state.Scene is SceneKind.Field or SceneKind.WorldMap && state.CharacterVitals is not null && result.Items.Any(item => item.NativeFieldUseSupported))
+        {
+            result.SupportedActions.Add("item-use");
         }
         if (state.SeeD is { SalaryUiEnabled: true } seeD)
         {
@@ -52,6 +56,7 @@ public static class LiveMenuData
                 }
                 MenuCharacter character = new()
                 {
+                    NativeFieldItemTargetAllowed = (native.MemberFlags & 1) != 0 && (!vitals.DreamEnabled || inParty),
                     Id = $"character-{row}",
                     NativeId = native.CharacterId,
                     Name = CharacterName(state, native.CharacterId, names, catalog),
@@ -227,20 +232,22 @@ public static class LiveMenuData
 }
 
 /// <summary>Original text metadata only. No font, texture or rendered original menu asset is loaded.</summary>
-public sealed class LiveMenuCatalog
+public sealed partial class LiveMenuCatalog
 {
     private readonly KernelData kernel;
     private readonly string[] guardianForceNames;
     private readonly string?[] abilityNames;
     private readonly string[] cardNames;
     private readonly string[] cardDescriptions;
+    private readonly byte[] fieldItems;
 
-    private LiveMenuCatalog(KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions)
+    private LiveMenuCatalog(KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems)
     {
         this.kernel = kernel;
         this.guardianForceNames = guardianForceNames;
         this.cardNames = cardNames;
         this.cardDescriptions = cardDescriptions;
+        this.fieldItems = fieldItems;
         abilityNames = [.. kernel.JunctionAbilities.Select(ability => ability.Name), .. kernel.CommandAbilities.Select(ability => ability.Name), .. kernel.CharacterStatAbilities.Select(ability => ability.Name), .. kernel.CharacterAbilities.Select(ability => ability.Name), .. kernel.PartyAbilities.Select(ability => ability.Name), .. kernel.GuardianAbilities.Select(ability => ability.Name), .. kernel.MenuAbilities.Select(ability => ability.Name)];
     }
 
@@ -295,8 +302,17 @@ public sealed class LiveMenuCatalog
             string name = description[..end];
             return name.EndsWith(" Card", StringComparison.Ordinal) ? name[..^5] : name;
         }).ToArray();
-        return new LiveMenuCatalog(kernel, guardianForceNames, cardNames, cardDescriptions);
+        byte[] fieldItems = ReadMenu("mitem.bin");
+        if (fieldItems.Length % 4 != 0)
+        {
+            throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
+        }
+        LiveMenuCatalog catalog = new(kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems);
+        catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions());
+        return catalog;
     }
+
+    public NativeFieldItem? FieldItem(int id) => id > 0 && id < fieldItems.Length / 4 ? new NativeFieldItem(fieldItems[id * 4], fieldItems[id * 4 + 1], fieldItems[id * 4 + 2], fieldItems[id * 4 + 3]) : null;
 
     public string? CharacterName(int id) => (uint)id < kernel.Characters.Count ? kernel.Characters[id].Name : null;
     public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? guardianForceNames[id] : null;

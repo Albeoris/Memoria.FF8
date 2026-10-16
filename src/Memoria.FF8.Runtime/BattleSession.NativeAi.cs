@@ -323,6 +323,15 @@ public sealed partial class BattleSession
                         break;
                     case 56:
                         int item = ReadAiByte(code, ref pc);
+                        if (nativeRewardItems.Count >= 24)
+                        {
+                            throw new NotSupportedException("Native AI item reward exceeds the twenty-four-pair reward bank and would overwrite adjacent native globals.");
+                        }
+                        nativeRewardItems.Add(new BattleStock(item, 1));
+                        if (item == 0)
+                        {
+                            break;
+                        }
                         int stock = scriptedRewards.FindIndex(reward => reward.Id == item);
                         if (stock < 0)
                         {

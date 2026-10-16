@@ -209,13 +209,14 @@ public interface IEventServices
     }
     NativeExamTimerState? ExamTimer => null;
     NativeCharacterVitals? CharacterVitals => null;
+    NativeLimitProgress? LimitProgress => null;
     NativeCharacterAppearance? CharacterAppearance => null;
     NativeCardInventory? CardInventory => null;
     NativeEconomy? Economy => null;
     NativeShotAvailabilityState? ShotAvailability => null;
     NativeFieldLocation? NativeFieldLocation => null;
     bool CanStoreNativePartyMenuOwners => false;
-    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null)
+    void SetNativePartyMenuOwners(NativeCharacterVitals characterVitals, NativeEconomy economy, NativeShotAvailabilityState shots, NativeSalaryPresentation salaryPresentation, NativeExamTimerState? timer = null, NativeFieldLocation? fieldLocation = null, NativeVibrationProcessState? vibrationProcess = null, NativeWorldProcess? worldProcess = null, NativeFieldFadeState? fieldFade = null, NativeShopHistory? shopHistory = null, NativeMenuRandomState? menuRandom = null, NativeWeaponRecipes? weaponRecipes = null, NativeCardInventory? cardInventory = null, NativeLimitProgress? limitProgress = null)
     {
         throw new NotSupportedException("Atomic party menu entry ownership is not implemented by this event service.");
     }

@@ -7,6 +7,8 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeLimitProgress([property: JsonRequired] string InitOutSha256, [property: JsonRequired] ushort BlueMagicFlags, [property: JsonRequired] ushort DuelFlags, [property: JsonRequired] byte AngeloFlags, [property: JsonRequired] byte TrainingSelection, [property: JsonRequired] ImmutableArray<byte> TrainingCounters)
 {
     public byte? SpecialMagicFlags { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? PetPalsFlags { get; init; }
     public ushort? Options978 { get; init; }
 
     public void Validate()

@@ -19,6 +19,8 @@ public sealed record NativeEconomy
     public required string InitOutSha256 { get; init; }
     [JsonRequired]
     public required NativeItemStock[] Items { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? ItemOrder { get; init; }
     [JsonRequired]
     public required uint Gil { get; init; }
     [JsonRequired]
@@ -34,12 +36,54 @@ public sealed record NativeEconomy
         {
             throw new InvalidDataException("Native economy requires complete current saved pairs and its executed initialization provenance.");
         }
+        if (ItemOrder is { } order && (order.Length != 32 || order.Any(rank => rank >= 32) || order.Distinct().Count() != 32))
+        {
+            throw new InvalidDataException("Native battle-item order requires its complete saved thirty-two-rank permutation.");
+        }
     }
 
     public NativeEconomy DeepCopy()
     {
         Validate();
-        return this with { Items = Items.ToArray() };
+        return this with { Items = Items.ToArray(), ItemOrder = ItemOrder?.ToArray() };
+    }
+
+    /// <summary>4AD0C0 assigns an unowned battle item the first unused saved display rank.</summary>
+    public NativeEconomy UpdateItemOrder(int itemId)
+    {
+        Validate();
+        if (itemId >= 33)
+        {
+            return this;
+        }
+        if (itemId <= 0)
+        {
+            throw new NotSupportedException("Native battle-item ordering would address outside its retained item1..32 permutation.");
+        }
+        //The original scan returns on an owned matching row, discarding every prior mask read.
+        if (Items.Any(item => item.ItemId == itemId && item.Count != 0))
+        {
+            return this;
+        }
+        byte[] order = ItemOrder?.ToArray() ?? throw new NotSupportedException("Native battle-item ordering requires its actual saved permutation; migrate this save explicitly before a reached order write.");
+        uint used = 0;
+        foreach (NativeItemStock item in Items)
+        {
+            if (item.Count == 0 || item.ItemId == 0 || item.ItemId is >= 33 and < 128)
+            {
+                continue;
+            }
+            if (item.ItemId >= 128)
+            {
+                //4AD0DA sign-extends IDs; those mask reads precede1CFE77C and require separate saved owners.
+                throw new NotSupportedException("Native battle-item ordering reached a signed inventory ID whose mask source lies before the retained permutation.");
+            }
+            used |= 1u << order[item.ItemId - 1];
+        }
+        int rank = Enumerable.Range(0, 32).First(candidate => (used & 1u << candidate) == 0);
+        int displaced = Array.IndexOf(order, (byte)rank);
+        (order[itemId - 1], order[displaced]) = (order[displaced], order[itemId - 1]);
+        return this with { ItemOrder = order };
     }
 
     public NativeEconomy AddItem(int itemId, int quantity, out int nativeResult)

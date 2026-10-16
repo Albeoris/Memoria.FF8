@@ -96,4 +96,22 @@ public sealed class NativeBattleRewardDistributionTests
     {
         return new BattleEnemyRewardDefinition(10, 20, 20, 30, 0, false, 255, Enumerable.Repeat(new BattleStock(1, 5), 12).ToImmutableArray());
     }
+
+    [Fact]
+    public void SharedNativeRewardBankMergesBeforeInventoryClampAndStopsAtZeroSentinel()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        economy.Items[0] = new NativeItemStock(1, 0);
+        BattleLootOwners merged = NativeBattleRewardDistribution.Loot([], new Dictionary<int, BattleEnemyRewardDefinition>(), economy, null, [new BattleStock(1, 150), new BattleStock(1, 150)]);
+        Assert.Equal(44, merged.Economy.Items[0].Count);
+        Assert.Equal(new BattleStock(1, 44), Assert.Single(merged.ItemsGranted));
+        BattleLootOwners sentinel = NativeBattleRewardDistribution.Loot([], new Dictionary<int, BattleEnemyRewardDefinition>(), economy, null, [new BattleStock(1, 2), new BattleStock(0, 1), new BattleStock(7, 2)]);
+        Assert.Equal(2, sentinel.Economy.Items[0].Count);
+        Assert.Equal(economy.Items[1], sentinel.Economy.Items[1]);
+        Assert.Throws<InvalidDataException>(() => NativeBattleRewardDistribution.ValidateItemBank(Enumerable.Repeat(new BattleStock(1, 1), 25).ToArray()));
+        BattleEnemyDefeat[] cards = Enumerable.Range(0, 9).Select(index => new BattleEnemyDefeat(0, 8, BattleDefeatCredit.Unattributed, null, null, true, -1) { AllocationId = $"reward-{index}" }).ToArray();
+        BattleLootOwners cappedCards = NativeBattleRewardDistribution.Loot(cards, new Dictionary<int, BattleEnemyRewardDefinition> { [0] = Definition() }, economy, NativeCardInventory.CreateNewGame());
+        Assert.Equal(8, cappedCards.CardsGranted.Length);
+    }
 }

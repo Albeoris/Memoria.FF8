@@ -11,24 +11,46 @@ public sealed partial record NativeCharacterVitals
             throw new NotSupportedException("Native weapon preview requires a retained physical character row.");
         }
         byte priorWeapon = Records[physicalRow].Weapon;
-        byte[] priorParty = CombatParty.ToArray();
         NativeCharacterVital[] records = Records.ToArray();
         records[physicalRow] = records[physicalRow] with { Weapon = weapon };
-        NativeCharacterVitals temporary = (this with { Records = records, CombatParty = [(byte)physicalRow, 255, 255] }).RebuildParty();
-        NativeCharacterVital row = temporary.Records[physicalRow];
-        ushort maximum = temporary.Definitions.CharacterMaximum(row);
-        ushort status = WeaponPreviewStatus(row.Status, row.HitPoints, maximum);
-        records = temporary.Records.ToArray();
-        records[physicalRow] = row with { Status = status };
-        //4BFC90 restores the combat references and rebuilds while the temporary
-        //weapon is still equipped. Its caller restores the weapon afterward.
-        NativeCharacterVitals restored = (temporary with { Records = records, CombatParty = priorParty }).RebuildParty();
+        NativeCharacterVitals restored = (this with { Records = records }).RebuildMenuRow(physicalRow);
         records = restored.Records.ToArray();
         records[physicalRow] = records[physicalRow] with { Weapon = priorWeapon };
         return (restored with { Records = records }).DeepCopy();
     }
 
-    private static ushort WeaponPreviewStatus(ushort prior, NativeHpWord hitPoints, ushort maximum)
+    /// <summary>4BFCF0 and4BFC90 share4BFB40: rebuild the selected physical row, write status, restore party and rebuild it.</summary>
+    public NativeCharacterVitals RebuildMenuRow(int physicalRow)
+    {
+        Validate();
+        if ((uint)physicalRow >= Records.Length)
+        {
+            throw new NotSupportedException("Native menu rebuild requires a retained physical character row.");
+        }
+        byte[] priorParty = CombatParty.ToArray();
+        NativeCharacterVitals temporary = (this with { CombatParty = [(byte)physicalRow, 255, 255] }).RebuildParty();
+        NativeCharacterVital row = temporary.Records[physicalRow];
+        ushort maximum = temporary.Definitions.CharacterMaximum(row);
+        NativeCharacterVital[] records = temporary.Records.ToArray();
+        records[physicalRow] = row with { Status = MenuRowStatus(row.Status, row.HitPoints, maximum) };
+        return (temporary with { Records = records, CombatParty = priorParty }).RebuildParty();
+    }
+
+    /// <summary>4BE790 normalizes all32 stocks and clears all20 junction bytes whose spell is absent, before4BFCF0.</summary>
+    public NativeCharacterVitals RebuildMagicMenuRow(int physicalRow)
+    {
+        Validate();
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)physicalRow, (uint)Records.Length);
+        NativeCharacterVital[] records = Records.ToArray();
+        NativeCharacterVital row = records[physicalRow];
+        NativeMagicStock[] magic = row.MagicInventory.Select(stock => stock.SpellId == 0 || stock.Count == 0 ? new NativeMagicStock(0, 0) : stock).ToArray();
+        HashSet<byte> present = magic.Where(stock => stock.SpellId != 0).Select(stock => stock.SpellId).ToHashSet();
+        byte[] junctions = row.Junction.MagicJunctions.Select(spell => present.Contains(spell) ? spell : (byte)0).ToArray();
+        records[physicalRow] = row with { MagicInventory = magic, Junction = row.Junction with { MagicJunctions = junctions } };
+        return (this with { Records = records }).RebuildMenuRow(physicalRow);
+    }
+
+    private static ushort MenuRowStatus(ushort prior, NativeHpWord hitPoints, ushort maximum)
     {
         int signedMaximum = unchecked((short)maximum);
         ushort Evaluate(ushort word)
@@ -56,7 +78,7 @@ public sealed partial record NativeCharacterVitals
             ushort word = unchecked((ushort)boundary);
             if (word >= hitPoints.Minimum && word <= hitPoints.Maximum && Evaluate(word) != result)
             {
-                throw new NotSupportedException("Native weapon preview has an unresolved HP interval spanning distinct saved status writes.");
+                throw new NotSupportedException("Native menu row has an unresolved HP interval spanning distinct saved status writes.");
             }
         }
         return result;

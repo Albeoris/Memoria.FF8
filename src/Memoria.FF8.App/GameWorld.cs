@@ -83,6 +83,8 @@ internal sealed partial class GameWorld : IDisposable
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session);
+        Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
+        Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
         Events.OperationCompleted += ObservePendingBattle;
@@ -109,6 +111,8 @@ internal sealed partial class GameWorld : IDisposable
         Events.ReadNativeVibrationBank = assets.ReadNativeVibrationBank;
         Events.ResolveNativeShopDefinitions = assets.ReadNativeShopDefinitions;
         Events.ResolveNativeWeaponShopDefinitions = assets.ReadNativeWeaponShopDefinitions;
+        Events.ResolveNativeMagazinePage = (itemId, pageId) => FieldItemCatalog.MagazinePage(itemId, pageId);
+        Events.ResolveNativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions;
         Events.ReadNativeDrawPointCatalog = assets.ReadNativeDrawPointCatalog;
         Events.ReadSteamDiscMount = selectedDisc => NativeSteamDiscMountReader.Read(assets.GameDirectory, selectedDisc);
     }
@@ -259,6 +263,9 @@ internal sealed partial class GameWorld : IDisposable
         NativeExamTimerState? sceneTimer = restoreDeparting ? session.State.ExamTimer : null;
         NativeSeeDState? sceneSeeD = restoreDeparting ? session.SeeD : null;
         NativeEconomy? sceneEconomy = restoreDeparting ? session.Economy : null;
+        NativeCharacterVitals? sceneVitals = restoreDeparting ? session.State.CharacterVitals : null;
+        NativeCardInventory? sceneCards = restoreDeparting ? session.State.CardInventory : null;
+        NativeLimitProgress? sceneLimits = restoreDeparting ? session.State.LimitProgress : null;
         NativeGlobalSoundProcess? sceneSoundProcess = restoreDeparting ? session.GlobalSoundProcess : null;
         NativeSalaryPresentation? sceneSalaryPresentation = restoreDeparting ? session.SalaryPresentation : null;
         NativeEventRandomState? sceneEventRandom = restoreDeparting ? session.EventRandom : null;
@@ -293,6 +300,18 @@ internal sealed partial class GameWorld : IDisposable
             if (sceneEconomy is not null)
             {
                 session.SetEconomy(sceneEconomy);
+            }
+            if (sceneVitals is not null)
+            {
+                session.SetCharacterVitals(sceneVitals);
+            }
+            if (sceneCards is not null)
+            {
+                session.SetCardInventory(sceneCards);
+            }
+            if (sceneLimits is not null)
+            {
+                session.SetLimitProgress(sceneLimits);
             }
             if (sceneSoundProcess is not null)
             {
@@ -379,7 +398,7 @@ internal sealed partial class GameWorld : IDisposable
         EnsureField();
         if (session.State.Scene == SceneKind.WorldMap)
         {
-            PlayerActionResult worldResult = worldScene!.Apply(action);
+            PlayerActionResult worldResult = action.Kind == PlayerActionKind.UseFieldItem ? worldScene!.UseFieldItem(action, FieldItemCatalog.FieldItem(action.Value) ?? throw new NotSupportedException("World item use requires original installed metadata."), assets.ReadFieldItemStatRules) : action.Kind == PlayerActionKind.RefineItems ? worldScene!.RefineItems(action, assets.ReadNativeRefinementDefinitions()) : worldScene!.Apply(action);
             ObservePendingBattle();
             if (Field is not null)
             {

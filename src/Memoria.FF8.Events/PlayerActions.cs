@@ -22,7 +22,13 @@ public enum PlayerActionKind
     SetJunctionAbility,
     SelectGuardianForceLearning,
     SetJunctionMagic,
-    WorldButtons
+    WorldButtons,
+    SelectWeaponShopCharacter,
+    RemodelWeapon,
+    SellShopItem,
+    RefineItems,
+    UseFieldItem,
+    ReadMagazinePage
 }
 
 public enum PlayerTriggerKind
@@ -97,6 +103,33 @@ public sealed partial class EventEngine
                 accepted = false;
                 detail = "The interactive battle suspends ordinary field input until its outcome returns.";
             }
+            else if (action.Kind == PlayerActionKind.RefineItems)
+            {
+                bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+                accepted = ApplyRefinementAction(action);
+                if (accepted && menuCallback)
+                {
+                    advanced = 1;
+                }
+            }
+            else if (action.Kind == PlayerActionKind.ReadMagazinePage)
+            {
+                bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+                accepted = ReadMagazinePage(action);
+                if (accepted && menuCallback)
+                {
+                    advanced = 1;
+                }
+            }
+            else if (action.Kind == PlayerActionKind.UseFieldItem)
+            {
+                bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+                accepted = ApplyFieldItemAction(action);
+                if (accepted && menuCallback)
+                {
+                    advanced = 1;
+                }
+            }
             else if (NativeJunctionMenuInput.IsMenuAction(action.Kind))
             {
                 bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
@@ -113,6 +146,9 @@ public sealed partial class EventEngine
                     PlayerActionKind.SelectPartySlot => SelectPartyMenuSlot(action.Value),
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
                     PlayerActionKind.BuyShopItem => action.Quantity is int quantity && BuyNativeShopItem(action.Value, quantity),
+                    PlayerActionKind.SellShopItem => action.Quantity is int saleQuantity && SellNativeShopItem(action.Value, saleQuantity),
+                    PlayerActionKind.SelectWeaponShopCharacter => SelectNativeWeaponShopCharacter(action.Value),
+                    PlayerActionKind.RemodelWeapon => RemodelNativeWeapon(action.Value),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
                     PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), NativeFieldMenuKind.PartySelection or NativeFieldMenuKind.GuestSelection => CancelPartyMenuSelection(), _ => CloseNormalMenu() },
                     PlayerActionKind.Wait => true,
@@ -149,6 +185,7 @@ public sealed partial class EventEngine
                     case PlayerActionKind.SelectPartySlot:
                     case PlayerActionKind.SelectPartyMember:
                     case PlayerActionKind.BuyShopItem:
+                    case PlayerActionKind.SellShopItem:
                         accepted = false;
                         break;
                     case PlayerActionKind.FieldButtons:

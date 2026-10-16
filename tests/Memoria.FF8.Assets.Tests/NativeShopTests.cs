@@ -164,6 +164,33 @@ public sealed class NativeShopTests
         Assert.Throws<InvalidDataException>(() => (vitals with { GuardianForces = rows }).ShopAbilityMask());
     }
 
+    [Fact]
+    public void SaleChangesOnlyTheLocalCacheAndClampsGilUntilExplicitCommit()
+    {
+        using GameAssets assets = new(GameDirectory);
+        NativeEconomy original = assets.ReadNewGameEconomy().DeepCopy();
+        original.Items[0] = new NativeItemStock(191, 3);
+        NativeShopTransaction shop = Open(assets, original) with { AbilityMask = 2 };
+        Assert.Same(shop, shop.Sell(191, 4, out bool accepted));
+        Assert.False(accepted);
+        Assert.Same(shop, shop.Sell(-1, 1, out accepted));
+        Assert.False(accepted);
+        NativeShopTransaction sold = shop.Sell(191, 2, out accepted);
+        Assert.True(accepted);
+        Assert.Equal(5600u, sold.Gil);
+        Assert.Equal(1, sold.Counts[191]);
+        Assert.Equal(new NativeItemStock(191, 3), original.Items[0]);
+        Assert.Equal(5000u, original.Gil);
+        NativeShopTransaction restored = JsonSerializer.Deserialize<NativeShopTransaction>(JsonSerializer.Serialize(sold))!;
+        NativeEconomy committed = restored.Commit(original);
+        Assert.Equal(new NativeItemStock(191, 1), committed.Items[0]);
+        Assert.Equal(5600u, committed.Gil);
+        Assert.Equal(original.EventBankGil72, committed.EventBankGil72);
+        NativeShopTransaction capped = (shop with { Gil = NativeEconomy.GilCeiling - 1 }).Sell(191, 1, out accepted);
+        Assert.True(accepted);
+        Assert.Equal(NativeEconomy.GilCeiling, capped.Gil);
+    }
+
     private static NativeShopTransaction Open(GameAssets assets, NativeEconomy economy)
     {
         NativeShopDefinitions definitions = assets.ReadNativeShopDefinitions();

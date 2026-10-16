@@ -41,6 +41,34 @@ public sealed partial class EventEngine
         return true;
     }
 
+    private bool SelectNativeWeaponShopCharacter(int character)
+    {
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.WeaponShop, WeaponShop: not null } current || (uint)character >= 6 || (current.WeaponShop.EligibleMask & 1 << character) == 0)
+        {
+            return false;
+        }
+        var selected = current.WeaponShop.SelectCharacter(character, services.WeaponRecipes!);
+        PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, weaponRecipes: selected.Recipes);
+        partyMenu = current with { WeaponShop = selected.Shop, Callbacks = checked(current.Callbacks + 1) };
+        return true;
+    }
+
+    private bool RemodelNativeWeapon(int recipeId)
+    {
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.WeaponShop, WeaponShop: not null } current)
+        {
+            return false;
+        }
+        var remodeled = current.WeaponShop.Remodel(recipeId, services.CharacterVitals!, services.WeaponRecipes!, out bool accepted);
+        if (!accepted)
+        {
+            return false;
+        }
+        PublishPartyMenuCallback(remodeled.Vitals, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, weaponRecipes: remodeled.Recipes);
+        partyMenu = current with { WeaponShop = remodeled.Shop, Callbacks = checked(current.Callbacks + 1) };
+        return true;
+    }
+
     private void ValidateNativeWeaponShopCheckpoint(Checkpoint saved, NativePartyMenuState menu)
     {
         if (menu.ShopRawArgument is not int raw || menu.NativeEntrySelection != unchecked((byte)raw) || menu.Shop is not null || menu.TemporaryCombatParty is not null || menu.EligibleMask != 0 || menu.LockedMask != 0 || menu.ForcedFieldMask != 0 || saved.WeaponRecipes is null || saved.Economy is null || saved.CharacterVitals is null)

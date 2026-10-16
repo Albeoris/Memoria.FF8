@@ -1,0 +1,60 @@
+using System.Globalization;
+using Memoria.FF8.Events;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.GameUi;
+
+public static class NativeRefinementMenuProjection
+{
+    public static void Augment(MenuData data, GameState state, NativeRefinementDefinitions definitions, LiveMenuCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        if (state.CharacterVitals is not { } vitals || state.Economy is not { } economy)
+        {
+            return;
+        }
+        foreach (int abilityId in definitions.LearnedAbilities(vitals))
+        {
+            NativeRefinementAbility ability = definitions.Abilities[abilityId - 92];
+            for (int index = ability.First; index <= ability.Last; index++)
+            {
+                NativeRefinementRecipe recipe = definitions.Recipe(abilityId, index);
+                bool magicOutput = ability.Kind is 0 or 2;
+                string ingredientName = ability.Kind == 4 ? catalog.CardName(recipe.Ingredient) ?? $"Card {recipe.Ingredient}" : ability.Kind == 2 ? catalog.MagicName(recipe.Ingredient) ?? $"Magic {recipe.Ingredient}" : catalog.ItemName(recipe.Ingredient) ?? $"Item {recipe.Ingredient}";
+                string resultName = magicOutput ? catalog.MagicName(recipe.Output) ?? $"Magic {recipe.Output}" : catalog.ItemName(recipe.Output) ?? $"Item {recipe.Output}";
+                Dictionary<int, int> maxima = (magicOutput ? Enumerable.Range(0, 8) : [0]).ToDictionary(row => row, row => definitions.MaximumBatches(vitals, economy, state.CardInventory, abilityId, index, row));
+                data.Recipes.Add(new MenuRecipe($"native-refine-{abilityId}-{index}", ability.Name, $"{(ability.Kind == 4 ? "card" : ability.Kind == 2 ? "magic" : "item")}-{recipe.Ingredient}", recipe.IngredientCount, $"{(magicOutput ? "magic" : "item")}-{recipe.Output}", resultName, recipe.OutputCount) { NativeAbility = abilityId, NativeRecipeIndex = index, NativeKind = ability.Kind, IngredientName = ingredientName, MaximumBatches = maxima });
+            }
+        }
+        if (data.Recipes.Count > 0)
+        {
+            data.SupportedActions.Add("native-refine");
+        }
+    }
+
+    public static IReadOnlyList<MenuEntry> Quantities(MenuController controller)
+    {
+        if (controller.Recipe is not { NativeAbility: int ability, NativeRecipeIndex: int index } recipe)
+        {
+            return [];
+        }
+        int row = 0;
+        if (recipe.NativeKind is 0 or 2)
+        {
+            string id = controller.Character?.Id ?? "";
+            row = id.StartsWith("character-", StringComparison.Ordinal) && int.TryParse(id.AsSpan(10), NumberStyles.None, CultureInfo.InvariantCulture, out int physicalRow) ? physicalRow : -1;
+        }
+        int maximum = Math.Min(100, recipe.MaximumBatches.GetValueOrDefault(row));
+        return new[] { 1, 5, 10, maximum }.Distinct().Where(quantity => quantity > 0).Select(quantity => new MenuEntry(quantity.ToString(CultureInfo.InvariantCulture), quantity == maximum ? $"All possible x{quantity}" : $"Refine x{quantity}", $"Consume {recipe.IngredientQuantity * quantity} {recipe.IngredientName}.", Action: new MenuAction("native-refine", $"{ability}:{index}", row.ToString(CultureInfo.InvariantCulture), quantity.ToString(CultureInfo.InvariantCulture)), Enabled: quantity <= maximum)).ToArray();
+    }
+
+    public static PlayerAction PlayerAction(MenuAction action)
+    {
+        string[] source = action.SubjectId.Split(':');
+        if (action.Kind != "native-refine" || source.Length != 2 || !int.TryParse(source[0], NumberStyles.None, CultureInfo.InvariantCulture, out int ability) || !int.TryParse(source[1], NumberStyles.None, CultureInfo.InvariantCulture, out int recipe) || !int.TryParse(action.TargetId, NumberStyles.None, CultureInfo.InvariantCulture, out int row) || !int.TryParse(action.Value, NumberStyles.None, CultureInfo.InvariantCulture, out int batches))
+        {
+            throw new ArgumentException("Refinement requires an explicit ability, recipe, recipient and batch count.", nameof(action));
+        }
+        return new PlayerAction(PlayerActionKind.RefineItems, ability, Text: $"{recipe}:{row}", Quantity: batches);
+    }
+}

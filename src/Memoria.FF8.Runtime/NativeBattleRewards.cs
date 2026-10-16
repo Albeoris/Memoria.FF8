@@ -73,14 +73,23 @@ public static class NativeBattleRewardDistribution
         return (NativeBattleEntryRules.MergeFlags(activeFlags, formationFlags) & 8) != 0;
     }
 
-    public static BattleLootOwners Loot(IReadOnlyList<BattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards)
+    public static void ValidateItemBank(IReadOnlyList<BattleStock> items)
+    {
+        if (items.Count > 24 || items.Any(item => item is null || item.Id is < 0 or > 255 || item.Count is < 0 or > 255))
+        {
+            throw new InvalidDataException("Native item reward bank requires at most twenty-four ordered BYTE pairs.");
+        }
+    }
+
+    public static BattleLootOwners Loot(IReadOnlyList<BattleEnemyDefeat> defeats, IReadOnlyDictionary<int, BattleEnemyRewardDefinition> definitions, NativeEconomy economy, NativeCardInventory? cards, IReadOnlyList<BattleStock>? orderedItems = null)
     {
         NativeEconomy nextEconomy = economy.DeepCopy();
         NativeCardInventory? nextCards = cards?.DeepCopy();
         List<BattleStock> gathered = [];
-        foreach (BattleEnemyDefeat defeat in defeats.Where(defeat => defeat.DropSelection >= 0))
+        IReadOnlyList<BattleStock> bank = orderedItems ?? defeats.Where(defeat => defeat.DropSelection >= 0).Take(24).Select(defeat => definitions[defeat.Slot].Drop(defeat.Level, defeat.DropSelection)).ToArray();
+        ValidateItemBank(bank);
+        foreach (BattleStock stock in bank)
         {
-            BattleStock stock = definitions[defeat.Slot].Drop(defeat.Level, defeat.DropSelection);
             // Original4A6680 stops at the first zero item in the native reward bank.
             if (stock.Id == 0)
             {
@@ -105,6 +114,7 @@ public static class NativeBattleRewardDistribution
         {
             int before = nextEconomy.Items.FirstOrDefault(stock => stock.ItemId == item.Id)?.Count ?? 0;
             nextEconomy = nextEconomy.AddItem(item.Id, item.Count, out _);
+            nextEconomy = nextEconomy.UpdateItemOrder(item.Id);
             int after = nextEconomy.Items.FirstOrDefault(stock => stock.ItemId == item.Id)?.Count ?? 0;
             if (after > before)
             {
@@ -112,7 +122,7 @@ public static class NativeBattleRewardDistribution
             }
         }
         List<byte> grantedCards = [];
-        foreach (BattleEnemyDefeat defeat in defeats.Where(defeat => defeat.CardSelected))
+        foreach (BattleEnemyDefeat defeat in defeats.Where(defeat => defeat.CardSelected).Take(8))
         {
             byte id = definitions[defeat.Slot].CardId;
             if (id == 255)

@@ -104,6 +104,74 @@ public sealed record NativeWeaponShopTransaction([property: JsonRequired] int Ra
         return true;
     }
 
+    /// <summary>4EA770 rebuilds the selected physical character's list and discovers affordable recipes.</summary>
+    public (NativeWeaponShopTransaction Shop, NativeWeaponRecipes Recipes) SelectCharacter(int character, NativeWeaponRecipes recipes)
+    {
+        Validate();
+        recipes.Validate();
+        if (recipes.InitOutSha256 != InitOutSha256)
+        {
+            throw new InvalidDataException("Weapon selection changed its saved recipe owner.");
+        }
+        if ((uint)character >= 6 || (EligibleMask & 1 << character) == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(character), "Weapon selection requires an admitted physical character.");
+        }
+        uint known = recipes.Bits;
+        ImmutableArray<byte>.Builder offers = ImmutableArray.CreateBuilder<byte>();
+        for (int weapon = 0; weapon < 28; weapon++)
+        {
+            NativeWeaponRecipe recipe = Definitions.Recipes[weapon];
+            if (recipe.Character != character)
+            {
+                continue;
+            }
+            uint bit = 1u << weapon;
+            byte flags = (known & bit) != 0 ? (byte)0x40 : (byte)0;
+            if (CanRemodel(recipe, Counts, Gil))
+            {
+                known |= bit;
+                flags |= 0x80;
+            }
+            if (flags != 0)
+            {
+                offers.Add((byte)(flags | weapon));
+            }
+        }
+        return (this with { SelectedCharacter = character, AvailableRecipes = offers.ToImmutable() }, recipes with { Bits = known });
+    }
+
+    /// <summary>4EAE46/68/8D debit local gil/materials and immediately equip the selected recipe.</summary>
+    public (NativeWeaponShopTransaction Shop, NativeCharacterVitals Vitals, NativeWeaponRecipes Recipes) Remodel(int recipeId, NativeCharacterVitals vitals, NativeWeaponRecipes recipes, out bool accepted)
+    {
+        Validate();
+        vitals.Validate();
+        recipes.Validate();
+        if (vitals.InitOutSha256 != InitOutSha256 || vitals.KernelSha256 != Definitions.KernelHash || vitals.DreamEnabled != Past || recipes.InitOutSha256 != InitOutSha256)
+        {
+            throw new InvalidDataException("Weapon remodeling changed its actual saved inputs.");
+        }
+        accepted = false;
+        if ((uint)recipeId >= 28 || Past || Definitions.Recipes[recipeId].Character != SelectedCharacter || vitals.Records[SelectedCharacter].Weapon == recipeId || !AvailableRecipes.Any(offer => (offer & 0x3F) == recipeId && (offer & 0x80) != 0) || !CanRemodel(Definitions.Recipes[recipeId], Counts, Gil))
+        {
+            return (this, vitals, recipes);
+        }
+        ImmutableArray<byte>.Builder counts = Counts.ToBuilder();
+        foreach (NativeItemStock material in Definitions.Recipes[recipeId].Materials)
+        {
+            if (material.ItemId != 0)
+            {
+                counts[material.ItemId] = unchecked((byte)(counts[material.ItemId] - material.Count));
+            }
+        }
+        NativeCharacterVitals equipped = vitals.DeepCopy();
+        equipped.Records[SelectedCharacter] = equipped.Records[SelectedCharacter] with { Weapon = (byte)recipeId };
+        NativeWeaponShopTransaction charged = this with { Counts = counts.ToImmutable(), Gil = Gil - Price(recipeId) };
+        var refreshed = charged.SelectCharacter(SelectedCharacter, recipes);
+        accepted = true;
+        return (refreshed.Shop, equipped, refreshed.Recipes);
+    }
+
     public void Validate()
     {
         if (Definitions is null || InitOutSha256 is not { Length: 64 } || InitOutSha256.Any(value => !Uri.IsHexDigit(value)) || Counts.IsDefault || Counts.Length != 200 || AvailableRecipes.IsDefault || (EligibleMask & ~0x3F) != 0 || SelectedCharacter < -1 || SelectedCharacter >= 6 || (SelectedCharacter == -1) != (EligibleMask == 0) || SelectedCharacter >= 0 && (EligibleMask & 1 << SelectedCharacter) == 0 || RemodelRate is not (750 or 1000))

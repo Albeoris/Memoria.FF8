@@ -33,6 +33,7 @@ public sealed class MenuData
 
 public sealed class MenuCharacter
 {
+    public bool NativeFieldItemTargetAllowed { get; set; }
     public string Id { get; set; } = "";
     public int? NativeId { get; set; }
     public string Name { get; set; } = "";
@@ -92,6 +93,11 @@ public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = fa
 
 public sealed class MenuItem
 {
+    public Memoria.FF8.Runtime.NativeMagazinePage[] NativeMagazinePages { get; set; } = [];
+    public bool NativeFieldUseSupported { get; set; }
+    public bool NativeFieldTargetsGuardianForce { get; set; }
+    public bool NativeFieldQuistisOnly { get; set; }
+    public bool NativeFieldForgetsAbility { get; set; }
     public string Id { get; set; } = "";
     public UiImageSource? Icon { get; set; }
     public string Name { get; set; } = "";
@@ -99,6 +105,7 @@ public sealed class MenuItem
     public string Description { get; set; } = "";
     public int DemoHealing { get; set; }
     public int? Price { get; set; }
+    public int? SalePrice { get; set; }
 }
 
 public sealed class MenuMagic
@@ -143,7 +150,14 @@ public sealed class MenuBattleRewards
     public List<MenuItem> Items { get; } = [];
 }
 
-public sealed record MenuRecipe(string Id, string Ability, string IngredientId, int IngredientQuantity, string ResultId, string ResultName, int ResultQuantity);
+public sealed record MenuRecipe(string Id, string Ability, string IngredientId, int IngredientQuantity, string ResultId, string ResultName, int ResultQuantity)
+{
+    public int? NativeAbility { get; init; }
+    public int? NativeRecipeIndex { get; init; }
+    public byte? NativeKind { get; init; }
+    public string? IngredientName { get; init; }
+    public IReadOnlyDictionary<int, int> MaximumBatches { get; init; } = new Dictionary<int, int>();
+}
 
 public sealed class MenuSaveSlot
 {
