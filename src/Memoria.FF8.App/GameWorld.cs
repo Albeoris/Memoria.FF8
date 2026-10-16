@@ -100,6 +100,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         Events.MoviePlayback = () => clock.State;
         clock.AdvanceFrame = AdvanceMovieFrame;
+        Events.AdvanceMovieFrames = clock.AdvanceFrames;
         Events.ReadMovieCameraFlags = ReadNativeMovieCameraFlags;
         Events.MovieSkipRequested += clock.Skip;
         Events.LoadSoundResource = _ => SoundResourceStatus.Muted;

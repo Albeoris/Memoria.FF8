@@ -189,9 +189,9 @@ internal static class HeadlessPlayer
             issuedActions.Add(action);
             try
             {
-                if (session.State.Scene == SceneKind.Movie && action.Kind != PlayerActionKind.SkipMovie)
+                if (session.State.Scene == SceneKind.Movie && action.Kind is not (PlayerActionKind.SkipMovie or PlayerActionKind.Wait or PlayerActionKind.FieldButtons))
                 {
-                    throw new NotSupportedException("Movie playback requires the normal media host; an explicit ordinary SkipMovie action is available headlessly.");
+                    throw new NotSupportedException("Headless movie actions require SkipMovie, bounded Wait or raw FieldButtons.");
                 }
                 PlayerActionResult result = world.Apply(action);
                 results.Add(result);

@@ -151,7 +151,7 @@ public sealed partial class EventEngine
                         accepted = false;
                         break;
                     case PlayerActionKind.FieldButtons:
-                        accepted = program is not null && !services.IsMoviePlaying && !transitionRequested;
+                        accepted = program is not null && !transitionRequested;
                         if (accepted)
                         {
                             SetFieldButtons(action.Value);
@@ -268,6 +268,11 @@ public sealed partial class EventEngine
                         }
                         break;
                     case PlayerActionKind.Wait:
+                        if (services.IsMoviePlaying)
+                        {
+                            advanced = AdvanceMovieWait(action.Frames);
+                            break;
+                        }
                         for (int index = 0; index < action.Frames; index++)
                         {
                             if (NextTrigger.Kind is PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Dialogue or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle)

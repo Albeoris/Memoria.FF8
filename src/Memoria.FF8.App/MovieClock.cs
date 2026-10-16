@@ -137,6 +137,33 @@ internal sealed class MovieClock
         }
     }
 
+    /// <summary>Admits a bounded sequence through the same decoded-frame callback used by presentation.</summary>
+    public int AdvanceFrames(int count)
+    {
+        if (count is < 1 or > 30000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+        if (AdvanceFrame is null)
+        {
+            throw new NotSupportedException("Bounded movie playback requires its ordinary simulation callback owner.");
+        }
+        MovieInformation information = Prepare();
+        int first = Math.Max(2, State.FrameIndex + 1);
+        int advanced = 0;
+        bool active = true;
+        for (int frame = first; active && advanced < count && frame < information.FrameCount; frame++)
+        {
+            active = AdvanceFrame(new MoviePlaybackState(frame, information.FrameCount - 1, true, false, false), frame / information.FramesPerSecond);
+            advanced++;
+        }
+        if (active && first + advanced >= information.FrameCount)
+        {
+            session.CompleteMovie(false);
+        }
+        return advanced;
+    }
+
     public static int AbsoluteFrame(double startSeconds, MovieInformation information)
     {
         return Math.Clamp((int)Math.Ceiling(startSeconds * information.FramesPerSecond - 1e-9), 0, information.FrameCount - 1);
