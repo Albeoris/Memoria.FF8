@@ -59,7 +59,7 @@ public sealed partial class EventEngine
         ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome, nativeResult);
     }
 
-    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, byte nativeResult = 0)
+    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, byte nativeResult = 4)
     {
         NativeBattleCompletion request = PendingHostedBattle ?? throw new InvalidOperationException("No hosted battle owns the suspended field VM.");
         if (combatCallbacks < 0)
@@ -70,7 +70,7 @@ public sealed partial class EventEngine
         {
             if (nativeResult is < 1 or > 5)
             {
-                throw new ArgumentOutOfRangeException(nameof(nativeResult), "Completed native battle results use BYTE1..5; zero is only the declared automatic research backend.");
+                throw new ArgumentOutOfRangeException(nameof(nativeResult), "Completed native battle results use BYTE1..5; zero is the battle bootstrap state.");
             }
             long allocationClock = Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? throw new NotSupportedException("Battle return requires its actual allocation clock.");
             long completedCallbacks = Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
@@ -79,9 +79,9 @@ public sealed partial class EventEngine
                 throw new InvalidOperationException("Battle return duration disagrees with its dispatched native clock callbacks.");
             }
         }
-        else if (combatCallbacks != 0 || nativeResult != 0)
+        else if (request.Version != 2 || combatCallbacks != 0 || nativeResult != 4)
         {
-            throw new InvalidOperationException("Automatic research victory has no simulated combat callbacks.");
+            throw new InvalidOperationException("Current automatic research victory requires completion version2, native result4 and zero simulated combat callbacks; pending legacy requests require explicit migration.");
         }
         publishCombatOutcome?.Invoke();
         int index = Scene.NativeBattleCompletions!.IndexOf(request);
@@ -171,7 +171,7 @@ public sealed partial class EventEngine
         }
         operands = Pop(fiber, 2);
         // TODO(TD-009): replace the authorized zero-duration automatic victory backend with native combat
-        NativeBattleCompletion completion = new(1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, operands[0], operands[1], unchecked((ushort)operands[0]), unchecked((ushort)operands[1]), suppressed, suppressed ? null : interactive ? NativeBattleBackend.Interactive : NativeBattleBackend.AutomaticVictory, null, null, 0);
+        NativeBattleCompletion completion = new(!suppressed && !interactive ? 2 : 1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, operands[0], operands[1], unchecked((ushort)operands[0]), unchecked((ushort)operands[1]), suppressed, suppressed ? null : interactive ? NativeBattleBackend.Interactive : NativeBattleBackend.AutomaticVictory, null, null, 0);
         if (interactive)
         {
             completion = completion with { BattleClockCallsAtEntry = services.ExamTimer!.ClockCalls };
@@ -210,7 +210,11 @@ public sealed partial class EventEngine
                 continue;
             }
             bool hosted = request.Backend == NativeBattleBackend.Interactive || HostAutomaticBattles && request.Backend == NativeBattleBackend.AutomaticVictory;
-            byte? result = request.Suppressed ? null : hosted ? request.Result : (byte)0;
+            if (request.Backend == NativeBattleBackend.AutomaticVictory && request.Version != 2)
+            {
+                throw new InvalidDataException("Pending legacy automatic battle requires explicit migration; completed historical result0 facts remain unchanged.");
+            }
+            byte? result = request.Suppressed ? null : hosted ? request.Result : (byte)4;
             if (hosted && result is null)
             {
                 continue;
@@ -251,7 +255,7 @@ public sealed partial class EventEngine
         }
         foreach (NativeBattleCompletion completion in saved.Scene.NativeBattleCompletions)
         {
-            if (completion is null || completion.Version != 1 || completion.FieldId is < 0 or > ushort.MaxValue || completion.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || completion.Frame <= 0 || completion.ObjectId < 0 || completion.ScriptId < 0 || completion.Operation < 0 || completion.Encounter != unchecked((ushort)completion.RawEncounter) || completion.Flags != unchecked((ushort)completion.RawFlags) || completion.EmulatedCombatCallbacks < 0 || completion.Backend != NativeBattleBackend.Interactive && completion.EmulatedCombatCallbacks != 0 || completion.ReturnFrame is long returned && returned <= completion.Frame)
+            if (completion is null || completion.Version is not (1 or 2) || completion.Version == 2 && (completion.Backend != NativeBattleBackend.AutomaticVictory || completion.Suppressed) || completion.FieldId is < 0 or > ushort.MaxValue || completion.ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || completion.Frame <= 0 || completion.ObjectId < 0 || completion.ScriptId < 0 || completion.Operation < 0 || completion.Encounter != unchecked((ushort)completion.RawEncounter) || completion.Flags != unchecked((ushort)completion.RawFlags) || completion.EmulatedCombatCallbacks < 0 || completion.Backend != NativeBattleBackend.Interactive && completion.EmulatedCombatCallbacks != 0 || completion.ReturnFrame is long returned && returned <= completion.Frame)
             {
                 throw new InvalidDataException("Saved minimal battle request changed its original source, WORD operands or declared zero combat callback policy.");
             }
@@ -263,7 +267,11 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
             }
-            if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend is not (NativeBattleBackend.AutomaticVictory or NativeBattleBackend.Interactive) || (completion.ReturnFrame is null ? completion.Result is not null : completion.Backend == NativeBattleBackend.AutomaticVictory ? completion.Result != 0 : completion.Result is null or < 1 or > 5))
+            if (completion.Backend == NativeBattleBackend.AutomaticVictory && completion.Version == 1 && completion.ReturnFrame is null)
+            {
+                throw new InvalidDataException("Pending legacy automatic battle requires explicit migration; completed historical result0 facts remain unchanged.");
+            }
+            if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend is not (NativeBattleBackend.AutomaticVictory or NativeBattleBackend.Interactive) || (completion.ReturnFrame is null ? completion.Result is not null : completion.Backend == NativeBattleBackend.AutomaticVictory ? completion.Result != (completion.Version == 1 ? 0 : 4) : completion.Result is null or < 1 or > 5))
             {
                 throw new InvalidDataException("Saved minimal battle request has an invalid suppression, backend or native result byte.");
             }

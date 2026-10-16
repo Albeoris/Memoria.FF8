@@ -38,10 +38,10 @@ public sealed class MinimalBattleAndGuardianForceTests
         original.Step();
         restored.Step();
         Assert.True(JsonElement.DeepEquals(original.Capture(), restored.Capture()));
-        Assert.Equal((byte)0, original.Scene.NativeBattleResult);
-        Assert.Equal((byte)0, original.Scene.NativeBattleCompletions![0].Result);
+        Assert.Equal((byte)4, original.Scene.NativeBattleResult);
+        Assert.Equal((byte)4, original.Scene.NativeBattleCompletions![0].Result);
         Assert.Equal(3, original.Scene.NativeBattleCompletions![0].ReturnFrame);
-        Assert.Equal(0, original.Variables[800]);
+        Assert.Equal(4, original.Variables[800]);
         Assert.Equal(new[] { 2 }, original.AcquiredGuardianForces!);
         Assert.Empty(original.Scene.MinimalMenuCompletions);
         Assert.True(original.CurrentDialogue!.IsNamePrompt);
@@ -165,6 +165,110 @@ public sealed class MinimalBattleAndGuardianForceTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OriginalSphinxVictoryBranchReleasesGuardianAndRequestsSealScreen(bool hosted)
+    {
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        JsmProgram original = JsmProgram.Read(assets.LoadField(570).Jsm);
+        // Retain the exact native BATTLE operands and result-dependent tail;
+        // battle-music presentation before/after the request is outside this component.
+        var body = original.Operations.Skip(122).Take(3).Concat(original.Operations.Skip(127).Take(15)).Select(operation => (operation.Opcode, operation.Parameter)).ToArray();
+        byte[] source = Program(body);
+        EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame());
+        engine.HostAutomaticBattles = hosted;
+        int? requestedField = null;
+        engine.CommandExecuted += command =>
+        {
+            if (command.Name == nameof(Jsm.Opcode.MAPJUMPO))
+            {
+                requestedField = command.Arguments[0];
+            }
+        };
+        engine.Step();
+        NativeBattleCompletion request = Assert.Single(engine.Scene.NativeBattleCompletions!);
+        Assert.Equal((2, (ushort)363, (ushort)0), (request.Version, request.Encounter, request.Flags));
+        JsonElement pending = engine.Capture();
+        EventEngine restored = Engine(source, NativeWorldControlState.CreateNewGame());
+        restored.HostAutomaticBattles = hosted;
+        restored.Restore(pending);
+        if (hosted)
+        {
+            Assert.Throws<InvalidOperationException>(() => engine.ReturnFromHostedBattle(0, nativeResult: 0));
+            Assert.True(JsonElement.DeepEquals(pending, engine.Capture()));
+            engine.ReturnFromHostedBattle(0);
+            restored.ReturnFromHostedBattle(0);
+        }
+        else
+        {
+            engine.Step();
+            restored.Step();
+        }
+        Assert.True(JsonElement.DeepEquals(engine.Capture(), restored.Capture()));
+        Assert.Equal((byte)4, engine.Scene.NativeBattleResult);
+        Assert.Equal((byte)4, Assert.Single(engine.Scene.NativeBattleCompletions!).Result);
+        Assert.Equal(0, request.EmulatedCombatCallbacks);
+        Assert.False(engine.Actors[0].Visible);
+        Assert.Equal(1, engine.Variables[372]);
+        Assert.Equal(98, requestedField);
+    }
+
+    [Fact]
+    public void CompletedLegacyBootstrapFactsRemainVersionOneAndPendingLegacyRequiresMigration()
+    {
+        byte[] source = Program((Jsm.Opcode.PSHN_L, 363), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0));
+        EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame());
+        engine.Step();
+        JsonElement pending = engine.Capture();
+        JsonNode legacyPending = JsonNode.Parse(pending.GetRawText())!;
+        legacyPending["Scene"]!["NativeBattleCompletions"]![0]!["Version"] = 1;
+        InvalidDataException refusal = Assert.Throws<InvalidDataException>(() => engine.Restore(JsonSerializer.SerializeToElement(legacyPending)));
+        Assert.Contains("explicit migration", refusal.Message);
+        Assert.True(JsonElement.DeepEquals(pending, engine.Capture()));
+        engine.Step();
+        JsonElement completed = engine.Capture();
+        JsonNode legacy = JsonNode.Parse(completed.GetRawText())!;
+        legacy["Scene"]!["NativeBattleCompletions"]![0]!["Version"] = 1;
+        legacy["Scene"]!["NativeBattleCompletions"]![0]!["Result"] = 0;
+        legacy["Scene"]!["NativeBattleResult"] = 0;
+        JsonElement historicalFixture = JsonSerializer.SerializeToElement(legacy);
+        engine.Restore(historicalFixture);
+        Assert.True(JsonElement.DeepEquals(historicalFixture, engine.Capture()));
+        engine.Step();
+        Assert.Equal((1, (byte?)0), (Assert.Single(engine.Scene.NativeBattleCompletions!).Version, engine.Scene.NativeBattleResult));
+        foreach ((int version, int result) in new[] { (1, 4), (2, 0) })
+        {
+            JsonNode forged = JsonNode.Parse(historicalFixture.GetRawText())!;
+            forged["Scene"]!["NativeBattleCompletions"]![0]!["Version"] = version;
+            forged["Scene"]!["NativeBattleCompletions"]![0]!["Result"] = result;
+            forged["Scene"]!["NativeBattleResult"] = result;
+            JsonElement before = engine.Capture();
+            Assert.Throws<InvalidDataException>(() => engine.Restore(JsonSerializer.SerializeToElement(forged)));
+            Assert.True(JsonElement.DeepEquals(before, engine.Capture()));
+        }
+    }
+    [Fact]
+    public void ActualPreSphinxStandaloneRetainsAllCompletedHistoricalBootstrapFacts()
+    {
+        DirectoryInfo? root = new(AppContext.BaseDirectory);
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "../fixtures")))
+        {
+            root = root.Parent;
+        }
+        string? source = root is null ? null : Path.Combine(root.FullName, "../fixtures/external-fixture.json");
+        Assert.SkipUnless(source is not null && File.Exists(source), "Preserved actual before-Sphinx standalone is required.");
+        GameState original = GameSession.Load(source!);
+        JsonElement history = original.EventState!.Value.GetProperty("Scene").GetProperty("NativeBattleCompletions");
+        Assert.Equal(61, history.GetArrayLength());
+        GameSession session = new(original);
+        using GameWorld world = new(session, Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        world.EnsureField();
+        Assert.Null(world.Events.PendingHostedBattle);
+        JsonElement restoredHistory = world.Events.Capture().GetProperty("Scene").GetProperty("NativeBattleCompletions");
+        Assert.True(JsonElement.DeepEquals(history, restoredHistory));
+        Assert.All(world.Events.Scene.NativeBattleCompletions!, completion => Assert.Equal((1, (byte?)0), (completion.Version, completion.Result)));
+    }
     private static EventEngine Engine(byte[] source, NativeWorldControlState? controls)
     {
         GameSession session = GameSession.CreateColdProcess();

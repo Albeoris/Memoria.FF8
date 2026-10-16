@@ -7,14 +7,18 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeInputConfiguration([property: JsonRequired] string InitOutSha256, [property: JsonRequired] uint Options, [property: JsonRequired] ImmutableArray<byte> ButtonMap)
 {
     public const string OriginalInitHash = "4D0D23473AB54AC078B0C77A1672D970BF51E7824BAC1724027B5766B706C9EA";
+    /// <summary>Native1CFF6E8 is published with this high BYTE by52CA90/51E910/51E990/51E9C0.</summary>
+    [JsonIgnore]
+    public byte CommandRestrictions => unchecked((byte)(Options >> 24));
+
     public byte? BattleMessageSpeed { get; init; }
     public byte? NativeBattleSpeedByte { get; init; }
 
     public void Validate()
     {
-        if (InitOutSha256 != OriginalInitHash || Options != 0x00020001 || ButtonMap.IsDefault || ButtonMap.Length != 12 || !ButtonMap.SequenceEqual(Enumerable.Range(1, 12).Select(value => (byte)value)))
+        if (InitOutSha256 != OriginalInitHash || (Options & 0x00FFFFFF) != 0x00020001 || ButtonMap.IsDefault || ButtonMap.Length != 12 || !ButtonMap.SequenceEqual(Enumerable.Range(1, 12).Select(value => (byte)value)))
         {
-            throw new InvalidDataException("Native input options require the authentic56DA10 template producer; a changed options-menu mapping has no implemented producer.");
+            throw new InvalidDataException("Native input options require the authentic56DA10 template producer; a changed options-menu mapping has no implemented producer; the high BYTE is owned by native command sealing.");
         }
     }
 

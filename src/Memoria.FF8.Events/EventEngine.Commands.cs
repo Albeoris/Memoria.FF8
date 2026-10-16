@@ -420,6 +420,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MODELDOORCLOSE:
                 args = ExecuteNativeModelDoor(fiber, opcode == Jsm.Opcode.MODELDOORCLOSE);
                 break;
+            case Jsm.Opcode.SEALEDOFF:
+                args = ExecuteNativeSealedOff(fiber, out scalarArgs);
+                break;
+            case Jsm.Opcode.LASTIN:
+                args = ExecuteNativeLastIn(fiber);
+                break;
             case Jsm.Opcode.JUNCTION:
                 args = ExecuteJunction(fiber);
                 break;
@@ -1100,6 +1106,9 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.CHANGEPARTY:
                 args = ExecuteNativeChangeParty(fiber);
+                break;
+            case Jsm.Opcode.SWAP:
+                ExecuteNativeSwap(fiber);
                 break;
             case Jsm.Opcode.DYING:
                 CommitSavedCharacters(fiber, services.CharacterVitals!.RepairDyingParty(), opcode);

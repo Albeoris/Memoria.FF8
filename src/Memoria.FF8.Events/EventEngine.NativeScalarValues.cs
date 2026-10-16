@@ -24,6 +24,19 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.SEALEDOFF)
+        {
+            return UnsupportedNativeSealedOff(fiber);
+        }
+        if (operation.Opcode == Jsm.Opcode.LASTIN)
+        {
+            return UnsupportedNativeLastIn(fiber);
+        }
+        if (operation.Opcode == Jsm.Opcode.SWAP)
+        {
+            //Native51E8A0 has no operands, including when another scalar is uncertain.
+            return UnsupportedNativeSwap();
+        }
         if (UnsupportedNativeDisc(fiber, operation) is string disc)
         {
             return disc;

@@ -291,7 +291,7 @@ public sealed partial class GameSession : IEventServices
         State = State with { WorldControls = controls };
     }
 
-    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
+    public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null, NativeInputConfiguration? inputConfiguration = null)
     {
         ArgumentNullException.ThrowIfNull(controls);
         controls.Validate();
@@ -304,6 +304,7 @@ public sealed partial class GameSession : IEventServices
         eventRandom?.Validate();
         vibrationProcess?.Validate();
         fieldFade?.Validate();
+        inputConfiguration?.Validate();
         NativeEventMemory nextMemory = eventMemory ?? State.EventMemory;
         if (eventRandom is { DrawPoints: null } && State.EventRandom?.DrawPoints is not null)
         {
@@ -327,7 +328,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidDataException("Native economy and character owners have different initialization provenance.");
         }
-        GameState candidate = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, SavedBattleFlags = SynchronizeSavedBattleFlags(nextVitals), Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom, VibrationProcess = vibrationProcess ?? State.VibrationProcess, FieldFade = fieldFade ?? State.FieldFade, EventMemory = nextMemory };
+        GameState candidate = State with { WorldControls = controls, SeeD = seeD ?? State.SeeD, ExamTimer = timer ?? State.ExamTimer, CharacterVitals = nextVitals, SavedBattleFlags = SynchronizeSavedBattleFlags(nextVitals), Economy = nextEconomy, GlobalSoundProcess = globalSoundProcess ?? State.GlobalSoundProcess, SalaryPresentation = salaryPresentation ?? State.SalaryPresentation, EventRandom = eventRandom ?? State.EventRandom, VibrationProcess = vibrationProcess ?? State.VibrationProcess, FieldFade = fieldFade ?? State.FieldFade, EventMemory = nextMemory, InputConfiguration = inputConfiguration ?? State.InputConfiguration };
         candidate = AdvanceNativePlaytime(candidate);
         ValidateLiveEventMemoryOwners(candidate, nextMemory);
         State = candidate;

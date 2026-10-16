@@ -30,9 +30,10 @@ public static class NativeBattleLimitRules
     }
 
     /// <summary>Native52CA90 copies field-block BYTE243 only while DWORD104 bit0x800 is set.</summary>
-    public static byte ReadFieldBattleRules(NativeEventMemory memory)
+    public static byte ReadFieldBattleRules(NativeEventMemory memory, NativeWorldControlState? controls = null)
     {
-        NativeScalarValue flags = memory.Read(104, 4);
+        controls?.Validate();
+        NativeScalarValue flags = controls is null ? memory.Read(104, 4) : NativeScalarValue.Exact(unchecked((int)controls.EventFlags104));
         if (!flags.IsExact)
         {
             throw new NotSupportedException("Native battle rules require the actual field-block flags DWORD104.");

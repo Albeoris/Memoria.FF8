@@ -27,16 +27,9 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("DRAWPOINT and saved character command definitions have different kernel provenance.");
         }
-        NativeWorldControlState controls = services.WorldControls ?? throw new NotSupportedException("DRAWPOINT requires actual eventDWORD104 command restrictions.");
-        byte disabled = 0;
-        if ((controls.EventFlags104 & 0x800) != 0)
-        {
-            if (EventMemory.Cells.TryGetValue(243, out NativeMemoryValue? source) != true || source is null || source.Width != 1 || !source.Value.IsExact)
-            {
-                throw new NotSupportedException("DRAWPOINT's restricted command branch requires its actual source BYTE243.");
-            }
-            disabled = checked((byte)source.Value.RequireExact());
-        }
+        NativeInputConfiguration input = services.InputConfiguration ?? throw new NotSupportedException("DRAWPOINT requires the current native command restriction process alias.");
+        input.Validate();
+        byte disabled = input.CommandRestrictions;
         NativeCharacterVitals rebuilt = vitals.RebuildParty();
         byte eligible = 0;
         for (int slot = 0; slot < 3; slot++)

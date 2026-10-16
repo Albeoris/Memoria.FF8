@@ -72,7 +72,7 @@ internal static partial class Program
         }
         Require(JsonElement.DeepEquals(pending, resumed.Capture()), "Changed battle consumer receipt published partial checkpoint state.");
         resumed.Step();
-        Require(resumed.Scene.NativeBattleResult == 0 && resumed.Scene.NativeBattleFlagWrites![^1] is { Writer: NativeBattleFlagWriter.BattleMode, PersistentFlags: 0, ActiveFlags: 0 } && resumed.ExamTimer is { DisplayEnabled: false, Event182Mask4: false, SaveGlobalMask4: false, Event183Mask1: false }, "Battle return, KILLTIMER masking or second full mode replacement diverged.");
+        Require(resumed.Scene.NativeBattleResult == 4 && resumed.Scene.NativeBattleFlagWrites![^1] is { Writer: NativeBattleFlagWriter.BattleMode, PersistentFlags: 0, ActiveFlags: 0 } && resumed.ExamTimer is { DisplayEnabled: false, Event182Mask4: false, SaveGlobalMask4: false, Event183Mask1: false }, "Battle return, KILLTIMER masking or second full mode replacement diverged.");
 
         byte[] loader = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0x120), (Jsm.Opcode.BATTLEMODE, 0), (Jsm.Opcode.PSHN_L, 600), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 250), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.DISPTIMER, 0), (Jsm.Opcode.PSHN_L, 94), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.BATTLE, 0), (Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
         GameSession loaderSession = new(new GameState { WorldControls = NativeWorldControlState.CreateNewGame(), ExamTimer = NativeExamTimerState.FromColdProcess() });

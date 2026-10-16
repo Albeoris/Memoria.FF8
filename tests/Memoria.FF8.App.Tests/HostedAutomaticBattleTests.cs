@@ -71,7 +71,7 @@ public sealed class HostedAutomaticBattleTests
         Assert.True(completedAfterPublication);
         Assert.Equal(42, session.State.Variables[800]);
         NativeBattleCompletion result = Assert.Single(engine.Scene.NativeBattleCompletions!);
-        Assert.Equal((byte)0, result.Result);
+        Assert.Equal((byte)4, result.Result);
         Assert.Equal(0, result.EmulatedCombatCallbacks);
         Assert.Null(engine.PendingHostedBattle);
     }
