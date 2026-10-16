@@ -193,6 +193,11 @@ internal sealed partial class NativeTutorialPlayer
         {
             Menu.Execute(context);
         }
+        if (step.ScreenId == "junction-stock" && step.EntryId is string magic)
+        {
+            Menu.Execute(new MenuAction("select-magic", magic));
+        }
+        Menu.InvalidateLiveData();
         if (step.EntryId is string entry)
         {
             Menu.SelectEntry(step.ScreenId, entry, allowDisabled: step.Press == NativeTutorialPress.Select);
@@ -229,11 +234,12 @@ internal sealed partial class NativeTutorialPlayer
 
     private MenuData BuildData()
     {
-        MenuData result = LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = party }, names, menuCatalog, visibleCharacterRows: visibleRows);
+        NativeCharacterVitals displayedParty = PreviewParty();
+        MenuData result = LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = displayedParty }, names, menuCatalog, visibleCharacterRows: visibleRows);
         result.SourceDescription = "Original tutorial initialization";
         foreach (MenuCharacter character in result.Characters)
         {
-            BattlePlayerStats stats = catalog.ReadStatistics(party, int.Parse(character.Id.AsSpan("character-".Length), CultureInfo.InvariantCulture));
+            BattlePlayerStats stats = catalog.ReadStatistics(displayedParty, int.Parse(character.Id.AsSpan("character-".Length), CultureInfo.InvariantCulture));
             character.Stats["HP"] = character.MaximumHp ?? 0;
             character.Stats["Str"] = stats.Strength;
             character.Stats["Vit"] = stats.Vitality;
@@ -251,6 +257,40 @@ internal sealed partial class NativeTutorialPlayer
         }
         result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn", "tutorial-setting", "tutorial-party", "tutorial-exchange", "tutorial-exchange-preview", "tutorial-auto"]);
         return result;
+    }
+
+    private NativeCharacterVitals PreviewParty()
+    {
+        if (Menu is null)
+        {
+            return party;
+        }
+        MenuNavigationState context = Menu.CaptureNavigation();
+        if (context.ScreenId != "junction-stock" || !context.CharacterId.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(context.CharacterId.AsSpan("character-".Length), out int row) || row is < 0 or >= 8)
+        {
+            return party;
+        }
+        string prefix = $"magic-{row}-";
+        if (!context.MagicId.StartsWith(prefix, StringComparison.Ordinal) || !int.TryParse(context.MagicId.AsSpan(prefix.Length), out int spell) || spell is < 1 or >= 57)
+        {
+            return party;
+        }
+        int slot = Enumerable.Range(0, 19).Single(index => LiveMenuData.JunctionSlotName(index) == context.JunctionSlot);
+        if (!party.JunctionMagicSlotAvailable(row, slot))
+        {
+            return party;
+        }
+        var magic = catalog.ReadStatRules(party, row).MagicRecords[spell];
+        // Original elemental/status choices retain a noneligible spell's cursor without previewing a junction.
+        bool eligible = slot switch
+        {
+            < 9 => true,
+            9 => magic[0x20] != 0,
+            10 => (magic[0x26] | magic[0x27]) != 0,
+            < 15 => magic[0x22] != 0,
+            _ => (magic[0x28] | magic[0x29]) != 0
+        };
+        return eligible ? party.SetJunctionMagic(row, slot, spell) : party;
     }
 
     private void ApplyMenuAction(MenuAction action)
@@ -290,7 +330,7 @@ internal sealed partial class NativeTutorialPlayer
             throw new InvalidDataException("Saved tutorial names are incomplete.");
         }
         string[] requiredSettings = ["Auto", "Indicator", "Duel-Auto", "Angelo learning"];
-        if (requiredSettings.Any(key => !saved.Settings.ContainsKey(key)) || saved.Settings.Any(pair => pair.Key is not ("Auto" or "Indicator" or "Duel-Auto" or "Angelo learning" or "Exchange source" or "Exchange target")) || requiredSettings.Take(3).Any(key => saved.Settings[key] is not ("On" or "Off")) || !int.TryParse(saved.Settings["Angelo learning"], out int training) || training is < 0 or > 7 || saved.Settings.Where(pair => pair.Key is "Exchange source" or "Exchange target").Any(pair => !pair.Value.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(pair.Value.AsSpan("character-".Length), out int row) || !visibleRows.Contains(row)))
+        if (requiredSettings.Any(key => !saved.Settings.ContainsKey(key)) || saved.Settings.Values.Any(value => value is null) || saved.Settings.Any(pair => pair.Key is not ("Auto" or "Indicator" or "Duel-Auto" or "Angelo learning" or "Exchange source" or "Exchange target")) || requiredSettings.Take(3).Any(key => saved.Settings[key] is not ("On" or "Off")) || !int.TryParse(saved.Settings["Angelo learning"], out int training) || training is < 0 or > 7 || saved.Settings.Where(pair => pair.Key is "Exchange source" or "Exchange target").Any(pair => !pair.Value.StartsWith("character-", StringComparison.Ordinal) || !int.TryParse(pair.Value.AsSpan("character-".Length), out int row) || !visibleRows.Contains(row)))
         {
             throw new InvalidDataException("Saved tutorial settings changed their native option or character domains.");
         }

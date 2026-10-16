@@ -154,7 +154,12 @@ public sealed class NativeTutorialWorldTests
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 48)).Accepted);
         Assert.Equal(fieldFrame, world.Events.Frame);
         Assert.False(world.Apply(new PlayerAction(PlayerActionKind.UseFieldItem, 1, Quantity: 0)).Accepted);
-        GameSession independent = new(session.State with { EventState = world.Events.Capture() });
+        string output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TUTORIAL_OUTPUT_DIRECTORY") ?? Path.Combine(Path.GetTempPath(), "ff8-native-menu-tutorial-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        string pending = Path.Combine(output, "field159-browser-lesson4-pending.json");
+        session.SetEventState(world.Events.Capture());
+        session.Save(pending);
+        GameSession independent = new(GameSession.Load(pending));
         using GameWorld restored = new(independent, directory);
         restored.EnsureField();
         Assert.NotNull(restored.Tutorial);
@@ -171,6 +176,10 @@ public sealed class NativeTutorialWorldTests
         Assert.Null(world.Events.Scene.NativeTutorialPlayback);
         Assert.Equal(fieldFrame, world.Events.Frame);
         Assert.True(JsonElement.DeepEquals(live, LiveOwners(session)));
+        string returned = Path.Combine(output, "field159-browser-lesson4-returned.json");
+        session.SetEventState(world.Events.Capture());
+        session.Save(returned);
+        Console.WriteLine($"Browser lesson4 standalone {pending}; returned {returned}; field159/frame{fieldFrame} unchanged across close.");
     }
 
     [Theory]
@@ -207,6 +216,29 @@ public sealed class NativeTutorialWorldTests
             Assert.True(world.Apply(action).Accepted);
         }
         Assert.Null(world.Tutorial);
+    }
+
+    [Fact]
+    public void BrowserLessonCannotReplaceAnActiveNativePartySelectionMenu()
+    {
+        (string directory, GameState source) = Source();
+        GameSession session = new(source);
+        using GameWorld world = new(session, directory);
+        world.EnsureField();
+        world.Events.LoadField(159, BrowserProgram(Jsm.Opcode.MENUPHS), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        world.Events.Step();
+        world.Events.Step();
+        for (int callback = 0; callback < 100 && world.Events.PartyMenu?.Phase != NativePartyMenuPhase.Active; callback++)
+        {
+            world.Events.Step();
+        }
+        Assert.Equal(NativeFieldMenuKind.PartySelection, world.Events.PartyMenu!.Kind);
+        Assert.Equal(NativePartyMenuPhase.Active, world.Events.PartyMenu.Phase);
+        world.Events.Scene.UnlockedTutorials.Add(66);
+        JsonElement before = world.Events.Capture();
+        Assert.Throws<InvalidOperationException>(() => world.BeginMenuTutorial(4));
+        Assert.Null(world.Events.Scene.NativeMenuTutorial);
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
     }
 
     private static void FocusOriginalRequest(GameWorld world, int raw)
@@ -299,9 +331,9 @@ public sealed class NativeTutorialWorldTests
         return (directory, state);
     }
 
-    private static byte[] BrowserProgram()
+    private static byte[] BrowserProgram(Jsm.Opcode menuOpcode = Jsm.Opcode.MENUTUTO)
     {
-        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.LBL, 1), (Jsm.Opcode.MENUTUTO, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8), (Jsm.Opcode.LBL, 1), (menuOpcode, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         byte[] bytes = new byte[16 + operations.Length * 4];
         bytes[2] = 1;
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);

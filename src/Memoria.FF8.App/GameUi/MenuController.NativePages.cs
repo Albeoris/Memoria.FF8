@@ -18,7 +18,7 @@ public sealed partial class MenuController
                 MenuGuardianForce? force = Data.GuardianForces.FirstOrDefault(gf => gf.Id == entry.Id);
                 var button = new UiButton { Id = entry.Id, DrawBackground = false, HighlightSelection = false, PointerSize = 20 * TextScale, Enabled = entry.Enabled, Click = () => Activate(selected) };
                 var tile = Grid([4, 1], [1], 0);
-                tile.Margin = new UiThickness(9, 12, 0, 8);
+                tile.Margin = new UiThickness(35, 12, 0, 8);
                 Place(tile, Artwork(UiImageKind.GuardianForcePortrait, force?.NativeId), 0);
                 Place(tile, Label($"Lv {Number(force?.Level)}", 21), 1);
                 button.Children.Add(tile);

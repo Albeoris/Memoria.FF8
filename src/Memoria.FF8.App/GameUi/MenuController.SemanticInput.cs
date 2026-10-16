@@ -3,11 +3,13 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class MenuController
 {
     internal string TutorialExchangeId => _exchangeId;
+
     internal void ClearTutorialActionReceipt()
     {
         Message = "";
         _view = null;
     }
+
     public void SelectCharacter(string characterId)
     {
         if (!IsOpen || !IsSelectingCharacter)
@@ -27,7 +29,7 @@ public sealed partial class MenuController
 
     internal void RestoreNavigation(MenuNavigationState saved)
     {
-        if (saved.ScreenId is null || saved.History is null || saved.Selections is null || saved.CharacterId is null || saved.GuardianForceId is null || saved.MagicId is null || saved.ExchangeId is null || saved.JunctionSlot is null || saved.CharacterSelectionDestination is null || !_screens.ContainsKey(saved.ScreenId) || saved.History.Any(screen => screen is null || !_screens.ContainsKey(screen)) || saved.Selections.Any(selection => !_screens.ContainsKey(selection.Key) || selection.Value < 0) || saved.CharacterSelectionDestination.Length > 0 && !_screens.ContainsKey(saved.CharacterSelectionDestination) || saved.CharacterSelectionIndex < 0 || saved.CommandSlot is < 1 or > 3 || saved.AbilitySlot is < 0 or > 3)
+        if (saved.ScreenId is null || saved.History is null || saved.Selections is null || saved.CharacterId is null || saved.GuardianForceId is null || saved.MagicId is null || saved.ExchangeId is null || saved.JunctionSlot is null || !Enumerable.Range(0, 19).Any(slot => LiveMenuData.JunctionSlotName(slot) == saved.JunctionSlot) || saved.CharacterSelectionDestination is null || !_screens.ContainsKey(saved.ScreenId) || saved.History.Any(screen => screen is null || !_screens.ContainsKey(screen)) || saved.Selections.Any(selection => !_screens.ContainsKey(selection.Key) || selection.Value < 0) || saved.CharacterSelectionDestination.Length > 0 && !_screens.ContainsKey(saved.CharacterSelectionDestination) || saved.CharacterSelectionIndex < 0 || saved.CommandSlot is < 1 or > 3 || saved.AbilitySlot is < 0 or > 3)
         {
             throw new InvalidDataException("Saved tutorial menu navigation is invalid.");
         }

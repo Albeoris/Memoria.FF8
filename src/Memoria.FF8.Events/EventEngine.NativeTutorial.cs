@@ -1,11 +1,12 @@
 using Albeoris.Games.FF8.Jsm;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Events;
 
 /// <summary>The original TUTO or MENUTUTO request owning the suspended field VM. Browser requests have no tutorial ID.</summary>
-public sealed record NativeTutorialRequest(int Version, int FieldId, string ProgramHash, long Frame, int ObjectId, int ScriptId, int Operation, long FiberSequence, int RawArgument, int MenuId, byte? TutorialId);
+public sealed record NativeTutorialRequest([property: JsonRequired] int Version, [property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] long Frame, [property: JsonRequired] int ObjectId, [property: JsonRequired] int ScriptId, [property: JsonRequired] int Operation, [property: JsonRequired] long FiberSequence, [property: JsonRequired] int RawArgument, [property: JsonRequired] int MenuId, [property: JsonRequired] byte? TutorialId);
 
-public sealed record NativeMenuTutorialRequest(int Version, int FieldId, string ProgramHash, long Frame, int TutorialId);
+public sealed record NativeMenuTutorialRequest([property: JsonRequired] int Version, [property: JsonRequired] int FieldId, [property: JsonRequired] string ProgramHash, [property: JsonRequired] long Frame, [property: JsonRequired] int TutorialId);
 
 public sealed partial class EventEngine
 {
@@ -13,7 +14,7 @@ public sealed partial class EventEngine
     public void BeginMenuTutorial(int tutorialId)
     {
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)tutorialId, 9u);
-        if (program is null || !defaultsStarted || Frame <= 0 || LastFault is not null || Scene.NativeMenuTutorial is not null || Scene.NativeTutorial is { TutorialId: not null } || PendingTripleTriad is not null || HasPendingBattle || transitionRequested || services.IsMoviePlaying)
+        if (program is null || !defaultsStarted || Frame <= 0 || LastFault is not null || Scene.NativeMenuTutorial is not null || Scene.NativeTutorial is { TutorialId: not null } || partyMenu is not null && (partyMenu.Kind != NativeFieldMenuKind.Normal || partyMenu.Phase != NativePartyMenuPhase.Active) || PendingTripleTriad is not null || HasPendingBattle || transitionRequested || services.IsMoviePlaying)
         {
             throw new InvalidOperationException("The tutorial browser requires an initialized field and exclusive lesson ownership.");
         }
@@ -81,7 +82,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved tutorial playback must be an object owned by a pending native tutorial request.");
         }
         NativeMenuTutorialRequest? menu = saved.Scene.NativeMenuTutorial;
-        if (menu is not null && (menu.Version != 1 || menu.FieldId != saved.FieldId || menu.ProgramHash != saved.ProgramHash || menu.Frame != saved.Frame || menu.Frame <= 0 || !saved.DefaultsStarted || menu.TutorialId is < 0 or > 8 || request is { TutorialId: not null } || saved.Scene.TripleTriadRequest is not null || saved.Scene.NativeBattleWaits?.Count > 0 || saved.TransitionRequested || services.IsMoviePlaying))
+        if (menu is not null && (menu.Version != 1 || menu.FieldId != saved.FieldId || menu.ProgramHash != saved.ProgramHash || menu.Frame != saved.Frame || menu.Frame <= 0 || !saved.DefaultsStarted || menu.TutorialId is < 0 or > 8 || request is { TutorialId: not null } || saved.PartyMenu is not null && (saved.PartyMenu.Kind != NativeFieldMenuKind.Normal || saved.PartyMenu.Phase != NativePartyMenuPhase.Active) || saved.Scene.TripleTriadRequest is not null || saved.Scene.NativeBattleWaits?.Count > 0 || saved.TransitionRequested || services.IsMoviePlaying))
         {
             throw new InvalidDataException("Saved browser-selected tutorial changed its initialized field, exact resource request or exclusive scene ownership.");
         }

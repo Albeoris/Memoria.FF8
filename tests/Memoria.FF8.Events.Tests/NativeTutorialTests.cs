@@ -50,6 +50,17 @@ internal static partial class Program
                 fiber[property] = fiber[property]!.GetValue<long>() + 1;
                 Reject(invalid, property);
             }
+            JsonNode absentRaw = JsonNode.Parse(paused.GetRawText())!;
+            absentRaw["Scene"]!["NativeTutorial"]!.AsObject().Remove("RawArgument");
+            try
+            {
+                independent.Restore(JsonSerializer.SerializeToElement(absentRaw));
+                throw new InvalidOperationException("Tutorial with absent original raw operand passed restore.");
+            }
+            catch (JsonException)
+            {
+            }
+            Require(JsonElement.DeepEquals(paused, independent.Capture()), "Absent tutorial provenance partially changed field state.");
             JsonNode invalidPlayback = JsonNode.Parse(paused.GetRawText())!;
             invalidPlayback["Scene"]!["NativeTutorialPlayback"] = 3;
             Reject(invalidPlayback, "non-object playback");

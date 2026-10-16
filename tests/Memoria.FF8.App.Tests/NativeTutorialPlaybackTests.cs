@@ -8,6 +8,45 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeTutorialPlaybackTests
 {
+    [Fact]
+    public void StatusLessonsShowOriginalResistanceCompatibilityAndLearnedLimitData()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed original tutorial resources are required.");
+        using GameAssets assets = new(directory);
+        NativeTutorialCatalog catalog = assets.ReadNativeTutorialCatalog();
+        LiveMenuCatalog live = LiveMenuCatalog.ReadInstalled(assets);
+        foreach (int id in new[] { 5, 6, 7 })
+        {
+            NativeTutorialPlayer player = new(catalog, live, id);
+            player.Menu.Open("status-elements");
+            Assert.Equal(21, player.Menu.CurrentScreen.Details(player.Menu).Count);
+            Assert.Contains(player.Menu.CurrentScreen.Details(player.Menu), line => line.StartsWith("Fire   Atk", StringComparison.Ordinal));
+            Assert.NotNull(player.Menu.BuildView());
+            player.Menu.Open("status-gf");
+            int row = player.Menu.Character!.NativeId!.Value;
+            Assert.Equal(player.Menu.Data.GuardianForces.Count, player.Menu.CurrentScreen.Details(player.Menu).Count);
+            Assert.Contains(player.Party.Records[row].GuardianForceCompatibility![0].ToString(), player.Menu.CurrentScreen.Details(player.Menu)[0]);
+            Assert.NotNull(player.Menu.BuildView());
+            if (id == 6)
+            {
+                player.Menu.Open("status-duel");
+                Assert.Equal(System.Numerics.BitOperations.PopCount(catalog.CreateIsolatedLimitProgress(id).DuelFlags), player.Menu.CurrentScreen.Details(player.Menu).Count);
+                Assert.NotNull(player.Menu.BuildView());
+            }
+            if (id == 7)
+            {
+                player.Menu.Open("status-angelo");
+                Assert.Equal(new[] { "0", "1", "4" }, player.Menu.Entries.Select(entry => entry.Id));
+                Assert.Equal(player.Menu.FormatNativeTutorialText(catalog.ReadStatusKernel().RinoaAngeloAttacks[0].Name!), player.Menu.Entries[2].Label);
+                Assert.Equal(new[] { "Angelo Rush", "Angelo Recover", "Angelo Cannon" }, player.Menu.Entries.Select(entry => entry.Label));
+                Assert.Contains(player.Menu.CurrentScreen.Details(player.Menu), line => line.Contains("Counter 255", StringComparison.Ordinal));
+                Assert.DoesNotContain(player.Menu.CurrentScreen.Details(player.Menu), line => line.Contains('%'));
+                Assert.NotNull(player.Menu.BuildView());
+            }
+        }
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

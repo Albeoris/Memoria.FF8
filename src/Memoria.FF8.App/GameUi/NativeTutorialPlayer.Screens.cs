@@ -1,5 +1,6 @@
 using System.Globalization;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -16,20 +17,20 @@ internal sealed partial class NativeTutorialPlayer
 
     private void RegisterTutorialScreens()
     {
-        void Register(string id, string title, Func<MenuController, IReadOnlyList<MenuEntry>> entries, Func<MenuController, IReadOnlyList<string>>? details = null)
+        void Register(string id, string title, Func<MenuController, IReadOnlyList<MenuEntry>> entries, Func<MenuController, IReadOnlyList<string>>? details = null, string? statusPresentation = null)
         {
-            Menu.Register(new MenuScreenDefinition { Id = id, Title = title, Help = definition.Title, Layout = MenuLayout.Character, Entries = entries, Details = details ?? (_ => []) });
+            Menu.Register(new MenuScreenDefinition { Id = id, Title = title, Help = definition.Title, Layout = MenuLayout.Character, Entries = entries, Details = details ?? (_ => []), BuildContent = statusPresentation is null ? null : (controller, panel) => panel.Children.Add(BuildTutorialStatusPresentation(controller, statusPresentation)) });
         }
         if (definition.Descriptor.CallbackMode == 28)
         {
             Register("status", "Status", _ => [new("next", "Status", "", "status-elements")]);
-            Register("status-elements", "Status", _ => [new("next", "Element / Status", "", "status-gf")]);
-            Register("status-gf", "Status", _ => [new("next", "GF", "", "status-limit")], c => c.Data.GuardianForces.Select(gf => gf.Name).ToArray());
+            Register("status-elements", "Status", _ => [new("next", "Element / Status", "", "status-gf")], _ => TutorialElementStatusDetails(), "elements");
+            Register("status-gf", "Status", _ => [new("next", "GF", "", "status-limit")], TutorialCompatibilityDetails, "gf");
             string limitScreen = definition.Id switch { 5 => "status-renzokuken", 6 => "status-duel", 7 => "status-angelo", _ => throw new InvalidOperationException() };
             Register("status-limit", "Status", _ => [new("next", "Limit Break", "", limitScreen)]);
             Register("status-renzokuken", "Renzokuken", _ => [Setting("Auto", "Gunblade Auto"), Setting("Indicator", "Renzokuken Indicator")]);
-            Register("status-duel", "Duel", _ => [Setting("Duel-Auto", "Duel-Auto")]);
-            Register("status-angelo", "Angelo", _ => Enumerable.Range(0, 8).Where(index => (catalog.CreateIsolatedLimitProgress(definition.Id).PetPalsFlags!.Value & (1 << index)) != 0).Select(index => new MenuEntry(index.ToString(CultureInfo.InvariantCulture), AngeloName(index), "", Action: new MenuAction("tutorial-setting", "Angelo learning", Value: index.ToString(CultureInfo.InvariantCulture)))).ToArray());
+            Register("status-duel", "Duel", _ => [Setting("Duel-Auto", "Duel-Auto")], _ => TutorialDuelDetails(), "duel");
+            Register("status-angelo", "Angelo", _ => Enumerable.Range(0, 8).Where(index => (catalog.CreateIsolatedLimitProgress(definition.Id).PetPalsFlags!.Value & (1 << index)) != 0).Select(index => new MenuEntry(index.ToString(CultureInfo.InvariantCulture), OriginalAngeloName(index), "", Action: new MenuAction("tutorial-setting", "Angelo learning", Value: index.ToString(CultureInfo.InvariantCulture)))).ToArray(), _ => TutorialAngeloDetails(), "angelo");
             Register("status-angelo-warning", "Angelo", _ => [new("ok", "OK", "", "status-angelo")], _ => [Menu.FormatNativeTutorialText(catalog.StatusLabels[32].Value, names)]);
         }
         if (definition.Id == 8)
@@ -46,19 +47,6 @@ internal sealed partial class NativeTutorialPlayer
     }
 
     private MenuEntry Setting(string id, string label) => new(id, $"{label}   {settings[id]}", "", Action: new MenuAction("tutorial-setting", id, Value: settings[id] == "On" ? "Off" : "On"));
-
-    private static string AngeloName(int index) => index switch
-    {
-        0 => "Angelo Rush",
-        1 => "Angelo Recover",
-        2 => "Angelo Reverse",
-        3 => "Angelo Search",
-        4 => "Angelo Cannon",
-        5 => "Angelo Strike",
-        6 => "Invincible Moon",
-        7 => "Wishing Star",
-        _ => throw new ArgumentOutOfRangeException(nameof(index))
-    };
 
     private IReadOnlyList<MenuEntry> SwitchChoices(MenuController controller, string destination) => controller.Data.Characters.Select(character => new MenuEntry(character.Id, character.Name, "", destination, new MenuAction("select-exchange", character.Id))).ToArray();
 

@@ -23,6 +23,17 @@ public sealed class MenuSemanticInputTests
     }
 
     [Fact]
+    public void Guardian_force_artwork_leaves_the_selected_pointer_visible()
+    {
+        MenuController menu = new();
+        menu.Open("gf", demo: true);
+        UiView view = menu.BuildView();
+        UiButton selected = Assert.IsType<UiButton>(view.FocusedElement);
+        UiImage portrait = Descendants(selected).OfType<UiImage>().Single();
+        Assert.True(portrait.Bounds.X >= selected.Bounds.X + 7 + selected.PointerSize);
+    }
+
+    [Fact]
     public void Missing_or_wrong_screen_targets_fail_before_any_command_is_activated()
     {
         MenuController menu = new();
