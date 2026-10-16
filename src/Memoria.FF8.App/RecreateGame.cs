@@ -386,13 +386,8 @@ internal sealed partial class RecreateGame : Game
             }
             if (dialogue is { CanConfirm: true })
             {
-                if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last && input.MenuVertical != 0)
+                if (DialoguePresentation.ResolveInput(dialogue, input, ref selectedChoice, enteredName) is PlayerAction action && !AdvanceDialoguePages())
                 {
-                    selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
-                }
-                if (dialogue.CanConfirm && (input.Confirm || input.Cancel && (dialogue.CancelChoice.HasValue || !dialogue.IsNamePrompt && dialogue.FirstChoice is null)) && !AdvanceDialoguePages())
-                {
-                    PlayerAction action = input.Cancel && !input.Confirm ? new PlayerAction(PlayerActionKind.Cancel) : dialogue.IsNamePrompt ? new PlayerAction(PlayerActionKind.EnterName, Text: enteredName) : dialogue.FirstChoice.HasValue ? new PlayerAction(PlayerActionKind.Choose, selectedChoice) : new PlayerAction(PlayerActionKind.Confirm);
                     if (world.Apply(action).Accepted)
                     {
                         dialoguePages.Complete(dialogue);
@@ -500,12 +495,11 @@ internal sealed partial class RecreateGame : Game
                 presentedDialogue = dialogue;
                 selectedChoice = dialogue?.InitialChoice ?? 0;
             }
-            if (dialogue is { FirstChoice: int first, LastChoice: int last })
+            if (dialogue is { FirstChoice: not null, LastChoice: not null })
             {
-                selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
-                if ((input.Confirm || input.Cancel) && !AdvanceDialoguePages())
+                if (DialoguePresentation.ResolveInput(dialogue, input, ref selectedChoice, enteredName) is PlayerAction action && !AdvanceDialoguePages())
                 {
-                    metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Choose, input.Cancel ? dialogue.CancelChoice ?? last : selectedChoice)).FramesAdvanced);
+                    metrics.Simulate(world.Apply(action).FramesAdvanced);
                     dialoguePages.Complete(dialogue);
                     return;
                 }

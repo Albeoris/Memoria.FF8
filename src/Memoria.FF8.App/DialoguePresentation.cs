@@ -40,6 +40,31 @@ internal static class DialoguePresentation
         return (x, y);
     }
 
+    public static PlayerAction? ResolveInput(DialogueState dialogue, InputFrame input, ref int selectedChoice, string enteredName)
+    {
+        if (!dialogue.CanConfirm)
+        {
+            return null;
+        }
+        if (dialogue.FirstChoice is int first && dialogue.LastChoice is int last)
+        {
+            selectedChoice = Math.Clamp(selectedChoice + input.MenuVertical, first, last);
+            if (input.Cancel && !input.Confirm && dialogue.CancelChoice is int cancelChoice)
+            {
+                selectedChoice = cancelChoice;
+            }
+        }
+        if (input.Confirm)
+        {
+            return dialogue.IsNamePrompt ? new PlayerAction(PlayerActionKind.EnterName, Text: enteredName) : dialogue.FirstChoice.HasValue ? new PlayerAction(PlayerActionKind.Choose, selectedChoice) : new PlayerAction(PlayerActionKind.Confirm);
+        }
+        if (input.Cancel && !dialogue.IsNamePrompt && dialogue.FirstChoice is null)
+        {
+            return new PlayerAction(PlayerActionKind.Cancel);
+        }
+        return null;
+    }
+
     public static (int Selection, string Name) ResolveDraft(DialogueState? dialogue, DialogueDraft? draft, string defaultName)
     {
         if (dialogue is not null && draft is not null && draft.Channel == dialogue.Channel && draft.MessageId == dialogue.MessageId)
