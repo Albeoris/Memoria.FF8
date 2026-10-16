@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
@@ -27,12 +28,28 @@ public sealed class LocationPresentationTests
     }
 
     [Fact]
+    public void OnlyAnExecutedWorldDepartureSeedsTheNextFieldsPlace()
+    {
+        NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();
+        NativeWorldTransitionRequest request = new(1, 100, 1, NativeWorldTransitionOrigin.Script, new WorldTransition(0, 0, 0), controls, controls, controls);
+        var sceneJson = JsonSerializer.SerializeToNode(new SceneEventState())!;
+        sceneJson["WorldTransitionRequest"] = JsonSerializer.SerializeToNode(request);
+        SceneEventState departedWorld = sceneJson.Deserialize<SceneEventState>()!;
+        GameState arrival = new() { Scene = SceneKind.Field, DepartingWorldState = new WorldState { X = 12875, Z = -26746 } };
+        Assert.True(GameWorld.HasWorldPlaceArrival(departedWorld, arrival));
+        // Later field transitions retain the old world receipt, but their VM has no world departure request.
+        Assert.False(GameWorld.HasWorldPlaceArrival(new SceneEventState(), arrival));
+        Assert.False(GameWorld.HasWorldPlaceArrival(departedWorld, arrival with { DepartingWorldState = null }));
+    }
+
+    [Fact]
     public void WindowTitleKeepsSceneIdentityAndSpeedWithCompactWorldCoordinates()
     {
         GameState field = new() { Scene = SceneKind.Field, FieldId = 618, FieldName = "fhpanel1" };
         string title = LocationWindowTitle.Format(field, null, null, 461, 3);
         Assert.Contains("Field 618:fhpanel1", title);
         Assert.Contains("F461", title);
+        Assert.Contains("618:actual_archive_name", LocationWindowTitle.Format(field with { FieldName = "field_618" }, null, null, 461, 1, fieldName: "actual_archive_name"));
         Assert.EndsWith(" | x3", title);
         GameState world = field with { Scene = SceneKind.WorldMap, World = new WorldState { X = 12875, Z = -26746, NativeHeight = -303, Frame = 1641 }, WorldArrival = new WorldTransition(0, 0, -1) };
         title = LocationWindowTitle.Format(world, null, null, 461, 1, 1);

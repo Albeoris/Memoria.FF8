@@ -149,6 +149,8 @@ internal sealed partial class GameWorld : IDisposable
     public FieldAssets? Field { get; private set; }
     private WorldMapLocations? worldLocations;
 
+    internal static bool HasWorldPlaceArrival(SceneEventState departingScene, GameState state) => departingScene.WorldTransitionRequest is not null && state.DepartingWorldState is not null;
+
     public WorldMapScene? WorldScene => worldScene;
     public DialogueState? CurrentDialogue => session.State.Scene == SceneKind.WorldMap ? worldScene?.CurrentDialogue : Events.CurrentDialogue;
     public PlayerTrigger NextTrigger => session.State.RandomEncounters?.Pending is { } random ? new(PlayerTriggerKind.Battle, random.FieldId, random.Frame, null, null) : worldScene is not null && session.State.Scene == SceneKind.WorldMap ? worldScene.CurrentDialogue is { } dialogue ? new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, worldScene.State.Frame, dialogue.MessageId, dialogue.Text) : new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
@@ -287,7 +289,7 @@ internal sealed partial class GameWorld : IDisposable
         NativeShopHistory? sceneShopHistory = restoreDeparting ? session.ShopHistory : null;
         NativeMenuRandomState? sceneMenuRandom = restoreDeparting ? session.MenuRandom : null;
         NativeWeaponRecipes? sceneWeaponRecipes = restoreDeparting ? session.WeaponRecipes : null;
-        ushort? inheritedPlaceId = !restoreDeparting && snapshot is null && session.State.DepartingFieldState is not null && session.State.DepartingWorldState is { } departedWorld ? unchecked((ushort)(worldLocations ??= WorldMapLocations.ReadInstalled(assets.GameDirectory)).GetPlaceId(departedWorld.X, departedWorld.Z)) : null;
+        ushort? inheritedPlaceId = !restoreDeparting && snapshot is null && HasWorldPlaceArrival(Events.Scene, session.State) ? unchecked((ushort)(worldLocations ??= WorldMapLocations.ReadInstalled(assets.GameDirectory)).GetPlaceId(session.State.DepartingWorldState!.X, session.State.DepartingWorldState.Z)) : null;
         Events.LoadField(next.Id, next.Jsm, next.Messages, arrival, previousFieldId: snapshot is null ? session.State.PreviousFieldId : null, nativeRuntimeProfile: assets.NativeRuntimeProfile, worldEntityAllocationContext: snapshot, inheritedPlaceId: inheritedPlaceId);
         if (next.Information is FieldInformation information)
         {

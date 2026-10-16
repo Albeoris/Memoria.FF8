@@ -825,6 +825,7 @@ internal sealed partial class RecreateGame : Game
             session.State.Scene,
             session.State.FieldId,
             FieldName = field?.Id == session.State.FieldId ? field.Name : session.State.FieldName,
+            WindowTitle = Window.Title,
             session.State.MovieIndex,
             session.State.MovieSeconds,
             session.State.MoviePlayback,
