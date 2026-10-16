@@ -93,7 +93,7 @@ internal sealed partial class RecreateGame
                 liveMenuCatalog = LiveMenuCatalog.ReadInstalled(assets);
                 nativeRefinementDefinitions = assets.ReadNativeRefinementDefinitions();
             }
-            data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog);
+            data = LiveMenuData.Build(session.State, events?.Scene.Names, liveMenuCatalog, placeId: events?.Scene.PlaceId);
             NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog);
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";

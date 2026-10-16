@@ -38,6 +38,7 @@ public sealed partial class WorldAssets : IDisposable
     private readonly IFlArchiveEntry terrain;
     private readonly byte[] wmset;
     private readonly int[] sections;
+    private readonly WorldMapLocations mapLocations;
     private readonly Dictionary<(int, int), WorldSegment> segments = [];
     private readonly Dictionary<(int, int), PixelImage> textures = [];
     private readonly Dictionary<(int, int), AssetHandle<TextureValue>> textureHandles = [];
@@ -67,6 +68,7 @@ public sealed partial class WorldAssets : IDisposable
         }
         wmset = Read("wmsetus.obj");
         sections = WorldAssetReader.ReadSections(wmset);
+        mapLocations = new WorldMapLocations(wmset);
         Spawns = WorldAssetReader.ReadSpawns(wmset, sections);
         Skies = WorldAssetReader.InnerPointers(wmset, sections[32]).Select(pointer => WorldAssetReader.ReadSky(wmset, sections[32] + pointer)).ToArray();
     }
@@ -105,16 +107,7 @@ public sealed partial class WorldAssets : IDisposable
         return model;
     }
 
-    public short GetNativeMapLocationId(int x, int rawZ)
-    {
-        if (x is < -131072 or >= 131072 || rawZ is < -98304 or >= 98304 || sections[19] - sections[18] != Columns * Rows + 4)
-        {
-            throw new InvalidDataException("Invalid native world map-location table or centered coordinates.");
-        }
-        // Native542DA0 binds dword20400BC to zero-based section18 (the nineteenth section).
-        int segment = 32 * ((rawZ + 294912) % 196608 / 8192) + (x + 393216) % 262144 / 8192;
-        return unchecked((sbyte)wmset[sections[18] + segment]);
-    }
+    public short GetNativeMapLocationId(int x, int rawZ) => mapLocations.GetPlaceId(x, rawZ);
 
     private WorldFieldEntryReader ReadFieldEntries()
     {

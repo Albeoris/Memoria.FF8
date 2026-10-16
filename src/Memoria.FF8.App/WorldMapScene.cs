@@ -246,6 +246,7 @@ internal sealed partial class WorldMapScene : IDisposable
         }
     }
 
+    public short PlaceId => assets.GetNativeMapLocationId(State.X, State.Z);
     public WorldState State => session.State.World ?? LastDeparture ?? throw new InvalidOperationException("This world scene no longer has a current state.");
     internal string AllocationProgramSha256 => assets.AllocationProgramSha256;
     internal NativeWorldEncounterDefinition? ReadRandomEncounterDefinition(WorldState state) => assets.ReadRandomEncounterDefinition(state.X, state.Z, state.GroundType ?? throw new NotSupportedException("Encounters require native ground."), session.State.DiscProcess!.SavedDisc204);

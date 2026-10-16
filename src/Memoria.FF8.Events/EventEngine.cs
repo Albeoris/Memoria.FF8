@@ -73,7 +73,7 @@ public sealed partial class EventEngine
     public NativeFieldRuntimeProfile? NativeRuntimeProfile { get; private set; }
     public event Action<ScriptCommand>? CommandExecuted;
 
-    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null)
+    private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null, ushort? inheritedPlaceId = null)
     {
         if (program is not null)
         {
@@ -145,7 +145,7 @@ public sealed partial class EventEngine
         // Native field initialization clears the 256 temporary bytes at variable offset 0x400.
         SetEventMemory(EventMemory.Clear(1024, 1280));
         SceneEventState previousScene = Scene;
-        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower };
+        Scene = new SceneEventState { AudioLoadEpoch = checked(previousScene.AudioLoadEpoch + 1), RandomBattlesEnabled = previousScene.RandomBattlesEnabled, LoadedMusic = previousScene.LoadedMusic, MusicPlaying = previousScene.MusicPlaying, MusicVolume = previousScene.MusicVolume, BattleMusic = previousScene.BattleMusic, PartyPower = previousScene.PartyPower, PlaceId = inheritedPlaceId ?? previousScene.PlaceId };
         Scene.NativeFieldInitialization = nativeRuntimeProfile is { IsVerified: true } ? new NativeFieldInitializationProof(1, nativeRuntimeProfile.ExecutableHash, fieldId, programHash, nativeRuntimeProfile.FieldClock, NativeFieldInitializationStage.Allocated, services.ExamTimer?.ClockCalls) : null;
         //52B4F0 resets modes/settings, but retains current WORD8/10. Only
         //the executable's zero-filled process tail supplies the cold pair.

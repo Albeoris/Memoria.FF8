@@ -13,12 +13,12 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Projects canonical session owners and supported input kinds without creating or mutating native state.</summary>
 public static class LiveMenuData
 {
-    public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, IReadOnlySet<int>? visibleCharacterRows = null)
+    public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, IReadOnlySet<int>? visibleCharacterRows = null, int? placeId = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         MenuData result = new()
         {
-            Location = state.Scene == SceneKind.WorldMap ? "World map" : state.FieldName,
+            Location = catalog?.LocationName(state, placeId) ?? "Unavailable",
             SourceDescription = "Live session: native inventory, party and junction records",
             UnavailableReason = "The current engine does not support this native menu action."
         };
@@ -338,6 +338,7 @@ public sealed partial class LiveMenuCatalog
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
         LiveMenuCatalog catalog = new(kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, TripleTriadCatalog.Load(assets.GameDirectory));
+        catalog.ReadLocations(ReadMenu("areames.dc1"), encoding, WorldMapLocations.ReadInstalled(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
         catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), NativeMagazineArtwork.ReadItemIconKinds(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"))));
         return catalog;

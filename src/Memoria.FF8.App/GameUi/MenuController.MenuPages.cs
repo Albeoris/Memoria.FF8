@@ -22,7 +22,7 @@ public sealed partial class MenuController
             Place(row, Label(character?.Name ?? "", 28), 0, 1);
             Place(row, Label(character is null ? "" : $"Lv {Number(character.Level)}", 23), 0, 2);
             Place(row, Label(character is null ? "" : "HP " + Hp(character), 23), 0, 3);
-            UiPanel status = Panel("STATUS", row);
+            UiPanel status = Panel(null, row);
             status.Id = "party-status-" + index;
             if (IsSelectingCharacter && character is not null)
             {

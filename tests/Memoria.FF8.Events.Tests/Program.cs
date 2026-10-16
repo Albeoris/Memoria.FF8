@@ -58,6 +58,7 @@ internal static partial class Program
                     ["cosine-offset-start"] = NativeCosineOffsetExplicitStartContract,
                     ["physical-motion-words"] = NativePhysicalMotionWordContract,
                     ["field-media"] = NativeFieldMediaContract,
+                    ["native-place-id"] = NativePlaceIdContract,
                     ["global-sound"] = NativeGlobalSoundContract,
                     ["salary-presentation-effects"] = NativeSalaryPresentationEffectsContract,
                     ["exam-timer"] = NativeExamTimerContract,

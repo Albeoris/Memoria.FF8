@@ -153,7 +153,6 @@ internal sealed partial class RecreateGame : Game
         if (keyboard.SpeedToggleRequested)
         {
             gameplayClock.ToggleSpeed();
-            Window.Title = gameplayClock.SpeedMultiplier == 1 ? "Memoria - Final Fantasy VIII" : "Memoria - Final Fantasy VIII (events x3)";
         }
         // A capture fences the queue until Draw publishes that exact presented frame.
         if (pendingCapture is null)
@@ -901,6 +900,7 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
+        UpdateLocationWindowTitle();
         // Catch-up updates advance the VM only. Rasterize once for the frame actually presented.
         if (ActiveBattle is null && gameMenus?.IsOpen != true && !fieldFaulted && !fieldRenderFaulted && world is not null && (session.State.Scene == SceneKind.WorldMap || world.CanPresentCurrentField))
         {

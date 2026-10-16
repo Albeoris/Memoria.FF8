@@ -1084,7 +1084,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SETPLACE:
                 args = Pop(fiber, 1);
-                Scene.PlaceId = args[0];
+                Scene.PlaceId = unchecked((ushort)args[0]);
                 break;
             case Jsm.Opcode.ADDMEMBER:
             case Jsm.Opcode.SUBMEMBER:
