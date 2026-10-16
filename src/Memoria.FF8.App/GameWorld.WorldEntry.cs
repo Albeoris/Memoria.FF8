@@ -19,7 +19,7 @@ internal sealed partial class GameWorld
         try
         {
             using var musicAssets = new WorldAssets(assets.GameDirectory);
-            publishMusic = Events.PrepareWorldMusic(request.Transition, musicAssets.ReadMusicResource);
+            publishMusic = Events.PrepareWorldMusic(request.Transition, musicAssets.ReadMusicResource, musicAssets.ReadMusicFileResource);
         }
         catch
         {

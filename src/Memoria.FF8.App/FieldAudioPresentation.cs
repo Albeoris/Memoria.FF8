@@ -92,7 +92,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
             TryOutput(() =>
             {
                 RequireOrdinaryMusicOutput(primary.ChoiceMask);
-                PlayMusic(first, 0, worldMap ? scene.WorldMusicLoad?.TargetVolume ?? throw new NotSupportedException("World music resume requires its executed native loader receipt.") : scene.SoundMusicVolume197, fieldId);
+                PlayMusic(first, 0, worldMap ? scene.WorldMusicLoad?.TargetVolume ?? throw new NotSupportedException("World music resume requires its executed native loader receipt.") : scene.SoundMusicVolume197, fieldId, worldMap ? scene.WorldMusicLoad!.StartPoint : 0);
             });
         }
         if (secondary is { ChannelId: >= 0, MusicId: byte second } && second != 255)
@@ -114,7 +114,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                     }
                     else if (world.Music is byte worldMusic)
                     {
-                        PlayMusic(worldMusic, 0, world.InitialVolume, world.SourceFieldId, forceRestart: world.Operation == NativeWorldMusicOperation.Play);
+                        PlayMusic(worldMusic, 0, world.InitialVolume ?? (int)PrimaryMusicVolume, world.SourceFieldId, world.StartPoint, forceRestart: world.Operation == NativeWorldMusicOperation.Play);
                         SetMusicGain(0, false, null, world.TargetVolume, world.DurationMilliseconds);
                     }
                     break;

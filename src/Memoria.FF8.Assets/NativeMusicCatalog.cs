@@ -47,6 +47,21 @@ public sealed class NativeMusicCatalog
     public int SoundPan(int pan) => Table(0xB7ED10, pan);
     public int MusicVolume(int volume) => Table(0xB7F92C, volume);
 
+    public string WorldMusicFile(int index)
+    {
+        _ = NativeWorldMusicResource.FileMusic(index);
+        uint pointer = BinaryPrimitives.ReadUInt32LittleEndian(image.AsSpan(Offset(0xC75EA0) + index * 16, 4));
+        int start = Offset(pointer);
+        int end = Array.IndexOf(image, (byte)0, start);
+        string original = Encoding.ASCII.GetString(image, start, end - start);
+        string name = original.Replace('\\', '/');
+        if (!name.EndsWith(";1", StringComparison.Ordinal) || name[..^2] != $"dat/music{index}.obj")
+        {
+            throw new InvalidDataException("Native world music table has a different archive resource path.");
+        }
+        return name[..^2];
+    }
+
     /// <summary>Original4B92A0/4B92C0 translate menu cue numbers through byte_B87D28.</summary>
     public uint MenuSound(int number)
     {
