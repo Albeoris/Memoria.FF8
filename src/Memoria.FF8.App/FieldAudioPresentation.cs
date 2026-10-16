@@ -308,15 +308,15 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             uint pan = ResolveNativeModuleSoundPan(sound);
             // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output.
             int transientVoice = (sound.Flags & 0xFFFFFF) == 0 ? -10 - battleVoice++ % 16 : 0;
-            PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound, transientVoice), pan);
+            PlayPresentationSound(sound.Sound, ResolveNativeModuleSoundVoice(sound, transientVoice), pan, sound.Volume);
         });
     }
 
     internal static uint ResolveNativeModuleSoundPan(NativeBattleModuleSound sound)
     {
-        byte nativePan = sound.Pan ?? throw new NotSupportedException("Native501740/5017A0 sound requires its actual5011B0 projected pan BYTE.");
+        uint nativePan = sound.RawPan ?? (uint?)sound.Pan ?? throw new NotSupportedException("Native501740/5017A0 sound requires its actual pan operand or5011B0 projected pan BYTE.");
         //46B2A0 passes its unsigned pan argument shifted right once to4699A0.
-        return (uint)nativePan >> 1;
+        return nativePan >> 1;
     }
 
     internal static int ResolveNativeModuleSoundVoice(NativeBattleModuleSound sound, int transientVoice)
@@ -330,11 +330,16 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         return allocation.Voice;
     }
 
-    private void PlayPresentationSound(uint effect, int voice, uint pan = 64)
+    private void PlayPresentationSound(uint effect, int voice, uint pan = 64, uint volume = 127)
     {
+        //4699A0 rejects these unsigned operands; the original request remains recorded even when output is rejected.
+        if (volume > 127 || pan > 127)
+        {
+            return;
+        }
         int sample = EventEngine.MapGlobalSoundSample(effect);
         GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Presentation sound {effect} requires an unsupported audio format.");
-        PlaySoundSample(sample, voice, 127, pan, resource.LoopPolicy);
+        PlaySoundSample(sample, voice, volume, pan, resource.LoopPolicy);
     }
 
     private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false)

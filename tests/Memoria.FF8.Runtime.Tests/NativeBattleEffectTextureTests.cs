@@ -58,6 +58,27 @@ public sealed class NativeBattleEffectTextureTests
         Assert.Equal(state.Animation, state.Initialize500400().Animation);
     }
 
+    [Fact]
+    public void MutableArenaTimResolvesItsOriginalPointerAtDrainAndSlotReuseClearsThatPointer()
+    {
+        NativeBattleEffectHeapAllocation tim = Tim();
+        NativeBattleEffectArena arena = new NativeBattleEffectArena([]).Write(128, tim.Data.AsSpan());
+        NativeBattleEffectTextureState queued = NativeBattleEffectTextureState.FromColdProcess().EnqueueArenaTim505E30(arena, 128).State;
+        Assert.Throws<NotSupportedException>(() => queued.Drain505D20());
+        arena = arena.Write(128 + 64, [0xCD, 0xAB]);
+        NativeBattleEffectTextureDrain drained = queued.Drain505D20(arena);
+        Assert.Equal(0xABCD, BinaryPrimitives.ReadUInt16LittleEndian(drained.State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
+        NativeBattleEffectTextureState copy = drained.State.EnqueueCopy505EB0(64, 256, 1, 1, 65, 256);
+        Assert.Null(copy.Slots[0]!.ArenaOffset);
+        Assert.Equal(0xABCD, BinaryPrimitives.ReadUInt16LittleEndian(copy.Drain505D20().State.ReadVram().AsSpan(2 * (256 * 1024 + 65))));
+        NativeBattleEffectTextureState heap = drained.State.EnqueueTim505E30(tim).State;
+        Assert.Null(heap.Slots[0]!.ArenaOffset);
+        Assert.Equal(0x3210, BinaryPrimitives.ReadUInt16LittleEndian(heap.Drain505D20().State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
+        NativeBattleEffectTextureState rectangle = drained.State.EnqueueRectangle505DF0(new(64, 256, 1, 1), new("replacement-rectangle", [0xEF, 0xBE]));
+        Assert.Null(rectangle.Slots[0]!.ArenaOffset);
+        Assert.Equal(0xBEEF, BinaryPrimitives.ReadUInt16LittleEndian(rectangle.Drain505D20().State.ReadVram().AsSpan(2 * (256 * 1024 + 64))));
+    }
+
     private static NativeBattleEffectHeapAllocation Tim()
     {
         byte[] data = new byte[66];

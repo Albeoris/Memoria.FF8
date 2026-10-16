@@ -7,6 +7,7 @@ public sealed partial record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public byte? Kind5 { get; init; }
     public byte? Phase6 { get; init; }
     public byte? Alpha7 { get; init; }
+    public byte? EffectCounter97 { get; init; }
     public uint? Color40 { get; init; }
     public uint? Color44 { get; init; }
     public byte? CameraSequence130 { get; init; }
@@ -68,17 +69,17 @@ public static class NativeBattleGraphicsModels
         return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
     }
 
-    public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence)
+    public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence, bool overrideStatus = false)
     {
         if ((model.Flags0 & 2) == 0 || model.Flags8 is not uint flags)
         {
             throw new InvalidOperationException("Selecting a native graphics sequence requires its loaded model owner.");
         }
-        if (sequence == 0 || model.ModelId4 == 0x8F || (flags & 0x18) != 0)
+        if (sequence == 0 || model.ModelId4 == 0x8F || !overrideStatus && (flags & 0x18) != 0)
         {
             return model;
         }
-        //505C00 ->505BC0, without a linked-model ring or1000override.
+        //505C00 strips the1000 override before505BC0; it bypasses only DWORD8's18 gate.
         return model with { Sequence = sequence, SequenceFrame = 0, ResourceFlags44 = 1, SequenceState = model.SequenceState is null ? null : model.SequenceState with { Offset46 = 0, Pending3 = 0, Callback42 = 0 } };
     }
 

@@ -21,6 +21,7 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public uint? FireDrawBuffer { get; init; }
     public ImmutableArray<int>? FireModelCompletion { get; init; }
     public int? DrawArenaOffset { get; init; }
+    public NativeBattleQuezacotlState? Quezacotl { get; init; }
 
     public void Validate()
     {
@@ -43,6 +44,10 @@ public static class NativeBattleOriginalEffects
 {
     public static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
     {
+        if (selected.Binding.Initializer == 0x6C3560)
+        {
+            return NativeBattleQuezacotl.Initialize6C3560(memory, selected);
+        }
         NativeBattleEffectInitializerAsset? asset = selected.Binding.InitializerAsset;
         NativeBattleEffectInitializerResource? resource = selected.Binding.InitializerResource;
         if (resource is not null)

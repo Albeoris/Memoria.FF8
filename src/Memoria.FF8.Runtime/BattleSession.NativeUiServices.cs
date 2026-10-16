@@ -33,6 +33,8 @@ public sealed partial class BattleSession
                 {
                     ready.UnionWith(DispatchFrame(advanceGraphics: false));
                 }
+                //47CCB0 calls48D0C0 once after outer action/AI producers and immediately before500900.
+                PumpNativeFileIo482590();
                 AdvanceNativeGraphicsFrame();
                 if (NativeGraphics.UiServices is { } services && (NativeGraphics.Flags & 4) != 0)
                 {

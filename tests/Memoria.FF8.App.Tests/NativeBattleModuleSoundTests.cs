@@ -7,6 +7,18 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattleModuleSoundTests
 {
     [Theory]
+    [InlineData(0u, 0u)]
+    [InlineData(255u, 127u)]
+    [InlineData(256u, 128u)]
+    [InlineData(uint.MaxValue, 0x7FFFFFFFu)]
+    public void Summon_stream_playback_preserves_the_full_unsigned_pan_before_native_output_validation(uint pan, uint expected)
+    {
+        NativeBattleModuleSound receipt = new NativeBattleSummonStreamState(690001, null).Play5018C0(pan, 63);
+        Assert.Equal(expected, FieldAudioPresentation.ResolveNativeModuleSoundPan(receipt));
+        Assert.Equal(63u, receipt.Volume);
+    }
+
+    [Theory]
     [InlineData(2, 0)]
     [InlineData(2, 31)]
     [InlineData(3, 127)]

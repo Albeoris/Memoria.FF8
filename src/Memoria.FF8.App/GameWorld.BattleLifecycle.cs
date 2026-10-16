@@ -65,6 +65,7 @@ internal sealed partial class GameWorld
     {
         BattleEncounterOccurrence occurrence = session.State.PendingBattleEncounter ?? throw new InvalidOperationException("A live battle has no owned encounter occurrence.");
         BattleResult result = CaptureBattleOutcome(active, occurrence);
+        session.SetBattle(active.Capture());
         if (occurrence.ScriptedOwner is not null)
         {
             Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => ApplyBattleResult(occurrence, result), active.NativeResult!.Value);

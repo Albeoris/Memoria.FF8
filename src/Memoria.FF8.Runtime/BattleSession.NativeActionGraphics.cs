@@ -40,6 +40,10 @@ public sealed partial class BattleSession
         {
             return PollNativeCastingGraphics(graphics, context, phase);
         }
+        if (context.Callback == 0x50B2A0)
+        {
+            return PollNativeGuardianGraphics(graphics, context, phase);
+        }
         if (context.Callback != 0x50B190)
         {
             throw new NotSupportedException($"Native104 selected callback{context.Callback:X}; its original graphical service is not implemented.");

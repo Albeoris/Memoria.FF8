@@ -10,6 +10,43 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (effect.Binding.Entry == 0x6C3550)
+        {
+            NativeBattleQuezacotlPreparation prepared = NativeBattleQuezacotl.Prepare6C3760(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl callbacks require retained effect memory."), effect, NativeVibrationProcess, NativeCamera?.Projection?.View);
+            NativeEffectMemory = prepared.Memory;
+            NativeVibrationProcess = prepared.Vibration;
+            graphics = graphics with { OriginalEffect = prepared.Effect };
+            if (prepared.ChildBoundary)
+            {
+                NativeGraphics = graphics;
+                NativeBattleQuezacotlChildStep child = NativeBattleQuezacotlChild.AdvanceFirst6C3940(prepared.Memory, prepared.Effect);
+                NativeEffectMemory = child.Memory;
+                graphics = graphics with { OriginalEffect = child.Effect };
+                if (child.FileRequest is { } request)
+                {
+                    QueueNativeQuezacotlFile(request, child.Effect);
+                }
+                if (child.Entered)
+                {
+                    NativeBattleEffectParameters parameters = child.Effect.Parameters ?? throw new InvalidDataException("Native6C5300 lost its actual action header.");
+                    NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+                    int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C5300 requires its actual target contact pointer.");
+                    for (int index = 0; index < header.ReadByte(16); index++)
+                    {
+                        int target = nativeActionPackets.ReadContact(first + index).Primary.ActorIndex;
+                        NativeBattleGraphicsModel model = graphics.Models[target];
+                        graphics = graphics with { Models = graphics.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 | 4) }) };
+                    }
+                    uint sound = child.Effect.Binding.NativeQuezacotlResources?.InitialSound ?? throw new NotSupportedException("Native501330 requires the actual12AE4F0 Quezacotl sound DWORD.");
+                    events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(sound, 1, null) { Pan = 128 } });
+                    NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native6C3940 requires its retained camera globals.")).WriteEffectGlobals(new(new(0, -3827, -1983), new(0, -5150, -723), 288, 0));
+                }
+            }
+            NativeBattleStageState stage = NativeStage ?? throw new NotSupportedException("Native6C3760 requires its actual5713E0 stage context rows.");
+            short intensity = checked((short)graphics.OriginalEffect!.Quezacotl!.Intensity17A4);
+            NativeStage = stage with { Groups = stage.Groups.Select(group => group with { ColorDepth = intensity, ColorFlags = 0 }).ToImmutableArray() };
+            return graphics;
+        }
         if (effect.Binding.Entry == 0x700C10)
         {
             NativeBattleEffect3Step module = NativeBattleEffect3.Step(effect, new(nativeActionPackets, index => ReadNativeGraphicsBone(graphics, index, 241, 0), index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native effect3 requires its original model transform.")) { ApplyContact = ApplyContact });

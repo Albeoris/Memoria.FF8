@@ -99,6 +99,7 @@ internal sealed partial class GameWorld
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
             NativeSupportRules = BattleResources.ReadNativeSupportRules(),
             NativeRetainedMemory = session.State.NativeBattleMemory,
+            NativeVibrationProcess = session.State.VibrationProcess,
             NativeEntry = new(encounter.Flags, session.State.CharacterVitals!.GetEncounterAbilityFlags()),
             NativeStageCameraBank = BattleResources.LoadStage(encounter.StageId).NativeCameraBank,
             NativeStageSource = BattleResources.LoadStage(encounter.StageId).NativeSource,

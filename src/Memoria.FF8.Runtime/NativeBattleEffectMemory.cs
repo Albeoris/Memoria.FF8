@@ -12,7 +12,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
     public NativeBattleEffectTextureState? Textures { get; init; }
     public byte? Parameter80 { get; init; }
 
-    public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() };
+    public static NativeBattleEffectMemory FromColdProcess() => new(null, 0, 0, ImmutableArray.CreateRange(new NativeBattleEffectHeapAllocation?[256]), 0, 0, 0, 0) { Textures = NativeBattleEffectTextureState.FromColdProcess(), Parameter80 = 0, PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess(), GuardianWorkBuffer = NativeBattleGuardianWorkBuffer.FromColdProcess(), EffectIo = NativeBattleEffectIoState.FromColdProcess(), GuardianCasterBank = 0, QuezacotlPause = 0, QuezacotlSecondaryHeads = [0, 0, 0, 0, 0], SummonStream = NativeBattleSummonStreamState.FromColdProcess() };
 
     public void Validate()
     {
@@ -23,6 +23,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         Arena?.Validate();
         Textures?.Validate();
         PrimitiveProcess?.Validate();
+        GuardianWorkBuffer?.Validate();
     }
 
     public NativeBattleEffectMemory BeginLoad(int selectedIndex)
@@ -33,7 +34,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         {
             allocations = allocations.SetItem(index, null);
         }
-        return this with { Arena = NativeBattleEffectArena.Clear(), Cursor = 0, AllocationCount = 0, Allocations = allocations, Active = 1, SelectedIndex = selectedIndex };
+        return this with { Arena = NativeBattleEffectArena.Clear(), Cursor = 0, AllocationCount = 0, Allocations = allocations, Active = 1, SelectedIndex = selectedIndex, EffectIo = EffectIo is { } io ? io with { Callback = 0x534150 } : null };
     }
 
     public NativeBattleEffectMemory LoadIntoArena(ReadOnlySpan<byte> bytes)

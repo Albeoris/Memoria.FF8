@@ -12,6 +12,8 @@ public sealed partial class BattleSession
 
     private void InitializeNativeRetainedMemory()
     {
+        NativeFileIo = definition.NativeGraphics is null ? definition.NativeRetainedMemory?.FileIo : (definition.NativeRetainedMemory?.FileIo ?? NativeBattleFileIoState.Unknown()).Reset482560();
+        NativeVibrationProcess = definition.NativeVibrationProcess ?? definition.NativeRetainedMemory?.VibrationProcess;
         if (definition.NativeRetainedMemory is not { } memory)
         {
             return;
@@ -26,6 +28,8 @@ public sealed partial class BattleSession
         NativeEffectMemory = memory.EffectMemory;
         NativeStage = memory.Stage;
         NativeModelTextureCache = memory.ModelTextureCache;
+        NativeModelLoader = memory.ModelLoader;
+        NativeModelCpuResources = memory.ModelCpuResources;
         if (NativeCamera is not null)
         {
             NativeCamera = NativeBattleCameraState.Initialize5041E0(memory.Camera);

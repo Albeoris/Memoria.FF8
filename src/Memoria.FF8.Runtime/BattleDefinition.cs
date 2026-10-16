@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
@@ -146,6 +146,7 @@ public sealed record BattleDefinition
     public NativeBattleClockRules? NativeClockRules { get; init; }
     public NativeBattleSupportRules? NativeSupportRules { get; init; }
     public NativeBattleRetainedMemory? NativeRetainedMemory { get; init; }
+    public NativeVibrationProcessState? NativeVibrationProcess { get; init; }
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
     public ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; init; } = [];
@@ -285,7 +286,11 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeBattleFileIoState? NativeFileIo { get; init; }
+    public NativeVibrationProcessState? NativeVibrationProcess { get; init; }
     public NativeBattleModelTextureCache? NativeModelTextureCache { get; init; }
+    public NativeBattleModelLoader? NativeModelLoader { get; init; }
+    public NativeBattleModelCpuResources? NativeModelCpuResources { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleGuardianBoost? NativeGuardianBoost { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

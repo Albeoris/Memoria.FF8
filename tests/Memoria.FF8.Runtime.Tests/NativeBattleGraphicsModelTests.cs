@@ -5,6 +5,20 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleGraphicsModelTests
 {
+    [Theory]
+    [InlineData(false, 8)]
+    [InlineData(true, 3)]
+    public void Sequence1000OverrideBypassesTheStatusGateWithoutChangingStatusOrModelFlags(bool force, byte expected)
+    {
+        NativeGlobalRandomState random = new(0);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(new(0, 0), 0, 0x18, ref random) with { Flags0 = 0x203 };
+        NativeBattleGraphicsModel selected = NativeBattleGraphicsModels.SelectSequence(model, 3, force);
+        Assert.Equal(expected, selected.Sequence);
+        Assert.Equal(model.Flags0, selected.Flags0);
+        Assert.Equal(model.Flags8, selected.Flags8);
+        Assert.Equal(model.StatusTimers, selected.StatusTimers);
+    }
+
     [Fact]
     public void ClearingAndLoadingPreserveTheNativeFieldInitializationBoundary()
     {

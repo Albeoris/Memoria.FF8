@@ -80,7 +80,7 @@ public sealed partial class BattleSession
         NativeBattleEffectsStep effects = graphics.Effects.Advance(models);
         foreach (byte index in effects.ResetModelStatuses)
         {
-            models = models.SetItem(index, SetNativeGraphicsFlags(models[index], 16));
+            models = models.SetItem(index, SetNativeGraphicsFlags(models[index], 16, graphics with { Models = models }));
         }
         graphics = graphics with { Models = models, Effects = effects.State };
         for (int index = 0; index < 7; index++)
@@ -200,7 +200,7 @@ public sealed partial class BattleSession
             effectMemory = effectMemory.PublishSound();
             if ((graphics.Flags & 8) != 0 && effectMemory.Textures is { } textures)
             {
-                effectMemory = effectMemory with { Textures = textures.Drain505D20().State };
+                effectMemory = effectMemory with { Textures = textures.Drain505D20(effectMemory.Arena).State };
             }
             NativeEffectMemory = effectMemory;
         }
@@ -264,7 +264,7 @@ public sealed partial class BattleSession
             graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendFlash(0, 1, 0, 255) };
         }
         int index = half.ActorIndex;
-        NativeBattleGraphicsModel model = SetNativeGraphicsFlags(graphics.Models[index], plan.ImmediateStatusFlags!.Value);
+        NativeBattleGraphicsModel model = SetNativeGraphicsFlags(graphics.Models[index], plan.ImmediateStatusFlags!.Value, graphics);
         if (plan.EjectionService7)
         {
             NativeBattleModuleResource resource = RequireNativeModuleResource(21);
@@ -338,10 +338,11 @@ public sealed partial class BattleSession
         return model;
     }
 
-    private static NativeBattleGraphicsModel SetNativeGraphicsFlags(NativeBattleGraphicsModel model, uint flags)
+    private NativeBattleGraphicsModel SetNativeGraphicsFlags(NativeBattleGraphicsModel model, uint flags, NativeBattleGraphicsState graphics)
     {
         uint previous = model.Flags8 ?? throw new InvalidDataException("Native509D10 requires its current graphics status DWORD.");
         uint added = (previous ^ flags) & flags;
+        uint removed = (previous ^ flags) & ~flags;
         ImmutableArray<byte?> timers = model.StatusTimers;
         for (int bit = 0; bit < 32; bit++)
         {
@@ -364,6 +365,26 @@ public sealed partial class BattleSession
             else
             {
                 model = model with { Flags0 = (ushort)(model.Flags0 & ~2) };
+            }
+        }
+        if ((model.ModelId4 ?? throw new InvalidDataException("Native509D10 requires the model BYTE4.")) < 16)
+        {
+            if (((added | removed) & 0x410) != 0)
+            {
+                UploadNativeStatusPalette509E00(checked((byte)model.Index), flags);
+            }
+            if ((removed & 2) != 0)
+            {
+                ApplyNativeTextureMotion(graphics with { Models = graphics.Models.SetItem(model.Index, model) }, model.Index, 0, 0);
+                model = model with { Flags0 = (ushort)(model.Flags0 | 0x400) };
+            }
+            if ((added & 0x1000) != 0)
+            {
+                ApplyNativeTextureMotion(graphics with { Models = graphics.Models.SetItem(model.Index, model) }, model.Index, 0, 1);
+            }
+            else if ((removed & 0x1000) != 0)
+            {
+                ApplyNativeTextureMotion(graphics with { Models = graphics.Models.SetItem(model.Index, model) }, model.Index, 0, 0);
             }
         }
         return model with { Flags8 = flags, StatusTimers = timers };

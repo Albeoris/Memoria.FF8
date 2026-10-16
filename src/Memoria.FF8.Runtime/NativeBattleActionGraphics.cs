@@ -11,7 +11,9 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] in
     [JsonRequired]
     public ushort? ReflectionWatchdog4A { get; init; }
     public ushort? CastingWatchdog8E { get; init; }
+    public NativeBattleGuardianServiceState? Guardian { get; init; }
 }
+public sealed record NativeBattleGuardianServiceState(byte HiddenPartyMask47, byte CameraSelector4E, ushort Control44, byte? Neighbor70 = null);
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
 
 public static class NativeBattleActionGraphics
@@ -110,6 +112,7 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
     public NativeBattleEffectInitializerResource? InitializerResource { get; init; }
     public NativeBattleEffectProgramResources? ProgramResources { get; init; }
     public NativeBattleEffect3Resources? Effect3Resources { get; init; }
+    public NativeBattleQuezacotlResources? NativeQuezacotlResources { get; init; }
 }
 
 public sealed record NativeBattleEffectInitializerAsset(string Name, System.Collections.Immutable.ImmutableArray<byte> Data);

@@ -73,10 +73,22 @@ public static class NativeBattleRetainedMemoryReader
             SoundPublishedFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB8, 4)),
             PrimitiveProcess = NativeBattlePrimitiveProcess.FromColdProcess() with { TexturePage = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1C48818, 2)), Buffer80 = ReadLoaderBytes(0x1D96A80, 1)[0] }
         };
+        if (ReadLoaderBytes(0x209FAB8, NativeBattleGuardianWorkBuffer.Length).Any(value => value != 0) || ReadLoaderBytes(0x1DCD6E4, 12).Any(value => value != 0) || ReadLoaderBytes(0x1D96DC4, 4).Any(value => value != 0) || ReadLoaderBytes(0x25216DC, 4).Any(value => value != 0) || ReadLoaderBytes(0x1D96DB0, 4).Any(value => value != 0) || ReadLoaderBytes(0x1D96DC0, 4).Any(value => value != 0) || new uint[] { 0x2521728, 0x2521718, 0x2521708, 0x25216F8, 0x25216E8 }.Any(address => ReadLoaderBytes(address, 4).Any(value => value != 0)))
+        {
+            throw new InvalidDataException("Authenticated cold571B70 work bank/effect IO pointer globals contradict their separate zero-filled loader storage.");
+        }
+        if (ReadLoaderBytes(0x1D29638, 16 * 4).Any(value => value != 0) || ReadLoaderBytes(0x1D29A08, 16 * 12).Any(value => value != 0) || ReadLoaderBytes(0x1D29AD0, 2).Any(value => value != 0) || ReadLoaderBytes(0x1D2A200, 2).Any(value => value != 0) || ReadLoaderBytes(0x1D2A1FA, 2).Any(value => value != 0))
+        {
+            throw new InvalidDataException("Authenticated cold482590 callback/row/count/current/delay globals contradict their zero-filled process image.");
+        }
         NativeBattleActionMemory actionMemory = new(Enumerable.Range(0, 7).Select(index => ReadLoaderBytes(checked(0x1D27B98u + 208u * (uint)index), 8).Select(value => (byte?)value).ToImmutableArray()).ToImmutableArray());
         if (ReadLoaderBytes(0x1D99768, 11 * 52).Any(value => value != 0) || ReadLoaderBytes(0x1D98B54, 2).Any(value => value != 0))
         {
             throw new InvalidDataException("Authenticated cold texture-resource globals contradict their zero-filled process image.");
+        }
+        if (ReadLoaderBytes(0x1D98B60, 0xC00).Any(value => value != 0))
+        {
+            throw new InvalidDataException("Authenticated cold507120 saved-palette rows contradict their six512-byte zero-filled loader allocations.");
         }
         if (ReadLoaderBytes(0x1D98988, 0xCC).Any(value => value != 0) || ReadLoaderBytes(0x1D96DA4, 4).Any(value => value != 0))
         {
@@ -87,7 +99,7 @@ public static class NativeBattleRetainedMemoryReader
         {
             throw new InvalidDataException("Authenticated cold camera/GTE owners contradict the loader image profile.");
         }
-        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), Camera = camera, ActionMemory = actionMemory };
+        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ModelTextureCache = NativeBattleModelTextureCache.FromColdProcess(), ModelCpuResources = NativeBattleModelCpuResources.FromColdProcess(), Stage = NativeBattleStageState.FromColdProcess(), Camera = camera, ActionMemory = actionMemory, FileIo = NativeBattleFileIoState.FromColdProcess() };
         result.Validate();
         return result;
 

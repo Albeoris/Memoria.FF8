@@ -279,9 +279,13 @@ public sealed partial class BattleSession
             NativePartyStatusMirrors = nativePartyStatusMirrors,
             NativePartyPresentation = nativePartyPresentation,
             NativeEffectIoResult = NativeEffectIoResult,
+            NativeFileIo = NativeFileIo,
+            NativeVibrationProcess = NativeVibrationProcess,
             NativeEffectMemory = NativeEffectMemory,
             NativeStage = NativeStage,
             NativeModelTextureCache = NativeModelTextureCache,
+            NativeModelLoader = NativeModelLoader,
+            NativeModelCpuResources = NativeModelCpuResources,
             NativeActionMemory = nativeActionMemory.State,
             NativeActionScratch = nativeActionScratch,
             NativeElementAttack = nativeElementAttack,
@@ -958,12 +962,20 @@ public sealed partial class BattleSession
         nativePartyStatusMirrors.Validate();
         RestoreNativePartyPresentation(snapshot.NativePartyPresentation);
         NativeEffectIoResult = snapshot.NativeEffectIoResult;
+        snapshot.NativeFileIo?.Validate();
+        NativeFileIo = snapshot.NativeFileIo;
+        snapshot.NativeVibrationProcess?.Validate();
+        NativeVibrationProcess = snapshot.NativeVibrationProcess;
         snapshot.NativeEffectMemory?.Validate();
         NativeEffectMemory = snapshot.NativeEffectMemory;
         snapshot.NativeStage?.Validate();
         NativeStage = snapshot.NativeStage;
         snapshot.NativeModelTextureCache?.Validate();
         NativeModelTextureCache = snapshot.NativeModelTextureCache;
+        snapshot.NativeModelLoader?.Validate();
+        snapshot.NativeModelCpuResources?.Validate();
+        NativeModelLoader = snapshot.NativeModelLoader;
+        NativeModelCpuResources = snapshot.NativeModelCpuResources;
         RestoreNativeActionMemory(snapshot.NativeActionMemory);
         nativeActionScratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native action scratch owner is missing; explicitly migrate the standalone snapshot.");
         nativeActionScratch.Validate();
@@ -1237,9 +1249,13 @@ public sealed partial class BattleSession
         nativeElementAttack = candidate.nativeElementAttack;
         nativePartyPresentation = candidate.nativePartyPresentation;
         NativeEffectIoResult = candidate.NativeEffectIoResult;
+        NativeFileIo = candidate.NativeFileIo;
+        NativeVibrationProcess = candidate.NativeVibrationProcess;
         NativeEffectMemory = candidate.NativeEffectMemory;
         NativeStage = candidate.NativeStage;
         NativeModelTextureCache = candidate.NativeModelTextureCache;
+        NativeModelLoader = candidate.NativeModelLoader;
+        NativeModelCpuResources = candidate.NativeModelCpuResources;
         nativeActionScratch = candidate.nativeActionScratch;
         RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
         RestoreNativeLimits(candidate.CaptureNativeLimits());

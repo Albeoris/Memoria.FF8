@@ -62,6 +62,10 @@ public sealed class NativeBattleFirePresentationTests
         }
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
+        if (!casting)
+        {
+            AssertNativeFileIoHostPump(before);
+        }
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         (packets, int header) = packets.Prepare(new(0, casting ? (byte)2 : (byte)252, casting ? (byte)11 : (byte)0, -1, 1, 2, null));
         (packets, _) = packets.AppendContact(new(new(3, 5, 1, 0, 0, 7, 0), new(255, 0, 0, 0, 0, 0, 0)));
@@ -232,6 +236,43 @@ public sealed class NativeBattleFirePresentationTests
     {
         NativeBattleDescriptorState descriptors = battle.NativeGraphics!.Descriptors;
         return descriptors.Queue.Any(slot => descriptors.Packets[slot].Command == 104);
+    }
+
+    private static void AssertNativeFileIoHostPump(BattleSnapshot entry)
+    {
+        //A controlled pending IO row isolates the outer scheduler from effect/model requests; the live battle stays unchanged.
+        NativeBattleFileIoState pending = NativeBattleFileIoState.FromColdProcess().Queue482610(40960, 0x508470, null);
+        BattleSession probe = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1 });
+        long callback = probe.NativeGraphics!.Callback;
+        probe.AdvanceNativeGraphicsPresentation(Callback);
+        Assert.Equal(callback + 1, probe.NativeGraphics.Callback);
+        Assert.Equal((short)1, probe.NativeFileIo!.Rows[0].Countdown);
+        Assert.Equal(-1, probe.NativeEffectIoResult);
+        string mid = JsonSerializer.Serialize(probe.Capture());
+        probe.Tick();
+        Assert.Equal(mid, JsonSerializer.Serialize(probe.Capture()));
+        BattleSession clone = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(mid)!);
+        for (int step = 0; step < 2; step++)
+        {
+            probe.AdvanceNativeGraphicsPresentation(Callback);
+            clone.AdvanceNativeGraphicsPresentation(Callback);
+            Assert.Equal(JsonSerializer.Serialize(probe.Capture()), JsonSerializer.Serialize(clone.Capture()));
+            Assert.Equal(step == 0 ? -1 : 40960, probe.NativeEffectIoResult);
+        }
+        Assert.Equal(callback + 3, probe.NativeGraphics.Callback);
+        Assert.Equal((short)0, probe.NativeFileIo.ActiveCount);
+        Assert.Equal((short)-1, probe.NativeFileIo.Rows[0].Countdown);
+        NativeBattleGraphicsState graphics = entry.NativeGraphics!;
+        NativeBattleUiServices services = graphics.UiServices!;
+        BattleSession paused = BattleSession.Restore(entry with { NativeFileIo = pending, NativeEffectIoResult = -1, NativeGraphics = graphics with { UiServices = services with { Flags942 = (ushort)(services.Flags942 | 2), PauseDE9 = true } } });
+        paused.AdvanceNativeGraphicsPresentation(Callback);
+        Assert.Equal(callback, paused.NativeGraphics!.Callback);
+        Assert.Equal((short)2, paused.NativeFileIo!.Rows[0].Countdown);
+        Assert.Equal(-1, paused.NativeEffectIoResult);
+        BattleSession old = BattleSession.Restore(entry with { NativeFileIo = null });
+        Assert.Throws<NotSupportedException>(() => old.AdvanceNativeGraphicsPresentation(Callback));
+        Assert.Null(old.NativeFileIo);
+        Assert.Equal(entry.NativeGraphics!.Callback, old.NativeGraphics!.Callback);
     }
 
     private static int DifferentPixels(byte[] visible, byte[] plain)
