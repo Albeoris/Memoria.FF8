@@ -145,11 +145,6 @@ internal sealed partial class WorldMapScene
         candidate = candidate with { X = ground.X, Z = ground.Z };
         EnsureCarContactCertificate(candidate);
         WorldGround? accepted = ground.Center?.Ground;
-        if (accepted is WorldGround entrance && entrance.Triangle.FieldEntrance)
-        {
-            WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-            fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(candidate.X, candidate.Z, inputs.StoryWord, car.EntityType), entrance.Triangle.TextureFlags);
-        }
         int height = accepted is WorldGround selected ? NativeWorldTerrain.ResolveHeight(car.EntityType, -(int)selected.Height, selected.Triangle.GroundType, before.NativeHeight).Height : before.NativeHeight;
         // Accepted53BB90 retains the unrotated raw velocity, even when a sliding candidate wins.
         salaryMovementUnits = NativeWorldSalaryMovement.AcceptedVectorUnits(ground.Blocked ? 0 : moveX, 0, ground.Blocked ? 0 : graphicsZ);

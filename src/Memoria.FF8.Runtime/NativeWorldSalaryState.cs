@@ -15,6 +15,7 @@ public sealed partial record NativeWorldSalaryState
         RandomEncounters = departure.RandomEncounters;
         VibrationProcess = departure.VibrationProcess;
         FuelDistance112 = departure.SavedWorld?.FuelDistance112;
+        SavedWorldEvents = departure.SavedWorld;
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
     }
 
@@ -29,6 +30,7 @@ public sealed partial record NativeWorldSalaryState
     public RandomEncounterSessionState? RandomEncounters { get; init; }
     public NativeVibrationProcessState? VibrationProcess { get; private init; }
     public uint? FuelDistance112 { get; private init; }
+    public NativeSavedWorldState? SavedWorldEvents { get; private init; }
     public int? CarCameraCooldown { get; private init; }
 
     public static NativeWorldSalaryState Begin(GameState departure)
@@ -75,7 +77,7 @@ public sealed partial record NativeWorldSalaryState
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
         WorldEntryMemory?.ValidateEventMemory(candidate.EventMemory);
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = candidate.SavedWorld is { } saved ? saved with { FuelDistance112 = FuelDistance112 } : null, WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
+        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = ApplySavedWorldOwners(candidate.SavedWorld), WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)

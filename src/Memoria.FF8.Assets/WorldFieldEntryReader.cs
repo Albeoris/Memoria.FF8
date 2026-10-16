@@ -93,10 +93,10 @@ public sealed partial class WorldFieldEntryReader
         {
             return null;
         }
-        return Select(input, null, null, null);
+        return Select(input, null, null, null, null);
     }
 
-    public WorldFieldSelection? SelectWorldEvent(WorldFieldSelectionInput input, Func<ushort, bool> nearAllocatedShape, NativeWorldEventFlags savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate = null)
+    public WorldFieldSelection? SelectWorldEvent(WorldFieldSelectionInput input, Func<ushort, bool> nearAllocatedShape, NativeWorldEventFlags savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate = null, Action<ushort, ushort>? executeRuntimeCommand = null)
     {
         if (sectionIndex != 36)
         {
@@ -105,10 +105,10 @@ public sealed partial class WorldFieldEntryReader
         ArgumentNullException.ThrowIfNull(nearAllocatedShape);
         ArgumentNullException.ThrowIfNull(savedWorldFlags116);
         savedWorldFlags116.Validate();
-        return Select(input, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate);
+        return Select(input, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate, executeRuntimeCommand);
     }
 
-    private WorldFieldSelection? Select(WorldFieldSelectionInput input, Func<ushort, bool>? nearAllocatedShape, NativeWorldEventFlags? savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate)
+    private WorldFieldSelection? Select(WorldFieldSelectionInput input, Func<ushort, bool>? nearAllocatedShape, NativeWorldEventFlags? savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate, Action<ushort, ushort>? executeRuntimeCommand)
     {
         if (input.X is < -131072 or >= 131072 || input.RawZ is < -98304 or >= 98304)
         {
@@ -252,8 +252,8 @@ public sealed partial class WorldFieldEntryReader
                             }
                             else
                             {
-                                WorldFieldEntry entry = ReadSelectedPacket(position);
-                                return new WorldFieldSelection(clauseIndex, clauses[clauseIndex], position, entry, trace.ToArray());
+                                WorldFieldEntry? entry = ReadSelectedPacket(position, executeRuntimeCommand);
+                                return entry is WorldFieldEntry packet ? new WorldFieldSelection(clauseIndex, clauses[clauseIndex], position, packet, trace.ToArray()) : null;
                             }
                         }
                         else
@@ -268,7 +268,7 @@ public sealed partial class WorldFieldEntryReader
         return null;
     }
 
-    private WorldFieldEntry ReadSelectedPacket(int position)
+    private WorldFieldEntry? ReadSelectedPacket(int position, Action<ushort, ushort>? executeRuntimeCommand)
     {
         int selected = -1;
         var visited = new HashSet<int>();
@@ -283,6 +283,11 @@ public sealed partial class WorldFieldEntryReader
             ushort operand = Word(position + 2);
             if (opcode == 0xFF05)
             {
+                //54D7E0 ends the first selected stream here, including command-only events.
+                if (sectionIndex == 36)
+                {
+                    return null;
+                }
                 if ((uint)selected >= entries.Length)
                 {
                     throw new InvalidDataException($"WMSET section{sectionIndex} selected an absent wm2field.tbl record.");
@@ -305,6 +310,11 @@ public sealed partial class WorldFieldEntryReader
                     }
                     return entries[selected];
                 }
+                position += 4;
+            }
+            else if (sectionIndex == 36 && executeRuntimeCommand is not null)
+            {
+                executeRuntimeCommand(opcode, operand);
                 position += 4;
             }
             else

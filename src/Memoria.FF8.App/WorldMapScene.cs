@@ -315,22 +315,28 @@ internal sealed partial class WorldMapScene : IDisposable
                     buttons |= action.Vertical == -1 ? 0x80u : action.Vertical == 1 ? 0x10u : 0;
                     buttons |= action.Horizontal == -1 ? 0x2000u : action.Horizontal == 1 ? 0x8000u : 0;
                 }
-                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
+                WorldState callbackStart = candidate;
+                candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, ref salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
                 if (consumeGardenRequest)
                 {
                     salary = salary.ConsumeGardenScriptRequest();
-                }
-                if (stationChoice)
-                {
-                    NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
-                    int station = TrainStation(train.Primary);
-                    candidate = action.Value == 1 ? CreateTrainDismount(candidate, station) : (train with { Primary = train.Primary with { Pause = 0 }, StationDeclines = train.StationDeclines.Add(train.Callback) }).ToWorldState(candidate);
                 }
                 salary = salary.WithGraphicsSpeed(graphicsSpeed);
                 if (candidate.NativeCarRuntime is { } fuelCar)
                 {
                     salary = salary.PrepareCarFuel(fuelCar.EntityType, candidate.GroundType ?? throw new NotSupportedException("Native car fuel requires its actual current terrain type."), graphicsSpeed);
                     salary = salary.AdvanceCarCameraCooldown(action.Kind == PlayerActionKind.Move && ReadSignedMovementComponent(-action.Vertical) != 0, action.Kind == PlayerActionKind.Move && ReadSignedMovementComponent(-action.Horizontal) != 0);
+                }
+                if (advanceUi && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
+                {
+                    byte scriptMode = callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? (byte)3 : (byte)0);
+                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary) ?? fieldEntry;
+                }
+                if (stationChoice && fieldEntry is null)
+                {
+                    NativeTrainWorldRuntimeState train = candidate.NativeTrainRuntime ?? throw new InvalidDataException("Native station choice lost its held train owner.");
+                    int station = TrainStation(train.Primary);
+                    candidate = action.Value == 1 ? CreateTrainDismount(candidate, station) : (train with { Primary = train.Primary with { Pause = 0 }, StationDeclines = train.StationDeclines.Add(train.Callback) }).ToWorldState(candidate);
                 }
                 if (candidate.NativeScriptedRuntime is null && candidate.NativeTrainRuntime is null)
                 {
@@ -444,7 +450,7 @@ internal sealed partial class WorldMapScene : IDisposable
         return renderer.Render(position, state.BodyYaw * MathF.Tau / 4096, state.AnimationId, state.AnimationCounter >> 4, camera, replacements, sky, state.NativeCarRuntime is null && state.GroundType is null or > 5, avatarModel: state.NativeCarRuntime is null ? assets.GetFootModel(state.NativeFootRuntime!.EntityType) : null, staticModels: models, forest: state.NativeFootRuntime?.Forest);
     }
 
-    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState Step(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory? entryMemory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         encounterMovementMagnitude = 0;
         consumeGardenRequest = false;
@@ -468,7 +474,7 @@ internal sealed partial class WorldMapScene : IDisposable
         }
         if (before.NativeGardenRuntime is not null && before.NativeFootRuntime is null)
         {
-            return StepGarden(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
+            return StepGarden(before, horizontal, vertical, cameraHorizontal, priorGraphicsSpeed, buttons, entryMemory!, ref salary, out consumeGardenRequest, out fieldEntry, out salaryMovementUnits, out graphicsSpeed);
         }
         if (before.NativeGardenRuntime is not null)
         {
@@ -556,11 +562,6 @@ internal sealed partial class WorldMapScene : IDisposable
         byte? groundType = before.GroundType;
         if (center is WorldGround accepted)
         {
-            if (accepted.Triangle.FieldEntrance)
-            {
-                WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-                fieldEntry = assets.FieldEntries.Select(new WorldFieldSelectionInput(x, z, inputs.StoryWord, foot.EntityType), accepted.Triangle.TextureFlags);
-            }
             nativeHeight = NativeWorldTerrain.ResolveHeight(foot.EntityType, -(int)accepted.Height, accepted.Triangle.GroundType, before.NativeHeight).Height;
             groundType = accepted.Triangle.GroundType;
         }

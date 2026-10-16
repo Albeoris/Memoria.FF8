@@ -5,7 +5,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class WorldMapScene
 {
-    private WorldState StepGarden(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, out bool consumeGardenRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
+    private WorldState StepGarden(WorldState before, float horizontal, float vertical, float cameraHorizontal, int priorGraphicsSpeed, uint buttons, NativeWorldEntryMemory memory, ref NativeWorldSalaryState salary, out bool consumeGardenRequest, out WorldFieldSelection? fieldEntry, out uint salaryMovementUnits, out int graphicsSpeed)
     {
         NativeGardenWorldRuntimeState garden = before.NativeGardenRuntime!;
         garden.Validate();
@@ -94,21 +94,7 @@ internal sealed partial class WorldMapScene
         };
         garden = garden.PublishBody(new(after.X, after.NativeHeight, -after.Z), 0, unchecked((short)after.BodyYaw), 0);
         after = after with { NativeGardenRuntime = garden };
-        fieldEntry = null;
-        if (NativeWorldEntryControl.DelayAfterCallback(after.Frame, 0) <= 0)
-        {
-            //53FAC0 runs54D7E0 before545EA0.5472C0 eligibility uses the pre-terrain camera,
-            //while546100's final FF17 distance uses the newly accepted world coordinates.
-            NativeWorldPathProjectionCertificate projection = GardenProjection(cameraState);
-            WorldFieldSelectionInput input = new(after.X, after.Z, memory.StoryWord, 48);
-            NativeWorldEventFlags eventFlags = session.State.SavedWorld?.WorldEventFlags116 ?? throw new NotSupportedException("Ordinary world callbacks require the saved-world116/120 event flag bank.");
-            byte terrainFlags = scriptMode == 0 ? ground.Center?.Ground.Triangle.TextureFlags ?? 0 : (byte)0;
-            fieldEntry = assets.SelectWorldCallback(input, terrainFlags, shape => WorldAllocatedShapeProximity.Evaluate(input, shape, garden.Objects, index =>
-            {
-                NativeWorldPathPosition position = cameraState.NativeGardenRuntime!.Objects[index].Position;
-                return projection.IsNear(position) && (projection.ProjectNode(position) ?? throw new NotSupportedException(projection.UnsupportedReason)).Visible;
-            }), eventFlags, (opcode, operand) => EvaluateGardenWorldEventPredicate(after, scriptMode, opcode, operand));
-        }
+        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary);
         if (fieldEntry is null && scriptMode == 0)
         {
             after = StepGardenCactuar(after, out fieldEntry);
@@ -150,58 +136,6 @@ internal sealed partial class WorldMapScene
             type = candidate;
         }
         return type!.Value;
-    }
-
-    private bool? EvaluateGardenWorldEventPredicate(WorldState state, byte scriptMode, ushort opcode, ushort operand)
-    {
-        NativeGardenWorldRuntimeState garden = state.NativeGardenRuntime!;
-        switch (opcode)
-        {
-            case 0xFF1B:
-                //546100 cannot match C75D0C to a shape absent from the actual dense allocation.
-                if (!garden.Objects.Any(item => item.ShapeId == operand))
-                {
-                    return false;
-                }
-                throw new NotSupportedException("World event FF1B requires its actual non-vehicle interaction contact owner for an allocated shape.");
-            case 0xFF25:
-                return scriptMode == operand;
-            case 0xFF29:
-                //543A10 cannot return a choice for a world window that is not open.
-                if (CurrentDialogue is null)
-                {
-                    return false;
-                }
-                throw new NotSupportedException("World event FF29 requires its actual active window result owner.");
-            case 0xFF2D:
-            case 0xFF30:
-            case 0xFF31:
-                if (unchecked((sbyte)operand) != 1 || session.State.SavedWorld?.WorldEventVariable125 is not byte value)
-                {
-                    return null;
-                }
-                return opcode switch
-                {
-                    0xFF2D => operand >> 8 == value,
-                    0xFF30 => operand >> 8 > value,
-                    _ => operand >> 8 < value
-                };
-            case 0xFF32:
-                bool? passed = null;
-                foreach (NativeWorldGroundAlternative alternative in garden.GroundCache.Alternatives)
-                {
-                    byte flags = assets.ResolveNativeGroundIdentity(alternative.CurrentGround, replacements).TextureFlags;
-                    bool candidate = operand != ((flags & 8) == 0 ? 1 : 0);
-                    if (passed is bool prior && prior != candidate)
-                    {
-                        throw new NotSupportedException("World event FF32 differs across retained accepted ground alternatives.");
-                    }
-                    passed = candidate;
-                }
-                return passed!.Value;
-            default:
-                throw new NotSupportedException($"Reached unsupported Garden world event predicate 0x{opcode:X4}/{operand}.");
-        }
     }
 
     private int GardenContact(WorldState cameraState, IReadOnlyList<WorldNativeGardenProbe> probes, int selectedEntity, int padding, bool forceCircle = false)

@@ -30,5 +30,15 @@ public sealed record NativeWorldEventFlags([property: JsonRequired] ulong Value,
         return ((Value & mask) != 0 ? 1 : 0) == operand >> 8;
     }
 
+    public NativeWorldEventFlags WithOperand(ushort operand)
+    {
+        Validate();
+        //54D7E0/FF28 uses a signed low byte for bank selection, unlike546100/FF27.
+        int selector = unchecked((sbyte)operand);
+        int bit = (selector >= 32 ? 32 : 0) + (selector & 31);
+        ulong mask = 1UL << bit;
+        return new NativeWorldEventFlags(operand >> 8 != 0 ? Value | mask : Value & ~mask, KnownMask | mask);
+    }
+
     private static int Bit(ushort operand) => ((operand & 255) >= 32 ? 32 : 0) + (operand & 31);
 }

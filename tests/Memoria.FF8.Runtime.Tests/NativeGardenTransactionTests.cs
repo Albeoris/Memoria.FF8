@@ -12,7 +12,7 @@ public sealed class NativeGardenTransactionTests
         Assert.Equal((byte)3, before.SavedWorld!.WorldEventVariable125);
         WorldState final = before.World! with { Frame = 1 };
         NativeSavedWorldGardenReturn receipt = NativeSavedWorldGardenReturn.Create(final, 257, 750, 3);
-        NativeWorldSalaryState batch = NativeWorldSalaryState.Begin(before).ConsumeGardenScriptRequest().Advance(null, null, null, 0, 2);
+        NativeWorldSalaryState batch = NativeWorldSalaryState.Begin(before).ConsumeGardenScriptRequest().WithWorldEventCommand(0xFF2E, 0xC800).WithWorldEventCommand(0xFF2E, 0xFF01).WithWorldEventCommand(0xFF28, 0x0120).Advance(null, null, null, 0, 2);
         Assert.Equal((byte)0x49, before.WorldEntryMemory!.ReplacementFlags264);
         Assert.Equal((byte)9, batch.WorldEntryMemory!.ReplacementFlags264);
         Assert.Same(batch, batch.ConsumeGardenScriptRequest());
@@ -22,7 +22,8 @@ public sealed class NativeGardenTransactionTests
             Assert.Same(before, session.State);
             Assert.Equal(receipt, candidate.SavedWorld!.GardenReturn);
             Assert.Equal((byte)0, candidate.SavedWorld.WorldEventVariable125);
-            Assert.Equal(before.SavedWorld.WorldEventFlags116, candidate.SavedWorld.WorldEventFlags116);
+            Assert.Equal((byte)200, candidate.SavedWorld.WorldEventVariable124);
+            Assert.True(candidate.SavedWorld.WorldEventFlags116!.Matches(0x0120));
             Assert.Equal((byte)9, candidate.WorldEntryMemory!.ReplacementFlags264);
             throw new InvalidOperationException("Declared destination refusal.");
         }));
@@ -43,6 +44,8 @@ public sealed class NativeGardenTransactionTests
             GameState restored = GameSession.Load(path);
             Assert.Equal(receipt, restored.SavedWorld!.GardenReturn);
             Assert.Equal((byte)0, restored.SavedWorld.WorldEventVariable125);
+            Assert.Equal((byte)200, restored.SavedWorld.WorldEventVariable124);
+            Assert.True(restored.SavedWorld.WorldEventFlags116!.Matches(0x0120));
             Assert.Equal((byte)9, restored.WorldEntryMemory!.ReplacementFlags264);
             Assert.Equal(final.NativeGardenRuntime!.Objects, restored.DepartingWorldState!.NativeGardenRuntime!.Objects);
         }

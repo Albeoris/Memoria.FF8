@@ -182,7 +182,7 @@ public sealed partial class GameSession : IEventServices
             World = null,
             DepartingWorldState = finalWorldState,
             DebugView = null,
-            SavedWorld = PrepareOrdinaryWorldFieldEntry(PrepareGardenParkingForFootReturn(departure.SavedWorld, finalWorldState).WithFootReturn(receipt)),
+            SavedWorld = PrepareGardenParkingForFootReturn(departure.SavedWorld, finalWorldState).WithFootReturn(receipt),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorldState),
@@ -190,6 +190,7 @@ public sealed partial class GameSession : IEventServices
             SeeD = salary.SeeD
         };
         candidate = salary.ApplyTo(candidate, finalWorldState);
+        candidate = candidate with { SavedWorld = PrepareOrdinaryWorldFieldEntry(candidate.SavedWorld!) };
         candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         validatePrepared(candidate);

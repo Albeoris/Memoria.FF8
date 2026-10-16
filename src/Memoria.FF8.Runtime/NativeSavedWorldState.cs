@@ -115,7 +115,7 @@ public sealed record NativeSavedWorldFootReturn
 }
 
 /// <summary>Persistent native vehicle slots and optional naturally recorded foot return; absence means unknown provenance.</summary>
-public sealed record NativeSavedWorldState
+public sealed partial record NativeSavedWorldState
 {
     public const int CurrentSchemaVersion = 1;
     public const int CurrentProofVersion = 1;
@@ -148,6 +148,9 @@ public sealed record NativeSavedWorldState
     /// <summary>Saved-world DWORD116/120, cleared by native New Game and consumed by546100/FF27.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldEventFlags? WorldEventFlags116 { get; init; }
+    /// <summary>Saved-world BYTE124, the original section36 workflow channel0; absent older values remain unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? WorldEventVariable124 { get; init; }
     /// <summary>Saved-world BYTE125, the original section36 workflow channel1; absent older values remain unknown.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? WorldEventVariable125 { get; init; }
@@ -290,6 +293,7 @@ public sealed record NativeSavedWorldState
             InitialMapDisplayMode110 = 0,
             FuelDistance112 = 0,
             WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame(),
+            WorldEventVariable124 = 0,
             WorldEventVariable125 = 0
         };
     }

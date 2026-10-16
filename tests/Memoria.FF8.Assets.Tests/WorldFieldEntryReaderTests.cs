@@ -111,6 +111,40 @@ public sealed class WorldFieldEntryReaderTests
         Assert.Equal(1, result.Entry.Index);
     }
 
+    [Fact]
+    public void Selected_world_event_executes_commands_in_order_and_stops_at_first_packet()
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF04, 0), (0xFF28, 0x013D), (0xFF2E, 0xFF01), (0xFF08, 0), (0xFF28, 0x003D), (0xFF05, 0)]);
+        WorldFieldEntryReader events = WorldFieldEntryReader.Read(program, Packet()).ReadWorldEvents(program);
+        var commands = new List<(ushort Opcode, ushort Operand)>();
+        WorldFieldSelection result = Assert.IsType<WorldFieldSelection>(events.SelectWorldEvent(new(0, 0, 800, 48), _ => false, NativeWorldEventFlags.CreateNewGame(), executeRuntimeCommand: (opcode, operand) => commands.Add((opcode, operand))));
+        Assert.Equal(new (ushort, ushort)[] { (0xFF28, 0x013D), (0xFF2E, 0xFF01) }, commands);
+        Assert.Equal(16, result.InstructionOffset);
+        Assert.Equal(0, result.Entry.Index);
+    }
+
+    [Fact]
+    public void Command_only_world_event_ends_selected_stream_without_selecting_a_later_clause()
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF04, 0), (0xFF28, 0x013D), (0xFF0E, 32), (0xFF2E, 0xFF01), (0xFF05, 0)], [(0xFF01, 0), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0)]);
+        WorldFieldEntryReader events = WorldFieldEntryReader.Read(program, Packet()).ReadWorldEvents(program);
+        var commands = new List<(ushort Opcode, ushort Operand)>();
+        Assert.Null(events.SelectWorldEvent(new(0, 0, 800, 48), _ => false, NativeWorldEventFlags.CreateNewGame(), executeRuntimeCommand: (opcode, operand) => commands.Add((opcode, operand))));
+        Assert.Equal(new (ushort, ushort)[] { (0xFF28, 0x013D) }, commands);
+    }
+
+    [Fact]
+    public void Reached_world_commands_require_runtime_support_and_failed_branches_do_not_execute_them()
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF04, 0), (0xFF0A, 0), (0xFF09, 49), (0xFF0B, 0), (0xFF28, 0x013D), (0xFF05, 0), (0xFF0D, 0), (0xFF2E, 0xFF01), (0xFF05, 0)]);
+        WorldFieldEntryReader events = WorldFieldEntryReader.Read(program, Packet()).ReadWorldEvents(program);
+        var input = new WorldFieldSelectionInput(0, 0, 800, 48);
+        Assert.Throws<NotSupportedException>(() => events.SelectWorldEvent(input, _ => false, NativeWorldEventFlags.CreateNewGame()));
+        var commands = new List<(ushort Opcode, ushort Operand)>();
+        Assert.Null(events.SelectWorldEvent(input, _ => false, NativeWorldEventFlags.CreateNewGame(), executeRuntimeCommand: (opcode, operand) => commands.Add((opcode, operand))));
+        Assert.Equal(new (ushort, ushort)[] { (0xFF2E, 0xFF01) }, commands);
+    }
+
     [Theory]
     [InlineData(3000, true)]
     [InlineData(3001, false)]
@@ -190,6 +224,57 @@ public sealed class WorldFieldEntryReaderTests
     {
         WorldFieldEntryReader reader = WorldFieldEntryReader.Read(Program([(0xFF01, 0), (0xFF02, 10), (0xFF03, 20), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0), (0xFF16, 0)]), Packet());
         Assert.Equal(selected, reader.Select(new WorldFieldSelectionInput(0, 0, story, 0), 8) is not null);
+    }
+
+    [Theory]
+    [InlineData(0xFF0F, 8191, false)]
+    [InlineData(0xFF0F, 32768, true)]
+    [InlineData(0xFF10, 8190, false)]
+    [InlineData(0xFF10, 65535, true)]
+    [InlineData(0xFF11, 8191, false)]
+    [InlineData(0xFF11, 8190, true)]
+    [InlineData(0xFF12, 8190, false)]
+    [InlineData(0xFF12, 8189, true)]
+    public void Local_coordinate_predicates_mask_negative_world_coordinates_and_compare_unsigned_operands_strictly(ushort opcode, ushort operand, bool expected)
+    {
+        byte[] program = Program([(0xFF01, 0), (opcode, operand), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0), (0xFF16, 0)]);
+        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(program, Packet());
+        Assert.Equal(expected, reader.Select(new(-1, -2, 0, 0), 8) is not null);
+    }
+
+    [Theory]
+    [InlineData(48, 48, true)]
+    [InlineData(48, 49, false)]
+    [InlineData(128, -1, false)]
+    [InlineData(128, 9, true)]
+    [InlineData(128, 10, false)]
+    [InlineData(128, 128, true)]
+    [InlineData(129, -1, false)]
+    [InlineData(129, 1, true)]
+    [InlineData(129, 2, false)]
+    [InlineData(130, 7, false)]
+    [InlineData(130, 8, true)]
+    [InlineData(130, 9, true)]
+    [InlineData(130, 10, false)]
+    [InlineData(131, 15, false)]
+    [InlineData(131, 16, true)]
+    [InlineData(131, 22, true)]
+    [InlineData(131, 23, false)]
+    [InlineData(132, 31, false)]
+    [InlineData(132, 32, true)]
+    [InlineData(132, 40, true)]
+    [InlineData(132, 41, false)]
+    [InlineData(132, 132, true)]
+    [InlineData(133, 33, false)]
+    [InlineData(133, 34, true)]
+    [InlineData(133, 40, true)]
+    [InlineData(133, 41, false)]
+    [InlineData(65535, -1, true)]
+    public void Entity_predicate_keeps_native_exact_groups_unsigned_guards_and_default_match(ushort operand, int type, bool expected)
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF09, operand), (0xFF04, 0), (0xFF08, 0), (0xFF05, 0), (0xFF16, 0)]);
+        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(program, Packet());
+        Assert.Equal(expected, reader.Select(new(0, 0, 0, type), 8) is not null);
     }
 
     [Fact]
