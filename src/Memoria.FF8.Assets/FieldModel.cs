@@ -6,7 +6,10 @@ namespace Memoria.FF8.Assets;
 
 public readonly record struct ModelBone(int Parent, float Length);
 public readonly record struct ModelVertex(Vector3 Position, int Bone, int SkinBinding = -1);
-public sealed record ModelFace(int[] Vertices, Vector2[] TextureCoordinates, int Texture, bool Quad);
+public sealed record ModelFace(int[] Vertices, Vector2[] TextureCoordinates, int Texture, bool Quad)
+{
+    public bool SemiTransparent { get; init; }
+}
 public sealed record AnimationFrame(Vector3 Translation, IReadOnlyList<Vector3> Rotations);
 public sealed record ModelAnimation(IReadOnlyList<AnimationFrame> Frames);
 public sealed record ModelControlBones(int First, int Second, int Additional, uint RawHeader);

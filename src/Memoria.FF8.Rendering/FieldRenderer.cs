@@ -408,10 +408,11 @@ public sealed partial class FieldRenderer
             }
             PixelImage texture = model.Textures[face.Texture];
             Vector2 textureScale = ResourceTextureList.PhysicalScale(model.Textures, face.Texture);
-            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
+            bool transparent = face.SemiTransparent || actor.PrimitiveTransparencyEnabled;
+            DrawModelTriangle(projected[face.Vertices[0]], projected[face.Vertices[1]], projected[face.Vertices[2]], face.TextureCoordinates[0] * textureScale, face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth);
             if (face.Quad)
             {
-                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, actor.PrimitiveTransparencyEnabled, translucent, projected[face.Vertices[0]].Depth);
+                DrawModelTriangle(projected[face.Vertices[1]], projected[face.Vertices[3]], projected[face.Vertices[2]], face.TextureCoordinates[1] * textureScale, face.TextureCoordinates[3] * textureScale, face.TextureCoordinates[2] * textureScale, texture, actor.PolygonColor!.Value, transparent, translucent, projected[face.Vertices[0]].Depth);
             }
         }
     }

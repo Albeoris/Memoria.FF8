@@ -190,6 +190,8 @@ internal static class FieldModelReader
             int position = faceOffset + i * 64;
             reader.BaseStream.Position = position;
             uint type = reader.ReadUInt32();
+            reader.BaseStream.Position = position + 8;
+            ushort flags = reader.ReadUInt16();
             reader.BaseStream.Position = position + 12;
             int[] indices = Enumerable.Range(0, 4).Select(_ => (int)reader.ReadUInt16()).ToArray();
             reader.BaseStream.Position = position + 44;
@@ -201,7 +203,8 @@ internal static class FieldModelReader
             {
                 throw new InvalidDataException($"{name}: face {i} has an invalid vertex.");
             }
-            faces[i] = new ModelFace(indices, uv, texture, quad);
+            // Native 531310 preserves MCH face+8 bit2; 531980 sets the packet's semitransparency bit from it.
+            faces[i] = new ModelFace(indices, uv, texture, quad) { SemiTransparent = (flags & 4) != 0 };
         }
         IReadOnlyList<PixelImage> textures = decodedTextures ?? textureOffsets.Select(offset => DecodeTim(content, textureBase + offset)).ToArray();
         if (faces.Any(face => face.Texture >= textures.Count))

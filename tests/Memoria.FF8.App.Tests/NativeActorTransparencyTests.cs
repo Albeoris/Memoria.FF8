@@ -9,9 +9,11 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeActorTransparencyTests
 {
     [Theory]
-    [InlineData(128)]
-    [InlineData(255)]
-    public void ActorTransparencyAddsEveryCoveredTexelAndPreservesCutouts(byte alpha)
+    [InlineData(128, false)]
+    [InlineData(255, false)]
+    [InlineData(128, true)]
+    [InlineData(255, true)]
+    public void ActorOrFaceTransparencyAddsEveryCoveredTexelAndPreservesCutouts(byte alpha, bool faceTransparency)
     {
         PixelImage texture = new(2, 1, [new Rgba32(100, 140, 200, alpha), new Rgba32(255, 255, 255, 0)]);
         FieldModel model = new("triangle", [new ModelBone(-1, 0)], [new ModelVertex(new Vector3(0, -16, -16), 0), new ModelVertex(new Vector3(0, 16, -16), 0), new ModelVertex(new Vector3(0, 0, 16), 0)], [new ModelFace([0, 2, 1], [Vector2.Zero, new Vector2(1, 0), new Vector2(2, 0)], 0, false)], [texture], [new ModelAnimation([new AnimationFrame(Vector3.Zero, [Vector3.Zero])])]);
@@ -22,7 +24,9 @@ public sealed class NativeActorTransparencyTests
         ActorVisual actor = new(0, 0, 0, 0, 0, 0, 0, 0, true, PolygonColor: new Vector3(128));
         byte[] background = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero).ToArray();
         byte[] opaque = renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero).ToArray();
-        byte[] transparent = renderer.Render(new Dictionary<int, int>(), [actor with { PrimitiveTransparencyEnabled = true }], TimeSpan.Zero).ToArray();
+        FieldRenderer transparentRenderer = faceTransparency ? new FieldRenderer(field with { Models = [model with { Faces = [model.Faces[0] with { SemiTransparent = true }] }] }, modelTextureSampling: ModelTextureSampling.Nearest) : renderer;
+        ActorVisual transparentActor = actor with { PrimitiveTransparencyEnabled = !faceTransparency };
+        byte[] transparent = transparentRenderer.Render(new Dictionary<int, int>(), [transparentActor], TimeSpan.Zero).ToArray();
         int covered = 0;
         for (int index = 0; index < opaque.Length; index += 4)
         {
@@ -36,6 +40,6 @@ public sealed class NativeActorTransparencyTests
         Assert.True(covered > 0);
         Assert.Equal(opaque, renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero));
         ActorVisual behind = actor with { ObjectId = 1, Z = 16, PolygonColor = new Vector3(64) };
-        Assert.Equal(renderer.Render(new Dictionary<int, int>(), [behind, actor with { PrimitiveTransparencyEnabled = true }], TimeSpan.Zero).ToArray(), renderer.Render(new Dictionary<int, int>(), [actor with { PrimitiveTransparencyEnabled = true }, behind], TimeSpan.Zero));
+        Assert.Equal(transparentRenderer.Render(new Dictionary<int, int>(), [behind, transparentActor], TimeSpan.Zero).ToArray(), transparentRenderer.Render(new Dictionary<int, int>(), [transparentActor, behind], TimeSpan.Zero));
     }
 }
