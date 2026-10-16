@@ -85,6 +85,7 @@ internal sealed partial class GameWorld : IDisposable
         Events = new EventEngine(session);
         Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
+        ConfigureTripleTriadHost();
         ConfigureBattleHost();
         ConfigureRandomEncounterHost();
         Events.OperationCompleted += ObservePendingBattle;
@@ -377,6 +378,10 @@ internal sealed partial class GameWorld : IDisposable
 
     public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true)
     {
+        if (Events.PendingTripleTriad is not null)
+        {
+            return RenderTripleTriad();
+        }
         RequireSupportedMovieMaskRender();
         if (session.State.Scene == SceneKind.WorldMap)
         {
@@ -398,6 +403,10 @@ internal sealed partial class GameWorld : IDisposable
     public PlayerActionResult Apply(PlayerAction action)
     {
         EnsureField();
+        if (action.Kind is PlayerActionKind.TriadSelectCard or PlayerActionKind.TriadPlaceCard or PlayerActionKind.TriadAutoMove or PlayerActionKind.TriadTradeCard || Events.PendingTripleTriad is not null && action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Cancel or PlayerActionKind.Wait)
+        {
+            return ApplyTripleTriad(action);
+        }
         if (session.State.Scene == SceneKind.WorldMap)
         {
             PlayerActionResult worldResult = action.Kind == PlayerActionKind.ReadMagazinePage ? worldScene!.ReadMagazinePage(action, FieldItemCatalog.MagazinePage(action.Value, action.Quantity ?? -1)) : action.Kind == PlayerActionKind.UseFieldItem ? worldScene!.UseFieldItem(action, FieldItemCatalog.FieldItem(action.Value) ?? throw new NotSupportedException("World item use requires original installed metadata."), assets.ReadFieldItemStatRules) : action.Kind == PlayerActionKind.RefineItems ? worldScene!.RefineItems(action, assets.ReadNativeRefinementDefinitions()) : worldScene!.Apply(action);

@@ -27,6 +27,10 @@ public sealed record DialogueWindow(int Channel, int X, int Y, int Width, int He
 [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
 public sealed class SceneEventState
 {
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeTripleTriadRequest? TripleTriadRequest { get; internal set; }
+
     [JsonRequired]
     [JsonInclude]
     public NativeMovieMaskState? NativeMovieMask { get; internal set; }

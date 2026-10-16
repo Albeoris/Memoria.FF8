@@ -65,7 +65,7 @@ public sealed partial class MenuController
         var page = Grid([0.85f, 6.4f, 0.75f], [1], 3);
         var header = Grid([1], [2.9f, 1], 3);
         Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 23)), 0);
-        Place(header, Panel(null, Label("Card", 31)), 0, 1);
+        Place(header, Panel(null, Label(Data.CardCollectionComplete == true ? "Card ★" : "Card", 31)), 0, 1);
         Place(page, header, 0);
         var body = Grid([1], [1, 1], 3);
         if (ScreenId == "card")

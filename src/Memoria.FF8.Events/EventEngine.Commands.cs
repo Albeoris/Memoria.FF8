@@ -1052,6 +1052,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.BATTLE:
                 args = ExecuteMinimalBattle(fiber);
                 break;
+            case Jsm.Opcode.CARDGAME:
+                args = ExecuteTripleTriad(fiber);
+                break;
             case Jsm.Opcode.BATTLERESULT:
                 fiber.Results[0] = Scene.NativeBattleResult!.Value;
                 break;

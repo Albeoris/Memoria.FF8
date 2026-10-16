@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Native card bytes at 1CFEF38 and obtained-rare-card bits at 1CFEFA6, retained across fields.</summary>
 public sealed record NativeCardInventory
 {
-    public const string InitializationRule = "ff8-en-newgame-56d9f0-card-zero-v1";
+    public const string InitializationRule = "ff8-en-newgame-56da10-8dff20-cards-v2";
     public const int CardCount = 110;
     public const int CommonCardCount = 77;
 
@@ -17,11 +17,22 @@ public sealed record NativeCardInventory
     public required byte[] Cards { get; init; }
     [JsonRequired]
     public required byte[] ObtainedRareCards { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? TripleTriadRandomState { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TripleTriadStatistics? TripleTriadStatistics { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? CollectionFlags { get; init; }
 
     public static NativeCardInventory CreateNewGame()
     {
-        // 56D9F0 -> 47E410 clears this save region; the subsequent init.out load ends before it.
-        return new NativeCardInventory { Version = 1, Rule = InitializationRule, Cards = new byte[CardCount], ObtainedRareCards = new byte[5] };
+        //56DA10 calls8DFF20 AFTER init.out: clear cards/history, initialize rare owners200..232 and RNG1.
+        byte[] cards = new byte[CardCount];
+        for (int card = CommonCardCount; card < CardCount; card++)
+        {
+            cards[card] = (byte)(card + 123);
+        }
+        return new NativeCardInventory { Version = 1, Rule = InitializationRule, Cards = cards, ObtainedRareCards = new byte[5], TripleTriadRandomState = 1, TripleTriadStatistics = new TripleTriadStatistics(0, 0, 0), CollectionFlags = 0 };
     }
 
     public void Validate()
@@ -36,6 +47,33 @@ public sealed record NativeCardInventory
     {
         Validate();
         return this with { Cards = Cards.ToArray(), ObtainedRareCards = ObtainedRareCards.ToArray() };
+    }
+
+    /// <summary>Native535D00 phase9 publishes counters only for the returned final result; Sudden Death draws loop to phase1 without a counter write. Quit only retains its prompt-advanced RNG.</summary>
+    public NativeCardInventory CompleteMatch(int nativeResult, uint randomState)
+    {
+        if (nativeResult is < -1 or > 2)
+        {
+            throw new ArgumentOutOfRangeException(nameof(nativeResult));
+        }
+        if (nativeResult >= 0 && TripleTriadStatistics is null)
+        {
+            throw new NotSupportedException("Native CARDGAME completion requires saved win/loss/draw WORD counters; migrate this standalone explicitly.");
+        }
+        return DeepCopy() with { TripleTriadRandomState = randomState, TripleTriadStatistics = TripleTriadStatistics?.Complete(nativeResult) };
+    }
+
+    /// <summary>Native4C23D0 ->534A40 card-menu query sets saved1CFEFAB bit1 once all110 cards have ever been acquired.</summary>
+    public NativeCardInventory NativeVisitNormalMenu()
+    {
+        Validate();
+        byte flags = CollectionFlags ?? throw new NotSupportedException("Native card-menu completion requires saved collection BYTE1CFEFAB; migrate this standalone explicitly.");
+        if ((flags & 1) != 0)
+        {
+            return DeepCopy();
+        }
+        bool complete = Enumerable.Range(0, CommonCardCount).All(card => (Cards[card] & 0x80) != 0) && Enumerable.Range(0, CardCount - CommonCardCount).All(rare => (ObtainedRareCards[rare / 8] & 1 << (rare & 7)) != 0);
+        return DeepCopy() with { CollectionFlags = complete ? (byte)(flags | 1) : flags };
     }
 
     /// <summary>Native534A20 returns zero for signed IDs below77, otherwise the saved location BYTE without consulting acquisition history.</summary>

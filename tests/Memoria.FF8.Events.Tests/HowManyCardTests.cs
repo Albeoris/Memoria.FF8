@@ -13,6 +13,7 @@ internal static partial class Program
         GameSession cold = GameSession.CreateColdProcess();
         cold.StartNewGame();
         NativeCardInventory initial = cold.CardInventory!;
+        Require(Enumerable.Range(77, 33).All(id => initial.Location(id) == id + 123 && initial.AvailableCount(id) == -1), "Native rare owners200..232 must not imply acquisition before the saved obtained bits are set.");
         foreach (int id in new[] { 0, 76 })
         {
             for (int raw = 0; raw <= 255; raw++)
@@ -116,10 +117,9 @@ internal static partial class Program
             ExpectEventMemoryPublicationFault(session, new NativeEventMemory(1, new Dictionary<int, NativeMemoryValue> { [address] = alias }));
             Require(CardsEqual(initial, session.CardInventory), "Typed partial card alias changed the inventory before publication refusal.");
         }
-        GameSession uncertainSession = new(new GameState { CardInventory = initial, ExamTimer = NativeExamTimerState.FromReachedSet(0) });
+        GameSession uncertainSession = new(new GameState { CardInventory = initial, ExamTimer = NativeExamTimerState.FromReachedSet(60).AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1) });
         EventEngine uncertain = new(uncertainSession);
-        uncertain.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.HOWMANYCARD, 0), (Jsm.Opcode.RET, 0)), []);
-        uncertain.Step();
+        uncertain.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.HOWMANYCARD, 0), (Jsm.Opcode.RET, 0)), []);
         try
         {
             uncertain.Step();
@@ -129,7 +129,7 @@ internal static partial class Program
         {
         }
         JsonElement uncertainFiber = uncertain.Capture().GetProperty("Fibers")[0];
-        Require(uncertainFiber.GetProperty("Position").GetInt32() == 7 && uncertainFiber.GetProperty("Stack")[0].GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([59, 60]) && CardsEqual(initial, uncertainSession.CardInventory), "Uncertain card operand refusal changed the exact executed timer alternatives, PC or owner.");
+        Require(uncertainFiber.GetProperty("Position").GetInt32() == 3 && uncertainFiber.GetProperty("Stack")[0].GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([59, 60]) && CardsEqual(initial, uncertainSession.CardInventory), "Uncertain card operand refusal changed the exact executed timer alternatives, PC or owner.");
 
         using GameAssets assets = new(gameDirectory);
         JsmProgram original = JsmProgram.Read(assets.LoadField(912).Jsm);

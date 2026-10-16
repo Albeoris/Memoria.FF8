@@ -14,6 +14,8 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeTripleTriadPlayState? TripleTriadPlay { get; init; }
     [JsonRequired]
     public NativeFieldBarsState? FieldBars { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

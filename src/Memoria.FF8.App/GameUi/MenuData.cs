@@ -11,6 +11,7 @@ public sealed record MenuAction(string Kind, string SubjectId = "", string Targe
 
 public sealed class MenuData
 {
+    public bool? CardCollectionComplete { get; set; }
     public List<MenuCharacter> Characters { get; } = [];
     public List<MenuGuardianForce> GuardianForces { get; } = [];
     public List<MenuItem> Items { get; } = [];
@@ -133,6 +134,8 @@ public sealed class MenuCard
     public string Description { get; set; } = "";
     public string? RefinementItemId { get; set; }
     public int? RefinementQuantity { get; set; }
+    public int? RefinementRequiredCards { get; set; }
+    public string? RefinementItemName { get; set; }
 }
 
 public sealed class MenuBattleTarget

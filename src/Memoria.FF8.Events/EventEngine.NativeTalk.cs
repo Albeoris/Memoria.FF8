@@ -5,7 +5,7 @@ public sealed partial class EventEngine
     /// <summary>Returns the original action query's selected actor without requesting a script.</summary>
     public int? SelectInteractionTarget()
     {
-        if (program is null || transitionRequested || services.IsMoviePlaying || !IsUserControlEnabled || IsDialogueBlocking)
+        if (program is null || transitionRequested || PendingTripleTriad is not null || services.IsMoviePlaying || !IsUserControlEnabled || IsDialogueBlocking)
         {
             return null;
         }

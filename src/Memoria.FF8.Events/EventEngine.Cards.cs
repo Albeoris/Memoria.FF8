@@ -12,6 +12,14 @@ public sealed partial class EventEngine
             return null;
         }
         int width = NativeMemoryWidth(operation.Opcode);
+        if (width != 0 && (services.CardInventory.CollectionFlags is not null && operation.Parameter < 1524 && (long)operation.Parameter + width > 1523 || services.CardInventory.TripleTriadStatistics is not null && operation.Parameter < 1530 && (long)operation.Parameter + width > 1524))
+        {
+            return "Native card collection flags and outcome WORD counters require their canonical card owner; direct VM memory access is unsupported before mutation";
+        }
+        if (services.CardInventory.TripleTriadRandomState is not null && width != 0 && operation.Parameter < 1536 && (long)operation.Parameter + width > 1532)
+        {
+            return "Native card RNG DWORD1532 requires its canonical Triple Triad random owner; direct VM memory access is unsupported before mutation";
+        }
         if (width != 0 && operation.Parameter <= 1522 && (long)operation.Parameter + width > 1408)
         {
             return "Native card memory aliases require their canonical byte ownership; direct VM memory access is unsupported before mutation";

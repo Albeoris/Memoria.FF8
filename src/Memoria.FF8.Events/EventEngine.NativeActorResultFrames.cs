@@ -40,6 +40,10 @@ public sealed partial class EventEngine
         // for actors, areas and modules as for doors; no second bank is added.
         fiber.NativeDoorSavedResults = ReadNativeDoorLiveResults(fiber);
         fiber.Results.Clear();
+        if (actors[fiber.ObjectId].NativeCardChallenge)
+        {
+            fiber.Results[0] = 1;
+        }
     }
 
     private string? UnsupportedNativeActorReturn(Fiber fiber, JsmOperation operation)
@@ -97,6 +101,8 @@ public sealed partial class EventEngine
                 PopNativePhysicalOperand(fiber.ObjectId);
             }
         }
+        // Native51C5C0 clears actor352 bit20 after restoring the result bank on every RET.
+        actors[fiber.ObjectId].NativeCardChallenge = false;
         if (returnSlot != 8)
         {
             Fiber target = fibers.Single(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) == returnSlot);

@@ -41,6 +41,7 @@ public sealed partial class MenuController
 
     public bool IsOpen { get; private set; }
     public event Action? BattleDebugRequested;
+    public event Action<string>? ScreenOpened;
     public event Action<MenuSound>? SoundRequested;
     public bool BattleDebugAvailable => BattleDebugRequested is not null;
     public bool IsDemo { get; private set; }
@@ -124,6 +125,11 @@ public sealed partial class MenuController
         }
         Message = "";
         _view = null;
+        ScreenOpened?.Invoke(ScreenId);
+        if (!IsDemo)
+        {
+            _liveData = null;
+        }
     }
 
     public void Close()
@@ -227,6 +233,11 @@ public sealed partial class MenuController
         }
         _history.Push(ScreenId);
         ScreenId = screenId;
+        ScreenOpened?.Invoke(ScreenId);
+        if (!IsDemo)
+        {
+            _liveData = null;
+        }
         Message = "";
         _view = null;
     }
@@ -249,6 +260,11 @@ public sealed partial class MenuController
         if (_history.TryPop(out var previous))
         {
             ScreenId = previous;
+            ScreenOpened?.Invoke(ScreenId);
+            if (!IsDemo)
+            {
+                _liveData = null;
+            }
             Message = "";
             _view = null;
         }

@@ -153,7 +153,7 @@ public sealed partial class MenuController
         string[] details;
         if (ScreenId.StartsWith("ability-card", StringComparison.Ordinal))
         {
-            details = [Card?.Name ?? "--", "Owned   " + (Card?.Quantity.ToString() ?? "--"), "Result", Data.Items.FirstOrDefault(item => item.Id == Card?.RefinementItemId)?.Name ?? "Unavailable", "Quantity   " + Number(Card?.RefinementQuantity)];
+            details = [Card?.Name ?? "--", "Owned   " + (Card?.Quantity.ToString() ?? "--"), "Result", Card?.RefinementItemName ?? Data.Items.FirstOrDefault(item => item.Id == Card?.RefinementItemId)?.Name ?? "Unavailable", "Quantity   " + Number(Card?.RefinementQuantity)];
         }
         else if (Recipe is { } recipe && ScreenId != "ability")
         {

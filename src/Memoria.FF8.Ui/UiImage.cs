@@ -5,7 +5,8 @@ public enum UiImageKind
     CharacterPortrait,
     GuardianForcePortrait,
     Card,
-    Icon
+    Icon,
+    CardBack
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

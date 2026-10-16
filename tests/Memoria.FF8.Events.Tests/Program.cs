@@ -100,6 +100,7 @@ internal static partial class Program
                     ["reset-gf"] = () => NativeGuardianForceResetContract(selectedGameDirectory),
                     ["dress"] = () => NativeDressContract(selectedGameDirectory),
                     ["getcard-saveenable"] = () => NativeCardAndSaveEnableContract(selectedGameDirectory),
+                    ["native-triple-triad"] = NativeTripleTriadContract,
                     ["native-howmanycard"] = () => NativeHowManyCardContract(selectedGameDirectory),
                     ["native-card-location"] = () => NativeCardLocationContract(selectedGameDirectory),
                     ["native-party-menu-enable"] = NativePartyMenuEnableContract,

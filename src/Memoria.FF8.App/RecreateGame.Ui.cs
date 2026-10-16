@@ -31,6 +31,17 @@ internal sealed partial class RecreateGame
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        gameMenus.ScreenOpened += screen =>
+        {
+            if (!gameMenus.IsDemo && screen is "main" or "card")
+            {
+                session.VisitCardMenu();
+                if (events?.FieldId == session.State.FieldId)
+                {
+                    session.SetEventState(events.Capture());
+                }
+            }
+        };
         gameMenus.ConnectMods(resourceHost!.Mods);
         gameMenus.ConnectPreferences(ReadCurrentUiPreferences, ApplyLiveMenuAction);
         gameMenus.ConnectNaming(ReadDebugNames, (subject, name) => world!.Rename(subject, name));
@@ -125,6 +136,16 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (action.Kind == "card-mod" && liveMenuCatalog is not null)
+        {
+            if (!action.SubjectId.StartsWith("card-", StringComparison.Ordinal) || !int.TryParse(action.SubjectId.AsSpan(5), out int cardId) || liveMenuCatalog.CardRefinement(cardId) is not { } recipe || !session.RefineCard(recipe))
+            {
+                ShowSaveNotice("Card Mod requires its learned GF ability, enough cards and room for the complete item result.");
+                return;
+            }
+            session.SetEventState(events!.Capture());
+            return;
+        }
         if (NativeJunctionMenuProjection.IsAction(action))
         {
             PlayerActionResult result = world!.Apply(NativeJunctionMenuProjection.PlayerAction(action));

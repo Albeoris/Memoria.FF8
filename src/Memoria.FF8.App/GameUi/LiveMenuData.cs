@@ -166,6 +166,11 @@ public static class LiveMenuData
         if (state.CardInventory is { } cards)
         {
             cards.Validate();
+            result.CardCollectionComplete = cards.CollectionFlags is byte collectionFlags ? (collectionFlags & 1) != 0 : null;
+            if (catalog is not null && state.Economy is not null && state.TripleTriadPlay is null && GameSession.CanUseCardMod(state.CharacterVitals))
+            {
+                result.SupportedActions.Add("card-mod");
+            }
             for (int id = 0; id < cards.Cards.Length; id++)
             {
                 bool common = id < NativeCardInventory.CommonCardCount;
@@ -174,7 +179,23 @@ public static class LiveMenuData
                 bool obtained = common ? (cards.Cards[id] & 0x80) != 0 : (cards.ObtainedRareCards[rare / 8] & (1 << (rare & 7))) != 0;
                 if (count != 0 || obtained)
                 {
-                    result.Cards.Add(new MenuCard { Id = $"card-{id}", NativeId = id, Name = catalog?.CardName(id) ?? $"Card {id}", Quantity = count, Description = (count > 0 ? "Owned card. " : "Previously obtained; not currently owned. ") + (catalog?.CardDescription(id) ?? "Card rules, ranks and modification are unavailable.") });
+                    TripleTriadCard? definition = catalog?.CardDefinition(id);
+                    TripleTriadRefinement? recipe = catalog?.CardRefinement(id);
+                    result.Cards.Add(new MenuCard
+                    {
+                        Id = $"card-{id}",
+                        NativeId = id,
+                        Name = catalog?.CardName(id) ?? $"Card {id}",
+                        Quantity = count,
+                        Level = id / 11 + 1,
+                        Ranks = definition is null ? "Unavailable" : $"{Rank(definition.Top)} / {Rank(definition.Right)} / {Rank(definition.Bottom)} / {Rank(definition.Left)}",
+                        Element = definition?.Element.ToString() ?? "Unavailable",
+                        Description = (count > 0 ? "Owned card. " : "Previously obtained; not currently owned. ") + (catalog?.CardDescription(id) ?? "Card description unavailable."),
+                        RefinementItemId = recipe is null ? null : $"item-{recipe.ItemId}",
+                        RefinementQuantity = recipe?.ItemCount,
+                        RefinementRequiredCards = recipe?.RequiredCards,
+                        RefinementItemName = recipe is null ? null : catalog?.ItemName(recipe.ItemId)
+                    });
                 }
             }
         }
@@ -184,6 +205,8 @@ public static class LiveMenuData
         }
         return result;
     }
+
+    private static string Rank(int value) => value == 10 ? "A" : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     internal static string JunctionSlotName(int slot)
     {
@@ -241,14 +264,16 @@ public sealed partial class LiveMenuCatalog
     private readonly string[] cardDescriptions;
     private readonly byte[] fieldItems;
     private NativeSolomonRingDefinition? solomonRing;
+    private readonly TripleTriadCatalog tripleTriad;
 
-    private LiveMenuCatalog(KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems)
+    private LiveMenuCatalog(KernelData kernel, string[] guardianForceNames, string[] cardNames, string[] cardDescriptions, byte[] fieldItems, TripleTriadCatalog tripleTriad)
     {
         this.kernel = kernel;
         this.guardianForceNames = guardianForceNames;
         this.cardNames = cardNames;
         this.cardDescriptions = cardDescriptions;
         this.fieldItems = fieldItems;
+        this.tripleTriad = tripleTriad;
         abilityNames = [.. kernel.JunctionAbilities.Select(ability => ability.Name), .. kernel.CommandAbilities.Select(ability => ability.Name), .. kernel.CharacterStatAbilities.Select(ability => ability.Name), .. kernel.CharacterAbilities.Select(ability => ability.Name), .. kernel.PartyAbilities.Select(ability => ability.Name), .. kernel.GuardianAbilities.Select(ability => ability.Name), .. kernel.MenuAbilities.Select(ability => ability.Name)];
     }
 
@@ -308,7 +333,7 @@ public sealed partial class LiveMenuCatalog
         {
             throw new InvalidDataException("Original field item metadata requires complete four-byte rows.");
         }
-        LiveMenuCatalog catalog = new(kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems);
+        LiveMenuCatalog catalog = new(kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, TripleTriadCatalog.Load(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
         catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions());
         return catalog;
@@ -320,6 +345,8 @@ public sealed partial class LiveMenuCatalog
     public string? GuardianForceName(int id) => (uint)id < guardianForceNames.Length ? guardianForceNames[id] : null;
     public string? CardName(int id) => (uint)id < cardNames.Length ? cardNames[id] : null;
     public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? cardDescriptions[id] : null;
+    public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
+    public TripleTriadRefinement? CardRefinement(int id) => (uint)id < tripleTriad.Refinements.Length ? tripleTriad.Refinements[id] : null;
     public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Name : null;
     public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(kernel.MagicSpells[id].Description) : null;
     public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? kernel.Weapons[id].Name : null;

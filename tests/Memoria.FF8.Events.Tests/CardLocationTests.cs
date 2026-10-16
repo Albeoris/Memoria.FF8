@@ -113,7 +113,7 @@ internal static partial class Program
         EventEngine query = new(readOnly, NativeEventMemory.FromDWords(memory));
         query.LoadField(100, CardLocationQueryProgram(109), []);
         query.Step();
-        Require(query.Variables[1000] == 0 && readOnly.Writes == 0, "WHERECARD incorrectly requires writer capability.");
+        Require(query.Variables[1000] == 232 && readOnly.Writes == 0, "WHERECARD lost its native initialized rare owner232 or incorrectly requires writer capability.");
         EventEngine readOnlyTransfer = new(readOnly, NativeEventMemory.FromDWords(new Dictionary<int, int> { [512] = 77 }));
         readOnlyTransfer.LoadField(100, CardLocationFaultProgram(Jsm.Opcode.SETCARD, 77), []);
         ExpectCardLocationServiceFault(readOnlyTransfer);
@@ -127,10 +127,9 @@ internal static partial class Program
         ExpectWorldControlFault(oneOperand, Jsm.Opcode.SETCARD, 2, [77]);
         foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.WHERECARD, Jsm.Opcode.SETCARD })
         {
-            GameSession session = new(new GameState { CardInventory = initial, ExamTimer = NativeExamTimerState.FromReachedSet(0) });
+            GameSession session = new(new GameState { CardInventory = initial, ExamTimer = NativeExamTimerState.FromReachedSet(60).AdvanceCallbacks(NativeTimerCallbackKind.NormalField, 1) });
             EventEngine engine = new(session);
-            engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.PSHN_L, 60), (Jsm.Opcode.SETTIMER, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (opcode, 0), (Jsm.Opcode.RET, 0)), []);
-            engine.Step();
+            engine.LoadField(100, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 17), (Jsm.Opcode.GETTIMER, 0), (Jsm.Opcode.PSHI_L, 0), (opcode, 0), (Jsm.Opcode.RET, 0)), []);
             try
             {
                 engine.Step();
@@ -140,7 +139,7 @@ internal static partial class Program
             {
             }
             JsonElement fiber = engine.Capture().GetProperty("Fibers")[0];
-            Require(fiber.GetProperty("Position").GetInt32() == 8 && fiber.GetProperty("Stack")[0].GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([59, 60]) && CardsEqual(initial, session.CardInventory), "Card location uncertainty refusal changed the native alternatives, PC or inventory.");
+            Require(fiber.GetProperty("Position").GetInt32() == 4 && fiber.GetProperty("Stack")[0].GetProperty("Values").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([59, 60]) && CardsEqual(initial, session.CardInventory), "Card location uncertainty refusal changed the native alternatives, PC or inventory.");
         }
 
         using GameAssets assets = new(gameDirectory);

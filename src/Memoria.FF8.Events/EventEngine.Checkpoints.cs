@@ -42,7 +42,8 @@ public enum WaitReason
     NativeDoorRequest,
     NativeBackgroundShade,
     NativeTurnCompletion,
-    NativeMovementFlush
+    NativeMovementFlush,
+    TripleTriad
 }
 
 public sealed partial class EventEngine
@@ -524,6 +525,7 @@ public sealed partial class EventEngine
         ValidateMinimalMenuCheckpoint(saved, bySequence);
         ValidatePartyMenuCheckpoint(saved, bySequence);
         ValidateNativeBattleCheckpoint(saved, bySequence);
+        ValidateTripleTriadCheckpoint(saved, bySequence);
         foreach (ActorState actor in saved.Actors)
         {
             if (actor.NativeMotionAuthority is NativeMotionAuthority authority && (authority.Version != 1 || actor.NativeScriptMovement is { } activeMotion && (activeMotion.Active || activeMotion.Cancelled) && (authority.FacingHold != (NativeMoveFacingHold(activeMotion)) || authority.MovementDirection != activeMotion.MovementDirection)))

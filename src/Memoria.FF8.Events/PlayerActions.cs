@@ -28,7 +28,12 @@ public enum PlayerActionKind
     SellShopItem,
     RefineItems,
     UseFieldItem,
-    ReadMagazinePage
+    ReadMagazinePage,
+    CardChallenge,
+    TriadSelectCard,
+    TriadPlaceCard,
+    TriadAutoMove,
+    TriadTradeCard
 }
 
 public enum PlayerTriggerKind
@@ -42,7 +47,8 @@ public enum PlayerTriggerKind
     Faulted,
     WorldMap,
     PartyMenu,
-    Battle
+    Battle,
+    TripleTriad
 }
 
 public sealed record PlayerAction(PlayerActionKind Kind, int Value = 0, string? Text = null, float Horizontal = 0, float Vertical = 0, int Frames = 1, int? Quantity = null, float CameraHorizontal = 0);
@@ -71,7 +77,7 @@ public sealed partial class EventEngine
     public event Action<DialogueOutcome>? DialogueCompleted;
 
     public PlayerTrigger NextTrigger => new(
-        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
+        LastFault is not null ? PlayerTriggerKind.Faulted : program is null ? PlayerTriggerKind.Unloaded : transitionRequested ? Scene.WorldTransitionRequest is null ? PlayerTriggerKind.FieldTransition : PlayerTriggerKind.WorldMap : PendingTripleTriad is not null ? PlayerTriggerKind.TripleTriad : HasPendingBattle ? PlayerTriggerKind.Battle : services.IsMoviePlaying ? PlayerTriggerKind.Movie : PartyMenu is not null ? PlayerTriggerKind.PartyMenu : dialogues.Values.Any(dialogue => dialogue.CanConfirm) ? PlayerTriggerKind.Dialogue : defaultsStarted && AreSelectedFieldScriptsStarted() && CanAcceptFieldMovement ? PlayerTriggerKind.Playable : PlayerTriggerKind.Waiting,
         FieldId, Frame, PartyMenu is not null ? null : CurrentDialogue?.MessageId, LastFault?.Message ?? (PartyMenu is not null ? null : CurrentDialogue?.Text));
 
     /// <summary>Applies an ordinary player action; no variable or script-PC mutation API is exposed.</summary>
@@ -98,7 +104,12 @@ public sealed partial class EventEngine
         activeActionIndex = actionLog.Count + 1;
         try
         {
-            if (HasPendingBattle)
+            if (PendingTripleTriad is not null)
+            {
+                accepted = false;
+                detail = "Triple Triad suspends ordinary field input until the card game returns.";
+            }
+            else if (HasPendingBattle)
             {
                 accepted = false;
                 detail = "The interactive battle suspends ordinary field input until its outcome returns.";
@@ -182,6 +193,15 @@ public sealed partial class EventEngine
             {
                 switch (action.Kind)
                 {
+                    case PlayerActionKind.CardChallenge:
+                        accepted = SelectInteractionTarget() is int cardTarget && (action.Value < 0 || action.Value == cardTarget) && TalkTo(cardTarget, true);
+                        if (accepted)
+                        {
+                            QueueButtonEdge(0x80);
+                            Step();
+                            advanced = 1;
+                        }
+                        break;
                     case PlayerActionKind.SelectPartySlot:
                     case PlayerActionKind.SelectPartyMember:
                     case PlayerActionKind.BuyShopItem:

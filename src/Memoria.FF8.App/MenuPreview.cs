@@ -69,7 +69,18 @@ internal static class MenuPreview
         using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false);
         mods.PreparePending(true);
         mods.CommitPending();
-        if (screen == "battle-debug")
+        if (screen == "triple-triad")
+        {
+            if (statePath is null)
+            {
+                throw new ArgumentException("Triple Triad preview requires a standalone --state with a pending CARDGAME.");
+            }
+            GameSession session = new(GameSession.Load(statePath));
+            using GameWorld world = new(session, gameDirectory);
+            world.EnsureField();
+            view = world.EnsureTripleTriad()?.BuildView() ?? throw new InvalidOperationException("No CARDGAME is active in this snapshot.");
+        }
+        else if (screen == "battle-debug")
         {
             MenuData fixture = MenuDemoData.Create();
             BattleCombatantDefinition[] party = fixture.Characters.Where(character => character.InParty).Select((character, index) => new BattleCombatantDefinition { Id = $"party-{index}", Name = character.Name, IsPlayer = true, CurrentHp = character.CurrentHp!.Value, MaximumHp = character.MaximumHp!.Value }).ToArray();

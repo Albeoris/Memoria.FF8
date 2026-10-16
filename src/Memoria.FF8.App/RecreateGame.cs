@@ -177,7 +177,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (UpdateGameUi(gameTime.ElapsedGameTime, input))
+        if (UpdateTripleTriadUi(gameTime.ElapsedGameTime, input) || UpdateGameUi(gameTime.ElapsedGameTime, input))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -404,7 +404,11 @@ internal sealed partial class RecreateGame : Game
                 ActorState? player = events.PlayerActor;
                 if (player is { Active: true, Visible: true })
                 {
-                    if (input.Confirm)
+                    if (keyboard.UiDetailRequested)
+                    {
+                        metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.CardChallenge, Value: -1)).FramesAdvanced);
+                    }
+                    else if (input.Confirm)
                     {
                         metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).FramesAdvanced);
                     }
@@ -432,7 +436,7 @@ internal sealed partial class RecreateGame : Game
                     events.Step();
                     metrics.Simulate(1);
                 }
-                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null)
+                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null)
                 {
                     fieldSeconds = 0;
                     return;
@@ -924,7 +928,13 @@ internal sealed partial class RecreateGame : Game
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
         text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
-        if (ActiveBattle is not null)
+        if (world?.ActiveTripleTriad is { } cards)
+        {
+            Memoria.FF8.Ui.UiView view = cards.BuildView();
+            view.Resize(bounds.Width, bounds.Height);
+            view.Draw(uiCanvas!, uiTheme);
+        }
+        else if (ActiveBattle is not null)
         {
             DrawBattle(bounds);
         }

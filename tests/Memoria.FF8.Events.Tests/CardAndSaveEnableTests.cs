@@ -14,7 +14,8 @@ internal static partial class Program
         GameSession fresh = GameSession.CreateColdProcess();
         fresh.StartNewGame();
         NativeCardInventory initial = fresh.CardInventory!;
-        Require(initial.Cards.Length == 110 && initial.Cards.All(value => value == 0) && initial.ObtainedRareCards.Length == 5 && initial.ObtainedRareCards.All(value => value == 0), "Native New Game did not retain the authentic card-region clear.");
+        byte[] initialCards = Enumerable.Range(0, 110).Select(id => id < 77 ? (byte)0 : (byte)(id + 123)).ToArray();
+        Require(initial.Cards.SequenceEqual(initialCards) && initial.ObtainedRareCards.Length == 5 && initial.ObtainedRareCards.All(value => value == 0) && initial.TripleTriadRandomState == 1 && initial.TripleTriadStatistics == new TripleTriadStatistics(0, 0, 0) && initial.CollectionFlags == 0, "Native New Game lost its post-clear card initializer: empty common cards, distinct rare owners200..232, empty acquired bits, saved RNG1 or cleared statistics/collection flags.");
 
         foreach (int card in new[] { 0, 76, 77, 84, 85, 109 })
         {
@@ -31,13 +32,13 @@ internal static partial class Program
             };
             engine.Step();
             NativeCardInventory acquired = session.CardInventory!;
-            Require(executions == 1 && session.State.Variables[1000] == 0 && session.State.Variables[1004] == 57 && acquired.Cards[card] == (card < 77 ? 0x81 : 0xF0) && acquired.Cards.Where((_, index) => index != card).All(value => value == 0), "GETCARD lost saved bytes, result0 or same-callback completion.");
+            Require(executions == 1 && session.State.Variables[1000] == 0 && session.State.Variables[1004] == 57 && acquired.Cards[card] == (card < 77 ? 0x81 : 0xF0) && acquired.Cards.Where((_, index) => index != card).SequenceEqual(initialCards.Where((_, index) => index != card)), "GETCARD lost saved bytes, result0 or same-callback completion.");
             byte[] expectedRare = new byte[5];
             if (card >= 77)
             {
                 expectedRare[(card - 77) / 8] = (byte)(1 << ((card - 77) & 7));
             }
-            Require(acquired.ObtainedRareCards.SequenceEqual(expectedRare) && initial.Cards.All(value => value == 0), "GETCARD changed unrelated rare acquisition bits or mutated its source inventory.");
+            Require(acquired.ObtainedRareCards.SequenceEqual(expectedRare) && initial.Cards.SequenceEqual(initialCards), "GETCARD changed unrelated rare acquisition bits or mutated its source inventory.");
             JsonElement captured = engine.Capture();
             (GameSession restoredSession, EventEngine restored) = CreateCardEngine(initial, NativeWorldControlState.CreateNewGame(), content);
             restored.Restore(captured);

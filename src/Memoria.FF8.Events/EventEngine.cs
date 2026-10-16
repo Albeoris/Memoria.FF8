@@ -260,7 +260,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (HasPendingBattle)
+        if (HasPendingBattle || PendingTripleTriad is not null)
         {
             return;
         }
@@ -454,9 +454,9 @@ public sealed partial class EventEngine
         CloseDialogue(dialogue.Channel);
     }
 
-    public bool TalkTo(int objectId)
+    public bool TalkTo(int objectId, bool cardChallenge = false)
     {
-        if (program is null || transitionRequested || services.IsMoviePlaying || !IsUserControlEnabled || IsDialogueBlocking || objectId < 0 || objectId >= actors.Count || !actors[objectId].Active || !actors[objectId].TalkEnabled)
+        if (program is null || transitionRequested || PendingTripleTriad is not null || services.IsMoviePlaying || !IsUserControlEnabled || IsDialogueBlocking || objectId < 0 || objectId >= actors.Count || !actors[objectId].Active || !actors[objectId].TalkEnabled)
         {
             return false;
         }
@@ -482,6 +482,7 @@ public sealed partial class EventEngine
                 throw new NotSupportedException(suspension);
             }
             Fiber action = Queue(objectId, obj.Scripts[2].Id, 7, false);
+            actor.NativeCardChallenge = cardChallenge;
             action.NativeActorSlot = 7;
             SelectNativeActorRequest(action);
             SuspendNativeMovementForRequest(actor, action);
@@ -804,6 +805,7 @@ public sealed partial class EventEngine
             WaitReason.NativeHalt => false,
             WaitReason.NativeMovementFlush => false,
             WaitReason.WorldJump => false,
+            WaitReason.TripleTriad => false,
             WaitReason.NativePartyMenu => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,
             WaitReason.MinimalBattle => Frame >= fiber.WaitUntil && Scene.NativeBattleCompletions![Scene.NativeBattleWaits![fiber.Sequence]].ReturnFrame is not null,

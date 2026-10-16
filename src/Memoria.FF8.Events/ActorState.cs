@@ -74,6 +74,9 @@ public sealed class ActorState
     public bool PushEnabled { get; internal set; } = true;
     [JsonInclude]
     public bool NativePushContactPending { get; internal set; }
+    /// <summary>Native actor352 bit20 selected by the card challenge action and read by51C570.</summary>
+    [JsonInclude]
+    public bool NativeCardChallenge { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte? NativeLineFacingDirection { get; internal set; }
