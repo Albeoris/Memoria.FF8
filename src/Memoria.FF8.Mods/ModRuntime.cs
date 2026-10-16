@@ -1,7 +1,7 @@
 namespace Memoria.FF8.Mods;
 
 /// <summary>Owns mod discovery and publication. File watcher callbacks only request a later transaction.</summary>
-public sealed class ModRuntime : IModService, IDisposable
+public sealed partial class ModRuntime : IModService, IDisposable
 {
     private static readonly IComparer<string> PathOrder = Comparer<string>.Create((left, right) =>
     {
@@ -127,7 +127,7 @@ public sealed class ModRuntime : IModService, IDisposable
             }
             try
             {
-                ModConfiguration.WriteBoolean(Path.Combine(package.RootDirectory, "mod.ini"), "enabled", enabled);
+                ModConfiguration.WriteBoolean(ConfigurationPath(package.RootDirectory, package.Format), "enabled", enabled);
                 RequestRefreshCore(DateTime.MinValue);
                 return ModOperationResult.Completed;
             }
@@ -151,7 +151,7 @@ public sealed class ModRuntime : IModService, IDisposable
                 {
                     foreach (ModPackage package in catalog.Packages)
                     {
-                        string path = Path.Combine(package.RootDirectory, "mod.ini");
+                        string path = ConfigurationPath(package.RootDirectory, package.Format);
                         if (ModConfiguration.ReadBoolean(path, "enabled") is null)
                         {
                             backups.Add((path, File.Exists(path) ? File.ReadAllBytes(path) : null));
@@ -403,6 +403,11 @@ public sealed class ModRuntime : IModService, IDisposable
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
+            if (format == ModFormat.Junction)
+            {
+                DiscoverJunction(nextAutoEnable, packages, files, notices, identities, visitedFiles);
+                continue;
+            }
             HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
             IEnumerable<string> roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase);
             foreach (string root in roots)

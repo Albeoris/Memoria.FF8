@@ -17,7 +17,7 @@ public sealed partial class MenuController
         {
             Id = "mods",
             Title = "Mods",
-            Help = "Enable texture packages. Changes apply to the current scene after validation.",
+            Help = "Enable mod packages. Changes apply after validation; movies use their selected files until playback ends.",
             MainCommand = true,
             Entries = controller => controller.ModEntries(),
             Details = controller => controller.ModDetails(),
@@ -60,7 +60,7 @@ public sealed partial class MenuController
     private IReadOnlyList<string> ModDetails()
     {
         IModService service = modService!;
-        return [service.IsReloadPending ? "Reload pending" : $"{service.Catalog.Packages.Count} packages", "Replacement priority: Demaster, Tonberry, original", .. service.Diagnostics.Take(4).Select(diagnostic => diagnostic.Message)];
+        return [service.IsReloadPending ? "Reload pending" : $"{service.Catalog.Packages.Count} packages", "Textures: Demaster, Tonberry, original", "Files: Junction, original", .. service.Diagnostics.Take(4).Select(diagnostic => diagnostic.Message)];
     }
 
     private UiElement BuildModContent()
@@ -97,7 +97,7 @@ public sealed partial class MenuController
             default:
                 throw new NotSupportedException($"Unknown mod action {action.Kind}.");
         }
-        Message = result.Success ? "Change queued; the published textures remain active until validation succeeds." : result.Error ?? "The change could not be saved.";
+        Message = result.Success ? "Change queued; current resources remain active until validation succeeds." : result.Error ?? "The change could not be saved.";
         _view = null;
         return true;
     }

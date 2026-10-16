@@ -11,6 +11,7 @@ namespace Memoria.FF8;
 internal sealed partial class GameWorld : IDisposable
 {
     private readonly GameSession session;
+    private readonly MovieClock movieClock;
     private readonly GameAssets assets;
     private readonly ResourceService? resources;
     private readonly bool validateWorldPresentation;
@@ -20,7 +21,7 @@ internal sealed partial class GameWorld : IDisposable
     private int renderWidth = FieldRenderer.Width;
     private int renderHeight = FieldRenderer.Height;
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true, Func<string, string>? resolveGameFile = null)
     {
         this.session = session;
         this.resources = resources;
@@ -85,6 +86,11 @@ internal sealed partial class GameWorld : IDisposable
             session.InitializeNewGameCharacterAppearance(assets.ReadNewGameCharacterAppearance());
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
+        this.movieClock = clock;
+        if (resolveGameFile is not null)
+        {
+            clock.ResolveGameFile = resolveGameFile;
+        }
         Events = new EventEngine(session);
         Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, clock.ToolsDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioWindow, audioEnabled)).Prepare();
         Events.StopSpuAudio = () => spuAudio?.Stop();

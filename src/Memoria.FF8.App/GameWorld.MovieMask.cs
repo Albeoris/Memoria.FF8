@@ -9,6 +9,7 @@ internal sealed partial class GameWorld
 {
     private readonly Dictionary<(byte Disc, int Movie), NativeMovieCameraFlags> movieCameraFlags = [];
     private readonly Dictionary<(byte Disc, int Movie), byte[]> movieCameraBytes = [];
+    private readonly Dictionary<string, MoviePresentationCamera> presentationCameras = new(StringComparer.OrdinalIgnoreCase);
     private FieldRenderer? movieRenderer;
     private FieldAssets? movieRendererField;
 
@@ -90,12 +91,31 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Movie field compositing differs from its authenticated CAM phase.");
         }
-        FieldCamera camera = ReadNativeMovieCamera(movieCameraBytes[(source.DiscIndex, movie)], record);
+        byte[] cameraBytes = movieCameraBytes[(source.DiscIndex, movie)];
+        byte drawValue = playback.DrawValue ?? throw new InvalidDataException("Movie rendering has no retained draw-control phase.");
+        string originalPath = MovieClock.GetCameraPath(assets.GameDirectory, source.DiscIndex, movie);
+        string presentationPath = movieClock.CameraPath;
+        if (!string.Equals(Path.GetFullPath(originalPath), Path.GetFullPath(presentationPath), StringComparison.OrdinalIgnoreCase))
+        {
+            if (!presentationCameras.TryGetValue(presentationPath, out MoviePresentationCamera? presentation))
+            {
+                presentation = new MoviePresentationCamera(File.ReadAllBytes(presentationPath), flags, movieClock.Prepare(), movieClock.PreparePresentation());
+                presentationCameras.Add(presentationPath, presentation);
+            }
+            Memoria.FF8.Media.MovieInformation nativeInformation = movieClock.Prepare();
+            Memoria.FF8.Media.MovieInformation mediaInformation = movieClock.PreparePresentation();
+            int mediaFrame = movieClock.PresentationFrame((session.State.MoviePlayback?.FrameIndex ?? record) / nativeInformation.FramesPerSecond, mediaInformation);
+            record = presentation.DrawRecord(mediaFrame);
+            cameraBytes = presentation.Bytes;
+            flags = presentation.Flags;
+            drawValue = presentation.DrawValue(record);
+        }
+        FieldCamera camera = ReadNativeMovieCamera(cameraBytes, record);
         //4767B0 submits actors before the late55A620 CAM flag update. BYTE490D (bit64)
         //and209A7A0 (bits1/32) therefore come from the previous consumed CAM record.
         byte previousFlags = flags.Flags[record - 1];
         IEnumerable<ActorVisual> actors = (previousFlags & 0x61) == 0 ? Events.Actors.Select(CreateVisual) : [];
-        FieldMovieMask? mask = currentField.Information?.NativeMovieMaskFlag14 == 1 && playback.DrawValue == 0 ? currentField.MovieMask : null;
+        FieldMovieMask? mask = currentField.Information?.NativeMovieMaskFlag14 == 1 && drawValue == 0 ? currentField.MovieMask ?? throw new NotSupportedException("Movie presentation requires its original INF-selected MSK triangle bank.") : null;
         if (movieRenderer is null || movieRendererField != currentField || movieRenderer.OutputWidth != renderWidth || movieRenderer.OutputHeight != renderHeight)
         {
             movieRenderer = new FieldRenderer(currentField, renderWidth, renderHeight, nativeMovieViewport: true);

@@ -13,15 +13,18 @@ internal sealed class MoviePresentation : IDisposable
     private readonly DynamicSoundEffectInstance sound = new(44100, AudioChannels.Stereo);
     private readonly Stopwatch clock = new();
     private bool started;
-    private int absoluteFrame;
+    private readonly MovieFrameTimeline nativeTimeline;
+    private readonly MovieInformation nativeInformation;
+    private bool callbackActive = true;
     private byte[] decodedPixels = [];
 
-    public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true)
+    public MoviePresentation(GraphicsDevice device, string toolsDirectory, string path, double startSeconds, MovieInformation? information = null, bool audioEnabled = true, MovieInformation? nativeInformation = null)
     {
         sound.Volume = audioEnabled ? 1 : 0;
         decoder = new FfmpegMovieDecoder(toolsDirectory, path, startSeconds, information);
         Texture = new Texture2D(device, decoder.Information.Width, decoder.Information.Height);
-        absoluteFrame = MovieClock.AbsoluteFrame(startSeconds, decoder.Information);
+        this.nativeInformation = nativeInformation ?? decoder.Information;
+        nativeTimeline = new MovieFrameTimeline(this.nativeInformation, MovieFrameTimeline.FrameAt(startSeconds, this.nativeInformation));
     }
 
     public Texture2D Texture { get; }
@@ -44,14 +47,14 @@ internal sealed class MoviePresentation : IDisposable
         }
     }
     public string? Error => decoder.Error;
-    public MoviePlaybackState Playback => new(absoluteFrame, decoder.Information.FrameCount - 1, !Finished, Finished, false);
+    public MoviePlaybackState Playback => new(nativeTimeline.Frame, nativeInformation.FrameCount - 1, !Finished, Finished, false);
 
     internal static bool IsComplete(double position, double duration, bool videoFinished, bool audioFinished, int pendingAudioBuffers)
     {
         return position >= duration && videoFinished && audioFinished && pendingAudioBuffers == 0;
     }
 
-    public void Update(Func<MoviePlaybackState, double, bool>? decodedFrame = null)
+    public void Update(Func<MoviePlaybackState, double, bool>? decodedFrame = null, Action<int>? mediaFrame = null)
     {
         while (sound.PendingBufferCount < 3 && decoder.TryGetAudio(out byte[]? buffer))
         {
@@ -61,7 +64,8 @@ internal sealed class MoviePresentation : IDisposable
         {
             Texture.SetData(frame!.Rgba);
             decodedPixels = frame.Rgba;
-            absoluteFrame = Math.Min(decoder.Information.FrameCount - 1, MovieClock.AbsoluteFrame(decoder.StartSeconds, decoder.Information) + checked((int)frame.Index));
+            int mediaIndex = Math.Min(decoder.Information.FrameCount - 1, MovieClock.AbsoluteFrame(decoder.StartSeconds, decoder.Information) + checked((int)frame.Index));
+            mediaFrame?.Invoke(mediaIndex);
             if (!started)
             {
                 Console.WriteLine($"movie-frame={frame.Index} bytes={frame.Rgba.Length}");
@@ -70,12 +74,31 @@ internal sealed class MoviePresentation : IDisposable
                 clock.Start();
                 started = true;
             }
-            double seconds = decoder.StartSeconds + frame.Index / decoder.Information.FramesPerSecond;
-            if (decodedFrame?.Invoke(new MoviePlaybackState(absoluteFrame, decoder.Information.FrameCount - 1, true, false, false), seconds) == false)
+            double seconds = mediaIndex / decoder.Information.FramesPerSecond;
+            if (!PublishNativeFrames(seconds, decodedFrame))
             {
                 break;
             }
         }
+        if (callbackActive && Finished)
+        {
+            // A media frame spans an interval. Admit a native boundary inside the final
+            // interval even when no additional decoded image begins at that timestamp.
+            PublishNativeFrames(Math.Max(decoder.Information.DurationSeconds, (nativeInformation.FrameCount - 1) / nativeInformation.FramesPerSecond), decodedFrame);
+        }
+    }
+
+    private bool PublishNativeFrames(double seconds, Func<MoviePlaybackState, double, bool>? decodedFrame)
+    {
+        foreach (int frame in nativeTimeline.AdvanceTo(seconds))
+        {
+            callbackActive = decodedFrame?.Invoke(new MoviePlaybackState(frame, nativeInformation.FrameCount - 1, true, false, false), frame / nativeInformation.FramesPerSecond) != false;
+            if (!callbackActive)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void Draw(SpriteBatch batch, Rectangle bounds)

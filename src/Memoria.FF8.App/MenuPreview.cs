@@ -75,7 +75,7 @@ internal static class MenuPreview
         }
         UiView view;
         using GameWorld? tutorialWorld = screen == "native-tutorial" && statePath is not null ? new(new GameSession(GameSession.Load(statePath)), gameDirectory) : null;
-        using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false);
+        using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false, additionalBaseDirectories: [gameDirectory]);
         mods.PreparePending(true);
         mods.CommitPending();
         if (screen == "native-tutorial")

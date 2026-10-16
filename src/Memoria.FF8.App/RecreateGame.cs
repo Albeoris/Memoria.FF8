@@ -82,6 +82,7 @@ internal sealed partial class RecreateGame : Game
     protected override void LoadContent()
     {
         resourceHost = new GameResourceHost(options.GameDirectory);
+        movieClock.ResolveGameFile = resourceHost.ResolveGameFile;
         controller = new ControllerDevice();
         controllerFeedback = new ControllerFeedback(controller.SetVibration);
         batch = new SpriteBatch(GraphicsDevice);
@@ -299,10 +300,11 @@ internal sealed partial class RecreateGame : Game
                 string directory = movieClock.ToolsDirectory;
                 string path = movieClock.SourcePath;
                 Memoria.FF8.Media.MovieInformation information = movieClock.Prepare();
+                Memoria.FF8.Media.MovieInformation presentationInformation = movieClock.PreparePresentation();
                 // Resume from the actual last decoded frame. Wall-clock/audio position can be ahead
                 // when drawing falls behind and must not skip native callbacks on decoder restart.
                 double startSeconds = movieClock.State.FrameIndex / information.FramesPerSecond;
-                movie = new MoviePresentation(GraphicsDevice, directory, path, startSeconds, information, options.AudioEnabled);
+                movie = new MoviePresentation(GraphicsDevice, directory, path, startSeconds, presentationInformation, options.AudioEnabled, information);
                 movieIndex = session.State.MovieIndex;
                 movieDiscIndex = movieClock.SourceDiscIndex;
                 error = null;
@@ -325,7 +327,7 @@ internal sealed partial class RecreateGame : Game
                 session.SetMoviePlayback(playback);
                 session.SetMoviePosition(seconds);
                 return session.State.Scene == SceneKind.Movie && session.State.MovieIndex == playbackMovie && session.State.FieldId == playbackField && session.State.MovieSource == playbackSource;
-            });
+            }, movieClock.SetPresentationFrame);
             if (session.State.Scene != SceneKind.Movie || session.State.MovieIndex != playbackMovie || session.State.FieldId != playbackField || session.State.MovieSource != playbackSource)
             {
                 fieldSeconds = 0;
@@ -648,7 +650,7 @@ internal sealed partial class RecreateGame : Game
         var candidateSession = new GameSession(state);
         if (state.Scene != SceneKind.Movie || state.EventState is not null)
         {
-            using var candidate = new GameWorld(candidateSession, options.GameDirectory, new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory), resourceHost?.Resources);
+            using var candidate = new GameWorld(candidateSession, options.GameDirectory, new MovieClock(candidateSession, options.GameDirectory, options.MediaToolsDirectory, resourceHost is null ? null : resourceHost.ResolveGameFile), resourceHost?.Resources);
             candidate.EnsureField();
         }
     }

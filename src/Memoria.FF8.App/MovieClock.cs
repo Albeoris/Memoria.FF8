@@ -11,10 +11,18 @@ internal sealed class MovieClock
     private readonly string gameDirectory;
     private readonly string toolsDirectory;
     private readonly Dictionary<NativeMovieSource, MovieInformation> movies = [];
+    private readonly Dictionary<string, MovieInformation> presentationMovies = new(StringComparer.OrdinalIgnoreCase);
+    private NativeMovieSource? presentationSource;
+    private int? presentationFrame;
+    private NativeMovieSource? pinnedSource;
+    private bool bindingHasPlayback;
+    private string? pinnedMoviePath;
+    private string? pinnedCameraPath;
 
-    public MovieClock(GameSession session, string gameDirectory, string? toolsDirectory = null)
+    public MovieClock(GameSession session, string gameDirectory, string? toolsDirectory = null, Func<string, string>? resolveGameFile = null)
     {
         this.session = session;
+        ResolveGameFile = resolveGameFile;
         this.gameDirectory = gameDirectory;
         this.toolsDirectory = toolsDirectory ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS") ?? FindCachedTools();
     }
@@ -22,8 +30,65 @@ internal sealed class MovieClock
     public MoviePlaybackState State => session.State.MoviePlayback ?? new MoviePlaybackState(0, 0, session.IsMoviePlaying, false, false);
     public string ToolsDirectory => toolsDirectory;
     public Func<MoviePlaybackState, double, bool>? AdvanceFrame { get; set; }
+    public Func<string, string>? ResolveGameFile { get; set; }
     public byte SourceDiscIndex => RequireSource(session.State).DiscIndex;
-    public string SourcePath => GetSourcePath(gameDirectory, SourceDiscIndex, RequireSource(session.State).MovieIndex);
+    public string SourcePath
+    {
+        get
+        {
+            PinPresentationSource();
+            return pinnedMoviePath!;
+        }
+    }
+
+    public string CameraPath
+    {
+        get
+        {
+            PinPresentationSource();
+            return pinnedCameraPath!;
+        }
+    }
+
+    private void PinPresentationSource()
+    {
+        NativeMovieSource source = RequireSource(session.State);
+        if (pinnedSource == source && !(session.State.MoviePlayback is null && bindingHasPlayback))
+        {
+            return;
+        }
+        pinnedSource = source;
+        bindingHasPlayback = false;
+        presentationFrame = null;
+        presentationSource = null;
+        pinnedMoviePath = ResolveMovieFile(GetMovieRelativePath(gameDirectory, source.DiscIndex, source.MovieIndex));
+        pinnedCameraPath = ResolveMovieFile($"movies/disc{source.DiscIndex:00}_{source.MovieIndex:00}.cam");
+    }
+
+    public string ResolveMovieFile(string relativePath) => ResolveGameFile?.Invoke(relativePath) ?? Path.Combine(gameDirectory, "Data", relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+    public void SetPresentationFrame(int frame)
+    {
+        presentationSource = RequireSource(session.State);
+        presentationFrame = frame;
+    }
+
+    public int PresentationFrame(double seconds, MovieInformation information) => presentationSource == RequireSource(session.State) && presentationFrame is int frame ? frame : MovieFrameTimeline.FrameAt(seconds, information);
+
+    public MovieInformation PreparePresentation()
+    {
+        string path = SourcePath;
+        if (string.Equals(path, GetSourcePath(gameDirectory, SourceDiscIndex, RequireSource(session.State).MovieIndex), StringComparison.OrdinalIgnoreCase))
+        {
+            return Prepare();
+        }
+        if (!presentationMovies.TryGetValue(path, out MovieInformation? information))
+        {
+            information = FfmpegMovieDecoder.Probe(toolsDirectory, path);
+            presentationMovies.Add(path, information);
+        }
+        return information;
+    }
 
     public MovieInformation Prepare()
     {
@@ -31,10 +96,11 @@ internal sealed class MovieClock
         {
             throw new NotSupportedException("Movie decoding requires an active native playback request.");
         }
+        PinPresentationSource();
         NativeMovieSource source = RequireSource(session.State);
         if (!movies.TryGetValue(source, out MovieInformation? information))
         {
-            information = FfmpegMovieDecoder.Probe(toolsDirectory, SourcePath);
+            information = FfmpegMovieDecoder.Probe(toolsDirectory, GetSourcePath(gameDirectory, source.DiscIndex, source.MovieIndex));
             movies.Add(source, information);
         }
         if (session.State.MoviePlayback is null)
@@ -46,6 +112,7 @@ internal sealed class MovieClock
         {
             throw new InvalidDataException("The saved movie frame count does not match the installed clip.");
         }
+        bindingHasPlayback = true;
         return information;
     }
 
@@ -63,7 +130,15 @@ internal sealed class MovieClock
     internal static string GetSourcePath(string gameDirectory, int discIndex, int movieIndex)
     {
         ValidateResource(discIndex, movieIndex);
-        return Path.Combine(gameDirectory, "Data", "movies", $"disc{discIndex:00}_{movieIndex:00}h.avi");
+        return Path.Combine(gameDirectory, "Data", GetMovieRelativePath(gameDirectory, discIndex, movieIndex).Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    internal static string GetMovieRelativePath(string gameDirectory, int discIndex, int movieIndex)
+    {
+        ValidateResource(discIndex, movieIndex);
+        string name = $"disc{discIndex:00}_{movieIndex:00}h.avi";
+        string localized = Path.Combine(gameDirectory, "Data", "lang-en", "movies", name);
+        return File.Exists(localized) ? $"lang-en/movies/{name}" : $"movies/{name}";
     }
 
     internal static string GetCameraPath(string gameDirectory, int discIndex, int movieIndex)

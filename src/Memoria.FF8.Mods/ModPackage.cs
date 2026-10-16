@@ -3,7 +3,8 @@ namespace Memoria.FF8.Mods;
 public enum ModFormat
 {
     Tonberry,
-    Demaster
+    Demaster,
+    Junction
 }
 
 public enum ModEffectiveStatus
@@ -22,14 +23,16 @@ public sealed record ModPackage(string Id, string Name, ModFormat Format, bool? 
 public sealed class ModFile
 {
     private readonly Lazy<byte[]> content;
+    private readonly Action<Stream>? copyTo;
 
-    public ModFile(string packageId, ModFormat format, string relativePath, long revision, Func<byte[]> readBytes)
+    public ModFile(string packageId, ModFormat format, string relativePath, long revision, Func<byte[]> readBytes, Action<Stream>? copyTo = null)
     {
         PackageId = packageId;
         Format = format;
         RelativePath = ModCatalogSnapshot.NormalizePath(relativePath);
         Revision = revision;
         content = new Lazy<byte[]>(() => readBytes().ToArray(), LazyThreadSafetyMode.ExecutionAndPublication);
+        this.copyTo = copyTo;
     }
 
     public string PackageId { get; }
@@ -40,5 +43,18 @@ public sealed class ModFile
     public byte[] ReadBytes()
     {
         return content.Value.ToArray();
+    }
+
+    public void CopyTo(Stream destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        if (copyTo is not null)
+        {
+            copyTo(destination);
+        }
+        else
+        {
+            destination.Write(content.Value);
+        }
     }
 }
