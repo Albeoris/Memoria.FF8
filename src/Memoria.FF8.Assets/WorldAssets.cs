@@ -83,7 +83,7 @@ public sealed partial class WorldAssets : IDisposable
     public WorldFieldSelection? SelectWorldCallback(WorldFieldSelectionInput input, byte terrainTextureFlags, Func<ushort, bool> nearAllocatedShape, NativeWorldEventFlags savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate = null)
     {
         //53FAC0 returns immediately after a54D7E0 packet, before consulting545EA0.
-        return WorldEvents.SelectWorldEvent(input, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate) ?? FieldEntries.Select(input, terrainTextureFlags);
+        return WorldEvents.SelectWorldEvent(input, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate) ?? FieldEntries.Select(input, terrainTextureFlags, evaluateRuntimePredicate);
     }
 
     public FieldModel GetFootModel(byte entityType)

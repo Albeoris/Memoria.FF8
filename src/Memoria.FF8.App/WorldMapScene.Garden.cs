@@ -54,9 +54,15 @@ internal sealed partial class WorldMapScene
             assets.ValidateGardenAuxiliaryRelocations(current.AuxiliaryEntry);
         }
         assets.ValidateNativeGroundCache(current.GroundCache, replacements);
-        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(allocation), JsonSerializer.SerializeToElement(current.Allocation)))
+        //544860 appends shape79/80 pairs from264 bits0..2 only. The retained
+        //allocation records the original full byte;543750 can consume its bit6
+        //during ordinary play without re-running or changing that allocation.
+        JsonElement expectedAllocation = JsonSerializer.SerializeToElement(allocation with { ReplacementFlags264 = (byte)(allocation.ReplacementFlags264 & 7) });
+        JsonElement restoredAllocation = JsonSerializer.SerializeToElement(current.Allocation with { ReplacementFlags264 = (byte)(current.Allocation.ReplacementFlags264 & 7) });
+        if (!JsonElement.DeepEquals(expectedAllocation, restoredAllocation))
         {
-            throw new InvalidDataException("Restored Garden allocation differs from its authenticated original loader inputs.");
+            string differences = string.Join(", ", expectedAllocation.EnumerateObject().Where(property => !restoredAllocation.TryGetProperty(property.Name, out JsonElement restored) || !JsonElement.DeepEquals(property.Value, restored)).Select(property => property.Name));
+            throw new InvalidDataException($"Restored Garden allocation differs from its authenticated original loader inputs: {differences}.");
         }
     }
 

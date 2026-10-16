@@ -82,7 +82,7 @@ public sealed partial class WorldFieldEntryReader
         return new WorldFieldEntryReader(section7.ToArray(), pointers.ToArray(), entries, position, wm2field.ToArray(), sectionIndex);
     }
 
-    public WorldFieldSelection? Select(WorldFieldSelectionInput input, byte terrainTextureFlags)
+    public WorldFieldSelection? Select(WorldFieldSelectionInput input, byte terrainTextureFlags, Func<ushort, ushort, bool?>? evaluateRuntimePredicate = null)
     {
         if (sectionIndex != 7)
         {
@@ -93,7 +93,7 @@ public sealed partial class WorldFieldEntryReader
         {
             return null;
         }
-        return Select(input, null, null, null, null);
+        return Select(input, null, null, evaluateRuntimePredicate, null);
     }
 
     public WorldFieldSelection? SelectWorldEvent(WorldFieldSelectionInput input, Func<ushort, bool> nearAllocatedShape, NativeWorldEventFlags savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate = null, Action<ushort, ushort>? executeRuntimeCommand = null)
@@ -158,7 +158,7 @@ public sealed partial class WorldFieldEntryReader
                 {
                     //Pure following predicates can reject both alternatives of an unknown read.
                     //FF29's supported absent-window result is a read-only rejection certificate.
-                    if (unresolved is WorldFieldPredicateEvaluation unknown && opcode is not (0xFF02 or 0xFF03 or 0xFF06 or 0xFF07 or 0xFF09 or 0xFF0E or 0xFF0F or 0xFF10 or 0xFF11 or 0xFF12 or 0xFF17 or 0xFF1B or 0xFF25 or 0xFF27 or 0xFF29 or 0xFF2D or 0xFF30 or 0xFF31 or 0xFF32))
+                    if (unresolved is WorldFieldPredicateEvaluation unknown && opcode is not (0xFF02 or 0xFF03 or 0xFF06 or 0xFF07 or 0xFF09 or 0xFF0E or 0xFF0F or 0xFF10 or 0xFF11 or 0xFF12 or 0xFF17 or 0xFF1B or 0xFF21 or 0xFF25 or 0xFF27 or 0xFF29 or 0xFF2D or 0xFF30 or 0xFF31 or 0xFF32))
                     {
                         throw UnknownPredicate(unknown);
                     }
@@ -350,6 +350,12 @@ public sealed partial class WorldFieldEntryReader
     private NotSupportedException UnknownPredicate(WorldFieldPredicateEvaluation predicate)
     {
         return new NotSupportedException($"World event selection depends on unauthenticated predicate0x{predicate.Opcode:X4}/{predicate.Operand} at section{sectionIndex} offset{predicate.Offset}.");
+    }
+
+    /// <summary>Native546100/FF21 compares saved-world BYTE109 bit0 to a signed WORD operand;2040A34 is its preview override.</summary>
+    public static bool MatchesSavedWorldFlag109(byte savedWorldByte109, ushort operand, bool previewOverride = false)
+    {
+        return previewOverride || (savedWorldByte109 & 1) == unchecked((short)operand);
     }
 
     private static bool MatchEntity(int type, ushort operand)

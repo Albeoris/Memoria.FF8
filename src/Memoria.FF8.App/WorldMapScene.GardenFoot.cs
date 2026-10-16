@@ -1,6 +1,4 @@
-using System.Numerics;
 using Memoria.FF8.Assets;
-using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -126,9 +124,7 @@ internal sealed partial class WorldMapScene
         NativeGardenWorldRuntimeState garden = cameraState.NativeGardenRuntime!;
         NativeWorldFootCameraState camera = garden.ProjectionCamera ?? throw new NotSupportedException("Garden foot contact lost its actual pre-terrain camera.");
         NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(camera);
-        WorldCamera physicalCamera = FootCamera(cameraState);
-        double eyeX = physicalCamera.FootFrame(new Vector3(camera.X, -camera.NativeHeight, camera.RawZ)).Eye.X;
-        bool trainContactsExcluded = WorldFootContactCertificate.ExcludesOriginalTrainRoutes(eyeX);
+        bool trainContactsExcluded = WorldFootContactCertificate.ExcludesOriginalTrainRoutes(projection);
         return WorldGardenContactCertificate.Evaluate(assets, garden.Allocation, garden.Objects, cameraState.NativeFootRuntime!.EntityType, selectedEntity, probes, projection, padding, forceCircle, trainContactsExcluded);
     }
 

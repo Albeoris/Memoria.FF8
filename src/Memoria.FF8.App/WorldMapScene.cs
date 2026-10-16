@@ -330,7 +330,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 if (advanceUi && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {
                     byte scriptMode = callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? (byte)3 : (byte)0);
-                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary) ?? fieldEntry;
+                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, callbackStart.NativeGardenRuntime?.Buttons.LastObservedButtons) ?? fieldEntry;
                 }
                 if (stationChoice && fieldEntry is null)
                 {

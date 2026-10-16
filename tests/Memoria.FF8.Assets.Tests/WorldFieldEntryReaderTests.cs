@@ -315,6 +315,45 @@ public sealed class WorldFieldEntryReaderTests
 
 
 
+    [Theory]
+    [InlineData(0, 0, true)]
+    [InlineData(254, 0, true)]
+    [InlineData(255, 0, false)]
+    [InlineData(255, 1, true)]
+    [InlineData(2, 1, false)]
+    [InlineData(1, 257, false)]
+    [InlineData(1, 65535, false)]
+    [InlineData(0, 32768, false)]
+    public void Saved_world_flag109_masks_only_the_byte_and_compares_the_full_signed_operand(byte flag, ushort operand, bool expected)
+    {
+        Assert.Equal(expected, WorldFieldEntryReader.MatchesSavedWorldFlag109(flag, operand));
+        Assert.True(WorldFieldEntryReader.MatchesSavedWorldFlag109(flag, operand, true));
+    }
+
+    [Theory]
+    [InlineData(899, 0, 0, false)]
+    [InlineData(900, 0, 0, true)]
+    [InlineData(912, 0, 254, true)]
+    [InlineData(912, 0, 1, false)]
+    [InlineData(912, 48, 0, false)]
+    [InlineData(912, 49, 0, true)]
+    public void Installed_orphanage_selector_uses_actual_flag109_callback(ushort story, int entity, byte flag, bool expected)
+    {
+        using WorldAssets assets = new(GameDirectory());
+        WorldFieldSelectionInput input = new(-29440, 69760, story, entity);
+        WorldFieldSelection? selected = assets.FieldEntries.Select(input, 8, (opcode, operand) => opcode == 0xFF21 ? WorldFieldEntryReader.MatchesSavedWorldFlag109(flag, operand) : throw new NotSupportedException());
+        Assert.Equal(expected, selected is not null);
+        if (selected is not null)
+        {
+            Assert.Equal(new WorldFieldEntry(18, -139, -789, 13, 505, 128), selected.Entry);
+            Assert.Contains(selected.Predicates, item => item.Opcode == 0xFF21 && item.Operand == 0 && item.Passed == true);
+        }
+        if (story >= 900)
+        {
+            Assert.Throws<NotSupportedException>(() => assets.FieldEntries.Select(input, 8));
+        }
+        Assert.Null(assets.FieldEntries.Select(input, 0));
+    }
     private static byte[] Program(params (ushort Opcode, ushort Operand)[][] clauses)
     {
         int position = (clauses.Length + 1) * 4;

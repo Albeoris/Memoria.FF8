@@ -1,3 +1,4 @@
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -122,6 +123,43 @@ public static class WorldFootContactCertificate
                         difference += 128;
                     }
                     if (Math.Abs(difference) <= 5)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    internal static bool ExcludesOriginalTrainRoutes(NativeWorldPathProjectionCertificate projection)
+    {
+        ArgumentNullException.ThrowIfNull(projection);
+        // Original rail.obj routes0/1;545B20 interpolation stays inside these
+        // endpoint bounds
+        (int MinimumX, int MaximumX, int MinimumZ, int MaximumZ)[] routes = [(-28130, -17477, 6490, 43516), (-61703, -21000, 5871, 32258)];
+        foreach ((int minimumX, int maximumX, int minimumZ, int maximumZ) in routes)
+        {
+            int firstX = (minimumX + 131072) / 2048;
+            int lastX = (maximumX + 131072) / 2048;
+            int firstZ = (98304 - maximumZ) / 2048;
+            int lastZ = (98304 - minimumZ) / 2048;
+            for (int x = firstX; x <= lastX; x++)
+            {
+                for (int z = firstZ; z <= lastZ; z++)
+                {
+                    // One representative per native53DC70 cell, including both
+                    // interval ends. IsNear owns544490 rounding and128/96 wrap;
+                    // later signed-WORD collision aliases cannot bypass this gate.
+                    NativeWorldPathPosition representative = new(x * 2048 - 131072, 0, 98304 - z * 2048);
+                    try
+                    {
+                        if (projection.IsNear(representative))
+                        {
+                            return false;
+                        }
+                    }
+                    catch (NotSupportedException)
                     {
                         return false;
                     }

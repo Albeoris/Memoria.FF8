@@ -9,6 +9,7 @@ internal sealed partial class WorldMapScene
     {
         NativeGardenWorldRuntimeState garden = before.NativeGardenRuntime!;
         garden.Validate();
+        uint? precedingButtons = garden.Buttons.LastObservedButtons;
         if (cameraHorizontal != 0)
         {
             throw new NotSupportedException("Ordinary Garden variant0 has no native manual camera input.");
@@ -94,7 +95,7 @@ internal sealed partial class WorldMapScene
         };
         garden = garden.PublishBody(new(after.X, after.NativeHeight, -after.Z), 0, unchecked((short)after.BodyYaw), 0);
         after = after with { NativeGardenRuntime = garden };
-        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary);
+        fieldEntry = SelectWorldCallback(after, cameraState, scriptMode, ref salary, buttons, precedingButtons, admission.Action ? true : null);
         if (fieldEntry is null && scriptMode == 0)
         {
             after = StepGardenCactuar(after, out fieldEntry);

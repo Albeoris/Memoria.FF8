@@ -47,7 +47,7 @@ internal sealed partial class WorldMapScene
         return false;
     }
 
-    private bool? EvaluateWorldEventPredicate(WorldState state, byte scriptMode, NativeSavedWorldState saved, ushort opcode, ushort operand)
+    private bool? EvaluateWorldEventPredicate(WorldState state, byte scriptMode, NativeSavedWorldState saved, ushort opcode, ushort operand, WorldFieldInputContext? callbackInput = null)
     {
         switch (opcode)
         {
@@ -69,6 +69,16 @@ internal sealed partial class WorldMapScene
                     }
                 }
                 throw new NotSupportedException("World event FF1B requires its actual non-vehicle interaction contact owner for an allocated shape.");
+            case 0xFF20:
+                return callbackInput?.Matches(operand);
+            case 0xFF21:
+                //544860 copies event BYTE271 to saved-world BYTE109. The normal gameplay callback has no2040A34 preview override.
+                NativeScalarValue flag109 = session.State.EventMemory.Read(271, 1);
+                if (!flag109.IsExact)
+                {
+                    throw new NotSupportedException("World predicate FF21 requires the exact executed event BYTE271 value.");
+                }
+                return WorldFieldEntryReader.MatchesSavedWorldFlag109(checked((byte)flag109.Values[0]), operand);
             case 0xFF25:
                 return scriptMode == operand;
             case 0xFF29:
