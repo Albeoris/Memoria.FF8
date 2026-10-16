@@ -40,7 +40,7 @@ internal sealed partial class WorldMapScene
         byte priorGroundType = GardenCurrentGroundType(garden.GroundCache);
         NativeWorldProcess processOwner = session.State.WorldProcess ?? throw new NotSupportedException("Garden camera requires its current native process owner.");
         bool priorOcclusion = garden.PriorTerrainOcclusion ?? throw new NotSupportedException("Garden camera requires its preceding original terrain-render occlusion owner.");
-        NativeForestCameraResult cameraStep = (processOwner with { CameraCooldown = garden.Forest.CameraCooldown }).StepOrdinaryCamera(garden.CameraPitch, priorGroundType, 48, priorOcclusion, held8: steering != 0);
+        NativeForestCameraResult cameraStep = (processOwner with { CameraCooldown = garden.Forest.CameraCooldown }).StepOrdinaryCamera(garden.CameraPitch, priorGroundType, 48, priorOcclusion, held11: throttle != 0, held13: steering != 0);
         NativeWorldForestState forest = garden.Forest.AdvanceGarden(priorGroundType, priorBody, garden.CurrentGroundHeight!.Value, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         garden = garden with
         {

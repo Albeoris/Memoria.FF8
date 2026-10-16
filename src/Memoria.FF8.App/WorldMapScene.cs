@@ -522,7 +522,7 @@ internal sealed partial class WorldMapScene : IDisposable
         byte currentGroundType = before.GroundType ?? throw new NotSupportedException("Native forest camera/emission requires the current selected polygon type.");
         NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Native forest camera has no executed process history.");
         bool priorTerrainOcclusion = before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : false;
-        NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion);
+        NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion, held8: moving);
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
         forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         foot = foot with { Forest = forest };

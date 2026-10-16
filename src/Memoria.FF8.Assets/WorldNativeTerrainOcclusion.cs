@@ -10,7 +10,7 @@ internal readonly record struct NativeTerrainScreenBounds(int MinimumX, int Maxi
 
 public sealed partial class NativeWorldPathProjectionCertificate
 {
-    internal NativeTerrainScreenBounds? ProjectTerrainOcclusion(NativeWorldPathPosition position, bool groundReference = false)
+    internal NativeTerrainScreenBounds? ProjectTerrainOcclusion(NativeWorldPathPosition position, bool groundReference = false, bool fast = false)
     {
         NativeWorldPathWords relative = Relative(position);
         Range[] point = [Word(Add(Range.Exact(relative.X), offset[0])), Word(Add(Range.Exact(relative.Y), offset[1])), Word(Add(Range.Exact(relative.Z), offset[2]))];
@@ -42,10 +42,67 @@ public sealed partial class NativeWorldPathProjectionCertificate
             }
         }
         point[1] = Word(Add(new Range(heights.Min(), heights.Max()), offset[1]));
+        if (fast)
+        {
+            return ProjectFastTerrain(point);
+        }
         Range[] curved = Rotate(view, point);
         Range x = Project(curved[0], curved[2], 160);
         Range y = Project(curved[1], curved[2], 112);
         return new NativeTerrainScreenBounds(x.Low, x.High, y.Low, y.High, Math.Clamp(curved[2].Low, 0, ushort.MaxValue), Math.Clamp(curved[2].High, 0, ushort.MaxValue));
+    }
+
+    private NativeTerrainScreenBounds? ProjectFastTerrain(Range[] point)
+    {
+        if (!precision53 || point.Any(value => !value.Unique) || view.Cast<Range>().Any(value => !value.Unique))
+        {
+            return null;
+        }
+        double Dot(int row) => ((double)view[row, 2].Low * point[2].Low + (double)view[row, 1].Low * point[1].Low + (double)view[row, 0].Low * point[0].Low) / 4096;
+        //4023D0 stores its X/Y accumulations as FLOAT before perspective.
+        //The depth accumulation stays PC53 double; B693E0=0.125 cancels
+        //the input*8 while B693E4=8 scales the zero renderer translation.
+        float x = (float)(8 * Dot(0));
+        float y = (float)(8 * Dot(1));
+        double depth = Dot(2);
+        int roundedDepth = NativePrecision53.RoundInteger(depth);
+        int screenX;
+        int screenY;
+        if (roundedDepth > Focal / 2)
+        {
+            double ratio = Focal / depth;
+            screenX = unchecked(8 * 160 + NativePrecision53.RoundInteger(ratio * x));
+            screenY = unchecked(8 * 112 + NativePrecision53.RoundInteger(ratio * y));
+        }
+        else
+        {
+            screenX = unchecked(8 * 160 + 2 * NativePrecision53.RoundInteger(x));
+            screenY = unchecked(8 * 112 + 2 * NativePrecision53.RoundInteger(y));
+        }
+        //Unlike45FE10,4023D0 does not clamp screen coordinates.
+        //Keep the full DWORD for unsigned admission. The later signed depth
+        //WORD can be consumed only after 0<depth<0x8000 has been admitted.
+        return new(screenX, screenX, screenY, screenY, roundedDepth, roundedDepth);
+    }
+
+    internal bool DefinitelyRendersTerrainCell(int cell)
+    {
+        int bodyCell = Sector(Origin);
+        int dx = SectorX(cell, bodyCell);
+        int dz = SectorZ(cell, bodyCell);
+        //53D3C0 always retains the 3x3 body neighborhood for ordinary entities.
+        //53DDA0 must also have generated this cell in its proximity-centered
+        //rectangle with exact lower/upper offsets -10239/+10239.
+        if (Math.Abs(dx) > 1 || Math.Abs(dz) > 1)
+        {
+            return false;
+        }
+        int x = bodyCell % 128 + dx;
+        int z = bodyCell / 128 + dz;
+        return x >= (int)Math.Floor((Origin.X + 131072d + proximity[0].High - 10239) / 2048)
+            && x <= (int)Math.Floor((Origin.X + 131072d + proximity[0].Low + 10239) / 2048)
+            && z >= (int)Math.Floor((-Origin.Z + 98304d + proximity[2].High - 10239) / 2048)
+            && z <= (int)Math.Floor((-Origin.Z + 98304d + proximity[2].Low + 10239) / 2048);
     }
 }
 
@@ -59,12 +116,13 @@ public sealed partial class WorldAssets
         {
             throw new NotSupportedException("Native terrain camera occlusion requires the reached ordinary foot/car/Garden renderer.");
         }
-        NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateFoot(camera);
+        NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateTerrainFoot(camera);
         NativeTerrainScreenBounds? body = projection.ProjectTerrainOcclusion(new(camera.X, groundHeight, -camera.RawZ), groundReference: true);
         if (body is null)
         {
-            return new(null, 0, 0, "Native5472C0 ground-reference depth has no bounded projection.");
+            return new(null, 0, 0, OcclusionReason("Native5472C0 ground-reference depth has no bounded projection.", camera, groundHeight, entityType));
         }
+        int minimumThreshold = (body.Value.MinimumDepth >> 2) - 256;
         int threshold = (body.Value.MaximumDepth >> 2) - 256;
         if (threshold <= 0)
         {
@@ -73,6 +131,7 @@ public sealed partial class WorldAssets
         int centerCell = NativeCell(camera.X, camera.RawZ);
         int blocks = 0;
         int polygons = 0;
+        string? uncertain = null;
         //544490's6144 displacement spans3 cells; renderer proximity spans5.
         //One extra cell covers the current signed-WORD movement at a cell edge.
         //This superset may refuse an irrelevant triangle, but cannot certify a missed latch.
@@ -96,10 +155,11 @@ public sealed partial class WorldAssets
                 foreach (WorldTriangle triangle in segment.Triangles.Where(triangle => triangle.NativeBlockIndex == block))
                 {
                     polygons++;
-                    NativeTerrainScreenBounds?[] projected = new[] { triangle.A, triangle.B, triangle.C }.Select(position => projection.ProjectTerrainOcclusion(NativeTerrainPosition(position))).ToArray();
+                    NativeTerrainScreenBounds?[] projected = new[] { triangle.A, triangle.B, triangle.C }.Select(position => projection.ProjectTerrainOcclusion(NativeTerrainPosition(position), fast: !direct)).ToArray();
                     if (projected.Any(point => point is null))
                     {
-                        return new(null, blocks, polygons, "Native terrain vertex projection exceeds the bounded rounding envelope.");
+                        uncertain ??= $"Native terrain vertex projection exceeds the bounded rounding envelope at map{map}/block{block}/polygon{triangle.NativePolygonIndex}.";
+                        continue;
                     }
                     NativeTerrainScreenBounds[] points = projected.Select(point => point!.Value).ToArray();
                     if (points.Max(point => point.MinimumDepth) >> 2 >= threshold)
@@ -110,16 +170,45 @@ public sealed partial class WorldAssets
                     {
                         continue;
                     }
-                    bool xCross = CouldStraddle(points, direct ? 160 : 320, true);
-                    bool yCross = CouldStraddle(points, direct ? 180 : 360, false);
-                    if (direct ? xCross && yCross : xCross || yCross)
+                    if (!direct && (points.Any(point => point.MaximumDepth <= 0 || point.MinimumDepth >= 0x8000) || points.All(point => MinimumUnsignedDword(point.MinimumX, point.MaximumX) >= 0xA00) || points.All(point => MinimumUnsignedDword(point.MinimumY, point.MaximumY) >= 0x700)))
                     {
-                        return new(null, blocks, polygons, $"Native terrain camera occlusion may be set by map{map}/block{block}/polygon{triangle.NativePolygonIndex}; exact clipping/backface admission is required.");
+                        //4023D0 emits vertex admission bits consumed by552380:
+                        //OR bit0/1 must both exist, AND bit2 must exist, and no
+                        //vertex may carry the nonpositive-depth high byte.
+                        continue;
                     }
+                    bool? frontFace = FacesCamera(points);
+                    if (frontFace == false)
+                    {
+                        //45EE10→45E3C0 rejects signed screen determinant<=0
+                        //before either renderer is allowed to publish203FDC4.
+                        continue;
+                    }
+                    bool? xCross = Straddles(points, direct ? 160 : 320, true, direct);
+                    bool? yCross = Straddles(points, direct ? 180 : 360, false, direct);
+                    bool definitelyCrosses = direct ? xCross == true && yCross == true : xCross == true || yCross == true;
+                    bool cannotCross = direct ? xCross == false || yCross == false : xCross == false && yCross == false;
+                    if (cannotCross)
+                    {
+                        continue;
+                    }
+                    bool depthAdmitted = direct ? points.Max(point => point.MaximumDepth) >> 2 < minimumThreshold : points.Max(point => point.MaximumDepth) >> 3 < minimumThreshold >> 1;
+                    bool clippingAdmitted = direct
+                        ? points.Any(point => MaximumUnsigned(point.MinimumX, point.MaximumX) <= 0xA00) && points.Any(point => MaximumUnsigned(point.MinimumY, point.MaximumY) <= 0x780)
+                        : points.All(point => point.MinimumDepth > 0 && point.MaximumDepth < 0x8000) && points.Any(point => point.MinimumX >= 0 && point.MaximumX < 0xA00) && points.Any(point => point.MinimumY >= 0 && point.MaximumY < 0x700);
+                    int cell = cellZ * 128 + cellX;
+                    //552380 has original per-polygon exclusions for a finite
+                    //set of railway cells; no positive claim bypasses those.
+                    bool polygonFilterKnown = direct || !NativeFastTerrainHasPolygonFilter(cell);
+                    if (depthAdmitted && clippingAdmitted && frontFace == true && definitelyCrosses && polygonFilterKnown && projection.DefinitelyRendersTerrainCell(cell))
+                    {
+                        return new(true, blocks, polygons, null);
+                    }
+                    uncertain ??= $"Native terrain camera occlusion is ambiguous at map{map}/block{block}/polygon{triangle.NativePolygonIndex}: depth={depthAdmitted}, clip={clippingAdmitted}, front={frontFace}, crossing={definitelyCrosses}, polygonFilter={polygonFilterKnown}, cell={projection.DefinitelyRendersTerrainCell(cell)}.";
                 }
             }
         }
-        return new(false, blocks, polygons, null);
+        return uncertain is null ? new(false, blocks, polygons, null) : new(null, blocks, polygons, OcclusionReason(uncertain, camera, groundHeight, entityType));
     }
 
     private byte[] NativeTerrainVertexCounts(int sourceId)
@@ -151,27 +240,85 @@ public sealed partial class WorldAssets
         return high < 0 ? low + 65536 : low < 0 ? 0 : low;
     }
 
-    private static bool CouldStraddle(IReadOnlyList<NativeTerrainScreenBounds> points, int threshold, bool horizontal)
+    private static long MinimumUnsignedDword(int low, int high)
     {
-        for (int first = 0; first < points.Count; first++)
+        return high < 0 ? unchecked((uint)low) : low < 0 ? 0 : low;
+    }
+
+    private static int MaximumUnsigned(int low, int high)
+    {
+        return high < 0 ? high + 65536 : low < 0 ? 65535 : high;
+    }
+
+    private static bool? FacesCamera(IReadOnlyList<NativeTerrainScreenBounds> points)
+    {
+        (int Low, int High)[] x = points.Select(point => SignedScreenWords(point.MinimumX, point.MaximumX)).ToArray();
+        (int Low, int High)[] y = points.Select(point => SignedScreenWords(point.MinimumY, point.MaximumY)).ToArray();
+        long low = 0;
+        long high = 0;
+        for (int index = 0; index < 3; index++)
         {
-            int low = horizontal ? points[first].MinimumX : points[first].MinimumY;
-            int high = horizontal ? points[first].MaximumX : points[first].MaximumY;
-            bool mayAbove = low < 0 || high > threshold;
-            if (!mayAbove)
+            (int Low, int High) first = x[index];
+            (int Low, int High) next = y[(index + 1) % 3];
+            (int Low, int High) last = y[(index + 2) % 3];
+            long differenceLow = (long)next.Low - last.High;
+            long differenceHigh = (long)next.High - last.Low;
+            long[] products = [(long)first.Low * differenceLow, (long)first.Low * differenceHigh, (long)first.High * differenceLow, (long)first.High * differenceHigh];
+            low += products.Min();
+            high += products.Max();
+        }
+        //Native determinant arithmetic wraps DWORD. A wrapping interval remains
+        //unknown rather than manufacturing a backface rejection.
+        if (low < int.MinValue || high > int.MaxValue)
+        {
+            return null;
+        }
+        return low > 0 ? true : high <= 0 ? false : null;
+    }
+
+    private static (int Low, int High) SignedScreenWords(int low, int high)
+    {
+        short first = unchecked((short)low);
+        short last = unchecked((short)high);
+        return (long)high - low <= ushort.MaxValue && last - first == (long)high - low ? (first, last) : (short.MinValue, short.MaxValue);
+    }
+
+    private static bool? Straddles(IReadOnlyList<NativeTerrainScreenBounds> points, int threshold, bool horizontal, bool direct)
+    {
+        (int Low, int High)[] values = points.Select(point => horizontal ? SignedScreenWords(point.MinimumX, point.MaximumX) : SignedScreenWords(point.MinimumY, point.MaximumY)).ToArray();
+        bool maySet = false;
+        bool mayClear = false;
+        for (int mask = 0; mask < 8; mask++)
+        {
+            bool allowed = true;
+            for (int index = 0; index < 3; index++)
+            {
+                bool above = (mask & 1 << index) != 0;
+                bool canAbove = direct ? MaximumUnsigned(values[index].Low, values[index].High) > threshold : values[index].High > threshold;
+                bool canBelow = direct ? MinimumUnsigned(values[index].Low, values[index].High) <= threshold : values[index].Low <= threshold;
+                allowed &= above ? canAbove : canBelow;
+            }
+            if (!allowed)
             {
                 continue;
             }
-            for (int second = 0; second < points.Count; second++)
-            {
-                int secondLow = horizontal ? points[second].MinimumX : points[second].MinimumY;
-                int secondHigh = horizontal ? points[second].MaximumX : points[second].MaximumY;
-                if (first != second && secondHigh >= 0 && secondLow <= threshold)
-                {
-                    return true;
-                }
-            }
+            bool a = (mask & 1) != 0;
+            bool b = (mask & 2) != 0;
+            bool c = (mask & 4) != 0;
+            bool set = direct ? a != b || a != c : a != b && a == c;
+            maySet |= set;
+            mayClear |= !set;
         }
-        return false;
+        return maySet ? mayClear ? null : true : false;
+    }
+
+    private static bool NativeFastTerrainHasPolygonFilter(int cell)
+    {
+        return cell is >= 6108 and <= 6111 or >= 5724 and <= 5727 or >= 5852 and <= 5855 or >= 5980 and <= 5983 or 3660 or 3788 or 3916;
+    }
+
+    private static string OcclusionReason(string reason, NativeWorldFootCameraState camera, short groundHeight, int entityType)
+    {
+        return $"{reason} Input: entity={entityType}, groundHeight={groundHeight}, camera=({camera.X},{camera.RawZ},{camera.NativeHeight}; target={camera.TargetX},{camera.TargetRawZ},{camera.TargetNativeHeight}; yaw={camera.Yaw}, pitch={camera.Pitch}, offsets={camera.OffsetY},{camera.OffsetZ}).";
     }
 }

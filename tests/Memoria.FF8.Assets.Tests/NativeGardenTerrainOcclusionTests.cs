@@ -5,6 +5,39 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeGardenTerrainOcclusionTests
 {
     [Fact]
+    public void ActualBalambFootCandidateUsesFloatStoresBeforeUnsignedFastClipping()
+    {
+        //Recorded b3ed5338 candidate: original4023D0 produces screenY
+        //2033/1793/1988. All exceed the exclusive1792 admission limit.
+        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeWorldFootCameraState camera = new(17851, -23676, -8, 17847, -23646, -261, 532, -124, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, -8, WorldTerrainSelection.Replacements(285), 0);
+        Assert.True(result.Occluded == false, result.Reason);
+    }
+
+    [Fact]
+    public void OriginalBalambTerrainCanPublishPositiveOcclusionWithEveryAdmissionProven()
+    {
+        //A bounded native view of the reached map306/block0/polygon28.
+        //This is a predicate fixture, not a claimed saved gameplay callback.
+        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeWorldFootCameraState camera = new(17850, -23780, 0, 17845, -23745, -259, 529, -112, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, 0, WorldTerrainSelection.Replacements(285), 0);
+        Assert.True(result.Occluded == true, result.Reason);
+    }
+
+    [Fact]
+    public void ActualFirstFootCallbackAfterBalambBeachDismountUsesNativeFastPolygonAdmission()
+    {
+        //Standalone1230: zero-input557A90 keeps yaw876/velocity0;552AD0
+        //averages targets(16532,-24027,-439) toward body(16855,-23406,-37).
+        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        NativeWorldFootCameraState camera = new(16855, -23406, -37, 16693, -23717, -403, 876, -112, -341, -7168);
+        WorldNativeTerrainOcclusionResult result = assets.CertifyNativeTerrainCameraOcclusion(camera, -159, WorldTerrainSelection.Replacements(285), 0);
+        Assert.True(result.Occluded == false, result.Reason);
+    }
+
+    [Fact]
     public void ActualRetainedMissileBaseCarAndFreshGardenViewsExcludeEveryPotentialNativeOccluder()
     {
         using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");

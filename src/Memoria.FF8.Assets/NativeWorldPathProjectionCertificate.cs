@@ -23,9 +23,11 @@ public sealed partial class NativeWorldPathProjectionCertificate
     private readonly Range[] proximity;
     private readonly int originSector;
     private readonly NativeWorldPathPosition sectorBase;
+    private readonly bool precision53;
 
-    private NativeWorldPathProjectionCertificate(NativeWorldPathCamera camera, NativeWorldPathPosition origin)
+    private NativeWorldPathProjectionCertificate(NativeWorldPathCamera camera, NativeWorldPathPosition origin, bool precision53 = false)
     {
+        this.precision53 = precision53;
         Camera = camera;
         Origin = origin;
         originSector = Sector(origin);
@@ -114,6 +116,13 @@ public sealed partial class NativeWorldPathProjectionCertificate
         state.Validate();
         NativeWorldPathCamera camera = new(null, new NativeWorldPathPosition(state.TargetX, state.TargetNativeHeight, -state.TargetRawZ)) { FootState = state };
         return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ));
+    }
+
+    internal static NativeWorldPathProjectionCertificate CreateTerrainFoot(NativeWorldFootCameraState state)
+    {
+        state.Validate();
+        NativeWorldPathCamera camera = new(null, new NativeWorldPathPosition(state.TargetX, state.TargetNativeHeight, -state.TargetRawZ)) { FootState = state };
+        return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ), precision53: true);
     }
 
     public NativeWorldPathNodeProjection? ProjectNode(NativeWorldPathPosition node)
@@ -256,10 +265,10 @@ public sealed partial class NativeWorldPathProjectionCertificate
         return new NativeWorldPathWords((short)(position.X & 2047), unchecked((short)position.Y), (short)(z == 0 ? 0 : z - 2048));
     }
 
-    private static Range Trig(short angle, bool cosine) => Round((cosine ? Math.Cos(angle * RadiansPerUnit) : Math.Sin(angle * RadiansPerUnit)) * 4096);
+    private Range Trig(short angle, bool cosine) => Round((cosine ? Math.Cos(angle * RadiansPerUnit) : Math.Sin(angle * RadiansPerUnit)) * 4096);
     private static Range Negate(Range value) => new(-value.High, -value.Low);
     private static Range Add(Range first, Range second) => new(checked(first.Low + second.Low), checked(first.High + second.High));
-    private static Range Product(Range first, Range second)
+    private Range Product(Range first, Range second)
     {
         long[] values = [(long)first.Low * second.Low, (long)first.Low * second.High, (long)first.High * second.Low, (long)first.High * second.High];
         return Round(values.Min() / 4096d, values.Max() / 4096d);
@@ -270,7 +279,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
         short high = unchecked((short)value.High);
         return value.High - value.Low <= ushort.MaxValue && high - low == value.High - value.Low ? new Range(low, high) : new Range(short.MinValue, short.MaxValue);
     }
-    private static Range[] Rotate(Range[,] matrix, Range[] point)
+    private Range[] Rotate(Range[,] matrix, Range[] point)
     {
         Range[] result = new Range[3];
         for (int row = 0; row < 3; row++)
@@ -289,14 +298,24 @@ public sealed partial class NativeWorldPathProjectionCertificate
         }
         return result;
     }
-    private static Range Round(double value) => Round(value, value);
-    private static Range Round(double low, double high)
+    private Range Round(double value) => Round(value, value);
+    private Range Round(double low, double high)
     {
+        if (precision53 && low == high)
+        {
+            return Range.Exact(NativePrecision53.RoundInteger(low));
+        }
         const double magicAddError = 1d / 4096;
         return new Range(checked((int)Math.Round(Math.BitDecrement(low) - magicAddError, MidpointRounding.ToEven)), checked((int)Math.Round(Math.BitIncrement(high) + magicAddError, MidpointRounding.ToEven)));
     }
-    private static Range Project(Range coordinate, Range rawDepth, int center)
+    private Range Project(Range coordinate, Range rawDepth, int center)
     {
+        if (precision53 && coordinate.Unique && rawDepth.Unique)
+        {
+            int depth = Math.Max(Focal / 2, Math.Clamp(rawDepth.Low, 0, ushort.MaxValue));
+            int screen = unchecked(NativePrecision53.RoundInteger(8d * coordinate.Low * (Focal / (double)depth)) + 8 * center);
+            return Range.Exact(Math.Clamp(screen, -8192, 8184));
+        }
         int low = int.MaxValue;
         int high = int.MinValue;
         foreach (int value in new[] { coordinate.Low, coordinate.High })
