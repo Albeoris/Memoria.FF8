@@ -124,9 +124,12 @@ public sealed class NativeFieldItemTests
         NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(42, 2, out _);
         NativeFieldItem scroll = catalog.FieldItem(42)!;
         Assert.Equal(17, scroll.Type);
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { Learning = scroll.Power };
         var taught = scroll.Use(vitals, economy, 42, 16);
         Assert.True(taught.Changed);
         Assert.True(taught.Vitals.GuardianForces[0].LearnedBank.Has(scroll.Power));
+        Assert.Equal(scroll.Power, taught.Vitals.GuardianForces[0].Learning);
+        Assert.Equal(vitals.GuardianForces[0].AbilityProgress, taught.Vitals.GuardianForces[0].AbilityProgress);
         Assert.False(scroll.Use(taught.Vitals, taught.Economy, 42, 16).Changed);
         int compatibilityId = Enumerable.Range(1, 197).First(id => catalog.FieldItem(id) is { Type: 16, Power: 0 });
         NativeFieldItem compatibilityItem = catalog.FieldItem(compatibilityId)!;
@@ -192,6 +195,7 @@ public sealed class NativeFieldItemTests
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithMemberFlags(3, true);
         NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(127, 2, out _);
         NativeLimitProgress progress = assets.ReadNewGameLimitProgress();
+        Assert.False(LiveMenuData.Build(new GameState { Scene = SceneKind.Field, CharacterVitals = vitals, Economy = economy }, catalog: catalog).Items.Single(item => item.Id == "item-127").NativeFieldUseSupported);
         var learned = web.LearnBlueMagic(vitals, economy, progress, 127, 3);
         Assert.True(learned.Changed);
         Assert.Equal((ushort)(progress.BlueMagicFlags | 2), learned.Progress.BlueMagicFlags);
@@ -200,6 +204,71 @@ public sealed class NativeFieldItemTests
         Assert.Throws<InvalidOperationException>(() => web.LearnBlueMagic(vitals, economy, progress, 127, 0));
         Assert.Throws<InvalidOperationException>(() => web.LearnBlueMagic(vitals with { DreamEnabled = true }, economy, progress, 127, 3));
         Assert.Equal(progress.BlueMagicFlags, JsonSerializer.Deserialize<NativeLimitProgress>(JsonSerializer.Serialize(progress))!.BlueMagicFlags);
+    }
+
+    [Fact]
+    public void AmnesiaClearsAbilityLearningAndUnsupportedJunctionsThenScrollRestoresRule()
+    {
+        using GameAssets assets = Assets();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
+        NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(42, 2, out _).AddItem(41, 1, out _);
+        var taught = catalog.FieldItem(42)!.Use(vitals, economy, 42, 16);
+        NativeCharacterVitals junctioned = taught.Vitals.DeepCopy();
+        byte[] magic = new byte[20];
+        magic[0] = 1;
+        junctioned.Records[0] = junctioned.Records[0] with { Junction = junctioned.Records[0].Junction with { GuardianForces = 1, MagicJunctions = magic } };
+        junctioned.Records[0].MagicInventory[0] = new NativeMagicStock(1, 100);
+        var forgotten = catalog.FieldItem(41)!.Use(junctioned, taught.Economy, 41, 16, forgottenAbility: 1);
+        Assert.True(forgotten.Changed);
+        Assert.False(forgotten.Vitals.GuardianForces[0].LearnedBank.Has(1));
+        Assert.Equal(0, forgotten.Vitals.Records[0].Junction.MagicJunctions[0]);
+        Assert.DoesNotContain(forgotten.Vitals.GuardianForceAbilities(0), entry => entry.Ability == 1);
+        var restored = catalog.FieldItem(42)!.Use(forgotten.Vitals, forgotten.Economy, 42, 16);
+        Assert.True(restored.Vitals.GuardianForces[0].LearnedBank.Has(1));
+        Assert.Contains(restored.Vitals.GuardianForceAbilities(0), entry => entry.Ability == 1 && entry.Learned);
+        Assert.True(junctioned.GuardianForces[0].LearnedBank.Has(1));
+    }
+
+    [Fact]
+    public void RestItemsRespectSaveContextAndNativeCharacterGuardianTargetFlags()
+    {
+        using GameAssets assets = Assets();
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().WithSavedHitPoints(0, 0).AcquireGuardianForce(0);
+        vitals.Records[0] = vitals.Records[0] with { Status = 0x81 };
+        vitals.GuardianForces[0] = vitals.GuardianForces[0] with { HitPoints = 0 };
+        NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(33, 1, out _).AddItem(34, 1, out _).AddItem(35, 1, out _);
+        Assert.Throws<InvalidOperationException>(() => catalog.FieldItem(33)!.Use(vitals, economy, 33, 0, context: new(false, 0)));
+        var tent = catalog.FieldItem(33)!.Use(vitals, economy, 33, 0, context: new(true, 0));
+        Assert.True(tent.Changed);
+        Assert.Equal(vitals.Definitions.CharacterMaximum(vitals.Records[0]), tent.Vitals.Records[0].HitPoints.Minimum);
+        Assert.Equal(0x80, tent.Vitals.Records[0].Status);
+        Assert.Equal(0, tent.Vitals.GuardianForces[0].HitPoints);
+        var pet = catalog.FieldItem(34)!.Use(vitals, economy, 34, 0, context: new(true, 0));
+        Assert.True(pet.Vitals.GuardianForces[0].HitPoints > 0);
+        Assert.Equal(0, pet.Vitals.Records[0].HitPoints.Minimum);
+        var cottage = catalog.FieldItem(35)!.Use(vitals, economy, 35, 0, context: new(true, 0));
+        Assert.True(cottage.Vitals.Records[0].HitPoints.Minimum > 0);
+        Assert.True(cottage.Vitals.GuardianForces[0].HitPoints > 0);
+        Assert.False(catalog.FieldItem(35)!.Use(vitals, economy, 35, 0, context: new(true, 0x40)).Changed);
+        Assert.Throws<InvalidOperationException>(() => catalog.FieldItem(7)!.Use(vitals, economy.AddItem(7, 1, out _), 7, 0, context: new(true, 0x40)));
+    }
+
+    [Fact]
+    public void ExhaustingSelectedItemReturnsToInventoryWithoutSelectingAnotherItem()
+    {
+        MenuData data = new();
+        data.Items.Add(new MenuItem { Id = "item-1", Name = "Potion", Quantity = 1, NativeFieldUseSupported = true });
+        data.Items.Add(new MenuItem { Id = "item-2", Name = "Potion+", Quantity = 1, NativeFieldUseSupported = true });
+        data.Characters.Add(new MenuCharacter { Id = "character-0", Name = "Squall", NativeFieldItemTargetAllowed = true });
+        data.SupportedActions.Add("item-use");
+        MenuController controller = new(() => data, action => data.Items.RemoveAll(item => item.Id == action.SubjectId));
+        controller.Open("item-use", false);
+        controller.Navigate(MenuInput.Confirm);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal("item-use", controller.ScreenId);
+        Assert.Equal("item-2", Assert.Single(data.Items).Id);
     }
 
     private static GameAssets Assets()

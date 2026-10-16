@@ -33,7 +33,7 @@ public static class MenuCatalog
         Add("junction-ability-choice", "Junction · Select Ability", "Choose a learned passive ability from the junctioned GFs.", c => PassiveChoices(c), c => [$"Selected ability slot: {c.AbilitySlot + 1}"], MenuLayout.Junction);
 
         Add("item", "Item", "Use and arrange inventory.", _ => [Link("item-use", "Use", "Choose an item and character target."), Link("item-rearrange", "Rearrange", "Exchange two inventory positions."), Action("sort", "Sort", "Sort the explicit fixture inventory by name.", "item-sort")], InventoryDetails, main: true);
-        Add("item-use", "Item · Use", "Select an item.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", i.Description, i.NativeMagazinePages.Length > 0 ? "magazine" : "item-target", new MenuAction("select-item", i.Id), c.IsDemo || i.NativeFieldUseSupported || i.NativeMagazinePages.Length > 0)).ToArray(), InventoryDetails);
+        Add("item-use", "Item · Use", "Select an item.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", i.NativeMagazinePages.Length > 0 ? i.NativeMagazinePageUnavailableReasons.GetValueOrDefault(i.NativeMagazinePages[0].PageId) ?? i.Description : i.Description, i.NativeMagazinePages.Length > 0 ? "magazine" : "item-target", new MenuAction("select-item", i.Id), c.IsDemo || (i.NativeMagazinePages.Length > 0 ? !i.NativeMagazinePageUnavailableReasons.ContainsKey(i.NativeMagazinePages[0].PageId) : i.NativeFieldUseSupported))).ToArray(), InventoryDetails);
         Add("item-target", "Item · Target", "Select the target character.", c => Targets(c, "item-use"), c => [$"Item: {c.Item?.Name ?? "Unavailable"}", $"Quantity: {c.Item?.Quantity.ToString() ?? "?"}", c.Item?.Description ?? "No item projection.", .. CharacterDetails(c)]);
         Add("item-forget", "Item · Forget Ability", "Choose the selected GF's ability to forget.", c => c.GuardianForce?.LearningChoices.Select(choice => Action(choice.Id, choice.Name, "Use one Amnesia Greens to forget this ability.", "item-use", target: $"item-target-{c.GuardianForce.NativeId + 16}", value: choice.Id)).ToArray() ?? [], c => [$"Item: {c.Item?.Name}", $"GF: {c.GuardianForce?.Name}"]);
         Add("item-rearrange", "Item · Rearrange", "Choose the item to move.", c => c.Data.Items.Select(i => new MenuEntry(i.Id, $"{i.Name}   {i.Quantity}", "Choose its destination position next.", "item-position", new MenuAction("select-item", i.Id))).ToArray(), InventoryDetails);
@@ -165,6 +165,10 @@ public static class MenuCatalog
     private static IReadOnlyList<MenuEntry> Slots(MenuController c, string[] slots) => slots.Select(slot => new MenuEntry(slot, $"{slot}   {c.Character?.Junctions.GetValueOrDefault(slot, "--") ?? "--"}", c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(slot) == true ? "Choose stocked magic for this slot." : "Learn this junction ability from an equipped GF to unlock the slot.", "junction-stock", new MenuAction("select-slot", slot), c.IsDemo || c.Character?.AvailableJunctionSlots.Contains(slot) == true)).ToArray();
     private static IReadOnlyList<MenuEntry> Targets(MenuController c, string kind)
     {
+        if (kind == "item-use" && c.Item?.NativeFieldInventoryTarget == true)
+        {
+            return [Action("use", "Use", "Use this item with the current party and inventory.", kind, target: "character-0")];
+        }
         if (kind == "item-use" && c.Item?.NativeFieldForgetsAbility == true)
         {
             return c.Data.GuardianForces.Select(gf => new MenuEntry(gf.Id, gf.Name, "Choose the ability to forget next.", "item-forget", new MenuAction("select-gf", gf.Id))).ToArray();

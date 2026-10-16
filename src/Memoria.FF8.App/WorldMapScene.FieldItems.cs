@@ -17,6 +17,8 @@ internal sealed partial class WorldMapScene
         }
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("World item use requires authentic saved characters.");
         NativeEconomy economy = session.State.Economy ?? throw new NotSupportedException("World item use requires authentic saved inventory.");
+        NativeInputConfiguration input = session.State.InputConfiguration ?? throw new NotSupportedException("World items require the actual saved menu context flags.");
+        NativeFieldItemContext context = new(false, (byte)(input.Options >> 24));
         NativeLimitProgress? progress = null;
         (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) next;
         if (item.Type == 19)
@@ -27,7 +29,7 @@ internal sealed partial class WorldMapScene
         }
         else
         {
-            next = item.Use(vitals, economy, action.Value, action.Quantity.Value, item.Type == 20 ? statRules(vitals, action.Quantity.Value) : null, action.Text is null ? null : int.Parse(action.Text, System.Globalization.CultureInfo.InvariantCulture));
+            next = item.Use(vitals, economy, action.Value, action.Quantity.Value, item.Type == 20 ? statRules(vitals, action.Quantity.Value) : null, action.Text is null ? null : int.Parse(action.Text, System.Globalization.CultureInfo.InvariantCulture), context);
         }
         session.SetNativePartyMenuOwners(next.Vitals, next.Economy, session.State.ShotAvailability!, session.State.SalaryPresentation!, limitProgress: progress);
         return new PlayerActionResult(true, new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, State.Frame, null, null), 0);

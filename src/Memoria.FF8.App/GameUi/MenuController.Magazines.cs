@@ -13,7 +13,7 @@ public sealed partial class MenuController
             Id = "magazine",
             Title = "Magazine",
             Help = "Turn the page or return to the inventory.",
-            Entries = c => [new("previous", "Previous page", "Turn to the previous original page.", Action: new MenuAction("magazine-page", Value: "-1"), Enabled: c.Item?.NativeMagazinePages.Length > 1), new("next", "Next page", "Turn to the next original page.", Action: new MenuAction("magazine-page", Value: "1"), Enabled: c.Item?.NativeMagazinePages.Length > 1), new("close", "Close", "Return to the inventory.", Action: new MenuAction("menu-back"))],
+            Entries = c => [new("previous", "Previous page", c.MagazinePageReason(c._magazineIndex - 1) ?? "Turn to the previous original page.", Action: new MenuAction("magazine-page", Value: "-1"), Enabled: c.Item?.NativeMagazinePages.Length > 1 && c.MagazinePageReason(c._magazineIndex - 1) is null), new("next", "Next page", c.MagazinePageReason(c._magazineIndex + 1) ?? "Turn to the next original page.", Action: new MenuAction("magazine-page", Value: "1"), Enabled: c.Item?.NativeMagazinePages.Length > 1 && c.MagazinePageReason(c._magazineIndex + 1) is null), new("close", "Close", "Return to the inventory.", Action: new MenuAction("menu-back"))],
             BuildContent = (c, panel) => panel.Children.Add(c.BuildMagazinePage())
         });
     }
@@ -26,10 +26,26 @@ public sealed partial class MenuController
             throw new InvalidOperationException("Magazine viewer requires its owned original pages and live action consumer.");
         }
         int selected = (index % pages.Length + pages.Length) % pages.Length;
+        if (MagazinePageReason(selected) is string reason)
+        {
+            Message = reason;
+            return;
+        }
         _liveAction(new MenuAction("magazine-read", Item!.Id, Value: pages[selected].PageId.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         _magazineIndex = selected;
         _liveData = null;
         _view = null;
+    }
+
+    private string? MagazinePageReason(int index)
+    {
+        var pages = Item?.NativeMagazinePages ?? [];
+        if (pages.Length == 0)
+        {
+            return "Magazine page metadata is unavailable.";
+        }
+        int selected = (index % pages.Length + pages.Length) % pages.Length;
+        return Item!.NativeMagazinePageUnavailableReasons.GetValueOrDefault(pages[selected].PageId);
     }
 
     private UiElement BuildMagazinePage()
@@ -38,7 +54,8 @@ public sealed partial class MenuController
         var page = Grid([1, 7, 1], [1], 8);
         Place(page, Panel(Item?.Name ?? "Magazine", Label($"Page {_magazineIndex + 1}/{pages.Length}", 24)), 0);
         string[] text = pages.Length == 0 ? [] : pages[Math.Clamp(_magazineIndex, 0, pages.Length - 1)].Text.SelectMany(line => line.Split('\n')).ToArray();
-        Place(page, Panel(null, Lines(text, 21)), 1);
+        float fontSize = Math.Min(21, 410f / (Math.Max(1, text.Length) * 1.5f * TextScale));
+        Place(page, Panel(null, Lines(text, fontSize)), 1);
         Place(page, Commands(38, 22), 2);
         return page;
     }

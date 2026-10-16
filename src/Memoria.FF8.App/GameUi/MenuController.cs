@@ -59,7 +59,7 @@ public sealed partial class MenuController
     public int CharacterSelectionIndex => _characterSelectionIndex;
     public IReadOnlyList<MenuCharacter> CharacterChoices => Data.Characters.Where(character => character.InParty && !string.IsNullOrWhiteSpace(character.Id)).ToArray();
     public MenuGuardianForce? GuardianForce => Data.GuardianForces.FirstOrDefault(g => g.Id == _gfId) ?? Data.GuardianForces.FirstOrDefault();
-    public MenuItem? Item => Data.Items.FirstOrDefault(i => i.Id == _itemId) ?? Data.Items.FirstOrDefault();
+    public MenuItem? Item => _itemId.Length == 0 ? Data.Items.FirstOrDefault() : Data.Items.FirstOrDefault(i => i.Id == _itemId);
     public MenuMagic? Magic => Data.Magic.FirstOrDefault(m => m.Id == _magicId && m.CharacterId == Character?.Id) ?? Data.Magic.FirstOrDefault(m => m.CharacterId == Character?.Id);
     public MenuCard? Card => Data.Cards.FirstOrDefault(c => c.Id == _cardId) ?? Data.Cards.FirstOrDefault();
     public MenuRecipe? Recipe => Data.Recipes.FirstOrDefault(r => r.Id == _recipeId) ?? Data.Recipes.FirstOrDefault();
@@ -535,6 +535,19 @@ public sealed partial class MenuController
             };
             _liveAction(action);
             _liveData = null;
+            if (action.Kind == "item-use" && !Data.Items.Any(item => item.Id == action.SubjectId && item.Quantity > 0))
+            {
+                while (_history.Count > 0 && _history.Peek() != "item-use")
+                {
+                    _history.Pop();
+                }
+                if (_history.Count > 0)
+                {
+                    _history.Pop();
+                }
+                ScreenId = "item-use";
+                _itemId = "";
+            }
             Message = "Request sent to the live owner.";
             return;
         }

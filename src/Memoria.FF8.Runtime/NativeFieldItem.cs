@@ -1,10 +1,13 @@
 namespace Memoria.FF8.Runtime;
 
+public sealed record NativeFieldItemContext(bool RestAllowed, byte MenuFlags);
+
 /// <summary>The four original menu/mitem.bin bytes consumed by4F9365.</summary>
 public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, byte StatusMask)
 {
     public NativeSolomonRingDefinition? SolomonRingDefinition { get; init; }
     public bool SupportsInventoryUse => Type == 15 && TargetFlags == 1 && SolomonRingDefinition is not null;
+    public bool SupportsRestUse => Type == 6 && (TargetFlags & 1) != 0;
     public bool SupportsCharacterUse => Type is 0 or 1 or 2 or 16 or 20 or 21 && (TargetFlags & 3) == 3 && (TargetFlags & 4) == 0;
     public bool SupportsGuardianForceUse => Type is 3 or 4 or 5 or 17 or 18 && (TargetFlags & 5) == 5 && (TargetFlags & 2) == 0;
     public bool SupportsBlueMagicUse => Type == 19 && (TargetFlags & 0x43) == 0x43 && Power < 16;
@@ -36,7 +39,7 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         return (Consume(economy, slot), progress with { BlueMagicFlags = (ushort)(progress.BlueMagicFlags | flag) }, true);
     }
 
-    public (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) Use(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, int row, BattleNativePlayerStatRules? statRules = null, int? forgottenAbility = null)
+    public (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) Use(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, int row, BattleNativePlayerStatRules? statRules = null, int? forgottenAbility = null, NativeFieldItemContext? context = null)
     {
         vitals.Validate();
         economy.Validate();
@@ -44,10 +47,22 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         {
             return SolomonRingDefinition!.Use(vitals, economy, itemId);
         }
+        if (SupportsRestUse)
+        {
+            return UseRest(vitals, economy, itemId, context ?? throw new NotSupportedException("Rest items require the original menu's save-context operand."));
+        }
+        if (Type is 1 or 2 or 4 or 5 && ((context?.MenuFlags ?? 0) & 0x40) != 0)
+        {
+            throw new InvalidOperationException("The current native menu context forbids revival items.");
+        }
         bool guardian = SupportsGuardianForceUse && row is >= 16 and < 32;
         if ((!SupportsCharacterUse || (uint)row >= 8) && !guardian || itemId is <= 0 or > 255 || vitals.InitOutSha256 != economy.InitOutSha256)
         {
             throw new NotSupportedException("Field item requires its original supported character record and matching saved owners.");
+        }
+        if (guardian ? (vitals.GuardianForces[row - 16].Flags & 1) == 0 : (vitals.Records[row].MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row))
+        {
+            throw new InvalidOperationException("The selected item target is absent from the original native menu mask.");
         }
         if ((TargetFlags & 8) != 0)
         {
@@ -58,7 +73,7 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
             IEnumerable<int> targets = guardian ? Enumerable.Range(0, 16).Where(id => (vitals.GuardianForces[id].Flags & 1) != 0).Select(id => id + 16) : Enumerable.Range(0, 8).Where(id => (vitals.Records[id].MemberFlags & 1) != 0 && (!vitals.DreamEnabled || vitals.CombatParty.Contains((byte)id)));
             foreach (int groupTarget in targets)
             {
-                var result = single.Use(current, economy, itemId, groupTarget);
+                var result = single.Use(current, economy, itemId, groupTarget, context: context);
                 current = result.Vitals;
                 if (result.Changed)
                 {
@@ -262,5 +277,54 @@ public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, by
         NativeItemStock stock = inventory.Items[slot];
         inventory.Items[slot] = stock.Count == 1 ? new NativeItemStock(0, 0) : stock with { Count = (byte)(stock.Count - 1) };
         return inventory;
+    }
+
+    private (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) UseRest(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, NativeFieldItemContext context)
+    {
+        if (!context.RestAllowed)
+        {
+            throw new InvalidOperationException("Rest items require the original menu's save-context bit.");
+        }
+        if (vitals.InitOutSha256 != economy.InitOutSha256)
+        {
+            throw new InvalidDataException("Rest item inventory and saved characters have different resource provenance.");
+        }
+        int slot = Array.FindIndex(economy.Items, stock => stock.ItemId == itemId && stock.Count > 0);
+        if (slot < 0)
+        {
+            throw new InvalidOperationException("The selected rest item stock is exhausted.");
+        }
+        NativeCharacterVitals next = vitals.DeepCopy();
+        bool changed = false;
+        if ((TargetFlags & 2) != 0)
+        {
+            for (int row = 0; row < 8; row++)
+            {
+                NativeCharacterVital character = next.Records[row];
+                if ((character.MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row) || (context.MenuFlags & 0x40) != 0 && (character.Status & 1) != 0)
+                {
+                    continue;
+                }
+                ushort maximum = next.Definitions.CharacterMaximum(character);
+                ushort status = (ushort)(character.Status & 0x80);
+                changed |= character.HitPoints.Minimum != maximum || character.HitPoints.Maximum != maximum || character.Status != status;
+                next.Records[row] = character with { HitPoints = new NativeHpWord(maximum, maximum), Status = status };
+            }
+        }
+        if ((TargetFlags & 4) != 0)
+        {
+            for (int id = 0; id < 16; id++)
+            {
+                NativeGuardianForceVital gf = next.GuardianForces[id];
+                if ((gf.Flags & 1) == 0 || (context.MenuFlags & 0x40) != 0 && gf.HitPoints == 0)
+                {
+                    continue;
+                }
+                ushort maximum = next.Definitions.GuardianForceMaximum(id, gf);
+                changed |= gf.HitPoints != maximum;
+                next.GuardianForces[id] = gf with { HitPoints = maximum };
+            }
+        }
+        return changed ? (next, Consume(economy, slot), true) : (vitals, economy, false);
     }
 }

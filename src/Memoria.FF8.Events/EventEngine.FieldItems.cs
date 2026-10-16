@@ -17,6 +17,9 @@ public sealed partial class EventEngine
         NativeCharacterVitals vitals = services.CharacterVitals ?? throw new NotSupportedException("Field item use requires authentic saved characters.");
         NativeEconomy economy = services.Economy ?? throw new NotSupportedException("Field item use requires authentic saved inventory.");
         NativeFieldItem item = ResolveNativeFieldItem?.Invoke(action.Value) ?? throw new NotSupportedException("Field item use requires original installed item metadata.");
+        NativeInputConfiguration input = services.InputConfiguration ?? throw new NotSupportedException("Field items require the actual saved menu context flags.");
+        bool restAllowed = (((activeMenu ? partyMenu!.NativeEntrySelection : services.WorldControls?.Menu209) ?? 0) & 1) != 0;
+        NativeFieldItemContext context = new(restAllowed, (byte)(input.Options >> 24));
         BattleNativePlayerStatRules? rules = item.Type == 20 ? ResolveNativeFieldItemStatRules?.Invoke(vitals, action.Quantity!.Value) : null;
         NativeLimitProgress? progress = null;
         (NativeCharacterVitals Vitals, NativeEconomy Economy, bool Changed) next;
@@ -32,7 +35,7 @@ public sealed partial class EventEngine
             {
                 throw new ArgumentException("Only Amnesia Greens accept an ability-selection operand.");
             }
-            next = item.Use(vitals, economy, action.Value, action.Quantity!.Value, rules, action.Text is null ? null : int.Parse(action.Text, System.Globalization.CultureInfo.InvariantCulture));
+            next = item.Use(vitals, economy, action.Value, action.Quantity!.Value, rules, action.Text is null ? null : int.Parse(action.Text, System.Globalization.CultureInfo.InvariantCulture), context);
         }
         if (activeMenu)
         {

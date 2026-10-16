@@ -34,22 +34,34 @@ internal static partial class Program
 
         (GameSession Session, EventEngine Engine) Create(byte[] program, NativeEconomy? economy)
         {
-            GameSession session = new(new GameState { Economy = economy });
+            GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+            if (economy is not null)
+            {
+                session.InitializeNewGameEconomy(economy);
+            }
             EventEngine engine = new(session);
             engine.LoadField(600, program, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return (session, engine);
         }
-        byte[] grant = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 168), (Jsm.Opcode.ADDITEM, 0), (Jsm.Opcode.PSHN_L, -3000), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHN_L, -1000), (Jsm.Opcode.ADDPASTGIL, 0), (Jsm.Opcode.PSHM_L, 76), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
+        static byte[] EconomyProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
+        {
+            operations[0] = (Jsm.Opcode.LBL, 1);
+            return SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], operations]);
+        }
+        byte[] grant = EconomyProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 168), (Jsm.Opcode.ADDITEM, 0), (Jsm.Opcode.PSHN_L, -3000), (Jsm.Opcode.ADDGIL, 0), (Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHN_L, -1000), (Jsm.Opcode.ADDPASTGIL, 0), (Jsm.Opcode.PSHM_L, 76), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
         (GameSession liveSession, EventEngine live) = Create(grant, initial);
         live.Step();
-        Require(liveSession.Economy!.Items[4] == new NativeItemStock(168, 1) && liveSession.Economy.Gil == 2000 && liveSession.Economy.PastGil == 2000 && liveSession.State.Variables[1100] == 2000 && liveSession.State.Variables[1104] == 2000 && live.Capture().GetProperty("Fibers")[0].GetProperty("Results").EnumerateObject().Count() == 0, "Native economy opcode order, no-yield successor, immediate bank copies or discarded item result differs.");
+        Require(liveSession.Economy!.Items[4] == new NativeItemStock(168, 1) && liveSession.Economy.Gil == 2000 && liveSession.Economy.PastGil == 2000 && liveSession.State.Variables[1100] == 2000 && liveSession.State.Variables[1104] == 2000 && live.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Results").EnumerateObject().Count() == 0, "Native economy opcode order, no-yield successor, immediate bank copies or discarded item result differs.");
         (GameSession copySession, EventEngine copy) = Create(grant, initial);
         copy.Restore(live.Capture());
         live.Step();
         copy.Step();
         Require(JsonElement.DeepEquals(live.Capture(), copy.Capture()) && copySession.Economy!.Items.SequenceEqual(liveSession.Economy.Items), "Current economy restore/nextcallback changed canonical inventory or VM.");
 
-        byte[] bankProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, unchecked((int)0xFFABCDEF)), (Jsm.Opcode.POPM_L, 72), (Jsm.Opcode.PSHSM_W, 74), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPM_L, 1108), (Jsm.Opcode.PSHM_L, 76), (Jsm.Opcode.POPM_L, 1112), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
+        byte[] bankProgram = EconomyProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, unchecked((int)0xFFABCDEF)), (Jsm.Opcode.POPM_L, 72), (Jsm.Opcode.PSHSM_W, 74), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPM_L, 1104), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.PSHM_L, 72), (Jsm.Opcode.POPM_L, 1108), (Jsm.Opcode.PSHM_L, 76), (Jsm.Opcode.POPM_L, 1112), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
         (GameSession bankSession, EventEngine bank) = Create(bankProgram, initial);
         bank.Step();
         Require(bankSession.Economy!.Gil == 5000 && bankSession.Economy.EventBankGil72 == 0xFFABCDEF && bankSession.State.Variables[1100] == unchecked((short)0xFFAB) && bankSession.State.Variables[1104] == unchecked((int)0xFFABCDEF), "Direct event-bank write incorrectly changed live gil or lost signed nativeWORD read in the same budget.");
@@ -62,7 +74,7 @@ internal static partial class Program
         Require(crossing.EventBankGil72 == 0xCCDD0000 && crossing.EventBankPastGil76 == 0x0000AABB && crossing.ReadEventBank(74, 4) == unchecked((int)0xAABBCCDD) && crossing.Gil == initial.Gil, "Unaligned native bank projection did not preserve both distinct physicalDWORDs and surrounding bytes.");
         foreach ((Jsm.Opcode write, Jsm.Opcode read, int address, int raw, int expected) in new[] { (Jsm.Opcode.POPM_B, Jsm.Opcode.PSHSM_B, 79, 511, -1), (Jsm.Opcode.POPM_W, Jsm.Opcode.PSHSM_W, 73, 131071, -1), (Jsm.Opcode.POPM_L, Jsm.Opcode.PSHM_L, 74, -1, -1) })
         {
-            byte[] widthProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, raw), (write, address), (read, address), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
+            byte[] widthProgram = EconomyProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, raw), (write, address), (read, address), (Jsm.Opcode.POPM_L, 1100), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0));
             (GameSession widthSession, EventEngine widthEngine) = Create(widthProgram, initial);
             widthEngine.Step();
             Require(widthSession.State.Variables[1100] == expected && widthSession.Economy!.Gil == 5000 && widthSession.Economy.PastGil == 3000, "Native BYTE/WORD/unalignedDWORD bank projection lost truncation/sign or changed live currency.");
@@ -103,11 +115,12 @@ internal static partial class Program
         catch (EventScriptException) when (unknown.LastFault?.Opcode == "ADDITEM")
         {
         }
-        Require(unknownSession.Economy is null && unknown.Capture().GetProperty("Fibers")[0].GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([168, 1]), "Unknown economy refusal consumed original operands or published defaults.");
+        Require(unknownSession.Economy is null && unknown.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([168, 1]), "Unknown economy refusal consumed original operands or published defaults.");
 
         RejectingEconomyServices rejected = new(initial.CopyGilToEventBank());
         EventEngine refused = new(rejected, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         refused.LoadField(600, grant, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        refused.Step();
         try
         {
             refused.Step();
@@ -116,11 +129,12 @@ internal static partial class Program
         catch (EventScriptException) when (refused.LastFault?.Opcode == "ADDITEM")
         {
         }
-        JsonElement held = refused.Capture().GetProperty("Fibers")[0];
-        Require(held.GetProperty("Position").GetInt32() == 3 && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([168, 1]) && rejected.Economy!.Items[4].ItemId == 0, "Rejected economy publication advancedPC, consumed operands or partially changed inventory.");
+        JsonElement held = refused.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
+        Require(held.GetProperty("Position").GetInt32() == 5 && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([168, 1]) && rejected.Economy!.Items[4].ItemId == 0, "Rejected economy publication advancedPC, consumed operands or partially changed inventory.");
         RejectingEconomyServices rejectedCopy = new(initial);
         EventEngine refusedCopy = new(rejectedCopy, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
         refusedCopy.LoadField(600, grant, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        refusedCopy.Step();
         JsonElement before = refusedCopy.Capture();
         try
         {
@@ -133,7 +147,8 @@ internal static partial class Program
         Require(JsonElement.DeepEquals(before, refusedCopy.Capture()), "Rejected preVM copy changedFrame or VM before publication.");
         CopyingEconomyServices movie = new(initial);
         EventEngine movieEngine = new(movie, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
-        movieEngine.LoadField(600, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        movieEngine.LoadField(600, EconomyProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 0)), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        movieEngine.Step();
         movieEngine.Step();
         Require(movie.Economy!.EventBankGil72 == 5000 && movie.Economy.EventBankPastGil76 == 3000 && movieEngine.Scene.FieldCallbackClock is { MovieCallbacks: 1 }, "Movie field callback omitted its shared native529FF0 gil copy.");
         string loadPath = Path.Combine(Path.GetTempPath(), "ff8-economy-" + Guid.NewGuid().ToString("N") + ".json");
@@ -161,6 +176,24 @@ internal static partial class Program
     {
         public NativeEconomy? Economy => economy;
         public bool CanStoreEconomy => true;
+        public NativeEventRandomState? EventRandom { get; private set; } = NativeEventRandomState.FromColdProcess().ClearSavedStateForNewGame();
+        public bool CanStoreEventRandom => true;
+        public NativeWorldControlState? WorldControls { get; private set; } = NativeWorldControlState.CreateNewGame();
+        public void SetWorldControls(NativeWorldControlState controls)
+        {
+            WorldControls = controls;
+        }
+        public bool CanStoreNativeEventOwners => true;
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
+        {
+            if (economy is not null && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(economy), JsonSerializer.SerializeToElement(Economy)))
+            {
+                SetEconomy(economy);
+            }
+            EventRandom = eventRandom ?? EventRandom;
+            WorldControls = controls;
+        }
+
         public bool IsMoviePlaying => false;
 
         public void SetEconomy(NativeEconomy value)
@@ -185,6 +218,24 @@ internal static partial class Program
     {
         public NativeEconomy? Economy { get; private set; } = economy;
         public bool CanStoreEconomy => true;
+        public NativeEventRandomState? EventRandom { get; private set; } = NativeEventRandomState.FromColdProcess().ClearSavedStateForNewGame();
+        public bool CanStoreEventRandom => true;
+        public NativeWorldControlState? WorldControls { get; private set; } = NativeWorldControlState.CreateNewGame();
+        public void SetWorldControls(NativeWorldControlState controls)
+        {
+            WorldControls = controls;
+        }
+        public bool CanStoreNativeEventOwners => true;
+        public void SetNativeEventOwners(NativeWorldControlState controls, NativeSeeDState? seeD = null, NativeExamTimerState? timer = null, NativeCharacterVitals? characterVitals = null, NativeEconomy? economy = null, NativeGlobalSoundProcess? globalSoundProcess = null, NativeSalaryPresentation? salaryPresentation = null, NativeEventRandomState? eventRandom = null, NativeVibrationProcessState? vibrationProcess = null, NativeFieldFadeState? fieldFade = null, NativeEventMemory? eventMemory = null)
+        {
+            if (economy is not null && !JsonElement.DeepEquals(JsonSerializer.SerializeToElement(economy), JsonSerializer.SerializeToElement(Economy)))
+            {
+                SetEconomy(economy);
+            }
+            EventRandom = eventRandom ?? EventRandom;
+            WorldControls = controls;
+        }
+
         public bool IsMoviePlaying => true;
         public bool? NativeMovieClockFlag => true;
 

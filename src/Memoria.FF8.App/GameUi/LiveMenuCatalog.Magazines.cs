@@ -13,6 +13,23 @@ public sealed partial class LiveMenuCatalog
 
     public NativeMagazinePage MagazinePage(int itemId, int pageId) => MagazinePages(itemId).SingleOrDefault(page => page.PageId == pageId) ?? throw new ArgumentOutOfRangeException(nameof(pageId), "Magazine page lies outside its original item's inclusive range.");
 
+    public Dictionary<byte, string> MagazineUnavailableReasons(int itemId, GameState state)
+    {
+        Dictionary<byte, string> reasons = [];
+        foreach (NativeMagazinePage page in MagazinePages(itemId))
+        {
+            try
+            {
+                page.View(state.Economy ?? throw new NotSupportedException("Magazine viewing requires authentic saved inventory."), state.WeaponRecipes, state.LimitProgress);
+            }
+            catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or InvalidOperationException)
+            {
+                reasons.Add(page.PageId, exception.Message);
+            }
+        }
+        return reasons;
+    }
+
     private void ReadMagazines(byte[] bytes, MngrpStringTable text, NativeWeaponShopDefinitions weapons)
     {
         if (bytes.Length != 4692 || Convert.ToHexString(SHA256.HashData(bytes)) != "0D9D48BB57F25CBFD4A626A121B1C24FCE37F2EE2ED11884757166B3C995905A" || text.Entries.Count != 111)

@@ -94,10 +94,12 @@ public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = fa
 public sealed class MenuItem
 {
     public Memoria.FF8.Runtime.NativeMagazinePage[] NativeMagazinePages { get; set; } = [];
+    public Dictionary<byte, string> NativeMagazinePageUnavailableReasons { get; set; } = [];
     public bool NativeFieldUseSupported { get; set; }
     public bool NativeFieldTargetsGuardianForce { get; set; }
     public bool NativeFieldQuistisOnly { get; set; }
     public bool NativeFieldForgetsAbility { get; set; }
+    public bool NativeFieldInventoryTarget { get; set; }
     public string Id { get; set; } = "";
     public UiImageSource? Icon { get; set; }
     public string Name { get; set; } = "";

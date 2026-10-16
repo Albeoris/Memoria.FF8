@@ -103,6 +103,36 @@ public sealed class NativeRefinementTests
     }
 
     [Fact]
+    public void RefinementConstructorNormalizesZeroCountOutputBeforeAdmissionAndInsertion()
+    {
+        using GameAssets assets = Assets();
+        NativeRefinementDefinitions definitions = assets.ReadNativeRefinementDefinitions();
+        NativeRefinementRecipe recipe = definitions.Recipe(97, 0);
+        NativeCharacterVitals vitals = Learned(assets, 97);
+        for (int index = 0; index < 32; index++)
+        {
+            int spell = index + 1;
+            if (spell >= recipe.Output)
+            {
+                spell++;
+            }
+            vitals.Records[0].MagicInventory[index] = new((byte)spell, 1);
+        }
+        vitals.Records[0].MagicInventory[0] = new(recipe.Output, 0);
+        vitals.Records[1].MagicInventory[0] = new(recipe.Output, 0);
+        vitals.Records[1].Junction.MagicJunctions[19] = recipe.Output;
+        string original = JsonSerializer.Serialize(vitals);
+        NativeEconomy economy = assets.ReadNewGameEconomy().AddItem(recipe.Ingredient, 1, out _);
+        Assert.Equal(1, definitions.MaximumBatches(vitals, economy, null, 97, 0, 0));
+        NativeRefinementResult result = definitions.Refine(vitals, economy, null, 97, 0, 0, 1);
+        Assert.Equal(recipe.OutputCount, result.Vitals.Records[0].MagicInventory[0].Count);
+        Assert.Equal(recipe.Output, result.Vitals.Records[0].MagicInventory[0].SpellId);
+        Assert.Equal(new NativeMagicStock(0, 0), result.Vitals.Records[1].MagicInventory[0]);
+        Assert.Equal(0, result.Vitals.Records[1].Junction.MagicJunctions[19]);
+        Assert.Equal(original, JsonSerializer.Serialize(vitals));
+    }
+
+    [Fact]
     public void ReserveMagicUpgradeRebuildsItsOwnHitPointsStatusAndAllTwentyJunctions()
     {
         using GameAssets assets = Assets();

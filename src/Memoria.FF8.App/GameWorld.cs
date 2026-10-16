@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
@@ -398,7 +398,7 @@ internal sealed partial class GameWorld : IDisposable
         EnsureField();
         if (session.State.Scene == SceneKind.WorldMap)
         {
-            PlayerActionResult worldResult = action.Kind == PlayerActionKind.UseFieldItem ? worldScene!.UseFieldItem(action, FieldItemCatalog.FieldItem(action.Value) ?? throw new NotSupportedException("World item use requires original installed metadata."), assets.ReadFieldItemStatRules) : action.Kind == PlayerActionKind.RefineItems ? worldScene!.RefineItems(action, assets.ReadNativeRefinementDefinitions()) : worldScene!.Apply(action);
+            PlayerActionResult worldResult = action.Kind == PlayerActionKind.ReadMagazinePage ? worldScene!.ReadMagazinePage(action, FieldItemCatalog.MagazinePage(action.Value, action.Quantity ?? -1)) : action.Kind == PlayerActionKind.UseFieldItem ? worldScene!.UseFieldItem(action, FieldItemCatalog.FieldItem(action.Value) ?? throw new NotSupportedException("World item use requires original installed metadata."), assets.ReadFieldItemStatRules) : action.Kind == PlayerActionKind.RefineItems ? worldScene!.RefineItems(action, assets.ReadNativeRefinementDefinitions()) : worldScene!.Apply(action);
             ObservePendingBattle();
             if (Field is not null)
             {

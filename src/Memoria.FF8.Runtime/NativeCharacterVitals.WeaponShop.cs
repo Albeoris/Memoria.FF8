@@ -43,11 +43,24 @@ public sealed partial record NativeCharacterVitals
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)physicalRow, (uint)Records.Length);
         NativeCharacterVital[] records = Records.ToArray();
         NativeCharacterVital row = records[physicalRow];
+        records[physicalRow] = NormalizeMagicInventory(row);
+        return (this with { Records = records }).RebuildMenuRow(physicalRow);
+    }
+
+    /// <summary>4BE790 canonicalizes zero stocks and missing junctions without a stat rebuild.</summary>
+    public static NativeCharacterVital NormalizeMagicInventory(NativeCharacterVital row)
+    {
         NativeMagicStock[] magic = row.MagicInventory.Select(stock => stock.SpellId == 0 || stock.Count == 0 ? new NativeMagicStock(0, 0) : stock).ToArray();
         HashSet<byte> present = magic.Where(stock => stock.SpellId != 0).Select(stock => stock.SpellId).ToHashSet();
         byte[] junctions = row.Junction.MagicJunctions.Select(spell => present.Contains(spell) ? spell : (byte)0).ToArray();
-        records[physicalRow] = row with { MagicInventory = magic, Junction = row.Junction with { MagicJunctions = junctions } };
-        return (this with { Records = records }).RebuildMenuRow(physicalRow);
+        return row with { MagicInventory = magic, Junction = row.Junction with { MagicJunctions = junctions } };
+    }
+
+    /// <summary>Refinement constructor4D7180 invokes4BE870, which calls4BE790 on all eight physical rows.</summary>
+    public NativeCharacterVitals NormalizeMagicInventories()
+    {
+        Validate();
+        return this with { Records = Records.Select(NormalizeMagicInventory).ToArray() };
     }
 
     private static ushort MenuRowStatus(ushort prior, NativeHpWord hitPoints, ushort maximum)

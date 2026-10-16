@@ -13,6 +13,7 @@ public sealed class NativeItemActionTransportTests
     [InlineData(PlayerActionKind.SellShopItem, 191, 3)]
     [InlineData(PlayerActionKind.SelectWeaponShopCharacter, 4, null)]
     [InlineData(PlayerActionKind.RemodelWeapon, 3, null)]
+    [InlineData(PlayerActionKind.ReadMagazinePage, 189, 33)]
     public void HeadlessActionsAndControlQueuePreserveExplicitInputs(PlayerActionKind kind, int value, int? quantity, string? text = null)
     {
         string json = JsonSerializer.Serialize(new { Kind = kind.ToString(), Value = value, Quantity = quantity, Text = text });

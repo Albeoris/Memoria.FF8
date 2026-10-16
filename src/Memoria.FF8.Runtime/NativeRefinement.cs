@@ -53,7 +53,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         {
             return 0;
         }
-        NativeCharacterVital? character = kind is 0 or 2 ? vitals.Records[row] : null;
+        NativeCharacterVital? character = kind is 0 or 2 ? NativeCharacterVitals.NormalizeMagicInventory(vitals.Records[row]) : null;
         if (character is not null && NativeCharacterVitals.GetMagicCapacity(character, recipe.Output) != 0)
         {
             return 0;
@@ -72,6 +72,7 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
         {
             throw new InvalidOperationException("Refinement requires a learned GF ability, sufficient ingredients and output capacity.");
         }
+        vitals = vitals.NormalizeMagicInventories();
         NativeRefinementRecipe recipe = Recipe(abilityId, recipeIndex);
         byte kind = Abilities[abilityId - 92].Kind;
         int consumed = recipe.IngredientCount * batches;

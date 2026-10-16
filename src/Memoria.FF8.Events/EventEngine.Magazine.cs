@@ -14,7 +14,11 @@ public sealed partial class EventEngine
             return false;
         }
         NativeMagazinePage page = ResolveNativeMagazinePage?.Invoke(action.Value, action.Quantity!.Value) ?? throw new NotSupportedException("Magazine viewing requires the original item/page metadata.");
-        var next = page.View(services.Economy!, services.WeaponRecipes, services.LimitProgress);
+        if (page.ItemId != action.Value || page.PageId != action.Quantity)
+        {
+            throw new InvalidDataException("Magazine resolver changed the requested original item/page identity.");
+        }
+        var next = page.View(services.Economy ?? throw new NotSupportedException("Magazine viewing requires authentic saved inventory."), services.WeaponRecipes, services.LimitProgress);
         if (activeMenu)
         {
             PublishPartyMenuCallback(services.CharacterVitals!, services.Economy!, services.ShotAvailability!, services.SalaryPresentation!.Advance(1), advanceVibration: true, weaponRecipes: next.Recipes, limitProgress: next.Limits);
