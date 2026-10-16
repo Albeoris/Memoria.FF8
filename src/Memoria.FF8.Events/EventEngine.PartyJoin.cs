@@ -133,10 +133,6 @@ public sealed partial class EventEngine
             {
                 return "Unsupported JOIN requires original idle/walk/run IDs and complete model animation metadata";
             }
-            if (actor.ObjectId != fiber.ObjectId && actor.NativeScriptMovement is { Active: true })
-            {
-                return "JOIN requires completed native companion MOVE before the certified movement driver starts";
-            }
             if (ReadNativeScriptPosition(actor) is null || actor.PushRadius is < 0 or > ushort.MaxValue)
             {
                 return "JOIN requires preserved native raw companion coordinates and unsigned radius";
@@ -185,7 +181,10 @@ public sealed partial class EventEngine
                 target.MovementActorId = null;
                 target.MovementTarget = null;
                 target.MovementStopDistance = 96;
-                target.NativeScriptMovement = null;
+                // 524F40 replaces the physical mode1 target, not VM373 or the
+                // request backup. Keep only the displaced MOVE's issued receipt.
+                target.NativeScriptMovement = target.NativeScriptMovement is { } previous && (previous.Active || previous.Cancelled || target.NativeMovementRequest is not null) ? previous with { Active = false, Cancelled = true, Suspended = false, SupersededByPartyJoin = true, AnimationFlag40000 = previous.AnimationFlag40000 ?? previous.ResetAnimationOnCompletion ?? previous.AutomaticAnimation } : null;
+                target.NativeJoinedPosition = null;
                 // Native issue replaces mode572=2 with mode1; its former ballistic phase no longer owns this body.
                 target.NativeJump = null;
                 target.NativeLadder = null;
@@ -358,7 +357,9 @@ public sealed partial class EventEngine
             }
             authority = authority with { MovementDirection = (byte)movement.Direction };
         }
+        NativeScriptMovementState? displaced = actor.NativeScriptMovement is { SupersededByPartyJoin: true } previous ? previous with { FixedX = next.FixedX, FixedY = next.FixedY, FixedZ = next.FixedZ, Triangle = actor.WalkmeshTriangle, MovementDirection = authority.MovementDirection, FacingDirection = (byte)actor.Direction, FacingHold576 = authority.FacingHold } : null;
         actor.InvalidateNativeMotionAuthority();
+        actor.NativeScriptMovement = displaced;
         actor.NativeMovementCompletion542 = completion;
         actor.NativeTurnAccumulator474 = direction.TurnAccumulator;
         actor.NativeMotionAuthority = authority;
@@ -381,12 +382,24 @@ public sealed partial class EventEngine
 
     private void ValidateNativeJoinedPositions(Checkpoint saved)
     {
+        foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeScriptMovement is { SupersededByPartyJoin: true }))
+        {
+            NativeScriptMovementState displaced = actor.NativeScriptMovement!;
+            PartyJoinTarget? active = saved.PartyJoin?.Targets.SingleOrDefault(target => target.ObjectId == actor.ObjectId);
+            NativeJoinedPosition? completed = actor.NativeJoinedPosition;
+            bool activeOwner = active is not null && active.FixedX == displaced.FixedX && active.FixedY == displaced.FixedY && active.FixedZ == displaced.FixedZ;
+            bool completedOwner = completed is not null && completed.FixedX == displaced.FixedX && completed.FixedY == displaced.FixedY && completed.FixedZ == displaced.FixedZ && actor.NativeMovementCompletion542 == 2;
+            if (displaced.Active || !displaced.Cancelled && !(displaced.Asynchronous && actor.NativeMovementCompletion542 == 2 && actor.NativeMovementRequest is not null) || displaced.Suspended || displaced.AnimationFlag40000 is null || !activeOwner && !completedOwner)
+            {
+                throw new InvalidDataException("Saved displaced MOVE lost its active or completed native JOIN physical owner.");
+            }
+        }
         foreach (ActorState actor in saved.Actors.Where(actor => actor.NativeJoinedPosition is not null || actor.NativeSplitPosition is not null))
         {
             NativeJoinedPosition joined = actor.NativeJoinedPosition ?? actor.NativeSplitPosition!;
             Albeoris.Games.FF8.Jsm.Jsm.Opcode opcode = actor.NativeJoinedPosition is not null ? Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN : Albeoris.Games.FF8.Jsm.Jsm.Opcode.SPLIT;
             EventScript? script = (uint)joined.CallerObjectId < program!.Objects.Count ? program.Objects[joined.CallerObjectId].Scripts.FirstOrDefault(script => script.Id == joined.ScriptId) : null;
-            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || !script.ContainsOperation(joined.Operation) || program.Operations[joined.Operation].Opcode != opcode || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
+            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || !script.ContainsOperation(joined.Operation) || program.Operations[joined.Operation].Opcode != opcode || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null && !(opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.NativeScriptMovement.SupersededByPartyJoin) || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
             {
                 throw new InvalidDataException("Saved completed JOIN body lost its original instruction, raw position or physical motion authority.");
             }
@@ -570,6 +583,7 @@ public sealed partial class EventEngine
                 StepLadderAnimation(follower.Actor, selected, moved ? unchecked((sbyte)follower.Animation.SecondFlag) : 1);
             }
             NativeMotionAuthority? authority = follower.Actor.NativeMotionAuthority;
+            NativeScriptMovementState? movement = follower.Actor.NativeScriptMovement;
             follower.Actor.InvalidateNativeMotionAuthority();
             // Native478430 changes body577/collision588, not575/576. Keep
             // known motion scalars; legacy absent authority stays absent.
@@ -583,6 +597,12 @@ public sealed partial class EventEngine
             {
                 follower.Actor.Direction = follower.Animation.Direction;
                 follower.Actor.CollisionEnabled = false;
+            }
+            // Trace placement changes XYZ/triangle/577, not mode572, its target,
+            // completion542 or the VM373 issued bit (478430/478680).
+            if (movement is not null)
+            {
+                follower.Actor.NativeScriptMovement = movement with { FixedX = follower.Position.X * 4096, FixedY = follower.Position.Y * 4096, FixedZ = follower.Position.Z * 4096, Triangle = follower.Position.Triangle, FacingDirection = (byte)follower.Actor.Direction };
             }
         }
     }

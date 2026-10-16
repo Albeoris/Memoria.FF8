@@ -23,7 +23,7 @@ public sealed record NativeScriptGroundProbe(int FixedX, int FixedY, int NativeH
 public sealed record NativeScriptMovementProposal(int FixedX, int FixedY, byte Direction, IReadOnlyList<NativeScriptGroundProbe> FanProbes);
 public sealed record NativeScriptMovementResult(NativeScriptMovementStatus Status, int FixedX, int FixedY, int FixedZ, int Triangle, byte Direction, IReadOnlyList<NativeScriptMovementProposal> Proposals);
 /// <summary>Active movement owns the current body direction; an inactive completed record retains its last movement body direction and raw XYZ while later turns independently change actor577.</summary>
-public sealed record NativeScriptMovementState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int TargetX, int TargetY, int TargetZ, short Speed, short StopDistance, byte MovementDirection, byte FacingDirection, bool Asynchronous = false, bool AutomaticAnimation = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TargetNativeObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ResetAnimationOnCompletion = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Cancelled = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HoldsFacing = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Suspended = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AnimationFlag40000 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? FacingHold576 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Accelerated = false);
+public sealed record NativeScriptMovementState(int Version, bool Active, long FiberSequence, int ScriptId, int Operation, int FixedX, int FixedY, int FixedZ, int Triangle, int TargetX, int TargetY, int TargetZ, short Speed, short StopDistance, byte MovementDirection, byte FacingDirection, bool Asynchronous = false, bool AutomaticAnimation = true, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? TargetNativeObjectId = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? ResetAnimationOnCompletion = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Cancelled = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool HoldsFacing = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Suspended = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? AnimationFlag40000 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] byte? FacingHold576 = null, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Accelerated = false, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool SupersededByPartyJoin = false);
 
 public sealed partial class EventEngine
 {
@@ -286,10 +286,19 @@ public sealed partial class EventEngine
             {
                 Pop(fiber, 1);
             }
-            actor.NativeScriptMovement = actor.NativeScriptMovement with { Active = false, Cancelled = false, AnimationFlag40000 = false };
+            NativeScriptMovementState completed = actor.NativeScriptMovement;
+            actor.NativeScriptMovement = completed.SupersededByPartyJoin ? null : completed with { Active = false, Cancelled = false, AnimationFlag40000 = false };
+            if (!completed.SupersededByPartyJoin)
+            {
+                actor.NativeJoinedPosition = null;
+            }
             fiber.NativeMoveOperation = null;
             fiber.NativeMoveTarget = null;
-            actor.NativeMotionAuthority = new NativeMotionAuthority(1, actor.NativeScriptMovement.MovementDirection, 0);
+            actor.NativeMotionAuthority = new NativeMotionAuthority(1, completed.MovementDirection, 0);
+            if (completed.SupersededByPartyJoin && actor.NativeJoinedPosition is { } joined)
+            {
+                actor.NativeJoinedPosition = joined with { Authority = actor.NativeMotionAuthority };
+            }
             actor.MovementTarget = null;
             return operands;
         }
@@ -329,8 +338,12 @@ public sealed partial class EventEngine
             {
                 SelectFullNativeAnimation(actor, actor.BaseAnimationId, true);
             }
-            actor.NativeScriptMovement = completed with { Active = false, Cancelled = false, AnimationFlag40000 = false };
+            actor.NativeScriptMovement = completed.SupersededByPartyJoin && actor.NativeMovementRequest is null ? null : completed with { Active = false, Cancelled = false, AnimationFlag40000 = false };
             actor.NativeMotionAuthority = new NativeMotionAuthority(1, completed.MovementDirection, 0);
+            if (completed.SupersededByPartyJoin && actor.NativeJoinedPosition is { } joined)
+            {
+                actor.NativeJoinedPosition = joined with { Authority = actor.NativeMotionAuthority };
+            }
         }
     }
 

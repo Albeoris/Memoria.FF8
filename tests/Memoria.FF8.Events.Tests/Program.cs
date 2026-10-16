@@ -151,6 +151,7 @@ internal static partial class Program
                     ["native-dialogue-busy"] = NativeDialogueBusyContract,
                     ["native-only-movement"] = NativeOnlyMovementContract,
                     ["native-join-saved-bindings"] = NativeJoinSavedBindingsContract,
+                    ["native-join-move-takeover"] = NativeJoinMoveTakeoverContract,
                     ["native-facedir"] = NativeFacePointContract,
                     ["native-facediri"] = () => NativeFaceImmediateContract(selectedGameDirectory),
                     ["native-facedirp"] = NativePartyFaceContract,
