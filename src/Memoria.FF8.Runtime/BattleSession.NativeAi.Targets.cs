@@ -62,7 +62,8 @@ public sealed partial class BattleSession
         }
         else if (criterion is 203 or 204)
         {
-            int extreme = criterion == 203 ? range.Select(candidate => candidate.CurrentHp).DefaultIfEmpty(0).Max() : range.Where(candidate => candidate.CurrentHp > 0).Select(candidate => candidate.CurrentHp).DefaultIfEmpty(int.MaxValue).Min();
+            //487168/4871A5 use signed JGE/JLE, unlike the unsigned HP condition helper48A680.
+            int extreme = criterion == 203 ? Math.Max(0, range.Select(candidate => candidate.CurrentHp).DefaultIfEmpty(0).Max()) : range.Where(candidate => candidate.CurrentHp != 0).Select(candidate => candidate.CurrentHp).DefaultIfEmpty(int.MaxValue).Min();
             matches = candidate => candidate.CurrentHp == extreme;
         }
         else if (criterion is >= 205 and <= 220)

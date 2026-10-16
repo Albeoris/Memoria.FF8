@@ -30,7 +30,7 @@ public sealed partial class BattleSession
     private static BattleCombatant NativePlayerSelectedTarget(BattleCombatant actor, BattleCombatant selected, byte targetFlags)
     {
         //4AB190 starts the ally cursor at its owner;4AA1D0 disables navigation for target mode2/3.
-        return (targetFlags & 0x4C) == 8 && (targetFlags & 0x30) == 0x10 ? actor : selected;
+        return NativeBattleLimitRules.IsFixedAllyTarget(targetFlags) ? actor : selected;
     }
 
     private ushort NativeAutomaticActionTargetMask(byte targetFlags)

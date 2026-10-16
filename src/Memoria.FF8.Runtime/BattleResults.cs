@@ -64,6 +64,8 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         Encounter.Validate();
         NativeScannedModels.ValidateReceipt(NativeScannedModelsBefore, NativeScannedModelsAfter);
         ValidateNativeSpecialEffects();
+        NativeGlobalRandomChange?.Validate();
+        ValidateNativeDeathCounts();
         if (NativeItemInventoryAfter is { } finalItems)
         {
             BattleSession.ValidateNativeItemInventory(finalItems);
@@ -77,6 +79,10 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
             throw new InvalidDataException("Battle GF HP changes require unique before/after owners.");
         }
         (NativeScriptEffects ?? throw new InvalidDataException("Battle script effects are missing.")).Validate();
+        if (RewardPolicy == BattleRewardPolicy.NativeCombat && (Outcome == BattleOutcome.ScriptedExit) != NativeScriptEffects.ScriptedExitRequested)
+        {
+            throw new InvalidDataException("Native scripted battle exit requires its actual opcode57 request.");
+        }
         if ((PersistentAiVariablesBefore is null) != (PersistentAiVariablesAfter is null) || PersistentAiVariablesBefore is { Length: not 8 } || PersistentAiVariablesAfter is { Length: not 8 } || PersistentAiVariablesBefore is not null && RewardPolicy != BattleRewardPolicy.NativeCombat)
         {
             throw new InvalidDataException("Native persistent battle variable effects require their complete before/after owners.");
@@ -85,7 +91,7 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
         {
             throw new InvalidDataException("Battle script item rewards require their observed native combat owner.");
         }
-        if (Outcome is not (BattleOutcome.Victory or BattleOutcome.Defeat) || Party is null || Party.Length is < 1 or > 3 || Party.Any(member => member is null || member.Row >= 8 || member.CharacterId > 10 || member.MagicChanges is null || member.MagicChanges.Length > 64 || member.MagicChanges.Any(change => change is null || change.SpellId is 0 or >= 64 || change.CountBefore > 100 || change.Change == 0 || change.CountBefore + change.Change is < 0 or > 100) || member.MagicChanges.Select(change => change.SpellId).Distinct().Count() != member.MagicChanges.Length) || Party.Select(member => member.Row).Distinct().Count() != Party.Length || ItemConsumptions is null || ItemConsumptions.Any(item => item is null || item.ItemId == 0 || item.CountBefore is 0 or > 100 || item.Consumed == 0 || item.Consumed > item.CountBefore) || ItemConsumptions.Select(item => item.ItemId).Distinct().Count() != ItemConsumptions.Length || DefeatedEnemySlots is null || DefeatedEnemySlots.Any(slot => slot is < 0 or >= 8) || DefeatedEnemySlots.Distinct().Count() != DefeatedEnemySlots.Length || RewardEligibleGuardianForceIds is null || RewardEligibleGuardianForceIds.Any(id => id is < 0 or >= 16) || RewardEligibleGuardianForceIds.Distinct().Count() != RewardEligibleGuardianForceIds.Length || Outcome != BattleOutcome.Victory && RewardEligibleGuardianForceIds.Length != 0 || DebugVictory && (Outcome != BattleOutcome.Victory || RewardEligibleGuardianForceIds.Length != 0))
+        if (Outcome is not (BattleOutcome.Victory or BattleOutcome.Defeat or BattleOutcome.ScriptedExit) || Party is null || Party.Length is < 1 or > 3 || Party.Any(member => member is null || member.Row >= 8 || member.CharacterId > 10 || member.MagicChanges is null || member.MagicChanges.Length > 64 || member.MagicChanges.Any(change => change is null || change.SpellId is 0 or >= 64 || change.CountBefore > 100 || change.Change == 0 || change.CountBefore + change.Change is < 0 or > 100) || member.MagicChanges.Select(change => change.SpellId).Distinct().Count() != member.MagicChanges.Length) || Party.Select(member => member.Row).Distinct().Count() != Party.Length || ItemConsumptions is null || ItemConsumptions.Any(item => item is null || item.ItemId == 0 || item.CountBefore is 0 or > 100 || item.Consumed == 0 || item.Consumed > item.CountBefore) || ItemConsumptions.Select(item => item.ItemId).Distinct().Count() != ItemConsumptions.Length || DefeatedEnemySlots is null || DefeatedEnemySlots.Any(slot => slot is < 0 or >= 8) || DefeatedEnemySlots.Distinct().Count() != DefeatedEnemySlots.Length || RewardEligibleGuardianForceIds is null || RewardEligibleGuardianForceIds.Any(id => id is < 0 or >= 16) || RewardEligibleGuardianForceIds.Distinct().Count() != RewardEligibleGuardianForceIds.Length || Outcome != BattleOutcome.Victory && RewardEligibleGuardianForceIds.Length != 0 || DebugVictory && (Outcome != BattleOutcome.Victory || RewardEligibleGuardianForceIds.Length != 0))
         {
             throw new InvalidDataException("Invalid factual battle outcome or persistent effect operands.");
         }
@@ -105,6 +111,6 @@ public sealed partial record BattleResult([property: JsonRequired] BattleEncount
 
     public BattleResult DeepCopy()
     {
-        return this with { NativeItemInventoryAfter = NativeItemInventoryAfter?.ToArray(), GuardianForceCompatibilityChanges = GuardianForceCompatibilityChanges.Select(change => change with { Before = change.Before.ToArray(), After = change.After.ToArray() }).ToArray(), GuardianForceChanges = GuardianForceChanges.ToArray(), Party = Party.Select(member => member with { MagicChanges = member.MagicChanges.ToArray(), MagicInventoryAfter = member.MagicInventoryAfter?.ToArray() }).ToArray(), ItemConsumptions = ItemConsumptions.ToArray(), DefeatedEnemySlots = DefeatedEnemySlots.ToArray(), RewardEligibleGuardianForceIds = RewardEligibleGuardianForceIds.ToArray(), EnemyDefeats = EnemyDefeats.ToArray(), ScriptedItems = ScriptedItems.ToArray(), PersistentAiVariablesBefore = PersistentAiVariablesBefore?.ToArray(), PersistentAiVariablesAfter = PersistentAiVariablesAfter?.ToArray(), NativeGrowthChanges = NativeGrowthChanges.ToArray(), NativeCardChange = NativeCardChange is { } cardChange ? new(cardChange.Before.DeepCopy(), cardChange.After.DeepCopy()) : null, NativeScriptEffects = NativeScriptEffects.DeepCopy() };
+        return this with { NativeItemInventoryAfter = NativeItemInventoryAfter?.ToArray(), GuardianForceCompatibilityChanges = GuardianForceCompatibilityChanges.Select(change => change with { Before = change.Before.ToArray(), After = change.After.ToArray() }).ToArray(), GuardianForceChanges = GuardianForceChanges.ToArray(), Party = Party.Select(member => member with { MagicChanges = member.MagicChanges.ToArray(), MagicInventoryAfter = member.MagicInventoryAfter?.ToArray() }).ToArray(), ItemConsumptions = ItemConsumptions.ToArray(), DefeatedEnemySlots = DefeatedEnemySlots.ToArray(), RewardEligibleGuardianForceIds = RewardEligibleGuardianForceIds.ToArray(), EnemyDefeats = EnemyDefeats.ToArray(), ScriptedItems = ScriptedItems.ToArray(), PersistentAiVariablesBefore = PersistentAiVariablesBefore?.ToArray(), PersistentAiVariablesAfter = PersistentAiVariablesAfter?.ToArray(), NativeGrowthChanges = NativeGrowthChanges.ToArray(), NativeDeathCountChanges = NativeDeathCountChanges.ToArray(), NativeCardChange = NativeCardChange is { } cardChange ? new(cardChange.Before.DeepCopy(), cardChange.After.DeepCopy()) : null, NativeScriptEffects = NativeScriptEffects.DeepCopy() };
     }
 }

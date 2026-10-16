@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleScriptState
 {
     public bool DisableAutomaticTargetReplacement { get; init; }
+    public bool ScriptedExitRequested { get; init; }
     public byte ResultFlags { get; init; }
     public byte? SavedBattleFlagsBefore { get; init; }
     public byte? SavedBattleFlagsAfter { get; init; }
@@ -12,6 +13,9 @@ public sealed record NativeBattleScriptState
     public byte? LimitSpecialFlagsBefore { get; init; }
     public byte? LimitSpecialFlagsAfter { get; init; }
     public byte LimitSpecialSetMask { get; init; }
+    public byte? ShotFlagsBefore { get; init; }
+    public byte? ShotFlagsAfter { get; init; }
+    public byte ShotFlagsSetMask { get; init; }
     public ushort[] WaitCounters { get; init; } = [];
     public byte[] AcquiredGuardianForces { get; init; } = [];
     public byte[] Cards { get; init; } = [];
@@ -20,6 +24,10 @@ public sealed record NativeBattleScriptState
     public void Validate()
     {
         ValidateLimitSpecialEffect();
+        if ((ShotFlagsBefore is null) != (ShotFlagsAfter is null) || ShotFlagsBefore is byte shotBefore && (ShotFlagsSetMask == 0 || ShotFlagsAfter != (byte)(shotBefore | ShotFlagsSetMask)) || ShotFlagsBefore is null && ShotFlagsSetMask != 0)
+        {
+            throw new InvalidDataException("Shot learning requires its original BYTE1CFE770 before value and exact ammunition bit producers.");
+        }
         if ((SavedBattleFlagsBefore is null) != (SavedBattleFlagsAfter is null) || SavedBattleFlagsBefore is byte before && (SavedBattleFlagsSetMask == 0 || SavedBattleFlagsAfter != NativeSavedBattleFlags.ApplyBattleEffects(before, SavedBattleFlagsSetMask, SavedBattleFlagsClearMask)) || SavedBattleFlagsBefore is null && (SavedBattleFlagsSetMask != 0 || SavedBattleFlagsClearMask != 0))
         {
             throw new InvalidDataException("Native saved battle flag effects require their exact before/after BYTE owners and native producer masks.");

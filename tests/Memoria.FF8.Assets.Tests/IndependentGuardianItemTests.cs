@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -52,6 +53,29 @@ public sealed class IndependentGuardianItemTests
         }
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
         Assert.Single(battle.Events, item => item.Kind == "NativeText");
+        Assert.Equal(1, Assert.Single(battle.Items).Count);
+    }
+
+    [Fact]
+    public void AwayChocoboPrefixesItsSavedEncodedNameAndMissingNameFailsBeforeReservation()
+    {
+        using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        BattleSession missing = Create(assets, 30, 3);
+        Assert.Throws<NotSupportedException>(() => missing.QueueAction("caster", "enemy", BattleAbility.Item, 30));
+        Assert.Equal(2, Assert.Single(missing.Items).Count);
+        byte[] name = new byte[12];
+        FF8Encoding.CreateEuropean().GetBytes("Kweh").CopyTo(name, 0);
+        BattleDefinition definition = missing.Capture().Definition;
+        NativePocketStationState pocket = definition.NativePocketStation! with { ChocoboName = name.ToImmutableArray() };
+        BattleSession battle = new(definition with { NativePocketStation = pocket, NativeChocoboName = NativePocketStationText.ChocoboName(pocket) }, BattleAtbMode.Normal);
+        battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
+        battle.Tick();
+        battle = BattleSession.Restore(battle.Capture());
+        for (int frame = 0; frame < BattleSession.AttackWindupFrames; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal("Kweh " + assets.ReadNativeGlobalBattleMessages()[56], Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
         Assert.Equal(1, Assert.Single(battle.Items).Count);
     }
 

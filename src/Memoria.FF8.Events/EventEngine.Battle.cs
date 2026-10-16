@@ -50,16 +50,16 @@ public sealed partial class EventEngine
         Scene.FieldCallbackClock = next;
     }
 
-    public void ReturnFromInteractiveBattle(int combatCallbacks, Action? publishCombatOutcome = null)
+    public void ReturnFromInteractiveBattle(int combatCallbacks, Action? publishCombatOutcome = null, byte nativeResult = 4)
     {
         if (PendingInteractiveBattle is null)
         {
             throw new InvalidOperationException("No interactive battle owns the suspended field VM.");
         }
-        ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome);
+        ReturnFromHostedBattle(combatCallbacks, publishCombatOutcome, nativeResult);
     }
 
-    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null)
+    public void ReturnFromHostedBattle(int combatCallbacks, Action? publishCombatOutcome = null, byte nativeResult = 0)
     {
         NativeBattleCompletion request = PendingHostedBattle ?? throw new InvalidOperationException("No hosted battle owns the suspended field VM.");
         if (combatCallbacks < 0)
@@ -68,6 +68,10 @@ public sealed partial class EventEngine
         }
         if (request.Backend == NativeBattleBackend.Interactive)
         {
+            if (nativeResult is < 1 or > 5)
+            {
+                throw new ArgumentOutOfRangeException(nameof(nativeResult), "Completed native battle results use BYTE1..5; zero is only the declared automatic research backend.");
+            }
             long allocationClock = Scene.NativeFieldInitialization?.TimerClockCallsAtAllocation ?? throw new NotSupportedException("Battle return requires its actual allocation clock.");
             long completedCallbacks = Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
             if (Scene.FieldCallbackClock?.BattleCallbacks != completedCallbacks + combatCallbacks)
@@ -75,13 +79,13 @@ public sealed partial class EventEngine
                 throw new InvalidOperationException("Battle return duration disagrees with its dispatched native clock callbacks.");
             }
         }
-        else if (combatCallbacks != 0)
+        else if (combatCallbacks != 0 || nativeResult != 0)
         {
             throw new InvalidOperationException("Automatic research victory has no simulated combat callbacks.");
         }
         publishCombatOutcome?.Invoke();
         int index = Scene.NativeBattleCompletions!.IndexOf(request);
-        Scene.NativeBattleCompletions[index] = request with { Result = 0, EmulatedCombatCallbacks = combatCallbacks };
+        Scene.NativeBattleCompletions[index] = request with { Result = nativeResult, EmulatedCombatCallbacks = combatCallbacks };
         StepCore();
         OperationCompleted?.Invoke();
     }
@@ -259,7 +263,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved battle flag consumer has no matching reached persistent-mode writer history.");
             }
-            if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend is not (NativeBattleBackend.AutomaticVictory or NativeBattleBackend.Interactive) || (completion.ReturnFrame is null ? completion.Result is not null : completion.Result != 0))
+            if (completion.Suppressed ? completion.Backend is not null || completion.Result is not null : completion.Backend is not (NativeBattleBackend.AutomaticVictory or NativeBattleBackend.Interactive) || (completion.ReturnFrame is null ? completion.Result is not null : completion.Backend == NativeBattleBackend.AutomaticVictory ? completion.Result != 0 : completion.Result is null or < 1 or > 5))
             {
                 throw new InvalidDataException("Saved minimal battle request has an invalid suppression, backend or native result byte.");
             }

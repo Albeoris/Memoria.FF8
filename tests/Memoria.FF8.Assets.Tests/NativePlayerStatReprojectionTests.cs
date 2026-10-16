@@ -7,6 +7,34 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativePlayerStatReprojectionTests
 {
     [Fact]
+    public void Status_resistance_reuses_the_original_junction_formula_after_stock_changes()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeCharacterVitals original = game.ReadNewGameCharacterVitals();
+        NativeCharacterVital character = original.Records[0];
+        BattleNativePlayerStatRules originalRules = assets.ReadPlayerNativeStatRules(original, 0);
+        byte spell = (byte)Enumerable.Range(1, 56).First(index => (originalRules.MagicRecords[index][40] & 4) != 0 && originalRules.MagicRecords[index][37] != 0);
+        byte[] junctions = character.Junction.MagicJunctions.ToArray();
+        junctions[15] = spell;
+        NativeMagicStock[] stocks = Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray();
+        stocks[0] = new(spell, 100);
+        NativeCharacterVital modified = character with { Junction = character.Junction with { MagicJunctions = junctions, Abilities = 0 }, MagicInventory = stocks };
+        NativeCharacterVitals vitals = original with { Records = [modified, .. original.Records.Skip(1)] };
+        BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0);
+        ImmutableArray<byte> full = rules.ProjectStatusResistances(stocks);
+
+        Assert.Equal(assets.ReadPlayerNativeStatusData(vitals, 0).Resistances, full);
+        Assert.Equal(Math.Min(200, 100 + rules.MagicRecords[spell][37]), full[2]);
+        Assert.Equal(full[2], full[20]);
+        stocks[0] = new(spell, 0);
+        ImmutableArray<byte> depleted = rules.ProjectStatusResistances(stocks);
+        Assert.Equal((byte)100, depleted[2]);
+        Assert.Equal(depleted[2], depleted[20]);
+        Assert.Throws<NotSupportedException>(() => (rules with { NativeStatusPassiveFlags = null }).ProjectStatusResistances(stocks));
+    }
+
+    [Fact]
     public void Current_magic_stock_and_saved_growth_recompute_original_stats_without_incrementing_projected_values()
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);

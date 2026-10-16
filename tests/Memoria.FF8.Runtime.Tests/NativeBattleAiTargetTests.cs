@@ -46,6 +46,18 @@ public sealed class NativeBattleAiTargetTests
         Assert.Equal((ushort)0x8001, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
     }
 
+    [Theory]
+    [InlineData(203, 0x8000)]
+    [InlineData(204, 0x8008)]
+    public void HpExtremaUseOriginalSignedComparisonsAfterRawDwordHpArithmetic(byte criterion, ushort mask)
+    {
+        //Native60 adds signed WORD-501 to the enemy HP DWORD500, preserving raw KO clear.
+        BattleSession battle = Create([60, 11, 254, 38, 1, 201, 0, criterion]);
+
+        Assert.Equal(-1, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
+        Assert.Equal(mask, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
+    }
+
     [Fact]
     public void RandomEnemyTargetUsesOriginalRejectionDrawsAndSurvivesSnapshot()
     {

@@ -42,6 +42,10 @@ public sealed partial class BattleSession
 
     private void ValidateNativeSavedBattleFlagEffects()
     {
+        if (nativeScriptState.ShotFlagsBefore is byte shotBefore && definition.NativeShotAvailability?.Flags770 != shotBefore)
+        {
+            throw new InvalidDataException("Shot learning effects disagree with their battle-entry BYTE1CFE770 owner.");
+        }
         if (nativeScriptState.LimitSpecialFlagsBefore is byte specialBefore && definition.LimitProgress?.SpecialMagicFlags != specialBefore)
         {
             throw new InvalidDataException("Slots learning effects disagree with their battle-entry BYTE1CFE771 owner.");

@@ -50,7 +50,7 @@ internal sealed class BattleHudElement : UiElement
         if (session.Outcome != BattleOutcome.Active)
         {
             theme.Pointer(canvas, Left + 32 * Scale, Top + 554 * Scale, 12 * Scale);
-            Text(canvas, theme, session.Outcome == BattleOutcome.Victory ? "Continue" : "Load / Retry", 56, 546, 186, 30, 24);
+            Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 56, 546, 186, 30, 24);
             Text(canvas, theme, "Confirm / Click", 34, 588, 220, 26, 15);
         }
         else if (controller.SelectingTarget)
@@ -67,7 +67,8 @@ internal sealed class BattleHudElement : UiElement
                 {
                     theme.Pointer(canvas, Left + 32 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
-                Text(canvas, theme, controller.ChoiceLabels[start + row], 52, y, 198, 24, 17, !canAttack);
+                bool unavailable = controller.SelectingAction && !controller.ActionChoices[start + row].Available;
+                Text(canvas, theme, controller.ChoiceLabels[start + row], 52, y, 198, 24, 17, !canAttack || unavailable);
             }
             if (!canAttack)
             {

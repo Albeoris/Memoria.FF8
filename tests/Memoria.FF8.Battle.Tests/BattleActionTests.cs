@@ -108,7 +108,7 @@ public sealed class BattleActionTests
                 new() { Id = "party", Name = "Squall", IsPlayer = true, MaximumHp = 500, CurrentHp = 50, InitialAtb = BattleSession.AtbMaximum, Speed = 1, Magic = 30, Level = 10, EquipmentIds = [1], Abilities = Enum.GetValues<BattleAbility>(), MagicStocks = [new(1, 2), new(24, 1), new(35, 1)] },
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 500, CurrentHp = 500, Speed = 1, Defense = 10, Level = 5, DrawSpells = [new(1, 0)] },
                 new() { Id = "enemy2", Name = "Enemy 2", MaximumHp = 500, CurrentHp = 500, Speed = 1, Defense = 10 },
-                new() { Id = "fallen", Name = "Ally", IsPlayer = true, MaximumHp = 100, CurrentHp = 0 }
+                new() { Id = "fallen", Name = "Ally", IsPlayer = true, MaximumHp = 100, CurrentHp = 0, NativeStatus0 = 1 }
             ],
             Items = [new(1, 1)],
             ActionDefinitions =

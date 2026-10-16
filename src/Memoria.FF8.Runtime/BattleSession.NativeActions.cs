@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(command, id, crisis);
     }
 
-    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, byte? crisis = null)
+    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, byte? crisis = null, NativeLimitCallback? callback = null)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id, crisis);
         ValidateNativeActionContract(native);
@@ -34,11 +34,8 @@ public sealed partial class BattleSession
             targetMask |= 0x4000;
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
-        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
-        actor.Atb = 0;
-        actor.IsBusy = true;
-        actions.Enqueue(queued);
-        Log("Queued", actor.Id, target.Id, id, $"{actor.Name}: {native.Name ?? $"native command {command}/{id}"} queued.");
+        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
+        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}");
     }
 
     private static bool IsNativeRevive(BattleActionDefinition action)
@@ -46,8 +43,12 @@ public sealed partial class BattleSession
         return action.NativeAction?.AttackType is 5 or 6 || action.Effect == BattleActionEffect.Revive;
     }
 
-    private bool ActionHasValidTarget(string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort targetMask)
+    private bool ActionHasValidTarget(string targetId, BattleAbility ability, int actionId, BattleNativeAction? native, ushort targetMask, BattleNativeGraphicCommand? graphic = null)
     {
+        if (graphic is not null)
+        {
+            return true;
+        }
         bool revive = native?.AttackType is 5 or 6 || native is null && IsRevive(ability, actionId);
         if (native is not null)
         {
@@ -75,7 +76,7 @@ public sealed partial class BattleSession
 
     private static void ValidateNativeActionContract(BattleNativeAction action)
     {
-        if (action.AttackType is not (0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 27 or 28 or 29 or 32 or 33 or 34 or 35 or 36))
+        if (action.AttackType is not (0 or 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 27 or 28 or 29 or 30 or 31 or 32 or 33 or 34 or 35 or 36))
         {
             throw new NotSupportedException($"Native action {action.Command}/{action.ActionId} attack type {action.AttackType} requires its original invocation or persistent effect owner.");
         }
@@ -85,7 +86,7 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action)
+    private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action)
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
@@ -94,6 +95,7 @@ public sealed partial class BattleSession
             nativeAffinityAction = native;
         }
         BattleCombatant? firstReflector = null;
+        bool hadTargets = false;
         for (int hit = 0; hit < native.HitCount; hit++)
         {
             BattleCombatant[] targets;
@@ -114,6 +116,7 @@ public sealed partial class BattleSession
             {
                 targets = target.IsAlive || IsNativeRevive(action) ? [target] : [];
             }
+            hadTargets |= targets.Length != 0;
             foreach (BattleCombatant recipient in targets)
             {
                 if (hit == 0 && (command.NativeQueuedCommand ?? native.Command) == 12)
@@ -145,6 +148,7 @@ public sealed partial class BattleSession
         {
             ResolveNativeReflection(actor, firstReflector, command, native);
         }
+        return hadTargets;
     }
 
     private BattleCombatant[] ResolveNativeActionMask(ushort targetMask)
@@ -230,19 +234,7 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(recipient);
         if (native.AttackType is 13 or 16)
         {
-            if ((recipient.NativeCombatantFlags & 0x8000) != 0 || native.StatusAttack <= NextRandomByte())
-            {
-                Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: level change failed.");
-                return;
-            }
-            int previousLevel = recipient.Level;
-            int missingHp = recipient.MaximumHp - recipient.CurrentHp;
-            int level = Math.Clamp(native.Power * recipient.Level / 8, 1, 100);
-            recipient.BindNativeLevel(level);
-            recipient.CurrentHp = native.AttackType == 16 ? recipient.MaximumHp - missingHp : Math.Min(recipient.CurrentHp, recipient.MaximumHp);
-            RecordNativeActionMemory(actor, recipient, command);
-            Log("LevelChanged", actor.Id, recipient.Id, Math.Abs(level - previousLevel), $"{recipient.Name}: level {previousLevel} → {level}.");
-            DispatchNativeActionCounter(recipient);
+            ResolveNativeLevelChange(actor, recipient, command, native);
             return;
         }
         bool bypass = (native.Statuses1 & 0x4000000) != 0;
@@ -330,6 +322,8 @@ public sealed partial class BattleSession
                 case 0:
                 case 12:
                 case 14:
+                case 30:
+                case 31:
                     damage = 0;
                     applyStatuses = false;
                     if (native.AttackType == 12)

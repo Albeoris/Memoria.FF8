@@ -90,7 +90,7 @@ public sealed partial class BattleSession
 
     private static bool IsNativeBattleCapable(BattleCombatant actor)
     {
-        return actor.IsActive && actor.CurrentHp > 0 && (NativeSavedStatusBits(actor) & 5) == 0 && (NativeBattleStatusBits(actor) & 0x10000) == 0;
+        return actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 0 && (NativeBattleStatusBits(actor) & 0x10000) == 0;
     }
 
     internal static bool CanNativeBattleActorAct(BattleCombatant actor)

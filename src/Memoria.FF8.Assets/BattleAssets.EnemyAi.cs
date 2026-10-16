@@ -127,7 +127,15 @@ public sealed partial class BattleAssets
             }
         }
         int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
-        return new NativeBattleAiDefinition(scripts, abilities, band, texts) { NameBuffers = nameBuffers, DisplayNames = displayNames };
+        System.Collections.Immutable.ImmutableArray<NativeBattleSequenceTrack> tracks = [];
+        if (sections == 11)
+        {
+            int sequenceStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(16));
+            int sequenceEnd = Enumerable.Range(0, sections).Select(index => BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4 + 4 * index))).Where(offset => offset > sequenceStart).DefaultIfEmpty(bytes.Length).Min();
+            BattleSequenceSet sequencePrograms = new(bytes[sequenceStart..sequenceEnd]);
+            tracks = System.Collections.Immutable.ImmutableArray.CreateRange(abilities.Select(ability => ability.Sequence).Where(sequence => sequence != 0).Distinct().Select(sequencePrograms.ReadLocalControlTrack).OfType<NativeBattleSequenceTrack>());
+        }
+        return new NativeBattleAiDefinition(scripts, abilities, band, texts) { NameBuffers = nameBuffers, DisplayNames = displayNames, SequenceTracks = tracks };
     }
 
     private static string DecodeNativeNamePrefix(ReadOnlySpan<byte> bytes)

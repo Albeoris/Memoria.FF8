@@ -76,6 +76,7 @@ public sealed record GameState
     public NativeShotAvailabilityState? ShotAvailability { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
     public NativePocketStationState? PocketStation { get; init; }
+    public NativeGlobalRandomState? GlobalRandom { get; init; }
     public NativeSavedBattleFlags? SavedBattleFlags { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldLocation? NativeFieldLocation { get; init; }

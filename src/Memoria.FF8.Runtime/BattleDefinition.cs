@@ -18,7 +18,8 @@ public enum BattleOutcome
 {
     Active,
     Victory,
-    Defeat
+    Defeat,
+    ScriptedExit
 }
 
 public enum BattleAbility
@@ -132,12 +133,14 @@ public sealed record BattleCombatantDefinition
     public BattleStatusEffectDefinition[] StatusEffects { get; init; } = [];
     public ushort NativeRetainedStatusBits { get; init; }
     public ushort NativeStatus0 { get; init; }
+    public ushort? NativeDeathCount { get; init; }
     public uint NativeStatus1 { get; init; }
     public byte[] NativeStatusResistances { get; init; } = [];
 }
 
 public sealed record BattleDefinition
 {
+    public NativeGlobalRandomState? NativeGlobalRandom { get; init; }
     public NativeScannedModels? NativeScannedModels { get; init; }
     public bool? NativeScanAlwaysShow { get; init; }
     public NativeCardInventory? NativeCards { get; init; }
@@ -163,13 +166,16 @@ public sealed record BattleDefinition
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public byte? NativeBattleSpeed { get; init; }
     public NativePocketStationState? NativePocketStation { get; init; }
+    public string? NativeChocoboName { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
+    public NativeShotAvailabilityState? NativeShotAvailability { get; init; }
     public bool? NativeLimitsDisabled { get; init; }
     public byte? NativeFieldBattleRules { get; init; }
     public BattleStock[] Items { get; init; } = [];
     public NativeItemStock[]? NativeItemInventory { get; init; }
     public byte NativeSeed { get; init; }
     public ushort NativeFlags { get; init; }
+    public ushort? NativeFieldBattleMode { get; init; }
     public NativeBattleRandomState? InitialRandom { get; init; }
     public bool RareItem { get; init; }
 }
@@ -182,6 +188,9 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    public NativeLimitCallback? NativeLimitCallback { get; init; }
+    public BattleNativeGraphicCommand? NativeGraphic { get; init; }
     public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
     public byte? NativeQueuedCommand { get; init; }
     public bool FreeNativeMagic { get; init; }
@@ -193,6 +202,10 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
+    public NativeLimitCallback? NativeLimitCallback { get; init; }
+    public int? NativeSequenceFrame { get; init; }
+    public BattleNativeGraphicCommand? NativeGraphic { get; init; }
     public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
     public byte? NativeQueuedCommand { get; init; }
     public bool FreeNativeMagic { get; init; }
@@ -205,6 +218,8 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
 }
 public sealed record BattleEvent(long Frame, string Kind, string? ActorId, string? TargetId, int Amount, string Message, BattleAbility Ability = BattleAbility.Attack)
 {
+    public byte? NativeGraphicMagicId { get; init; }
+    public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }
     public int NativeMessageDelayFrames { get; init; }
 }
@@ -220,6 +235,8 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeGlobalRandomState? NativeGlobalRandom { get; init; }
+    public ulong NativeGlobalRandomCalls { get; init; }
     public NativeScannedModels? NativeScannedModels { get; init; }
     public NativeCardInventory? NativeCards { get; init; }
     public NativeCrtRandomState? NativeCrtRandom { get; init; }
@@ -263,11 +280,13 @@ public sealed partial class BattleCombatant
     internal ushort NativeStatus0 { get; set; }
     internal uint NativeStatus1 { get; set; }
     internal short[] NativeStatusTimers { get; } = Enumerable.Repeat((short)-1111, 14).ToArray();
+    internal byte[] MutableNativeStatusResistances { get; private set; }
 
     internal BattleCombatant(BattleCombatantDefinition definition)
     {
         MutableGuardianForceCompatibility = definition.GuardianForceCompatibility?.ToArray();
         this.definition = definition;
+        MutableNativeStatusResistances = InitialNativeStatusResistances();
         NativeGrowth = definition.NativeGrowth;
         nativeCombatantFlags = definition.NativeCombatantFlags | (definition.NativeTemplate?.NativeCombatantFlags ?? 0);
         if (definition.IsPlayer)
@@ -277,6 +296,7 @@ public sealed partial class BattleCombatant
         }
         CurrentHp = definition.CurrentHp;
         NativeKillCount = definition.NativeKillCount;
+        NativeDeathCount = definition.NativeDeathCount;
         Atb = CurrentHp == 0 ? 0 : definition.InitialAtb;
         Effects = definition.StatusEffects.Select(effect => new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames)).ToList();
         NativeStatus0 = (ushort)((definition.NativeTemplate?.NativeStatusAllocation?.Saved ?? definition.NativeStatus0) | definition.NativeRetainedStatusBits);
@@ -363,6 +383,7 @@ public sealed partial class BattleCombatant
     internal void ResetNativeStatusAllocation()
     {
         NativeBattleStatusAllocation? allocation = definition.NativeTemplate?.NativeStatusAllocation;
+        MutableNativeStatusResistances = InitialNativeStatusResistances();
         NativeStatus0 = allocation?.Saved ?? (ushort)(definition.NativeStatus0 | definition.NativeRetainedStatusBits);
         NativeStatus1 = allocation?.Battle ?? definition.NativeStatus1;
         Array.Fill(NativeStatusTimers, (short)-1111);
@@ -380,11 +401,17 @@ public sealed partial class BattleCombatant
         }
     }
 
+    internal void AddNativeHitPointWord(short amount)
+    {
+        //487DF0 opcode60 directly adds a sign-extended WORD to the DWORD; no clamp, status refresh or hit callback.
+        currentHp = unchecked(currentHp + amount);
+    }
+
     private void RefreshNativeHpStatusFlags()
     {
         //494360 updates the HP flags at the HP commit boundary, not when AI queries the saved WORD.
         NativeStatus0 &= 0xFCFF;
-        if (currentHp > 0 && currentHp < MaximumHp >> 1)
+        if (currentHp != 0 && currentHp < MaximumHp >> 1)
         {
             NativeStatus0 |= 0x200;
             if (currentHp < MaximumHp >> 2)
@@ -402,12 +429,18 @@ public sealed partial class BattleCombatant
     public int Evasion => ScaleNativeStat(5, definition.Evasion);
     public int Luck => definition.Luck;
     public ushort NativeKillCount { get; internal set; }
+    public ushort? NativeDeathCount { get; internal set; }
     public int Hit => definition.Hit;
     public bool? NativeCharacterFlag100 => definition.NativeCharacterFlag100;
     public ushort NativeRetainedStatusBits => definition.NativeRetainedStatusBits;
     //4868C0/486C70 clear Berserk, then copy the complete native WORD to the saved character record.
     public ushort PersistentStatus => (ushort)(BattleSession.NativeSavedStatusBits(this) & ~0x20);
-    internal IReadOnlyList<byte> NativeStatusResistances => definition.NativeStatusResistances.Length == 40 ? definition.NativeStatusResistances : definition.NativeTemplate?.NativeStatusAllocation is { } allocation ? allocation.Resistances : definition.NativeStatusResistances;
+    internal IReadOnlyList<byte> NativeStatusResistances => MutableNativeStatusResistances;
+
+    private byte[] InitialNativeStatusResistances()
+    {
+        return definition.NativeStatusResistances.Length == 40 ? definition.NativeStatusResistances.ToArray() : definition.NativeTemplate?.NativeStatusAllocation is { } allocation ? allocation.Resistances.ToArray() : definition.NativeStatusResistances.ToArray();
+    }
 
     internal void SetNativeStatMultiplier(int index, byte multiplier)
     {
@@ -451,7 +484,7 @@ public sealed partial class BattleCombatant
     public IReadOnlyList<BattleStatusSnapshot> StatusEffects => Effects.Select(effect => new BattleStatusSnapshot(effect.Definition.Kind, effect.RemainingFrames, effect.UntilTickFrames, effect.Definition)).ToArray();
     public int Atb { get; internal set; }
     public bool IsBusy { get; internal set; }
-    public bool IsAlive => IsActive && CurrentHp > 0;
+    public bool IsAlive => IsActive && (BattleSession.NativeSavedStatusBits(this) & 1) == 0;
     public bool CanAct => BattleSession.CanNativeBattleActorAct(this);
     public bool IsReady => CanAct && !IsBusy && Atb == BattleSession.AtbMaximum;
 }

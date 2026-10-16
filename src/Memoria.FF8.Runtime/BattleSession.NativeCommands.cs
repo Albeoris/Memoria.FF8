@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime;
 public sealed record BattleNativeLimitState(string ActorId, byte CrisisLevel)
 {
     public BattleNativeSlotsRoll? Slots { get; init; }
+    public BattleNativeShotState? Shot { get; init; }
+    public BattleNativeDuelState? Duel { get; init; }
 }
 
 public sealed partial class BattleSession
@@ -32,6 +34,11 @@ public sealed partial class BattleSession
             {
                 return [];
             }
+            if (limit.Command == 11)
+            {
+                BattleNativeCommandBinding binding = limit.InvocationChoices.Single();
+                return [new(BattleAbility.LimitBreak, 11 << 16, binding.Name, BattleActionEffect.Native, 0, (binding.TargetFlags & 0x40) == 0)];
+            }
             if (limit.Command == 15)
             {
                 NativeLimitProgress progress = definition.LimitProgress ?? throw new NotSupportedException("Blue Magic requires the actual saved learned spell flags.");
@@ -53,6 +60,10 @@ public sealed partial class BattleSession
                     choices.Add(FindInstalledNativeAction(16, roll.MagicId));
                 }
             }
+            else if (limit.Command == 14)
+            {
+                choices.AddRange(GetNativeShotChoices());
+            }
             else
             {
                 throw new NotSupportedException($"Native Limit command {limit.Command} requires its original invocation process.");
@@ -70,7 +81,7 @@ public sealed partial class BattleSession
         {
             byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == action.Command).TargetFlags;
             int id = (action.Command << 16) | action.ActionId;
-            return new BattleActionDefinition(ability, id, action.Name ?? $"Command {action.Command}", BattleActionEffect.Native, action.Power, (targetFlags & 0x40) == 0, (targetFlags & 0x30) != 0x10 && (targetFlags & 2) == 0) { NativeAction = action, NativeAttackFlags = action.AttackFlags, DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null };
+            return new BattleActionDefinition(ability, id, action.Name ?? $"Command {action.Command}", BattleActionEffect.Native, action.Power, (targetFlags & 0x40) == 0, (targetFlags & 0x30) != 0x10 && (targetFlags & 2) == 0) { NativeAction = action, NativeAttackFlags = action.AttackFlags, Available = action.Command != 14 || nativeItems.Any(stock => stock.ItemId == action.ActionId + 101 && stock.Count != 0), DisplayName = action.Command == 16 ? $"{action.Name} ×{nativeSlotsRolls[actorId].Repetitions}" : null };
         }).ToArray();
     }
 
@@ -119,8 +130,19 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Native player target has no allocated physical battle slot.");
         }
+        if (command == 11)
+        {
+            BeginNativeDuel(actor, target, crisis!.Value);
+            return;
+        }
         BattleNativeAction action = FindNativeCommandAction(actor, command, actionId, crisis);
         byte targetFlags = action.TargetFlags ?? actor.NativeCommands.Single(binding => binding.Command == command).TargetFlags;
+        OnNativePlayerCommandSubmitted(actor, command);
+        if (command == 14)
+        {
+            BeginNativeShot(actor, target, action, crisis!.Value);
+            return;
+        }
         if (command == 19 && actionId == 4)
         {
             targetFlags = actor.NativeLimit!.InvocationChoices[1].TargetFlags;
@@ -174,6 +196,20 @@ public sealed partial class BattleSession
                 throw new InvalidOperationException("Slots requires its current owned roll before accepting a magic choice.");
             }
         }
+        else if (command == 14)
+        {
+            if (!GetNativeShotChoices().Any(action => action.ActionId == actionId) || !nativeItems.Any(stock => stock.ItemId == actionId + 101 && stock.Count != 0))
+            {
+                throw new InvalidOperationException("Shot requires the actual selected ammunition stock.");
+            }
+        }
+        else if (command == 11)
+        {
+            if (actionId != 0)
+            {
+                throw new InvalidOperationException("Duel invocation does not select an effect row before its native move process.");
+            }
+        }
         else
         {
             throw new NotSupportedException($"Native Limit command {command} requires its original invocation process.");
@@ -182,17 +218,23 @@ public sealed partial class BattleSession
 
     private BattleNativeLimitState[] CaptureNativeLimits()
     {
-        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value) { Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key) }).ToArray();
+        return nativeLimitLevels.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new BattleNativeLimitState(pair.Key, pair.Value) { Slots = nativeSlotsRolls.GetValueOrDefault(pair.Key), Shot = GetNativeShot(pair.Key), Duel = GetNativeDuel(pair.Key) }).ToArray();
     }
 
     private void RestoreNativeLimits(BattleNativeLimitState[] states)
     {
+        if (states is not null && states.Sum(state => (state?.Shot is null ? 0 : 1) + (state?.Duel is null ? 0 : 1)) > 1)
+        {
+            throw new InvalidDataException("Saved timed Limit processes contradict the single native UI process owner.");
+        }
         if (states is null || states.Any(state => state is null || state.CrisisLevel > 4 || !byId.TryGetValue(state.ActorId, out BattleCombatant? actor) || !actor.IsPlayer || actor.NativeLimit is null) || states.Select(state => state.ActorId).Distinct(StringComparer.Ordinal).Count() != states.Length)
         {
             throw new InvalidDataException("Saved Limit selection has invalid character ownership or crisis level.");
         }
         nativeLimitLevels.Clear();
         nativeSlotsRolls.Clear();
+        nativeShotProcesses.Clear();
+        nativeDuelProcesses.Clear();
         foreach (BattleNativeLimitState state in states)
         {
             nativeLimitLevels.Add(state.ActorId, state.CrisisLevel);
@@ -205,6 +247,15 @@ public sealed partial class BattleSession
                 _ = FindInstalledNativeAction(16, roll.MagicId);
                 nativeSlotsRolls.Add(state.ActorId, roll);
             }
+            if (state.Shot is { } shot)
+            {
+                RestoreNativeShot(state.ActorId, state.CrisisLevel, shot);
+            }
+            if (state.Duel is { } duel)
+            {
+                RestoreNativeDuel(state.ActorId, state.CrisisLevel, duel);
+            }
         }
+        ValidateNativeLimitCallbacks();
     }
 }

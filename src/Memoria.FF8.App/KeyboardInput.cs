@@ -62,6 +62,11 @@ internal sealed class KeyboardInput
     public bool BattleAdvanceTurnRequested { get; private set; }
     public bool GunbladeTriggerRequested { get; private set; }
     public ushort HeldFieldButtons { get; private set; }
+
+    public string NativeButtonBindingHint(ushort buttons)
+    {
+        return string.Join("+", NativeButtons.Where(binding => (buttons & binding.Mask) != 0).Select(binding => BindingHint(binding.Action)));
+    }
     public ControlDevice LastInputDevice { get; private set; }
     public string BindingHint(ControlAction action)
     {

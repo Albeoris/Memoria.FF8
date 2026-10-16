@@ -2,6 +2,25 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattlePersistentStatusTests
 {
+    [Theory]
+    [InlineData(0, 0, true, true)]
+    [InlineData(100, 1, false, false)]
+    [InlineData(100, 4, true, false)]
+    public void NativeLifeAndCapabilityReadRawStatusRatherThanInferringDeathFromHp(int hp, ushort status, bool alive, bool canAct)
+    {
+        BattleSession battle = new(new BattleDefinition
+        {
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true, CurrentHp = hp, NativeStatus0 = status },
+                new() { Id = "enemy", Name = "Enemy" }
+            ]
+        }, BattleAtbMode.Normal);
+
+        Assert.Equal(alive, battle.Combatants[0].IsAlive);
+        Assert.Equal(canAct, battle.Combatants[0].CanAct);
+    }
+
     [Fact]
     public void BattleExitPreservesTheCompleteStatusWordExceptBerserk()
     {

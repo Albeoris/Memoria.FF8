@@ -40,6 +40,10 @@ internal sealed partial class GameWorld : IDisposable
         {
             session.InitializeNewGamePocketStation(assets.ReadNewGamePocketStation());
         }
+        if (session.State.GlobalRandom is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameGlobalRandom(assets.ReadNewGameGlobalRandom());
+        }
         if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameWeaponRecipes(assets.ReadNewGameWeaponRecipes());

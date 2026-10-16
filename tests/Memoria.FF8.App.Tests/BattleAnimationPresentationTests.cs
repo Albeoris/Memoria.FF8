@@ -214,7 +214,7 @@ public sealed class BattleAnimationPresentationTests
     {
         using BattleAssets assets = InstalledAssets();
         BattleModel model = assets.LoadPlayer(0);
-        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, CurrentHp = 0 };
+        BattleCombatantDefinition definition = new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, CurrentHp = 0, NativeStatus0 = 1 };
         BattleSession session = new(new BattleDefinition { Combatants = [definition, new() { Id = "dummy", Name = "Dummy", ModelId = -1 }] }, BattleAtbMode.Normal);
         BattleAnimationPresentation animation = new(model, assets.LoadPlayerSequences(0, 0, model), definition);
         BattleAnimationSample sample = animation.Sample(session, session.Combatants[0], Vector3.Zero, Vector3.UnitZ);

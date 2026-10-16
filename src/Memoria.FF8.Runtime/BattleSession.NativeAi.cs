@@ -133,14 +133,19 @@ public sealed partial class BattleSession
                     case 21:
                         int variable = ReadAiByte(code, ref pc);
                         uint operand = (uint)ReadAiByte(code, ref pc);
-                        int variableIndex = opcode is 14 or 18 ? variable - 220 : opcode is 17 or 21 ? variable - 80 : variable - 96;
+                        if (opcode is 14 or 18)
+                        {
+                            if (operand == 203)
+                            {
+                                operand = (uint)NativeActorIndex(FindAiActor(actor, 203));
+                            }
+                            WriteNativeActorVariable(actor, variable, operand, opcode == 18);
+                            break;
+                        }
+                        int variableIndex = opcode is 17 or 21 ? variable - 80 : variable - 96;
                         if ((uint)variableIndex >= 8)
                         {
                             throw new NotSupportedException("Native battle AI variable lies outside its proved eight-DWORD bank.");
-                        }
-                        if (opcode is 14 or 18 && operand == 203)
-                        {
-                            operand = (uint)NativeActorIndex(FindAiActor(actor, 203));
                         }
                         if (opcode is 15 or 19)
                         {
@@ -149,8 +154,8 @@ public sealed partial class BattleSession
                         }
                         else
                         {
-                            uint[] bank = opcode is 14 or 18 ? actor.AiVariables : persistentAiVariables ?? throw new NotSupportedException("Native battle AI requires its executed persistent DWORD bank80..87.");
-                            bank[variableIndex] = opcode is 18 or 21 ? unchecked(bank[variableIndex] + operand) : operand;
+                            uint[] bank = persistentAiVariables ?? throw new NotSupportedException("Native battle AI requires its executed persistent DWORD bank80..87.");
+                            bank[variableIndex] = opcode == 21 ? unchecked(bank[variableIndex] + operand) : operand;
                         }
                         break;
                     case 22:
@@ -180,9 +185,8 @@ public sealed partial class BattleSession
                         ReleaseNativeParticipant(removed);
                         break;
                     case 30:
-                        // Native252 sets the no-damage byte in48FE20. Its operand selects presentation.
                         int effect = ReadAiByte(code, ref pc);
-                        Log("NativeSequence", actor.Id, null, effect, $"Native battle sequence {effect}, actor sequence {sequenceOverride}.");
+                        QueueNativeGraphicCommand(actor, checked((byte)effect), sequenceOverride, targetMask);
                         break;
                     case 28:
                         QueueNativeWait(30 * ReadAiByte(code, ref pc));
@@ -282,6 +286,13 @@ public sealed partial class BattleSession
                         break;
                     case 58:
                         FindNativeActor(ReadAiByte(code, ref pc)).Untargetable = false;
+                        break;
+                    case 57:
+                        //4863F0 consumes the request as internalkind3 and saved/resultBYTE1, without victory rewards.
+                        nativeScriptState = nativeScriptState with { ScriptedExitRequested = true };
+                        break;
+                    case 60:
+                        actor.AddNativeHitPointWord(unchecked((short)ReadAiWord(code, ref pc)));
                         break;
                     case 56:
                         int item = ReadAiByte(code, ref pc);
@@ -402,7 +413,7 @@ public sealed partial class BattleSession
 
     private BattleCombatant FindNativeActor(int index) => combatants.SingleOrDefault(actor => NativeActorIndex(actor) == index && actor.IsActive) ?? throw new NotSupportedException($"Native battle AI actor index {index} has no current allocation.");
     private int NativeActorIndex(BattleCombatant actor) => actor.NativeIndex;
-    private static int NativeModelId(BattleCombatant actor) => actor.IsPlayer ? actor.ModelId : actor.ModelId + 16;
+    private static int NativeModelId(BattleCombatant actor) => actor.IsPlayer ? actor.IsActive ? actor.ModelId : 255 : actor.ModelId + 16;
     private static int ReadAiByte(byte[] code, ref int pc)
     {
         if ((uint)pc >= code.Length)
@@ -422,7 +433,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -476,6 +487,11 @@ public sealed partial class BattleSession
         }
         actor.LastNativeAction = saved.LastAction;
         actor.NativeKillCount = saved.KillCount ?? actor.SourceDefinition.NativeKillCount;
+        if (actor.SourceDefinition.NativeDeathCount is not null && saved.DeathCount is null)
+        {
+            throw new InvalidDataException("Battle snapshot requires its explicitly migrated native player death counter.");
+        }
+        actor.NativeDeathCount = saved.DeathCount;
         saved.Variables.CopyTo(actor.AiVariables, 0);
         actor.AiTurnCount = saved.TurnCount;
         actor.LastAttackerId = saved.LastAttackerId;
@@ -510,6 +526,10 @@ public sealed partial class BattleSession
         if (actor.IsPlayer || ai.Scripts is null || ai.Scripts.Length != 5 || ai.Scripts.Any(script => script is null || script.Length is < 1 or > 65536) || ai.Abilities is null || ai.Abilities.Length != 48 || ai.LevelBand is < 0 or > 2 || ai.Texts is null || ai.Texts.Any(text => text is null))
         {
             throw new InvalidDataException("Native battle AI requires its complete installed callback/ability/text banks.");
+        }
+        if (ai.SequenceTracks.IsDefault || ai.SequenceTracks.Any(track => track is null || track.Program.IsDefaultOrEmpty || track.Messages.IsDefault || track.CompletionFrame < 0 || track.Messages.Any(message => message is null || message.Frame < 0 || message.Frame > track.CompletionFrame || message.Text >= ai.Texts.Length)) || ai.SequenceTracks.Select(track => track.Sequence).Distinct().Count() != ai.SequenceTracks.Length)
+        {
+            throw new InvalidDataException("Native local sequence tracks require unique sequence identities, original programs and bounded message cues.");
         }
     }
 }

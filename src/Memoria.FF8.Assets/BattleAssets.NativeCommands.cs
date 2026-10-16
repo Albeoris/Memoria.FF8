@@ -34,6 +34,18 @@ public sealed partial class BattleAssets
             //1CF8918..1CF8953 is60 bytes; Lv100/crisis4 can index the contiguous following table.
             result = result with { SlotsSelectionBytes = NativeKernelRecords.Where(record => record.Section == 26).OrderBy(record => record.Index).SelectMany(record => record.Bytes).Concat(spellBytes).ToImmutableArray(), SlotsSpellBytes = spellBytes };
         }
+        else if (character.LimitId == 14)
+        {
+            result = result with { ShotTimers = timers.AsSpan().Slice(56, 4).ToArray().ToImmutableArray() };
+        }
+        else if (character.LimitId is 5 or 11)
+        {
+            result = result with { InvocationChoices = [ReadNativeCommand(character.LimitId)] };
+            if (character.LimitId == 11)
+            {
+                result = result with { DuelTimersAndStarts = timers.AsSpan().Slice(48, 8).ToArray().ToImmutableArray(), DuelMoveSets = NativeKernelRecords.Where(record => record.Section == 23).OrderBy(record => record.Index).SelectMany(record => record.Bytes).ToImmutableArray() };
+            }
+        }
         result.Validate();
         return result;
     }

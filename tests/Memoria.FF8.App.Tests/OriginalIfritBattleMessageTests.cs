@@ -39,12 +39,12 @@ public sealed class OriginalIfritBattleMessageTests
 
         // The explicit standalone component begins at the native completed-GF packet, without replaying a game or a charge animation.
         battle.QueueNativePlayerCommand("party-0", "ifrit", 254, 65);
-        for (int frame = 0; frame < 120 && !battle.Events.Any(entry => entry.Kind == "NativeText" && entry.Message == ai.Texts[5]); frame++)
+        for (int frame = 0; frame < 120 && !battle.Events.Any(entry => entry.Kind == "NativeText" && entry.Message == ai.Texts[3]); frame++)
         {
             battle.Tick();
         }
 
-        Assert.True(battle.Events.Any(entry => entry.Kind == "NativeText" && entry.Message == ai.Texts[5]), string.Join(Environment.NewLine, battle.Events.Select(entry => $"{entry.Frame}:{entry.Kind}:{entry.Message}")) + Environment.NewLine + string.Join(Environment.NewLine, ai.Texts.Select((text, index) => $"{index}:{text}")) + Environment.NewLine + string.Join(Environment.NewLine, ai.Scripts.Select((code, index) => $"{index}:{Convert.ToHexString(code)}")));
+        Assert.Contains(battle.Events, entry => entry.Kind == "NativeText" && entry.Message == ai.Texts[3]);
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => { }, guardianForceName: id => id == 1 ? "Frost" : GameNames.DefaultName(GameNames.GuardianForceSubject(id)));
         hud.BuildView();
         Assert.Contains("Frost", hud.BattleMessage!);

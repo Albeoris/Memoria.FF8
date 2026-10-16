@@ -7,6 +7,7 @@ public sealed record NativeBattleAiAbility(byte Command, byte Sequence, ushort I
 public sealed record NativeBattleLastAction(byte? AttackType, byte AttackerModelId, byte Command, byte ActionId, byte ElementMask, byte AttackerIndex);
 public sealed record NativeBattleAiDefinition(byte[][] Scripts, NativeBattleAiAbility[] Abilities, int LevelBand, string[] Texts)
 {
+    public System.Collections.Immutable.ImmutableArray<NativeBattleSequenceTrack> SequenceTracks { get; init; } = [];
     public byte[][] NameBuffers { get; init; } = [];
     public string[] DisplayNames { get; init; } = [];
 }
@@ -31,6 +32,7 @@ public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, b
     public ushort PreviousTargetMask { get; init; }
     public byte? DrawnSpell { get; init; }
     public ushort? KillCount { get; init; }
+    public ushort? DeathCount { get; init; }
     public uint? NativeCombatantFlags { get; init; }
     public int? DisplayNameIndex { get; init; }
     public int[]? ElementDefenses { get; init; }

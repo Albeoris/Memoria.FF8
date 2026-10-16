@@ -12,6 +12,24 @@ namespace Memoria.FF8.App.Tests;
 // Installed initial vitals are authentic inputs; these tests do not claim an original field journey or native combat parity.
 public sealed class BattleIntegrationTests
 {
+    [Theory]
+    [InlineData(4)]
+    [InlineData(1)]
+    public void FieldBattleResultReadsTheActualCompletedNativeByte(byte result)
+    {
+        byte[] source = Program((Jsm.Opcode.BATTLERESULT, 0), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.POPM_W, 800));
+        (GameSession session, EventEngine engine) = Fixture(source);
+        engine.Step();
+        engine.AdvanceInteractiveBattleCallbacks(3);
+        Assert.Throws<ArgumentOutOfRangeException>(() => engine.ReturnFromInteractiveBattle(3, nativeResult: 0));
+        engine.ReturnFromInteractiveBattle(3, nativeResult: result);
+        Assert.Equal(result, engine.Scene.NativeBattleResult);
+        Assert.Equal(result, session.State.Variables[800]);
+        JsonElement saved = engine.Capture();
+        engine.Restore(saved);
+        Assert.True(JsonElement.DeepEquals(saved, engine.Capture()));
+    }
+
     private const int FixtureField = 999;
     private static readonly Lazy<NativeCharacterVitals> InitialVitals = new(() =>
     {

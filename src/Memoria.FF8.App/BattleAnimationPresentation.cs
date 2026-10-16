@@ -61,7 +61,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             const int duration = BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames;
             if (age < duration)
             {
-                int[] clips = Sequence(CommandSequence(windup.Ability)).Animations.ToArray();
+                int[] clips = Sequence(CommandSequence(windup.Ability, windup.NativeSequence)).Animations.ToArray();
                 if (clips.Length == 0)
                 {
                     throw new NotSupportedException($"{model.Name} physical action sequence has no skeletal pose track.");
@@ -109,7 +109,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         {
             int sequence = item.Kind switch
             {
-                "Windup" when item.ActorId == definition.Id => CommandSequence(item.Ability),
+                "Windup" when item.ActorId == definition.Id => CommandSequence(item.Ability, item.NativeSequence),
                 "Defeated" when item.TargetId == definition.Id => 3,
                 "Damage" when item.TargetId == definition.Id && item.Amount > 0 => 4,
                 "Outcome" when definition.IsPlayer && session.Outcome == BattleOutcome.Victory => 17,
@@ -152,8 +152,12 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         return result;
     }
 
-    private int CommandSequence(BattleAbility ability)
+    private int CommandSequence(BattleAbility ability, byte? nativeSequence = null)
     {
+        if (nativeSequence is > 0)
+        {
+            return nativeSequence.Value;
+        }
         // Native48D200 selects these original command sequences from executable B8150C.
         return !definition.IsPlayer ? AttackSequence : ability switch
         {

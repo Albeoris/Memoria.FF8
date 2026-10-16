@@ -7,8 +7,12 @@ public sealed partial class BattleSession
         return ability == BattleAbility.Attack ? "Attack" : ability == BattleAbility.EnemyAbility ? $"Enemy ability {id}" : ability == BattleAbility.Draw ? $"Draw {FindAction(BattleAbility.Magic, id).Name}" : FindAction(ability, id).Name;
     }
 
-    public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false)
+    public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null)
     {
+        if (magicTargets is not null && ability != BattleAbility.Magic)
+        {
+            throw new InvalidOperationException("Only a native Magic command can retain several cast targets.");
+        }
         if (ability is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
         {
             QueueNativePlayerCommand(actorId, targetId, checked((byte)(actionId >> 16)), unchecked((ushort)actionId));
@@ -22,6 +26,7 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
+        System.Collections.Immutable.ImmutableArray<ushort> magicMasks = PrepareNativeMagicTargets(actor, action, targetId, magicTargets);
         bool revive = IsNativeRevive(action);
         if (action.NativeAction is { } native)
         {
@@ -60,7 +65,8 @@ public sealed partial class BattleSession
             default:
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
-        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
+        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
+        OnNativePlayerCommandSubmitted(actor, queued.NativeQueuedCommand!.Value);
         if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
         {
             QueueGuardianForce(actor, queued);
@@ -82,6 +88,23 @@ public sealed partial class BattleSession
 
     private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (!command.NativeMagicTargets.IsDefaultOrEmpty)
+        {
+            ResolveNativeMagicGroup(actor, command);
+            return;
+        }
+        if (command.NativeGraphic is { } graphic)
+        {
+            //TODO(TD-009):252 has no4922B0 formula, but its common494410 tail still needs native lane/element scratch owners for reached target receipts
+            Log("NativeGraphic", actor.Id, target.Id, graphic.MagicId, $"Native graphical effect {graphic.MagicId} completed without HP/status effects.");
+            return;
+        }
+        //48FE20 commands14/238 explicitly suppress their damage/effect consumer;237 owns each accepted shot.
+        if (command.NativeQueuedCommand is 14 or 238)
+        {
+            Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeQueuedCommand == 14 ? "Shot started." : "Shot ended.");
+            return;
+        }
         if (command.IndependentGuardian is { } guardian)
         {
             ResolveIndependentGuardianItem(actor, target, command, guardian);

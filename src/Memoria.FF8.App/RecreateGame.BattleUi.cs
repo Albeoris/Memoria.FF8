@@ -84,8 +84,16 @@ internal sealed partial class RecreateGame
         EnsureBattleHud(active);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
+        active.AdvanceNativeShotPresentation(elapsed);
+        active.AdvanceNativeDuelPresentation(elapsed, keyboard.HeldFieldButtons);
         SynchronizeBattleAudio();
-        bool gunbladeInput = keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
+        BattleCombatant? shotActor = active.Combatants.FirstOrDefault(actor => active.GetNativeShot(actor.Id) is not null);
+        bool shotInput = keyboard.GunbladeTriggerRequested && shotActor is not null;
+        if (shotInput)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.ShotTrigger, ActorId: shotActor!.Id));
+        }
+        bool gunbladeInput = !shotInput && keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
         if (gunbladeInput)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.GunbladeTrigger));
@@ -100,7 +108,7 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput);
+            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput);
             if (ActiveBattle is null || battleHud is null)
             {
                 return true;
@@ -175,6 +183,7 @@ internal sealed partial class RecreateGame
             MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
             battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}", world?.Events.Scene.Names);
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
+            battleHud.NativeButtonBindingHint = keyboard.NativeButtonBindingHint;
             battleSeconds = 0;
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
@@ -188,7 +197,7 @@ internal sealed partial class RecreateGame
             ClearBattlePresentation();
             return;
         }
-        if (ActiveBattle?.Outcome == BattleOutcome.Victory)
+        if (ActiveBattle?.CanReturnToField == true)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.Return));
             ClearBattlePresentation();
@@ -220,7 +229,7 @@ internal sealed partial class RecreateGame
                 debugBattle.QueueAttack(input.ActorId!, input.TargetId!);
                 break;
             case BattleInputKind.Action:
-                debugBattle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast);
+                debugBattle.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId, input.DrawCast, input.MagicTargets.IsEmpty ? null : input.MagicTargets);
                 break;
             case BattleInputKind.AdvanceTurn:
                 debugBattle.AdvanceTurn();
@@ -233,6 +242,9 @@ internal sealed partial class RecreateGame
                 break;
             case BattleInputKind.GunbladeTrigger:
                 debugBattle.TriggerGunblade();
+                break;
+            case BattleInputKind.ShotTrigger:
+                debugBattle.TriggerNativeShot(input.ActorId ?? throw new InvalidDataException("Shot trigger requires its process owner."));
                 break;
             case BattleInputKind.InstantVictory:
                 debugBattle.InstantVictory();

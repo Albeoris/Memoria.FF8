@@ -6,10 +6,12 @@ public sealed record BattleSequenceSound(int AnimationIndex, int SoundId, bool A
 public sealed record BattleSequence(IReadOnlyList<int> Animations, IReadOnlyList<BattleSequenceSound> Sounds, bool HasUnresolvedBranches = false);
 
 /// <summary>Static pose/sound projection of original model sequence bytecode, not an execution of its camera, effect or movement services.</summary>
-public sealed class BattleSequenceSet
+public sealed partial class BattleSequenceSet
 {
     private readonly byte[] bytes;
     private readonly Dictionary<int, BattleSequence> decoded = [];
+
+    public Memoria.FF8.Runtime.NativeBattleGraphicsResource NativeResource => new(System.Collections.Immutable.ImmutableArray.CreateRange(bytes));
 
     public BattleSequenceSet(byte[] bytes)
     {

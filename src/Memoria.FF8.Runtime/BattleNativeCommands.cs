@@ -10,6 +10,9 @@ public sealed record BattleNativeLimitDefinition(int CharacterId, byte Command, 
     public ImmutableArray<BattleNativeCommandBinding> InvocationChoices { get; init; } = [];
     public ImmutableArray<byte> SlotsSelectionBytes { get; init; } = [];
     public ImmutableArray<byte> SlotsSpellBytes { get; init; } = [];
+    public ImmutableArray<byte> ShotTimers { get; init; } = [];
+    public ImmutableArray<byte> DuelTimersAndStarts { get; init; } = [];
+    public ImmutableArray<byte> DuelMoveSets { get; init; } = [];
     public void Validate()
     {
         if (CharacterId is < 0 or > 10 || StatusWeights.IsDefault || StatusWeights.Length != 32)
@@ -21,6 +24,11 @@ public sealed record BattleNativeLimitDefinition(int CharacterId, byte Command, 
 
 public static class NativeBattleLimitRules
 {
+    public static bool IsFixedAllyTarget(byte targetFlags)
+    {
+        return (targetFlags & 0x4C) == 8 && (targetFlags & 0x30) == 0x10;
+    }
+
     /// <summary>Native52CA90 copies field-block BYTE243 only while DWORD104 bit0x800 is set.</summary>
     public static byte ReadFieldBattleRules(NativeEventMemory memory)
     {

@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleStatusSnapshot CaptureNativeStatus(BattleCombatant actor)
     {
-        return new(actor.NativeStatus0, actor.NativeStatus1, actor.NativeStatusTimers.ToArray());
+        return new(actor.NativeStatus0, actor.NativeStatus1, actor.NativeStatusTimers.ToArray()) { Resistances = actor.MutableNativeStatusResistances.ToArray() };
     }
 
     private static int GetNativeStatusResistance(BattleCombatant actor, int index)
@@ -99,9 +99,14 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native battle statuses require all fourteen original signed timer WORDs.");
         }
+        if (snapshot.Resistances is null || snapshot.Resistances.Length is not (0 or 40) || snapshot.Resistances.Length != actor.MutableNativeStatusResistances.Length)
+        {
+            throw new InvalidDataException("Battle snapshot requires its explicitly migrated native status resistance bank.");
+        }
         actor.NativeStatus0 = snapshot.Saved;
         actor.NativeStatus1 = snapshot.Battle;
         snapshot.Timers.CopyTo(actor.NativeStatusTimers, 0);
+        snapshot.Resistances.CopyTo(actor.MutableNativeStatusResistances, 0);
     }
 
     private static void RemoveNativeStatuses(BattleCombatant recipient, ushort savedMask, uint battleMask)

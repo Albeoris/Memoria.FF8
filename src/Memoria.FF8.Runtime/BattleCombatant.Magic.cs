@@ -29,14 +29,23 @@ public sealed partial class BattleCombatant
 
     internal void ConsumeMagic(int id)
     {
+        if (!TryConsumeMagic(id))
+        {
+            throw new InvalidOperationException("The selected battle magic stock is exhausted.");
+        }
+    }
+
+    internal bool TryConsumeMagic(int id)
+    {
         int index = Array.FindIndex(NativeMagicInventory, stock => stock.SpellId == id && stock.Count > 0);
         if (index < 0)
         {
-            throw new InvalidOperationException("The selected battle magic stock is exhausted.");
+            return false;
         }
         NativeMagicStock stock = NativeMagicInventory[index];
         //486A10 clears the exhausted ID in place; other physical slots never move.
         NativeMagicInventory[index] = stock.Count == 1 ? new NativeMagicStock(0, 0) : stock with { Count = (byte)(stock.Count - 1) };
+        return true;
     }
 
     internal int AddMagic(int id, int quantity)

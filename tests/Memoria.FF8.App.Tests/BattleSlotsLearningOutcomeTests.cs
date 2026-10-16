@@ -7,6 +7,24 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleSlotsLearningOutcomeTests
 {
     [Fact]
+    public void Shot_learning_preserves_its_canonical_metadata_and_commits_with_the_encounter_receipt()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        NativeShotAvailabilityState original = assets.ReadNewGameShotAvailability() with { Flags770 = 0x40 };
+        BattleEncounterOccurrence encounter = new("shot-learning-component", 512, new string('A', 64), SceneKind.Field, 999, 0, new string('B', 64), null);
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, Economy = economy, ShotAvailability = original, PendingBattleEncounter = encounter });
+        string before = JsonSerializer.Serialize(session.State);
+
+        Assert.Throws<InvalidDataException>(() => session.CommitBattleResult(encounter, vitals, economy, null, shotFlagsBefore: 0, shotFlagsAfter: 1, shotFlagsSetMask: 1));
+        Assert.Equal(before, JsonSerializer.Serialize(session.State));
+        session.CommitBattleResult(encounter, vitals, economy, null, shotFlagsBefore: 0x40, shotFlagsAfter: 0x41, shotFlagsSetMask: 1);
+
+        Assert.Equal(original with { Flags770 = 0x41 }, session.State.ShotAvailability);
+    }
+
+    [Fact]
     public void Slots_learning_copies_back_once_and_rejects_a_stale_canonical_before_byte_atomically()
     {
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);

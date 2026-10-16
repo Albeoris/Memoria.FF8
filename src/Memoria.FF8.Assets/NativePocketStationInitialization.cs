@@ -14,6 +14,6 @@ public static class NativePocketStationInitialization
             throw new InvalidDataException("PocketStation initialization requires the authentic original New Game template.");
         }
         //56D9F0/47E410 clear1CFDC58..1CFEFF8;56DA10 copies init.out only through1CFE7A4.
-        return new(hash, ImmutableArray.CreateRange(new byte[64]));
+        return new(hash, ImmutableArray.CreateRange(new byte[64])) { ChocoboName = ImmutableArray.CreateRange(new byte[12]) };
     }
 }

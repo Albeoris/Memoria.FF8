@@ -108,9 +108,9 @@ internal sealed partial class GameWorld
                 long previous = active.Frame;
                 if (input.Kind == BattleInputKind.Return)
                 {
-                    if (active.Outcome != BattleOutcome.Victory)
+                    if (!active.CanReturnToField)
                     {
-                        throw new InvalidOperationException("Only victory can return to its suspended exploration scene.");
+                        throw new InvalidOperationException("The completed battle does not permit return to its suspended exploration scene.");
                     }
                     CompleteBattle(active);
                     battle = null;

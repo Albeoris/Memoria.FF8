@@ -463,7 +463,7 @@ public sealed class BattleSessionTests
 
     private static BattleCombatantDefinition Player(int speed = 100, int initialAtb = 0)
     {
-        return new BattleCombatantDefinition { Id = "player", Name = "Player", IsPlayer = true, Speed = speed, InitialAtb = initialAtb };
+        return new BattleCombatantDefinition { Id = "player", Name = "Player", IsPlayer = true, Speed = speed, InitialAtb = initialAtb, NativeDeathCount = 0 };
     }
 
     private static BattleCombatantDefinition Enemy(int speed = 100, int initialAtb = 0)

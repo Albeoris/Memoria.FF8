@@ -19,7 +19,7 @@ public sealed partial class BattleSession
         }
         else if (subject is >= 220 and <= 227)
         {
-            left = FindNativeConditionActor(actor, selector).AiVariables[subject - 220];
+            left = ReadNativeActorVariable(FindNativeConditionActor(actor, selector), subject);
         }
         else
         {
@@ -27,11 +27,11 @@ public sealed partial class BattleSession
             {
                 case 0:
                     BattleCombatant hpActor = FindNativeConditionActor(actor, selector);
-                    left = hpActor.CurrentHp;
+                    left = unchecked((uint)hpActor.CurrentHp);
                     right = NativeConditionHpThreshold(hpActor, value);
                     break;
                 case 1:
-                    return NativeConditionGroup(selector).Any(candidate => candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0 && CompareNativeCondition(candidate.CurrentHp, comparison, NativeConditionHpThreshold(candidate, value)));
+                    return NativeConditionGroup(selector).Any(candidate => candidate.IsActive && (NativeSavedStatusBits(candidate) & 1) == 0 && CompareNativeCondition(unchecked((uint)candidate.CurrentHp), comparison, NativeConditionHpThreshold(candidate, value)));
                 case 2:
                     if (selector == 0)
                     {
@@ -166,7 +166,7 @@ public sealed partial class BattleSession
         {
             200 => actor.NativeIndex,
             203 => NativeConditionLastAttackerIndex(actor),
-            >= 220 and <= 227 => checked((int)actor.AiVariables[selector - 220]),
+            >= 220 and <= 227 => checked((int)ReadNativeActorVariable(actor, selector)),
             _ => NativeConditionActorIndex(selector)
         };
         return combatants.FirstOrDefault(candidate => candidate.NativeIndex == index) ?? throw new NotSupportedException($"Native battle AI condition actor index {index} has no retained allocation.");

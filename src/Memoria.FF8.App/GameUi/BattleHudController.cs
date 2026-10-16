@@ -71,14 +71,15 @@ public sealed partial class BattleHudController
         _ => false
     }).ToArray();
     public BattleActionDefinition? SelectedAction => ActionChoices.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)));
-    public IReadOnlyList<string> ChoiceLabels => SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(command => command == BattleAbility.GuardianForce ? "GF" : command.ToString()).ToArray();
+    public IReadOnlyList<string> ChoiceLabels => NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(command => command == BattleAbility.GuardianForce ? "GF" : command.ToString()).ToArray());
     public int ChoiceIndex => SelectingAction ? actionIndex : commandIndex;
     public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 3));
     public IReadOnlyList<BattleCombatant> Targets => session.Combatants.Where(actor =>
     {
         bool allies = SelectedCommand != BattleAbility.Attack && SelectedCommand != BattleAbility.Draw && SelectedAction?.Allies == true;
         bool revive = SelectedCommand != BattleAbility.Draw && (SelectedAction?.Effect == BattleActionEffect.Revive || SelectedAction?.NativeAction?.AttackType is 5 or 6);
-        return actor.IsPlayer == allies && (revive ? !actor.IsAlive : actor.IsAlive);
+        bool fixedSelf = SelectedAction?.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
+        return actor.IsPlayer == allies && (!fixedSelf || actor.Id == SelectedActor?.Id) && (revive ? !actor.IsAlive : actor.IsAlive);
     }).ToArray();
     public IReadOnlyList<BattleCombatant> VisibleTargets
     {
@@ -114,6 +115,7 @@ public sealed partial class BattleHudController
     public UiView BuildView()
     {
         RefreshNativeLimitSelection();
+        PresentNativeShot();
         CollectBattleMessages();
         BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Draw" or "Scan" or "GunbladeTrigger");
         if (notification is not null && notification != lastNotification)
@@ -125,12 +127,22 @@ public sealed partial class BattleHudController
         {
             SelectingTarget = false;
             SelectingAction = false;
+            selectedMagicTargets.Clear();
         }
         return view;
     }
 
     public void Navigate(MenuInput input)
     {
+        if (input == MenuInput.Cancel && NativeShotActor is { } shotActor)
+        {
+            session.EndNativeShot(shotActor.Id);
+            return;
+        }
+        if (NativeTimedLimitActive)
+        {
+            return;
+        }
         if (session.Outcome != BattleOutcome.Active)
         {
             if (input == MenuInput.Confirm)
@@ -160,6 +172,11 @@ public sealed partial class BattleHudController
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight)
         {
+            if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.Magic && input is MenuInput.PageLeft or MenuInput.PageRight)
+            {
+                ChangeMagicCastCount(input == MenuInput.PageLeft ? -1 : 1);
+                return;
+            }
             if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.LimitBreak && SelectedActor?.NativeLimit?.Command == 16 && input is MenuInput.PageLeft or MenuInput.PageRight)
             {
                 RerollNativeSlots();
@@ -209,6 +226,10 @@ public sealed partial class BattleHudController
 
     public void Attack()
     {
+        if (NativeTimedLimitActive)
+        {
+            return;
+        }
         if (session.Outcome != BattleOutcome.Active || SelectedActor is not BattleCombatant actor)
         {
             Message = "Waiting for a character's ATB gauge.";
@@ -216,10 +237,12 @@ public sealed partial class BattleHudController
         }
         if (SelectedCommand != BattleAbility.Attack && !SelectingAction && !SelectingTarget)
         {
+            selectedMagicTargets.Clear();
+            magicCastCount = 1;
             PrepareNativeLimitChoices();
             SelectingAction = true;
             actionIndex = 0;
-            Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Draw ? "Choose magic. Left/Right switches Stock/Cast." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
+            Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Draw ? "Choose magic. Left/Right switches Stock/Cast." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
                 Message = "Choose magic. Page Left/Right: Do over.";
@@ -229,16 +252,26 @@ public sealed partial class BattleHudController
         }
         if (!SelectingTarget)
         {
+            if (SelectedAction is { Available: false })
+            {
+                Message = "The selected action is unavailable.";
+                return;
+            }
             if (SelectedCommand != BattleAbility.Attack && SelectedAction is null)
             {
                 return;
             }
             SelectingTarget = true;
+            BeginMagicTargetSelection(actor);
             Message = "Select a target. Confirm: Execute   Cancel: Return";
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
         if (SelectedTarget is not BattleCombatant target)
+        {
+            return;
+        }
+        if (!CollectMagicTarget(target))
         {
             return;
         }
@@ -251,11 +284,15 @@ public sealed partial class BattleHudController
             }
             else
             {
-                (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: target.Id, Ability: SelectedCommand, ActionId: SelectedAction!.Id, DrawCast: DrawCast));
+                (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(WithMagicTargets(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: target.Id, Ability: SelectedCommand, ActionId: SelectedAction!.Id, DrawCast: DrawCast)));
             }
         }
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
         {
+            if (selectedMagicTargets.Count == magicCastCount)
+            {
+                selectedMagicTargets.RemoveAt(selectedMagicTargets.Count - 1);
+            }
             Message = error.Message;
             Console.Error.WriteLine(error);
             return;
@@ -263,6 +300,7 @@ public sealed partial class BattleHudController
         SoundRequested?.Invoke(MenuSound.Confirm);
         SelectingTarget = false;
         SelectingAction = false;
+        selectedMagicTargets.Clear();
         Message = $"{actor.Name}: {name} → {target.Name}";
         selectedActorId = null;
         commandIndex = 0;
@@ -284,10 +322,14 @@ public sealed partial class BattleHudController
     private string ChoiceLabel(BattleActionDefinition action)
     {
         string label = action.DisplayName ?? action.Name;
+        if (action.NativeAction is { Command: 14 } shot)
+        {
+            return label + "  " + (session.Items.FirstOrDefault(item => item.Id == shot.ActionId + 101)?.Count ?? 0);
+        }
         return SelectedCommand switch
         {
             BattleAbility.Draw => label + (DrawCast ? " · Cast" : " · Stock"),
-            BattleAbility.Magic => label + "  " + SelectedActor!.MagicStocks.Single(stock => stock.Id == action.Id).Count,
+            BattleAbility.Magic => label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + "  " + SelectedActor!.MagicStocks.Single(stock => stock.Id == action.Id).Count,
             BattleAbility.Item => label + "  " + session.Items.Single(stock => stock.Id == action.Id).Count,
             _ => label
         };
@@ -298,6 +340,10 @@ public sealed partial class BattleHudController
         {
             if (SelectedActor?.Id != actorId)
             {
+                selectedMagicTargets.Clear();
+                magicCastCount = 1;
+                SelectingAction = false;
+                SelectingTarget = false;
                 SoundRequested?.Invoke(MenuSound.Move);
             }
             selectedActorId = actorId;
@@ -337,9 +383,9 @@ public sealed partial class BattleHudController
 
     public void Complete()
     {
-        if (session.Outcome != BattleOutcome.Active && (session.Outcome != BattleOutcome.Victory || !completionRequested))
+        if (session.Outcome != BattleOutcome.Active && (!session.CanReturnToField || !completionRequested))
         {
-            completionRequested = session.Outcome == BattleOutcome.Victory;
+            completionRequested = session.CanReturnToField;
             try
             {
                 complete?.Invoke();
@@ -406,12 +452,20 @@ public sealed partial class BattleHudController
 
     private void CancelTarget()
     {
+        if (SelectingTarget && selectedMagicTargets.Count != 0)
+        {
+            selectedMagicTargets.RemoveAt(selectedMagicTargets.Count - 1);
+            Message = $"Magic ×{magicCastCount}: select target {selectedMagicTargets.Count + 1}/{magicCastCount}.";
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
         if (SelectingTarget)
         {
             SoundRequested?.Invoke(MenuSound.Cancel);
         }
         SelectingTarget = false;
         SelectingAction = false;
+        selectedMagicTargets.Clear();
         Message = "Choose a command when a character is ready.";
     }
 

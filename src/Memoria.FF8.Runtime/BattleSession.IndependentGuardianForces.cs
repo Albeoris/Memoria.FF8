@@ -27,7 +27,12 @@ public sealed partial class BattleSession
         }
         if (item.ActionId == 30)
         {
-            (definition.NativePocketStation ?? throw new NotSupportedException("Gysahl Greens requires its canonical PocketStation saved block.")).Validate();
+            NativePocketStationState pocket = definition.NativePocketStation ?? throw new NotSupportedException("Gysahl Greens requires its canonical PocketStation saved block.");
+            pocket.Validate();
+            if ((pocket.Flags & 3) == 3 && (pocket.ChocoboName is null || definition.NativeChocoboName is null))
+            {
+                throw new NotSupportedException("Away Chocobo message requires its original saved12-byte name and decoded text projection.");
+            }
         }
         else
         {
@@ -87,8 +92,14 @@ public sealed partial class BattleSession
     {
         if (invocation.FailureMessage is int message)
         {
-            // TODO(TD-009): Message56 also prefixes saved Chocobo name1CFDC94; its canonical raw name owner is pending
-            QueueNativeSpecialText(actor, target, NativeBattleGlobalText(message));
+            string text = NativeBattleGlobalText(message);
+            if (message == 56)
+            {
+                //48D200 ->495210 prefixes47E4A0's saved name and the first encoded character of global11.
+                string separator = NativeBattleGlobalText(11);
+                text = definition.NativeChocoboName + separator[..1] + text;
+            }
+            QueueNativeSpecialText(actor, target, text);
             return;
         }
         BattleNativeAction native = invocation.Action ?? throw new InvalidDataException("Independent GF invocation lacks its original action record.");

@@ -35,6 +35,7 @@ public sealed partial class BattleSession
         BattleAbility ability = prepared.Command is 1 or 12 ? BattleAbility.Attack : BattleAbility.EnemyAbility;
         return new BattleAttackCommand(actor.Id, target.Id, ability, prepared.ActionId)
         {
+            NativeLimitCallback = original.NativeLimitCallback,
             NativeAction = native,
             NativeQueuedCommand = prepared.Command,
             NativeTargetMask = prepared.TargetMask,

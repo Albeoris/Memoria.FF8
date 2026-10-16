@@ -22,7 +22,7 @@ public sealed class BattleComponentMigrationTests
         Assert.All(original.Combatants, actor => Assert.Empty(actor.StatusEffects));
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0).ToggleGuardianForceJunction(0, 0).RebuildParty().Rest();
-        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels() });
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), BattleVariables = NativeBattleVariableState.CreateNewGame(), LimitProgress = assets.ReadNewGameLimitProgress(), SavedBattleFlags = assets.ReadNewGameSavedBattleFlags(), PocketStation = assets.ReadNewGamePocketStation(), ScannedModels = assets.ReadNewGameScannedModels(), ShotAvailability = assets.ReadNewGameShotAvailability(), GlobalRandom = assets.ReadNewGameGlobalRandom() });
         using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition installed = world.CreateEncounterBattle(512);
         Assert.Equal(original.Items, installed.NativeItemInventory!.Where(stock => stock.ItemId != 0 && stock.Count != 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)));
@@ -31,13 +31,13 @@ public sealed class BattleComponentMigrationTests
             BattleCombatantDefinition current = installed.Combatants.Single(actor => actor.Id == source.Id);
             Assert.Equal(source.MaximumHp, current.MaximumHp);
             Assert.Equal(source.NativeAi?.Texts, current.NativeAi?.Texts);
-            return source with { NativeAi = current.NativeAi, NativeTemplate = current.NativeTemplate, NativeCombatantFlags = current.NativeCombatantFlags, NativeStatus0 = current.NativeStatus0, NativeStatus1 = current.NativeStatus1, NativeStatusResistances = current.NativeStatusResistances, NativeMagicInventory = current.NativeMagicInventory, NativeCommands = current.NativeCommands, NativeCommandSlots = current.NativeCommandSlots, NativeLimit = current.NativeLimit, NativeAttack = current.NativeAttack, NativeGrowth = current.NativeGrowth, GuardianForceCompatibility = current.GuardianForceCompatibility, NativeCharacterFlag100 = current.NativeCharacterFlag100, NativeKillCount = current.NativeKillCount };
+            return source with { NativeAi = current.NativeAi, NativeTemplate = current.NativeTemplate, NativeCombatantFlags = current.NativeCombatantFlags, NativeStatus0 = current.NativeStatus0, NativeStatus1 = current.NativeStatus1, NativeStatusResistances = current.NativeStatusResistances, NativeMagicInventory = current.NativeMagicInventory, NativeCommands = current.NativeCommands, NativeCommandSlots = current.NativeCommandSlots, NativeLimit = current.NativeLimit, NativeAttack = current.NativeAttack, NativeGrowth = current.NativeGrowth, GuardianForceCompatibility = current.GuardianForceCompatibility, NativeCharacterFlag100 = current.NativeCharacterFlag100, NativeKillCount = current.NativeKillCount, NativeDeathCount = current.NativeDeathCount };
         }).ToArray();
         BattleDefinition definition = installed with { Combatants = definitions, InitialRandom = original.Definition.InitialRandom, NativeSeed = original.Definition.NativeSeed, NativeExamTimerAtEntry = original.Definition.NativeExamTimerAtEntry };
         BattleSnapshot migrated = original with
         {
             Definition = definition,
-            NativeScannedModels = definition.NativeScannedModels,
+            NativeScannedModels = definition.NativeScannedModels, NativeGlobalRandom = definition.NativeGlobalRandom, NativeGlobalRandomCalls = 0,
             GuardianForces = installed.GuardianForces.ToArray(),
             NativeItemInventory = installed.NativeItemInventory!.ToArray(),
             Items = [],
@@ -55,11 +55,12 @@ public sealed class BattleComponentMigrationTests
                 {
                     uint lifecycle = (native.Active ? 1u : 0) | (native.Hidden ? 2u : 0) | (native.Untargetable ? 0x40u : 0) | (native.Suspended ? 0x80u : 0);
                     uint flags = actor.NativeCombatantFlags | (actor.NativeTemplate?.NativeCombatantFlags ?? 0) | (actor.IsPlayer ? 0x8800u : 0) | (actor.NativeCharacterFlag100 == true ? 0x100u : 0);
-                    native = native with { NativeCombatantFlags = flags & ~0xC3u | lifecycle, ElementDefenses = actor.ElementDefenses.ToArray(), KillCount = actor.NativeKillCount, Growth = actor.NativeGrowth };
+                    native = native with { NativeCombatantFlags = flags & ~0xC3u | lifecycle, ElementDefenses = actor.ElementDefenses.ToArray(), KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth };
                 }
                 NativeMagicStock[] slots = actor.NativeMagicInventory ?? saved.MagicStocks.Select(stock => new NativeMagicStock(checked((byte)stock.Id), checked((byte)stock.Count))).Concat(Enumerable.Repeat(new NativeMagicStock(0, 0), 32 - saved.MagicStocks.Length)).ToArray();
                 ushort hpFlags = saved.CurrentHp > 0 && saved.CurrentHp < actor.MaximumHp >> 1 ? (ushort)(saved.CurrentHp < actor.MaximumHp >> 2 ? 0x300 : 0x200) : (ushort)0;
-                return saved with { NativeParticipant = native, NativeMagicInventory = slots, MagicStocks = [], NativeStatus = new((ushort)((actor.NativeStatus0 & ~0x300) | hpFlags), actor.NativeStatus1, Enumerable.Repeat((short)-1111, 14).ToArray()) };
+                byte[] resistance = actor.NativeStatusResistances.Length == 40 ? actor.NativeStatusResistances.ToArray() : actor.NativeTemplate?.NativeStatusAllocation?.Resistances.ToArray() ?? [];
+                return saved with { NativeParticipant = native, NativeMagicInventory = slots, MagicStocks = [], NativeStatus = new((ushort)((actor.NativeStatus0 & ~0x300) | hpFlags), actor.NativeStatus1, Enumerable.Repeat((short)-1111, 14).ToArray()) { Resistances = resistance } };
             }).ToArray()
         };
         BattleSession restored = BattleSession.Restore(migrated);

@@ -2,6 +2,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    private NativeShotAvailabilityState? ProjectNativeShotLearning(byte? before, byte? after, byte setMask)
+    {
+        if (before is null && after is null && setMask == 0)
+        {
+            return State.ShotAvailability;
+        }
+        if (before is null || after is null || setMask == 0 || State.ShotAvailability is not { } current || current.Flags770 != before || after != (byte)(before | setMask))
+        {
+            throw new InvalidDataException("Battle Shot learning receipt disagrees with its current saved BYTE1CFE770 owner.");
+        }
+        current.Validate();
+        return current with { Flags770 = after.Value };
+    }
     private NativeLimitProgress? ProjectNativeLimitLearning(byte? before, byte? after, byte setMask)
     {
         if (before is null && after is null && setMask == 0)

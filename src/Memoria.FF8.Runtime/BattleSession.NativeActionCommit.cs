@@ -15,8 +15,13 @@ public sealed partial class BattleSession
         {
             nativeAffinityAction = null;
             ResolveAction(actor, target, command);
+            CompleteNativeOrdinaryCommand(actor, command);
             CompleteNativeActionInventory(actor, command);
-            CompleteGuardianForceAffinity(actor, command);
+            if (command.NativeMagicTargets.IsDefaultOrEmpty)
+            {
+                CompleteGuardianForceAffinity(actor, command);
+            }
+            CompleteNativeOrdinaryCommandCost(actor, command);
             CompleteNativeActionStatuses(actor);
             completed = true;
         }

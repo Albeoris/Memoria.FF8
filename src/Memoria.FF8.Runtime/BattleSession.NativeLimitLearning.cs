@@ -4,6 +4,12 @@ public sealed partial class BattleSession
 {
     private void PrepareNativeLimitCommand(BattleAttackCommand command)
     {
+        if (command.NativeQueuedCommand == 237 && command.NativeAction is { ActionId: < 8 } shot)
+        {
+            byte shotBefore = nativeScriptState.ShotFlagsBefore ?? definition.NativeShotAvailability?.Flags770 ?? throw new NotSupportedException("Shot dispatch requires its original saved BYTE1CFE770 owner.");
+            byte shotMask = (byte)(nativeScriptState.ShotFlagsSetMask | (1 << shot.ActionId));
+            nativeScriptState = nativeScriptState with { ShotFlagsBefore = shotBefore, ShotFlagsAfter = (byte)(shotBefore | shotMask), ShotFlagsSetMask = shotMask };
+        }
         if (command.NativeQueuedCommand != 16 || command.NativeAction is not { ActionId: >= 51 and <= 56 } magic)
         {
             return;

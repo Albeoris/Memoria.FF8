@@ -62,7 +62,7 @@ internal sealed partial class GameWorld
         BattleResult result = CaptureBattleOutcome(active, occurrence);
         if (occurrence.ScriptedOwner is not null)
         {
-            Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => ApplyBattleResult(occurrence, result));
+            Events.ReturnFromInteractiveBattle(checked((int)active.Frame), () => ApplyBattleResult(occurrence, result), active.NativeResult!.Value);
         }
         else
         {

@@ -104,7 +104,7 @@ public static partial class BattleResultProjection
             }
             records[change.Row] = records[change.Row] with { GuardianForceCompatibility = change.After.ToArray() };
         }
-        vitals = vitals with { Records = ApplyNativeGrowthChanges(result, records) };
+        vitals = vitals with { Records = ApplyNativeGrowthChanges(result, ApplyNativeDeathCounts(result, records)) };
         foreach (byte id in result.NativeScriptEffects.AcquiredGuardianForces)
         {
             vitals = vitals.AcquireGuardianForce(id);

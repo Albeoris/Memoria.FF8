@@ -9,6 +9,47 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleResultFactTests
 {
     [Fact]
+    public void SavedGlobalRandomReceiptRejectsAStaleOwnerAndPublishesOnceWithTheBattleResult()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        NativeGlobalRandomState before = new(0);
+        NativeGlobalRandomState after = before.Advance(3);
+        fact = fact with { NativeGlobalRandomChange = new(before, after, 3) };
+        GameSession session = new(new GameState { Scene = fact.Encounter.SourceScene, FieldId = fact.Encounter.SourceFieldId, CharacterVitals = vitals, Economy = economy, GlobalRandom = before });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        string original = JsonSerializer.Serialize(session.State);
+        NativeGlobalRandomState stale = new(1);
+        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact with { NativeGlobalRandomChange = new(stale, stale.Advance(3), 3) }));
+        Assert.Equal(original, JsonSerializer.Serialize(session.State));
+        world.ApplyBattleResult(fact.Encounter, fact);
+        Assert.Equal(after, session.State.GlobalRandom);
+        string committed = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(committed, JsonSerializer.Serialize(session.State));
+    }
+
+    [Fact]
+    public void NativeDeathCounterReceiptPublishesTheExactWordAndRejectsStaleStateAtomically()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        byte row = fact.Party[0].Row;
+        ushort before = vitals.Records[row].DeathCount!.Value;
+        ushort after = unchecked((ushort)(before + 1));
+        fact = fact with { NativeDeathCountChanges = [new(row, before, after)] };
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        string initial = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidDataException>(() => world.ApplyBattleResult(fact.Encounter, fact with { NativeDeathCountChanges = [new(row, after, unchecked((ushort)(after + 1)))] }));
+        Assert.Equal(initial, JsonSerializer.Serialize(session.State));
+
+        world.ApplyBattleResult(fact.Encounter, fact);
+
+        Assert.Equal(after, session.State.CharacterVitals!.Records[row].DeathCount);
+    }
+
+    [Fact]
     public void RepeatedSceneAllocationsAwardTheirOwnApWithoutDuplicatingOneAllocationReceipt()
     {
         (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();

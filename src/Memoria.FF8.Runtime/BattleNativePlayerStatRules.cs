@@ -7,6 +7,8 @@ public sealed record BattleNativePlayerStatistics(ushort MaximumHp, int Strength
 /// <summary>Immutable original inputs for495960 and the496xxx player-stat consumers.</summary>
 public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, ImmutableArray<byte> CharacterRecord, ImmutableArray<byte> WeaponRecord, ImmutableArray<ImmutableArray<byte>> MagicRecords, ImmutableArray<ImmutableArray<byte>> PassiveRecords, ImmutableArray<byte> MagicJunctions, uint Abilities, NativeStatDefinitions SavedDefinitions)
 {
+    public uint? NativeStatusPassiveFlags { get; init; }
+
     public void Validate()
     {
         if (CharacterId is < 0 or > 10 || Level is < 1 or > 100 || CharacterRecord.IsDefault || CharacterRecord.Length != 36 || WeaponRecord.IsDefault || WeaponRecord.Length != 12 || MagicRecords.IsDefault || MagicRecords.Length != 57 || MagicRecords.Any(record => record.IsDefault || record.Length != 60) || PassiveRecords.IsDefault || PassiveRecords.Length != 19 || PassiveRecords.Any(record => record.IsDefault || record.Length != 8) || MagicJunctions.IsDefault || MagicJunctions.Length != 20 || MagicJunctions.Take(19).Any(spell => spell >= 57))
@@ -84,5 +86,48 @@ public sealed record BattleNativePlayerStatRules(int CharacterId, byte Level, Im
         int quantity = spellId == 0 ? 0 : stocks.FirstOrDefault(stock => stock.SpellId == spellId)?.Count ?? 0;
         ImmutableArray<byte> spell = MagicRecords[spellId];
         return source with { Hit = checked((byte)statistics.Hit), Element = checked((byte)statistics.ElementAttack), ElementPercent = checked((byte)statistics.ElementAttackPercent), StatusAttack = checked((byte)(100 + spell[36] * quantity / 100)) };
+    }
+
+    public ImmutableArray<byte> ProjectStatusResistances(IReadOnlyList<NativeMagicStock> stocks)
+    {
+        Validate();
+        uint passiveFlags = NativeStatusPassiveFlags ?? throw new NotSupportedException("Native player status projection requires its original equipped character-ability flags.");
+        byte[] defense = new byte[13];
+        for (int bit = 0; bit < defense.Length; bit++)
+        {
+            int total = 100;
+            for (int slot = 15; slot < 19; slot++)
+            {
+                int spellId = MagicJunctions[slot];
+                ImmutableArray<byte> spell = MagicRecords[spellId];
+                int enabled = spell[40] | spell[41] << 8;
+                int quantity = spellId == 0 ? 0 : stocks.FirstOrDefault(stock => stock.SpellId == spellId)?.Count ?? 0;
+                if ((enabled & (1 << bit)) != 0)
+                {
+                    total += spell[37] * quantity / 100;
+                }
+            }
+            defense[bit] = (byte)Math.Min(200, total);
+        }
+        byte[] resistance = Enumerable.Repeat((byte)100, 40).ToArray();
+        int[] indices = [0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 17, 22, 23];
+        for (int index = 0; index < indices.Length; index++)
+        {
+            resistance[indices[index]] = defense[index];
+        }
+        resistance[20] = defense[2];
+        if ((passiveFlags & 0x8000) != 0)
+        {
+            resistance[10] = 200;
+            resistance[11] = 200;
+        }
+        if ((passiveFlags & 0x80000) != 0)
+        {
+            foreach (int index in new[] { 0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 17, 18, 20, 22, 23, 24, 32 })
+            {
+                resistance[index] = 200;
+            }
+        }
+        return resistance.ToImmutableArray();
     }
 }

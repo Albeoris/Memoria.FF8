@@ -4,6 +4,12 @@ namespace Memoria.FF8;
 
 internal sealed partial class GameWorld
 {
+    private ushort? ReadNativeFieldBattleMode()
+    {
+        NativeScalarValue value = Events.EventMemory.Read(182, 2);
+        return value.IsExact ? unchecked((ushort)value.Values[0]) : null;
+    }
+
     private uint? ReadNativeElapsedCounter()
     {
         NativeScalarValue value = Events.EventMemory.Read(4, 4);

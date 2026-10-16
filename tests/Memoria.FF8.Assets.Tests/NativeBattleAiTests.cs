@@ -8,12 +8,13 @@ public sealed class NativeBattleAiTests
     private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
 
     [Fact]
-    public void OriginalSpecialActorVariableAliasFailsAtItsPreciseUnsupportedMemoryBoundary()
+    public void OriginalSpecialActorVariableAliasWritesItsPhysicalPartyResistanceOwner()
     {
         using BattleAssets assets = new(GameDirectory);
         NativeBattleAiDefinition program = assets.ReadEnemyAi(71, 7);
-        BattleDefinition definition = new() { EncounterId = 105, Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Original model71", ModelId = 71, NativeAi = program }] };
-        Assert.Contains("eight-DWORD bank", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal)).Message);
+        BattleDefinition definition = new() { EncounterId = 105, Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true, NativeStatusResistances = Enumerable.Repeat((byte)100, 40).ToArray() }, new() { Id = "enemy", Name = "Original model71", ModelId = 71, NativeAi = program }] };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        Assert.Equal(new byte[] { 0, 0, 0, 0 }, battle.Capture().Combatants[0].NativeStatus!.Resistances![20..24]);
     }
 
     [Theory]
