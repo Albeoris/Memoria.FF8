@@ -47,7 +47,7 @@ public sealed class TripleTriadNativeAiParityTests
     [InlineData(39, 1, 7, 12384u, 0, 2799, 4)]
     public void SearchMatchesOriginalX86Instructions(int index, int handIndex, int cellIndex, uint expectedRandomState, int randomDraws, int leaves, int depth)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "FF8_EN.exe")) && File.Exists(Path.Combine(directory, "Data", "lang-en", "menu.fs")), "Original English card resources are required.");
         TripleTriadCatalog catalog = TripleTriadCatalog.Load(directory);
         Random random = new(987 + index);

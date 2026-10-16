@@ -136,11 +136,7 @@ public sealed class NativeField132EntryStackTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         return (directory, Path.Combine(repository!.FullName, "../fixtures/external-fixture.json"));
     }
 }

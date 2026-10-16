@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeDrawPointCatalogTests
 {
-    private static GameAssets Assets() => new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+    private static GameAssets Assets() => new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
 
     [Fact]
     public void OriginalCommonResourcesRetainTemplatesHashesAndMagicNames()

@@ -55,11 +55,7 @@ public sealed class NativeMixedWrappedScrollRestoreTests
 
     private static SceneEventState ReadRecordedScene()
     {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_MIXED_SCROLL_SOURCE") ?? Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The genuine same-epoch field926 mixed-scroll diagnostic source is required.");

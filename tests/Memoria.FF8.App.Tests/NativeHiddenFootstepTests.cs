@@ -11,11 +11,7 @@ public sealed class NativeHiddenFootstepTests
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original resources are required.");
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            root = root.Parent;
-        }
+        DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");
         byte[] original = File.ReadAllBytes(source);
         GameSession session = new(GameSession.Load(source));

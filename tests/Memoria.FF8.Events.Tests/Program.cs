@@ -14,7 +14,7 @@ internal static partial class Program
         {
             if (args.Length >= 2 && args[0] == "--scenario")
             {
-                string selectedGameDirectory = args.Length >= 3 ? args[2] : @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+                string selectedGameDirectory = args.Length >= 3 ? args[2] : TestResources.GameDirectory;
                 Dictionary<string, Action> scenarios = new(StringComparer.OrdinalIgnoreCase)
                 {
                     ["actor-mode"] = AdditionalActorControlAndGuard,
@@ -265,7 +265,7 @@ internal static partial class Program
             ArrivalInitializationOrder();
             BackgroundLoopResume();
             FaceDirectionAnglesAndResume();
-            string gameDirectory = args.Length == 0 ? @"C:\Steam\steamapps\common\FINAL FANTASY VIII" : args[0];
+            string gameDirectory = args.Length == 0 ? TestResources.GameDirectory : args[0];
             InitialInputDirectionAndRestore(gameDirectory);
             NativeMovementLimitAndBoundary(gameDirectory);
             NativeBackgroundLoopAndBoundary(gameDirectory);
@@ -729,7 +729,7 @@ internal static partial class Program
 
     private static void FaceDirectionAnglesAndResume()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         (Jsm.Opcode, int)[] source = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 2), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.FACEDIRLIMIT, 0), (Jsm.Opcode.FACEDIRINIT, 0), (Jsm.Opcode.RET, 8)];
@@ -1455,7 +1455,7 @@ internal static partial class Program
     private static void AdditionalActorControlAndGuard()
     {
         byte[] ActorProgram(params (Jsm.Opcode Opcode, int Parameter)[] main) => SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 0)], main]);
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

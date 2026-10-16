@@ -223,11 +223,7 @@ public sealed class NativeMovieMaskRenderTests
 
     private static string Repository()
     {
-        DirectoryInfo? current = new(AppContext.BaseDirectory);
-        while (current is not null && !File.Exists(Path.Combine(current.FullName, "AGENTS.md")))
-        {
-            current = current.Parent;
-        }
+        DirectoryInfo? current = new(TestResources.FixtureDirectory);
         return current!.FullName;
     }
 

@@ -59,7 +59,7 @@ public sealed class WorldTerrainSelectionTests
     [Fact]
     public void SelectedOriginalSkyRegionAndGardenReplacementRetainInstalledMetadata()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(WorldTerrainSelection.ReplacementMask(0, 0));
         WorldSegment garden = assets.GetSegment(275, replacements);
         Assert.Equal(828, garden.SourceId);

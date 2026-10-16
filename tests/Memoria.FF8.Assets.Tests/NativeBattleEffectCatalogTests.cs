@@ -7,7 +7,7 @@ public sealed class NativeBattleEffectCatalogTests
     [Fact]
     public void OriginalExecutableSuppliesAll400EffectBindingsAndActualAutomaticGuardianModules()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         var catalog = assets.ReadNativeEffectCatalog();
         Assert.Equal(400, catalog.Length);
         Assert.Equal(Enumerable.Range(1, 400).Select(value => (ushort)value), catalog.Select(binding => binding.Effect));

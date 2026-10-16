@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeDoorOperandSuspensionContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         (Jsm.Opcode, int)[] Empty(int label) => [(Jsm.Opcode.LBL, label), (Jsm.Opcode.RET, 8)];
         (Jsm.Opcode, int)[] Expression(int label, int result, int operand, int destination, bool defaultFrame = false)
         {

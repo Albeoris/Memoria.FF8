@@ -11,11 +11,7 @@ public sealed class DebugViewTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "../fixtures/external-fixture.md")))
-        {
-            root = root.Parent;
-        }
+        DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);

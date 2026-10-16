@@ -36,7 +36,7 @@ internal static partial class Program
             main.Add((Jsm.Opcode.PSHN_L, value));
         }
         main.AddRange([(up ? Jsm.Opcode.LADDERUP2 : Jsm.Opcode.LADDERDOWN2, 9), (Jsm.Opcode.PSHN_L, 73), (Jsm.Opcode.POPM_B, 6000), (Jsm.Opcode.PSHN_L, 100), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]);
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

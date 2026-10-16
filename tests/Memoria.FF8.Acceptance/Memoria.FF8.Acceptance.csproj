@@ -17,7 +17,6 @@
     <ProjectReference Include="..\..\src\Memoria.FF8.App\Memoria.FF8.App.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
-    <AssemblyMetadata Include="RecompWorkspace" Value="$(MSBuildThisFileDirectory)..\..\..\" />
     <AssemblyMetadata Include="Candidate" Value="$(MSBuildThisFileDirectory)..\..\src\Memoria.FF8.App\bin\$(Configuration)\net10.0-windows\Memoria.FF8.exe" />
   </ItemGroup>
 </Project>

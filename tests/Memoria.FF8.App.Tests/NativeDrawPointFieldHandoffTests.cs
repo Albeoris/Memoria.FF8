@@ -15,7 +15,7 @@ public sealed class NativeDrawPointFieldHandoffTests
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
         Assert.True(session.State.DepartingFieldState!.Value.GetProperty("Scene").TryGetProperty("NativeDrawPointParticles", out _));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         List<string> trace = [];
         world.Events.OperationCompleted += () => trace.Add($"field={world.Events.FieldId},owner={world.Events.Scene.NativeDrawPointParticles is not null}");
         world.EnsureField();
@@ -30,7 +30,7 @@ public sealed class NativeDrawPointFieldHandoffTests
             session.SetEventState(world.Events.Capture());
             session.Save(snapshot);
             GameSession coldSession = new(GameSession.Load(snapshot));
-            using GameWorld cold = new(coldSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld cold = new(coldSession, TestResources.GameDirectory);
             cold.EnsureField();
             coldSession.SetEventState(cold.Events.Capture());
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
@@ -49,7 +49,7 @@ public sealed class NativeDrawPointFieldHandoffTests
             session.SetEventState(world.Events.Capture());
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             restored.EnsureField();
             Assert.NotNull(restored.Events.Scene.NativeDrawPointParticles);
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);

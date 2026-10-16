@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Memoria.FF8.Events</RootNamespace>
-    <FrameworksRoot Condition="'$(FrameworksRoot)' == ''">C:\Git\Albeoris.Frameworks</FrameworksRoot>
+    <FrameworksRoot>$(MSBuildThisFileDirectory)..\..\vendor\Albeoris.Frameworks</FrameworksRoot>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Memoria.FF8.Runtime\Memoria.FF8.Runtime.csproj" />

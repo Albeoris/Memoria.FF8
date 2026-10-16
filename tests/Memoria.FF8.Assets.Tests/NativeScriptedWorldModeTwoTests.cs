@@ -13,7 +13,7 @@ public sealed class NativeScriptedWorldModeTwoTests
     public void OriginalFiniteModesDistinguishThePriorSavedFootFromTheLateBodyUpdate(int track, byte entity, ushort story, byte field265, short terminal, int destination)
     {
         // Installed-resource component fixture; no player session or journal is fabricated.
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(story, field265);
         Assert.Equal(new NativeSavedWorldPose(0, 0, 0, 0), foot.Pose);
         if (track == 4)

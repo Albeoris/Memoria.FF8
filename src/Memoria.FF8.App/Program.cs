@@ -33,7 +33,7 @@ internal static class Program
             LaunchOptions options = LaunchOptions.Parse(args);
             if (!Directory.Exists(options.GameDirectory))
             {
-                throw new DirectoryNotFoundException($"Installed game directory not found: {options.GameDirectory}");
+                throw new DirectoryNotFoundException($"Installed game directory not found: {options.GameDirectory}. Pass --game-dir or set MEMORIA_FF8_GAME_DIR or FF8_GAME_DIRECTORY.");
             }
             Directory.SetCurrentDirectory(options.GameDirectory);
             GameSession session = options.StatePath is null && options.InitialState.Scene == SceneKind.Title ? GameSession.CreateColdProcess() : new GameSession(options.InitialState);

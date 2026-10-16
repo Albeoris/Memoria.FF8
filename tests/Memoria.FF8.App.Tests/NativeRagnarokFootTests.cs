@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 /// <summary>Actual original-resource callbacks from a declared component foundation, not a Ragnarok acquisition playthrough.</summary>
 public sealed class NativeRagnarokFootTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
     public void OriginalLandingHandsOffToCurrentFootControllerAndRestoresIndependently()

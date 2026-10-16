@@ -4,7 +4,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeRagnarokGroundAssetsTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
     [InlineData((byte)5)]

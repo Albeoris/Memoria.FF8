@@ -45,11 +45,7 @@ public sealed class FreshPartySplitTests
 
     private static string FindRepository()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         return directory?.FullName ?? throw new DirectoryNotFoundException("FF8 research repository root was not found.");
     }
 }

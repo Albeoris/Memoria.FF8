@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class BattleAssetsTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
     [InlineData(94, 31, 61)]

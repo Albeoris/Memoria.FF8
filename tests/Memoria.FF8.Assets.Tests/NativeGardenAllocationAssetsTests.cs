@@ -7,7 +7,7 @@ public sealed class NativeGardenAllocationAssetsTests
     [Fact]
     public void PendingAuxiliaryRowOneIsConsumedBeforeTheSavedGardenReloadPublication()
     {
-        const string gameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string gameDirectory = TestResources.GameDirectory;
         using WorldAssets assets = new(gameDirectory);
         using GameAssets game = new(gameDirectory);
         WorldTransition packet = new(62, 48, -1);
@@ -32,7 +32,7 @@ public sealed class NativeGardenAllocationAssetsTests
     [Fact]
     public void ActualPriorCarPreviousPolygonAuthenticatesThePreQueryCameraHeight()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldGroundIdentity previous = new(327, 829, 1, 68);
         WorldGroundSelection selected = assets.LookupNativeGround(-71662, -14849, WorldTerrainSelection.Replacements(349), [previous])!;
         Assert.Equal(previous, selected.Identity);
@@ -42,7 +42,7 @@ public sealed class NativeGardenAllocationAssetsTests
     [Fact]
     public void ActualSavedGuardianForceFlagControlsShape94BeforeReplacementPairs()
     {
-        const string gameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string gameDirectory = TestResources.GameDirectory;
         using WorldAssets assets = new(gameDirectory);
         using GameAssets game = new(gameDirectory);
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
@@ -59,7 +59,7 @@ public sealed class NativeGardenAllocationAssetsTests
     [Fact]
     public void ParkedFootEntry62KeepsSavedPose3DistinctFromControlledFootPose0()
     {
-        const string gameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string gameDirectory = TestResources.GameDirectory;
         using WorldAssets assets = new(gameDirectory);
         using GameAssets game = new(gameDirectory);
         NativeWorldEntryMemory entry = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 750);

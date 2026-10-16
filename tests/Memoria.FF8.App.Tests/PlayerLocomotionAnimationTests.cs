@@ -72,11 +72,7 @@ public sealed class PlayerLocomotionAnimationTests
         Assert.Equal(player.AnimationSpeed / 16f, player.AnimationFrame);
 
         GameState source = session.State with { EventState = world.Events.Capture() };
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string output = Path.Combine(repository!.FullName, "../fixtures");
         Directory.CreateDirectory(output);
         new GameSession(source).Save(Path.Combine(output, "squall-walk-source.json"));

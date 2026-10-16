@@ -97,17 +97,7 @@ public sealed class GardenEarlyDepartureTests
 
     private static string Source()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string candidate = Path.Combine(directory.FullName, "../fixtures/external-fixture.json");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            directory = directory.Parent;
-        }
-        throw new FileNotFoundException("The authentic standalone Garden departure source is absent.");
+        return TestResources.FixtureFile("../fixtures/external-fixture.json");
     }
 }
 

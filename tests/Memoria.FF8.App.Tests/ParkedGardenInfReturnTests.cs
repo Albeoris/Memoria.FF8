@@ -11,7 +11,7 @@ public sealed class ParkedGardenInfReturnTests
     {
         string source = FindRootFile("../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         NativeSavedWorldPose parked = session.State.SavedWorld!.GardenPose3!;
         Assert.Equal(505, session.State.FieldId);
         Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: 0.131f, Vertical: 0.99138f, Frames: 4)).Accepted);
@@ -24,7 +24,7 @@ public sealed class ParkedGardenInfReturnTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restoredSession.State)));
@@ -37,16 +37,6 @@ public sealed class ParkedGardenInfReturnTests
 
     private static string FindRootFile(string relative)
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string candidate = Path.Combine(directory.FullName, relative);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            directory = directory.Parent;
-        }
-        throw new FileNotFoundException("Actual standalone orphanage world-return source is absent.", relative);
+        return TestResources.FixtureFile(relative);
     }
 }

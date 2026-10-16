@@ -251,11 +251,7 @@ public sealed class MinimalBattleAndGuardianForceTests
     [Fact]
     public void ActualPreSphinxStandaloneRetainsAllCompletedHistoricalBootstrapFacts()
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "../fixtures")))
-        {
-            root = root.Parent;
-        }
+        DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string? source = root is null ? null : Path.Combine(root.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(source is not null && File.Exists(source), "Preserved actual before-Sphinx standalone is required.");
         GameState original = GameSession.Load(source!);

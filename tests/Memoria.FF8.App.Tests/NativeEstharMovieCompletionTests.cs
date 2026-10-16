@@ -15,7 +15,7 @@ public sealed class NativeEstharMovieCompletionTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.False(session.IsMoviePlaying);
         Assert.True(world.Events.CurrentMoviePlayback!.IsPlaying);
@@ -32,7 +32,7 @@ public sealed class NativeEstharMovieCompletionTests
         session.SetEventState(capture);
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession coldSession = new(saved);
-        using GameWorld cold = new(coldSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld cold = new(coldSession, TestResources.GameDirectory);
         cold.EnsureField();
         Assert.True(JsonElement.DeepEquals(capture, cold.Events.Capture()));
         Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);

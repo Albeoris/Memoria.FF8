@@ -32,11 +32,7 @@ public sealed class OffsetParallaxTests
     public void AuthenticMountainRoadPrefixPublishesOriginalOffsetAndRestoresItsPixelsAndCallbacks()
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic mountain-road snapshot and installed resources are required.");
         GameState current = GameSession.Load(source);

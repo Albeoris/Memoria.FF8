@@ -17,7 +17,7 @@ public sealed class SaltLakeScriptMovementTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         FieldNativeMovementRequest request = new(1, -399114, 6707494, -3149824, 126, 7929, 48, false, true, 0, true);
         FieldNativeMovementResult geometry = FieldNativeMovementProbe.Resolve(world.Field!.Walkmesh, request, world.Events.Scene.LockedTriangles, _ => false);
@@ -35,7 +35,7 @@ public sealed class SaltLakeScriptMovementTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             world.Apply(new(PlayerActionKind.Wait));
             restored.Apply(new(PlayerActionKind.Wait));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));

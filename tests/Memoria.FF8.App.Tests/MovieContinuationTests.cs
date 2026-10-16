@@ -168,11 +168,7 @@ public sealed class MovieContinuationTests
 
     private static string FindRepository()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "../fixtures/external-fixture.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         return directory?.FullName ?? throw new DirectoryNotFoundException("FF8 research root was not found.");
     }
 }

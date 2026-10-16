@@ -72,7 +72,7 @@ public sealed class BattleEnemyNativeStatsTests
     [InlineData(51, 13072, 33, 7)]
     public void InstalledBalambAndTrainingEnemiesProjectTheirActualCoefficientRows(int model, int maximumHp, int strength, int vitality)
     {
-        using IFlArchive archive = FlArchive.OpenForRead(@"C:\Steam\steamapps\common\FINAL FANTASY VIII\Data\lang-en\battle.fs", FlArchiveRepresentation.Files);
+        using IFlArchive archive = FlArchive.OpenForRead(TestResources.GameFile("Data", "lang-en", "battle.fs"), FlArchiveRepresentation.Files);
         using Stream stream = archive.Entries.Single(entry => entry.RelativePath.Replace('\\', '/').Split('/')[^1] == $"c0m{model:000}.dat").OpenForRead();
         using MemoryStream bytes = new();
         stream.CopyTo(bytes);

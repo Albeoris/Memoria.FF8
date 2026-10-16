@@ -47,7 +47,7 @@ internal static partial class Program
             scripts.Add(Initialize(slot));
             scripts.Add([(Jsm.Opcode.LBL, slot * 16 + 1), (Jsm.Opcode.PSHN_L, slot * (join ? 120 : 12)), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.SET3, 7), (Jsm.Opcode.PSHN_L, 42), (Jsm.Opcode.POPM_B, 6000 + slot), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0)]);
         }
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());

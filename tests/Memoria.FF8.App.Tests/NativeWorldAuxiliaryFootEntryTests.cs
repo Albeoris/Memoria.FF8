@@ -17,7 +17,7 @@ public sealed class NativeWorldAuxiliaryFootEntryTests
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
         NativeSavedWorldPose originalParking = session.State.SavedWorld!.GardenPose3!;
         Assert.Equal(7, session.State.EventMemory.Read(269, 1).RequireExact());
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: -0.31577f, Vertical: -0.94884f, Frames: 6)).Accepted);
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
         WorldState current = session.State.World!;
@@ -38,7 +38,7 @@ public sealed class NativeWorldAuxiliaryFootEntryTests
             session.SetEventState(world.Events.Capture());
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             restored.EnsureField();
             Assert.Equal(0, restoredSession.State.EventMemory.Read(269, 2).RequireExact());
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);

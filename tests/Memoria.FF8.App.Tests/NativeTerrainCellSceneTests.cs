@@ -15,13 +15,13 @@ public sealed class NativeTerrainCellSceneTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: -0.018045771313400415f, Vertical: -0.9998371618107144f, Frames: 16)).Accepted);
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession restoredSession = new(saved);
-        using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
         restored.EnsureField();
         Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
         Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);
@@ -37,7 +37,7 @@ public sealed class NativeTerrainCellSceneTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: -0.8226757f, Vertical: -0.56851095f)).Accepted);
         Assert.Equal(SceneKind.WorldMap, session.State.Scene);
@@ -48,7 +48,7 @@ public sealed class NativeTerrainCellSceneTests
             session.SetEventState(world.Events.Capture());
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             restored.EnsureField();
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);

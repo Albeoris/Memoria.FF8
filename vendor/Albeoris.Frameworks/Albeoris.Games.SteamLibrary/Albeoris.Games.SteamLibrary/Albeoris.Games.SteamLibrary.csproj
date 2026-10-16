@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ValveKeyValue" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Albeoris.Games.SteamLibrary.Abstractions\Albeoris.Games.SteamLibrary.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

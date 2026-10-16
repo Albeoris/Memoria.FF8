@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Albeoris.Games.Core\Albeoris.Games.Core\Albeoris.Games.Core.csproj" />
+    <ProjectReference Include="..\Albeoris.Games.FF8.MngrpBin.Abstractions\Albeoris.Games.FF8.MngrpBin.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\*.json" />
+  </ItemGroup>
+
+</Project>

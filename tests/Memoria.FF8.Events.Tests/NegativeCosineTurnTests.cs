@@ -10,7 +10,7 @@ internal static partial class Program
 {
     private static void NativeNegativeCosineTurnContract()
     {
-        using (GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII"))
+        using (GameAssets assets = new(TestResources.GameDirectory))
         {
             JsmProgram original = JsmProgram.Read(assets.LoadField(141).Jsm);
             Require(original.Operations[153].Opcode == Jsm.Opcode.PSHN_L && original.Operations[153].Parameter == 186 && original.Operations[154].Opcode == Jsm.Opcode.PSHN_L && original.Operations[154].Parameter == 23 && original.Operations[155].Opcode == Jsm.Opcode.Unknown8 && original.Operations[155].Parameter == 365, "Original141/Zell turn instruction or DWORD operands changed.");

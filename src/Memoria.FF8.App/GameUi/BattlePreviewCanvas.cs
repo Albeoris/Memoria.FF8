@@ -18,10 +18,10 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDi
     private readonly MenuArtworkProvider artwork;
     private readonly Dictionary<UiImageSource, Bitmap> images = [];
 
-    public BattlePreviewCanvas(Bitmap bitmap, string gameDirectory = LaunchOptions.DefaultGameDirectory)
+    public BattlePreviewCanvas(Bitmap bitmap, string? gameDirectory = null)
     {
-        this.gameDirectory = gameDirectory;
-        artwork = new MenuArtworkProvider(gameDirectory);
+        this.gameDirectory = gameDirectory ?? LaunchOptions.DefaultGameDirectory;
+        artwork = new MenuArtworkProvider(this.gameDirectory);
         graphics = Graphics.FromImage(bitmap);
         graphics.CompositingMode = CompositingMode.SourceOver;
         graphics.CompositingQuality = CompositingQuality.HighQuality;

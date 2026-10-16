@@ -54,7 +54,7 @@ public sealed class FieldNativeWalkmeshProbeTests
     [Fact]
     public void SelectedCorridorJoinStepTraversesStaleTriangleAndOriginalFanNeighbors()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed selected field corpus is required.");
         using GameAssets assets = new(directory);
         FieldWalkmesh mesh = assets.LoadField(139).Walkmesh;

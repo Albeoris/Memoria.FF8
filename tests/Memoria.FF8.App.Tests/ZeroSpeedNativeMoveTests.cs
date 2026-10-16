@@ -22,7 +22,7 @@ public sealed class ZeroSpeedNativeMoveTests
     public void ActualRinoaReturnCanWriteZeroMspeedOverRetainedMovementAndRestore()
     {
         GameSession session = new(GameSession.Load(FindRootFile("../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         bool executed = false;
         world.Events.CommandExecuted += command =>
         {
@@ -40,7 +40,7 @@ public sealed class ZeroSpeedNativeMoveTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             world.Apply(new(PlayerActionKind.Wait));
             restored.Apply(new(PlayerActionKind.Wait));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
@@ -55,7 +55,7 @@ public sealed class ZeroSpeedNativeMoveTests
     public void Actual623ZeroSpeedMoveRetainsNativeTargetAndRestoresStationaryCallback()
     {
         GameSession session = new(GameSession.Load(FindRootFile("../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
         Assert.Equal(623, session.State.FieldId);
         Assert.Null(world.Events.LastFault);
@@ -75,7 +75,7 @@ public sealed class ZeroSpeedNativeMoveTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(restoredSession.State)));
@@ -99,7 +99,7 @@ public sealed class ZeroSpeedNativeMoveTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             world.Apply(new(PlayerActionKind.Wait));
             restored.Apply(new(PlayerActionKind.Wait));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
@@ -112,16 +112,6 @@ public sealed class ZeroSpeedNativeMoveTests
 
     private static string FindRootFile(string relative)
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string candidate = Path.Combine(directory.FullName, relative);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            directory = directory.Parent;
-        }
-        throw new FileNotFoundException("Actual standalone field623 source is absent.", relative);
+        return TestResources.FixtureFile(relative);
     }
 }

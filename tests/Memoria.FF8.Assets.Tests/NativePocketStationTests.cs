@@ -9,7 +9,7 @@ public sealed class NativePocketStationTests
     [Fact]
     public void OriginalNewGameClearsTheSavedPocketStationTailBeyondItsCopiedTemplate()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativePocketStationState saved = assets.ReadNewGamePocketStation();
         saved.Validate();
         Assert.Equal(64, saved.Raw.Length);

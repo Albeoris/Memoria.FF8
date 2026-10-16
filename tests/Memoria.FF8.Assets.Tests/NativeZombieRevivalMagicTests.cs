@@ -15,7 +15,7 @@ public sealed class NativeZombieRevivalMagicTests
     [InlineData(6, "draw")]
     public void InstalledRevivalSpellAdmitsLivingZombieToNativeOffensiveBranchThroughEveryPlayerMagicFlow(byte type, string flow)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);
         BattleActionDefinition spell = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.NativeAction?.AttackType == type);

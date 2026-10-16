@@ -12,11 +12,7 @@ public sealed class NativeMovieFootstepTests
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field and CAM corpus is required.");
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The preserved authentic606 movie14 preboundary save is required.");
         byte[] original = File.ReadAllBytes(source);

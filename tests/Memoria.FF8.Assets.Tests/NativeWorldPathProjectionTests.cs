@@ -9,7 +9,7 @@ public sealed class NativeWorldPathProjectionTests
     [Fact]
     public void OriginalTrackElevenProjectsActualNodesAndRestoresTheirNativeReceipts()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(11);
         NativeWorldScriptedPathState live = NativeWorldScriptedPathState.Create(definition, new WorldTransition(11, 66, 61), null);
         NativeWorldPathNodeProjection? Project(NativeWorldPathPosition node, NativeWorldPathCamera camera, NativeWorldPathPosition origin)

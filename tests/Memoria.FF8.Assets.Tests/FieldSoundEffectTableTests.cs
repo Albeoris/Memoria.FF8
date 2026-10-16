@@ -25,7 +25,7 @@ public sealed class FieldSoundEffectTableTests
     [Fact]
     public void Actual_chamber_table_selects_original_effect_IDs_without_audio_payload()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string gameDirectory = Environment.GetEnvironmentVariable("FF8_GAME_DIRECTORY") ?? TestResources.GameDirectory;
         using GameAssets assets = new(gameDirectory);
         FieldSoundEffectTable table = assets.LoadFieldSoundEffects(130);
         Assert.Equal("bdifrit1.sfx", table.MemberName);

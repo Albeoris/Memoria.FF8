@@ -8,7 +8,7 @@ public sealed class NativeCactuarBurstAssetsTests
     [Fact]
     public void LateNativeBurstConsumesItsActualBytesAndTheSharedPoolFirstAdvancesItNextCallback()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldForestEffect effect = assets.ForestTables.Effects[10];
         Assert.Equal((14, 4352, 12, 1, 6, 255, 0, -16, 0, 0, 2, 0), ((int)effect.Type, (int)effect.Shrink, (int)effect.Lifetime, (int)effect.Frames, (int)effect.FrameDuration, (int)effect.HalfSize, (int)effect.VelocityX, (int)effect.VelocityY, (int)effect.VelocityZ, (int)effect.AccelerationX, (int)effect.AccelerationY, (int)effect.AccelerationZ));
         var texture = assets.GetForestTexture(14, 0);

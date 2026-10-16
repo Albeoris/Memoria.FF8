@@ -29,7 +29,7 @@ public sealed class NativeSameFieldWorldReturnTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.Equal((byte)48, world.Events.Scene.PreviousWorldEntityByte86);
         JsonElement frozenWorldDeparture = world.Events.Capture();
@@ -46,7 +46,7 @@ public sealed class NativeSameFieldWorldReturnTests
             session.SetDepartingFieldState(refreshDormantProcessOwners ? world.Events.Capture() : frozenWorldDeparture);
             session.Save(snapshot);
             GameSession coldSession = new(GameSession.Load(snapshot));
-            using GameWorld cold = new(coldSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld cold = new(coldSession, TestResources.GameDirectory);
             cold.EnsureField();
             world.EnsureField();
             Assert.True(world.HasCurrentFieldAllocation);
@@ -58,14 +58,14 @@ public sealed class NativeSameFieldWorldReturnTests
             session.SetEventState(world.Events.Capture());
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             restored.EnsureField();
             Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(restored.Apply(new(PlayerActionKind.Wait)).Accepted);
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
             //The next original foot packet's loader keeps live Garden parking,
             //independently of whether the room's recon story has completed.
-            using PreparedWorldEntry next = WorldEntryPreflight.Prepare(session.State, @"C:\Steam\steamapps\common\FINAL FANTASY VIII", new(24, 0, -1));
+            using PreparedWorldEntry next = WorldEntryPreflight.Prepare(session.State, TestResources.GameDirectory, new(24, 0, -1));
             Assert.Equal((byte)0, next.InitialState.NativeFootRuntime!.EntityType);
             NativeGardenWorldRuntimeState nextGarden = next.InitialState.NativeGardenRuntime!;
             Assert.Equal(new NativeWorldPathPosition(20360, 200, 3850), nextGarden.Objects[nextGarden.Allocation.Garden64Index].Position);

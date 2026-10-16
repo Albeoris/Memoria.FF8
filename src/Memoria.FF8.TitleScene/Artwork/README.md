@@ -13,7 +13,7 @@ Crest/wordmark exposure and edge glints follow `TitleSceneAnimation.LightIntensi
 To regenerate the vector source, supply the original design-reference image to the offline tool:
 
 ```powershell
-& 'python' Artwork/Tools/trace_silver_crest.py <reference-image.png> Artwork/SilverCrest.contours.json
+python Artwork/Tools/trace_silver_crest.py <reference-image.png> Artwork/SilverCrest.contours.json
 ```
 
-Run this from the title scene project folder. The converter requires NumPy and OpenCV, available in the indicated local research runtime; the shipped application requires neither. The bitmap is a design reference only and is not part of the title renderer's embedded resources.
+Run this from the title scene project folder. The converter requires NumPy and OpenCV, installable with `python -m pip install numpy opencv-python`; the shipped application requires neither. The bitmap is a design reference only and is not part of the title renderer's embedded resources.

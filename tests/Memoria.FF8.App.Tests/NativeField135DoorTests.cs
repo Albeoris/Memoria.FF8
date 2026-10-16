@@ -208,11 +208,7 @@ public sealed class NativeField135DoorTests
 
     private static string Evidence(string suffix)
     {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         return Path.Combine(repository!.FullName, "../fixtures", "player-dollet-cavern-" + suffix);
     }
 }

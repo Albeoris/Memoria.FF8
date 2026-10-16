@@ -125,11 +125,7 @@ public sealed class WorldForestMovementTests
 
     private static string Repository()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         return directory?.FullName ?? throw new DirectoryNotFoundException("Research workspace was not found.");
     }
 }

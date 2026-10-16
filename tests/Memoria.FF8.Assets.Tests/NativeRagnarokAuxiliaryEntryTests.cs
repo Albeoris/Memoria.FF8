@@ -8,8 +8,8 @@ public sealed class NativeRagnarokAuxiliaryEntryTests
     [Fact]
     public void OriginalRowFourConsumesOnlyItsSelectorBeforeControlledShipPublicationAndRestoresExactly()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
-        using GameAssets game = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         WorldTransition packet = new(32, 50, -1);
         NativeWorldEntryMemory entry = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 3500);
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { GardenPose3 = new(1024, -2048, -128, 128) };
@@ -37,8 +37,8 @@ public sealed class NativeRagnarokAuxiliaryEntryTests
     [Fact]
     public void OrderedGardenAndShipRowsRetainIndependentTargetsAndTheOriginalSignedYaw()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
-        using GameAssets game = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeWorldEntryMemory entry = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 3500);
         NativeSavedWorldState saved = NativeSavedWorldState.CreateNewGame() with { GardenPose3 = new(1024, -2048, -128, 128) };
         NativeEventMemory memory = NativeEventMemory.Empty.Write(269, 2, NativeScalarValue.Exact(0x0401));

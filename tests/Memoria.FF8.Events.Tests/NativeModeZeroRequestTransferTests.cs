@@ -10,7 +10,7 @@ internal static partial class Program
 {
     private static void NativeModeZeroRequestTransferContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         foreach (Jsm.Opcode request in new[] { Jsm.Opcode.REQ, Jsm.Opcode.REQSW, Jsm.Opcode.REQEW })
         {
             foreach (bool queueLower in new[] { false, true })

@@ -13,7 +13,7 @@ public sealed class NativeDormantDirectScrollTests
     [Fact]
     public void ActualAuditoriumDirectRowZeroKeepsSelectedCameraOneIndependent()
     {
-        string source = @"../fixtures/external-fixture.json";
+        string source = TestResources.FixtureFile("../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The genuine auditorium preaction snapshot is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement checkpoint = document.RootElement.GetProperty("EventState");

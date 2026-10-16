@@ -9,11 +9,7 @@ public sealed class NativeEndingPartyLoadTests
     [Fact]
     public void Original974To979TransitionLoadsWithoutAnUncalledReserveProducer()
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "../fixtures")))
-        {
-            root = root.Parent;
-        }
+        DirectoryInfo? root = new(TestResources.FixtureDirectory);
         string? source = root is null ? null : Path.Combine(root.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(source is not null && File.Exists(source), "The preserved original ending field transition standalone is required.");
         GameState original = GameSession.Load(source!);

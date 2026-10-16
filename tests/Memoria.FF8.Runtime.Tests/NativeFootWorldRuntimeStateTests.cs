@@ -59,7 +59,7 @@ public sealed class NativeFootWorldRuntimeStateTests
         Assert.Throws<InvalidDataException>(() => (first with { AnimationVariant = 1 }).Validate());
         Assert.Throws<InvalidDataException>(() => (first with { ReloadSourceWorldFrame = 0 }).Validate());
         Assert.Throws<InvalidDataException>(() => (first with { MapDisplayMode = 4 }).Validate());
-        Assert.Throws<InvalidDataException>(() => (first with { EntityType = 2 }).Validate());
+        Assert.Throws<InvalidDataException>(() => (first with { EntityType = 3 }).Validate());
         Assert.Throws<NotSupportedException>(() => (first with { MapDisplayMode = 1 }).RequireSupportedNormalFoot());
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NativeFootWorldRuntimeState>("{}"));
         NativeSavedWorldFootReturn receipt = NativeSavedWorldFootReturn.Create(new WorldState(), 159, 17, 1, 1, 0);
@@ -72,6 +72,7 @@ public sealed class NativeFootWorldRuntimeStateTests
     [Theory]
     [InlineData((byte)0)]
     [InlineData((byte)1)]
+    [InlineData((byte)2)]
     public void FootEntryTypeSurvivesDepartureSerializationAndSavedReload(byte entityType)
     {
         NativeFootWorldRuntimeState runtime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(NativeSavedWorldState.CreateNewGame(), entityType);

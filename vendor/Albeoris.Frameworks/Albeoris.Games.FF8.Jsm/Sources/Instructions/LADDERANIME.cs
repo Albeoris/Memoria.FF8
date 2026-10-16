@@ -1,0 +1,30 @@
+using System;
+
+namespace Albeoris.Games.FF8.Jsm.Instructions
+{
+    internal sealed class LADDERANIME : JsmInstruction
+    {
+        private Int32 _parameter;
+        private IJsmExpression _arg0;
+        private IJsmExpression _arg1;
+
+        public LADDERANIME(Int32 parameter, IJsmExpression arg0, IJsmExpression arg1)
+        {
+            _parameter = parameter;
+            _arg0 = arg0;
+            _arg1 = arg1;
+        }
+
+        public LADDERANIME(Int32 parameter, IExpressionStack stack)
+            : this(parameter,
+                arg1: stack.Pop(),
+                arg0: stack.Pop())
+        {
+        }
+
+        public override String ToString()
+        {
+            return $"{nameof(LADDERANIME)}({nameof(_parameter)}: {_parameter}, {nameof(_arg0)}: {_arg0}, {nameof(_arg1)}: {_arg1})";
+        }
+    }
+}

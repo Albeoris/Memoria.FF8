@@ -67,7 +67,7 @@ public sealed class BackgroundTileCoverageTests
     [Fact]
     public void InstalledReceptionGlassPreservesItsSourceTexelsWithoutTileEdgeStrips()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original reception resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets original = assets.LoadField(163);

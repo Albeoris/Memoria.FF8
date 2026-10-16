@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeFaceSyncContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         byte[] content = SyntheticObjects([2, (8 << 7) | 1], [

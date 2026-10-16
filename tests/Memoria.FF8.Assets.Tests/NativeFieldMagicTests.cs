@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeFieldMagicTests
 {
-    private static readonly string GameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static readonly string GameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
 
     private static NativeCharacterVitals Prepare(GameAssets assets, int spell, int quantity = 2, int targetHp = 1, ushort targetStatus = 0)
     {

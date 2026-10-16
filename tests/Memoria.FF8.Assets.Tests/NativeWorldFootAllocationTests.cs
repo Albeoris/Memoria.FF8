@@ -14,7 +14,7 @@ public sealed class NativeWorldFootAllocationTests
     [InlineData(0, 289, 2, 205, 290, 0)]
     public void InstalledOriginalClausesSelectOnlyTheirNativeControlledFootShape(byte entity, ushort story, int clause, ushort minimum, ushort maximum, byte shape)
     {
-        using var assets = new WorldAssets(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using var assets = new WorldAssets(TestResources.GameDirectory);
         Assert.Equal(new NativeWorldFootAllocation(clause, minimum, maximum, entity, shape, new NativeSavedWorldPose(0, 0, 0, 0)), assets.ReadFootAllocation(entity, story));
     }
 
@@ -27,7 +27,7 @@ public sealed class NativeWorldFootAllocationTests
     [InlineData(2, 205)]
     public void MismatchedEntityAndLaterMultiObjectClausesCannotReuseTheFootExclusion(byte entity, ushort story)
     {
-        using var assets = new WorldAssets(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using var assets = new WorldAssets(TestResources.GameDirectory);
         Assert.Throws<NotSupportedException>(() => assets.ReadFootAllocation(entity, story));
     }
 }

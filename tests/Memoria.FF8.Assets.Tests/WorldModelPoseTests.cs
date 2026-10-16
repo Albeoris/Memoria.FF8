@@ -8,7 +8,7 @@ public sealed class WorldModelPoseTests
     [Fact]
     public void SelectedOriginalWorldSquallIdleKeepsFeetNearGroundAndBodyUpright()
     {
-        using WorldAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         Vector3[] pose = WorldModelPose.Pose(assets.Squall, 0, 0, MathF.PI);
         Assert.InRange(pose.Min(point => point.Y), -9.1f, -8.8f);
         Assert.InRange(pose.Max(point => point.Y), 225.4f, 225.7f);

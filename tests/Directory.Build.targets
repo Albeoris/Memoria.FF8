@@ -1,0 +1,10 @@
+<Project>
+  <Import Project="../Directory.Build.targets" />
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <DefineConstants>$(DefineConstants);FF8_XUNIT_RESOURCE_TESTS</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/TestResources.cs" Link="TestResources.cs" />
+    <Using Include="Memoria.FF8.Tests" />
+  </ItemGroup>
+</Project>

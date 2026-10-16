@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeRandomEncounterTests
 {
-    private static readonly byte[] OriginalRandom = File.ReadAllBytes(@"C:\Steam\steamapps\common\FINAL FANTASY VIII\FF8_EN.exe").AsSpan(0x780A18, 256).ToArray();
+    private static byte[] OriginalRandom => File.ReadAllBytes(TestResources.GameFile("FF8_EN.exe")).AsSpan(0x780A18, 256).ToArray();
     private static readonly byte[] OriginalWeights = [37, 37, 37, 37, 36, 36, 24, 12];
     private static readonly NativeFieldEncounterDefinition Field = new(4, ImmutableArray.Create<ushort>(34, 34, 37, 36));
     private static readonly NativeWorldEncounterDefinition World = new(255, ImmutableArray.Create<ushort>(512, 513, 514, 515, 516, 517, 518, 519));

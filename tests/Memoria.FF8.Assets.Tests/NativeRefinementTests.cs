@@ -211,7 +211,7 @@ public sealed class NativeRefinementTests
 
     private static GameAssets Assets()
     {
-        const string directory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original refinement resources are required.");
         return new GameAssets(directory);
     }

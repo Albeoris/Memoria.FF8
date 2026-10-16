@@ -10,14 +10,22 @@ namespace Memoria.FF8.Acceptance;
 /// </summary>
 public sealed class AcceptanceTests
 {
-    private static readonly string Workspace = Path.GetFullPath(Metadata("RecompWorkspace"));
+    private static string Workspace
+    {
+        get
+        {
+            string? directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_RECOMP_WORKSPACE");
+            Assert.SkipUnless(!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory), "Set MEMORIA_FF8_RECOMP_WORKSPACE to a recording workspace to run external acceptance checks.");
+            return Path.GetFullPath(directory!);
+        }
+    }
 
     /// <summary>Same arguments, inputs and UI actions as the original's scenarios (tests/scenarios.json): same observable result.</summary>
     [Fact]
     public void Scenarios_match_the_original()
     {
         Assert.SkipUnless(File.Exists(Path.Combine(Workspace, "tests", "scenarios.json")), "no tests/scenarios.json yet (recomp scenario add)");
-        (int exit, string output) = Recomp("scenario", "run", "--candidate", Metadata("Candidate"));
+        (int exit, string output) = Recomp("scenario", "run", "--candidate", Environment.GetEnvironmentVariable("MEMORIA_FF8_CANDIDATE") ?? Metadata("Candidate"));
         Assert.True(exit is 0 or 3, output);
     }
 

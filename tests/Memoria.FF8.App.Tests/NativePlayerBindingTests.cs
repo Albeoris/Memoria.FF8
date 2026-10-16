@@ -122,11 +122,7 @@ public sealed class NativePlayerBindingTests
 
     private static string FindSource(string fileName = "player-garden-library-route-boundary-preboundary-checkpoint.json")
     {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         return Path.Combine(repository!.FullName, "../fixtures", fileName);
     }
 }

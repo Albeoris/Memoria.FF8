@@ -16,7 +16,7 @@ internal static partial class Program
 
     private static void NativePartyFaceContract(bool asynchronous)
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         byte[] Content(int slot, int duration, bool moving)

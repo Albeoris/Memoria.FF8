@@ -8,7 +8,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeVibrationQueueTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
     private static NativeVibrationBank Bank() => NativeVibrationBankReader.ReadExecutable(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
 
     private static NativeVibrationProcessState Callbacks(NativeVibrationProcessState state, int count)

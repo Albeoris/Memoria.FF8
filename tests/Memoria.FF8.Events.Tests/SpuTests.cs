@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeSpuContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeSpuAudioAttempt failed = new("EyesOnMe", new string('a', 64), 4096, 44100, 2, false);

@@ -7,7 +7,7 @@ public sealed class NativeBattleGraphicsRulesTests
     [Fact]
     public void OriginalExecutableMapsSavedAndBattleStatusesToTheSeparateGraphicsBits()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeBattleGraphicsRules rules = assets.ReadNativeBattleGraphicsRules();
         Assert.Equal(2u, rules.Project(1, 0));
         Assert.Equal(0x1000u, rules.Project(0, 1));
@@ -19,7 +19,7 @@ public sealed class NativeBattleGraphicsRulesTests
     [Fact]
     public void EnemyGraphicsResourceRetainsItsActualDeathAndEntryPrograms()
     {
-        using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using BattleAssets assets = new(TestResources.GameDirectory);
         NativeBattleGraphicsResource resource = assets.ReadEnemyNativeGraphicsResource(61);
         Assert.True(resource.Contains(3));
         Assert.True(resource.Contains(8));

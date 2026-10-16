@@ -149,11 +149,7 @@ public sealed class StorySafeMovieSkipTests
 
     internal static string Repository()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         return directory?.FullName ?? throw new DirectoryNotFoundException("Research checkout not found.");
     }
 }

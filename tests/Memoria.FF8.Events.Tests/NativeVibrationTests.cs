@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeVibrationContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeVibrationBank bank = assets.ReadNativeVibrationBank();
         byte[] Content(int pattern = 0, int priority = 256, bool missingOperand = false)
         {

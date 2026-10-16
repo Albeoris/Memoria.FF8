@@ -11,11 +11,7 @@ public sealed class HeadlessPlayerTests
     {
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed movie and field corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8-headless-movie-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temporary);
         try
@@ -55,11 +51,7 @@ public sealed class HeadlessPlayerTests
     {
         string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string temporary = Path.Combine(Path.GetTempPath(), "Memoria.FF8-headless-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temporary);
         try

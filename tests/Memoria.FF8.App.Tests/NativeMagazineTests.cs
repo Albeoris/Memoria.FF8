@@ -82,11 +82,7 @@ public sealed class NativeMagazineTests
     public void TaskSaveRefusesUnknownPetPalsOwnerAndDeclaredComponentContinuationRestoresLearning()
     {
         using GameAssets assets = Assets();
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "Task standalone checkpoint is required for the declared continuation component.");
         GameSession session = new(GameSession.Load(source));

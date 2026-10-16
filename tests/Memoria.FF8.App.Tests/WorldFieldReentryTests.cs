@@ -11,11 +11,7 @@ public sealed class WorldFieldReentryTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world/field corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string prefix = Path.Combine(repository!.FullName, "../fixtures");
         var session = new GameSession(GameSession.Load(prefix + "entry-preboundary-checkpoint.json"));
         var replaySession = new GameSession(GameSession.Load(prefix + "entry-preboundary-checkpoint.json"));

@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeSignedLongMemoryContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         foreach (int source in new[] { int.MinValue, -0x800001, -0x800000, -1, 0, 0x7FFFFF, 0x800000, int.MaxValue })

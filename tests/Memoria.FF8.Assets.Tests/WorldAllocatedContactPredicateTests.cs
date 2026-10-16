@@ -55,7 +55,7 @@ public sealed class WorldAllocatedContactPredicateTests
     [Fact]
     public void OriginalWhiteSeeDClauseSelectsItsPacketOnlyFromTheRetainedBroadContact()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         WorldFieldSelectionInput input = new(-18900, 47000, 1350, 48);
         NativeWorldPathPosition ship = new(-18900, 0, -46850);
         bool? Predicate(ushort opcode, ushort operand, int broad)

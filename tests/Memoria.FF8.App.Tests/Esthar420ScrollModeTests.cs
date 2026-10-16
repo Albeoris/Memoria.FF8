@@ -46,7 +46,7 @@ public sealed class Esthar420ScrollModeTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Func<int, BackgroundScrollSettings, bool> original = world.Events.CanSetBackgroundScroll!;
         bool sawPendingDirect = false;
@@ -79,7 +79,7 @@ public sealed class Esthar420ScrollModeTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             world.Apply(new(PlayerActionKind.Wait));
             restored.Apply(new(PlayerActionKind.Wait));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));

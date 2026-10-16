@@ -15,7 +15,7 @@ public sealed class NativeEstharWorldMusicTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         NativeMusicProcessState before = world.Events.Scene.MusicProcess!;
         Assert.True(before.Pending);
@@ -35,7 +35,7 @@ public sealed class NativeEstharWorldMusicTests
         session.SetDepartingFieldState(world.Events.Capture());
         GameState saved = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
         GameSession restoredSession = new(saved);
-        using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.True(world.Apply(new(PlayerActionKind.Wait)).Accepted);

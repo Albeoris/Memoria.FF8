@@ -1,0 +1,38 @@
+using System;
+using Albeoris.Games.FF8.Jsm.Core;
+using Albeoris.Games.FF8.Jsm.Format;
+
+namespace Albeoris.Games.FF8.Jsm.Instructions
+{
+    internal sealed class SHOW : JsmInstruction
+    {
+        public SHOW()
+        {
+        }
+
+        public SHOW(Int32 parameter, IExpressionStack stack)
+            : this()
+        {
+        }
+
+        public override String ToString()
+        {
+            return $"{nameof(SHOW)}()";
+        }
+
+        public override void Format(ScriptWriter sw, IScriptFormatterContext formatterContext, IServices services)
+        {
+            sw.Format(formatterContext, services)
+                .Property(nameof(FieldObject.Model))
+                .Method(nameof(FieldObjectModel.Show))
+                .Comment(nameof(SHOW));
+        }
+
+        public override IAwaitable TestExecute(IServices services)
+        {
+            FieldObject currentObject = ServiceId.Field[services].Engine.CurrentObject;
+            currentObject.Model.Show();
+            return DummyAwaitable.Instance;
+        }
+    }
+}

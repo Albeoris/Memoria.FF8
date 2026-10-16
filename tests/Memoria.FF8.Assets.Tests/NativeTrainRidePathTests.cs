@@ -8,7 +8,7 @@ public sealed class NativeTrainRidePathTests
     [Fact]
     public void OriginalRailZeroHasRealStopsAndCameraMarkersWithoutChangingModeTwoAdmission()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(0);
         Assert.Equal(63, definition.Points.Length);
         Assert.Equal(new byte[] { 36 }, definition.ForwardStops);

@@ -3,6 +3,6 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="C:/Git/Albeoris.Frameworks/Albeoris.Games.FF8.Imaging/Albeoris.Games.FF8.Imaging.csproj" />
+    <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.FF8.Imaging/Albeoris.Games.FF8.Imaging.csproj" />
   </ItemGroup>
 </Project>

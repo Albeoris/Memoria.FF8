@@ -12,11 +12,7 @@ public sealed class QueuedNamePromptHostTests
     [Fact]
     public void Required_item_name_draft_restores_without_reconsuming_and_returns_to_live_inventory()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "../fixtures/external-fixture.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);

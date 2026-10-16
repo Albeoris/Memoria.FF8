@@ -9,7 +9,7 @@ public sealed class InstalledBattleActionCoverageTests
     [Fact]
     public void EveryInstalledPlayerSpellBattleItemAndJunctionableGuardianDispatchesAndRestores()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using GameAssets game = new(directory);
         using BattleAssets assets = new(directory);

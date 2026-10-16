@@ -15,7 +15,7 @@ public sealed class JsmSharedTailTests
     [InlineData(65542)]
     public void ConditionalSharedTailRetainsIssuingScriptAcrossWaitReturnAndColdRestore(int displacement)
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         byte[] source = SharedTail(displacement);
         EventEngine Create()
         {
@@ -79,7 +79,7 @@ public sealed class JsmSharedTailTests
     [Fact]
     public void ActualLunarGate541PreservesEntry79AndAuthenticatesItsSharedTail()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         JsmProgram program = JsmProgram.Read(assets.LoadField(541).Jsm);
         EventObject owner = program.Objects.Single(actor => actor.Scripts.Any(script => script.Id == 79));
         EventScript entry = owner.Scripts.Single(script => script.Id == 79);
@@ -97,7 +97,7 @@ public sealed class JsmSharedTailTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
         Assert.Equal(541, session.State.FieldId);
         Assert.Null(world.Events.LastFault);
@@ -107,7 +107,7 @@ public sealed class JsmSharedTailTests
         {
             session.Save(snapshot);
             GameSession restoredSession = new(GameSession.Load(snapshot));
-            using GameWorld restored = new(restoredSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld restored = new(restoredSession, TestResources.GameDirectory);
             world.Apply(new(PlayerActionKind.Wait));
             restored.Apply(new(PlayerActionKind.Wait));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));

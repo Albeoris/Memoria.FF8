@@ -8,7 +8,7 @@ public sealed class WorldStationContactCertificateTests
     [Fact]
     public void OriginalContactRecordsRetainTheirCompleteNativeDimensionsAndKinds()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         Assert.Equal(new NativeWorldContactShape(811, 206, 233, 2), assets.ReadNativeContactShape(70));
         Assert.Equal(new NativeWorldContactShape(811, 206, 197, 2), assets.ReadNativeContactShape(71));
         Assert.Equal(new NativeWorldContactShape(323, 170, 209, 1), assets.ReadNativeContactShape(75));

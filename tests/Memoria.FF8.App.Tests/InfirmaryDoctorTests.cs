@@ -12,11 +12,7 @@ public sealed class InfirmaryDoctorTests
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_DOCTOR_START_SNAPSHOT", 165));
         using var world = new GameWorld(session, game);

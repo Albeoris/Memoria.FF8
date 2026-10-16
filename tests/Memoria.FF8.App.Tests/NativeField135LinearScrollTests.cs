@@ -122,11 +122,7 @@ public sealed class NativeField135LinearScrollTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(System.IO.Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         return (directory, Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
     }

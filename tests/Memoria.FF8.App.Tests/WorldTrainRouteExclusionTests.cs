@@ -10,7 +10,7 @@ public sealed class WorldTrainRouteExclusionTests
     [InlineData(1, 77, -61703, -21000, 5871, 32258)]
     public void RouteEnvelopeMatchesTheOriginalRailResource(int route, int count, int minimumX, int maximumX, int minimumZ, int maximumZ)
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(route);
         Assert.Equal(count, definition.Points.Length);
         Assert.Equal(minimumX, definition.Points.Min(point => point.X));
@@ -47,7 +47,7 @@ public sealed class WorldTrainRouteExclusionTests
     [InlineData(3072)]
     public void ACameraNearAnyOriginalRoutePointCannotInventTrainAbsence(int yaw)
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         foreach (int route in new[] { 0, 1 })
         {
             foreach (NativeWorldRailPoint point in assets.ReadScriptedPath(route).Points)

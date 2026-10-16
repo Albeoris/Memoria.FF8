@@ -5,7 +5,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class WorldForestTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
     public void Original_forest_is_walkable_on_foot_denied_to_car_and_not_a_height_step_wall()

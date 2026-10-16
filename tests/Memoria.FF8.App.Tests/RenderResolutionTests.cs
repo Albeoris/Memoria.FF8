@@ -14,11 +14,7 @@ public sealed class RenderResolutionTests
         Assert.Equal(new PixelBounds(0, 0, 2880, 2160), ViewportLayout.WorldRenderTarget(3840, 2160, 4096));
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "../fixtures/external-fixture.md")))
-        {
-            root = root.Parent;
-        }
+        DirectoryInfo? root = new(TestResources.FixtureDirectory);
         var session = new GameSession(GameSession.Load(Path.Combine(root!.FullName, "../fixtures/external-fixture.json")));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

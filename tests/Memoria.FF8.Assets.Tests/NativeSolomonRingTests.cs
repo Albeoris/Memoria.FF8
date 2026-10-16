@@ -8,7 +8,7 @@ public sealed class NativeSolomonRingTests
     [Fact]
     public void OriginalRingChecksAllMaterialsBeforeAcquisitionAndConsumesExactlyOnce()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeSolomonRingDefinition definition = assets.ReadNativeSolomonRingDefinition();
         Assert.Equal(167, definition.ItemId);
         Assert.Equal(new NativeItemStock[] { new(66, 6), new(136, 6), new(17, 6) }, definition.Ingredients);

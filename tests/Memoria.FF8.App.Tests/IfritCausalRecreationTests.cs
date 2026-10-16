@@ -337,11 +337,7 @@ public sealed class IfritCausalRecreationTests
 
     private static string Repository()
     {
-        DirectoryInfo? current = new(AppContext.BaseDirectory);
-        while (current is not null && !File.Exists(Path.Combine(current.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            current = current.Parent;
-        }
+        DirectoryInfo? current = new(TestResources.FixtureDirectory);
         return current?.FullName ?? throw new DirectoryNotFoundException("The original route evidence repository is required.");
     }
 }

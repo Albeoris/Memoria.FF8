@@ -9,7 +9,7 @@ public sealed class NativeTutorialArtworkTests
     [Fact]
     public void EveryOriginalStaticPageDecodesItsBackgroundAndScreenshotSpriteParts()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(directory, "Data", "lang-en", "menu.fs")), "Installed original tutorial artwork is required.");
         using GameAssets assets = new(directory);
         NativeTutorialArtwork artwork = NativeTutorialArtwork.Load(directory);

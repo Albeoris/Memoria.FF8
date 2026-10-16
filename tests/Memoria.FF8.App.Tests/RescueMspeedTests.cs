@@ -118,16 +118,6 @@ public sealed class RescueMspeedTests
 
     private static string RootFile(string relative)
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string candidate = Path.Combine(directory.FullName, relative);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            directory = directory.Parent;
-        }
-        throw new FileNotFoundException("Actual standalone rescue source is absent.", relative);
+        return TestResources.FixtureFile(relative);
     }
 }

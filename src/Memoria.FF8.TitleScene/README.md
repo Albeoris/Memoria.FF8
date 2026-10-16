@@ -35,7 +35,7 @@ The native composite still scales with destination pixel count. Measure performa
 
 The fabric is sampled in cylindrical material coordinates around the existing distant point. The material angle advances at 0.0125 radians/second and logarithmic radius at 0.01125/second. Visible features therefore turn slowly and contract toward the point, with fresh procedural material arriving from outside. There is no zoom reset, crossfade between repeated clips, or finite texture to exhaust. Surface and native-resolution detail use the same coordinates.
 
-
+The cylindrical noise lattice and integer angular harmonics close around a full turn. The shader also unwraps angular derivatives before antialiasing fine veins, avoiding a branch-cut line when the angle wraps. Only the rotation phase is reduced modulo a turn; radial travel remains continuous.
 
 ## Rebuild the shader
 

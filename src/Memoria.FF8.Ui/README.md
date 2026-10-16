@@ -50,4 +50,4 @@ UiView view = new(root);
 view.Resize(viewportWidth, viewportHeight);
 ```
 
-`dotnet run --project recreate/product/tests/Memoria.FF8.Ui.Tests` runs headless contract tests.
+`dotnet run --project tests/Memoria.FF8.Ui.Tests` runs headless contract tests.

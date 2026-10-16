@@ -8,7 +8,7 @@ public sealed class NativeCharacterStatTests
 {
     private static NativeCharacterVitals Read()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         return assets.ReadNewGameCharacterVitals();
     }
 

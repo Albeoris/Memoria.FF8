@@ -51,9 +51,9 @@ public sealed class NativeGardenContactTests
     [Fact]
     public void ActualAllocationScanKeepsOrderedDistinctGardenContactsAndCurrentVehicleExclusions()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldEntryMemory entry = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 750);
-        using GameAssets game = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeGardenWorldAllocation allocation = assets.ReadGardenAllocation(new(12, 48, -1), entry, NativeEventMemory.Empty, NativeSavedWorldState.CreateNewGame(), game.ReadNewGameCharacterVitals());
         NativeSavedWorldPose pose = allocation.LoadPose;
         int x = pose.X + 500;

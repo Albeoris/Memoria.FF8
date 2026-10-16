@@ -11,7 +11,7 @@ public sealed class NativeScriptedWorldStateTests
     [InlineData(9, 22, 205, 59)]
     public void OriginalScriptedModesSaveAtEndpointAndAtomicallyPublishRowAfterSixteenFadeCallbacks(int track, byte entity, ushort story, int destination)
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeScriptedWorldFootRecord foot = assets.ReadScriptedFootRecord(story, 0);
         Assert.Equal(new NativeSavedWorldPose(0, 0, 0, 0), foot.Pose);
         Assert.Equal((byte)0, assets.ReadScriptedFootRecord(33, 0).ShapeId);

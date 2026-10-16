@@ -11,11 +11,7 @@ public sealed class NativeMovementRequestTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_MOVEMENT_REQUEST_SNAPSHOT", 327, 36);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);

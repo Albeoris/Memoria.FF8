@@ -7,7 +7,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class BattleStageCameraTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
     [InlineData(0)]

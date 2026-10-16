@@ -10,7 +10,7 @@ public sealed class NativeTripleTriadArtworkTests
     [Fact]
     public void Authenticated_native_element_sprites_are_distinct_and_keep_their_transparent_extent()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(gameDirectory, "FF8_EN.exe")), "Installed original executable is required.");
         NativeTripleTriadArtwork artwork = NativeTripleTriadArtwork.Load(gameDirectory);
         HashSet<string> hashes = [];

@@ -7,7 +7,7 @@ public sealed class NativeBattleActionCameraTests
     [Fact]
     public void InstalledExecutableAndModelsSupplyTheOriginalCameraInputs()
     {
-        using GameAssets game = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets game = new(TestResources.GameDirectory);
         NativeBattleActionCameraRules rules = game.ReadNativeActionCameraRules();
         Assert.Equal(new ushort[] { 0, 16, 32, 64, 256 }, rules.Increment);
         Assert.Equal(new ushort[] { 0, 49, 97, 193, 0 }, rules.RandomRange);

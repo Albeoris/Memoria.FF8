@@ -1,0 +1,45 @@
+using System;
+using Albeoris.Games.FF8.Jsm.Core;
+using Albeoris.Games.FF8.Jsm.Format;
+using Jsm = Albeoris.Games.FF8.Jsm.Jsm;
+
+namespace Albeoris.Games.FF8.Jsm.Instructions
+{
+    /// <summary>
+    /// Global[index] = (UInt16)value;
+    /// </summary>
+    internal sealed class POPM_W : JsmInstruction
+    {
+        private GlobalVariableId<UInt16> _globalVariable;
+        private IJsmExpression _value;
+
+        public POPM_W(GlobalVariableId<UInt16> globalVariable, IJsmExpression value)
+        {
+            _globalVariable = globalVariable;
+            _value = value;
+        }
+
+        public POPM_W(Int32 parameter, IExpressionStack stack)
+            : this(new GlobalVariableId<UInt16>(parameter),
+                value: stack.Pop())
+        {
+        }
+
+        public override String ToString()
+        {
+            return $"{nameof(POPM_W)}({nameof(_globalVariable)}: {_globalVariable}, {nameof(_value)}: {_value})";
+        }
+
+        public override void Format(ScriptWriter sw, IScriptFormatterContext formatterContext, IServices services)
+        {
+            FormatHelper.FormatGlobalSet(_globalVariable, _value, Jsm.GlobalUInt16, sw, formatterContext, services);
+        }
+
+        public override IAwaitable TestExecute(IServices services)
+        {
+            UInt16 value = (UInt16)_value.Calculate(services);
+            ServiceId.Global[services].Set(_globalVariable, value);
+            return DummyAwaitable.Instance;
+        }
+    }
+}

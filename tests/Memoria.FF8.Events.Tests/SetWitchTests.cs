@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeSetWitchContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
         NativeEconomy economy = assets.ReadNewGameEconomy();
         NativeSavedBattleFlagFieldWrite previous = new(600, new string('A', 64), 0, 1, 5, 1, 1);

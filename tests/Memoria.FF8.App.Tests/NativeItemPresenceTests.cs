@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeItemPresenceTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
     [InlineData(164, 1)]
@@ -149,16 +149,6 @@ public sealed class NativeItemPresenceTests
 
     private static string FindRootFile(string relative)
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string candidate = Path.Combine(directory.FullName, relative);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            directory = directory.Parent;
-        }
-        throw new FileNotFoundException("Actual standalone White SeeD source is absent.", relative);
+        return TestResources.FixtureFile(relative);
     }
 }

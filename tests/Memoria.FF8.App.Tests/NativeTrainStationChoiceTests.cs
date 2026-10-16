@@ -122,11 +122,7 @@ public sealed class NativeTrainStationChoiceTests
 
     private static GameState LoadStationPrompt()
     {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         GameState source = GameSession.Load(Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
         return source;
@@ -134,6 +130,6 @@ public sealed class NativeTrainStationChoiceTests
 
     private static string GameDirectory()
     {
-        return @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        return TestResources.GameDirectory;
     }
 }

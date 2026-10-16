@@ -6,7 +6,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class WorldAssetTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
     private static readonly Dictionary<int, int> StaticGarden = new() { [274] = 827, [275] = 828 };
 
     [Fact]

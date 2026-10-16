@@ -75,7 +75,7 @@ public sealed class Pandora487LinearScrollTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.Null(world.Events.Scene.NormalBackgroundScrollCenter);
         Assert.Equal(new(1, 0, 0), world.Events.Scene.NativeBackgroundScrollCurrents![1]);
@@ -90,7 +90,7 @@ public sealed class Pandora487LinearScrollTests
         {
             session.Save(path);
             GameSession coldSession = new(GameSession.Load(path));
-            using GameWorld cold = new(coldSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld cold = new(coldSession, TestResources.GameDirectory);
             world.Apply(new(PlayerActionKind.Wait));
             cold.Apply(new(PlayerActionKind.Wait));
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), cold.Events.Capture()));

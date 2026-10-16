@@ -8,7 +8,7 @@ public sealed class NativeWorldGroundContactTests
     [Fact]
     public void BlockingTheChosenTerrainCandidateKeepsTheBodyAndGroundPointersButCommitsTheLookupCache()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         WorldGroundSelection source = assets.LookupNativeGround(10845, -79939, replacements, [])!;
         NativeWorldGroundCacheState prior = NativeWorldGroundCacheState.CreateFresh(source.Identity) with { Alternatives = [new(0, [], source.Identity, source.Identity) { FailedSelections = 3 }] };
@@ -37,7 +37,7 @@ public sealed class NativeWorldGroundContactTests
     [Fact]
     public void AContactFreeCallbackPreservesTheEstablishedGroundResultAndTerrainFailureDoesNotCallIt()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         WorldGroundSelection source = assets.LookupNativeGround(10845, -79939, replacements, [])!;
         NativeWorldGroundCacheState prior = NativeWorldGroundCacheState.CreateFresh(source.Identity) with { Alternatives = [new(0, [], source.Identity, source.Identity) { FailedSelections = 0 }] };

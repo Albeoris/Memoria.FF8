@@ -116,11 +116,7 @@ public sealed class NativeModelDoorContinuationTests
 
     private static string Evidence(string name)
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         return Path.Combine(directory!.FullName, "../fixtures", name);
     }
 }

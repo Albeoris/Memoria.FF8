@@ -139,7 +139,7 @@ public sealed class NativeRagnarokTransferTests
     [Fact]
     public void ComponentTargetsComeFromTheAuthenticatedOriginalExecutableTables()
     {
-        byte[] executable = File.ReadAllBytes(@"C:\Steam\steamapps\common\FINAL FANTASY VIII\FF8_EN.exe");
+        byte[] executable = File.ReadAllBytes(TestResources.GameFile("FF8_EN.exe"));
         Assert.Equal(NativeFieldRuntimeProfile.FF8EnExecutableHash, Convert.ToHexString(SHA256.HashData(executable)));
         using PEReader reader = new(new MemoryStream(executable));
         short[] Words(int address, int count)

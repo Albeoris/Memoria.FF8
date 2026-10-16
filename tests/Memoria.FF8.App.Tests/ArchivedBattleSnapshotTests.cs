@@ -13,7 +13,7 @@ public sealed class ArchivedBattleSnapshotTests
     [Fact]
     public void Encounter29AcceptsSuppliedPartyRecordsWithInstalledComponentOwners()
     {
-        string archivePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_REGRESSION_ARCHIVE") ?? @"../fixtures/external-fixture.zip";
+        string archivePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_REGRESSION_ARCHIVE") ?? string.Empty;
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(File.Exists(archivePath) && Directory.Exists(game), "The preserved user archive and installed original resources are required.");
         using (FileStream archiveBytes = File.OpenRead(archivePath))

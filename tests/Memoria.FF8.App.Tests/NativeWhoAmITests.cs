@@ -9,7 +9,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeWhoAmITests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
     [InlineData(8, 0)]

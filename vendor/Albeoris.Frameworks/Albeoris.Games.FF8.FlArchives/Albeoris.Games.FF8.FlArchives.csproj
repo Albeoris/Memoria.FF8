@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <ItemGroup>
+      <Folder Include="010 Editor\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Albeoris.Games.Core\Albeoris.Games.Core\Albeoris.Games.Core.csproj" />
+      <ProjectReference Include="..\Albeoris.Games.FF8.FlArchives.Abstractions\Albeoris.Games.FF8.FlArchives.Abstractions.csproj" />
+    </ItemGroup>
+
+</Project>

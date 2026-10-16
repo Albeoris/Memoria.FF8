@@ -129,18 +129,14 @@ public sealed class FieldNativeBackgroundWrapTests
 
     private static GameAssets InstalledAssets()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed selected field corpus is required.");
         return new GameAssets(directory);
     }
 
     private static Dictionary<int, int> Original135BackgroundStates()
     {
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
         using JsonDocument checkpoint = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement state = checkpoint.RootElement.GetProperty("EventState");

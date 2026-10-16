@@ -8,7 +8,7 @@ public sealed class NativeGardenPlacementTests
     [Fact]
     public void ZeroDistanceSourceCheckUsesActualGroundAndCanonicalFivePointContactWithoutChangingCache()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(750);
         WorldGroundSelection ground = assets.LookupNativeGround(20480, -4600, replacements, [])!;
         NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity);
@@ -38,7 +38,7 @@ public sealed class NativeGardenPlacementTests
     [Fact]
     public void EightRejectedProposalsRetainTheLastActualContact()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(750);
         WorldGroundSelection ground = assets.LookupNativeGround(20480, -4600, replacements, [])!;
         NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity);
@@ -54,7 +54,7 @@ public sealed class NativeGardenPlacementTests
     [Fact]
     public void FailedSourcePolygonPermissionDoesNotInventATargetOrContact()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(750);
         WorldGroundSelection ground = assets.LookupNativeGround(20480, -4600, replacements, [])!;
         NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity);

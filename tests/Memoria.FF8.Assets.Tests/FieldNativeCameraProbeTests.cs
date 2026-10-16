@@ -8,7 +8,7 @@ public sealed class FieldNativeCameraProbeTests
     [Fact]
     public void OriginalFirstFloorArrivalsUseNativeHeightAnchorAndMovingClamp()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed selected field corpus is required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(165);
@@ -176,7 +176,7 @@ public sealed class FieldNativeCameraProbeTests
 
     private static GameAssets InstalledAssets()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         return new GameAssets(directory);
     }

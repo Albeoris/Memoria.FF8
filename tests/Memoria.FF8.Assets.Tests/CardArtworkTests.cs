@@ -9,7 +9,7 @@ public sealed class CardArtworkTests
     [Fact]
     public void OriginalAtlasesSupplyEveryDistinctFrontAndGoldBackAtNativeAspectRatio()
     {
-        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string gameDirectory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(File.Exists(Path.Combine(gameDirectory, "Data", "lang-en", "menu.fs")), "Installed original menu resources are required.");
         CardArtwork artwork = CardArtwork.Load(gameDirectory);
         HashSet<string> fronts = [];

@@ -7,7 +7,7 @@ public sealed class NativeGardenStaticModelTests
     [InlineData(65, 16, 16)]
     public void OriginalGardenModelDecodesItsEightBitTexturePageAndPalette(int shape, int vertices, int faces)
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         WorldStaticModel model = assets.ReadScriptedStaticModel((byte)shape);
         Assert.Equal((ushort)0x8D, model.TexturePage);
         Assert.Equal(vertices, model.NativeVertices.Count);

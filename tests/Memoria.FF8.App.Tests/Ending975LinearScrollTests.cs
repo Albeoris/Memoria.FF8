@@ -53,7 +53,7 @@ public sealed class Ending975LinearScrollTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 24));
         Assert.Null(world.Events.LastFault);
@@ -85,7 +85,7 @@ public sealed class Ending975LinearScrollTests
         {
             session.Save(path);
             GameSession coldSession = new(GameSession.Load(path));
-            using GameWorld cold = new(coldSession, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+            using GameWorld cold = new(coldSession, TestResources.GameDirectory);
             cold.EnsureField();
             Assert.True(JsonElement.DeepEquals(world.Events.Capture(), cold.Events.Capture()));
             world.Apply(new(PlayerActionKind.Wait, Frames: 36));

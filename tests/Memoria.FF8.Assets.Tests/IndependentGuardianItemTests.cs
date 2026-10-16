@@ -13,7 +13,7 @@ public sealed class IndependentGuardianItemTests
     [InlineData(32, 9999)]
     public void SummonItemPreservesItsReservationAndRestoresTheResolvedNativeInvocation(int itemId, int expectedDamage)
     {
-        using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleSession battle = Create(assets, itemId, 1);
         NativeBattleLastAction previousKoMemory = new(1, 2, 2, 12, 4, 1);
         if (itemId == 31)
@@ -59,7 +59,7 @@ public sealed class IndependentGuardianItemTests
     [Fact]
     public void GysahlGreensUsesItsOriginalFailureWhenPocketStationHasNoAvailableChocobo()
     {
-        using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleSession battle = Create(assets, 30, 0);
         battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
         battle.Tick();
@@ -84,7 +84,7 @@ public sealed class IndependentGuardianItemTests
     [Fact]
     public void AwayChocoboPrefixesItsSavedEncodedNameAndMissingNameFailsBeforeReservation()
     {
-        using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using BattleAssets assets = new(TestResources.GameDirectory);
         BattleSession missing = Create(assets, 30, 3);
         Assert.Throws<NotSupportedException>(() => missing.QueueAction("caster", "enemy", BattleAbility.Item, 30));
         Assert.Equal(2, Assert.Single(missing.Items).Count);

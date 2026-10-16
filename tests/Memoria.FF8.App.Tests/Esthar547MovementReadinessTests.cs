@@ -14,7 +14,7 @@ public sealed class Esthar547MovementReadinessTests
             root = Directory.GetParent(root)!.FullName;
         }
         GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
-        using GameWorld world = new(session, @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         int callbacks = 0;
         while (session.FieldFade!.Physical.Mode == 4 && callbacks < 240)

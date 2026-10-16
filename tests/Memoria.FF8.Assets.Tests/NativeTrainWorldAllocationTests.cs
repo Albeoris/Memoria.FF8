@@ -10,7 +10,7 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeTrainWorldAllocationTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Theory]
     [InlineData(290, 0)]

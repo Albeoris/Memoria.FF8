@@ -108,17 +108,7 @@ public sealed class WorldEntryPreflightTests
     private static GameState ComponentDeparture()
     {
         // Isolated backend lifecycle fixture derived from a genuine standalone field save; no gateway or world visit is executed here.
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string source = Path.Combine(directory.FullName, "../fixtures/external-fixture.json");
-            if (File.Exists(source))
-            {
-                return GameSession.Load(source);
-            }
-            directory = directory.Parent;
-        }
-        throw new FileNotFoundException("The standalone field source for world-entry lifecycle fixtures is absent.");
+        return GameSession.Load(TestResources.FixtureFile("../fixtures/external-fixture.json"));
     }
 
     private static GameState Candidate(GameState departure, PreparedWorldEntry entry)

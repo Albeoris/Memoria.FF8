@@ -142,7 +142,7 @@ internal static partial class Program
 
     private static void NativeTurnMoveCallbackOrderContract()
     {
-        using Memoria.FF8.Assets.GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using Memoria.FF8.Assets.GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         foreach (bool linear in new[] { false, true })
         {

@@ -14,11 +14,7 @@ public sealed class NativeSelectedCameraWrappedScrollTests
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field assets are required.");
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_CAMERA_SCROLL_SOURCE") ?? Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The genuine field929 post-movie diagnostic is required.");

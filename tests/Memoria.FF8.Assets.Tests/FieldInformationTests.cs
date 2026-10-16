@@ -16,7 +16,7 @@ public sealed class FieldInformationTests
     [Fact]
     public void OriginalCorridorInfPreservesGatewaysAndSeparateAreaContactGeometry()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         FieldInformation information = Assert.IsType<FieldInformation>(assets.LoadField(139).Information);
         Assert.Equal(200, information.ControlDirection);
         Assert.Equal(200, information.CameraHeight);

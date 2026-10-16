@@ -8,7 +8,7 @@ namespace Memoria.FF8.App.Tests;
 /// <summary>Isolated installed-resource components; these are not an acquired-Ragnarok playthrough.</summary>
 public sealed class NativeRagnarokSceneTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
     public void OriginalLoaderAndOrdinaryFlightRestoreTheSameNextDigitalCallback()

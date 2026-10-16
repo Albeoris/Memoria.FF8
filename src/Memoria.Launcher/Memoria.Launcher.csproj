@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>Memoria.Launcher</AssemblyName>
+    <RootNamespace>Memoria.Launcher</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Compile Include="../Memoria.FF8.App/MediaToolsInstallation.cs" Link="MediaToolsInstallation.cs" />
+    <ProjectReference Include="../../vendor/Albeoris.Frameworks/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary/Albeoris.Games.SteamLibrary.csproj" />
+    <InternalsVisibleTo Include="Memoria.Launcher.Tests" />
+  </ItemGroup>
+</Project>

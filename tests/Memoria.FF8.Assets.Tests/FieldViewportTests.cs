@@ -58,7 +58,7 @@ public sealed class FieldViewportTests
     [InlineData(181)]
     public void InstalledInfirmaryViewsFillTheTopAndBottomOfTheNativePicture(int fieldId)
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original infirmary resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(fieldId);

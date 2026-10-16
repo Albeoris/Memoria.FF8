@@ -14,7 +14,7 @@ public sealed class NativeActorCameraOneScrollTests
     [Fact]
     public void ActualMemoryActorRowOneFollowsThenCosineRetargetsWithSelectedCameraAuthority()
     {
-        string source = @"../fixtures/external-fixture.json";
+        string source = TestResources.FixtureFile("../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The genuine memory DSCROLLA2 boundary snapshot is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement checkpoint = document.RootElement.GetProperty("EventState");
@@ -103,7 +103,7 @@ public sealed class NativeActorCameraOneScrollTests
     [Fact]
     public void ActualCourtBoundaryAdmitsItsRetainedRawActorWithoutReplacingSelectedCameraOne()
     {
-        string source = @"../fixtures/external-fixture.json";
+        string source = TestResources.FixtureFile("../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The genuine court boundary snapshot is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement checkpoint = document.RootElement.GetProperty("EventState");
@@ -133,7 +133,7 @@ public sealed class NativeActorCameraOneScrollTests
     [Fact]
     public void ActualSelectedCourtCosineOwnsRowOneThroughCompletionAndTheLaterCameraZeroSwitch()
     {
-        string source = @"../fixtures/external-fixture.json";
+        string source = TestResources.FixtureFile("../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The genuine court selected cosine boundary snapshot is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement checkpoint = document.RootElement.GetProperty("EventState");

@@ -101,7 +101,7 @@ public sealed class TonberryTests
     [Fact]
     public void InstalledUnchangedHorizonPackMatchesNativeFloorExpandedClassicTexl()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         string package = Path.Combine(directory, "Mods", "Tonberry", "HorizonPackRemaster_v1-0");
         Assert.SkipUnless(Directory.Exists(package), "Installed HorizonPack corpus is required.");
         ModFile[] files = Directory.EnumerateFiles(package, "*", SearchOption.AllDirectories).OrderBy(path => path, StringComparer.OrdinalIgnoreCase).Select(path => new ModFile("Tonberry/HorizonPackRemaster_v1-0", ModFormat.Tonberry, Path.GetRelativePath(package, path), 1, () => File.ReadAllBytes(path))).ToArray();
@@ -174,7 +174,7 @@ public sealed class TonberryTests
     [Fact]
     public void InstalledRoadRegionsMatchBeforePackingAndReturnOnlyTheirSourceRectangle()
     {
-        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory;
         string package = Path.Combine(directory, "Mods", "Tonberry", "HorizonPackRemaster_v1-0");
         Assert.SkipUnless(Directory.Exists(package), "Installed HorizonPack corpus is required.");
         ModFile[] files = Directory.EnumerateFiles(package, "*", SearchOption.AllDirectories).OrderBy(path => path, StringComparer.OrdinalIgnoreCase).Select(path => new ModFile("Tonberry/HorizonPackRemaster_v1-0", ModFormat.Tonberry, Path.GetRelativePath(package, path), 1, () => File.ReadAllBytes(path))).ToArray();

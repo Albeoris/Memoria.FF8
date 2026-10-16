@@ -15,7 +15,7 @@ public sealed class NativeTrainGroundCacheTests
     [InlineData((byte)22)]
     public void NativeTrainUsesItsFiveProbeFootprintAndUnconditionalPermissionWithTheSharedCache(byte entity)
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         WorldGroundSelection source = assets.LookupNativeGround(10845, -79939, replacements, [])!;
         NativeWorldGroundCacheState initial = NativeWorldGroundCacheState.CreateFresh(source.Identity);

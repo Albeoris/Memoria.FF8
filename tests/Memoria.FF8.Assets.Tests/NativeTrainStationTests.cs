@@ -12,7 +12,7 @@ public sealed class NativeTrainStationTests
     [InlineData(2, -51438, -12555, -566, "1237FFFFF5CEFFFFCAFD0C0F")]
     public void Original20402dcStationRecordsPreserveRawZSignedHeightAndUnusedTail(int index, int x, int rawZ, short height, string bytes)
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldTrainStation station = assets.ReadTrainStation(index);
         Assert.Same(station, assets.ReadTrainStation(index));
         Assert.Equal(x, station.X);
@@ -29,7 +29,7 @@ public sealed class NativeTrainStationTests
     [Fact]
     public void AbsentStationRecordsRefuseBeforeReadingTheNextSection()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         Assert.Throws<ArgumentOutOfRangeException>(() => assets.ReadTrainStation(-1));
         Assert.Throws<ArgumentOutOfRangeException>(() => assets.ReadTrainStation(3));
     }

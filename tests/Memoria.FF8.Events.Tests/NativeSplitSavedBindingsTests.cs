@@ -11,7 +11,7 @@ internal static partial class Program
 {
     private static void NativeSplitSavedBindingsContract()
     {
-        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
         NativeCharacterVitals initialVitals = assets.ReadNewGameCharacterVitals();
         byte[] Content(bool nonzeroLimit)
         {

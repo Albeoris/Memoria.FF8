@@ -8,7 +8,7 @@ public sealed class NativeGardenGroundTests
     [Fact]
     public void FootBoardingSuppressionKeepsGroundPointersAndPublishesFullFootprintContacts()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         WorldGroundSelection source = assets.LookupNativeGround(10845, -79939, replacements, [])!;
         NativeWorldGroundCacheState prior = NativeWorldGroundCacheState.CreateFresh(source.Identity) with { Alternatives = [new(0, [], source.Identity, source.Identity) { FailedSelections = 3 }] };
@@ -39,7 +39,7 @@ public sealed class NativeGardenGroundTests
     [Fact]
     public void ActualGardenSpawnPublishesFiveBodyVectorsAndBroadContactDoesNotBlockThePose()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         NativeWorldGroundCacheState prior = SpawnCache(assets, replacements);
         string before = JsonSerializer.Serialize(prior);
@@ -85,7 +85,7 @@ public sealed class NativeGardenGroundTests
     [Fact]
     public void FirstContactRejectionKeepsPoseAndPointersWithoutTryingAnotherCandidate()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         NativeWorldGroundCacheState prior = SpawnCache(assets, replacements);
         int calls = 0;
@@ -111,7 +111,7 @@ public sealed class NativeGardenGroundTests
     [Fact]
     public void RejectedFourteenUnitHeightRetryRestoresTheInitialHoverAndModeEightSkipsThatRetry()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(285);
         NativeWorldGroundCacheState prior = SpawnCache(assets, replacements);
         List<short> heights = [];

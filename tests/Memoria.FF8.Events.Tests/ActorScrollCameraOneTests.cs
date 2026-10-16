@@ -9,7 +9,7 @@ internal static partial class Program
 {
     private static void NativeActorScrollCameraOneContract()
     {
-        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using GameAssets assets = new(TestResources.GameDirectory);
         (GameSession Session, EventEngine Engine) Create(bool cosine = false, bool layered = false)
         {
             (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.RET, 0)];

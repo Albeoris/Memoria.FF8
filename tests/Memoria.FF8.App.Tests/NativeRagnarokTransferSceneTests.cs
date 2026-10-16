@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeRagnarokTransferSceneTests
 {
-    private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+    private static string GameDirectory => TestResources.GameDirectory;
 
     [Fact]
     public void ActualLandingCallbacksRestoreMidTransferAndKeepPreTerrainCameraSeparateFromLateGlobals()

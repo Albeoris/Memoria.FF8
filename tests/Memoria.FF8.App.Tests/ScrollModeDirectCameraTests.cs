@@ -73,11 +73,7 @@ public sealed class ScrollModeDirectCameraTests
     {
         // Preserve every unrelated owner from the authentic reached Scene. Only
         // the explicit camera/scroll component inputs below vary; no game snapshot is published.
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            repository = repository.Parent;
-        }
+        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
         using JsonDocument source = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository.FullName, "../fixtures/external-fixture.json")));
         JsonNode scene = JsonNode.Parse(source.RootElement.GetProperty("EventState").GetProperty("Scene").GetRawText())!;

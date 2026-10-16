@@ -11,11 +11,7 @@ public sealed class QuistisMovieBoundaryTests
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "../fixtures/external-fixture.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);
@@ -39,11 +35,7 @@ public sealed class QuistisMovieBoundaryTests
     {
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original Quistis movie and field corpus is required.");
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "docs", "recreate-checkpoint.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         Assert.NotNull(directory);
         string source = Path.Combine(directory.FullName, "../fixtures/external-fixture.json");
         Assert.SkipUnless(File.Exists(source), "The preserved authentic field181 movie1 startup save is required.");

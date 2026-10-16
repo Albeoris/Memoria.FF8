@@ -232,11 +232,7 @@ public sealed class DebugNamingTests
 
     private static string RepositoryRoot()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
+        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         return directory?.FullName ?? throw new DirectoryNotFoundException("FF8 repository root is required.");
     }
 }

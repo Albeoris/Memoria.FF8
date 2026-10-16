@@ -19,7 +19,7 @@ internal static partial class Program
             {
                 session = GameSession.CreateColdProcess();
                 session.StartNewGame();
-                using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+                using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? TestResources.GameDirectory);
                 session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
                 // This explicit timer-domain diagnostic does not claim a cold timer phase or route history.
                 session.SetExamTimer(NativeExamTimerState.FromReachedSet(600).KillDisplay());

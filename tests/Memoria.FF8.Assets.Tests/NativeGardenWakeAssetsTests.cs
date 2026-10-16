@@ -8,7 +8,7 @@ public sealed class NativeGardenWakeAssetsTests
     [Fact]
     public void OriginalTypeTenKeepsWakeGeometryAndRandomPoolHistoryAcrossFootRestoration()
     {
-        using WorldAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        using WorldAssets assets = new(TestResources.GameDirectory);
         NativeWorldForestEffect effect = assets.ForestTables.Effects[6];
         Assert.Equal((10, 4224, 16, 1, 2, 640), ((int)effect.Type, (int)effect.Shrink, (int)effect.Lifetime, (int)effect.Frames, (int)effect.FrameDuration, (int)effect.HalfSize));
         Assert.Equal((8, -8, 8, 0, 1, 0), ((int)effect.VelocityX, (int)effect.VelocityY, (int)effect.VelocityZ, (int)effect.AccelerationX, (int)effect.AccelerationY, (int)effect.AccelerationZ));
