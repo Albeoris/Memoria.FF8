@@ -25,6 +25,24 @@ public sealed class BattleUiTests
     }
 
     [Fact]
+    public void Ready_sleeping_player_waits_for_automatic_status_expiry_before_command_selection()
+    {
+        BattleDefinition definition = Definition();
+        definition.Combatants[0] = definition.Combatants[0] with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep, DurationFrames = 1 }] };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn());
+        Assert.Null(hud.SelectedActor);
+        Assert.Empty(hud.Commands);
+        hud.SelectParty("party-0");
+        Assert.Null(hud.SelectedActor);
+        session.Tick();
+        Assert.Equal(1, session.Frame);
+        Assert.Equal("party-0", hud.SelectedActor!.Id);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingTarget);
+    }
+
+    [Fact]
     public void Cancel_returns_to_commands_and_advance_only_dispatches_in_turn_based_mode()
     {
         BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
@@ -70,9 +88,61 @@ public sealed class BattleUiTests
         long frame = session.Frame;
         hud.Navigate(MenuInput.Confirm);
         hud.BuildView().Pointer(100, 560, true);
-        Assert.Equal(2, completions);
+        Assert.Equal(1, completions);
         Assert.Equal(frame, session.Frame);
         Assert.Equal(BattleOutcome.Victory, session.Outcome);
+    }
+
+    [Fact]
+    public void Victory_rewards_preview_is_cached_and_paged_without_applying_until_confirm()
+    {
+        BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
+        BattleRewardSummary rewards = new(new Dictionary<byte, ushort> { [0] = 123 }, Enumerable.Range(0, 9).ToDictionary(id => (byte)id, id => (ushort)(id + 10)), Enumerable.Range(0, 9).ToDictionary(id => id, _ => (ushort)3), [new BattleStock(7, 2)], [4]);
+        int previews = 0;
+        int completions = 0;
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => session.AdvanceTurn(), () => completions++, previewRewards: () =>
+        {
+            previews++;
+            return rewards;
+        }, guardianForceName: id => $"Guardian {id}", itemName: _ => "Potion", cardName: _ => "Bite Bug");
+        Assert.Empty(hud.RewardLines);
+        Assert.Equal(0, previews);
+        session.InstantVictory();
+        string before = JsonSerializer.Serialize(session.Capture());
+        Assert.Contains("Squall   EXP +123", hud.VisibleRewardLines);
+        Assert.Contains("Guardian 0   EXP +10   AP +3", hud.VisibleRewardLines);
+        Assert.Equal(2, hud.RewardPageCount);
+        Assert.Equal(8, hud.VisibleRewardLines.Count);
+        hud.Navigate(MenuInput.Right);
+        Assert.Equal(1, hud.RewardPage);
+        Assert.Contains("Guardian 8   EXP +18   AP +3", hud.VisibleRewardLines);
+        Assert.Contains("Potion   x2", hud.VisibleRewardLines);
+        Assert.Contains("Bite Bug   x1", hud.VisibleRewardLines);
+        TestCanvas canvas = new();
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Contains("VICTORY · REWARDS", canvas.Texts);
+        Assert.Contains("Potion   x2", canvas.Texts);
+        Assert.Equal(1, previews);
+        Assert.Equal(0, completions);
+        Assert.Equal(before, JsonSerializer.Serialize(session.Capture()));
+        hud.Navigate(MenuInput.Left);
+        Assert.Equal(0, hud.RewardPage);
+        hud.Navigate(MenuInput.Confirm);
+        hud.Complete();
+        Assert.Equal(1, completions);
+        Assert.Equal(1, previews);
+    }
+
+    [Fact]
+    public void Standalone_victory_explains_rewards_are_not_saved()
+    {
+        BattleSession session = new(Definition(), BattleAtbMode.Normal);
+        BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { });
+        session.InstantVictory();
+        Assert.Equal("Standalone battle: rewards are not saved.", Assert.Single(hud.RewardLines));
+        Assert.Equal(1, hud.RewardPageCount);
+        hud.ChangeRewardPage(1);
+        Assert.Equal(0, hud.RewardPage);
     }
 
     [Theory]

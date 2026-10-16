@@ -15,6 +15,17 @@ internal sealed partial class GameWorld
     public BattleRewardSummary? LastBattleRewards { get; private set; }
     public BattleAssets BattleResources => battleAssets ??= new BattleAssets(assets.GameDirectory, resources);
 
+    public BattleRewardSummary PreviewBattleRewards()
+    {
+        BattleSession active = battle ?? throw new InvalidOperationException("Battle rewards require an active battle owner.");
+        if (active.Outcome != BattleOutcome.Victory)
+        {
+            throw new InvalidOperationException("Battle rewards are available after victory.");
+        }
+        BattleEncounterOccurrence encounter = session.State.PendingBattleEncounter ?? throw new InvalidDataException("Battle rewards require the observed encounter occurrence.");
+        return ProjectBattleResult(CaptureBattleOutcome(active, encounter)).Rewards;
+    }
+
     private void ConfigureBattleHost()
     {
         battle = session.State.Battle is null ? null : BattleSession.Restore(session.State.Battle);
@@ -65,7 +76,7 @@ internal sealed partial class GameWorld
             BattleEnemyNativeProjection stats = BattleResources.ReadEnemyNativeStats(enemy.ModelId).Project(level);
             int power = 0;
             int drainPercent = 0;
-            combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialActive = enemy.Enabled, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = BattleResources.ReadEnemyAi(enemy.ModelId, level), NativeTemplate = BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)), Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, PhysicalPower = power, DrainPercent = drainPercent, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
+            combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialActive = enemy.Enabled, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = BattleResources.ReadEnemyAi(enemy.ModelId, level), NativeTemplate = BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)), Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, Evasion = stats.Evasion, PhysicalPower = power, DrainPercent = drainPercent, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
         }
         BattleDefinition definition = new() { Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeSeed = nativeSeed, NativeFlags = activeFlags, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (session.State.CharacterVitals!.GetEncounterAbilityFlags() & 2) != 0, Items = session.State.Economy?.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray() ?? throw new NotSupportedException("Interactive battle requires the canonical item owner.") };
         _ = new BattleScenePresentation(BattleResources, definition, true);
@@ -236,7 +247,7 @@ internal sealed partial class GameWorld
             {
                 throw new NotSupportedException("Battle facts require the actual exact pre-battle HP operand.");
             }
-            ushort status = (ushort)((original.Status & 0x80) | (player.CurrentHp == 0 ? 1 : 0));
+            ushort status = (ushort)(player.NativeRetainedStatusBits | (player.CurrentHp == 0 ? 1 : 0));
             foreach ((int mask, BattleStatusKind kind) in new[] { (2, BattleStatusKind.Poison), (8, BattleStatusKind.Blind), (16, BattleStatusKind.Silence) })
             {
                 if (player.StatusEffects.Any(effect => effect.Kind == kind))
@@ -330,16 +341,7 @@ internal sealed partial class GameWorld
                 throw new InvalidDataException("Battle reward policy differs from its actual hosted battle backend.");
             }
         }
-        BattleEncounter formation = BattleResources.LoadEncounter(expected.Formation);
-        if (result.DefeatedEnemySlots.Any(slot => !formation.Slots.Any(enemy => enemy.Slot == slot && enemy.NativeModelId >= 16 && enemy.NativeModelId != 255)) || result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
-        {
-            throw new InvalidDataException("Battle result defeated-enemy facts contradict the current original formation.");
-        }
-        BattleEnemyPlacement[] rewarded = formation.Slots.Where(enemy => result.DefeatedEnemySlots.Contains(enemy.Slot)).ToArray();
-        Dictionary<int, int> currentAp = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
-        Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyRewards(enemy.ModelId));
-        bool noExperience = NativeBattleRewardDistribution.NoExperience(checked((ushort)(expected.ScriptedOwner?.Flags ?? 0)), formation.Flags);
-        BattleResultOwners owners = BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp, currentRewards, assets.ReadNativeBattleExperienceDefinition(), session.State.CardInventory, noExperience);
+        BattleResultOwners owners = ProjectBattleResult(result);
         NativeBattleVariableState? variables = null;
         if (result.PersistentAiVariablesBefore is { } before)
         {
@@ -352,5 +354,19 @@ internal sealed partial class GameWorld
         }
         session.CommitBattleResult(expected, owners.CharacterVitals, owners.Economy, owners.Cards, variables);
         LastBattleRewards = owners.Rewards;
+    }
+
+    private BattleResultOwners ProjectBattleResult(BattleResult result)
+    {
+        BattleEncounter formation = BattleResources.LoadEncounter(result.Encounter.Formation);
+        if (result.DefeatedEnemySlots.Any(slot => !formation.Slots.Any(enemy => enemy.Slot == slot && enemy.NativeModelId >= 16 && enemy.NativeModelId != 255)) || result.RewardPolicy == BattleRewardPolicy.ResearchAutomaticApOnly && !formation.Enemies.Select(enemy => enemy.Slot).Order().SequenceEqual(result.DefeatedEnemySlots.Order()))
+        {
+            throw new InvalidDataException("Battle result defeated-enemy facts contradict the current original formation.");
+        }
+        BattleEnemyPlacement[] rewarded = formation.Slots.Where(enemy => result.DefeatedEnemySlots.Contains(enemy.Slot)).ToArray();
+        Dictionary<int, int> currentAp = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyAbilityPoints(enemy.ModelId));
+        Dictionary<int, BattleEnemyRewardDefinition> currentRewards = rewarded.ToDictionary(enemy => enemy.Slot, enemy => BattleResources.ReadEnemyRewards(enemy.ModelId));
+        bool noExperience = NativeBattleRewardDistribution.NoExperience(checked((ushort)(result.Encounter.ScriptedOwner?.Flags ?? 0)), formation.Flags);
+        return BattleResultProjection.Apply(result, session.State.CharacterVitals ?? throw new InvalidDataException("Battle result lost its canonical party owner."), session.State.Economy ?? throw new InvalidDataException("Battle result lost its canonical economy owner."), currentAp, currentRewards, assets.ReadNativeBattleExperienceDefinition(), session.State.CardInventory, noExperience);
     }
 }

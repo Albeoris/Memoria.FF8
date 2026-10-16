@@ -3,7 +3,10 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Assets;
 
-public sealed record BattleEnemyNativeProjection(int Level, int MaximumHp, int Strength, int Vitality, int Magic, int Spirit, int Speed, int Evasion, ImmutableArray<short> ElementDefenses);
+public sealed record BattleEnemyNativeProjection(int Level, int MaximumHp, int Strength, int Vitality, int Magic, int Spirit, int Speed, int Evasion, ImmutableArray<short> ElementDefenses)
+{
+    public int[] BaseStatistics { get; init; } = [];
+}
 
 /// <summary>Original48BBD0 HP/elements and48C3F0/48C1C0 six enemy statistic rows.</summary>
 public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients, ImmutableArray<byte> StatCoefficients, ImmutableArray<short> ElementDefenses)
@@ -40,6 +43,7 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
         }
         int maximumHp = level * (HpCoefficients[0] + 100 * HpCoefficients[2]) + 10 * (HpCoefficients[1] + 100 * HpCoefficients[3]) + level * level * HpCoefficients[0] / 20;
         int[] stats = new int[6];
+        int[] baseStatistics = new int[6];
         for (int stat = 0; stat < stats.Length; stat++)
         {
             ReadOnlySpan<byte> row = StatCoefficients.AsSpan(stat * 4, 4);
@@ -57,9 +61,10 @@ public sealed record BattleEnemyNativeStats(ImmutableArray<byte> HpCoefficients,
                 value = row[2] + level * row[0] + level / row[1] - level / row[3];
             }
             //495930 caps only the upper bound;48C1C0 writes its low BYTE.
-            stats[stat] = unchecked((byte)Math.Min(255, value));
+            baseStatistics[stat] = Math.Min(255, value);
+            stats[stat] = unchecked((byte)baseStatistics[stat]);
         }
-        return new(level, maximumHp, stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], ElementDefenses);
+        return new(level, maximumHp, stats[0], stats[1], stats[2], stats[3], stats[4], stats[5], ElementDefenses) { BaseStatistics = baseStatistics };
     }
 
     public static int LevelRandomByteCount(byte sceneLevel)

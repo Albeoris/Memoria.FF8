@@ -54,6 +54,37 @@ public sealed class BattlePartyProjectionTests
     }
 
     [Fact]
+    public void Saved_status_bit7_has_a_battle_owner_and_survives_restore_and_factual_result_capture()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        using GameAssets assets = new(directory);
+        using BattleAssets resources = new(directory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals();
+        vitals.Records[0] = vitals.Records[0] with { Status = 0x80 };
+        vitals = vitals with { CombatParty = [0, 255, 255] };
+        NativeEconomy economy = assets.ReadNewGameEconomy();
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = economy });
+        BattleCombatantDefinition party = Assert.Single(BattlePartyProjection.Create(session.State, null, catalog, resources));
+
+        Assert.Equal((ushort)0x80, party.NativeRetainedStatusBits);
+
+        BattleDefinition definition = new() { EncounterId = 512, Combatants = [party, new() { Id = "enemy", Name = "Component enemy", ModelId = 28 }], Items = economy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray() };
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.InstantVictory();
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        Assert.Equal((ushort)0x80, restored.Combatants.Single(actor => actor.IsPlayer).NativeRetainedStatusBits);
+        using GameWorld world = new(session, directory);
+        BattleEncounterOccurrence occurrence = new("retained-status-component", 512, resources.FormationSourceHash(512), SceneKind.Field, 999, 0, new string('A', 64), null);
+
+        BattlePartyResult result = Assert.Single(world.CaptureBattleOutcome(restored, occurrence).Party);
+
+        Assert.Equal((ushort)0x80, result.StatusBefore);
+        Assert.Equal((ushort)0x80, result.StatusAfter);
+        Assert.Equal((ushort)0x80, session.State.CharacterVitals!.Records[0].Status);
+    }
+
+    [Fact]
     public void Laboratory_refreshes_party_after_a_previous_scenario_and_uses_live_battle_hp()
     {
         BattleCombatantDefinition current = new() { Id = "party-4", Name = "Rinoa", ModelId = 4, IsPlayer = true, MaximumHp = 300, CurrentHp = 200, WeaponId = 10, EquipmentIds = [2] };

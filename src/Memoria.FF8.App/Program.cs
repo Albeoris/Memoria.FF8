@@ -7,6 +7,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        Console.SetError(new ConsoleErrorWriter(Console.Error, !Console.IsErrorRedirected));
         try
         {
             if (args.Length > 0 && args[0] == "--menu-preview")

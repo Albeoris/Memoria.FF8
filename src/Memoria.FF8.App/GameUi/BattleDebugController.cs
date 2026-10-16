@@ -110,6 +110,7 @@ public sealed class BattleDebugController
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or IOException)
         {
             Message = "Cannot start scenario: " + error.Message;
+            Console.Error.WriteLine(error);
         }
     }
 
@@ -134,6 +135,7 @@ public sealed class BattleDebugController
         catch (Exception error) when (error is NotSupportedException or InvalidDataException or ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             Message = "Cannot apply change: " + error.Message;
+            Console.Error.WriteLine(error);
         }
         RebuildRows();
         SelectedIndex = Math.Clamp(SelectedIndex, 0, rows.Count - 1);

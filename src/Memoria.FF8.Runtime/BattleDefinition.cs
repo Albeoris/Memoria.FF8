@@ -85,6 +85,7 @@ public sealed record BattleCombatantDefinition
     public int Level { get; init; } = 1;
     public int Magic { get; init; } = 20;
     public int Spirit { get; init; } = 5;
+    public int Evasion { get; init; }
     public int PhysicalPower { get; init; } = 20;
     public int DrainPercent { get; init; }
     public int ElementAttack { get; init; }
@@ -99,6 +100,7 @@ public sealed record BattleCombatantDefinition
     public int[] EquipmentIds { get; init; } = [];
     public BattleAbility[] Abilities { get; init; } = [BattleAbility.Attack];
     public BattleStatusEffectDefinition[] StatusEffects { get; init; } = [];
+    public ushort NativeRetainedStatusBits { get; init; }
 }
 
 public sealed record BattleDefinition
@@ -191,6 +193,7 @@ public sealed class BattleCombatant
     internal bool AiDeathHandled { get; set; }
     internal int NativeIndex { get; set; } = -1;
     internal int? ResolvedNativeLevel { get; set; }
+    internal byte[] NativeStatMultipliers { get; } = [10, 10, 10, 10, 10, 10];
 
     internal void BindNativeLevel(int level)
     {
@@ -200,18 +203,45 @@ public sealed class BattleCombatant
             throw new InvalidDataException("Native reserve level exceeds its installed projection catalog.");
         }
         NativeBattleEnemyLevel projection = template.Levels[level];
-        definition = definition with { Level = level, MaximumHp = projection.MaximumHp, Attack = projection.Strength, Defense = projection.Vitality, Magic = projection.Magic, Spirit = projection.Spirit, Speed = Math.Max(1, projection.Speed), ElementDefenses = projection.ElementDefenses, DrawSpells = projection.DrawSpells, DrawGuardianForces = projection.DrawGuardianForces, NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = projection.AiLevelBand } };
+        definition = definition with { Level = level, MaximumHp = projection.MaximumHp, Attack = projection.Strength, Defense = projection.Vitality, Magic = projection.Magic, Spirit = projection.Spirit, Speed = Math.Max(1, projection.Speed), Evasion = projection.Evasion, ElementDefenses = projection.ElementDefenses, DrawSpells = projection.DrawSpells, DrawGuardianForces = projection.DrawGuardianForces, NativeAi = definition.NativeAi is null ? null : definition.NativeAi with { LevelBand = projection.AiLevelBand } };
         ResolvedNativeLevel = level;
     }
     internal NativeBattleEnemyTemplate? NativeTemplate => definition.NativeTemplate;
     public int MaximumHp => definition.MaximumHp;
     public int CurrentHp { get; internal set; }
-    public int Speed => definition.Speed;
-    public int Attack => definition.Attack;
-    public int Defense => definition.Defense;
+    public int Speed => ScaleNativeStat(4, definition.Speed);
+    public int Attack => ScaleNativeStat(0, definition.Attack);
+    public int Defense => ScaleNativeStat(1, definition.Defense);
     public int Level => definition.Level;
-    public int Magic => definition.Magic;
-    public int Spirit => definition.Spirit;
+    public int Magic => ScaleNativeStat(2, definition.Magic);
+    public int Spirit => ScaleNativeStat(3, definition.Spirit);
+    public int Evasion => ScaleNativeStat(5, definition.Evasion);
+    public ushort NativeRetainedStatusBits => definition.NativeRetainedStatusBits;
+
+    internal void SetNativeStatMultiplier(int index, byte multiplier)
+    {
+        if ((uint)index >= NativeStatMultipliers.Length || IsPlayer)
+        {
+            throw new NotSupportedException("Native battle AI statistic multiplier requires one of the six enemy statistic rows.");
+        }
+        if (definition.NativeTemplate is not { } template || template.Levels[Level].BaseStatistics.Length != 6)
+        {
+            throw new NotSupportedException("Native battle AI statistic multiplier requires the original six pre-byte statistic values.");
+        }
+        NativeStatMultipliers[index] = multiplier;
+    }
+
+    private int ScaleNativeStat(int index, int projected)
+    {
+        int[]? originalStats = definition.NativeTemplate?.Levels[Level].BaseStatistics;
+        if (NativeStatMultipliers[index] == 10 && originalStats is not { Length: 6 })
+        {
+            return projected;
+        }
+        int original = originalStats is { Length: 6 } ? originalStats[index] : projected;
+        //48C1C0 multiplies the signed495930 result, divides by10, then caps and writes its lowBYTE.
+        return unchecked((byte)Math.Min(255, original * NativeStatMultipliers[index] / 10));
+    }
     public int PhysicalPower => definition.PhysicalPower;
     public int DrainPercent => definition.DrainPercent;
     public int ElementAttack => definition.ElementAttack;

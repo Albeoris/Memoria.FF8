@@ -13,6 +13,12 @@ public sealed class BattleHudController
     private readonly Action? complete;
     private readonly UiView view;
     private readonly Action<BattleInput>? execute;
+    private readonly Func<BattleRewardSummary?>? previewRewards;
+    private readonly Func<int, string> guardianForceName;
+    private readonly Func<int, string> itemName;
+    private readonly Func<int, string> cardName;
+    private IReadOnlyList<string>? rewardLines;
+    private bool completionRequested;
     private int commandIndex;
     private int actionIndex;
     private BattleEvent? lastNotification;
@@ -21,7 +27,7 @@ public sealed class BattleHudController
     private string? selectedActorId;
     private string? selectedTargetId;
 
-    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null)
+    public BattleHudController(BattleSession session, Action<string, string> attack, Action openDebug, Action advanceTurn, Action? complete = null, Action<BattleInput>? execute = null, Func<BattleRewardSummary?>? previewRewards = null, Func<int, string>? guardianForceName = null, Func<int, string>? itemName = null, Func<int, string>? cardName = null)
     {
         this.session = session;
         this.execute = execute;
@@ -29,6 +35,10 @@ public sealed class BattleHudController
         this.complete = complete;
         this.openDebug = openDebug;
         this.advanceTurn = advanceTurn;
+        this.previewRewards = previewRewards;
+        this.guardianForceName = guardianForceName ?? (id => $"GF {id}");
+        this.itemName = itemName ?? (id => $"Item {id}");
+        this.cardName = cardName ?? (id => $"Card {id}");
         view = new UiView(new BattleHudElement(this)) { Cancel = CancelTarget };
         view.Resize(960, 672);
     }
@@ -38,6 +48,11 @@ public sealed class BattleHudController
     public bool SelectingTarget { get; private set; }
     public string Message { get; private set; } = "Choose a command when a character is ready.";
     public float TextScale { get; set; } = 1;
+    public const int RewardLinesPerPage = 8;
+    public int RewardPage { get; private set; }
+    public IReadOnlyList<string> RewardLines => session.Outcome == BattleOutcome.Victory ? rewardLines ??= BuildRewardLines() : [];
+    public int RewardPageCount => Math.Max(1, (RewardLines.Count + RewardLinesPerPage - 1) / RewardLinesPerPage);
+    public IReadOnlyList<string> VisibleRewardLines => RewardLines.Skip(RewardPage * RewardLinesPerPage).Take(RewardLinesPerPage).ToArray();
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleAbility> Commands => SelectedActor?.Abilities ?? [];
     public BattleAbility SelectedCommand => Commands.Count == 0 ? BattleAbility.Attack : Commands[Math.Clamp(commandIndex, 0, Commands.Count - 1)];
@@ -73,8 +88,8 @@ public sealed class BattleHudController
     {
         get
         {
-            BattleCombatant? selected = Party.FirstOrDefault(actor => actor.Id == selectedActorId && actor.IsAlive && actor.IsReady && !actor.IsBusy);
-            selected ??= Party.FirstOrDefault(actor => actor.IsAlive && actor.IsReady && !actor.IsBusy);
+            BattleCombatant? selected = Party.FirstOrDefault(actor => actor.Id == selectedActorId && CanChooseCommand(actor));
+            selected ??= Party.FirstOrDefault(CanChooseCommand);
             selectedActorId = selected?.Id;
             return selected;
         }
@@ -108,6 +123,18 @@ public sealed class BattleHudController
 
     public void Navigate(MenuInput input)
     {
+        if (session.Outcome != BattleOutcome.Active)
+        {
+            if (input == MenuInput.Confirm)
+            {
+                Complete();
+            }
+            else if (session.Outcome == BattleOutcome.Victory && input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight or MenuInput.PageUp or MenuInput.PageDown)
+            {
+                ChangeRewardPage(input is MenuInput.Up or MenuInput.Left or MenuInput.PageLeft or MenuInput.PageUp ? -1 : 1);
+            }
+            return;
+        }
         if (input == MenuInput.Cancel)
         {
             CancelTarget();
@@ -158,7 +185,7 @@ public sealed class BattleHudController
             else
             {
                 string? before = SelectedActor?.Id;
-                selectedActorId = Cycle(Party.Where(actor => actor.IsReady && actor.IsAlive && !actor.IsBusy).ToArray(), selectedActorId, direction);
+                selectedActorId = Cycle(Party.Where(CanChooseCommand).ToArray(), selectedActorId, direction);
                 if (before != selectedActorId)
                 {
                     SoundRequested?.Invoke(MenuSound.Move);
@@ -212,6 +239,7 @@ public sealed class BattleHudController
         catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
         {
             Message = error.Message;
+            Console.Error.WriteLine(error);
             return;
         }
         SoundRequested?.Invoke(MenuSound.Confirm);
@@ -248,7 +276,7 @@ public sealed class BattleHudController
     }
     public void SelectParty(string actorId)
     {
-        if (Party.Any(actor => actor.Id == actorId && actor.IsReady && actor.IsAlive && !actor.IsBusy))
+        if (Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
             if (SelectedActor?.Id != actorId)
             {
@@ -291,11 +319,71 @@ public sealed class BattleHudController
 
     public void Complete()
     {
-        if (session.Outcome != BattleOutcome.Active)
+        if (session.Outcome != BattleOutcome.Active && (session.Outcome != BattleOutcome.Victory || !completionRequested))
         {
+            completionRequested = session.Outcome == BattleOutcome.Victory;
+            try
+            {
+                complete?.Invoke();
+            }
+            catch
+            {
+                completionRequested = false;
+                throw;
+            }
             SoundRequested?.Invoke(MenuSound.Confirm);
-            complete?.Invoke();
         }
+    }
+
+    public void ChangeRewardPage(int direction)
+    {
+        if (session.Outcome != BattleOutcome.Victory || RewardPageCount <= 1 || direction == 0)
+        {
+            return;
+        }
+        RewardPage = (RewardPage + Math.Sign(direction) + RewardPageCount) % RewardPageCount;
+        SoundRequested?.Invoke(MenuSound.Move);
+    }
+
+    private IReadOnlyList<string> BuildRewardLines()
+    {
+        BattleRewardSummary? rewards = previewRewards?.Invoke();
+        if (rewards is null)
+        {
+            return ["Standalone battle: rewards are not saved."];
+        }
+        List<string> lines = [];
+        foreach ((byte row, ushort experience) in rewards.CharacterExperience.OrderBy(pair => pair.Key))
+        {
+            string name = Party.FirstOrDefault(actor => actor.Id == $"party-{row}")?.Name ?? $"Character {row}";
+            lines.Add($"{name}   EXP +{experience}");
+        }
+        if (rewards.CharacterExperience.Count == 0)
+        {
+            lines.Add("Character EXP +0");
+        }
+        int[] guardianForces = rewards.GuardianForceExperience.Keys.Select(id => (int)id).Union(rewards.GuardianForceAbilityPoints.Keys).Order().ToArray();
+        foreach (int id in guardianForces)
+        {
+            lines.Add($"{guardianForceName(id)}   EXP +{rewards.GuardianForceExperience.GetValueOrDefault(checked((byte)id))}   AP +{rewards.GuardianForceAbilityPoints.GetValueOrDefault(id)}");
+        }
+        if (guardianForces.Length == 0)
+        {
+            lines.Add("GF EXP +0   AP +0");
+        }
+        foreach (BattleStock item in rewards.Items)
+        {
+            lines.Add($"{itemName(item.Id)}   x{item.Count}");
+        }
+        if (rewards.Items.Length == 0)
+        {
+            lines.Add("Items: none");
+        }
+        foreach (IGrouping<byte, byte> card in rewards.Cards.GroupBy(id => id))
+        {
+            lines.Add($"{cardName(card.Key)}   x{card.Count()}");
+        }
+        return lines.AsReadOnly();
     }
 
     private void CancelTarget()
@@ -317,5 +405,10 @@ public sealed class BattleHudController
         }
         int index = actors.Select(actor => actor.Id).ToList().IndexOf(selectedId ?? "");
         return actors[(Math.Max(0, index) + direction + actors.Count) % actors.Count].Id;
+    }
+
+    private static bool CanChooseCommand(BattleCombatant actor)
+    {
+        return actor.IsReady && !actor.StatusEffects.Any(effect => effect.Kind == BattleStatusKind.Sleep);
     }
 }

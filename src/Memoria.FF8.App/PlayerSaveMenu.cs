@@ -85,6 +85,7 @@ internal sealed class PlayerSaveMenu
             catch (Exception exception)
             {
                 Message = $"{(input.QuickLoad ? "Quick load" : "Quick save")} failed: {exception.Message}";
+                Console.Error.WriteLine(exception);
             }
             return;
         }
@@ -165,6 +166,7 @@ internal sealed class PlayerSaveMenu
         {
             ConfirmOverwrite = false;
             Message = $"{Mode} failed: {exception.Message}";
+            Console.Error.WriteLine(exception);
             Entries = store.ReadEntries(Mode == PlayerSaveMenuMode.Load);
         }
     }

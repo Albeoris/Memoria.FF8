@@ -170,7 +170,7 @@ public sealed class MinimalBattleAndGuardianForceTests
 
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[] body)
     {
-        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), .. body, (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode Opcode, int Parameter)[] operations = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 0), (Jsm.Opcode.LBL, 1), .. body, (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         const int operationsOffset = 16;
         byte[] bytes = new byte[operationsOffset + operations.Length * 4];
         bytes[3] = 1;

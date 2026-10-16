@@ -158,13 +158,15 @@ public sealed partial class MenuController
                     Message = "Name changed. Save the game to keep it.";
                     SoundRequested?.Invoke(MenuSound.Confirm);
                 }
-                catch (ArgumentException)
+                catch (ArgumentException exception)
                 {
                     Message = "Use 1–12 characters; braces and control characters are unavailable.";
+                    Console.Error.WriteLine(exception);
                 }
                 catch (NotSupportedException exception)
                 {
                     Message = exception.Message;
+                    Console.Error.WriteLine(exception);
                 }
                 break;
         }

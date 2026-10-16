@@ -56,6 +56,7 @@ internal sealed class ControlQueue
             }
             catch (Exception exception)
             {
+                Console.Error.WriteLine(exception);
                 response = new { Id = id, Ok = false, Error = exception.Message, Type = exception.GetType().Name };
             }
             string temporary = output + ".tmp";

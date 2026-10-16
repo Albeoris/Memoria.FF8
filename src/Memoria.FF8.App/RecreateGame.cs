@@ -324,6 +324,10 @@ internal sealed partial class RecreateGame : Game
             session.SetMoviePosition(movie.PositionSeconds);
             if (movie.Error is string playbackError)
             {
+                if (error != playbackError)
+                {
+                    Console.Error.WriteLine(playbackError);
+                }
                 error = playbackError;
             }
             if (movie.Finished)
@@ -581,6 +585,7 @@ internal sealed partial class RecreateGame : Game
             catch (Exception exception)
             {
                 ShowSaveNotice($"{(input.QuickLoad ? "Quick load" : "Quick save")} failed: {exception.Message}");
+                Console.Error.WriteLine(exception);
             }
             return true;
         }
@@ -899,6 +904,10 @@ internal sealed partial class RecreateGame : Game
             }
             catch (NativeWorldPresentationDeferredException exception)
             {
+                if (!worldPresentationDeferred || error != exception.Message)
+                {
+                    Console.Error.WriteLine(exception);
+                }
                 error = exception.Message;
                 worldPresentationDeferred = true;
             }

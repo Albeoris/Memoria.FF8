@@ -275,6 +275,7 @@ public sealed partial class MenuController
         catch (Exception error) when (error is InvalidOperationException or ArgumentException or IOException or UnauthorizedAccessException)
         {
             Message = error.Message;
+            Console.Error.WriteLine(error);
             _view = null;
             return false;
         }
@@ -296,6 +297,7 @@ public sealed partial class MenuController
         catch (ArgumentException error)
         {
             Message = error.Message;
+            Console.Error.WriteLine(error);
             _view = null;
         }
     }

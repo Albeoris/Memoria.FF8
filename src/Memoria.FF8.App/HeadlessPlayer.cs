@@ -212,6 +212,7 @@ internal static class HeadlessPlayer
             catch (Exception exception)
             {
                 failure = exception.ToString();
+                Console.Error.WriteLine(exception);
                 break;
             }
         }
@@ -224,6 +225,7 @@ internal static class HeadlessPlayer
         catch (Exception exception)
         {
             failure ??= exception.ToString();
+            Console.Error.WriteLine(exception);
         }
         var report = new { Source = options.StatePath, Actions = issuedActions, Results = results, AttemptedAction = attempted, Failure = failure, StopReason = stopReason, Trigger = world.NextTrigger, RenderedFieldId = world.Field?.Id, World = session.State.World ?? session.State.DepartingWorldState, FieldVm = world.Events.Capture(), world.Events.Coverage, world.Events.Decisions, world.Events.DialogueOutcomes, world.Events.ActionLog };
         File.WriteAllText(Path.Combine(outputDirectory, "report.json"), JsonSerializer.Serialize(report, JsonOptions));

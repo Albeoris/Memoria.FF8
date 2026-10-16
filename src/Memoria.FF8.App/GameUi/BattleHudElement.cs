@@ -76,6 +76,10 @@ internal sealed class BattleHudElement : UiElement
             Text(canvas, theme, $"{actor.CurrentHp,4} / {actor.MaximumHp,4}", 508, y, 228, 27, 20, !actor.IsAlive);
             DrawGauge(canvas, Rect(746, y + 6, 176, 15), actor.Atb / (float)BattleSession.AtbMaximum, actor.IsReady, actor.IsAlive);
         }
+        if (session.Outcome == BattleOutcome.Victory)
+        {
+            DrawRewards(canvas, theme);
+        }
         theme.Panel(canvas, Rect(16, 634, 928, 30));
         string message = session.Outcome == BattleOutcome.Active ? controller.Message : session.Outcome.ToString().ToUpperInvariant();
         Text(canvas, theme, message, 28, 639, 904, 24, 15);
@@ -101,6 +105,19 @@ internal sealed class BattleHudElement : UiElement
             }
             Text(canvas, theme, actor.Name, 52, y, 198, 24, 17);
         }
+    }
+
+    private void DrawRewards(IUiCanvas canvas, UiTheme theme)
+    {
+        theme.Panel(canvas, Rect(120, 28, 720, 404));
+        Text(canvas, theme, "VICTORY · REWARDS", 144, 46, 672, 34, 24);
+        IReadOnlyList<string> lines = controller.VisibleRewardLines;
+        for (int index = 0; index < lines.Count; index++)
+        {
+            Text(canvas, theme, lines[index], 144, 98 + index * 32, 672, 30, 20);
+        }
+        string help = controller.RewardPageCount > 1 ? $"< Previous     {controller.RewardPage + 1} / {controller.RewardPageCount}     Next >   [Left / Right]" : "Confirm / Continue to return";
+        Text(canvas, theme, help, 144, 382, 672, 28, 16);
     }
 
     private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive)
@@ -132,7 +149,11 @@ internal sealed class BattleHudElement : UiElement
 
     public override void Pointer(float x, float y)
     {
-        if (Rect(794, 444, 150, 36).Contains(x, y))
+        if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
+        {
+            controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
+        }
+        else if (Rect(794, 444, 150, 36).Contains(x, y))
         {
             controller.OpenDebug();
         }

@@ -12,7 +12,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
 {
     private readonly Dictionary<BattleEvent, double> firstFrames = [];
     private double frames;
-    private double? firstSessionFrame;
+    private double? idleOriginFrame;
 
     public void Advance(TimeSpan elapsed)
     {
@@ -22,7 +22,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
 
     public BattleAnimationSample Sample(BattleSession session, BattleCombatant actor, Vector3 origin, Vector3 target)
     {
-        firstSessionFrame ??= session.Frame - frames;
+        idleOriginFrame ??= session.Frame - frames;
         if (sequences is null)
         {
             return new BattleAnimationSample(0, 0, Vector3.Zero, actor.IsAlive ? 1 : 0.25f);
@@ -43,6 +43,16 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             }
             // TODO(TD-009): Native effect-only deaths require the battle effect VM; fade is presentation tuning
             return new BattleAnimationSample(0, 0, Vector3.Zero, (float)Math.Clamp(1 - age / 15, 0, 1));
+        }
+        if (actor.IsPlayer && session.Outcome == BattleOutcome.Victory)
+        {
+            // Native502F90 selects17 through505C00/505BC0, replacing the previous sequence and resetting its position.
+            BattleEvent? outcome = session.Events.LastOrDefault(item => item.Kind == "Outcome");
+            int[] clips = Sequence(17).Animations.ToArray();
+            if (clips.Length != 0)
+            {
+                return Play(clips, outcome is null ? 0 : Age(session, outcome), Vector3.Zero);
+            }
         }
         BattleEvent? windup = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
         if (windup is not null)
@@ -74,16 +84,9 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                 return Play(clips, age, Vector3.Zero);
             }
         }
-        if (actor.IsPlayer && session.Outcome == BattleOutcome.Victory)
-        {
-            BattleEvent? outcome = session.Events.LastOrDefault(item => item.Kind == "Outcome");
-            int[] clips = Sequence(17).Animations.ToArray();
-            if (clips.Length != 0)
-            {
-                return Play(clips, outcome is null ? 0 : Age(session, outcome), Vector3.Zero);
-            }
-        }
-        return new BattleAnimationSample(0, (float)Math.Max(session.Frame, firstSessionFrame.Value + frames) / 2, Vector3.Zero, Loop: true);
+        // Native4842B0/4A9450 can hold gameplay while502AB0 continues the actor sequence/pose callback.
+        // AdvanceTurn may dispatch hundreds of gameplay frames at once; idle time must not wait for wall time to catch up.
+        return new BattleAnimationSample(0, (float)(idleOriginFrame.Value + frames) / 2, Vector3.Zero, Loop: true);
     }
 
     public bool Melee { get; init; }

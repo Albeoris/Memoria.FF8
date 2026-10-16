@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Memoria.FF8.Assets;
@@ -15,7 +16,10 @@ public sealed class ArchivedBattleSnapshotTests
         string archivePath = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_REGRESSION_ARCHIVE") ?? @"../fixtures/external-fixture.zip";
         string game = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
         Assert.SkipUnless(File.Exists(archivePath) && Directory.Exists(game), "The preserved user archive and installed original resources are required.");
-        // Supplied archive SHA256: b56da343981b3fc9ec40768126e7fb1fdbf4cd9d54c229bbbf4ca1b4c74c1584.
+        using (FileStream archiveBytes = File.OpenRead(archivePath))
+        {
+            Assert.SkipUnless(Convert.ToHexString(SHA256.HashData(archiveBytes)).Equals("b56da343981b3fc9ec40768126e7fb1fdbf4cd9d54c229bbbf4ca1b4c74c1584", StringComparison.OrdinalIgnoreCase), "The preserved archive with the documented supplied-party fixture fingerprint is required.");
+        }
         using ZipArchive archive = ZipFile.OpenRead(archivePath);
         ZipArchiveEntry entry = archive.GetEntry("player-saves/quick.json") ?? throw new InvalidDataException("The archive lacks the supplied standalone quick snapshot.");
         using Stream source = entry.Open();

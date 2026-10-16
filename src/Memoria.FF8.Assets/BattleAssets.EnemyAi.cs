@@ -19,7 +19,7 @@ public sealed partial class BattleAssets
         {
             BattleEnemyNativeProjection projection = stats.Project(level);
             NativeBattleAiDefinition ai = ReadEnemyAi(modelId, level);
-            levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), ReadEnemyDrawSpells(modelId, level), ReadEnemyDrawGuardianForces(modelId, level), ai.LevelBand);
+            levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), ReadEnemyDrawSpells(modelId, level), ReadEnemyDrawGuardianForces(modelId, level), ai.LevelBand) { Evasion = projection.Evasion, BaseStatistics = projection.BaseStatistics.ToArray() };
         }
         NativeBattleEnemyTemplate template = new(sceneLevel, levels);
         enemyTemplates.Add((modelId, sceneLevel), template);

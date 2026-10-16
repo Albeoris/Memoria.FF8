@@ -85,7 +85,11 @@ public sealed partial class BattleSession
 
     public void Tick()
     {
-        if (Outcome != BattleOutcome.Active || (Mode == BattleAtbMode.TurnBased && actions.Count == 0 && ActiveAction is null))
+        if (Outcome != BattleOutcome.Active)
+        {
+            return;
+        }
+        if (Mode == BattleAtbMode.TurnBased && actions.Count == 0 && ActiveAction is null && combatants.Any(actor => actor.IsPlayer && actor.IsReady && !HasStatus(actor, BattleStatusKind.Sleep)) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady && !HasStatus(actor, BattleStatusKind.Sleep)))
         {
             return;
         }

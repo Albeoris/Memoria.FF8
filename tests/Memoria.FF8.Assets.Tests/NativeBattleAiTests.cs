@@ -18,10 +18,24 @@ public sealed class NativeBattleAiTests
 
     [Theory]
     [InlineData(512)]
+    [InlineData(513)]
+    [InlineData(514)]
+    [InlineData(515)]
+    [InlineData(516)]
+    [InlineData(517)]
+    [InlineData(518)]
+    [InlineData(519)]
+    [InlineData(520)]
     [InlineData(94)]
     [InlineData(34)]
     [InlineData(37)]
     [InlineData(521)]
+    [InlineData(36)]
+    [InlineData(38)]
+    [InlineData(39)]
+    [InlineData(40)]
+    [InlineData(48)]
+    [InlineData(57)]
     public void OriginalGardenIslandAndReachedEnemiesExecuteTheirInstalledInitialAndTurnPrograms(int encounterId)
     {
         using BattleAssets assets = new(GameDirectory);
@@ -30,7 +44,7 @@ public sealed class NativeBattleAiTests
         {
             int level = NativeBattleEnemyLevelRules.Resolve((byte)placement.Level, [7], 0, 0);
             BattleEnemyNativeProjection stats = assets.ReadEnemyNativeStats(placement.ModelId).Project(level);
-            actors.Add(new() { Id = $"enemy-{placement.Slot}", Name = assets.ReadEnemyName(placement.ModelId), ModelId = placement.ModelId, SceneSlot = placement.Slot, InitialHidden = placement.Hidden, InitialSuspended = placement.InitiallySuspended, InitialUntargetable = placement.Untargetable, Level = level, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = 10_000, InitialAtb = 10_000, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeAi = assets.ReadEnemyAi(placement.ModelId, level) });
+            actors.Add(new() { Id = $"enemy-{placement.Slot}", Name = assets.ReadEnemyName(placement.ModelId), ModelId = placement.ModelId, SceneSlot = placement.Slot, InitialHidden = placement.Hidden, InitialSuspended = placement.InitiallySuspended, InitialUntargetable = placement.Untargetable, Level = level, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = 10_000, InitialAtb = 10_000, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeAi = assets.ReadEnemyAi(placement.ModelId, level), NativeTemplate = assets.ReadEnemyTemplate(placement.ModelId, (byte)placement.Level) });
         }
         // Explicit synthetic copy of the proved native New Game clear, not a missing-save default.
         BattleSession battle = new(new() { Name = $"Installed formation {encounterId}", EncounterId = encounterId, PersistentAiVariables = new uint[8], Combatants = actors.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray() }, BattleAtbMode.Normal);
@@ -38,7 +52,7 @@ public sealed class NativeBattleAiTests
         {
             battle.Tick();
         }
-        Assert.Contains(battle.Events, item => item.Kind == "Windup" && item.ActorId!.StartsWith("enemy-"));
+        Assert.Contains(battle.Capture().Combatants, actor => actor.Id.StartsWith("enemy-") && actor.NativeParticipant!.TurnCount > 0);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(battle.Capture()), System.Text.Json.JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }

@@ -61,6 +61,7 @@ internal sealed partial class RecreateGame
         {
             fieldFaulted = true;
             error = exception.Message;
+            Console.Error.WriteLine(exception);
             return true;
         }
     }
@@ -91,14 +92,13 @@ internal sealed partial class RecreateGame
         {
             battleHud!.AdvanceTurn();
         }
-        else if (active.Outcome == BattleOutcome.Active)
+        else
         {
             NavigateBattleView(battleHud!.Navigate, input);
-        }
-        else if (input.Confirm || keyboard.UiConfirmRequested)
-        {
-            CompleteBattleResult();
-            return true;
+            if (ActiveBattle is null || battleHud is null)
+            {
+                return true;
+            }
         }
         PointerBattleView(battleHud!.BuildView());
         if (ActiveBattle is null)
@@ -165,7 +165,8 @@ internal sealed partial class RecreateGame
             DisposeBattleTextures();
             presentedBattle = active;
             battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
-            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input));
+            MenuData? rewardNames = debugBattle is null ? ReadLiveMenuData() : null;
+            battleHud = new BattleHudController(active, (actor, target) => ApplyBattleCommand(new BattleInput(BattleInputKind.Attack, ActorId: actor, TargetId: target)), OpenBattleDebug, () => ApplyBattleCommand(new BattleInput(BattleInputKind.AdvanceTurn)), CompleteBattleResult, input => ApplyBattleCommand(input), () => debugBattle is null ? world!.PreviewBattleRewards() : null, id => rewardNames?.GuardianForces.FirstOrDefault(guardian => guardian.Id == $"gf-{id}")?.Name ?? liveMenuCatalog?.GuardianForceName(id) ?? $"GF {id}", id => liveMenuCatalog?.ItemName(id) ?? $"Item {id}", id => liveMenuCatalog?.CardName(id) ?? $"Card {id}");
             battleHud.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
             battleSeconds = 0;
         }

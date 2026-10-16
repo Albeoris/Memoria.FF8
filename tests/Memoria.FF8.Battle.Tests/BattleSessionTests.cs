@@ -42,7 +42,83 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void TurnBasedIdlePausesAndAdvanceIncludesEnemiesWithoutResettingReadyPlayers()
+    public void TurnBasedClockRunsUntilPlayerReadyAndPausesForCommand()
+    {
+        BattleSession session = new(Definition(Player(speed: 1_000), Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        Dispatch(session, 9);
+        Assert.Equal(9, session.Frame);
+        Assert.Equal(9_000, session.Combatants[0].Atb);
+        session.Tick();
+        Assert.True(session.Combatants[0].IsReady);
+        Assert.Equal(10, session.Frame);
+        session.Tick();
+        Assert.Equal(10, session.Frame);
+        Assert.Equal(10, session.Combatants[1].Atb);
+    }
+
+    [Fact]
+    public void TurnBasedEnemiesBecomeReadyAndResolveWithoutManualAdvance()
+    {
+        BattleSession session = new(Definition(Player(speed: 1), Enemy(speed: 1_000)), BattleAtbMode.TurnBased);
+        Dispatch(session, 10);
+        Assert.Equal("enemy", session.ActiveAction!.ActorId);
+        Dispatch(session, BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames);
+        Assert.Null(session.ActiveAction);
+        Assert.Equal(46, session.Combatants[0].CurrentHp);
+        Assert.Equal(34, session.Frame);
+        session.Tick();
+        Assert.Equal(35, session.Frame);
+        Assert.Equal(1_000, session.Combatants[1].Atb);
+    }
+
+    [Fact]
+    public void TurnBasedClockResumesGaugeGrowthAfterPlayerActionCompletes()
+    {
+        BattleSession session = new(Definition(Player(speed: 1_000, initialAtb: BattleSession.AtbMaximum), Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        session.QueueAttack("player", "enemy");
+        Dispatch(session, 1 + BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames);
+        Assert.Null(session.ActiveAction);
+        Assert.False(session.Combatants[0].IsReady);
+        Dispatch(session, 10);
+        Assert.True(session.Combatants[0].IsReady);
+        Assert.Equal(35, session.Frame);
+        session.Tick();
+        Assert.Equal(35, session.Frame);
+    }
+
+    [Fact]
+    public void TurnBasedReadySleepingPlayerDoesNotPauseStatusExpiry()
+    {
+        BattleCombatantDefinition sleeping = Player(initialAtb: BattleSession.AtbMaximum) with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep, DurationFrames = 2 }] };
+        BattleSession session = new(Definition(sleeping, Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        Assert.Throws<InvalidOperationException>(() => session.QueueAttack("player", "enemy"));
+        Dispatch(session, 2);
+        Assert.Equal(2, session.Frame);
+        Assert.Empty(session.Combatants[0].StatusEffects);
+        Assert.True(session.Combatants[0].IsReady);
+        session.Tick();
+        Assert.Equal(2, session.Frame);
+        session.QueueAttack("player", "enemy");
+        Assert.Single(session.QueuedActions);
+    }
+
+    [Fact]
+    public void TurnBasedReadyEnemyDispatchesWhilePlayerWaitsForCommand()
+    {
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(initialAtb: BattleSession.AtbMaximum)), BattleAtbMode.TurnBased);
+        session.Tick();
+        Assert.Equal(1, session.Frame);
+        Assert.Equal("enemy", session.ActiveAction!.ActorId);
+        Assert.True(session.Combatants[0].IsReady);
+        Dispatch(session, BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames);
+        Assert.Equal(46, session.Combatants[0].CurrentHp);
+        Assert.Null(session.ActiveAction);
+        session.Tick();
+        Assert.Equal(25, session.Frame);
+    }
+
+    [Fact]
+    public void TurnBasedCommandWaitPausesAndAdvanceIncludesEnemiesWithoutResettingReadyPlayers()
     {
         BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), Enemy(speed: 1_000)), BattleAtbMode.TurnBased);
         session.Tick();
@@ -52,6 +128,20 @@ public sealed class BattleSessionTests
         Assert.Equal(BattleSession.AtbMaximum, session.Combatants[0].Atb);
         Assert.True(session.Combatants[1].IsBusy);
         Assert.Equal("enemy", session.ActiveAction!.ActorId);
+    }
+
+    [Fact]
+    public void AdvanceTurnLetsAnotherPlayerBecomeReadyWhilePreservingWaitingPlayer()
+    {
+        BattleCombatantDefinition ally = Player(speed: 1_000) with { Id = "ally", Name = "Ally" };
+        BattleSession session = new(Definition(Player(initialAtb: BattleSession.AtbMaximum), ally, Enemy(speed: 1)), BattleAtbMode.TurnBased);
+        session.Tick();
+        Assert.Equal(0, session.Frame);
+        Assert.Equal(10, session.AdvanceTurn());
+        Assert.True(session.Combatants[0].IsReady);
+        Assert.True(session.Combatants[1].IsReady);
+        session.Tick();
+        Assert.Equal(10, session.Frame);
     }
 
     [Fact]
