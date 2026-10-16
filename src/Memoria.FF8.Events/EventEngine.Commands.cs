@@ -178,6 +178,9 @@ public sealed partial class EventEngine
                 //and returns0 unconditionally; only this fiber's R0 is written.
                 fiber.Results[0] = 0;
                 break;
+            case Jsm.Opcode.Unknown5:
+                args = ExecuteNativeItemPresence(fiber);
+                break;
             case Jsm.Opcode.GETINFO:
                 args = ExecuteNativeActorInfo(fiber, false);
                 break;
