@@ -24,6 +24,10 @@ internal sealed partial class GameWorld : IDisposable
         this.resources = resources;
         assets = new GameAssets(gameDirectory, resources: resources);
         bool initializedNativeParty = false;
+        if (session.State.LimitProgress is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
+        {
+            session.InitializeNewGameLimitProgress(assets.ReadNewGameLimitProgress());
+        }
         if (session.State.WeaponRecipes is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)
         {
             session.InitializeNewGameWeaponRecipes(assets.ReadNewGameWeaponRecipes());

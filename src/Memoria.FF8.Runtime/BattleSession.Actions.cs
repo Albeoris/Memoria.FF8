@@ -9,6 +9,11 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false)
     {
+        if (ability is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
+        {
+            QueueNativePlayerCommand(actorId, targetId, checked((byte)(actionId >> 16)), unchecked((ushort)actionId));
+            return;
+        }
         if (ability == BattleAbility.Attack)
         {
             QueueAttack(actorId, targetId);
@@ -17,7 +22,11 @@ public sealed partial class BattleSession
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
-        bool revive = action.Effect == BattleActionEffect.Revive;
+        bool revive = IsNativeRevive(action);
+        if (action.NativeAction is { } native)
+        {
+            ValidateNativeActionContract(native);
+        }
         bool allies = ability != BattleAbility.Draw && action.Allies;
         if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(ability) || target.Untargetable || !target.IsActive || (actor.IsPlayer == target.IsPlayer) != allies || (!target.IsAlive && !revive) || target.IsAlive && revive || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
@@ -26,13 +35,13 @@ public sealed partial class BattleSession
         switch (ability)
         {
             case BattleAbility.Magic:
-                Consume(actor.Stocks, actionId);
+                actor.ConsumeMagic(actionId);
                 break;
             case BattleAbility.Item:
-                Consume(items, actionId);
+                ConsumeNativeItem(actionId);
                 break;
             case BattleAbility.Draw:
-                if (!target.DrawSpells.Any(spell => spell.Id == actionId) || (!drawCast && !actor.Stocks.Any(stock => stock.Id == actionId) && actor.Stocks.Count >= 32) || !drawCast && actor.Stocks.Any(stock => stock.Id == actionId && stock.Count >= 100))
+                if (!target.DrawSpells.Any(spell => spell.Id == actionId) || (!drawCast && !actor.MagicStocks.Any(stock => stock.Id == actionId) && actor.MagicStocks.Count >= 32) || !drawCast && actor.MagicStocks.Any(stock => stock.Id == actionId && stock.Count >= 100))
                 {
                     throw new InvalidOperationException("Draw requires an installed enemy spell and available magic capacity.");
                 }
@@ -46,9 +55,18 @@ public sealed partial class BattleSession
             default:
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
+        BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast);
+        if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
+        {
+            QueueGuardianForce(actor, queued);
+        }
+        else
+        {
+            actions.Enqueue(queued);
+        }
         actor.Atb = 0;
         actor.IsBusy = true;
-        actions.Enqueue(new BattleAttackCommand(actorId, targetId, ability, actionId, drawCast));
+        nativeLimitLevels.Remove(actor.Id);
         Log("Queued", actorId, targetId, 0, $"{actor.Name}: {ActionName(ability, actionId)} queued.");
     }
 
@@ -59,15 +77,21 @@ public sealed partial class BattleSession
 
     private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (command.NativeAction is { } native)
+        {
+            BattleActionDefinition nativeDefinition = definition.ActionDefinitions.FirstOrDefault(candidate => candidate.NativeAction?.Command == native.Command && candidate.NativeAction.ActionId == native.ActionId && candidate.NativeAction.CrisisLevel == native.CrisisLevel) ?? new(command.Ability, command.ActionId, native.Name ?? $"Native action {native.Command}/{native.ActionId}", BattleActionEffect.Native, native.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = native };
+            ResolveInstalledNativeAction(actor, target, command, nativeDefinition);
+            return;
+        }
         if (command.Ability == BattleAbility.EnemyAbility)
         {
-            ResolveNativeAbility(actor, target, command);
-            return;
+            throw new InvalidDataException("Native action lacks its exact installed command/action metadata.");
         }
         if (command.Ability == BattleAbility.Attack)
         {
             // Original492C40/48F600 physical integer damage and mitigation.
-            int damage = NativeBattleDamage.Physical(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte());
+            bool gunblade = IsGunbladeAttack(actor, command.Ability);
+            int damage = gunblade ? NativeGunbladeAttack.Damage(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte(), ResolveGunbladeTiming(actor, target, command)) : NativeBattleDamage.Physical(actor.Attack, target.Defense, actor.PhysicalPower, NextRandomByte());
             if (actor.ElementAttack != 0)
             {
                 int element = System.Numerics.BitOperations.TrailingZeroCount((uint)actor.ElementAttack);
@@ -77,7 +101,7 @@ public sealed partial class BattleSession
             {
                 damage = Math.Max(1, damage / 2);
             }
-            if (HasStatus(actor, BattleStatusKind.Blind) && NextRandomByte() < 128)
+            if (!gunblade && HasStatus(actor, BattleStatusKind.Blind) && NextRandomByte() < 128)
             {
                 Log("Miss", actor.Id, target.Id, 0, $"{actor.Name}: Attack missed.");
                 return;
@@ -99,21 +123,7 @@ public sealed partial class BattleSession
             int quantity = Math.Clamp(((((actor.Level - target.Level + 10) >> 1) - action.DrawResist + (NextRandomByte() & 31) + 1 + actor.Magic) / 5) - spell.Resistance, 0, 9);
             if (!command.DrawCast)
             {
-                int index = actor.Stocks.FindIndex(stock => stock.Id == command.ActionId);
-                int previous = index < 0 ? 0 : actor.Stocks[index].Count;
-                int added = Math.Min(100 - previous, quantity);
-                if (added > 0)
-                {
-                    BattleStock stock = new(command.ActionId, previous + added);
-                    if (index < 0)
-                    {
-                        actor.Stocks.Add(stock);
-                    }
-                    else
-                    {
-                        actor.Stocks[index] = stock;
-                    }
-                }
+                int added = actor.AddMagic(command.ActionId, quantity);
                 Log("Draw", actor.Id, target.Id, added, $"{actor.Name} stocks {added} {action.Name}.");
                 return;
             }
@@ -123,6 +133,11 @@ public sealed partial class BattleSession
                 return;
             }
             target = action.Allies ? actor : target;
+        }
+        if (action.NativeAction is not null)
+        {
+            ResolveInstalledNativeAction(actor, target, command, action);
+            return;
         }
         IEnumerable<BattleCombatant> targets = action.AllTargets ? combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (action.Effect == BattleActionEffect.Revive ? !candidate.IsAlive : candidate.IsAlive)).ToArray() : [target];
         foreach (BattleCombatant recipient in targets)
@@ -198,7 +213,7 @@ public sealed partial class BattleSession
     }
     private bool IsRevive(BattleAbility ability, int id)
     {
-        return ability is BattleAbility.Magic or BattleAbility.Item && FindAction(ability, id).Effect == BattleActionEffect.Revive;
+        return ability is BattleAbility.Magic or BattleAbility.Item && IsNativeRevive(FindAction(ability, id));
     }
 
     private int NextRandomByte()

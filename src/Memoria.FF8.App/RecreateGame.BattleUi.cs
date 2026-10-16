@@ -83,7 +83,13 @@ internal sealed partial class RecreateGame
         }
         EnsureBattleHud(active);
         battleScene!.AdvancePresentation(elapsed);
+        battleHud!.AdvancePresentation(elapsed);
         SynchronizeBattleAudio();
+        bool gunbladeInput = keyboard.GunbladeTriggerRequested && active.CanTriggerGunblade;
+        if (gunbladeInput)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.GunbladeTrigger));
+        }
         if (keyboard.BattleInstantVictoryRequested && active.Outcome == BattleOutcome.Active)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.InstantVictory));
@@ -94,7 +100,7 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            NavigateBattleView(battleHud!.Navigate, input);
+            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput);
             if (ActiveBattle is null || battleHud is null)
             {
                 return true;
@@ -112,16 +118,13 @@ internal sealed partial class RecreateGame
             if (frames > 0)
             {
                 battleSeconds -= frames / (double)BattleSession.FramesPerSecond;
-                if (active.Mode == BattleAtbMode.Normal || active.ActiveAction is not null || active.QueuedActions.Count > 0)
-                {
-                    ApplyBattleCommand(new BattleInput(BattleInputKind.Tick, frames));
-                }
+                ApplyBattleCommand(new BattleInput(BattleInputKind.Tick, frames));
             }
         }
         return true;
     }
 
-    private void NavigateBattleView(Action<MenuInput> navigate, InputFrame input)
+    private void NavigateBattleView(Action<MenuInput> navigate, InputFrame input, bool skipCharacterPage = false)
     {
         if (input.MenuVertical != 0)
         {
@@ -135,7 +138,7 @@ internal sealed partial class RecreateGame
         {
             navigate(input.MenuPage < 0 ? MenuInput.PageUp : MenuInput.PageDown);
         }
-        if (keyboard.UiCharacterPage != 0)
+        if (!skipCharacterPage && keyboard.UiCharacterPage != 0)
         {
             navigate(keyboard.UiCharacterPage < 0 ? MenuInput.PageLeft : MenuInput.PageRight);
         }
@@ -162,6 +165,10 @@ internal sealed partial class RecreateGame
     {
         if (presentedBattle != active)
         {
+            if (active.GunbladeMode != uiPreferences.GunbladeMode)
+            {
+                ApplyBattleCommand(new BattleInput(BattleInputKind.SetGunbladeMode, GunbladeMode: uiPreferences.GunbladeMode));
+            }
             DisposeBattleTextures();
             presentedBattle = active;
             battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
@@ -171,6 +178,7 @@ internal sealed partial class RecreateGame
             battleSeconds = 0;
         }
         battleHud!.TextScale = uiPreferences.TextScale / 100f * uiPreferences.UiFontSize / 24f;
+        battleHud.GunbladeBindingHint = keyboard.BindingHint(ControlAction.RotateRight);
     }
 
     private void CompleteBattleResult()
@@ -219,6 +227,12 @@ internal sealed partial class RecreateGame
                 break;
             case BattleInputKind.SetMode:
                 debugBattle.SetMode(input.Mode);
+                break;
+            case BattleInputKind.SetGunbladeMode:
+                debugBattle.SetGunbladeMode(input.GunbladeMode);
+                break;
+            case BattleInputKind.GunbladeTrigger:
+                debugBattle.TriggerGunblade();
                 break;
             case BattleInputKind.InstantVictory:
                 debugBattle.InstantVictory();

@@ -7,6 +7,8 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeInputConfiguration([property: JsonRequired] string InitOutSha256, [property: JsonRequired] uint Options, [property: JsonRequired] ImmutableArray<byte> ButtonMap)
 {
     public const string OriginalInitHash = "4D0D23473AB54AC078B0C77A1672D970BF51E7824BAC1724027B5766B706C9EA";
+    public byte? BattleMessageSpeed { get; init; }
+    public byte? NativeBattleSpeedByte { get; init; }
 
     public void Validate()
     {

@@ -158,6 +158,7 @@ public static class MenuSettings
         new("Cursor", "Original initial / memory cursor position.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
         new("Battle ATB mode", "Normal advances continuously. TurnBased advances idle gauges with Advance Turn.", ["Normal", "TurnBased"]),
+        new("Gunblade trigger", "Automatic assists Squall/Seifer gunblade hits. Manual uses the Gunblade / Rotate right binding at contact (default G / RB).", ["Automatic", "Manual"]),
         new("Battle policy", "Apply immediately: instant victory wins encounters automatically; full combat enables playable battles.", ["Instant victory", "Full combat"]),
         new("Rare card markers", "Show a small rotating card above opponents who can currently offer a unique card.", ["On", "Off"]),
         new("Random encounters", "Enable or disable random encounters immediately in the running game.", ["On", "Off"]),

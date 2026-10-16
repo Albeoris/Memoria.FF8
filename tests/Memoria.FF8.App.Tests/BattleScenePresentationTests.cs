@@ -81,7 +81,7 @@ public sealed class BattleScenePresentationTests
         BattleScenePresentation scene = new(assets, definition, false);
         Assert.NotEmpty(scene.Render(session, 320, 240));
         BattleSnapshot snapshot = session.Capture();
-        BattleSnapshot activated = snapshot with { Combatants = snapshot.Combatants.Select(actor => actor.Id == "reserve" ? actor with { NativeParticipant = actor.NativeParticipant! with { Active = true, ActorIndex = 4 } } : actor).ToArray() };
+        BattleSnapshot activated = snapshot with { Combatants = snapshot.Combatants.Select(actor => actor.Id == "reserve" ? actor with { NativeParticipant = actor.NativeParticipant! with { Active = true, ActorIndex = 4, NativeCombatantFlags = actor.NativeParticipant.NativeCombatantFlags!.Value | 1 } } : actor).ToArray() };
         Assert.Throws<NotSupportedException>(() => scene.Render(BattleSession.Restore(activated), 320, 240));
         Assert.False(session.Combatants.Single(actor => actor.Id == "reserve").IsActive);
     }

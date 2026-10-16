@@ -74,11 +74,12 @@ internal sealed partial class GameWorld
             }
             int level = enemy.Enabled ? BattleEnemyNativeStats.ResolveLevel(checked((byte)enemy.Level), partyLevels, roll, secondRoll) : 0;
             BattleEnemyNativeProjection stats = BattleResources.ReadEnemyNativeStats(enemy.ModelId).Project(level);
+            NativeBattleStatusAllocation nativeStatuses = BattleResources.ReadEnemyNativeStatusData(enemy.ModelId);
             int power = 0;
             int drainPercent = 0;
-            combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialActive = enemy.Enabled, InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = BattleResources.ReadEnemyAi(enemy.ModelId, level), NativeTemplate = BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)), Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, Evasion = stats.Evasion, PhysicalPower = power, DrainPercent = drainPercent, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
+            combatants.Add(new BattleCombatantDefinition { Id = $"enemy-{enemy.Slot}", SceneSlot = enemy.Slot, InitialActive = enemy.Enabled, NativeStatus0 = nativeStatuses.Saved, NativeStatus1 = nativeStatuses.Battle, NativeStatusResistances = nativeStatuses.Resistances.ToArray(), NativeCombatantFlags = BattleResources.ReadEnemyNativeCombatantFlags(enemy.ModelId), InitialHidden = enemy.Hidden, InitialUntargetable = enemy.Untargetable, InitialSuspended = enemy.InitiallySuspended, NativeAi = BattleResources.ReadEnemyAi(enemy.ModelId, level), NativeTemplate = BattleResources.ReadEnemyTemplate(enemy.ModelId, checked((byte)enemy.Level)), Name = BattleResources.ReadEnemyName(enemy.ModelId), ModelId = enemy.ModelId, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Speed = Math.Max(1, stats.Speed), Attack = stats.Strength, Defense = stats.Vitality, Level = level, Magic = stats.Magic, Spirit = stats.Spirit, Evasion = stats.Evasion, PhysicalPower = power, DrainPercent = drainPercent, ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), DrawSpells = BattleResources.ReadEnemyDrawSpells(enemy.ModelId, level), DrawGuardianForces = BattleResources.ReadEnemyDrawGuardianForces(enemy.ModelId, level), AbilityPoints = BattleResources.ReadEnemyAbilityPoints(enemy.ModelId), RewardSlot = enemy.Slot, Rewards = BattleResources.ReadEnemyRewards(enemy.ModelId) });
         }
-        BattleDefinition definition = new() { Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeSeed = nativeSeed, NativeFlags = activeFlags, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (session.State.CharacterVitals!.GetEncounterAbilityFlags() & 2) != 0, Items = session.State.Economy?.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray() ?? throw new NotSupportedException("Interactive battle requires the canonical item owner.") };
+        BattleDefinition definition = new() { Name = $"Encounter {encounterId}", EncounterId = encounterId, StageId = encounter.StageId, Combatants = combatants.ToArray(), ActionDefinitions = CreateBattleActions(), NativeActions = BattleResources.NativeActions.ToArray(), NativeGlobalMessages = BattleResources.ReadNativeGlobalBattleMessages(), GuardianForces = session.State.CharacterVitals!.GuardianForces.Select((gf, id) => new BattleGuardianForceVital(id, gf.HitPoints, session.State.CharacterVitals.Definitions.GuardianForceMaximum(id, gf), (gf.Flags & 1) != 0)).ToArray(), NativeBattleSpeed = session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte, LimitProgress = session.State.LimitProgress, NativeFieldBattleRules = NativeBattleLimitRules.ReadFieldBattleRules(Events.EventMemory), NativeLimitsDisabled = (NativeBattleLimitRules.ReadFieldBattleRules(Events.EventMemory) & 0x20) != 0, NativeStatusRules = BattleResources.ReadNativeStatusRules(session.State.InputConfiguration?.NativeBattleSpeedByte ?? assets.ReadNewGameInputConfiguration().NativeBattleSpeedByte ?? throw new InvalidDataException("Native battle status timing requires the original saved speed BYTE.")), NativeSeed = nativeSeed, NativeFlags = activeFlags, NativeMessageSpeed = session.State.InputConfiguration?.BattleMessageSpeed ?? assets.ReadNewGameInputConfiguration().BattleMessageSpeed, NativeExamTimerAtEntry = session.ExamTimer, NativeSavedBattleFlags = (byte)(session.State.CharacterVitals!.DreamEnabled ? 1 : 0), NativeSavedBattleFlagsKnownMask = 1, InitialRandom = random, PersistentAiVariables = session.State.BattleVariables?.Values.ToArray(), RareItem = (session.State.CharacterVitals!.GetEncounterAbilityFlags() & 2) != 0, NativeItemInventory = session.State.Economy?.Items.ToArray() ?? throw new NotSupportedException("Interactive battle requires the canonical item owner.") };
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
     }
@@ -110,7 +111,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved battle requires exactly one live field BATTLE owner.");
         }
-        BattleDefinition current = CreateEncounterBattle(request.Encounter, battle.Capture().Definition.NativeSeed, request.Flags);
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Encounter, battle.Capture().Definition.NativeSeed, request.Flags), battle.Capture(), session.ExamTimer);
         long allocationClock = Events.Scene.NativeFieldInitialization!.TimerClockCallsAtAllocation!.Value;
         long completedCallbacks = Events.Scene.NativeBattleCompletions!.Where(completion => completion.Backend == NativeBattleBackend.Interactive && completion.ReturnFrame is not null && completion.BattleClockCallsAtEntry >= allocationClock).Sum(completion => (long)completion.EmulatedCombatCallbacks);
         if (Events.Scene.FieldCallbackClock!.BattleCallbacks != completedCallbacks + battle.Frame)
@@ -121,6 +122,27 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved battle definition diverges from the current installed encounter and canonical party.");
         }
+    }
+
+    internal static BattleDefinition BindBattleEntryClock(BattleDefinition current, BattleSnapshot saved, NativeExamTimerState? timer)
+    {
+        if (saved.Definition.NativeExamTimerAtEntry is not { } entry)
+        {
+            return current with { NativeExamTimerAtEntry = null };
+        }
+        NativeExamTimerState advanced = entry;
+        long remaining = saved.Frame;
+        while (remaining > 0)
+        {
+            int callbacks = (int)Math.Min(remaining, 30000);
+            advanced = advanced.AdvanceCallbacks(NativeTimerCallbackKind.Battle, callbacks);
+            remaining -= callbacks;
+        }
+        if (timer is null || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(advanced), System.Text.Json.JsonSerializer.SerializeToElement(timer)))
+        {
+            throw new InvalidDataException("Saved battle's entry timer and combat callbacks disagree with the current process timer owner.");
+        }
+        return current with { NativeExamTimerAtEntry = entry };
     }
 
     public int ApplyBattleInput(BattleInput input)
@@ -217,6 +239,12 @@ internal sealed partial class GameWorld
             case BattleInputKind.SetMode:
                 active.SetMode(input.Mode);
                 break;
+            case BattleInputKind.SetGunbladeMode:
+                active.SetGunbladeMode(input.GunbladeMode);
+                break;
+            case BattleInputKind.GunbladeTrigger:
+                active.TriggerGunblade();
+                break;
             case BattleInputKind.InstantDefeat:
                 active.InstantDefeat();
                 break;
@@ -247,14 +275,7 @@ internal sealed partial class GameWorld
             {
                 throw new NotSupportedException("Battle facts require the actual exact pre-battle HP operand.");
             }
-            ushort status = (ushort)(player.NativeRetainedStatusBits | (player.CurrentHp == 0 ? 1 : 0));
-            foreach ((int mask, BattleStatusKind kind) in new[] { (2, BattleStatusKind.Poison), (8, BattleStatusKind.Blind), (16, BattleStatusKind.Silence) })
-            {
-                if (player.StatusEffects.Any(effect => effect.Kind == kind))
-                {
-                    status |= (ushort)mask;
-                }
-            }
+            ushort status = player.PersistentStatus;
             List<BattleMagicChange> magic = [];
             foreach (int spell in original.MagicInventory.Where(stock => stock.SpellId != 0).Select(stock => (int)stock.SpellId).Concat(player.MagicStocks.Select(stock => stock.Id)).Distinct())
             {
@@ -284,7 +305,7 @@ internal sealed partial class GameWorld
         bool debugVictory = active.Events.Any(entry => entry.Kind == "debug-victory");
         int[] defeated = debugVictory ? [] : active.EnemyDefeats.Select(defeat => defeat.Slot).ToArray();
         int[] eligible = active.Outcome == BattleOutcome.Victory && !debugVictory ? BattleResultProjection.EligibleGuardianForces(vitals) : [];
-        BattleResult result = new(encounter, active.Outcome, party.ToArray(), items.ToArray(), defeated, eligible, debugVictory, debugVictory ? BattleRewardPolicy.DebugNoRewards : BattleRewardPolicy.NativeCombat, debugVictory ? [] : active.EnemyDefeats.ToArray()) { ScriptedItems = debugVictory ? [] : active.ScriptedRewards.ToArray(), PersistentAiVariablesBefore = debugVictory ? null : completed.Definition.PersistentAiVariables?.ToArray(), PersistentAiVariablesAfter = debugVictory ? null : completed.PersistentAiVariables?.ToArray() };
+        BattleResult result = new(encounter, active.Outcome, party.ToArray(), items.ToArray(), defeated, eligible, debugVictory, debugVictory ? BattleRewardPolicy.DebugNoRewards : BattleRewardPolicy.NativeCombat, debugVictory ? [] : active.EnemyDefeats.ToArray()) { GuardianForceChanges = active.GuardianForces.Where(gf => gf.HitPoints != completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints).Select(gf => new BattleGuardianForceChange(gf.Id, completed.Definition.GuardianForces.Single(initial => initial.Id == gf.Id).HitPoints, gf.HitPoints)).ToArray(), ScriptedItems = debugVictory ? [] : active.ScriptedRewards.ToArray(), PersistentAiVariablesBefore = debugVictory ? null : completed.Definition.PersistentAiVariables?.ToArray(), PersistentAiVariablesAfter = debugVictory ? null : completed.PersistentAiVariables?.ToArray(), NativeScriptEffects = debugVictory ? new() : active.NativeScriptState };
         result.Validate();
         return result;
     }
@@ -353,6 +374,7 @@ internal sealed partial class GameWorld
             variables = new NativeBattleVariableState(System.Collections.Immutable.ImmutableArray.CreateRange(result.PersistentAiVariablesAfter!));
         }
         session.CommitBattleResult(expected, owners.CharacterVitals, owners.Economy, owners.Cards, variables);
+        Events.Scene.UnlockedTutorials.UnionWith(result.NativeScriptEffects.UnlockedTutorials);
         LastBattleRewards = owners.Rewards;
     }
 

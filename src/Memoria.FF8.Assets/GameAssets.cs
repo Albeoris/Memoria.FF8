@@ -160,6 +160,16 @@ public sealed class GameAssets : IDisposable
         using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
         return NativeShotAvailabilityInitialization.Read(Read(main, "init.out"), Read(main, "kernel.bin"));
     }
+
+    public NativeLimitProgress ReadNewGameLimitProgress()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            throw new NotSupportedException("Native Limit initialization requires the authenticated original executable.");
+        }
+        using IFlArchive main = FlArchive.OpenForRead(Path.Combine(GameDirectory, "Data", "lang-en", "main.fs"), FlArchiveRepresentation.Files);
+        return NativeLimitProgressInitialization.Read(Read(main, "init.out"));
+    }
     public NativeInputConfiguration ReadNewGameInputConfiguration()
     {
         if (NativeRuntimeProfile is not { IsVerified: true })

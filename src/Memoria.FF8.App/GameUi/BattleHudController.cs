@@ -4,7 +4,7 @@ using Memoria.FF8.Ui;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Live battle input and presentation. Commands always pass through the battle session.</summary>
-public sealed class BattleHudController
+public sealed partial class BattleHudController
 {
     private readonly BattleSession session;
     private readonly Action openDebug;
@@ -48,19 +48,21 @@ public sealed class BattleHudController
     public bool SelectingTarget { get; private set; }
     public string Message { get; private set; } = "Choose a command when a character is ready.";
     public float TextScale { get; set; } = 1;
+    public string GunbladeBindingHint { get; set; } = "G / RB";
+    internal string GuardianForceDisplayName(int id) => guardianForceName(id);
     public const int RewardLinesPerPage = 8;
     public int RewardPage { get; private set; }
     public IReadOnlyList<string> RewardLines => session.Outcome == BattleOutcome.Victory ? rewardLines ??= BuildRewardLines() : [];
     public int RewardPageCount => Math.Max(1, (RewardLines.Count + RewardLinesPerPage - 1) / RewardLinesPerPage);
     public IReadOnlyList<string> VisibleRewardLines => RewardLines.Skip(RewardPage * RewardLinesPerPage).Take(RewardLinesPerPage).ToArray();
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
-    public IReadOnlyList<BattleAbility> Commands => SelectedActor?.Abilities ?? [];
+    public IReadOnlyList<BattleAbility> Commands => GetPlayerCommandChoices();
     public BattleAbility SelectedCommand => Commands.Count == 0 ? BattleAbility.Attack : Commands[Math.Clamp(commandIndex, 0, Commands.Count - 1)];
-    public IReadOnlyList<BattleActionDefinition> ActionChoices => SelectedActor is not { } actor ? [] : session.ActionDefinitions.Where(action => SelectedCommand switch
+    public IReadOnlyList<BattleActionDefinition> ActionChoices => SelectedActor is not { } actor ? [] : SelectedCommand is BattleAbility.NativeCommand or BattleAbility.LimitBreak ? session.GetNativePlayerActionChoices(actor.Id, SelectedCommand == BattleAbility.LimitBreak) : session.ActionDefinitions.Where(action => SelectedCommand switch
     {
         BattleAbility.Magic => action.Ability == BattleAbility.Magic && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0),
         BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
-        BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available,
+        BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
         BattleAbility.Draw => action.Ability == BattleAbility.Magic && session.Combatants.Any(enemy => enemy.IsAlive && !enemy.IsPlayer && enemy.DrawSpells.Any(spell => spell.Id == action.Id)),
         _ => false
     }).ToArray();
@@ -71,7 +73,7 @@ public sealed class BattleHudController
     public IReadOnlyList<BattleCombatant> Targets => session.Combatants.Where(actor =>
     {
         bool allies = SelectedCommand != BattleAbility.Attack && SelectedCommand != BattleAbility.Draw && SelectedAction?.Allies == true;
-        bool revive = SelectedCommand != BattleAbility.Draw && SelectedAction?.Effect == BattleActionEffect.Revive;
+        bool revive = SelectedCommand != BattleAbility.Draw && (SelectedAction?.Effect == BattleActionEffect.Revive || SelectedAction?.NativeAction?.AttackType is 5 or 6);
         return actor.IsPlayer == allies && (revive ? !actor.IsAlive : actor.IsAlive);
     }).ToArray();
     public IReadOnlyList<BattleCombatant> VisibleTargets
@@ -107,7 +109,9 @@ public sealed class BattleHudController
 
     public UiView BuildView()
     {
-        BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Draw" or "Scan");
+        RefreshNativeLimitSelection();
+        CollectBattleMessages();
+        BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Draw" or "Scan" or "GunbladeTrigger");
         if (notification is not null && notification != lastNotification)
         {
             Message = notification.Message;

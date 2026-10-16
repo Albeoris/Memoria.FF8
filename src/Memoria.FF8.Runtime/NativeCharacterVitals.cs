@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -18,9 +18,10 @@ public sealed record NativeHpWord([property: JsonRequired] ushort Minimum, [prop
 
 public sealed record NativeCharacterVital([property: JsonRequired] byte CharacterId, [property: JsonRequired] NativeHpWord HitPoints, [property: JsonRequired] ushort Status, [property: JsonRequired] NativeCharacterJunction Junction, [property: JsonRequired] uint Experience, [property: JsonRequired] ushort HitPointBonus, [property: JsonRequired] byte Weapon, [property: JsonRequired] byte[] StatBonuses, [property: JsonRequired] NativeMagicStock[] MagicInventory, [property: JsonRequired] ushort MemberFlags, [property: JsonRequired] ushort KillCount)
 {
+    public ushort[]? GuardianForceCompatibility { get; init; }
     public bool Equals(NativeCharacterVital? other)
     {
-        return other is not null && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && KillCount == other.KillCount && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory);
+        return other is not null && CharacterId == other.CharacterId && HitPoints == other.HitPoints && Status == other.Status && Junction == other.Junction && Experience == other.Experience && HitPointBonus == other.HitPointBonus && Weapon == other.Weapon && MemberFlags == other.MemberFlags && KillCount == other.KillCount && StatBonuses.AsSpan().SequenceEqual(other.StatBonuses) && MagicInventory.SequenceEqual(other.MagicInventory) && (GuardianForceCompatibility is null ? other.GuardianForceCompatibility is null : other.GuardianForceCompatibility is not null && GuardianForceCompatibility.AsSpan().SequenceEqual(other.GuardianForceCompatibility));
     }
 
     public override int GetHashCode()
@@ -80,7 +81,7 @@ public sealed partial record NativeCharacterVitals
     public void Validate()
     {
         static bool Hash(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
-        if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is not { Length: 8 } || CombatParty is not { Length: 3 } || Records.Where((record, index) => record is null || record.HitPoints is null || record.CharacterId > 10 || record.StatBonuses is not { Length: 6 } || record.MagicInventory is not { Length: 32 } || record.MagicInventory.Any(stock => stock is null)).Any() || CombatParty.Any(slot => slot != 255 && slot >= 8))
+        if (Version != 1 || Rule != InitializationRule || !Hash(InitOutSha256) || !Hash(KernelSha256) || Records is not { Length: 8 } || CombatParty is not { Length: 3 } || Records.Where((record, index) => record is null || record.HitPoints is null || record.CharacterId > 10 || record.StatBonuses is not { Length: 6 } || record.MagicInventory is not { Length: 32 } || record.MagicInventory.Any(stock => stock is null) || record.GuardianForceCompatibility is { Length: not 16 }).Any() || CombatParty.Any(slot => slot != 255 && slot >= 8))
         {
             throw new InvalidDataException("Native character vitals lack their original initialization, eight records or raw combat slots.");
         }
@@ -103,7 +104,7 @@ public sealed partial record NativeCharacterVitals
 
     public NativeCharacterVitals DeepCopy()
     {
-        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray() };
+        return this with { Records = Records.Select(record => record with { Junction = record.Junction with { MagicJunctions = record.Junction.MagicJunctions.ToArray() }, StatBonuses = record.StatBonuses.ToArray(), MagicInventory = record.MagicInventory.ToArray(), GuardianForceCompatibility = record.GuardianForceCompatibility?.ToArray() }).ToArray(), CombatParty = CombatParty.ToArray(), GuardianForces = GuardianForces.ToArray(), DreamWeapons = DreamWeapons.ToArray(), JunctionPartyBackup = JunctionPartyBackup.ToArray() };
     }
 
     /// <summary>Native522110 writes the HP WORD at its wrapped full-DWORD physical row address.</summary>

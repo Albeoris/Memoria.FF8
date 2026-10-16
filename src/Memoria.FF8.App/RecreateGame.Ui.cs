@@ -76,6 +76,7 @@ internal sealed partial class RecreateGame
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode.ToString();
+        data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
@@ -87,6 +88,7 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Dialogue font");
         data.SupportedActions.Add("config:Dialogue font size");
         data.SupportedActions.Add("config:Battle ATB mode");
+        data.SupportedActions.Add("config:Gunblade trigger");
         data.SupportedActions.Add("config:Battle policy");
         data.SupportedActions.Add("config:Random encounters");
         data.SaveAvailable = session.State.Scene != SceneKind.Title && !fieldFaulted;
@@ -166,7 +168,7 @@ internal sealed partial class RecreateGame
             BattlePolicy = session.State.FullBattlePlaythrough == true ? "NewGameFullCombat" : "ResearchInstantVictory",
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
-        return current with { AtbMode = ActiveBattle?.Mode ?? uiPreferences.AtbMode };
+        return current with { AtbMode = ActiveBattle?.Mode ?? uiPreferences.AtbMode, GunbladeMode = ActiveBattle?.GunbladeMode ?? uiPreferences.GunbladeMode };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
@@ -186,6 +188,10 @@ internal sealed partial class RecreateGame
         if (key == "Battle ATB mode" && ActiveBattle is not null && ActiveBattle.Mode != preferences.AtbMode)
         {
             ApplyBattleCommand(new BattleInput(BattleInputKind.SetMode, Mode: preferences.AtbMode));
+        }
+        if (key == "Gunblade trigger" && ActiveBattle is not null && ActiveBattle.GunbladeMode != preferences.GunbladeMode)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.SetGunbladeMode, GunbladeMode: preferences.GunbladeMode));
         }
     }
 

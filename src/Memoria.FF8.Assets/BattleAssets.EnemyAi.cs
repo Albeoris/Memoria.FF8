@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Albeoris.Games.FF8.TextEncoding;
+using Albeoris.Games.FF8.TextEncoding.Tags;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -21,7 +22,7 @@ public sealed partial class BattleAssets
             NativeBattleAiDefinition ai = ReadEnemyAi(modelId, level);
             levels[level] = new(projection.MaximumHp, projection.Strength, projection.Vitality, projection.Magic, projection.Spirit, projection.Speed, projection.ElementDefenses.Select(value => (int)value).ToArray(), ReadEnemyDrawSpells(modelId, level), ReadEnemyDrawGuardianForces(modelId, level), ai.LevelBand) { Evasion = projection.Evasion, BaseStatistics = projection.BaseStatistics.ToArray() };
         }
-        NativeBattleEnemyTemplate template = new(sceneLevel, levels);
+        NativeBattleEnemyTemplate template = new(sceneLevel, levels) { NativeCombatantFlags = ReadEnemyNativeCombatantFlags(modelId), NativeStatusAllocation = ReadEnemyNativeStatusData(modelId) };
         enemyTemplates.Add((modelId, sceneLevel), template);
         return template;
     }
@@ -77,12 +78,16 @@ public sealed partial class BattleAssets
             scripts[index] = bytes.AsSpan(start, finish - start).ToArray();
         }
         string[] texts = new string[(text - textIndices) / 2];
+        byte[][] nameBuffers = new byte[texts.Length][];
+        string[] displayNames = new string[texts.Length];
         for (int index = 0; index < texts.Length; index++)
         {
             int offset = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(textIndices + 2 * index));
             if (offset == ushort.MaxValue)
             {
                 texts[index] = "";
+                nameBuffers[index] = new byte[24];
+                displayNames[index] = "";
                 continue;
             }
             int start = checked(text + offset);
@@ -96,6 +101,9 @@ public sealed partial class BattleAssets
                 throw new InvalidDataException("Enemy AI text has no original terminator.");
             }
             texts[index] = FF8Encoding.CreateEuropean().GetString(bytes.AsSpan(start, terminator));
+            //37 copies24 encoded bytes, before interpreting the copied display buffer as FF8 text.
+            nameBuffers[index] = start <= end - 24 ? bytes.AsSpan(start, 24).ToArray() : [];
+            displayNames[index] = DecodeNativeNamePrefix(bytes.AsSpan(start, Math.Min(24, terminator)));
         }
         NativeBattleAiAbility[] abilities = new NativeBattleAiAbility[48];
         for (int index = 0; index < abilities.Length; index++)
@@ -111,7 +119,7 @@ public sealed partial class BattleAssets
                     throw new InvalidDataException("Enemy AI ability references an absent original kernel attack.");
                 }
                 var attack = battleKernel.EnemyAttacks[id];
-                abilities[index] = new(command, sequence, id, attack.AttackType, attack.AttackPower, (int)attack.Element, attack.Statuses0, attack.Statuses1, attack.StatusAttack);
+                abilities[index] = new(command, sequence, id, attack.AttackType, attack.AttackPower, (int)attack.Element, attack.Statuses0, attack.Statuses1, attack.StatusAttack) { NativeAttackFlags = (byte)attack.AttackFlags };
             }
             else
             {
@@ -119,6 +127,22 @@ public sealed partial class BattleAssets
             }
         }
         int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
-        return new NativeBattleAiDefinition(scripts, abilities, band, texts);
+        return new NativeBattleAiDefinition(scripts, abilities, band, texts) { NameBuffers = nameBuffers, DisplayNames = displayNames };
+    }
+
+    private static string DecodeNativeNamePrefix(ReadOnlySpan<byte> bytes)
+    {
+        int complete = 0;
+        while (complete < bytes.Length && bytes[complete] != 0)
+        {
+            TextTagCode code = (TextTagCode)bytes[complete];
+            int width = code is TextTagCode.Char or TextTagCode.Var or TextTagCode.Key or TextTagCode.Color or TextTagCode.Pause or TextTagCode.Dialog or TextTagCode.Option or TextTagCode.Term or TextTagCode.Name ? 2 : 1;
+            if (width > bytes.Length - complete)
+            {
+                break;
+            }
+            complete += width;
+        }
+        return FF8Encoding.CreateEuropean().GetString(bytes[..complete]);
     }
 }

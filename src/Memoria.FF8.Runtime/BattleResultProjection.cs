@@ -47,7 +47,8 @@ public static class BattleResultProjection
                         throw new InvalidDataException("Battle magic effect exceeds the native thirty-two stock slots.");
                     }
                 }
-                stocks[slot] = new NativeMagicStock(change.SpellId, checked((byte)(before + change.Change)));
+                int after = before + change.Change;
+                stocks[slot] = new NativeMagicStock(after == 0 ? (byte)0 : change.SpellId, checked((byte)after));
             }
             records[member.Row] = record with { HitPoints = new NativeHpWord(member.HitPointsAfter, member.HitPointsAfter), Status = member.StatusAfter, MagicInventory = stocks };
         }
@@ -64,9 +65,26 @@ public static class BattleResultProjection
             {
                 throw new InvalidDataException("Battle item consumption requires its observed pre-action stock.");
             }
-            items[slot] = items[slot] with { Count = checked((byte)(consumption.CountBefore - consumption.Consumed)) };
+            byte remaining = checked((byte)(consumption.CountBefore - consumption.Consumed));
+            items[slot] = remaining == 0 ? new NativeItemStock(0, 0) : items[slot] with { Count = remaining };
         }
         vitals = vitals with { Records = records };
+        NativeGuardianForceVital[] guardianForces = vitals.GuardianForces.ToArray();
+        foreach (BattleGuardianForceChange change in result.GuardianForceChanges)
+        {
+            NativeGuardianForceVital gf = guardianForces[change.Id];
+            ushort maximum = vitals.Definitions.GuardianForceMaximum(change.Id, gf);
+            if (gf.HitPoints != change.HitPointsBefore || change.HitPointsAfter > maximum || (gf.Flags & 1) == 0)
+            {
+                throw new InvalidDataException("Battle GF HP change disagrees with its canonical saved owner.");
+            }
+            guardianForces[change.Id] = gf with { HitPoints = change.HitPointsAfter };
+        }
+        vitals = vitals with { GuardianForces = guardianForces };
+        foreach (byte id in result.NativeScriptEffects.AcquiredGuardianForces)
+        {
+            vitals = vitals.AcquireGuardianForce(id);
+        }
         BattleExperienceAwards experience = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>());
         BattleLootOwners loot = new(economy with { Items = items }, sourceCards?.DeepCopy(), [], []);
         if (result.Outcome == BattleOutcome.Victory && result.RewardPolicy == BattleRewardPolicy.NativeCombat)
@@ -87,6 +105,18 @@ public static class BattleResultProjection
                 loot = loot with { Economy = next };
             }
             loot = loot with { ItemsGranted = granted.GroupBy(item => item.Id).Select(items => new BattleStock(items.Key, items.Sum(item => item.Count))).ToArray() };
+            List<byte> grantedCards = [.. loot.CardsGranted];
+            foreach (byte id in result.NativeScriptEffects.Cards)
+            {
+                NativeCardInventory cards = loot.Cards ?? throw new InvalidDataException("Native scripted card acquisition requires its saved inventory owner.");
+                NativeCardInventory next = cards.Acquire(id, out int accepted);
+                if (accepted == 0)
+                {
+                    grantedCards.Add(id);
+                }
+                loot = loot with { Cards = next };
+            }
+            loot = loot with { CardsGranted = grantedCards.ToArray() };
         }
         int[] eligible = result.Outcome == BattleOutcome.Victory && !result.DebugVictory ? EligibleGuardianForces(vitals) : [];
         if (!eligible.Order().SequenceEqual(result.RewardEligibleGuardianForceIds.Order()))

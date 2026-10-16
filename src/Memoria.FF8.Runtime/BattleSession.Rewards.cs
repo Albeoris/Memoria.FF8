@@ -36,5 +36,10 @@ public sealed partial class BattleSession
         BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection);
         fact.Validate();
         enemyDefeats.Add(fact);
+        target.NativeCombatantFlags |= 0x40000;
+        if (credit == BattleDefeatCredit.Character && actor is not null)
+        {
+            actor.NativeKillCount = unchecked((ushort)(actor.NativeKillCount + 1));
+        }
     }
 }

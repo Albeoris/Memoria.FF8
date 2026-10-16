@@ -10,6 +10,7 @@ public sealed partial class BattleSession
     public IReadOnlyList<BattleStock> ScriptedRewards => scriptedRewards.AsReadOnly();
     private int nativeAiDepth;
     private uint[]? persistentAiVariables;
+    private int nativeLastAllocatedIndex = -1;
     public IReadOnlyList<uint>? PersistentAiVariables => persistentAiVariables?.ToArray();
 
     private void InitializeNativeParticipants()
@@ -45,6 +46,10 @@ public sealed partial class BattleSession
         {
             return;
         }
+        if (TryRunNativeEnemyBerserk(actor, callback))
+        {
+            return;
+        }
         if (++nativeAiDepth > 16)
         {
             nativeAiDepth--;
@@ -55,8 +60,10 @@ public sealed partial class BattleSession
         {
             byte[] code = program.Scripts[callback];
             int pc = 0;
-            byte targetSelector = 201;
-            int sequenceOverride = 0;
+            ushort targetMask = 0;
+            byte preparedCommand = 0;
+            ushort preparedId = 0;
+            byte sequenceOverride = 0;
             for (int dispatched = 0; dispatched < 4096; dispatched++)
             {
                 operation = pc;
@@ -69,11 +76,7 @@ public sealed partial class BattleSession
                     case 24:
                     case 26:
                         int text = ReadAiByte(code, ref pc);
-                        if (text >= program.Texts.Length)
-                        {
-                            throw new InvalidDataException("Native battle AI text index exceeds its installed bank.");
-                        }
-                        Log("NativeText", actor.Id, null, 0, program.Texts[text]);
+                        QueueNativeText(actor, program, text, opcode);
                         break;
                     case 2:
                         int subject = ReadAiByte(code, ref pc);
@@ -86,11 +89,22 @@ public sealed partial class BattleSession
                             pc = checked(pc + skip);
                         }
                         break;
+                    case 3:
+                        preparedCommand = 2;
+                        preparedId = (byte)ReadAiByte(code, ref pc);
+                        break;
                     case 4:
-                        targetSelector = (byte)ReadAiByte(code, ref pc);
+                        targetMask = ResolveNativeAiTargetMask(actor, (byte)ReadAiByte(code, ref pc));
                         break;
                     case 5:
-                        sequenceOverride = ReadAiByte(code, ref pc);
+                        sequenceOverride = (byte)ReadAiByte(code, ref pc);
+                        break;
+                    case 6:
+                        QueueNativeCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                        break;
+                    case 7:
+                        preparedCommand = 8;
+                        preparedId = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 9:
                         int damagePresentation = ReadAiByte(code, ref pc);
@@ -103,11 +117,13 @@ public sealed partial class BattleSession
                         int chosen = (NextRandomByte() % 3) switch { 0 => first, 1 => second, _ => third };
                         if (chosen != 253)
                         {
-                            QueueNativeAbility(actor, chosen, targetSelector);
+                            PrepareNativeAiAbility(actor, chosen, ref preparedCommand, ref preparedId, ref sequenceOverride);
+                            QueueNativeCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
                         }
                         break;
                     case 12:
-                        QueueNativeAbility(actor, ReadAiByte(code, ref pc), targetSelector);
+                        PrepareNativeAiAbility(actor, ReadAiByte(code, ref pc), ref preparedCommand, ref preparedId, ref sequenceOverride);
+                        QueueNativeCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
                         break;
                     case 14:
                     case 15:
@@ -142,6 +158,11 @@ public sealed partial class BattleSession
                         actor.CurrentHp = actor.MaximumHp;
                         actor.AiDeathHandled = false;
                         break;
+                    case 23:
+                        bool sceneResultFlag = ReadAiByte(code, ref pc) == 1;
+                        nativeScriptState = nativeScriptState with { ResultFlags = (byte)((nativeScriptState.ResultFlags & ~1) | (sceneResultFlag ? 1 : 0)) };
+                        break;
+                    case 13:
                     case 25:
                         // Native487DF0 deliberately consumes one operand and performs no operation.
                         _ = ReadAiByte(code, ref pc);
@@ -169,6 +190,12 @@ public sealed partial class BattleSession
                         int effect = ReadAiByte(code, ref pc);
                         Log("NativeSequence", actor.Id, null, effect, $"Native battle sequence {effect}, actor sequence {sequenceOverride}.");
                         break;
+                    case 28:
+                        QueueNativeWait(30 * ReadAiByte(code, ref pc));
+                        break;
+                    case 32:
+                        QueueNativeWait(15 * ReadAiByte(code, ref pc));
+                        break;
                     case 31:
                     case 52:
                         int reserve = ReadAiByte(code, ref pc);
@@ -180,15 +207,19 @@ public sealed partial class BattleSession
                         spawned.IsActive = true;
                         spawned.NativeIndex = Enumerable.Range(3, 8).First(index => !combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex == index));
                         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native battle AI reserve requires its installed allocation template.");
+                        spawned.NativeCombatantFlags = template.NativeCombatantFlags | 1;
                         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
                         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
                         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
                         int level = NativeBattleEnemyLevelRules.Resolve(template.SceneLevel, combatants.Where(candidate => candidate.IsPlayer && candidate.IsActive).Select(candidate => checked((byte)candidate.Level)).ToArray(), firstRoll, secondRoll);
                         spawned.BindNativeLevel(level);
+                        spawned.ResetNativeStatusAllocation();
+                        spawned.SetNativeDisplayName(null);
                         spawned.CurrentHp = spawned.MaximumHp;
                         spawned.Atb = 0;
                         Array.Clear(spawned.AiVariables);
                         Array.Fill(spawned.NativeStatMultipliers, (byte)10);
+                        nativeLastAllocatedIndex = spawned.NativeIndex;
                         Log("NativeSpawn", actor.Id, spawned.Id, reserve, $"{spawned.Name} allocated from formation slot {reserve}.");
                         if (opcode == 31)
                         {
@@ -199,10 +230,46 @@ public sealed partial class BattleSession
                         short displacement = unchecked((short)ReadAiWord(code, ref pc));
                         pc = checked(pc + displacement);
                         break;
+                    case 34:
+                        int delayedText = ReadAiByte(code, ref pc);
+                        int textDelay = ReadAiByte(code, ref pc);
+                        QueueNativeText(actor, program, delayedText, opcode, textDelay);
+                        break;
                     case 40:
                         int statistic = ReadAiByte(code, ref pc);
                         int multiplier = ReadAiByte(code, ref pc);
                         SetNativeAiStatMultiplier(actor, statistic, multiplier);
+                        break;
+                    case 36:
+                        actor.Atb = AtbMaximum;
+                        break;
+                    case 37:
+                        int nameIndex = ReadAiByte(code, ref pc);
+                        actor.SetNativeDisplayName(nameIndex == 255 ? null : nameIndex);
+                        break;
+                    case 39:
+                        int status = ReadAiByte(code, ref pc);
+                        SetNativeAiStatus(actor, status, ReadAiByte(code, ref pc));
+                        break;
+                    case 38:
+                        byte allTargets = (byte)ReadAiByte(code, ref pc);
+                        byte group = (byte)ReadAiByte(code, ref pc);
+                        byte targetComparison = (byte)ReadAiByte(code, ref pc);
+                        byte criterion = (byte)ReadAiByte(code, ref pc);
+                        targetMask = FilterNativeAiTargetMask(allTargets, group, targetComparison, criterion);
+                        break;
+                    case 43:
+                        int physicalTarget = ReadAiByte(code, ref pc);
+                        targetMask = unchecked((ushort)(1 << physicalTarget));
+                        break;
+                    case 41:
+                        DrawNativeAiSpell(actor, false);
+                        break;
+                    case 42:
+                        CastNativeAiDrawnSpell(actor);
+                        break;
+                    case 46:
+                        DrawNativeAiSpell(actor, true);
                         break;
                     case 44:
                         actor.IsActive = false;
@@ -210,14 +277,31 @@ public sealed partial class BattleSession
                         actor.Atb = 0;
                         actor.IsBusy = false;
                         break;
+                    case 45:
+                        int elementIndex = ReadAiByte(code, ref pc);
+                        actor.SetNativeElementDefense(elementIndex, ReadAiWord(code, ref pc));
+                        break;
                     case 47:
                         actor.Untargetable = false;
                         break;
                     case 48:
                         actor.Untargetable = true;
                         break;
+                    case 49:
+                        AcquireNativeGuardianForce((byte)ReadAiByte(code, ref pc));
+                        break;
+                    case 50:
+                        nativeScriptState = nativeScriptState with { DisableAutomaticTargetReplacement = true };
+                        break;
+                    case 55:
+                        AwardNativeCard((byte)ReadAiByte(code, ref pc));
+                        break;
+                    case 61:
+                        UnlockNativeTutorial(127);
+                        break;
                     case 53:
-                        ActivateNativeParticipant(FindNativeActor(ReadAiByte(code, ref pc)));
+                        int activationIndex = ReadAiByte(code, ref pc);
+                        ActivateNativeParticipant(FindNativeActor(activationIndex == 209 ? nativeLastAllocatedIndex : activationIndex));
                         break;
                     case 58:
                         FindNativeActor(ReadAiByte(code, ref pc)).Untargetable = false;
@@ -235,7 +319,12 @@ public sealed partial class BattleSession
                         }
                         break;
                     default:
-                        throw new NotSupportedException($"Native battle AI model {actor.ModelId} callback {callback} byte {operation}: opcode {opcode} is unsupported.");
+                        if (opcode is >= 0 and <= 61 and not (10 or 16 or 20 or 33))
+                        {
+                            throw new NotSupportedException($"Native battle AI model {actor.ModelId} callback {callback} byte {operation}: opcode {opcode} requires its original service owner.");
+                        }
+                        //487DF0's default consumes only the opcode, without operands or an effect.
+                        break;
                 }
                 if ((uint)pc >= code.Length)
                 {
@@ -259,90 +348,14 @@ public sealed partial class BattleSession
         }
     }
 
-    private bool EvaluateNativeAiCondition(BattleCombatant actor, int subject, int selector, int comparison, int right)
-    {
-        long left;
-        if (subject is >= 80 and <= 87)
-        {
-            left = persistentAiVariables?[subject - 80] ?? throw new NotSupportedException("Native battle AI requires its executed persistent DWORD bank80..87.");
-        }
-        else if (subject is >= 96 and <= 103)
-        {
-            left = nativeAiVariables[subject - 96];
-        }
-        else if (subject is >= 220 and <= 227)
-        {
-            left = FindAiActor(actor, selector).AiVariables[subject - 220];
-        }
-        else
-        {
-            switch (subject)
-            {
-                case 0:
-                    BattleCombatant hpActor = FindAiActor(actor, selector);
-                    left = hpActor.CurrentHp;
-                    right = right is >= 1 and <= 9 ? right * (hpActor.MaximumHp / 10) : right == 10 ? hpActor.MaximumHp >> 2 : right;
-                    break;
-                case 2:
-                    if (selector == 0)
-                    {
-                        throw new InvalidDataException("Native battle AI random condition divides by zero.");
-                    }
-                    left = NextRandomByte() % selector;
-                    break;
-                case 3:
-                    left = definition.EncounterId ?? throw new NotSupportedException("Native battle AI formation condition requires its installed encounter identity.");
-                    break;
-                case 6:
-                    // Native487590 counts living physical party/enemy slots, or a particular model byte.
-                    left = combatants.Count(candidate => candidate.IsAlive && (selector == 200 ? candidate.IsPlayer : selector == 201 ? !candidate.IsPlayer : NativeModelId(candidate) == selector));
-                    break;
-                case 4:
-                    BattleCombatant statusActor = FindAiActor(actor, selector);
-                    bool statusPresent = NativeAiStatusPresent(statusActor, right);
-                    return comparison switch { 0 => statusPresent, 3 => !statusPresent, _ => throw new NotSupportedException("Native battle AI status condition requires equality or inequality.") };
-                case 5:
-                    return EvaluateNativeAiGroupStatus(selector, comparison, right);
-                case 9:
-                    bool present = combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7 && candidate.CurrentHp > 0 && NativeModelId(candidate) == right);
-                    return comparison switch { 0 => present, 3 => !present, _ => throw new NotSupportedException("Native battle AI model condition requires equality or inequality.") };
-                case 10:
-                    left = selector switch
-                    {
-                        0 => actor.LastAttackerAbility == BattleAbility.Magic ? 1 : 0,
-                        2 => actor.AiTurnCount,
-                        203 => actor.LastAttackerId is null ? 255 : NativeActorIndex(byId[actor.LastAttackerId]),
-                        _ => throw new NotSupportedException($"Native battle AI action condition {selector} is unsupported.")
-                    };
-                    if (selector == 203)
-                    {
-                        right = right == 200 ? NativeActorIndex(actor) : NativeActorIndex(FindAiActor(actor, right));
-                    }
-                    break;
-                case 14:
-                    left = actor.NativeAi!.LevelBand;
-                    break;
-                default:
-                    throw new NotSupportedException($"Native battle AI condition subject {subject} is unsupported.");
-            }
-        }
-        return comparison switch
-        {
-            0 => left == right,
-            1 => left < right,
-            2 => left > right,
-            3 => left != right,
-            4 => left <= right,
-            5 => left >= right,
-            _ => throw new NotSupportedException($"Native battle AI comparison {comparison} is unsupported.")
-        };
-    }
-
     private bool EvaluateNativeAiGroupStatus(int selector, int comparison, int status)
     {
         // Native487DF0 ->48A830/48A900: group selectors differ from action targets.
         // 200 scans physical party slots0..2;201 scans enemy slots3..6, even in an eight-enemy formation.
-        _ = NativeAiStatusKind(status);
+        if ((uint)status >= 48)
+        {
+            throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
+        }
         bool present = combatants.Any(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7 && (selector == 200 ? candidate.NativeIndex < 3 : selector == 201 ? candidate.NativeIndex >= 3 : NativeModelId(candidate) == selector) && (status == 0 || candidate.CurrentHp > 0) && NativeAiStatusPresent(candidate, status));
         // Native forces equality for each candidate, then inverts the group result for any nonzero comparison.
         return comparison == 0 ? present : !present;
@@ -350,51 +363,25 @@ public sealed partial class BattleSession
 
     private bool NativeAiStatusPresent(BattleCombatant actor, int status)
     {
-        BattleStatusKind? kind = NativeAiStatusKind(status);
-        return status == 0 ? actor.CurrentHp == 0 : status == 7 ? (actor.NativeRetainedStatusBits & 0x80) != 0 : kind is { } projected && HasStatus(actor, projected);
-    }
-
-    private static BattleStatusKind? NativeAiStatusKind(int status)
-    {
-        // Validated BattleStatusKind definitions/actions are the only producers of transient status bits.
-        // Saved WORD bit7 has its own retained owner; other bits are clear in this state contract.
-        // Producers of effects without a supported owner must still fail at their own boundary.
-        return status switch
+        if ((uint)status >= 48)
         {
-            0 => null,
-            1 => BattleStatusKind.Poison,
-            3 => BattleStatusKind.Blind,
-            4 => BattleStatusKind.Silence,
-            16 => BattleStatusKind.Sleep,
-            17 => BattleStatusKind.Haste,
-            18 => BattleStatusKind.Slow,
-            20 => BattleStatusKind.Regen,
-            21 => BattleStatusKind.Protect,
-            22 => BattleStatusKind.Shell,
-            >= 0 and < 48 => null,
-            _ => throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.")
-        };
+            throw new NotSupportedException($"Native battle AI status {status} lies outside its WORD/DWORD banks.");
+        }
+        return status < 16 ? (NativeSavedStatusBits(actor) & (1u << status)) != 0 : (NativeBattleStatusBits(actor) & (1u << (status - 16))) != 0;
     }
 
-    private void QueueNativeAbility(BattleCombatant actor, int index, int selector)
+    private static void PrepareNativeAiAbility(BattleCombatant actor, int index, ref byte command, ref ushort id, ref byte sequence)
     {
-        NativeBattleAiDefinition ai = actor.NativeAi!;
+        NativeBattleAiDefinition ai = actor.NativeAi ?? throw new InvalidDataException("Native ability slot requires its original AI bank.");
         if ((uint)index >= 16)
         {
             throw new InvalidDataException("Native battle AI ability index exceeds its level band.");
         }
         NativeBattleAiAbility ability = ai.Abilities[16 * ai.LevelBand + index];
-        if (ability.Id == 0)
-        {
-            return;
-        }
-        BattleCombatant target = FindAiActor(actor, selector);
-        actor.Atb = 0;
-        actor.IsBusy = true;
-        actions.Enqueue(new BattleAttackCommand(actor.Id, target.Id, BattleAbility.EnemyAbility, index, NativeTargetSelector: selector));
-        Log("Queued", actor.Id, target.Id, index, $"{actor.Name}: native ability {index} queued.");
+        command = ability.Command;
+        id = ability.Id;
+        sequence = ability.Sequence;
     }
-
     private BattleCombatant FindAiActor(BattleCombatant actor, int selector)
     {
         if (selector == 200)
@@ -459,7 +446,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray() };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -479,6 +466,15 @@ public sealed partial class BattleSession
         actor.Hidden = saved.Hidden;
         actor.Untargetable = saved.Untargetable;
         actor.Suspended = saved.Suspended;
+        if (saved.NativeCombatantFlags is uint flags)
+        {
+            uint lifecycle = (saved.Active ? 1u : 0) | (saved.Hidden ? 2u : 0) | (saved.Untargetable ? 0x40u : 0) | (saved.Suspended ? 0x80u : 0);
+            if ((flags & 0xC3) != lifecycle)
+            {
+                throw new InvalidDataException("Native combatant flags disagree with the saved allocation lifecycle.");
+            }
+            actor.NativeCombatantFlags = flags;
+        }
         actor.NativeIndex = saved.ActorIndex;
         if (saved.ResolvedLevel is int level)
         {
@@ -489,6 +485,19 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Allocated native participant lacks its resolved level.");
         }
         RestoreNativeStatMultipliers(actor, saved.StatMultipliers);
+        if (saved.LastAction is { } action && (action.AttackType is > 3 || action.AttackerIndex > 10))
+        {
+            throw new InvalidDataException("Native battle action memory has an invalid attack type or physical attacker index.");
+        }
+        actor.NativePreviousTargetMask = saved.PreviousTargetMask;
+        actor.NativeDrawnSpell = saved.DrawnSpell;
+        actor.SetNativeDisplayName(saved.DisplayNameIndex);
+        if (saved.ElementDefenses is { } defenses)
+        {
+            actor.SetNativeElementDefenses(defenses);
+        }
+        actor.LastNativeAction = saved.LastAction;
+        actor.NativeKillCount = saved.KillCount ?? definition.Combatants.Single(candidate => candidate.Id == actor.Id).NativeKillCount;
         saved.Variables.CopyTo(actor.AiVariables, 0);
         actor.AiTurnCount = saved.TurnCount;
         actor.LastAttackerId = saved.LastAttackerId;
@@ -496,62 +505,7 @@ public sealed partial class BattleSession
         actor.AiDeathHandled = saved.DeathHandled;
     }
 
-    private void ResolveNativeAbility(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
-    {
-        NativeBattleAiDefinition ai = actor.NativeAi ?? throw new InvalidDataException("Native enemy command has no original AI ability bank.");
-        if ((uint)command.ActionId >= 16)
-        {
-            throw new InvalidDataException("Native enemy action exceeds its original ability band.");
-        }
-        NativeBattleAiAbility ability = ai.Abilities[16 * ai.LevelBand + command.ActionId];
-        if (ability.Command == 2)
-        {
-            ResolveAction(actor, target, command with { Ability = BattleAbility.Magic, ActionId = ability.Id });
-            return;
-        }
-        if (ability.Command != 8 || ability.AttackType is not (0 or 1 or 2) || (ability.Statuses0 & ~0x1A) != 0 || (ability.Statuses1 & ~0x8077u) != 0)
-        {
-            throw new NotSupportedException($"Native enemy action command {ability.Command}, attack type {ability.AttackType}, statuses {ability.Statuses0:X4}/{ability.Statuses1:X8} requires an unsupported effect contract.");
-        }
-        if (ability.AttackType == 0)
-        {
-            Log("NativeSequence", actor.Id, target.Id, ability.Sequence, $"{actor.Name}: native sequence {ability.Sequence}.");
-            return;
-        }
-        BattleCombatant[] targets = command.NativeTargetSelector is 204 or 205 ? combatants.Where(candidate => candidate.IsPlayer == (command.NativeTargetSelector == 204) && candidate.IsAlive && !candidate.Untargetable).ToArray() : [target];
-        foreach (BattleCombatant recipient in targets)
-        {
-            int damage = ability.AttackType == 1 ? NativeBattleDamage.Physical(actor.Attack, recipient.Defense, ability.Power, NextRandomByte()) : NativeBattleDamage.Magic(actor.Magic, recipient.Spirit, ability.Power, NextRandomByte(), true);
-            if (ability.Element != 0)
-            {
-                int element = System.Numerics.BitOperations.TrailingZeroCount((uint)ability.Element);
-                damage = damage * (900 - recipient.ElementDefenses[element]) / 100;
-            }
-            int previousHp = recipient.CurrentHp;
-            ApplySignedDamage(actor, recipient, damage, "Native enemy ability");
-            if ((ability.Statuses1 & 0x8000) != 0 && recipient.CurrentHp < previousHp)
-            {
-                ApplyHealing(actor, (previousHp - recipient.CurrentHp) * ability.StatusAttack / 100, "Drain");
-            }
-            // TODO(TD-009): Reuse the existing shared status projection; native hit/resistance/duration rolls remain unsupported
-            foreach ((int mask, BattleStatusKind status) in new[] { (2, BattleStatusKind.Poison), (8, BattleStatusKind.Blind), (16, BattleStatusKind.Silence) })
-            {
-                if ((ability.Statuses0 & mask) != 0)
-                {
-                    ApplyProjectedStatus(actor, recipient, status, "Native enemy ability", BattleActionEffect.Damage);
-                }
-            }
-            foreach ((uint mask, BattleStatusKind status) in new[] { (1u, BattleStatusKind.Sleep), (2u, BattleStatusKind.Haste), (4u, BattleStatusKind.Slow), (16u, BattleStatusKind.Regen), (32u, BattleStatusKind.Protect), (64u, BattleStatusKind.Shell) })
-            {
-                if ((ability.Statuses1 & mask) != 0)
-                {
-                    ApplyProjectedStatus(actor, recipient, status, "Native enemy ability", BattleActionEffect.Damage);
-                }
-            }
-        }
-    }
-
-    private static NativeBattleAiDefinition? CloneNativeAi(NativeBattleAiDefinition? source) => source is null ? null : source with { Scripts = source.Scripts.Select(script => script.ToArray()).ToArray(), Abilities = source.Abilities.ToArray(), Texts = source.Texts.ToArray() };
+    private static NativeBattleAiDefinition? CloneNativeAi(NativeBattleAiDefinition? source) => source is null ? null : source with { Scripts = source.Scripts.Select(script => script.ToArray()).ToArray(), Abilities = source.Abilities.ToArray(), Texts = source.Texts.ToArray(), NameBuffers = source.NameBuffers.Select(buffer => buffer.ToArray()).ToArray(), DisplayNames = source.DisplayNames.ToArray() };
     private static NativeBattleEnemyTemplate? CloneNativeTemplate(NativeBattleEnemyTemplate? source) => source is null ? null : source with { Levels = source.Levels.Select(level => level with { BaseStatistics = level.BaseStatistics.ToArray(), ElementDefenses = level.ElementDefenses.ToArray(), DrawSpells = level.DrawSpells.ToArray(), DrawGuardianForces = level.DrawGuardianForces.ToArray() }).ToArray() };
     private static void ValidateNativeAi(BattleCombatantDefinition actor)
     {

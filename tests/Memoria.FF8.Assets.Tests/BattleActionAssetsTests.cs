@@ -8,7 +8,7 @@ public sealed class BattleActionAssetsTests
     private const string GameDirectory = @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
 
     [Fact]
-    public void InstalledKernelOwnsEarlySpellsPotionAndThreeSummonEffects()
+    public void InstalledKernelOwnsEarlySpellsPotionAndAllSixteenSummonEffects()
     {
         using BattleAssets assets = new(GameDirectory);
         BattleActionDefinition fire = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Magic && action.Id == 1);
@@ -18,8 +18,9 @@ public sealed class BattleActionAssetsTests
         BattleActionDefinition potion = Assert.Single(assets.ActionDefinitions, action => action.Ability == BattleAbility.Item && action.Id == 1);
         Assert.Equal(4, potion.Power);
         Assert.True(potion.Allies);
-        Assert.Equal(new[] { "Thunder Storm", "Diamond Dust", "Hell Fire" }, assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce).Select(action => action.Name));
-        Assert.Equal(new[] { 4, 2, 1 }, assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce).Select(action => action.Element));
+        Assert.Equal(16, assets.ActionDefinitions.Count(action => action.Ability == BattleAbility.GuardianForce));
+        Assert.Equal(new[] { "Thunder Storm", "Diamond Dust", "Hell Fire" }, assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce).Take(3).Select(action => action.Name));
+        Assert.Equal(new[] { 4, 2, 1 }, assets.ActionDefinitions.Where(action => action.Ability == BattleAbility.GuardianForce).Take(3).Select(action => action.Element));
     }
 
     [Theory]

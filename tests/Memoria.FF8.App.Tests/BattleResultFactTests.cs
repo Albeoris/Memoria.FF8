@@ -8,6 +8,25 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleResultFactTests
 {
     [Fact]
+    public void NativeScriptAcquisitionsCommitGfCardsAndTutorialsWithTheSameReceipt()
+    {
+        (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();
+        fact = fact with { NativeScriptEffects = new() { AcquiredGuardianForces = [2], Cards = [4, 4], UnlockedTutorials = [127] } };
+        NativeCardInventory cards = NativeCardInventory.CreateNewGame();
+        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 74, CharacterVitals = vitals, Economy = economy, CardInventory = cards });
+        session.SetPendingBattleEncounter(fact.Encounter);
+        using GameWorld world = new(session, LaunchOptions.DefaultGameDirectory);
+        world.ApplyBattleResult(fact.Encounter, fact);
+        Assert.Equal(1, session.State.CharacterVitals!.GuardianForces[2].Flags & 1);
+        Assert.True((session.State.CardInventory!.Cards[4] & 0x7F) >= 2);
+        Assert.Contains(127, world.Events.Scene.UnlockedTutorials);
+        Assert.Contains(world.LastBattleRewards!.Cards, id => id == 4);
+        string committed = JsonSerializer.Serialize(session.State);
+        Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
+        Assert.Equal(committed, JsonSerializer.Serialize(session.State));
+    }
+
+    [Fact]
     public void NativeScriptItemRewardsShareTheAtomicOccurrenceReceipt()
     {
         (NativeCharacterVitals vitals, NativeEconomy economy, BattleResult fact, _) = Fixture();

@@ -14,6 +14,7 @@ internal sealed record UiPreferences
     public string DialogueFontFamily { get; init; } = SystemFontCatalog.DefaultFamily;
     public int DialogueFontSize { get; init; } = 8;
     public BattleAtbMode AtbMode { get; init; } = BattleAtbMode.Normal;
+    public BattleGunbladeMode GunbladeMode { get; init; } = BattleGunbladeMode.Automatic;
     public string BattlePolicy { get; init; } = "ResearchInstantVictory";
     [System.Text.Json.Serialization.JsonIgnore]
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
@@ -79,6 +80,15 @@ internal sealed record UiPreferences
                 _ => throw new ArgumentException("Unsupported battle ATB mode.")
             };
         }
+        if (key == "Gunblade trigger")
+        {
+            return value switch
+            {
+                "Manual" => this with { GunbladeMode = BattleGunbladeMode.Manual },
+                "Automatic" => this with { GunbladeMode = BattleGunbladeMode.Automatic },
+                _ => throw new ArgumentException("Gunblade trigger requires Manual or Automatic.")
+            };
+        }
         if (key == "Battle policy")
         {
             return value switch
@@ -113,7 +123,7 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
-        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

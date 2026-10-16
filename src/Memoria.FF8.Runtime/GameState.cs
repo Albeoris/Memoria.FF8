@@ -72,6 +72,7 @@ public sealed record GameState
     public NativeEconomy? Economy { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeShotAvailabilityState? ShotAvailability { get; init; }
+    public NativeLimitProgress? LimitProgress { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeFieldLocation? NativeFieldLocation { get; init; }
     [System.Text.Json.Serialization.JsonRequired]

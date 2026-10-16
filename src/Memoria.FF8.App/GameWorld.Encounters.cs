@@ -150,7 +150,7 @@ internal sealed partial class GameWorld
         {
             throw new InvalidDataException("Saved random combat has lost its exploration scene owner.");
         }
-        BattleDefinition current = CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed, 0);
+        BattleDefinition current = BindBattleEntryClock(CreateEncounterBattle(request.Formation, battle.Capture().Definition.NativeSeed, 0), battle.Capture(), session.ExamTimer);
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(current), JsonSerializer.SerializeToElement(battle.Capture().Definition)))
         {
             throw new InvalidDataException("Saved random combat differs from its current installed formation and party.");

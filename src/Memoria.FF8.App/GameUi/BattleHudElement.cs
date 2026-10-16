@@ -31,6 +31,11 @@ internal sealed class BattleHudElement : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         BattleSession session = controller.Session;
+        if (controller.BattleMessage is string battleMessage && session.Outcome == BattleOutcome.Active)
+        {
+            theme.Panel(canvas, Rect(32, 22, 896, 100));
+            Text(canvas, theme, battleMessage, 52, 36, 856, 76, 20);
+        }
         theme.Panel(canvas, Rect(16, 494, 252, 130));
         theme.Panel(canvas, Rect(280, 494, 664, 130));
         Text(canvas, theme, session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectedActor?.Name ?? "COMMAND", 34, 508, 220, 26, 20);
@@ -72,17 +77,27 @@ internal sealed class BattleHudElement : UiElement
             {
                 theme.Pointer(canvas, Left + 294 * Scale, Top + (y + 8) * Scale, 10 * Scale);
             }
-            Text(canvas, theme, actor.Name, 314, y, 190, 27, 20, !actor.IsAlive);
-            Text(canvas, theme, $"{actor.CurrentHp,4} / {actor.MaximumHp,4}", 508, y, 228, 27, 20, !actor.IsAlive);
-            DrawGauge(canvas, Rect(746, y + 6, 176, 15), actor.Atb / (float)BattleSession.AtbMaximum, actor.IsReady, actor.IsAlive);
+            BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
+            BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
+            string label = gf is null ? actor.Name : controller.GuardianForceDisplayName(gf.Id);
+            int hp = gf?.HitPoints ?? actor.CurrentHp;
+            int maximumHp = gf?.MaximumHitPoints ?? actor.MaximumHp;
+            float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
+            Text(canvas, theme, label, 314, y, 190, 27, 20, !actor.IsAlive);
+            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 508, y, 228, 27, 20, !actor.IsAlive);
+            DrawGauge(canvas, Rect(746, y + 6, 176, 15), gauge, cast is null && actor.IsReady, actor.IsAlive);
         }
         if (session.Outcome == BattleOutcome.Victory)
         {
             DrawRewards(canvas, theme);
         }
         theme.Panel(canvas, Rect(16, 634, 928, 30));
-        string message = session.Outcome == BattleOutcome.Active ? controller.Message : session.Outcome.ToString().ToUpperInvariant();
+        string message = session.GunbladeTriggerWindowOpen ? $"Gunblade: press {controller.GunbladeBindingHint}!" : session.Outcome == BattleOutcome.Active ? controller.Message : session.Outcome.ToString().ToUpperInvariant();
         Text(canvas, theme, message, 28, 639, 904, 24, 15);
+        if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
+        {
+            Text(canvas, theme, "TRIGGER!", 372, 100, 280, 48, 30);
+        }
         theme.Panel(canvas, Rect(794, 444, 150, 36));
         Text(canvas, theme, "Debug Battle", 808, 450, 128, 28, 16);
         if (session.Mode == BattleAtbMode.TurnBased)

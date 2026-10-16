@@ -60,6 +60,7 @@ internal sealed class KeyboardInput
     public bool BattleDebugRequested { get; private set; }
     public bool BattleInstantVictoryRequested { get; private set; }
     public bool BattleAdvanceTurnRequested { get; private set; }
+    public bool GunbladeTriggerRequested { get; private set; }
     public ushort HeldFieldButtons { get; private set; }
     public ControlDevice LastInputDevice { get; private set; }
     public string BindingHint(ControlAction action)
@@ -148,6 +149,7 @@ internal sealed class KeyboardInput
         BattleDebugRequested = Pressed(ControlAction.BattleDebug);
         BattleInstantVictoryRequested = Pressed(ControlAction.BattleInstantVictory);
         BattleAdvanceTurnRequested = Pressed(ControlAction.BattleAdvanceTurn);
+        GunbladeTriggerRequested = Pressed(ControlAction.RotateRight);
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
         UiTabRequested = Pressed(ControlAction.UiTab);

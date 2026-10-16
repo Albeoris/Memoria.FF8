@@ -12,15 +12,17 @@ public enum BattleInputKind
     InstantVictory,
     Action,
     ConfigureEncounters,
-    InstantDefeat
+    InstantDefeat,
+    SetGunbladeMode,
+    GunbladeTrigger
 }
 
 /// <summary>Live combat controls and settings for the current game.</summary>
-public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? ActorId = null, string? TargetId = null, BattleAtbMode Mode = BattleAtbMode.Normal, bool FullCombat = false, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, bool? RandomEncounters = null, byte? NativeSeed = null)
+public sealed record BattleInput(BattleInputKind Kind, int Frames = 1, string? ActorId = null, string? TargetId = null, BattleAtbMode Mode = BattleAtbMode.Normal, bool FullCombat = false, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, bool? RandomEncounters = null, byte? NativeSeed = null, BattleGunbladeMode GunbladeMode = BattleGunbladeMode.Manual)
 {
     public void Validate()
     {
-        if (!Enum.IsDefined(Kind) || !Enum.IsDefined(Mode) || !Enum.IsDefined(Ability) || ActionId < 0 || Frames is < 1 or > 30000 || ActorId?.Length > 128 || TargetId?.Length > 128 || NativeSeed is not null && Kind != BattleInputKind.StartEncounter || Kind is BattleInputKind.Attack or BattleInputKind.Action && (string.IsNullOrWhiteSpace(ActorId) || string.IsNullOrWhiteSpace(TargetId)))
+        if (!Enum.IsDefined(Kind) || !Enum.IsDefined(Mode) || !Enum.IsDefined(Ability) || !Enum.IsDefined(GunbladeMode) || ActionId < 0 || Frames is < 1 or > 30000 || ActorId?.Length > 128 || TargetId?.Length > 128 || NativeSeed is not null && Kind != BattleInputKind.StartEncounter || Kind is BattleInputKind.Attack or BattleInputKind.Action && (string.IsNullOrWhiteSpace(ActorId) || string.IsNullOrWhiteSpace(TargetId)))
         {
             throw new InvalidDataException("Invalid battle input.");
         }

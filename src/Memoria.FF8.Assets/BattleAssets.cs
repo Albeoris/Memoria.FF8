@@ -49,7 +49,10 @@ public sealed partial class BattleAssets : IDisposable
                 int end = name.IndexOf((byte)0);
                 return FF8Encoding.CreateEuropean().GetString(end < 0 ? name : name[..end]);
             }
-            ActionDefinitions = BattleActionKernelReader.Read(bytes.ToArray()).Select(action => action.Ability == Memoria.FF8.Runtime.BattleAbility.GuardianForce ? action with { DisplayName = GuardianName(action.Id) } : action).ToArray();
+            BattleActionCatalog actionCatalog = BattleActionKernelReader.ReadCatalogue(bytes.ToArray());
+            ActionDefinitions = actionCatalog.Actions.Select(action => action.Ability == Memoria.FF8.Runtime.BattleAbility.GuardianForce ? action with { DisplayName = GuardianName(action.Id) } : action).ToArray();
+            NativeActions = actionCatalog.NativeActions;
+            NativeKernelRecords = actionCatalog.Records;
             playerStats = new BattlePlayerStatReader(bytes.ToArray());
             battleKernel = Albeoris.Games.FF8.KernelBin.KernelData.ReadFromArray(bytes.ToArray(), FF8Encoding.CreateEuropean());
         }
@@ -62,6 +65,9 @@ public sealed partial class BattleAssets : IDisposable
 
     public IReadOnlyList<BattleWeaponDefinition> WeaponDefinitions { get; }
     public IReadOnlyList<Memoria.FF8.Runtime.BattleActionDefinition> ActionDefinitions { get; }
+    public IReadOnlyList<BattleNativeAction> NativeActions { get; }
+    public IReadOnlyList<BattleNativeKernelRecord> NativeKernelRecords { get; }
+    public string?[] ReadNativeGlobalBattleMessages() => battleKernel.MiscTexts.ToArray();
     public BattlePlayerStats ReadPlayerStats(Memoria.FF8.Runtime.NativeCharacterVitals vitals, int row) => playerStats.Read(vitals, row);
 
     public Memoria.FF8.Runtime.BattleDrawSpell[] ReadEnemyDrawSpells(int modelId, int level)
