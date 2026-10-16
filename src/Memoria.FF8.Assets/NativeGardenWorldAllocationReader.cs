@@ -13,7 +13,7 @@ public static class NativeGardenWorldAllocationReader
         entry.Validate();
         saved.Validate();
         memory.Validate();
-        if (unchecked((byte)packet.Mode) is not (0 or 48) || unchecked((byte)packet.Mode) == 0 && parkedGardenPose is null || unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (unchecked((byte)packet.Mode) is not (0 or 48) || unchecked((byte)packet.Mode) == 0 && parkedGardenPose is null || unchecked((byte)packet.Mode) == 48 && unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
             throw new NotSupportedException("Garden allocation requires its ordinary packet and the actual unoccupied saved car slots.");
         }
