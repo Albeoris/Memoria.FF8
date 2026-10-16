@@ -29,7 +29,7 @@ public sealed class DialogueLayoutTests
     {
         var dialogue = new DialogueState(0, 1, "", 200, 210);
         var bounds = DialoguePresentation.Bounds(dialogue, new DialogueWindow(0, 200, 210, 100, 150), new PixelBounds(0, 0, 320, 240), 180, 30);
-        Assert.Equal(new PixelBounds(116, 186, 196, 46), bounds);
+        Assert.Equal(new PixelBounds(116, 74, 196, 46), bounds);
         var anchored = DialoguePresentation.Bounds(dialogue with { X = 12, Y = 16 }, null, new PixelBounds(0, 0, 320, 240), 100, 60);
         Assert.Equal(new PixelBounds(12, 16, 116, 76), anchored);
     }

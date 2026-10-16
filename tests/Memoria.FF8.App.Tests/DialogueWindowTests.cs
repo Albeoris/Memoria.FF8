@@ -17,7 +17,7 @@ public sealed class DialogueWindowTests
         Assert.Equal(new PixelBounds(640, 360, 168, 108), secondBounds);
         Assert.NotEqual(firstBounds, secondBounds);
         PixelBounds clamped = DialoguePresentation.Bounds(second with { X = 310, Y = 230 }, null, viewport, 120, 60);
-        Assert.Equal(new PixelBounds(928, 588, 168, 108), clamped);
+        Assert.Equal(new PixelBounds(928, 564, 168, 108), clamped);
         PixelBounds explicitWindow = DialoguePresentation.Bounds(first, new DialogueWindow(0, 40, 70, 100, 50), viewport, 1, 1);
         Assert.Equal(new PixelBounds(280, 210, 49, 49), explicitWindow);
     }
@@ -40,7 +40,39 @@ public sealed class DialogueWindowTests
         Assert.Equal(top, bottom);
         Assert.True(top >= DialoguePresentation.Padding * scale);
         Assert.True(panel.Width >= textWidth + 2 * DialoguePresentation.Padding * scale);
-        Assert.True(panel.Y + panel.Height <= viewport.Y + 232 * scale + 1);
+        Assert.True(panel.Y + panel.Height <= viewport.Y + 224 * scale + 1);
+    }
+
+    [Theory]
+    [InlineData(320, 240)]
+    [InlineData(1012, 843)]
+    [InlineData(1280, 720)]
+    public void Corridor_MES_keeps_the_WINSIZE_origin_above_the_later_AMES(int width, int height)
+    {
+        PixelBounds viewport = ViewportLayout.Fit(320, 240, width, height);
+        float scale = viewport.Width / 320f;
+        var squall = new DialogueState(1, 11, "{Char Squall}{Line}”It’s none of your...“{End}", 0, 0);
+        var quistis = new DialogueState(0, 12, "Quistis{Line}”Business!“{End}", 125, 200);
+        using var measure = SystemTextLayout.CreateMeasurer(8, "Arial");
+        var window = new DialogueWindow(1, 60, 200, 167, 87);
+        DialogueVisualPage Page(DialogueState dialogue, DialogueWindow? scriptWindow) => Assert.Single(DialogueLayout.Create(DialogueTextFormatter.Parse(dialogue.Text), dialogue, scriptWindow, measure.LineHeight, measure.Measure));
+        var first = Page(squall, window);
+        var second = Page(quistis, null);
+        PixelBounds squallBounds = DialoguePresentation.Bounds(squall, window, viewport, first.Width * scale, first.Height * scale);
+        PixelBounds quistisBounds = DialoguePresentation.Bounds(quistis, null, viewport, second.Width * scale, second.Height * scale);
+        Assert.Equal(viewport.X + (int)MathF.Round(60 * scale), squallBounds.X);
+        Assert.Equal(viewport.Y + (int)MathF.Round(137 * scale), squallBounds.Y);
+        Assert.True(squallBounds.Y + squallBounds.Height < quistisBounds.Y);
+    }
+
+    [Theory]
+    [InlineData(250, 180, 100, 80, 212, 144)]
+    [InlineData(204, 20, 100, 80, 212, 20)]
+    [InlineData(0, 65535, 100, 80, 8, 8)]
+    public void Script_rectangle_is_positioned_before_short_page_sizing(int x, int y, int width, int height, int expectedX, int expectedY)
+    {
+        PixelBounds panel = DialoguePresentation.Bounds(new DialogueState(1, 11, "Short", 0, 0), new DialogueWindow(1, x, y, width, height), new PixelBounds(0, 0, 320, 240), 30, 12);
+        Assert.Equal(new PixelBounds(expectedX, expectedY, 46, 28), panel);
     }
 
     [Fact]
