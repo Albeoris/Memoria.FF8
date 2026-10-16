@@ -15,10 +15,13 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
     private readonly Stack<GraphicsState> clips = [];
     private readonly string gameDirectory;
     private Bitmap? menuPointer;
+    private readonly MenuArtworkProvider artwork;
+    private readonly Dictionary<UiImageSource, Bitmap> images = [];
 
     public BattlePreviewCanvas(Bitmap bitmap, string gameDirectory = LaunchOptions.DefaultGameDirectory)
     {
         this.gameDirectory = gameDirectory;
+        artwork = new MenuArtworkProvider(gameDirectory);
         graphics = Graphics.FromImage(bitmap);
         graphics.CompositingMode = CompositingMode.SourceOver;
         graphics.CompositingQuality = CompositingQuality.HighQuality;
@@ -42,6 +45,31 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
         float scale = Math.Min(bounds.Width / menuPointer.Width, bounds.Height / menuPointer.Height);
         UiRect destination = new(bounds.X + (bounds.Width - menuPointer.Width * scale) / 2, bounds.Y + (bounds.Height - menuPointer.Height * scale) / 2, menuPointer.Width * scale, menuPointer.Height * scale);
         graphics.DrawImage(menuPointer, RectFor(destination));
+    }
+
+    public void Image(UiImageSource source, UiRect bounds)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        if (!images.TryGetValue(source, out Bitmap? bitmap))
+        {
+            var image = artwork.Read(source);
+            bitmap = BitmapFromRgba(image.Pixels.SelectMany(color => new[] { color.R, color.G, color.B, color.A }).ToArray(), image.Width, image.Height);
+            images.Add(source, bitmap);
+        }
+        UiRect destination = UiImage.Fit(bounds, bitmap.Width, bitmap.Height);
+        GraphicsState previous = graphics.Save();
+        try
+        {
+            graphics.SetClip(RectFor(bounds), CombineMode.Intersect);
+            graphics.DrawImage(bitmap, RectFor(destination));
+        }
+        finally
+        {
+            graphics.Restore(previous);
+        }
     }
 
     public void Fill(UiRect bounds, UiColor color)
@@ -188,6 +216,11 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
     public void Dispose()
     {
         menuPointer?.Dispose();
+        foreach (Bitmap image in images.Values)
+        {
+            image.Dispose();
+        }
+        images.Clear();
         graphics.Dispose();
     }
 }

@@ -277,6 +277,11 @@ public sealed class UiView
             canvas.MenuPointer(Map(bounds));
         }
 
+        public void Image(UiImageSource source, UiRect bounds)
+        {
+            canvas.Image(source, Map(bounds));
+        }
+
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)
         {
             canvas.Line(x1 * scale + offsetX, y1 * scale + offsetY, x2 * scale + offsetX, y2 * scale + offsetY, color, thickness * scale);

@@ -97,7 +97,8 @@ internal sealed partial class RecreateGame
         string title = menu.Kind switch { NativeFieldMenuKind.Normal => "Menu", NativeFieldMenuKind.Save => "Save", NativeFieldMenuKind.Shop => "Shop", NativeFieldMenuKind.WeaponShop => "Junk Shop", _ => "Party" };
         string Name(byte row) => row == 255 ? "Empty" : Memoria.FF8.GameUi.LiveMenuData.CharacterName(session.State, row, events.Scene.Names, liveMenuCatalog);
         string party = menu.Kind == NativeFieldMenuKind.Save ? "Save slots are unavailable." : menu.Kind is NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Opening shop" : menu.TemporaryCombatParty is null ? "Opening party menu" : string.Join(" / ", menu.TemporaryCombatParty.Select(row => row == 255 ? "Empty" : Name(row)));
-        List<string> candidates = Memoria.FF8.GameUi.NativePartyMenuProjection.Inputs(menu).Select(input => input.Kind switch
+        IReadOnlyList<PlayerAction> inputs = Memoria.FF8.GameUi.NativePartyMenuProjection.Inputs(menu);
+        List<string> candidates = inputs.Select(input => input.Kind switch
         {
             PlayerActionKind.SelectPartySlot => $"Slot {input.Value + 1}: {Name(menu.TemporaryCombatParty![input.Value])}",
             PlayerActionKind.SelectPartyMember => input.Value == 255 ? "Reserve: Empty (remove member)" : $"Reserve: {Name((byte)input.Value)}",
@@ -118,7 +119,12 @@ internal sealed partial class RecreateGame
             content.RowDefinitions.Add(UiGridLength.Pixel(40));
             content.Children.Add(new UiLabel { Text = title, FontSize = 26 });
             content.Children.Add(new UiLabel { GridRow = 1, Text = party, FontSize = 20 });
-            content.Children.Add(new UiList { GridRow = 2, Items = candidates, SelectedIndex = partyMenuCandidate, RowHeight = 40, FontSize = 20 });
+            List<UiImageSource?> portraits = inputs.Select(input =>
+            {
+                int row = input.Kind == PlayerActionKind.SelectPartySlot ? menu.TemporaryCombatParty![input.Value] : input.Kind == PlayerActionKind.SelectPartyMember ? input.Value : 255;
+                return row != 255 && session.State.CharacterVitals?.Records.ElementAtOrDefault(row) is { } character ? new UiImageSource?(new UiImageSource(UiImageKind.CharacterPortrait, character.CharacterId)) : null;
+            }).ToList();
+            content.Children.Add(new UiList { GridRow = 2, Items = candidates, Images = portraits, SelectedIndex = partyMenuCandidate, RowHeight = 40, FontSize = 20 });
             content.Children.Add(new UiLabel { GridRow = 3, Text = instruction, FontSize = 16, Muted = true });
             panel.Children.Add(content);
             root.Children.Add(panel);

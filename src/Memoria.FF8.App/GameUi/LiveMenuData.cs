@@ -6,6 +6,7 @@ using Albeoris.Games.FF8.MngrpBin.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
 
@@ -52,6 +53,7 @@ public static class LiveMenuData
                 MenuCharacter character = new()
                 {
                     Id = $"character-{row}",
+                    NativeId = native.CharacterId,
                     Name = CharacterName(state, native.CharacterId, names, catalog),
                     InParty = inParty,
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.Characters[native.CharacterId]),
@@ -111,7 +113,8 @@ public static class LiveMenuData
                 }
                 foreach (NativeMagicStock stock in native.MagicInventory.Where(stock => stock.SpellId != 0 && stock.Count != 0))
                 {
-                    result.Magic.Add(new MenuMagic { Id = $"magic-{row}-{stock.SpellId}", CharacterId = character.Id, Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}", Quantity = stock.Count, Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic effect unavailable; casting, exchanging and junctioning are unsupported." });
+                    // Native4C8990 draws icon192 for a junctioned stock; ordinary rows have no category icon.
+                    result.Magic.Add(new MenuMagic { Id = $"magic-{row}-{stock.SpellId}", Icon = NativeCharacterVitals.IsMagicJunctioned(native, stock.SpellId) ? new UiImageSource(UiImageKind.Icon, 192) : null, CharacterId = character.Id, Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}", Quantity = stock.Count, Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic effect unavailable; casting, exchanging and junctioning are unsupported." });
                 }
                 result.Characters.Add(character);
             }
@@ -125,6 +128,7 @@ public static class LiveMenuData
                 MenuGuardianForce guardianForce = new()
                 {
                     Id = $"gf-{id}",
+                    NativeId = id,
                     Name = Nonempty(names?.GetValueOrDefault(GameNames.GuardianForceSubject(id))) ?? SavedName(state, GameNames.GuardianForceSubject(id)) ?? catalog?.GuardianForceName(id) ?? GameNames.DefaultName(GameNames.GuardianForceSubject(id)),
                     Level = NativeStatDefinitions.Level(native.Experience, vitals.Definitions.GuardianForces[id]),
                     CurrentHp = native.HitPoints,
@@ -165,7 +169,7 @@ public static class LiveMenuData
                 bool obtained = common ? (cards.Cards[id] & 0x80) != 0 : (cards.ObtainedRareCards[rare / 8] & (1 << (rare & 7))) != 0;
                 if (count != 0 || obtained)
                 {
-                    result.Cards.Add(new MenuCard { Id = $"card-{id}", Name = catalog?.CardName(id) ?? $"Card {id}", Quantity = count, Description = (count > 0 ? "Owned card. " : "Previously obtained; not currently owned. ") + (catalog?.CardDescription(id) ?? "Card rules, ranks and modification are unavailable.") });
+                    result.Cards.Add(new MenuCard { Id = $"card-{id}", NativeId = id, Name = catalog?.CardName(id) ?? $"Card {id}", Quantity = count, Description = (count > 0 ? "Owned card. " : "Previously obtained; not currently owned. ") + (catalog?.CardDescription(id) ?? "Card rules, ranks and modification are unavailable.") });
                 }
             }
         }
@@ -280,7 +284,7 @@ public sealed class LiveMenuCatalog
         {
             throw new InvalidDataException("Original card text catalogue does not preserve its 110 card identities.");
         }
-        string[] cardDescriptions = cardText.Records.Select(record => record.Text.Value.Replace("{Line}", " ", StringComparison.Ordinal)).ToArray();
+        string[] cardDescriptions = cardText.Records.Select(record => FormatDescription(record.Text.Value)!).ToArray();
         string[] cardNames = cardDescriptions.Select(description =>
         {
             int end = description.IndexOf(':');
@@ -299,11 +303,13 @@ public sealed class LiveMenuCatalog
     public string? CardName(int id) => (uint)id < cardNames.Length ? cardNames[id] : null;
     public string? CardDescription(int id) => (uint)id < cardDescriptions.Length ? cardDescriptions[id] : null;
     public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Name : null;
-    public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Description : null;
+    public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(kernel.MagicSpells[id].Description) : null;
     public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? kernel.Weapons[id].Name : null;
     public string? CommandName(int id) => (uint)id < kernel.BattleCommands.Count ? kernel.BattleCommands[id].Name : null;
     public string? ItemName(int id) => (uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Name : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Name : null;
-    public string? ItemDescription(int id) => (uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Description : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Description : null;
+    public string? ItemDescription(int id) => FormatDescription((uint)id < kernel.BattleItems.Count ? kernel.BattleItems[id].Description : id >= kernel.BattleItems.Count && id - kernel.BattleItems.Count < kernel.FieldItems.Count ? kernel.FieldItems[id - kernel.BattleItems.Count].Description : null);
+
+    private static string? FormatDescription(string? encoded) => encoded is null ? null : DialogueTextFormatter.Format(encoded).Replace('\n', ' ');
     public string? AbilityName(int id)
     {
         return (uint)id < abilityNames.Length ? abilityNames[id] : null;

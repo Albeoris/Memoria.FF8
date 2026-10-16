@@ -34,6 +34,7 @@ public sealed class MenuData
 public sealed class MenuCharacter
 {
     public string Id { get; set; } = "";
+    public int? NativeId { get; set; }
     public string Name { get; set; } = "";
     public bool InParty { get; set; }
     public int? Level { get; set; }
@@ -74,6 +75,7 @@ public sealed class MenuLimitMove
 public sealed class MenuGuardianForce
 {
     public string Id { get; set; } = "";
+    public int? NativeId { get; set; }
     public string Name { get; set; } = "";
     public int? Level { get; set; }
     public int? CurrentHp { get; set; }
@@ -91,6 +93,7 @@ public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = fa
 public sealed class MenuItem
 {
     public string Id { get; set; } = "";
+    public UiImageSource? Icon { get; set; }
     public string Name { get; set; } = "";
     public int Quantity { get; set; }
     public string Description { get; set; } = "";
@@ -101,6 +104,7 @@ public sealed class MenuItem
 public sealed class MenuMagic
 {
     public string Id { get; set; } = "";
+    public UiImageSource? Icon { get; set; }
     public string Name { get; set; } = "";
     public string CharacterId { get; set; } = "";
     public int Quantity { get; set; }
@@ -111,6 +115,7 @@ public sealed class MenuMagic
 public sealed class MenuCard
 {
     public string Id { get; set; } = "";
+    public int? NativeId { get; set; }
     public string Name { get; set; } = "";
     public int Quantity { get; set; }
     public int? Level { get; set; }

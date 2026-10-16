@@ -5,6 +5,49 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class MenuViewTests
 {
+    [Theory]
+    [InlineData(640, 448)]
+    [InlineData(1280, 896)]
+    public void Item_party_portraits_occupy_separate_rows(int width, int height)
+    {
+        MenuController menus = new();
+        menus.Open("item-use", true);
+        UiView view = menus.BuildView();
+        view.Resize(width, height);
+        UiImage[] portraits = Descendants(view.Root).OfType<UiImage>().Where(image => image.Source?.Kind == UiImageKind.CharacterPortrait).ToArray();
+
+        Assert.Equal(menus.CharacterChoices.Count, portraits.Length);
+        for (int index = 1; index < portraits.Length; index++)
+        {
+            Assert.True(portraits[index].Bounds.Y >= portraits[index - 1].Bounds.Bottom);
+        }
+    }
+
+    [Theory]
+    [InlineData("main", UiImageKind.CharacterPortrait)]
+    [InlineData("junction", UiImageKind.CharacterPortrait)]
+    [InlineData("status", UiImageKind.CharacterPortrait)]
+    [InlineData("magic", UiImageKind.CharacterPortrait)]
+    [InlineData("item-use", UiImageKind.CharacterPortrait)]
+    [InlineData("item-target", UiImageKind.CharacterPortrait)]
+    [InlineData("gf", UiImageKind.GuardianForcePortrait)]
+    [InlineData("gf-detail", UiImageKind.GuardianForcePortrait)]
+    [InlineData("card", UiImageKind.Card)]
+    [InlineData("card-detail", UiImageKind.Card)]
+    public void Menu_views_draw_native_foreground_artwork(string screen, UiImageKind kind)
+    {
+        MenuController menus = new();
+        menus.Open(screen, true);
+        UiView view = menus.BuildView();
+        view.Resize(1280, 720);
+        ValidationCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        Assert.Contains(canvas.Images, source => source.Kind == kind);
+        Assert.DoesNotContain(Descendants(view.Root), element => element is UiSigil);
+        Assert.Equal(0, canvas.ClipDepth);
+    }
+
     [Fact]
     public void Every_registered_view_draws_with_balanced_clipping_at_small_and_large_viewports()
     {
@@ -82,6 +125,7 @@ public sealed class MenuViewTests
     {
         public int ClipDepth { get; private set; }
         public int TextCount { get; private set; }
+        public List<UiImageSource> Images { get; } = [];
 
         public void Fill(UiRect bounds, UiColor color)
         {
@@ -98,6 +142,12 @@ public sealed class MenuViewTests
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
         {
             Text(text, fontSize, bounds, color);
+        }
+
+        public void Image(UiImageSource source, UiRect bounds)
+        {
+            Validate(bounds);
+            Images.Add(source);
         }
 
         public void MenuPointer(UiRect bounds)

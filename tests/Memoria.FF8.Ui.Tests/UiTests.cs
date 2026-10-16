@@ -5,6 +5,55 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiTests
 {
     [Fact]
+    public void Images_follow_anchor_bounds_and_letterbox_scaling_without_changing_identity()
+    {
+        UiImageSource source = new(UiImageKind.CharacterPortrait, 3);
+        UiAnchorPanel root = new();
+        root.Children.Add(new UiImage { Source = source, Anchors = new UiAnchors(0.25f, 0, 0.75f, 1) });
+        UiView view = new(root) { DesignWidth = 100, DesignHeight = 100 };
+        view.Resize(300, 200);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        Assert.Equal((source, new UiRect(100, 0, 100, 200)), Assert.Single(canvas.Images));
+        Assert.Equal(new UiRect(100, 25, 100, 150), UiImage.Fit(canvas.Images[0].Bounds, 64, 96));
+        Assert.Equal(0, canvas.ClipDepth);
+    }
+
+    [Fact]
+    public void Scrolled_list_images_keep_their_row_identity_and_text_does_not_overlap()
+    {
+        UiImageSource first = new(UiImageKind.Icon, 1);
+        UiImageSource second = new(UiImageKind.Icon, 2);
+        UiList list = new() { Items = ["first", "second", "third"], Images = [first, second, null], RowHeight = 30 };
+        UiView view = new(list);
+        view.Resize(120, 30);
+        list.SelectedIndex = 1;
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        var image = Assert.Single(canvas.Images);
+        Assert.Equal(second, image.Source);
+        Assert.True(image.Bounds.Right < Assert.Single(canvas.AlignedTexts).Bounds.X);
+        Assert.Equal(0, canvas.ClipDepth);
+    }
+
+    [Fact]
+    public void Trailing_markers_reserve_space_after_the_label()
+    {
+        UiImageSource marker = new(UiImageKind.Icon, 192);
+        UiList list = new() { Items = ["Fire  100"], TrailingImages = [marker], RowHeight = 30 };
+        UiView view = new(list);
+        view.Resize(180, 30);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        var image = Assert.Single(canvas.Images);
+        Assert.Equal(marker, image.Source);
+        Assert.True(Assert.Single(canvas.AlignedTexts).Bounds.Right < image.Bounds.X);
+    }
+
+    [Fact]
     public void Selected_rows_forward_centered_text_and_the_native_pointer_through_view_scaling()
     {
         UiList list = new() { Items = ["Refresh"], RowHeight = 40, FontSize = 16 };
@@ -393,6 +442,7 @@ public sealed class UiTests
         public List<string> Texts { get; } = new();
         public List<(UiRect Bounds, UiAlignment Alignment)> AlignedTexts { get; } = new();
         public List<UiRect> Pointers { get; } = new();
+        public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = new();
 
         public void Fill(UiRect bounds, UiColor color)
         {
@@ -408,6 +458,11 @@ public sealed class UiTests
         {
             AlignedTexts.Add((bounds, verticalAlignment));
             Text(text, fontSize, bounds, color);
+        }
+
+        public void Image(UiImageSource source, UiRect bounds)
+        {
+            Images.Add((source, bounds));
         }
 
         public void MenuPointer(UiRect bounds)

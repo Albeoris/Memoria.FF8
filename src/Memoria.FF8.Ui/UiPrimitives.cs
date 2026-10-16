@@ -103,6 +103,7 @@ public interface IUiCanvas
     void Text(string text, float fontSize, UiRect bounds, UiColor color);
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment);
     void MenuPointer(UiRect bounds);
+    void Image(UiImageSource source, UiRect bounds);
     void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily)
     {
         Text(text, fontSize, bounds, color);

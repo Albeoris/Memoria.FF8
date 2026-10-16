@@ -27,6 +27,8 @@ public sealed partial class MenuController
     private UiView? _view;
     private int _testQuestion;
     private int _testCorrect;
+    private string _characterSelectionDestination = "";
+    private int _characterSelectionIndex;
 
     public MenuController(Func<MenuData>? liveProvider = null, Action<MenuAction>? liveAction = null)
     {
@@ -50,7 +52,11 @@ public sealed partial class MenuController
     public int SelectedIndex => _selections.GetValueOrDefault(ScreenId);
     public IReadOnlyList<MenuEntry> Entries => CurrentScreen.Entries(this);
     public MenuEntry? SelectedEntry => Entries.Count == 0 ? null : Entries[Math.Clamp(SelectedIndex, 0, Entries.Count - 1)];
-    public MenuCharacter? Character => Data.Characters.FirstOrDefault(c => c.Id == _characterId) ?? Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
+    public MenuCharacter? Character => _characterId.Length > 0 ? Data.Characters.FirstOrDefault(c => c.Id == _characterId) : Data.Characters.FirstOrDefault(c => c.InParty) ?? Data.Characters.FirstOrDefault();
+    public bool IsSelectingCharacter => _characterSelectionDestination.Length > 0;
+    public string CharacterSelectionDestination => _characterSelectionDestination;
+    public int CharacterSelectionIndex => _characterSelectionIndex;
+    public IReadOnlyList<MenuCharacter> CharacterChoices => Data.Characters.Where(character => character.InParty && !string.IsNullOrWhiteSpace(character.Id)).ToArray();
     public MenuGuardianForce? GuardianForce => Data.GuardianForces.FirstOrDefault(g => g.Id == _gfId) ?? Data.GuardianForces.FirstOrDefault();
     public MenuItem? Item => Data.Items.FirstOrDefault(i => i.Id == _itemId) ?? Data.Items.FirstOrDefault();
     public MenuMagic? Magic => Data.Magic.FirstOrDefault(m => m.Id == _magicId && m.CharacterId == Character?.Id) ?? Data.Magic.FirstOrDefault(m => m.CharacterId == Character?.Id);
@@ -106,6 +112,7 @@ public sealed partial class MenuController
             _controlsDevice = ControlDevice.Keyboard;
         }
         _history.Clear();
+        _characterSelectionDestination = "";
         if (demo && CurrentScreen.Layout == MenuLayout.BattleHud && Character?.InParty != true)
         {
             _characterId = Data.Characters.FirstOrDefault(character => character.InParty)?.Id ?? "";
@@ -120,12 +127,18 @@ public sealed partial class MenuController
         IsOpen = false;
         _view = null;
         _history.Clear();
+        _characterSelectionDestination = "";
     }
 
     public void Navigate(MenuInput input)
     {
         if (!IsOpen || IsCapturingControls)
         {
+            return;
+        }
+        if (IsSelectingCharacter)
+        {
+            NavigateCharacterSelection(input);
             return;
         }
         var entries = Entries;
@@ -216,6 +229,13 @@ public sealed partial class MenuController
     public void Back()
     {
         SoundRequested?.Invoke(MenuSound.Cancel);
+        if (IsSelectingCharacter)
+        {
+            _characterSelectionDestination = "";
+            Message = "";
+            _view = null;
+            return;
+        }
         if (IsCapturingControls)
         {
             CancelControlsCapture();
@@ -244,6 +264,71 @@ public sealed partial class MenuController
         _view = null;
     }
 
+    private void BeginCharacterSelection(string destination)
+    {
+        IReadOnlyList<MenuCharacter> choices = CharacterChoices;
+        if (choices.Count == 0)
+        {
+            Message = "No party characters are available.";
+            return;
+        }
+        _characterSelectionDestination = destination;
+        _characterSelectionIndex = Math.Max(0, Array.FindIndex(choices.ToArray(), character => character.Id == _characterId));
+        Message = "Select a character.";
+        _view = null;
+    }
+
+    private void NavigateCharacterSelection(MenuInput input)
+    {
+        IReadOnlyList<MenuCharacter> choices = CharacterChoices;
+        if (input == MenuInput.Cancel)
+        {
+            Back();
+            return;
+        }
+        if (choices.Count == 0)
+        {
+            Message = "No party characters are available.";
+            return;
+        }
+        if (input == MenuInput.Confirm)
+        {
+            string? focusedId = _view?.FocusedElement?.Id;
+            ChooseCharacter(choices.Any(character => character.Id == focusedId) ? focusedId! : choices[Math.Clamp(_characterSelectionIndex, 0, choices.Count - 1)].Id);
+            return;
+        }
+        int direction = input switch
+        {
+            MenuInput.Up or MenuInput.Left or MenuInput.PageLeft => -1,
+            MenuInput.Down or MenuInput.Right or MenuInput.PageRight or MenuInput.Tab => 1,
+            _ => 0
+        };
+        if (direction == 0)
+        {
+            return;
+        }
+        int next = (_characterSelectionIndex + direction + choices.Count) % choices.Count;
+        if (next != _characterSelectionIndex)
+        {
+            SoundRequested?.Invoke(MenuSound.Move);
+        }
+        _characterSelectionIndex = next;
+        _view = null;
+    }
+
+    public void ChooseCharacter(string id)
+    {
+        if (!IsSelectingCharacter || !CharacterChoices.Any(character => character.Id == id))
+        {
+            return;
+        }
+        string destination = _characterSelectionDestination;
+        _characterId = id;
+        _characterSelectionDestination = "";
+        Push(destination);
+        SoundRequested?.Invoke(MenuSound.Confirm);
+    }
+
     private void ChangeCharacter(int delta)
     {
         var characters = Data.Characters;
@@ -263,6 +348,10 @@ public sealed partial class MenuController
 
     private void Activate(int index)
     {
+        if (IsSelectingCharacter)
+        {
+            return;
+        }
         var entries = Entries;
         if (index < 0 || index >= entries.Count)
         {
@@ -273,6 +362,12 @@ public sealed partial class MenuController
         if (!entry.Enabled)
         {
             Message = entry.Help;
+            return;
+        }
+        if (ScreenId == "main" && entry.Destination is "junction" or "magic" or "status")
+        {
+            BeginCharacterSelection(entry.Destination);
+            SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }
         if (entry.Action != null)
@@ -409,6 +504,11 @@ public sealed partial class MenuController
             if (!supported || _liveAction == null)
             {
                 Message = $"Unsupported native contract: {action.Kind}. This view remains read-only.";
+                return;
+            }
+            if (action.Kind is "junction-gf" or "junction-command" or "junction-ability" or "junction-magic" && Character is null)
+            {
+                Message = "Selected character data is unavailable.";
                 return;
             }
             action = action.Kind switch

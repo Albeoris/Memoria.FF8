@@ -9,6 +9,37 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattlePreviewCanvasTests
 {
     [Theory]
+    [InlineData(UiImageKind.CharacterPortrait, 4)]
+    [InlineData(UiImageKind.GuardianForcePortrait, 0)]
+    [InlineData(UiImageKind.Card, 109)]
+    [InlineData(UiImageKind.Icon, 192)]
+    public void Original_foreground_artwork_is_visible_and_respects_nested_clipping(UiImageKind kind, int id)
+    {
+        using Bitmap bitmap = new(180, 160, PixelFormat.Format32bppArgb);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            canvas.PushClip(new UiRect(30, 20, 80, 100));
+            canvas.Image(new UiImageSource(kind, id), new UiRect(10, 10, 120, 120));
+            canvas.PopClip();
+        }
+        int colored = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                Color color = bitmap.GetPixel(x, y);
+                if (color.R != 0 || color.G != 0 || color.B != 0)
+                {
+                    Assert.InRange(x, 30, 109);
+                    Assert.InRange(y, 20, 119);
+                    colored++;
+                }
+            }
+        }
+        Assert.True(colored > 20, $"Original {kind} {id} was not visible.");
+    }
+
+    [Theory]
     [InlineData(14, 240)]
     [InlineData(24, 240)]
     [InlineData(18, 90)]

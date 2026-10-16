@@ -209,6 +209,10 @@ public sealed class BattleUiTests
             Text(text, fontSize, bounds, color);
         }
 
+        public void Image(UiImageSource source, UiRect bounds)
+        {
+        }
+
         public void MenuPointer(UiRect bounds)
         {
         }

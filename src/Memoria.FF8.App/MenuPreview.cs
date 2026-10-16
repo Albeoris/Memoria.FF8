@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
@@ -17,6 +18,8 @@ internal static class MenuPreview
         int width = 960;
         int height = 672;
         bool expanded = false;
+        string? statePath = null;
+        string? characterId = null;
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
@@ -25,7 +28,7 @@ internal static class MenuPreview
                 expanded = true;
                 continue;
             }
-            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir") || ++index == args.Length)
+            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete menu preview argument '{argument}'.");
             }
@@ -34,6 +37,12 @@ internal static class MenuPreview
             {
                 case "--game-dir":
                     gameDirectory = Path.GetFullPath(value);
+                    break;
+                case "--state":
+                    statePath = Path.GetFullPath(value);
+                    break;
+                case "--character":
+                    characterId = value;
                     break;
                 case "--screen":
                     screen = value;
@@ -54,7 +63,7 @@ internal static class MenuPreview
         }
         if (output is null || width is < 320 or > 4096 || height is < 240 or > 4096)
         {
-            throw new ArgumentException("Menu preview requires --output <PNG>, optional --screen <screen-id|battle-debug>, --expanded and --resolution WxH.");
+            throw new ArgumentException("Menu preview requires --output <PNG>, optional --screen <screen-id|battle-debug>, --state <standalone.json>, --character <menu-id>, --expanded and --resolution WxH.");
         }
         UiView view;
         using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false);
@@ -76,13 +85,28 @@ internal static class MenuPreview
         else
         {
             UiPreferences preferences = new();
-            MenuController menus = new();
+            MenuData? liveData = null;
+            if (statePath is not null)
+            {
+                GameState state = GameSession.Load(statePath);
+                using GameAssets assets = new(gameDirectory);
+                liveData = LiveMenuData.Build(state, catalog: LiveMenuCatalog.ReadInstalled(assets));
+            }
+            MenuController menus = liveData is null ? new() : new(() => liveData);
             menus.ConnectMods(mods);
             menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
             Dictionary<int, string> names = Enumerable.Range(0, 43).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);
             menus.ConnectNaming(() => names.Select(pair => new DebugNameTarget(pair.Key, pair.Value, pair.Key is >= 16 and <= 31 ? "GF" : "Character")).ToArray(), (subject, name) => names[subject] = name);
             menus.BattleDebugRequested += () => { };
-            menus.Open(screen, true);
+            menus.Open(screen, liveData is null);
+            if (characterId is not null)
+            {
+                menus.Execute(new MenuAction("select-character", characterId));
+            }
+            if (screen == "main" && expanded)
+            {
+                menus.Navigate(MenuInput.Confirm);
+            }
             if (screen == "debug-name-input")
             {
                 menus.Execute(new MenuAction("name-edit", "0"));
@@ -97,7 +121,7 @@ internal static class MenuPreview
         }
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
         bitmap.Save(output, ImageFormat.Png);
-        Console.WriteLine($"Menu fixture preview {screen}, {width}x{height}: {output}");
+        Console.WriteLine($"Menu {(statePath is null ? "fixture" : "standalone-save")} preview {screen}, {width}x{height}: {output}");
         return 0;
     }
 }

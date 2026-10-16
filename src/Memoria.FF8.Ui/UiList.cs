@@ -59,10 +59,12 @@ public sealed class UiList : UiElement
     public float FontSize { get; set; }
     public Action<int>? Confirmed { get; set; }
     public bool ShowSelection { get; set; } = true;
+    public IList<UiImageSource?> Images { get; set; } = new List<UiImageSource?>();
+    public IList<UiImageSource?> TrailingImages { get; set; } = new List<UiImageSource?>();
 
     public override UiSize Measure(UiSize available)
     {
-        float width = Items.Select(item => item.Length * 10f + 27).DefaultIfEmpty(0).Max();
+        float width = Items.Select((item, index) => item.Length * 10f + 27 + (index < Images.Count && Images[index].HasValue ? RowHeight : 0) + (index < TrailingImages.Count && TrailingImages[index].HasValue ? RowHeight : 0)).DefaultIfEmpty(0).Max();
         return ResolveDesiredSize(width, Items.Count * RowHeight, available);
     }
 
@@ -88,7 +90,19 @@ public sealed class UiList : UiElement
                 }
             }
 
-            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(row.X + 23, row.Y, Math.Max(0, row.Width - 27), row.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+            float imageWidth = 0;
+            if (index < Images.Count && Images[index] is { } image)
+            {
+                imageWidth = Math.Min(RowHeight, Math.Max(0, row.Width - 27));
+                canvas.Image(image, new UiRect(row.X + 23, row.Y, imageWidth, row.Height).Inset(2));
+            }
+            float trailingWidth = 0;
+            if (index < TrailingImages.Count && TrailingImages[index] is { } trailing)
+            {
+                trailingWidth = Math.Min(RowHeight, Math.Max(0, row.Width - 27 - imageWidth));
+                canvas.Image(trailing, new UiRect(row.Right - 4 - trailingWidth, row.Y, trailingWidth, row.Height).Inset(2));
+            }
+            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(row.X + 23 + imageWidth, row.Y, Math.Max(0, row.Width - 27 - imageWidth - trailingWidth), row.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
         }
 
         if (Items.Count > VisibleRows && Bounds.Width > 3)

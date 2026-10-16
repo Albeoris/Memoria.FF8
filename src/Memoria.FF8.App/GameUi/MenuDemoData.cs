@@ -1,3 +1,5 @@
+using Memoria.FF8.Ui;
+
 namespace Memoria.FF8.GameUi;
 
 /// <summary>Explicit synthetic fixtures. These never project or seed game-owned state.</summary>
@@ -15,11 +17,12 @@ public static class MenuDemoData
             SourceDescription = "Synthetic mutable menu fixtures; no native rules or saved game state"
         };
         string[] names = ["Squall", "Rinoa", "Zell", "Selphie", "Quistis", "Irvine", "Laguna", "Kiros", "Ward"];
+        int[] characterIdentities = [0, 4, 1, 5, 3, 2, 8, 9, 10];
         string[] weapons = ["Revolver", "Pinwheel", "Metal Knuckle", "Flail", "Chain Whip", "Valiant", "Machine Gun", "Katal", "Harpoon"];
         string[] limits = ["Renzokuken", "Combine", "Duel", "Slot", "Blue Magic", "Shot", "Desperado", "Blood Pain", "Massive Anchor"];
         for (var i = 0; i < names.Length; i++)
         {
-            var character = new MenuCharacter { Id = i.ToString(), Name = names[i], InParty = i < 3, Level = 18 + i, CurrentHp = 720 + i * 93, MaximumHp = 1300 + i * 111, Experience = 18000 + i * 500, NextLevelExperience = 500, Weapon = weapons[i], LimitBreak = limits[i] };
+            var character = new MenuCharacter { Id = i.ToString(), NativeId = characterIdentities[i], Name = names[i], InParty = i < 3, Level = 18 + i, CurrentHp = 720 + i * 93, MaximumHp = 1300 + i * 111, Experience = 18000 + i * 500, NextLevelExperience = 500, Weapon = weapons[i], LimitBreak = limits[i] };
             character.Commands.AddRange(["Attack", "Magic", "GF", "Draw"]);
             character.Abilities.AddRange(["Str+20%", "HP+20%", "Mug"]);
             foreach (var stat in new[] { "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck" })
@@ -40,7 +43,7 @@ public static class MenuDemoData
         string[] guardianForces = ["Quezacotl", "Shiva", "Ifrit", "Siren", "Brothers", "Diablos", "Carbuncle", "Leviathan", "Pandemona", "Cerberus", "Alexander", "Doomtrain", "Bahamut", "Cactuar", "Tonberry", "Eden"];
         for (var i = 0; i < guardianForces.Length; i++)
         {
-            var gf = new MenuGuardianForce { Id = i.ToString(), Name = guardianForces[i], Level = 12 + i, CurrentHp = 800 + i * 100, MaximumHp = 900 + i * 100, Experience = 5000 + i * 100, AbilityPoints = 35, Learning = "HP-J", Element = i % 3 == 0 ? "Thunder" : i % 3 == 1 ? "Ice" : "Fire" };
+            var gf = new MenuGuardianForce { Id = i.ToString(), NativeId = i, Name = guardianForces[i], Level = 12 + i, CurrentHp = 800 + i * 100, MaximumHp = 900 + i * 100, Experience = 5000 + i * 100, AbilityPoints = 35, Learning = "HP-J", Element = i % 3 == 0 ? "Thunder" : i % 3 == 1 ? "Ice" : "Fire" };
             gf.Abilities.AddRange(["HP-J", "Str-J", "Vit-J", "Mag-J", "Spr-J", "Elem-Atk-J", "Elem-Def-J", "ST-Atk-J", "ST-Def-J", "Ability x3", "Boost", "GFHP+10%"]);
             data.GuardianForces.Add(gf);
         }
@@ -54,13 +57,14 @@ public static class MenuDemoData
         {
             for (var i = 0; i < magicNames.Length; i++)
             {
-                data.Magic.Add(new MenuMagic { Id = i.ToString(), Name = magicNames[i], CharacterId = character.Id, Quantity = 40 + i * 2, DemoHealing = i is >= 3 and <= 5 ? 350 + i * 75 : 0, Description = "Synthetic stock. Junction strength and battle effects require native contracts." });
+                data.Magic.Add(new MenuMagic { Id = i.ToString(), Icon = character.Junctions.ContainsValue(magicNames[i]) ? new UiImageSource(UiImageKind.Icon, 192) : null, Name = magicNames[i], CharacterId = character.Id, Quantity = 40 + i * 2, DemoHealing = i is >= 3 and <= 5 ? 350 + i * 75 : 0, Description = "Synthetic stock. Junction strength and battle effects require native contracts." });
             }
         }
-        string[] cardNames = ["Geezard", "Funguar", "Bite Bug", "Red Bat", "Blobra", "Gayla", "Gesper", "Fastitocalon-F", "Blood Soul", "Caterchipillar", "Cockatrice", "Grat", "Buel", "Mesmerize", "Glacial Eye", "Belhelmel", "Thrustaevis", "Anacondaur", "Creeps", "Grendel", "Jelleye", "Grand Mantis", "Ifrit", "Shiva", "Quezacotl", "Diablos", "Laguna", "Rinoa", "Squall"];
+        string[] cardNames = ["Geezard", "Funguar", "Bite Bug", "Red Bat", "Blobra", "Gayla", "Gesper", "Fastitocalon-F", "Blood Soul", "Caterchipillar", "Cockatris", "Grat", "Buel", "Mesmerize", "Glacial Eye", "Belhelmel", "Thrustaevis", "Anacondaur", "Creeps", "Grendel", "Jelleye", "Grand Mantis", "Ifrit", "Shiva", "Quezacotl", "Diablos", "Laguna", "Rinoa", "Squall"];
+        int[] cardIdentities = [.. Enumerable.Range(0, 22), 84, 83, 82, 89, 101, 106, 109];
         for (var i = 0; i < cardNames.Length; i++)
         {
-            data.Cards.Add(new MenuCard { Id = i.ToString(), Name = cardNames[i], Quantity = i < 22 ? 3 : 1, Level = 1 + i / 4, Ranks = $"{2 + i % 7} / {3 + i % 6} / {1 + i % 8} / {4 + i % 5}", Element = i % 4 == 0 ? "Thunder" : "None", Description = "Fixture card. Triple Triad rules are outside this menu demonstration.", RefinementItemId = i % 2 == 0 ? "13" : "14", RefinementQuantity = 1 + i % 3 });
+            data.Cards.Add(new MenuCard { Id = i.ToString(), NativeId = cardIdentities[i], Name = cardNames[i], Quantity = i < 22 ? 3 : 1, Level = 1 + i / 4, Ranks = $"{2 + i % 7} / {3 + i % 6} / {1 + i % 8} / {4 + i % 5}", Element = i % 4 == 0 ? "Thunder" : "None", Description = "Fixture card. Triple Triad rules are outside this menu demonstration.", RefinementItemId = i % 2 == 0 ? "13" : "14", RefinementQuantity = 1 + i % 3 });
         }
         data.Recipes.Add(new MenuRecipe("fire", "F Mag-RF", "13", 1, "0", "Fire", 5));
         data.Recipes.Add(new MenuRecipe("blizzard", "I Mag-RF", "14", 1, "1", "Blizzard", 5));

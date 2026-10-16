@@ -10,6 +10,26 @@ internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch,
 {
     private readonly Stack<Rectangle> clips = new();
     private Texture2D? menuPointer;
+    private readonly MenuArtworkProvider artwork = new(gameDirectory);
+    private readonly Dictionary<UiImageSource, Texture2D> images = [];
+
+    public void Image(UiImageSource source, UiRect bounds)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        if (!images.TryGetValue(source, out Texture2D? texture))
+        {
+            var image = artwork.Read(source);
+            texture = new Texture2D(device, image.Width, image.Height);
+            texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+            images.Add(source, texture);
+        }
+        UiRect destination = UiImage.Fit(bounds, texture.Width, texture.Height);
+        Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
+        SystemTextRenderer.DrawClipped(batch, texture, new Vector2(destination.X, destination.Y), Color.White, clip, destination.Width / texture.Width);
+    }
 
     public void MenuPointer(UiRect bounds)
     {
@@ -152,5 +172,10 @@ internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch,
     public void Dispose()
     {
         menuPointer?.Dispose();
+        foreach (Texture2D texture in images.Values)
+        {
+            texture.Dispose();
+        }
+        images.Clear();
     }
 }

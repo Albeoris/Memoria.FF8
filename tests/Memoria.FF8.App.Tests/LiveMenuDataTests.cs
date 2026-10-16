@@ -2,6 +2,7 @@ using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -33,6 +34,7 @@ public sealed class LiveMenuDataTests
         Assert.Equal(1, data.Cards.Single(card => card.Id == "card-0").Quantity);
         Assert.Equal(1, data.Cards.Single(card => card.Id == "card-77").Quantity);
         Assert.Equal(0, data.Cards.Single(card => card.Id == "card-78").Quantity);
+        Assert.Equal(78, data.Cards.Single(card => card.Id == "card-78").NativeId);
         Assert.Equal(original, JsonSerializer.Serialize(cards));
     }
 
@@ -54,6 +56,7 @@ public sealed class LiveMenuDataTests
         Assert.Equal(new[] { "character-1", "character-0" }, data.Characters.Where(character => character.InParty).Select(character => character.Id));
         MenuCharacter squall = data.Characters.Single(character => character.Id == "character-0");
         Assert.Equal("Research name", squall.Name);
+        Assert.Equal(0, squall.NativeId);
         Assert.Null(squall.CurrentHp);
         Assert.Equal("1..10", squall.HpDisplay);
         Assert.Equal(vitals.Definitions.CharacterMaximum(rows[0]), squall.MaximumHp);
@@ -64,7 +67,10 @@ public sealed class LiveMenuDataTests
         Assert.Equal("Irvine", namedParty.Characters.Single(character => character.Id == "character-2").Name);
         Assert.Equal("Renamed Rinoa", namedParty.Characters.Single(character => character.Id == "character-4").Name);
         Assert.Equal("Quezacotl", data.GuardianForces.Single().Name);
+        Assert.Equal(0, data.GuardianForces.Single().NativeId);
         Assert.Equal("Potion", data.Items.Single(item => item.Id == "item-1").Name);
+        Assert.StartsWith("Restores", data.Items.Single(item => item.Id == "item-1").Description);
+        Assert.DoesNotContain("{Term", catalog.MagicDescription(21));
         Assert.Equal("Tent", data.Items.Single(item => item.Id == "item-33").Name);
         Assert.Equal("Geezard", catalog.CardName(0));
         Assert.Equal("Squall", catalog.CardName(109));
@@ -81,14 +87,48 @@ public sealed class LiveMenuDataTests
         NativeWorldControlState controls = NativeWorldControlState.CreateNewGame();
         GameState guestState = state with { CharacterVitals = guestVitals, WorldControls = controls };
         Assert.DoesNotContain(LiveMenuData.Build(guestState, catalog: catalog).Characters, character => character.Id == "character-1");
-        Assert.Equal("Kiros", LiveMenuData.Build(guestState with { WorldControls = controls.WithGuestMember(9, true) }, catalog: catalog).Characters.Single(character => character.Id == "character-1").Name);
+        MenuCharacter kiros = LiveMenuData.Build(guestState with { WorldControls = controls.WithGuestMember(9, true) }, catalog: catalog).Characters.Single(character => character.Id == "character-1");
+        Assert.Equal("Kiros", kiros.Name);
+        Assert.Equal(9, kiros.NativeId);
         byte[] junctionMagic = Enumerable.Repeat((byte)1, 20).ToArray();
         rows[0] = rows[0] with { Junction = rows[0].Junction with { MagicJunctions = junctionMagic } };
+        NativeMagicStock[] stocks = rows[0].MagicInventory.ToArray();
+        stocks[0] = new NativeMagicStock(1, 10);
+        stocks[1] = new NativeMagicStock(2, 10);
+        rows[0] = rows[0] with { MagicInventory = stocks };
+        MenuData junctionData = LiveMenuData.Build(state with { CharacterVitals = vitals with { Records = rows } }, catalog: catalog);
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, 192), junctionData.Magic.Single(magic => magic.Id == "magic-0-1").Icon);
+        Assert.Null(junctionData.Magic.Single(magic => magic.Id == "magic-0-2").Icon);
         MenuCharacter junctioned = LiveMenuData.Build(state with { CharacterVitals = vitals with { Records = rows } }, catalog: catalog).Characters.Single(character => character.Id == "character-0");
         Assert.Equal("Fire", junctioned.Junctions["Eva"]);
         Assert.Equal("Fire", junctioned.Junctions["Hit"]);
         Assert.Equal("Fire", junctioned.Junctions["Luck"]);
         Assert.Equal("Fire", junctioned.Junctions["Elem-Def 4"]);
         Assert.Equal("Fire", junctioned.Junctions["ST-Def 4"]);
+    }
+
+    [Fact]
+    public void DemoArtworkIdentitiesMatchOriginalCatalogRatherThanFixtureOrder()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed native menu resources are required.");
+        using GameAssets assets = new(directory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        MenuData data = MenuDemoData.Create();
+        foreach (MenuCharacter character in data.Characters)
+        {
+            Assert.NotNull(character.NativeId);
+            Assert.Equal(character.Name, GameNames.DefaultName(GameNames.CharacterSubject(character.NativeId.Value)));
+        }
+        foreach (MenuGuardianForce guardianForce in data.GuardianForces)
+        {
+            Assert.NotNull(guardianForce.NativeId);
+            Assert.Equal(guardianForce.Name, catalog.GuardianForceName(guardianForce.NativeId.Value));
+        }
+        foreach (MenuCard card in data.Cards)
+        {
+            Assert.NotNull(card.NativeId);
+            Assert.Equal(card.Name, catalog.CardName(card.NativeId.Value));
+        }
     }
 }
