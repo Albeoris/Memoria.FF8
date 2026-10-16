@@ -187,9 +187,9 @@ public sealed partial class EventEngine
         {
             return UnsupportedNativeScriptMove(fiber);
         }
-        if (operation.Opcode == Jsm.Opcode.MSPEED && (fiber.Stack.Count == 0 || actors[fiber.ObjectId].NativeScriptMovement is not null && unchecked((short)fiber.Stack.Peek()) <= 0))
+        if (operation.Opcode == Jsm.Opcode.MSPEED && (fiber.Stack.Count == 0 || actors[fiber.ObjectId].NativeScriptMovement is not null && unchecked((short)fiber.Stack.Peek()) < 0))
         {
-            return "MSPEED requires its original WORD operand and a supported positive retained native movement speed";
+            return "MSPEED requires its original WORD operand and a supported nonnegative retained native movement speed";
         }
         string? movieActors = UnsupportedMovieActors(fiber, operation);
         if (movieActors is not null)

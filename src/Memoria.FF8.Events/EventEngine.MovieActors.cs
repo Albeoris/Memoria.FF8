@@ -68,9 +68,9 @@ public sealed partial class EventEngine
             short speed = start ? unchecked((short)(actor.MovementSpeed * 2)) : (short)(actor.MovementSpeed / 2);
             short baseline = start ? unchecked((short)(baseSpeed * 2)) : (short)(baseSpeed / 2);
             short animation = start ? unchecked((short)(actor.AnimationSpeed * 2)) : (short)(actor.AnimationSpeed / 2);
-            if (actor.NativeScriptMovement is not null && speed <= 0)
+            if (actor.NativeScriptMovement is not null && speed < 0)
             {
-                throw new NotSupportedException("Native movie word wrapping creates an unsupported nonpositive active scripted speed.");
+                throw new NotSupportedException("Native movie word wrapping creates an unsupported reverse active scripted speed.");
             }
             result.Add((actor, speed, baseline, animation));
         }
