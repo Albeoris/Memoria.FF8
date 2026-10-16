@@ -803,8 +803,8 @@ public sealed partial class EventEngine
             WaitReason.BackgroundAnimation => !backgroundAnimations.TryGetValue(fiber.BackgroundId, out BackgroundAnimation? animation) || animation.Complete,
             WaitReason.BackgroundScroll => BackgroundScrollWaitReady(fiber),
             WaitReason.NativeDoorRequest => NativeDoorRequestWaitReady(fiber),
-            WaitReason.RequestStart => fiber.Request?.Started == true,
-            WaitReason.RequestEnd => fiber.Request?.Complete == true,
+            WaitReason.RequestStart => NativeRequestWaitReady(fiber, false),
+            WaitReason.RequestEnd => NativeRequestWaitReady(fiber, true),
             _ => throw Fault(fiber, "Invalid saved wait reason.")
         };
     }

@@ -85,6 +85,7 @@ internal static partial class Program
                         using GameAssets assets = new(selectedGameDirectory);
                         NativeInactivePartyRequestContract(assets);
                     },
+                    ["inactive-request"] = () => NativeInactiveRequestContract(selectedGameDirectory),
                     ["root-translation"] = () => NativeRootTranslationAndBoundary(selectedGameDirectory),
                     ["native-player-retry"] = () => NativePlayerAcceptedRetryContract(selectedGameDirectory),
                     ["background-clear"] = () => NativeBackgroundClearContract(selectedGameDirectory),

@@ -4,6 +4,25 @@ namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    private bool IsRetainedNativeRequestBody(int objectId) => NativeRuntimeProfile is { IsVerified: true } && Scene.NativeActorLayoutVersion == 1 && Scene.NativeActorObjectIds.Contains(objectId);
+
+    private bool NativeRequestWaitReady(Fiber caller, bool end)
+    {
+        if (caller.Request is not Fiber requested)
+        {
+            return false;
+        }
+        if (!IsNativeActorRequest(requested.ObjectId))
+        {
+            return end ? requested.Complete : requested.Started;
+        }
+        int selectedSlot = CurrentNativeRequestSlot(actors[requested.ObjectId]);
+        int requestedSlot = NativeActorRequestSlot(requested);
+        // 51CED0/51D060 and 51D360/51D530 observe current BYTE372,
+        // including a later higher slot, rather than historical LBL/RET flags.
+        return end ? selectedSlot < requestedSlot : selectedSlot == requestedSlot;
+    }
+
     private string? UnsupportedNativeRequestTiming(Fiber fiber, JsmOperation operation)
     {
         if (NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && operation.Opcode == Jsm.Opcode.REQ && (uint)operation.Parameter < program!.NativeObjects.Count && program.NativeObjects[operation.Parameter] == fiber.ObjectId && !IsNativeSelfRequest(fiber, operation))

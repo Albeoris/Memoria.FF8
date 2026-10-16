@@ -1208,7 +1208,7 @@ public sealed partial class EventEngine
         {
             throw Fault(caller, $"Request targets invalid object index {objectId}.");
         }
-        if (!actors[objectId].Active)
+        if (!actors[objectId].Active && !IsRetainedNativeRequestBody(objectId))
         {
             throw Fault(caller, $"Request targets inactive object {objectId}; behavior requires further evidence.");
         }
@@ -1248,7 +1248,7 @@ public sealed partial class EventEngine
             caller.Request = requested;
             caller.WaitReason = WaitReason.RequestEnd;
         }
-        else if (opcode == Jsm.Opcode.REQSW && busy)
+        else if (opcode == Jsm.Opcode.REQSW && (busy || IsNativeActorRequest(objectId) && CurrentNativeRequestSlot(actors[objectId]) > priority))
         {
             caller.Request = requested;
             caller.WaitReason = WaitReason.RequestStart;

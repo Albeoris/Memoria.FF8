@@ -554,9 +554,9 @@ public sealed partial class EventEngine
             }
             int rawPriority = fiber.Stack.Skip(1).First();
             int scriptId = NativeRuntimeProfile is { IsVerified: true } ? unchecked((ushort)(int)fiber.Stack.Peek()) : fiber.Stack.Peek();
-            if (!actors[targetId].Active)
+            if (!actors[targetId].Active && !IsRetainedNativeRequestBody(targetId))
             {
-                return $"Unsupported {operation.Opcode} priority or inactive target requires further native evidence";
+                return $"Unsupported {operation.Opcode} inactive target lacks its authenticated retained physical body";
             }
             string? unsupportedSlot = UnsupportedRequestSlot(targetId, rawPriority, operation.Opcode, out int requestPriority, out bool occupied);
             if (unsupportedSlot is not null)
