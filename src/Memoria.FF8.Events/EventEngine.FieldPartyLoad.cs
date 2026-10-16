@@ -18,10 +18,18 @@ public sealed partial class EventEngine
 
     private sealed record NativeFieldActorPlacement(int ObjectId, int X, int Y, int Z, int Triangle, int Direction);
     private sealed record NativeFieldActorAnimation(int ObjectId, int Idle, int Frames);
-    private sealed record NativeFieldPartyLoad(int[] Bindings, NativeFieldActorPlacement[] Placements, PartyTraceState Trace, FieldFixedPosition PlayerPosition, NativeFieldActorAnimation[] Animations, NativeFieldEntryStackReceipt? EntryStack = null, int? ResetLeaderDefaults = null);
+    private sealed record NativeFieldPartyLoad(int[] Bindings, NativeFieldActorPlacement[] Placements, PartyTraceState? Trace, FieldFixedPosition? PlayerPosition, NativeFieldActorAnimation[] Animations, NativeFieldEntryStackReceipt? EntryStack = null, int? ResetLeaderDefaults = null);
 
     private NativeFieldPartyLoad? PrepareNativeFieldPartyLoad()
     {
+        int[] retained = program!.NativeObjects.Take(program.NativeActorCount).Where(id => actors[id].Active).ToArray();
+        if (NativeRuntimeProfile is { IsVerified: true } && pendingArrival is not null && retained.Length == 0)
+        {
+            //52BC00 leaves all bindingsFF when compaction retains no actors.
+            //477C90 skips placement, but47A900 still reads its out-of-table255
+            //leader. No logical coordinates or triangle can be supplied for it.
+            return new NativeFieldPartyLoad([255, 255, 255], [], null, null, []);
+        }
         if (ResolveNativeTriangleHeight is null)
         {
             return null;
@@ -34,7 +42,6 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native field entry requires the proved coordinate packet and original triangle/plane services.");
         }
-        int[] retained = program!.NativeObjects.Take(program.NativeActorCount).Where(id => actors[id].Active).ToArray();
         int[] bindings = Enumerable.Repeat(0xFF, 3).ToArray();
         for (int slot = 0; slot < 3; slot++)
         {
@@ -47,7 +54,23 @@ public sealed partial class EventEngine
         }
         if (bindings[0] == 0xFF)
         {
-            throw new NotSupportedException("Native field entry has no retained leader binding.");
+            if (NativeRuntimeProfile is not { IsVerified: true })
+            {
+                throw new NotSupportedException("Native unbound field entry requires its original verified runtime.");
+            }
+            if (bindings.Any(binding => binding != 255))
+            {
+                throw new NotSupportedException("Native field entry has followers but no retained leader; their478680 trace placement is unknown.");
+            }
+            NativeFieldActorPlacement[] unbound = retained.Select(id =>
+            {
+                ActorState actor = actors[id];
+                int x = (int)actor.X;
+                int y = (int)actor.Y;
+                int height = ResolveNativeTriangleHeight(actor.WalkmeshTriangle, x, y) ?? throw new NotSupportedException($"Native unbound field entry actor{id} has no original triangle{actor.WalkmeshTriangle} plane.");
+                return new NativeFieldActorPlacement(id, x, y, height, actor.WalkmeshTriangle, (byte)actor.Direction);
+            }).ToArray();
+            return new NativeFieldPartyLoad(bindings, unbound, null, null, PrepareNativeFieldAnimations(retained));
         }
         bool resetLeader = arrival.Triangle == short.MaxValue;
         int entryTriangle = resetLeader ? 0 : arrival.Triangle;
@@ -191,6 +214,11 @@ public sealed partial class EventEngine
         return new NativeFieldPartyLoad([leaderIndex, 255, 255], placements, new PartyTraceState(0, 15, 30, first, second), new FieldFixedPosition(leader.X * 4096, leader.Y * 4096, leader.Z * 4096), PrepareNativeFieldAnimations(retained));
     }
 
+    private static bool HasNativeUnboundFieldLoad(SceneEventState scene)
+    {
+        return scene.NativeFieldLoadVersion == 1 && scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } && scene.NativeActorLayoutVersion == 1 && scene.FieldPartyNativeActorIds.Count == 3 && scene.FieldPartyNativeActorIds.All(binding => binding == 255) && scene.NativePartyTraceVersion == 0 && scene.PartyTrace is null && scene.NativePlayerPosition is null && scene.NativePlayerMovementVersion == 0 && scene.NativePlayerEarlyRetryState == 0 && scene.NativeFieldEntryStack is null;
+    }
+
     private bool ValidNativeFieldEntryStackReceipt(NativeFieldEntryStackReceipt receipt)
     {
         if (receipt.Version != 2 || receipt.Arrival is not FieldTransition arrival || arrival.FieldId != FieldId || !float.IsFinite(arrival.X) || !float.IsFinite(arrival.Y) || arrival.X is < short.MinValue or > short.MaxValue || arrival.Y is < short.MinValue or > short.MaxValue || arrival.X != MathF.Truncate(arrival.X) || arrival.Y != MathF.Truncate(arrival.Y) || arrival.Triangle is < 0 or > ushort.MaxValue || arrival.Direction is < 0 or > byte.MaxValue || receipt.WalkmeshHash != NativeFieldWalkmeshHash || NativeRuntimeProfile is not { IsVerified: true } || CanUseNativeFieldEntryStack?.Invoke(arrival) != true || ResolvePartyTraceTriangle is null || ResolveNativeTriangleHeight is null || receipt.FirstWinnerRecord is < 1 or > 63 || receipt.FirstCarriedRecord < 1 || receipt.FirstCarriedRecord >= receipt.FirstWinnerRecord || receipt.CarriedTriangle < 0)
@@ -311,11 +339,17 @@ public sealed partial class EventEngine
         Scene.NativePlayerPosition = load.PlayerPosition;
         // Native 477C90 clears 1CDBFED during the actual normal field setup.
         Scene.NativePlayerEarlyRetryState = 0;
-        Scene.NativePartyTraceVersion = 1;
+        Scene.NativePartyTraceVersion = load.Trace is null ? 0 : 1;
         Scene.NativeFieldLoadVersion = 1;
         Scene.NativeFieldEntryStack = load.EntryStack;
-        Scene.FieldLoadFirstRecordZero = null;
-        Scene.FieldLoadSecondRecordZero = null;
+        if (load.Trace is not null)
+        {
+            Scene.FieldLoadFirstRecordZero = null;
+            Scene.FieldLoadSecondRecordZero = null;
+        }
+        //An unbound47A900 only replaces record0XY/flags. Retain the old
+        //record0 carrier solely for its unchanged Z/triangle/direction/animation
+        //tail; its obsolete XY is never exposed as an executed logical trace.
         pendingArrival = null;
     }
 }

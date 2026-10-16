@@ -24,6 +24,11 @@ public sealed partial class EventEngine
 
     private string? UnsupportedNativeScalarAccess(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.REFRESHPARTY)
+        {
+            //51E5D0 has no operand or result-register access.
+            return UnsupportedNativePartyReserveRefresh();
+        }
         if (operation.Opcode == Jsm.Opcode.SEALEDOFF)
         {
             return UnsupportedNativeSealedOff(fiber);

@@ -407,13 +407,17 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native player movement requires its preserved fixed party trace and supported driver version.");
         }
-        if (saved.Scene.NativePlayerEarlyRetryState is byte earlyRetry && (earlyRetry > 1 || saved.Scene.NativePartyTraceVersion != 1 || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldLoadVersion != 1 && saved.Scene.NativePlayerMovementVersion != 1))
+        if (saved.Scene.NativePlayerEarlyRetryState is byte earlyRetry && (earlyRetry > 1 || saved.Scene.NativePartyTraceVersion != 1 && !HasNativeUnboundFieldLoad(saved.Scene) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldLoadVersion != 1 && saved.Scene.NativePlayerMovementVersion != 1))
         {
             throw new InvalidDataException("Saved native player early-retry byte requires a proved normal loader or certified movement write and its preserved party state.");
         }
-        if (saved.Scene.NativeFieldLoadVersion is < 0 or > 1 || saved.Scene.NativeFieldLoadVersion == 1 && (!saved.DefaultsStarted || saved.PendingArrival is not null || saved.Scene.NativePartyTraceVersion != 1))
+        if (saved.Scene.NativeFieldLoadVersion is < 0 or > 1 || saved.Scene.NativeFieldLoadVersion == 1 && (!saved.DefaultsStarted || saved.PendingArrival is not null || saved.Scene.NativePartyTraceVersion != 1 && !HasNativeUnboundFieldLoad(saved.Scene)))
         {
             throw new InvalidDataException("Saved native field-load policy has invalid completion or trace state.");
+        }
+        if (HasNativeUnboundFieldLoad(saved.Scene) && saved.Scene.NativeActorObjectIds.Count == 0 && program.NativeObjects.Take(program.NativeActorCount).Any(id => saved.Actors[id].Active))
+        {
+            throw new InvalidDataException("Saved unbound field load omits an active original native actor.");
         }
         if (saved.Scene.NativeFieldEntryStack is NativeFieldEntryStackReceipt entryStack && (!ValidNativeFieldEntryStackReceipt(entryStack) || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } stackInitialization || !stackInitialization.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || saved.Scene.NativeFieldLoadVersion != 1 || !saved.DefaultsStarted || saved.PendingArrival is not null))
         {

@@ -583,10 +583,6 @@ public sealed partial class EventEngine
         {
             return "Unsupported REFRESHPARTY requires original post-init native actor compaction; the snapshot must contain native actor compaction state";
         }
-        if (operation.Opcode == Jsm.Opcode.REFRESHPARTY && (variables.TryGetValue(104, out int partyFlags) && (partyFlags & 0x800) != 0 || variables.TryGetValue(105, out int partyFlagByte) && (partyFlagByte & 8) != 0))
-        {
-            return "Unsupported REFRESHPARTY auxiliary party-list branch requires its own native continuation evidence";
-        }
         if (operation.Opcode is Jsm.Opcode.DOORLINEOFF or Jsm.Opcode.DOORLINEON && program?.Objects[fiber.ObjectId].IsArea != true)
         {
             return "Native DOORLINEON/OFF requires its original area entity rather than a SETLINE or model actor";

@@ -71,6 +71,11 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException("Native initialization trace requires its original automatic field-party setup before compaction and trace reads.");
         }
+        NativeCharacterVitals? reserve = PrepareNativePartyReserveRefresh();
+        if (reserve is not null)
+        {
+            services.SetCharacterVitals(reserve);
+        }
         CompactNativeActors();
         if (nativeLoad is not null)
         {

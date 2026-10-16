@@ -1,3 +1,5 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.Events;
 
 /// <summary>Proved global save BYTE194..196 writes, independent of the currently allocated field's actor mapping.</summary>
@@ -74,6 +76,11 @@ public sealed partial class EventEngine
 
     private void RefreshParty()
     {
+        NativeCharacterVitals? reserve = PrepareNativePartyReserveRefresh();
+        if (reserve is not null)
+        {
+            services.SetCharacterVitals(reserve);
+        }
         foreach (int objectId in Scene.NativeActorObjectIds)
         {
             ActorState retained = actors[objectId];
@@ -96,6 +103,60 @@ public sealed partial class EventEngine
             Scene.FieldPartyNativeActorIds.Add(nativeActor);
         }
         RecordPartyBindingMemory();
+    }
+
+    private NativeCharacterVitals PrepareNativeReserveParty(NativeCharacterVitals current)
+    {
+        current.Validate();
+        byte[] reserve = Enumerable.Range(0, 6).Where(identity => !Scene.Party.Contains(identity)).Select(identity => (byte)identity).ToArray();
+        if (reserve.Length > 3)
+        {
+            throw new NotSupportedException("Native reserve construction would overwrite primary party bytes194 onward outside its six-byte backup owner.");
+        }
+        byte[] backup = current.JunctionPartyBackup.ToArray();
+        for (int slot = 0; slot < reserve.Length; slot++)
+        {
+            backup[slot] = reserve[slot];
+            backup[slot + 3] = reserve[slot];
+        }
+        return current.DeepCopy() with { JunctionPartyBackup = backup };
+    }
+
+    private NativeCharacterVitals? PrepareNativePartyReserveRefresh()
+    {
+        if (NativeRuntimeProfile is not { IsVerified: true })
+        {
+            return null;
+        }
+        NativeWorldControlState controls = services.WorldControls ?? throw new NotSupportedException("Native52D050 requires its actual eventDWORD104 owner.");
+        if ((controls.EventFlags104 & 0x800) == 0)
+        {
+            return null;
+        }
+        if (!HasCanonicalPartySlots(Scene) || services.CharacterVitals is not { } current || !services.CanStoreNativeEventOwners)
+        {
+            throw new NotSupportedException("Native52D050 auxiliary reserve refresh requires its three field identities, saved character owner and publication service.");
+        }
+        if (UnsupportedJunctionBackupAliases() is string aliases)
+        {
+            throw new NotSupportedException(aliases);
+        }
+        //52D050 rebuilds both188..190 and191..193 in identity0..5 order.
+        //It does not rebuild combat stats, replace combat slots or change the field party.
+        return PrepareNativeReserveParty(current);
+    }
+
+    private string? UnsupportedNativePartyReserveRefresh()
+    {
+        try
+        {
+            _ = PrepareNativePartyReserveRefresh();
+            return null;
+        }
+        catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
+        {
+            return exception.Message;
+        }
     }
 
     private void RecordPartyBindingMemory()

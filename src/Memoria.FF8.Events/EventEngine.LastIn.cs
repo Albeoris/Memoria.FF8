@@ -32,20 +32,9 @@ public sealed partial class EventEngine
         NativeCharacterVitals current = services.CharacterVitals!;
         NativeInputConfiguration input = services.InputConfiguration!;
         controls.Validate();
-        current.Validate();
         input.Validate();
-        //51E910 uses52CBE0 against the three current field identities, in0..5 order.
-        byte[] reserve = Enumerable.Range(0, 6).Where(identity => !Scene.Party.Contains(identity)).Select(identity => (byte)identity).ToArray();
-        if (reserve.Length > 3)
-        {
-            throw new NotSupportedException("Native LASTIN reserve construction would overwrite primary party bytes194 onward outside its six-byte backup owner.");
-        }
-        byte[] backup = current.JunctionPartyBackup.ToArray();
-        for (int slot = 0; slot < reserve.Length; slot++)
-        {
-            backup[slot] = reserve[slot];
-            backup[slot + 3] = reserve[slot];
-        }
+        //51E910 and52D050 share the same52CBE0 complement construction.
+        NativeCharacterVitals reserved = PrepareNativeReserveParty(current);
         NativeEventMemory memory = argument == 0 ? EventMemory : EventMemory.Write(243, 1, NativeScalarValue.Exact(255));
         NativeScalarValue sealedByte = memory.Read(243, 1);
         if (!sealedByte.IsExact)
@@ -53,7 +42,7 @@ public sealed partial class EventEngine
             throw new NotSupportedException("Native LASTIN zero-operand branch requires the retained exact source BYTE243.");
         }
         byte restrictions = unchecked((byte)sealedByte.RequireExact());
-        NativeCharacterVitals next = (current with { JunctionPartyBackup = backup }).RebuildParty();
+        NativeCharacterVitals next = reserved.RebuildParty();
         return (controls with { EventFlags104 = controls.EventFlags104 | 0x800u }, next, input with { Options = (input.Options & 0x00FFFFFFu) | ((uint)restrictions << 24) }, memory);
     }
 

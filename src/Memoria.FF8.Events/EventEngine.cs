@@ -194,8 +194,8 @@ public sealed partial class EventEngine
         CopyNativeBattleMode(previousScene);
         Scene.GlobalSoundRequests.AddRange(previousScene.GlobalSoundRequests);
 
-        Scene.FieldLoadFirstRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.FirstTrail[0] : null;
-        Scene.FieldLoadSecondRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.SecondTrail[0] : null;
+        Scene.FieldLoadFirstRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.FirstTrail[0] : HasNativeUnboundFieldLoad(previousScene) ? previousScene.FieldLoadFirstRecordZero : null;
+        Scene.FieldLoadSecondRecordZero = previousScene.NativePartyTraceVersion == 1 ? previousScene.PartyTrace?.SecondTrail[0] : HasNativeUnboundFieldLoad(previousScene) ? previousScene.FieldLoadSecondRecordZero : null;
         foreach ((int id, string name) in previousScene.Names)
         {
             Scene.Names.Add(id, name);

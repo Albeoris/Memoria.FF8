@@ -33,6 +33,7 @@ internal static partial class Program
                     ["native-sealedoff"] = () => NativeSealedOffContract(selectedGameDirectory),
                     ["native-lastin"] = () => NativeLastInContract(selectedGameDirectory),
                     ["native-swap"] = () => NativeSwapContract(selectedGameDirectory),
+                    ["native-party-reserve-refresh"] = () => NativePartyReserveRefreshContract(selectedGameDirectory),
                     ["native-train-control-byte"] = () => NativeTrainControlByteContract(selectedGameDirectory),
                     ["native-base-animation"] = NativeBaseAnimationContract,
                     ["native-animation-backup"] = () => NativeAnimationBackupContract(selectedGameDirectory),
