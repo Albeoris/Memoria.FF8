@@ -18,6 +18,7 @@ internal sealed record UiPreferences
     [System.Text.Json.Serialization.JsonIgnore]
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
     public bool RandomEncounters { get; init; } = true;
+    public bool RareCardMarkers { get; init; } = true;
 
     public BattleInput[] CreateBattleSettingsInputs()
     {
@@ -50,6 +51,15 @@ internal sealed record UiPreferences
                 throw new ArgumentException("Font size must be between 6 and 48 pixels.");
             }
             return key == "UI font size" ? this with { UiFontSize = size } : this with { DialogueFontSize = size };
+        }
+        if (key == "Rare card markers")
+        {
+            return value switch
+            {
+                "On" => this with { RareCardMarkers = true },
+                "Off" => this with { RareCardMarkers = false },
+                _ => throw new ArgumentException("Rare card markers requires On or Off.")
+            };
         }
         if (key == "Random encounters")
         {

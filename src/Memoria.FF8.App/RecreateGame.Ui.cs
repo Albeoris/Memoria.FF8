@@ -77,6 +77,7 @@ internal sealed partial class RecreateGame
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
         data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode.ToString();
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
+        data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
         data.SupportedActions.Add("config:Effect volume");

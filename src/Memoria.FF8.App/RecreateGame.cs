@@ -868,7 +868,7 @@ internal sealed partial class RecreateGame : Game
             fieldTexture = next;
         }
         long started = Stopwatch.GetTimestamp();
-        byte[] pixels = world.Render(elapsed);
+        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
         fieldTexture.SetData(pixels);

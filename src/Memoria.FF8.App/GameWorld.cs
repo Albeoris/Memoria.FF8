@@ -324,7 +324,7 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    public byte[] Render(TimeSpan elapsed)
+    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true)
     {
         RequireSupportedMovieMaskRender();
         if (session.State.Scene == SceneKind.WorldMap)
@@ -339,7 +339,7 @@ internal sealed partial class GameWorld : IDisposable
         shake.Validate();
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
-        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output);
+        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null);
         FieldColorComposite.Apply(pixels, fade.Draw);
         return pixels;
     }

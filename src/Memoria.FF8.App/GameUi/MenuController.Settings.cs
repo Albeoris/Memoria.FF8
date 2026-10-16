@@ -54,6 +54,7 @@ public sealed partial class MenuController
             "Effect volume" => preferences.SoundVolume + "%",
             "Battle ATB mode" => preferences.AtbMode.ToString(),
             "Battle policy" => preferences.BattlePolicyLabel,
+            "Rare card markers" => preferences.RareCardMarkers ? "On" : "Off",
             "Random encounters" => preferences.RandomEncounters ? "On" : "Off",
             _ => throw new NotSupportedException($"Unknown local setting '{key}'.")
         };
