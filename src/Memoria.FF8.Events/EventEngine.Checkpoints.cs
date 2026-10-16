@@ -343,6 +343,7 @@ public sealed partial class EventEngine
         ValidateActorBackgroundScrollCheckpoint(saved);
         ValidateNativeLinearTurns(saved);
         ValidateNativeNormalBackgroundScrollCheckpoint(saved);
+        ValidateNativeBackgroundScrollCurrents(saved);
         ValidateActorShadowCheckpoint(saved);
         ValidateFootstepPairCheckpoint(saved);
         ValidateFootstepOffAllCheckpoint(saved);

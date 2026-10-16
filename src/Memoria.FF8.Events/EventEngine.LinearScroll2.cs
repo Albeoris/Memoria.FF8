@@ -18,6 +18,10 @@ public sealed partial class EventEngine
         {
             return previous.X is short x && previous.Y is short y && ValidBackgroundScrollPosition(layer, previous, Scene) ? (x, y) : null;
         }
+        if (Scene.NativeBackgroundScrollCurrents?.TryGetValue(layer, out NativeBackgroundScrollCurrent? current) == true)
+        {
+            return (current.X, current.Y);
+        }
         if (layer == Scene.CameraIndex)
         {
             return Scene.NormalBackgroundScrollCenter is { Version: 1 } selected && selected.FieldId == FieldId && selected.CameraIndex == layer && selected.Frame > 0 && selected.Frame <= Frame ? (selected.X, selected.Y) : null;

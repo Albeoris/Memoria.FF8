@@ -144,6 +144,7 @@ public sealed partial class EventEngine
         //52B4F0 resets modes/settings, but retains current WORD8/10. Only
         //the executable's zero-filled process tail supplies the cold pair.
         Scene.NativeLayerZeroScrollCurrent = coldNativeCamera ? new NativeLayerZeroScrollCurrent(1, 0, 0) : previousScene.NativeLayerZeroScrollCurrent;
+        Scene.NativeBackgroundScrollCurrents = coldNativeCamera ? Enumerable.Range(1, 7).ToDictionary(layer => layer, _ => new NativeBackgroundScrollCurrent(1, 0, 0)) : CaptureNativeBackgroundScrollCurrents(previousScene, false);
         InitializeNativeBackgroundScrollSettings();
         Scene.FieldCallbackClock = new NativeFieldCallbackClock(1, 0, 0, 0, 0, InitializationTransactions: 0);
         Scene.NativeSalaryMovementUnits = nativeRuntimeProfile is { IsVerified: true } ? (byte)0 : null;
@@ -374,6 +375,7 @@ public sealed partial class EventEngine
         fibers.RemoveAll(item => item.Complete && !item.Initialization && !fibers.Any(waiter => waiter.Request == item) && !actors.Any(actor => actor.NativeDoorScheduler?.CurrentSequence == item.Sequence));
         StepNativeNormalBackgroundScrollCenter();
         PublishNativeLayerZeroScrollCurrent();
+        Scene.NativeBackgroundScrollCurrents = CaptureNativeBackgroundScrollCurrents(Scene, true);
         // Native4767B0 calls472B30 after VM, physical bodies and background scroll.
         if (NativeModelDrawEnabled(Scene, services.MovieSource, Frame, false))
         {

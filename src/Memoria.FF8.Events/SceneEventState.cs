@@ -72,6 +72,10 @@ public sealed class SceneEventState
     [JsonRequired]
     [JsonInclude]
     public NativeLayerZeroScrollCurrent? NativeLayerZeroScrollCurrent { get; internal set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<int, NativeBackgroundScrollCurrent>? NativeBackgroundScrollCurrents { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSoundVolumeTransition? SoundVolumeTransition { get; internal set; }

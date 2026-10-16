@@ -45,6 +45,10 @@ public sealed partial class EventEngine
         // 521530 writes current start8/10 and target16/18. Previous12/14
         // and counter6 remain until post-VM 475DF0 snapshots/resets them.
         Scene.BackgroundScrollPositions[args[0]] = previous with { X = (short)args[1], Y = (short)args[2], TargetX = (short)args[3], TargetY = (short)args[4], Duration = (short)args[5], Mode = 4, Status = 0, NativeLinearVersion = 1 };
+        if (args[0] > 0 && Scene.NativeBackgroundScrollCurrents is { } currents)
+        {
+            currents[args[0]] = new(1, (short)args[1], (short)args[2]);
+        }
         return args;
     }
 

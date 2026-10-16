@@ -112,6 +112,11 @@ public sealed partial class EventEngine
             x = process.X;
             y = process.Y;
         }
+        else if (Scene.NativeBackgroundScrollCurrents?.TryGetValue(layer, out NativeBackgroundScrollCurrent? current) == true)
+        {
+            x = current.X;
+            y = current.Y;
+        }
         Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, previousX, previousY, partySlot, mode, mode == 0 ? retainedDuration : duration, counter, Layer: layer);
         if (layer == Scene.CameraIndex)
         {
