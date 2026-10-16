@@ -24,6 +24,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         Textures?.Validate();
         PrimitiveProcess?.Validate();
         GuardianWorkBuffer?.Validate();
+        QuezacotlExecutableMemory?.Validate();
     }
 
     public NativeBattleEffectMemory BeginLoad(int selectedIndex)

@@ -29,6 +29,12 @@ public static class NativeBattleQuezacotlChild
             child = child with { Slots = child.Slots.SetItem(0, child.Slots[0].WriteWord(12, 1)) };
             memory = memory with { Arena = memory.Arena!.Write(12, [1, 0]) };
         }
+        effect = effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == child.DescriptorAddress ? child : pool).ToImmutableArray(), Quezacotl = state };
+        return new(memory, FinishMain6C3760(memory, effect), request, !poll.Busy);
+    }
+
+    public static NativeBattleOriginalEffectState FinishMain6C3760(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect)
+    {
         //6C3760 runs the remaining five508420 lists after its primary child. Their real cold head pointers are retained separately.
         ImmutableArray<uint> heads = memory.QuezacotlSecondaryHeads ?? throw new NotSupportedException("Native6C3760 requires the retained heads of its five secondary private task descriptors.");
         if (heads.IsDefault || heads.Length != 5)
@@ -44,7 +50,6 @@ public static class NativeBattleQuezacotlChild
         {
             main = main with { Slots = main.Slots.SetItem(0, main.Slots[0].WriteWord(12, unchecked((ushort)(main.Slots[0].ReadWord(12) + 1)))) };
         }
-        ImmutableArray<NativeBattleEffectTaskPool> pools = effect.Pools.Select(pool => pool.DescriptorAddress == child.DescriptorAddress ? child : pool.DescriptorAddress == main.DescriptorAddress ? main : pool).ToImmutableArray();
-        return new(memory, effect with { Pools = pools, Quezacotl = state }, request, !poll.Busy);
+        return effect with { Pools = effect.Pools.Select(pool => pool.DescriptorAddress == main.DescriptorAddress ? main : pool).ToImmutableArray() };
     }
 }

@@ -19,6 +19,14 @@ public sealed partial class BattleSession
             if (prepared.ChildBoundary)
             {
                 NativeGraphics = graphics;
+                NativeBattleEffectTaskPool childPool = prepared.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
+                if (childPool.Slots[0].ReadWord(12) is >= 1 and < 30)
+                {
+                    graphics = AdvanceNativeQuezacotlFirstWindow(graphics);
+                    NativeBattleStageState childStage = NativeStage ?? throw new NotSupportedException("Native5713E0 requires its retained stage rows.");
+                    NativeStage = childStage with { Groups = childStage.Groups.Select(group => group with { ColorDepth = 2400, ColorFlags = 0 }).ToImmutableArray() };
+                    return graphics;
+                }
                 NativeBattleQuezacotlChildStep child = NativeBattleQuezacotlChild.AdvanceFirst6C3940(prepared.Memory, prepared.Effect);
                 NativeEffectMemory = child.Memory;
                 graphics = graphics with { OriginalEffect = child.Effect };

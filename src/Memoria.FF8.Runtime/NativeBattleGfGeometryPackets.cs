@@ -1,0 +1,228 @@
+using System.Buffers.Binary;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleGfGeometryContext(uint Flags, uint FarColor, int DepthCue, ushort? TexturePage, ushort? Clut, int DepthBias, int TableBaseBucket, byte DepthShift);
+
+/// <summary>7043B0's eight original geometry groups, using actual45FE10/45FAA0 projection and native packet layouts.</summary>
+public static class NativeBattleGfGeometryPackets
+{
+    private static readonly int[] GroupLengths = [12, 12, 20, 24, 20, 24, 28, 36];
+
+    public static ImmutableArray<NativeBattleGeometryPrimitive> Emit7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
+    {
+        if (source.IsDefault || context.DepthShift > 31)
+        {
+            throw new InvalidDataException("Native7043B0 requires its actual current geometry source and depth shift.");
+        }
+        matrix.Validate();
+        ImmutableArray<byte> vertices;
+        if ((context.Flags & 0x2000) != 0)
+        {
+            vertices = selectedVertices.IsDefault ? throw new NotSupportedException("Native7043B0 flag2000 requires its retained selected or morphed vertex bytes.") : selectedVertices;
+        }
+        else
+        {
+            int start = checked(geometryOffset + 8);
+            vertices = Read(source, start, source.Length - start).ToArray().ToImmutableArray();
+        }
+        int cursor = checked(geometryOffset + Int32(source, geometryOffset));
+        ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        Dictionary<ushort, NativeBattleModuleProjectedVertex> projected = [];
+        for (int group = 0; group < GroupLengths.Length; group++)
+        {
+            int count = Int32(source, cursor);
+            cursor = checked(cursor + 4);
+            if (count <= 0)
+            {
+                continue;
+            }
+            for (int index = 0; index < count; index++)
+            {
+                ReadOnlySpan<byte> face = Read(source, cursor, GroupLengths[group]);
+                ushort[] offsets = new ushort[(group & 1) == 0 ? 3 : 4];
+                for (int corner = 0; corner < offsets.Length; corner++)
+                {
+                    offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2));
+                }
+                ProjectedCorners corners = new(offsets, Project);
+                NativeBattleGeometryPrimitive? primitive = EmitPolygon7043B0(face, corners, group, context, colors);
+                if (primitive is not null)
+                {
+                    primitives.Add(primitive);
+                }
+                cursor = checked(cursor + GroupLengths[group]);
+            }
+        }
+        return primitives.ToImmutable();
+
+        NativeBattleModuleProjectedVertex Project(ushort offset)
+        {
+            if (!projected.TryGetValue(offset, out NativeBattleModuleProjectedVertex vertex))
+            {
+                ReadOnlySpan<byte> xyz = Read(vertices, offset * 4, 6);
+                vertex = NativeBattleModuleProjection.Project45FE10(matrix, new(BinaryPrimitives.ReadInt16LittleEndian(xyz), BinaryPrimitives.ReadInt16LittleEndian(xyz[2..]), BinaryPrimitives.ReadInt16LittleEndian(xyz[4..])), projection);
+                projected.Add(offset, vertex);
+            }
+            return vertex;
+        }
+    }
+
+    public static NativeBattleGeometryPrimitive? EmitTriangle7049A0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
+    {
+        return EmitPolygon7043B0(face, vertices, 2, context, colors);
+    }
+
+    public static NativeBattleGeometryPrimitive? EmitPolygon7043B0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
+    {
+        bool quad = (group & 1) != 0;
+        bool textured = (group & 2) != 0;
+        bool gouraud = (group & 4) != 0;
+        int count = quad ? 4 : 3;
+        if ((uint)group >= GroupLengths.Length || face.Length != GroupLengths[group] || vertices.Count != count || context.DepthShift > 31)
+        {
+            throw new InvalidDataException("Native7043B0 requires the selected original group record, native projected vertices and depth shift.");
+        }
+        // Quad leaves gate the first RTPT flags only; the following45FAA0 RTPS flags are never tested.
+        if (((vertices[0].Flags | vertices[1].Flags | vertices[2].Flags) & 0x60000) != 0)
+        {
+            return null;
+        }
+        uint flags = context.Flags;
+        uint command = BinaryPrimitives.ReadUInt32LittleEndian(face);
+        if ((flags & (gouraud ? 2u : 1u)) != 0)
+        {
+            command |= 0x2000000;
+        }
+        if ((flags & (gouraud ? 8u : 4u)) != 0)
+        {
+            command &= 0xFDFFFFFF;
+        }
+        uint[] uvs = new uint[textured ? count : 0];
+        if (textured)
+        {
+            uvs[0] = BinaryPrimitives.ReadUInt32LittleEndian(face[12..]);
+            uvs[1] = BinaryPrimitives.ReadUInt32LittleEndian(face[16..]);
+            uvs[2] = quad ? BinaryPrimitives.ReadUInt32LittleEndian(face[20..]) : BinaryPrimitives.ReadUInt16LittleEndian(face[10..]);
+            if (quad)
+            {
+                uvs[3] = BinaryPrimitives.ReadUInt16LittleEndian(face[22..]);
+            }
+            if ((flags & 0x400) != 0)
+            {
+                uvs[1] = Material(uvs[1], context.TexturePage, true, "TPAGE");
+            }
+            else if ((flags & 0x100) != 0)
+            {
+                uvs[1] = Material(uvs[1], context.TexturePage, false, "TPAGE");
+            }
+            if ((flags & 0x800) != 0)
+            {
+                uvs[0] = Material(uvs[0], context.Clut, true, "CLUT");
+            }
+            else if ((flags & 0x200) != 0)
+            {
+                uvs[0] = Material(uvs[0], context.Clut, false, "CLUT");
+            }
+        }
+        int nclip = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
+        if (nclip < 0 && (flags & (gouraud ? 0x20u : 0x10u)) == 0)
+        {
+            return null;
+        }
+        if (quad)
+        {
+            // The fourth RTPS occurs only after first-three near and NCLIP admission.
+            _ = vertices[3];
+        }
+        if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0))
+        {
+            return null;
+        }
+        uint[] vertexColors = new uint[gouraud ? count : 1];
+        vertexColors[0] = command;
+        if (gouraud)
+        {
+            int colorOffset = textured ? (quad ? 24 : 20) : 12;
+            for (int corner = 1; corner < count; corner++)
+            {
+                vertexColors[corner] = BinaryPrimitives.ReadUInt32LittleEndian(face[(colorOffset + (corner - 1) * 4)..]);
+            }
+        }
+        if ((flags & (gouraud ? 0x80u : 0x40u)) != 0)
+        {
+            NativeBattleSummonColors rules = colors ?? throw new NotSupportedException("Native7043B0 depth cue requires its authenticated45F270/45F4C0 PC interpolation constants.");
+            if (gouraud)
+            {
+                // 45E120 sets RGBC from its third input: triangle's modified first color, quad's original fourth color.
+                uint fifoCommand = quad ? vertexColors[3] & 0xFF000000 : command & 0xFF000000;
+                for (int corner = 1; corner < count; corner++)
+                {
+                    vertexColors[corner] = (rules.Interpolate(vertexColors[corner], context.DepthCue, context.FarColor) & 0xFFFFFF) | fifoCommand;
+                }
+            }
+            vertexColors[0] = rules.Interpolate(command, context.DepthCue, context.FarColor);
+        }
+        // 56BAA0 establishes ZSF3=155h/ZSF4=100h;AVSZ performs unsigned SHR12 before context bias and signed clamp.
+        uint average = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (quad ? 0x100u : 0x155u)) >> 12;
+        int biased = Math.Max(unchecked((int)average + context.DepthBias), 0);
+        int bucket = checked(context.TableBaseBucket + (biased >> context.DepthShift));
+        int length = gouraud ? 1 + count * (textured ? 3 : 2) : 2 + count * (textured ? 2 : 1);
+        uint[] words = new uint[length];
+        words[0] = (uint)(length - 1) << 24;
+        int cursor = 1;
+        if (!gouraud)
+        {
+            words[cursor++] = vertexColors[0];
+        }
+        for (int corner = 0; corner < count; corner++)
+        {
+            if (gouraud)
+            {
+                words[cursor++] = vertexColors[corner];
+            }
+            words[cursor++] = vertices[corner].Screen;
+            if (textured)
+            {
+                words[cursor++] = uvs[corner];
+            }
+        }
+        ImmutableArray<int> payload = quad ? [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, vertices[3].Depth] : [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0];
+        return new(bucket, words.ToImmutableArray(), payload);
+    }
+
+    private static uint Material(uint original, ushort? contextWord, bool add, string name)
+    {
+        ushort word = contextWord ?? throw new NotSupportedException($"Native7043B0 textured leaf requires its actual context {name} WORD for the selected material flag.");
+        ushort result = add ? unchecked((ushort)((original >> 16) + word)) : word;
+        return (original & 0xFFFF) | (uint)result << 16;
+    }
+
+    private static int Int32(ImmutableArray<byte> bytes, int offset) => BinaryPrimitives.ReadInt32LittleEndian(Read(bytes, offset, 4));
+
+    private static ReadOnlySpan<byte> Read(ImmutableArray<byte> bytes, int offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > bytes.Length - length)
+        {
+            throw new InvalidDataException("Native7043B0 access exceeds its current original geometry/vertex bytes.");
+        }
+        return bytes.AsSpan().Slice(offset, length);
+    }
+
+    private sealed class ProjectedCorners(ushort[] offsets, Func<ushort, NativeBattleModuleProjectedVertex> project) : IReadOnlyList<NativeBattleModuleProjectedVertex>
+    {
+        public int Count => offsets.Length;
+        public NativeBattleModuleProjectedVertex this[int index] => project(offsets[index]);
+
+        public IEnumerator<NativeBattleModuleProjectedVertex> GetEnumerator()
+        {
+            foreach (ushort offset in offsets)
+            {
+                yield return project(offset);
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+}

@@ -38,12 +38,19 @@ public sealed partial class BattleSession
     private void QueueNativeQuezacotlFile(NativeBattleEffectFileRequest request, NativeBattleOriginalEffectState effect)
     {
         NativeBattleEffectFileAsset file = (effect.Binding.NativeQuezacotlResources ?? throw new NotSupportedException("Native6C3940 requires its original battle archive stream resources.")).Files.Single(file => file.FileId == request.FileId);
-        if (request.DestinationAddress is < 0x20DFAB8 or >= 0x21DFAB8)
+        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl file request requires its current effect memory.");
+        if (request.DestinationAddress is >= 0x20DFAB8 and < 0x21DFAB8)
+        {
+            NativeEffectMemory = memory with { Arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl file request requires its actual effect arena.")).Write(checked((int)(request.DestinationAddress - 0x20DFAB8)), file.Data.AsSpan()) };
+        }
+        else if (request.DestinationAddress >= NativeBattleQuezacotlExecutableMemory.Address && request.DestinationAddress < NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.Length)
+        {
+            NativeEffectMemory = memory with { QuezacotlExecutableMemory = (memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native Quezacotl file request requires its current executable model regions.")).Write(request.DestinationAddress, file.Data.AsSpan()) };
+        }
+        else
         {
             throw new NotSupportedException("Native Quezacotl file destination requires an owned native allocation.");
         }
-        NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl file request requires its current effect memory.");
-        NativeEffectMemory = memory with { Arena = (memory.Arena ?? throw new NotSupportedException("Native Quezacotl file request requires its actual effect arena.")).Write(checked((int)(request.DestinationAddress - 0x20DFAB8)), file.Data.AsSpan()) };
         QueueNativeFileIo482610(file.Data.Length, request.CompletionCallback);
     }
 
@@ -53,6 +60,11 @@ public sealed partial class BattleSession
         {
             int offset = checked((int)(address - 0x20DFAB8));
             return new($"20DFAB8+{offset:X}", (NativeEffectMemory?.Arena ?? throw new NotSupportedException("Native6C3580 requires its actual mutable effect arena.")).Read(offset, NativeBattleEffectArena.Length - offset).ToImmutableArray());
+        }
+        if (address >= NativeBattleQuezacotlExecutableMemory.Address && address < NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.Length)
+        {
+            NativeBattleQuezacotlExecutableMemory executable = NativeEffectMemory?.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native6C3580 requires its current executable model source.");
+            return new($"FF8_EN:{address:X8}", executable.Data.AsSpan().Slice(checked((int)(address - NativeBattleQuezacotlExecutableMemory.Address))).ToArray().ToImmutableArray());
         }
         throw new NotSupportedException($"Native6C3580 source{address:X8} requires its actual mutable resource owner.");
     }

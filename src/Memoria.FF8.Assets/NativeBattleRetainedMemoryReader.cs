@@ -67,6 +67,7 @@ public static class NativeBattleRetainedMemoryReader
         }
         NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
         {
+            QuezacotlExecutableMemory = new(ReadLoaderBytes(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleQuezacotlExecutableMemory.Length).ToImmutableArray()),
             Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
             SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
             SoundPendingFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB4, 4)),

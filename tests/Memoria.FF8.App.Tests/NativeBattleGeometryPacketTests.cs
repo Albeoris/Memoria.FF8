@@ -61,6 +61,28 @@ public sealed class NativeBattleGeometryPacketTests
         Assert.Equal(0x26808080u, NativeBattleGeometryPackets.Emit50FDF0(polygon, Vertices, false, 0, 17, 4, 0x2000000, 0)!.Packet.Words[1]);
     }
 
+    [Theory]
+    [InlineData(false, 2048, 0u, 0x26404040u)]
+    [InlineData(true, 2048, 0u, 0x26404040u)]
+    [InlineData(false, 4096, 0x002040C0u, 0x262040C0u)]
+    [InlineData(true, -4096, 0x002040C0u, 0x26E0C040u)]
+    [InlineData(false, 8192, 0x002040C0u, 0x260000FFu)]
+    public void Colored_depth_cue_uses_current_context_far_color_signed_IR0_and_original_rounding_without_changing_opcode_or_geometry(bool quad, short factor, uint farColor, uint expected)
+    {
+        byte[] original = Polygon(quad);
+        byte[] polygon = new byte[original.Length + 4];
+        original.CopyTo(polygon, 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(polygon.AsSpan(original.Length), 0x26808080u | (quad ? 0x08000000u : 0));
+        expected |= quad ? 0x08000000u : 0;
+        NativeBattleSummonColors constants = new(0, 0, 1f / 4096, 4503601774854144d);
+        NativeBattleGeometryPacket unchanged = NativeBattleGeometryPackets.Emit50FDF0(polygon, Vertices, quad, farColor, 17, 4, 0x2000000, 0)!;
+        NativeBattleGeometryPacket actual = NativeBattleGeometryPackets.Emit50FDF0(polygon, Vertices, quad, farColor, 17, 4, 0x2000000, factor, constants)!;
+        Assert.Equal(expected, actual.Packet.Words[1]);
+        Assert.Equal(unchanged.Packet.Words.SetItem(1, expected), actual.Packet.Words);
+        Assert.Equal(unchanged.Bucket, actual.Bucket);
+        Assert.Equal(unchanged.VertexPayload4, actual.VertexPayload4);
+    }
+
     [Fact]
     public void Mesh_submission_projects_original_WORDs_and_inserts_each_packet_in_physical_same_bucket_LIFO_order()
     {

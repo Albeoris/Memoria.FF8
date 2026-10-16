@@ -198,7 +198,7 @@ public static partial class NativeBattleModulePackets
         return checked(tableBaseBucket + (depth >> depthShift));
     }
 
-    private static int Nclip(uint a, uint b, uint c)
+    public static int Nclip(uint a, uint b, uint c)
     {
         int ax = unchecked((short)a);
         int ay = unchecked((int)a) >> 16;

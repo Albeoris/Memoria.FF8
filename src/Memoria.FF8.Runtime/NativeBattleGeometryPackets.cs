@@ -8,13 +8,13 @@ public sealed record NativeBattleGeometryPrimitive(int Bucket, ImmutableArray<ui
 /// <summary>50FDF0's original FT3/FT4 packet emission; inputs are original records, never float-renderer depth estimates.</summary>
 public static class NativeBattleGeometryPackets
 {
-    public static NativeBattleGeometryPacket? Emit50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, uint packetAddress, short? colorDepth36 = null)
+    public static NativeBattleGeometryPacket? Emit50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, uint packetAddress, short? colorDepth36 = null, NativeBattleSummonColors? colorRules = null)
     {
-        NativeBattleGeometryPrimitive? primitive = EmitRaw50FDF0(polygon, vertices, quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36);
+        NativeBattleGeometryPrimitive? primitive = EmitRaw50FDF0(polygon, vertices, quad, colorFlags28, tableBaseBucket, depthShift, colorDepth36, colorRules);
         return primitive is null ? null : new(primitive.Bucket, new(packetAddress, primitive.Words), primitive.VertexPayload4);
     }
 
-    public static NativeBattleGeometryPrimitive? EmitRaw50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36 = null)
+    public static NativeBattleGeometryPrimitive? EmitRaw50FDF0(ReadOnlySpan<byte> polygon, IReadOnlyList<NativeBattleProjectedVertex> vertices, bool quad, uint colorFlags28, int tableBaseBucket, byte depthShift, short? colorDepth36 = null, NativeBattleSummonColors? colorRules = null)
     {
         int baseLength = quad ? 20 : 16;
         bool perPolygonColor = polygon.Length == baseLength + 4;
@@ -51,11 +51,13 @@ public static class NativeBattleGeometryPackets
         if (perPolygonColor)
         {
             short cue = colorDepth36 ?? throw new NotSupportedException("Native50FDF0 colored groups require their actual context WORD36 depth-cue owner.");
+            command = BinaryPrimitives.ReadUInt32LittleEndian(polygon[baseLength..]);
             if (cue != 0)
             {
-                throw new NotSupportedException("Native50FDF0 colored depth cue requires its original45F270 GTE color registers.");
+                //5099D0 overwrites RFC/GFC/BFC from contextRGB28 before every mesh;50FDF0 writes RGB6 and the signedIR0 WORD36.
+                //The quad's additional08000000 write to IR0 has no effect on45F270's signed lowWORD read.
+                command = (colorRules ?? throw new NotSupportedException("Native50FDF0 colored depth cue requires its authenticated45F270 interpolation constants.")).Interpolate(command, cue, colorFlags28);
             }
-            command = BinaryPrimitives.ReadUInt32LittleEndian(polygon[baseLength..]);
         }
         else
         {

@@ -95,6 +95,12 @@ public sealed partial class BattleSession
             {
                 model = NativeBattleGraphicsModels.AdvanceCover(model);
                 model = NativeBattleGraphicsModels.AdvanceAppearance(model, (flags & 1) != 0);
+                if (model.Kind5 == 3)
+                {
+                    NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native50C410 requires its authenticated interpolation constants.");
+                    NativeBattleStageColors stageColors = NativeStage?.ModelColors ?? throw new NotSupportedException("Native50C410 requires its retained stage color DWORDs.");
+                    model = NativeBattleModelFade.Advance50C410(model, (flags & 1) != 0, colors with { Transition = stageColors.Color40, Normal = stageColors.Color44 });
+                }
                 if (model.Kind5 is 11 or 12)
                 {
                     NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native summon model service requires its authenticated color constants.");

@@ -103,7 +103,11 @@ public static class NativeBattleGraphicsModels
         {
             throw new NotSupportedException("Native kind10 appearance requires the50C330 effect owner.");
         }
-        if (kind is not (1 or 2 or 5 or 6 or 7 or 9 or 11 or 12))
+        if (kind == 3 && ((model.Flags8 ?? throw new NotSupportedException("Native50C090 kind3 requires its actual model status DWORD8.")) & 0x100000) != 0)
+        {
+            kind = 11;
+        }
+        if (kind is not (1 or 2 or 3 or 5 or 6 or 7 or 9 or 11 or 12))
         {
             throw new NotSupportedException($"Native graphics removal kind{kind} requires its own original service.");
         }

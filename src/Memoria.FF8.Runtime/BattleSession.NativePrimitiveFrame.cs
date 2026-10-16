@@ -61,7 +61,7 @@ public sealed partial class BattleSession
                 continue;
             }
             ImmutableArray<NativeBattleRawMesh> meshes = geometry.Where(mesh => mesh.StageGroup == index).ToImmutableArray();
-            graphics = AppendNativePrimitivePackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null));
+            graphics = AppendNativePrimitivePackets(graphics, NativeBattleRawGeometryPackets.Emit5099D0(meshes, group.Matrices, projection, group.ColorFlags, uint.MaxValue, group.ColorDepth, bases[index], shifts[index], null, definition.NativeGraphics!.Rules.SummonColors));
         }
         return graphics;
     }

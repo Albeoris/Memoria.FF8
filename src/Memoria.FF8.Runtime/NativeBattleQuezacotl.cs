@@ -37,6 +37,8 @@ public static class NativeBattleQuezacotl
         NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native6C3640 requires its original50AFC0 action parameters.");
         packets.Validate();
         NativeBattleGuardianWorkBuffer work = memory.GuardianWorkBuffer ?? throw new NotSupportedException("Native6C3640 requires the separately retained571B70 work buffer;571870 does not establish its bytes.");
+        NativeBattleQuezacotlExecutableMemory executable = memory.QuezacotlExecutableMemory ?? throw new NotSupportedException("Native6C3640 requires the current retained executable model bytes; immutable catalog seeds cannot establish their runtime state.");
+        executable.Validate();
         NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native6C3640 requires its actual505E30 texture queue.");
         NativeBattleEffectResourcePointer pointer = effect.ResourcePointers.Single(pointer => pointer.GlobalAddress == 0x25216D8);
         if (pointer.ArenaOffset != 0)
@@ -50,7 +52,7 @@ public static class NativeBattleQuezacotl
         random = random.Draw(out ushort seed);
         NativeBattleEffectHeapAllocation tim = new(resources.Initializer.Name, resources.Initializer.Data);
         (textures, _) = textures.EnqueueTim505E30(tim);
-        work = work.Write(0, resources.WorkSeed0.Data.AsSpan()).Write(0x109FC, resources.WorkSeed1.Data.AsSpan());
+        work = work.Write(0, executable.Data.AsSpan());
         NativeBattleEffectTaskPool main = NativeBattleEffectTaskPool.Initialize(0x2521748, 0x2521758, 20, 1);
         (main, _) = main.Append(0x6C3760);
         NativeBattleActionHeaderSlot header = packets.Headers[parameters.HeaderIndex7C];

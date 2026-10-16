@@ -129,12 +129,32 @@ public sealed partial class BattleSession
         widget?.Validate();
         if (widget is not null)
         {
-            if (widget.ActionId is not ushort actionId || actionId is < 64 or >= 80 || nativeBattleUiRandom is null || ActiveAction is not { NativeQueuedCommand: 254, NativeHeaderIndex: 0 } action || NativeGraphics?.TriggerWidget is not null || NativeGraphics is not null && widget.ComponentSubframeTicks != 0)
+            if (widget.ActionId is not ushort actionId || actionId is < 64 or >= 80 || nativeBattleUiRandom is null || NativeGraphics?.TriggerWidget is not null || NativeGraphics is not null && widget.ComponentSubframeTicks != 0)
             {
                 throw new InvalidDataException("Saved Boost widget differs from its admitted GF action, singleton input or UI random owner.");
             }
             NativeBattleGuardianBoost initial = CreateNativeGuardianBoost(actionId);
-            (ushort admittedId, _) = NativeGuardianBoostBinding(action);
+            ushort admittedId;
+            if (NativeGraphics is { } graphics)
+            {
+                NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("Saved raw Boost widget lacks its original action graphics owner.");
+                NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[context.HeaderIndex];
+                admittedId = NativeBattleActionGraphics.Word(header, 4);
+                if (context.Callback is not (0x50B2A0 or 0x50A9A0) || context.ActorIndex != header.ReadByte(0) || header.ReadByte(1) != 254 || admittedId is < 64 or >= 80)
+                {
+                    throw new InvalidDataException("Saved raw Boost widget differs from its physical GF header and action graphics service.");
+                }
+                BattleNativeAction? binding = FindAction(BattleAbility.GuardianForce, admittedId - 64).NativeAction;
+                if (binding is not { Command: 254 } || binding.ActionId != admittedId)
+                {
+                    throw new InvalidDataException("Saved raw Boost widget differs from its immutable GF binding.");
+                }
+            }
+            else
+            {
+                BattleActionPresentation action = ActiveAction is { NativeQueuedCommand: 254, NativeHeaderIndex: 0 } active ? active : throw new InvalidDataException("Saved component Boost widget lacks its admitted GF action.");
+                (admittedId, _) = NativeGuardianBoostBinding(action);
+            }
             bool computed = nativeActionScratch.GuardianFormulaE1E ?? throw new InvalidDataException("Saved Boost widget lacks its actual E1E formula gate.");
             if (widget.Enabled != (widget.Phase == 6 ? false : initial.Enabled) || computed != (widget.Phase == 6) || admittedId != actionId)
             {

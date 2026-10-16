@@ -19,6 +19,8 @@ public sealed class NativeBattleQuezacotlResourcesTests
         Assert.Equal(new[] { 0, 0x100 }, resources.Vibration.Offsets.ToArray());
         resources.Vibration.Validate();
         NativeBattleEffectMemory memory = game.ReadColdProcessNativeBattleMemory().EffectMemory!;
+        NativeBattleQuezacotlExecutableMemory currentExecutable = memory.QuezacotlExecutableMemory!.Write(NativeBattleQuezacotlExecutableMemory.Address + NativeBattleQuezacotlExecutableMemory.Length - 1, [0x7B]);
+        memory = memory with { QuezacotlExecutableMemory = currentExecutable };
         memory = memory with { GuardianWorkBuffer = memory.GuardianWorkBuffer!.Write(NativeBattleGuardianWorkBuffer.Length - 1, [0xA5]) };
         NativeBattleOriginalEffectState effect = NativeBattleOriginalEffects.Select(116, catalog);
         (memory, effect) = NativeBattleOriginalEffects.Initialize(memory, effect);
@@ -40,7 +42,7 @@ public sealed class NativeBattleQuezacotlResourcesTests
         Assert.Equal(0, entered.Effect.Quezacotl.TargetZ1770);
         Assert.Equal(3690, entered.Effect.Quezacotl.TargetZ1778);
         Assert.Equal(resources.WorkSeed0.Data.ToArray(), entered.Memory.GuardianWorkBuffer!.Read(0, 0x109FC));
-        Assert.Equal(resources.WorkSeed1.Data.ToArray(), entered.Memory.GuardianWorkBuffer.Read(0x109FC, 0x4D9C));
+        Assert.Equal(currentExecutable.Data.AsSpan().Slice(0x109FC).ToArray(), entered.Memory.GuardianWorkBuffer.Read(0x109FC, 0x4D9C));
         Assert.Equal(0xA5, entered.Memory.GuardianWorkBuffer.Read(NativeBattleGuardianWorkBuffer.Length - 1, 1)[0]);
         NativeBattleEffectTaskPool pool = Assert.Single(entered.Effect.Pools);
         Assert.Equal(0x2521748u, entered.Effect.ReturnedDescriptor);
@@ -87,6 +89,13 @@ public sealed class NativeBattleQuezacotlResourcesTests
         Assert.Equal(new byte[] { 0, 1, 1, 3, 1 }, complete.Memory.Arena!.Read(0x28E54, 5));
         Assert.Equal(4, complete.Memory.Textures.Drain505D20(complete.Memory.Arena).Uploads.Length);
         Assert.Contains("7016B0", Assert.Throws<NotSupportedException>(() => NativeBattleQuezacotlChild.AdvanceFirst6C3940(complete.Memory, childZero.Effect)).Message);
+        NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(complete.Memory);
+        NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(complete.Memory).Initialize7016B0(source, NativeBattleQuezacotlWorkspace.Length);
+        NativeBattleQuezacotlWorkspaceWrite workspaceWrite = NativeBattleQuezacotlWorkspace.Write(complete.Memory, childZero.Effect, workspace);
+        Assert.Equal(0x1298C68u, workspace.ResourceAddress);
+        Assert.Equal(0, workspace.Frame);
+        Assert.Equal(workspace.Data.ToArray(), workspaceWrite.Memory.Arena!.Read(NativeBattleQuezacotlWorkspace.Offset, NativeBattleQuezacotlWorkspace.Length));
+        Assert.Equal(workspace.Data.ToArray(), workspaceWrite.Effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].Payload.AsSpan().Slice(NativeBattleQuezacotlWorkspace.Offset - 12, NativeBattleQuezacotlWorkspace.Length).ToArray());
         NativeBattleEffectMemory later = entered.Memory.BeginLoad(1);
         Assert.Equal(0x534150u, later.EffectIo!.Callback);
         Assert.Equal(0xA5, later.GuardianWorkBuffer!.Read(NativeBattleGuardianWorkBuffer.Length - 1, 1)[0]);

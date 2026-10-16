@@ -6,6 +6,7 @@ public sealed record NativeBattleGraphicsRules(string ExecutableSha256, Immutabl
 {
     public uint? UiPublicationDuration { get; init; }
     public NativeBattleSummonColors? SummonColors { get; init; }
+    public NativeBattleShadowSource? ShadowSource { get; init; }
     public void Validate()
     {
         if (ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash || SavedStatusMap.IsDefault || SavedStatusMap.Length != 16 || BattleStatusMap.IsDefault || BattleStatusMap.Length != 32 || SavedStatusMap.Concat(BattleStatusMap).Any(value => value is < -1 or > 31))
