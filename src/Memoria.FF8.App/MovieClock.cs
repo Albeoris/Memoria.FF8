@@ -24,7 +24,7 @@ internal sealed class MovieClock
         this.session = session;
         ResolveGameFile = resolveGameFile;
         this.gameDirectory = gameDirectory;
-        this.toolsDirectory = toolsDirectory ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_MEDIA_TOOLS") ?? FindCachedTools();
+        this.toolsDirectory = MediaToolsInstallation.ResolveDirectory(toolsDirectory);
     }
 
     public MoviePlaybackState State => session.State.MoviePlayback ?? new MoviePlaybackState(0, 0, session.IsMoviePlaying, false, false);
@@ -244,22 +244,4 @@ internal sealed class MovieClock
         return Math.Clamp((int)Math.Ceiling(startSeconds * information.FramesPerSecond - 1e-9), 0, information.FrameCount - 1);
     }
 
-    private static string FindCachedTools()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            string cache = Path.Combine(directory.FullName, "tools", "ffmpeg");
-            if (Directory.Exists(cache))
-            {
-                string? tool = Directory.EnumerateFiles(cache, "ffmpeg.exe", SearchOption.AllDirectories).FirstOrDefault();
-                if (tool is not null)
-                {
-                    return Path.GetDirectoryName(tool)!;
-                }
-            }
-            directory = directory.Parent;
-        }
-        return Path.Combine(AppContext.BaseDirectory, "media-tools");
-    }
 }

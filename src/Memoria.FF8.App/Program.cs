@@ -42,6 +42,9 @@ internal static class Program
                 Console.WriteLine($"Memoria - Final Fantasy VIII | {session.State.Scene} | {session.State.FieldId}:{session.State.FieldName} | cwd={Environment.CurrentDirectory}");
                 return 0;
             }
+            string mediaTools = MediaToolsInstallation.ResolveDirectory(options.MediaToolsDirectory);
+            options = options with { MediaToolsDirectory = mediaTools };
+            MediaToolsInstallation.PrepareForStartup(mediaTools, message => System.Windows.MessageBox.Show(message, "Memoria — optional FFmpeg installation", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question, System.Windows.MessageBoxResult.No) == System.Windows.MessageBoxResult.Yes, Console.Error.WriteLine);
             using var game = new RecreateGame(options, session);
             game.Run();
             return 0;
