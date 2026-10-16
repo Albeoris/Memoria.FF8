@@ -333,7 +333,8 @@ public sealed partial class EventEngine
     private static int CardOfferPresentationOperandCount(Jsm.Opcode opcode) => opcode switch
     {
         Jsm.Opcode.ANIME or Jsm.Opcode.ANIMEKEEP or Jsm.Opcode.RANIME or Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.ANIMESYNC or Jsm.Opcode.FACEDIRINIT or Jsm.Opcode.FACEDIRSYNC => 0,
-        Jsm.Opcode.ANIMESPEED or Jsm.Opcode.SETMESSPEED => 1,
+        Jsm.Opcode.SETMESSPEED => 0,
+        Jsm.Opcode.ANIMESPEED => 1,
         Jsm.Opcode.PCTURN or Jsm.Opcode.PLTURN or Jsm.Opcode.CTURN or Jsm.Opcode.LTURN or Jsm.Opcode.CTURNL or Jsm.Opcode.CTURNR or Jsm.Opcode.LTURNL or Jsm.Opcode.LTURNR or Jsm.Opcode.FACEDIRP or Jsm.Opcode.RFACEDIRP or Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or Jsm.Opcode.RCANIMELOOP => 2,
         Jsm.Opcode.MESMODE => 3,
         _ => -1

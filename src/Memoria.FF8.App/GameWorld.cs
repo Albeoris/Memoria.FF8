@@ -15,10 +15,11 @@ internal sealed partial class GameWorld : IDisposable
     private readonly ResourceService? resources;
     private FieldRenderer? renderer;
     private WorldMapScene? worldScene;
+    private SpuWaveAudioOutput? spuAudio;
     private int renderWidth = FieldRenderer.Width;
     private int renderHeight = FieldRenderer.Height;
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false)
     {
         this.session = session;
         this.resources = resources;
@@ -83,6 +84,9 @@ internal sealed partial class GameWorld : IDisposable
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session);
+        Events.PrepareSpuAudio = () => (spuAudio ??= new SpuWaveAudioOutput(assets.GameDirectory, clock.ToolsDirectory, assets.ResolveMusicCue(MusicCue.EyesOnMe), audioWindow, audioEnabled)).Prepare();
+        Events.StopSpuAudio = () => spuAudio?.Stop();
+        Events.HasLiveSpuAudio = () => spuAudio?.HasLiveAudio == true;
         Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
         Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
@@ -449,6 +453,7 @@ internal sealed partial class GameWorld : IDisposable
     public void Dispose()
     {
         Events.OperationCompleted -= ObservePendingBattle;
+        spuAudio?.Dispose();
         assets.Dispose();
         battleAssets?.Dispose();
         preparedWorldEntry?.Dispose();

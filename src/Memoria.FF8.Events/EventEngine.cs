@@ -73,6 +73,10 @@ public sealed partial class EventEngine
 
     private void LoadFieldCore(int fieldId, byte[] jsm, IReadOnlyList<string> fieldMessages, FieldTransition? arrival = null, int? previousFieldId = null, NativeFieldRuntimeProfile? nativeRuntimeProfile = null, System.Text.Json.JsonElement? worldEntityAllocationContext = null)
     {
+        if (program is not null)
+        {
+            StopNativeSpuAtFieldDeparture();
+        }
         if (nativeRuntimeProfile is not null && !nativeRuntimeProfile.IsVerified)
         {
             throw new NotSupportedException("Native field loading requires a verified runtime profile.");
@@ -251,6 +255,18 @@ public sealed partial class EventEngine
     }
 
     private void StepCore()
+    {
+        long before = Scene.FieldCallbackClock is { } previous ? previous.OrdinaryCallbacks + previous.MovieCallbacks : 0;
+        StepFieldCallback();
+        long after = Scene.FieldCallbackClock is { } current ? current.OrdinaryCallbacks + current.MovieCallbacks : 0;
+        if (after > before)
+        {
+            //46FEE0 increments1D9CDCC after the field callback, including a departure callback.
+            AdvanceNativeSpuCallback();
+        }
+    }
+
+    private void StepFieldCallback()
     {
         if (LastFault is EventFault fault)
         {

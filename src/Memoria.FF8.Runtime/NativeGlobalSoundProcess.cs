@@ -14,6 +14,9 @@ public sealed record NativeGlobalSoundAllocation([property: JsonRequired] byte B
 /// <summary>The explicit managed bufferless backend owns native46B0F0 rotation and32 original-effect-ID words; transient output owns no native FF8 sound/music buffers or DirectMusic handles.</summary>
 public sealed record NativeGlobalSoundProcess
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeSpuProcess? Spu { get; init; }
+
     public const string CurrentRule = "ff8-en-46b0f0-bufferless-process-pe-rotation1-v1";
 
     [JsonRequired]
@@ -28,7 +31,7 @@ public sealed record NativeGlobalSoundProcess
     public required ImmutableArray<uint> OriginalEffectIds { get; init; }
 
     [JsonIgnore]
-    public bool IsColdProcess => Rotation == 1 && !OriginalEffectIds.IsDefault && OriginalEffectIds.Length == 32 && OriginalEffectIds.All(value => value == 0);
+    public bool IsColdProcess => Spu is null && Rotation == 1 && !OriginalEffectIds.IsDefault && OriginalEffectIds.Length == 32 && OriginalEffectIds.All(value => value == 0);
 
     public static NativeGlobalSoundProcess FromBufferlessColdProcess()
     {
@@ -40,6 +43,7 @@ public sealed record NativeGlobalSoundProcess
 
     public void Validate()
     {
+        Spu?.Validate();
         if (Version != 1 || Rule != CurrentRule || Backend != NativeGlobalSoundBackend.Bufferless || Rotation >= 6 || OriginalEffectIds.IsDefault || OriginalEffectIds.Length != 32)
         {
             throw new InvalidDataException("Global sound requires the current explicit bufferless process, retained allocator and all32 physical effect IDs; native buffered availability is unsupported.");

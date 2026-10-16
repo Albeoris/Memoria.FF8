@@ -47,7 +47,7 @@ public sealed partial class EventEngine
                 services.SetFieldBars(bars);
                 break;
             case Jsm.Opcode.RET:
-                if (fiber.Stack.Count != 0)
+                if (fiber.Stack.Count != 0 && (!HasNativeOperandRecord(fiber.ObjectId) || fiber.Initialization))
                 {
                     throw Fault(fiber, "Script returned with an unbalanced operand stack.");
                 }
@@ -888,8 +888,8 @@ public sealed partial class EventEngine
                 Scene.MessageMode = args[2];
                 break;
             case Jsm.Opcode.SETMESSPEED:
-                args = Pop(fiber, 1);
-                Scene.MessageSpeed = args[0];
+                args = PrepareNativeMessageSpeed(fiber);
+                Scene.MessageChannelTiming[args[0]] = new(unchecked((ushort)args[1]), 0);
                 break;
             case Jsm.Opcode.BGDRAW:
                 args = Pop(fiber, 1);
@@ -1164,6 +1164,15 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.SESTOP:
                 args = ExecuteSoundStop(fiber);
+                break;
+            case Jsm.Opcode.SPUREADY:
+                args = ExecuteNativeSpuReady(fiber);
+                break;
+            case Jsm.Opcode.SPUSYNC:
+                args = ExecuteNativeSpuSync(fiber);
+                break;
+            case Jsm.Opcode.MUSICREPLAY:
+                ExecuteNativeMusicReplay(fiber);
                 break;
             case Jsm.Opcode.MUSICSTATUS:
                 ExecuteNativeMusicStatus(fiber);

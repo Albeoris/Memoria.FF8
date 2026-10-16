@@ -68,6 +68,8 @@ internal static partial class Program
                     ["native-signed-long-memory"] = NativeSignedLongMemoryContract,
                     ["native-facing-hold"] = NativeFacingHoldContract,
                     ["native-setwitch"] = NativeSetWitchContract,
+                    ["native-spu"] = NativeSpuContract,
+                    ["native-music-replay"] = NativeMusicReplayContract,
                     ["native-scalar-calculation"] = NativeScalarCalculationContract,
                     ["linear-scroll"] = () => NativeLinearScrollAndSyncContract(selectedGameDirectory),
                     ["linear-scroll-zero"] = NativeLayerZeroLinearScrollContract,

@@ -56,6 +56,22 @@ public sealed partial class EventEngine
         {
             return "Native actor RET requires its actual requested LBL frame; default frame aliases are unsupported";
         }
+        try
+        {
+            _ = ReadNativeReturnBank(fiber);
+            if (operation.Parameter == 8 && HasNativeOperandRecord(fiber.ObjectId))
+            {
+                Fiber? lower = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) < NativeActorRequestSlot(fiber)).OrderByDescending(NativeActorRequestSlot).FirstOrDefault();
+                if (lower is not null)
+                {
+                    _ = ReadNativeResumedOperands(lower, actors[fiber.ObjectId].NativeOperandMemory!.LiveDepth!.Value - 8);
+                }
+            }
+        }
+        catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
+        {
+            return exception.Message;
+        }
         if (operation.Parameter != 8)
         {
             Fiber? target = fibers.SingleOrDefault(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) == operation.Parameter);
@@ -63,7 +79,7 @@ public sealed partial class EventEngine
             {
                 return "Native explicit RET requires an occupied lower entered slot and its retained operand depth";
             }
-            if (!target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
+            if (HasNativeOperandRecord(fiber.ObjectId) || !target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
             {
                 try
                 {
@@ -94,13 +110,7 @@ public sealed partial class EventEngine
             return;
         }
         int returnSlot = program!.Operations[fiber.Position - 1].Parameter;
-        if (HasNativeOperandRecord(fiber.ObjectId))
-        {
-            for (int index = 0; index < 8; index++)
-            {
-                PopNativePhysicalOperand(fiber.ObjectId);
-            }
-        }
+        NativeScalarValue[] poppedBank = PopNativeReturnBank(fiber);
         // Native51C5C0 clears actor352 bit20 after restoring the result bank on every RET.
         actors[fiber.ObjectId].NativeCardChallenge = false;
         if (returnSlot != 8)
@@ -110,7 +120,7 @@ public sealed partial class EventEngine
             // savedDepth380[target]+8 and pops a second bank. Those eight words
             // belong to the first entered frame above the target, not the current
             // frame when intermediate slots exist. Retained target operands stay.
-            if (!target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
+            if (HasNativeOperandRecord(fiber.ObjectId) || !target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
             {
                 SetNativeDoorLiveResults(target, ReadNativeExplicitReturnBank(target));
             }
@@ -131,8 +141,11 @@ public sealed partial class EventEngine
             return;
         }
         Fiber lower = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) < NativeActorRequestSlot(fiber)).OrderByDescending(NativeActorRequestSlot).First();
-        NativeScalarValue[] bank = fiber.NativeDoorSavedResults ?? throw new NotSupportedException("Native actor RET lost its actual LBL saved-result bank.");
-        SetNativeDoorLiveResults(lower, bank.Reverse().ToArray());
+        SetNativeDoorLiveResults(lower, poppedBank);
+        if (HasNativeOperandRecord(fiber.ObjectId))
+        {
+            RestoreNativeResumedOperandView(lower, actors[fiber.ObjectId].NativeOperandMemory!.LiveDepth!.Value);
+        }
     }
 
     private bool IsSavedNativeResultCurrent(Checkpoint saved, FiberCheckpoint fiber)

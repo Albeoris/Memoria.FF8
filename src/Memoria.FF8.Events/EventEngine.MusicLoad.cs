@@ -41,6 +41,7 @@ public sealed partial class EventEngine
         Scene.MusicProcess = previous.MusicProcess;
         Scene.MusicLoadRequest = previous.MusicLoadRequest;
         Scene.MusicPlayRequest = previous.MusicPlayRequest;
+        Scene.MusicReplayRequest = previous.MusicReplayRequest;
         Scene.WorldMusicSelection = previous.WorldMusicSelection;
         Scene.WorldMusicLoad = previous.WorldMusicLoad;
     }

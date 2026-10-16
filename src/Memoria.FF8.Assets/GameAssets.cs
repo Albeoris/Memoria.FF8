@@ -20,6 +20,7 @@ public sealed partial class GameAssets : IDisposable
     private readonly Dictionary<int, FieldSoundEffectTable> fieldSoundEffects = [];
     private readonly IAssetOverrideSource? overrides;
     private readonly ResourceService? resources;
+    private readonly IMusicCueResolver musicCueResolver;
     private readonly AssetTextureScope textureScope;
     private readonly Dictionary<IFlArchive, string> archiveIdentities = [];
     private IFlArchive? mainCharacters;
@@ -29,8 +30,9 @@ public sealed partial class GameAssets : IDisposable
     private NativeDrawPointCatalog? nativeDrawPointCatalog;
     private NativeEncounterTables? nativeEncounterTables;
 
-    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null)
+    public GameAssets(string gameDirectory, IAssetOverrideSource? overrides = null, ResourceService? resources = null, IMusicCueResolver? musicCueResolver = null)
     {
+        this.musicCueResolver = musicCueResolver ?? new ClassicMusicCueResolver();
         this.resources = resources;
         textureScope = new AssetTextureScope(resources);
         this.overrides = overrides;
@@ -52,6 +54,16 @@ public sealed partial class GameAssets : IDisposable
     }
 
     public string GameDirectory { get; }
+    public MusicCueResource ResolveMusicCue(MusicCue cue)
+    {
+        MusicCueResource resource = musicCueResolver.Resolve(cue);
+        resource.Validate();
+        if (resource.Cue != cue)
+        {
+            throw new InvalidDataException("The music resource resolver returned a different logical cue.");
+        }
+        return resource;
+    }
     public string? NativeExecutableHash { get; }
     public NativeEncounterTables ReadNativeEncounterTables() => nativeEncounterTables ??= NativeEncounterTables.ReadExecutable(File.ReadAllBytes(Path.Combine(GameDirectory, "FF8_EN.exe")));
     public NativeDrawPointCatalog ReadNativeDrawPointCatalog()

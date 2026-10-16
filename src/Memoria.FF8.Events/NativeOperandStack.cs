@@ -52,6 +52,16 @@ internal sealed class NativeOperandStack : IEnumerable<int>
         return values.ToArray();
     }
 
+    public void ReplaceRetainedView(IEnumerable<NativeScalarValue> bottomToTop)
+    {
+        values.Clear();
+        foreach (NativeScalarValue value in bottomToTop)
+        {
+            value.Validate();
+            values.Push(value);
+        }
+    }
+
     public IEnumerator<int> GetEnumerator()
     {
         return values.Select(value => value.RequireExact()).GetEnumerator();

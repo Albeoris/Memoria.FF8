@@ -57,6 +57,9 @@ public sealed class SceneEventState
     public NativeMusicPlayRequest? MusicPlayRequest { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMusicReplayRequest? MusicReplayRequest { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldMusicSelection? WorldMusicSelection { get; internal set; }
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -218,8 +221,7 @@ public sealed class SceneEventState
     public int PreparedField { get; internal set; } = -1;
     [JsonInclude]
     public int MessageMode { get; internal set; }
-    [JsonInclude]
-    public int MessageSpeed { get; internal set; }
+    public Dictionary<int, NativeMessageChannelTiming> MessageChannelTiming { get; } = [];
     public Dictionary<int, SoundResourceRequest> LoadedSoundEffects { get; } = [];
     public List<SoundRequest> SoundRequests { get; } = [];
     public List<GlobalSoundRequest> GlobalSoundRequests { get; } = [];

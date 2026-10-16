@@ -260,7 +260,7 @@ internal sealed partial class RecreateGame : Game
 
     private GameWorld CreateWorld()
     {
-        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources);
+        var next = new GameWorld(session, options.GameDirectory, movieClock, resourceHost?.Resources, Window.Handle, options.AudioEnabled);
         fieldAudio?.Attach(next.Events);
         resumeFieldMusic = session.State.EventState is not null || session.State.DepartingFieldState is not null;
         return next;

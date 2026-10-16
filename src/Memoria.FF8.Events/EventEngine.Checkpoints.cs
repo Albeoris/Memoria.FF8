@@ -254,6 +254,7 @@ public sealed partial class EventEngine
         }
         saved.Economy?.Validate();
         saved.GlobalSoundProcess?.Validate();
+        ValidateNativeSpuRestore(saved.GlobalSoundProcess);
         saved.SalaryPresentation?.Validate();
         if (saved.GlobalSoundProcess is null && services.GlobalSoundProcess is not null || saved.GlobalSoundProcess is not null && !services.CanStoreGlobalSoundProcess || saved.SalaryPresentation is null && services.SalaryPresentation is not null || saved.SalaryPresentation is not null && !services.CanStoreSalaryPresentation)
         {
@@ -306,6 +307,7 @@ public sealed partial class EventEngine
         ValidateFollowOffCheckpoint(saved);
         ValidateMusicStopCheckpoint(saved);
         ValidateMusicLoadCheckpoint(saved);
+        ValidateNativeMusicReplayCheckpoint(saved);
         ValidateMusicVolumeCheckpoint(saved);
         ValidateNativeFadeCheckpoint(saved);
         ValidateNativeLineCheckpoint(saved);

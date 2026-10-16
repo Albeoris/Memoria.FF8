@@ -155,6 +155,10 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                     RequireOrdinaryMusicOutput(play.ChoiceMask);
                     PlayMusic(track, slot, play.Volume, play.FieldId, play.SkipPosition ?? 0, play.Opcode == "CROSSMUSIC");
                     break;
+                case NativeMusicReplayRequest replay:
+                    PlayMusic(replay.Music, 0, replay.Volume, replay.FieldId);
+                    SetMusicGain(0, false, null, replay.Volume, 0);
+                    break;
                 case NativeMusicStop { StopRequested: true } stop:
                     StopMusicSlot(stop.Slot);
                     break;
