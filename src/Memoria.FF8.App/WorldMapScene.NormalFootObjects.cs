@@ -8,7 +8,8 @@ internal sealed partial class WorldMapScene
 {
     private WorldState InitializeNormalFootObjects(WorldState world, WorldEntryVariables inputs)
     {
-        if (inputs.StoryWord is < 290 or >= 392)
+        bool type2 = world.NativeFootRuntime!.EntityType == 2;
+        if (!type2 && inputs.StoryWord is < 290 or >= 392)
         {
             return world;
         }
@@ -23,6 +24,13 @@ internal sealed partial class WorldMapScene
         NativeTrainRailBank? primary = (inputs.EventFlags265 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(0), 1) : null;
         NativeTrainRailBank? alternate = (inputs.EventFlags265 & 1) == 0 ? NativeTrainRailBank.Create(assets.ReadScriptedPath(1), 1) : null;
         var process = new NativeNormalFootObjectProcess(1, allocation, 0, primary, alternate, NativeWorldFootCameraState.Create(world), primary is null ? null : uint.MaxValue, alternate is null ? null : uint.MaxValue);
+        if (type2)
+        {
+            NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Native type2 allocation requires its actual saved GF13 flags.");
+            byte flags = vitals.GuardianForces[13].Flags;
+            NativeWorldPathPosition seed = assets.ReadFootType2CactuarLoadPosition();
+            process = process with { ForcedAnimationC76628 = session.State.WorldProcess!.ForcedAnimationC76628, GuardianForce13Flags = flags, CactuarLoadPosition = seed, CactuarBody = (flags & 1) == 0 ? new NativeGardenWorldObject(94, 0, seed, 0, 0, 0) : null, Cactuar = (flags & 1) == 0 ? NativeCactuarWorldState.CreateAfterLoad() : null };
+        }
         process.Validate();
         return world with { NativeFootRuntime = world.NativeFootRuntime! with { NormalObjects = process } };
     }
@@ -35,6 +43,14 @@ internal sealed partial class WorldMapScene
         process.Validate();
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         NativeSavedWorldState saved = session.State.SavedWorld!;
+        if (foot.EntityType == 2 && (process.GuardianForce13Flags != session.State.CharacterVitals?.GuardianForces[13].Flags || process.CactuarLoadPosition != assets.ReadFootType2CactuarLoadPosition()))
+        {
+            throw new InvalidDataException("Native type2 restoration differs from its original Cactuar allocation inputs.");
+        }
+        if (validateProximity && foot.EntityType == 2 && process.ForcedAnimationC76628 != session.State.WorldProcess?.ForcedAnimationC76628)
+        {
+            throw new InvalidDataException("Native type2 retained draw owner differs from the current process C76628.");
+        }
         if (saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0 || (inputs.ReplacementFlags & 7) != 0)
         {
             throw new NotSupportedException("Native normal foot restoration requires the represented inactive saved vehicles and auxiliary object allocation.");
@@ -152,6 +168,10 @@ internal sealed partial class WorldMapScene
         NativeNormalFootObjectProcess process = world.NativeFootRuntime!.NormalObjects!;
         NativeWorldPathProjectionCertificate context = NativeWorldPathProjectionCertificate.CreateFoot(process.Camera);
         List<NativeWorldStaticModelDraw> models = [];
+        if (process.CactuarBody is { } cactuar && context.IsNear(cactuar.Position))
+        {
+            throw new NotSupportedException("Nearby Cactuar presentation requires its executed pre-AI draw phase and pose snapshot.");
+        }
         foreach (NativeTrainRailBank bank in new[] { process.Primary, process.Alternate }.OfType<NativeTrainRailBank>())
         {
             NativeWorldScriptedPathDefinition definition = assets.ReadScriptedPath(bank.TrackIndex);
@@ -180,7 +200,7 @@ internal sealed partial class WorldMapScene
         }
         foreach (NativeTrainWorldObject item in process.Allocation.Objects)
         {
-            if (item.EntityType is 0 or 1 || !context.IsNear(item.Position))
+            if (item.EntityType is 0 or 1 or 2 || !context.IsNear(item.Position))
             {
                 continue;
             }

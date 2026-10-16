@@ -94,7 +94,7 @@ public sealed record NativeSavedWorldFootReturn
 
     public void Validate()
     {
-        if (ProofVersion != CurrentProofVersion || Rule != SaveRule || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 > 1 || Channel106 != 255 || Channel107 != 255)
+        if (ProofVersion != CurrentProofVersion || Rule != SaveRule || SourceWorldFrame < 0 || WorldMode != 0 || EntityType105 > 2 || Channel106 != 255 || Channel107 != 255)
         {
             throw new InvalidDataException("Unsupported or invalid native foot-return provenance.");
         }

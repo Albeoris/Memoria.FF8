@@ -165,7 +165,7 @@ public sealed partial class WorldAssets
 
     public WorldNativeTerrainOcclusionResult CertifyNativeTerrainCameraOcclusion(NativeWorldFootCameraState camera, short groundHeight, IReadOnlyDictionary<int, int> replacements, int entityType = 48, int? nativeCurveThreshold = null)
     {
-        if (entityType is not (0 or 1 or 32 or 33 or 48 or 50))
+        if (entityType is not (0 or 1 or 2 or 32 or 33 or 48 or 50))
         {
             throw new NotSupportedException("Native terrain camera occlusion requires the reached ordinary foot/car/Garden renderer.");
         }
@@ -208,7 +208,7 @@ public sealed partial class WorldAssets
                 bool direct = NativeTerrainVertexCounts(segment.SourceId)[block] > 90;
                 //552380 sets203FDC4 only for native foot0..9/128; car/Garden
                 //can acquire it only in the direct5513A0 path (>90 vertices).
-                if (!direct && entityType is not (0 or 1))
+                if (!direct && entityType is not (0 or 1 or 2))
                 {
                     continue;
                 }

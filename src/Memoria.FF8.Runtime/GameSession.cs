@@ -151,7 +151,7 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("The prepared field entry no longer matches the current world session.");
         }
-        if (departure.Scene != SceneKind.WorldMap || departure.World is null || departure.WorldArrival is null || finalWorldState.NativeFootRuntime is not NativeFootWorldRuntimeState activeFoot || activeFoot.EntityType is not (0 or 1) || departure.SavedWorld is null || departure.WorldControls is null)
+        if (departure.Scene != SceneKind.WorldMap || departure.World is null || departure.WorldArrival is null || finalWorldState.NativeFootRuntime is not NativeFootWorldRuntimeState activeFoot || activeFoot.EntityType is not (0 or 1 or 2) || departure.SavedWorld is null || departure.WorldControls is null)
         {
             throw new NotSupportedException("Native world-to-field entry requires a known normal foot-world departure and saved/control provenance.");
         }

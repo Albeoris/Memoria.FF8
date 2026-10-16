@@ -42,7 +42,7 @@ internal sealed partial class WorldMapScene : IDisposable
         bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
         bool scripted = IsSupportedScriptedPacket(arrival) || ridingTrain;
         byte footEntityType = stationFoot ? session.State.World!.NativeFootRuntime!.EntityType : unchecked((byte)arrival.Mode);
-        if (footEntityType is not (0 or 1) && !car && !garden && !ragnarok && !scripted)
+        if (footEntityType is not (0 or 1 or 2) && !car && !garden && !ragnarok && !scripted)
         {
             throw new NotSupportedException($"World entity type {unchecked((sbyte)arrival.Mode)} has no implemented original model/control path.");
         }
@@ -54,7 +54,7 @@ internal sealed partial class WorldMapScene : IDisposable
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
         bool parkedRagnarok = footEntityType == 0 && (session.State.World?.NativeRagnarokRuntime is not null || entry == 62 && session.State.SavedWorld.FootReturn is not null && session.State.DepartingWorldState?.NativeRagnarokRuntime is not null);
         bool parkedGarden = !scripted && !stationFoot && !car && !garden && !ragnarok && !parkedRagnarok && footEntityType == 0 && session.State.SavedWorld.GardenPose3 is not null;
-        if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
+        if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
         {
             throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
         }
@@ -402,6 +402,10 @@ internal sealed partial class WorldMapScene : IDisposable
                 {
                     candidate = StepGardenCactuar(candidate, out fieldEntry);
                 }
+                if (fieldEntry is null && salary.RandomEncounters?.Pending is null && candidate.NativeFootRuntime?.EntityType == 2)
+                {
+                    candidate = StepFootType2Cactuar(candidate, out fieldEntry);
+                }
                 if (fieldEntry is null && salary.RandomEncounters?.Pending is null && ragnarokFootAtCallback)
                 {
                     candidate = StepRagnarokCactuar(candidate, out fieldEntry);
@@ -585,8 +589,20 @@ internal sealed partial class WorldMapScene : IDisposable
         bool priorTerrainOcclusion = before.NativeRagnarokRuntime is { } parkedRagnarok ? parkedRagnarok.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Ragnarok foot camera lost its previous native terrain-render occlusion owner.") : before.NativeGardenRuntime is { } parkedGarden ? parkedGarden.PriorTerrainOcclusion ?? throw new NotSupportedException("Parked Garden foot camera lost its previous native terrain-render occlusion owner.") : false;
         NativeForestCameraResult cameraStep = (process with { CameraCooldown = forest.CameraCooldown }).StepNormalFootCamera(forest.CameraPitch, currentGroundType, priorTerrainOcclusion, held8: moving);
         graphicsSpeed = NativeWorldVectorMagnitude.Truncate(moveX, 0, graphicsMoveZ);
+        NativeWorldFootType2AnimationResult? type2Animation = null;
+        if (foot.EntityType == 2)
+        {
+            foot = foot with { Forest = forest with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown } };
+            type2Animation = StepFootType2Draw(before, foot, bodyYaw, cameraYaw, targetX, targetZ, targetHeight, moving);
+            forest = type2Animation.Forest;
+        }
         forest = forest.Advance(currentGroundType, before.X, before.NativeHeight, before.Z, bodyYaw, priorGraphicsSpeed, assets.ForestTables.Random, assets.ForestTables.Effects) with { CameraPitch = cameraStep.Pitch, CameraCooldown = cameraStep.Process.CameraCooldown };
         foot = foot with { Forest = forest };
+        if (foot.EntityType == 2 && NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0) == 0)
+        {
+            //53FAC0 calls54A7F0 after5472C0/550070 and before the ground query.
+            foot = foot with { NormalObjects = foot.NormalObjects! with { ForcedAnimationC76628 = -1 } };
+        }
         WorldState? gardenCameraState = null;
         WorldState? ragnarokCameraState = null;
         if (before.NativeGardenRuntime is not null)
@@ -599,8 +615,8 @@ internal sealed partial class WorldMapScene : IDisposable
             ragnarokCameraState = PrepareRagnarokFootCallback(before with { BodyYaw = bodyYaw, CameraYaw = cameraYaw, CameraVelocity = velocity, CameraTargetX = targetX, CameraTargetZ = targetZ, CameraTargetNativeHeight = targetHeight, NativeFootRuntime = foot });
             foot = ragnarokCameraState.NativeFootRuntime!;
         }
-        int animation = moving ? 1 : 0;
-        int animationCounter = animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0;
+        int animation = type2Animation?.Animation ?? (moving ? 1 : 0);
+        int animationCounter = type2Animation?.Counter ?? (animation == before.AnimationId && moving ? (before.AnimationCounter + 16) % (assets.GetFootModel(before.NativeFootRuntime!.EntityType).Animations[1].Frames.Count * 16) : 0);
         int x = WrapCoordinate(before.X + moveX, 262144);
         int z = WrapCoordinate(before.Z - graphicsMoveZ, 196608);
         if (foot.StationTrains is not null)

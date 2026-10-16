@@ -249,7 +249,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native ordinary foot loader lost its original camera-space offsets.");
         }
-        if (NormalObjects is not null && EntityType != 0)
+        if (NormalObjects is not null && EntityType != NormalObjects.Allocation.Objects[NormalObjects.Allocation.ControlledObjectIndex].EntityType)
         {
             throw new InvalidDataException("Native normal object allocation requires its actual controlled shape0 body.");
         }
@@ -257,7 +257,7 @@ public sealed partial record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 2 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }
