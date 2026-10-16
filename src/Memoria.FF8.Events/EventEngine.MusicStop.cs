@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeMusicChannelState(int ChannelId, byte? MusicId);
+public sealed record NativeMusicChannelState(int ChannelId, byte? MusicId, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] uint? ChoiceMask = null);
 public sealed record NativeMusicStop(int Version, int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, uint RawSlot, int Slot, int? PriorChannelId, bool? StopRequested, GlobalSoundBackendStatus BackendStatus);
 
 public sealed partial class EventEngine
@@ -86,6 +86,10 @@ public sealed partial class EventEngine
         foreach (int slot in new[] { 0, 1 })
         {
             NativeMusicChannelState? channel = slot == 0 ? saved.Scene.MusicChannel108 : saved.Scene.MusicChannel112;
+            if (channel?.ChoiceMask is uint mask && (slot != 0 || channel.ChannelId != 0 || channel.MusicId is null || mask > 0x03FFFFFFu))
+            {
+                throw new InvalidDataException("Saved concert selection requires its primary channel and original26-bit mask.");
+            }
             if (channel is not null && saved.EventMemory.Cells.Any(pair => pair.Key < 112 + slot * 4 && (long)pair.Key + pair.Value.Width > 108 + slot * 4 || pair.Key <= 199 + slot && (long)pair.Key + pair.Value.Width > 199 + slot))
             {
                 throw new InvalidDataException("Saved music stop channel authority disagrees with its exact memory alias.");

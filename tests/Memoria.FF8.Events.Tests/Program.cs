@@ -178,6 +178,7 @@ internal static partial class Program
                     ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,
+                    ["choice-music"] = NativeChoiceMusicContract,
                     ["native-field-fade"] = NativeFadeNoneContract,
                     ["native-fade-player-gate"] = NativeFadeBlackPlayerGateContract,
                     ["native-fade-black-join"] = NativeFadeBlackScriptJoinContract,

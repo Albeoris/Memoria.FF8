@@ -12,6 +12,13 @@ namespace Memoria.FF8.App.Tests;
 public sealed class FieldAudioPresentationTests
 {
     [Fact]
+    public void ConcertSelectionRefusesOrdinaryTrackRenderingBeforeOpeningDevices()
+    {
+        FieldAudioPresentation.RequireOrdinaryMusicOutput(null);
+        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.RequireOrdinaryMusicOutput(4080));
+    }
+
+    [Fact]
     public void ManualLaunchEnablesAudioWhileExplicitMuteAndControlLaunchDisableIt()
     {
         Assert.True(LaunchOptions.Parse([]).AudioEnabled);

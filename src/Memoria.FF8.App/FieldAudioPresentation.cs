@@ -89,7 +89,11 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         NativeMusicChannelState? primary = scene.MusicChannel108;
         if (primary is { ChannelId: >= 0, MusicId: byte first } && first != 255)
         {
-            TryOutput(() => PlayMusic(first, 0, worldMap ? scene.WorldMusicLoad?.TargetVolume ?? throw new NotSupportedException("World music resume requires its executed native loader receipt.") : scene.SoundMusicVolume197, fieldId));
+            TryOutput(() =>
+            {
+                RequireOrdinaryMusicOutput(primary.ChoiceMask);
+                PlayMusic(first, 0, worldMap ? scene.WorldMusicLoad?.TargetVolume ?? throw new NotSupportedException("World music resume requires its executed native loader receipt.") : scene.SoundMusicVolume197, fieldId);
+            });
         }
         if (secondary is { ChannelId: >= 0, MusicId: byte second } && second != 255)
         {
@@ -148,6 +152,7 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                     SetAllVoiceVolumes(volume.FirstVoice, volume.VoiceCount, volume.Volume, volume.DurationMilliseconds);
                     break;
                 case NativeMusicPlayRequest { ConsumedPending: true, Music: byte track, Channel: int slot } play:
+                    RequireOrdinaryMusicOutput(play.ChoiceMask);
                     PlayMusic(track, slot, play.Volume, play.FieldId, play.SkipPosition ?? 0, play.Opcode == "CROSSMUSIC");
                     break;
                 case NativeMusicStop { StopRequested: true } stop:
@@ -158,6 +163,15 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
                     break;
             }
         });
+    }
+
+    internal static void RequireOrdinaryMusicOutput(uint? choiceMask)
+    {
+        if (choiceMask is not null)
+        {
+            // TODO(TD-003): — concert segments need their actual DirectMusic output lifecycle.
+            throw new NotSupportedException("Concert segment output requires the original instrument-selection backend; ordinary full-track rendering is unsupported.");
+        }
     }
 
     private void PlaySound(GlobalSoundRequest request)

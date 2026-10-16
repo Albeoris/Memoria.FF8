@@ -1121,6 +1121,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MUSICCHANGE:
             case Jsm.Opcode.MUSICSKIP:
+            case Jsm.Opcode.CHOICEMUSIC:
                 args = ExecuteNativeMusicPlay(fiber, opcode);
                 break;
             case Jsm.Opcode.CROSSMUSIC:
