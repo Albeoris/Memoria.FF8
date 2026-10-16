@@ -8,6 +8,8 @@ public sealed record NativeBattleQuezacotlResources(NativeBattleEffectInitialize
 {
     public ImmutableArray<NativeBattleEffectFileAsset> Files { get; init; } = [];
     public uint? InitialSound { get; init; }
+    public uint? Frame65Sound { get; init; }
+    public ImmutableArray<uint>? FlashColors { get; init; }
 }
 public sealed record NativeBattleQuezacotlState(ushort Random17A0, int TargetZ1770, int TargetZ1778)
 {

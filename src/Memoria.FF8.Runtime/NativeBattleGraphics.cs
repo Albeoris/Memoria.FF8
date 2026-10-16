@@ -7,7 +7,18 @@ public sealed record NativeBattleGraphicsBinding(string ActorId, byte ModelId, N
 {
     public NativeBattleVector? InitialPosition { get; init; }
 }
-public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder);
+public sealed record NativeBattlePrimitiveCapabilities([property: JsonRequired] bool GouraudAlpha)
+{
+    public NativeBattlePcDirectTextureFormat? DirectTextureFormat { get; init; }
+    //The current PC RGBA renderer interpolates both diffuse RGB and alpha; this selects464220's4000-capable branch.
+    //Its direct RGBA8 texture target preserves the original five-bit RGB channels through the explicit RGB555 conversion branch.
+    public static NativeBattlePrimitiveCapabilities PrimaryRgba8() => new(true) { DirectTextureFormat = NativeBattlePcDirectTextureFormat.Rgb555 };
+}
+
+public sealed partial record NativeBattleGraphicsDefinition(NativeBattleGraphicsRules Rules, ImmutableArray<NativeBattleGraphicsBinding> Bindings, ImmutableArray<string> InitialLoadOrder)
+{
+    public NativeBattlePrimitiveCapabilities? PrimitiveCapabilities { get; init; }
+}
 public sealed record NativeBattleGraphicsRequest(ushort Command, byte? ModelIndex, byte State = 0, bool Entry = false);
 public sealed partial record NativeBattleGraphicsState([property: JsonRequired] ImmutableArray<NativeBattleGraphicsModel> Models, [property: JsonRequired] ImmutableArray<string?> ActorIds, [property: JsonRequired] uint Flags, [property: JsonRequired] long Callback)
 {

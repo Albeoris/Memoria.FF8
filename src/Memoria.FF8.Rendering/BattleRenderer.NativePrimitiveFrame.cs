@@ -11,7 +11,7 @@ public sealed partial class BattleRenderer
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
-    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null)
+    public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null)
     {
         if (overlayCamera is BattleCamera camera)
         {
@@ -80,7 +80,7 @@ public sealed partial class BattleRenderer
                 }
                 if (!pages.TryGetValue((page, clut, alternateShift), out texture))
                 {
-                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, 0, 0, 256, 256, alternateShift);
+                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, 0, 0, 256, 256, alternateShift, capabilities?.DirectTextureFormat);
                     pages.Add((page, clut, alternateShift), texture);
                 }
             }

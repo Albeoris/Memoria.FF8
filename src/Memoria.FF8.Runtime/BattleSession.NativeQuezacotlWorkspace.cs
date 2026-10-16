@@ -9,9 +9,9 @@ public sealed partial class BattleSession
         effect = effect with { Quezacotl = (effect.Quezacotl ?? throw new InvalidDataException("Native6C3940 lost its intensity global.")) with { Intensity17A4 = 2400 } };
         NativeBattleEffectTaskPool originalChild = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort phase = originalChild.Slots[0].ReadWord(12);
-        if (phase is < 1 or >= 30)
+        if (phase is < 1 or > 76)
         {
-            throw new InvalidOperationException("Native Quezacotl default first-window owner requires actual phase1..29.");
+            throw new InvalidOperationException("Native Quezacotl first-window owner requires actual phase1..76.");
         }
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory);
         NativeBattleGfAnimationWorkspace workspace = NativeBattleQuezacotlWorkspace.Read(memory);
@@ -28,17 +28,64 @@ public sealed partial class BattleSession
             {
                 return current;
             }
-            throw new NotSupportedException($"Native Quezacotl6C3940 phase{phase} reached original6C6060 drawable node{node.NodeIndex}; its model geometry/morph scratch and7043B0/6C5710 packet contracts are not implemented.");
+            NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native6C6060 requires its prior projection/register owner.");
+            NativeBattleSummonColors colors = definition.NativeGraphics?.Rules.SummonColors ?? throw new NotSupportedException("Native6C6060 depth cue requires its authenticated PC color rules.");
+            NativeBattleQuezacotlGeometryStep emitted = NativeBattleQuezacotlGeometry.Emit6C6060(memory, effect, node, projection, colors);
+            NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6060 requires its original logical OT frame.");
+            NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(emitted.Memory, effect, frame.Pending, emitted.Batch);
+            memory = written.Memory;
+            effect = written.Effect;
+            graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
+            NativeEffectMemory = memory;
+            NativeGraphics = graphics;
+            return current;
         });
         Persist(stepped.Workspace);
-        //6C521C maps phases1..29 to the default534210 branch; no extra descriptor is appended in this interval.
-        NativeBattleEffectIoAdvance io = NativeBattleEffectIo.Advance534210(memory);
+        foreach (NativeBattleQuezacotlScreenPacket packet in NativeBattleQuezacotlFlash.Emit(phase, effect.Binding.NativeQuezacotlResources!))
+        {
+            NativeBattlePrimitiveFrame frame = graphics.PrimitiveFrame ?? throw new NotSupportedException("Native6C6530 requires its original logical OT frame.");
+            NativeBattleQuezacotlPacketWrite written = NativeBattleQuezacotlPacketArena.Append(memory, effect, frame.Pending, packet.Batch, packet.Flags20);
+            memory = written.Memory;
+            effect = written.Effect;
+            graphics = graphics with { OriginalEffect = effect, PrimitiveFrame = frame with { Pending = written.Ordering } };
+        }
+        NativeBattleQuezacotlFirstWindowIoStep io = NativeBattleQuezacotlFirstWindowIo.Advance(memory, phase);
         memory = io.Memory;
         if (io.Request is { } request)
         {
             NativeEffectMemory = memory;
             QueueNativeQuezacotlFile(request, effect);
             memory = NativeEffectMemory!;
+        }
+        if (!io.AdvancePhase)
+        {
+            NativeEffectMemory = memory;
+            return graphics with { OriginalEffect = NativeBattleQuezacotlChild.FinishMain6C3760(memory, effect) };
+        }
+        if (phase == 65)
+        {
+            uint sound = effect.Binding.NativeQuezacotlResources?.Frame65Sound ?? throw new NotSupportedException("Native6C4EDB/501330 requires the actual12AE4F4 Quezacotl sound DWORD; explicitly migrate this snapshot's resource binding.");
+            events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = new(sound, 1, null) { Pan = 128 } });
+        }
+        else if (phase == 69)
+        {
+            NativeBattleEffectParameters parameters = effect.Parameters ?? throw new InvalidDataException("Native6C5350 lost its actual action header.");
+            NativeBattleActionHeaderSlot header = nativeActionPackets.Headers[parameters.HeaderIndex7C];
+            int first = header.FirstContactIndex ?? throw new NotSupportedException("Native6C5350 requires its actual target contact pointer.");
+            for (int index = 0; index < header.ReadByte(16); index++)
+            {
+                int target = nativeActionPackets.ReadContact(first + index).Primary.ActorIndex;
+                NativeBattleGraphicsModel model = graphics.Models[target];
+                graphics = graphics with { Models = graphics.Models.SetItem(target, model with { Flags0 = (ushort)(model.Flags0 & ~4) }) };
+            }
+            NativeBattleModuleSound sound = (memory.SummonStream ?? throw new NotSupportedException("Native6C4EF7/5018C0 requires its actual501860 summon stream owner.")).Play5018C0(128, 127);
+            events.Add(new BattleEvent(Frame, "NativeModuleSound", null, null, 0, string.Empty) { NativeModuleSound = sound });
+        }
+        else if (phase == 76)
+        {
+            int z = effect.Quezacotl!.TargetZ1778;
+            NativeBattleCameraState camera = NativeCamera ?? throw new NotSupportedException("Native6C4F07 requires its actual retained camera globals.");
+            NativeCamera = camera.WriteEffectGlobals(new(new(-1809, -356, unchecked((short)(z + 2276))), new(0, -652, unchecked((short)z)), camera.FocalLength, camera.Roll));
         }
         NativeBattleEffectTaskPool child = effect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738);
         ushort nextPhase = unchecked((ushort)(phase + 1));

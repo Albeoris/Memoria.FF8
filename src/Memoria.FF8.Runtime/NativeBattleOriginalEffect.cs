@@ -22,6 +22,7 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public ImmutableArray<int>? FireModelCompletion { get; init; }
     public int? DrawArenaOffset { get; init; }
     public NativeBattleQuezacotlState? Quezacotl { get; init; }
+    public NativeBattleCureState? Cure { get; init; }
 
     public void Validate()
     {

@@ -17,6 +17,22 @@ public sealed record NativeBattleShadowGeometry(NativeBattleActionMatrix CameraM
 
 public static partial class NativeBattlePoseMatrices
 {
+    public static NativeBattleGraphicsModel PublishShadowBounds5086F0(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
+    {
+        NativeBattleSequenceState state = model.SequenceState ?? throw new NotSupportedException("Native5086F0 requires its actual resource header and pose owner.");
+        ushort flags2 = model.Flags2 ?? throw new NotSupportedException("Native5086F0 requires modelWORD2.");
+        byte sequence = model.Sequence ?? throw new NotSupportedException("Native5086F0 requires its resource header's current sequenceBYTE0.");
+        NativeBattleDecodedPose pose = source.Sample(state.Pose ?? throw new NotSupportedException("Native5086F0 has no selected pose."), state.PoseFrame114 ?? throw new NotSupportedException("Native5086F0 has no decoded pose frame."), state.PoseFlags109);
+        NativeBattleEffectLocalBounds bounds = ShadowBounds5086F0(source, pose);
+        short? minimum = model.MinimumY146;
+        if ((flags2 & 8) == 0 && sequence == state.Default2)
+        {
+            //An unknown retained minimum stays unknown; its earlier standing-pose samples cannot be reconstructed here.
+            minimum = minimum is short value ? Math.Min(value, bounds.Minimum.Y) : bounds.Minimum.Y == short.MinValue ? short.MinValue : null;
+        }
+        return model with { GeometryBounds52 = bounds, MinimumY146 = minimum };
+    }
+
     /// <summary>5086F0's signedWORD model bounds, including the root's500-unit X/Z margin and positive bone-length vector.</summary>
     public static NativeBattleEffectLocalBounds ShadowBounds5086F0(NativeBattlePoseSource source, NativeBattleDecodedPose pose)
     {

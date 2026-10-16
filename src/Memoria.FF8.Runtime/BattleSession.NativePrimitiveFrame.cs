@@ -73,6 +73,7 @@ public sealed partial class BattleSession
             return graphics;
         }
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native502D40 requires its prior camera/register owner.");
+        graphics = SubmitNativeShadowPackets5088A0(graphics, model, projection, 4121, true);
         NativeBattlePoseSource source = resource.PoseSource ?? throw new NotSupportedException("Native502D40 requires its original body skeleton/animation.");
         ImmutableArray<NativeBattleRawMesh> geometry = resource.Geometry ?? throw new NotSupportedException("Native502D40 requires its original body geometry DTO.");
         NativeBattleModelTextureBinding binding = model.BodyTextureSlots ?? throw new NotSupportedException("Native502D40 requires its executed body507400 relocation.");

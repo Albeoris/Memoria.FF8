@@ -28,9 +28,9 @@ public sealed class NativeBattleCureResourcesTests
         NativeBattleCureResources resources = game.ReadNativeCureResources();
         Assert.Equal(1968, resources.Animation.Data.Length);
         Assert.Equal(0x493F2u, resources.Sound);
-        Assert.Equal(new uint[] { 0x1641F78, 0x1641FCC, 0x1642504 }, resources.Sprites.Select(sprite => sprite.Address));
-        Assert.Equal(new[] { 2, 5, 1 }, resources.Sprites.Select(sprite => sprite.Bytes[8] | sprite.Bytes[9] << 8));
-        Assert.Equal(new[] { 84, 144, 40 }, resources.Sprites.Select(sprite => sprite.Bytes.Length));
+        Assert.Equal(new uint[] { 0x1641F78, 0x1641FCC, 0x164205C, 0x1642238, 0x1642504 }, resources.Sprites.Select(sprite => sprite.Address));
+        Assert.Equal(new[] { 2, 5, 17, 27, 1 }, resources.Sprites.Select(sprite => sprite.Bytes[8] | sprite.Bytes[9] << 8));
+        Assert.Equal(new[] { 84, 144, 476, 716, 40 }, resources.Sprites.Select(sprite => sprite.Bytes.Length));
         foreach (NativeBattleModuleResource resource in resources.Sprites)
         {
             resource.Validate();

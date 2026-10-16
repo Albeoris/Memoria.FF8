@@ -24,7 +24,7 @@ public static class NativeBattleShadowPackets
         int bucket = checked(tableBaseBucket + ((vertices[0].Depth >> 2) >> ((depthShift - 2) & 31)));
         uint color = gouraudShadows ? color44 : (color44 & 0xFF000000) | (color44 & 0xFEFEFE) >> 1;
         ImmutableArray<NativeBattleGeometryPrimitive>.Builder packets = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
-        packets.Add(new(bucket, [0x01000000, 0xE1000620], []));
+        packets.Add(new(bucket, [0x01000000, 0xE1000620], [0, 0, 0, 0]));
         int centerDepth = Depth(0);
         for (int triangle = 0; triangle < 8; triangle++)
         {
@@ -38,7 +38,7 @@ public static class NativeBattleShadowPackets
             }
             packets.Add(new(bucket, [0x06000000, color, vertices[0].Screen, gouraudShadows ? 0 : color, vertices[previous].Screen, gouraudShadows ? 0 : color, vertices[current].Screen], [centerDepth, previousDepth, currentDepth, 0]));
         }
-        packets.Add(new(bucket, [0x01000000, 0xE1000640], []));
+        packets.Add(new(bucket, [0x01000000, 0xE1000640], [0, 0, 0, 0]));
         return packets.ToImmutable();
 
         int Depth(int index) => 4 * (vertices[index].Depth >> 2) - 300;

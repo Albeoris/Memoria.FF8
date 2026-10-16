@@ -22,7 +22,7 @@ public sealed class NativeBattleGuardianCheckpointTests
         Console.WriteLine($"Saved frame={snapshot.Frame}; callback={snapshot.NativeGraphics!.Callback}; one-callback result={first}");
     }
 
-    private static string Advance(BattleSession battle)
+    internal static string Advance(BattleSession battle)
     {
         try
         {

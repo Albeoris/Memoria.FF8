@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleQuezacotlGeometryStep(NativeBattleEffectMemory Memory, ImmutableArray<NativeBattleGeometryPrimitive> Primitives);
+public sealed record NativeBattleQuezacotlGeometryStep(NativeBattleEffectMemory Memory, NativeBattleGfGeometryBatch Batch);
 
 /// <summary>Reached6C6060 generic first-window model draw, using current executable vertices and actual arena morph scratch.</summary>
 public static class NativeBattleQuezacotlGeometry
@@ -12,7 +12,7 @@ public static class NativeBattleQuezacotlGeometry
     {
         if (NativeBattleQuezacotlWorkspace.SkipsGeometry6C6060(node))
         {
-            return new(memory, []);
+            return new(memory, new([], 0));
         }
         NativeBattleGfAnimationSource source = NativeBattleQuezacotlWorkspace.Source(memory);
         int directory = checked(8 + 4 * node.GeometryIndex);
@@ -42,7 +42,7 @@ public static class NativeBattleQuezacotlGeometry
         NativeBattleActionMatrix matrix = NativeBattleGfMatrices.Compose6C6060(node, view, effect.Quezacotl?.Billboard17B0, new(0, -5000, 0));
         bool cue = node.Scalar36 != 0;
         NativeBattleGfGeometryContext context = new(cue ? 0x20F0u : 0x2030u, cue ? node.Color32 : 0, node.Scalar36, null, null, 0, 17, 2);
-        return new(memory, NativeBattleGfGeometryPackets.Emit7043B0(source.Data, geometry, vertices, matrix, projection, context, colors));
+        return new(memory, NativeBattleGfGeometryPackets.EmitBatch7043B0(source.Data, geometry, vertices, matrix, projection, context, colors));
     }
 
     private static ReadOnlySpan<byte> Read(ImmutableArray<byte> bytes, int offset, int length)

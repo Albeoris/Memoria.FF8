@@ -137,6 +137,11 @@ public sealed partial class GameAssets
                 binding = binding with { Effect3Resources = ReadNativeEffect3Resources() };
                 catalog = catalog.SetItem(index, binding);
             }
+            if (binding.Entry == 0x8D6A00)
+            {
+                binding = binding with { CureResources = ReadNativeCureResources() };
+                catalog = catalog.SetItem(index, binding);
+            }
             if (binding.Initializer == 0 || binding.InitializerIsRet == true || binding.InitializerAsset is not null)
             {
                 continue;

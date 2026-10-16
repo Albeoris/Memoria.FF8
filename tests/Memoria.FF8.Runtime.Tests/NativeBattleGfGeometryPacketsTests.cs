@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace Memoria.FF8.Runtime.Tests;
 
@@ -220,6 +221,148 @@ public sealed class NativeBattleGfGeometryPacketsTests
         NativeBattleGfGeometryContext context = Context with { Flags = 0x2000 };
         Assert.Empty(NativeBattleGfGeometryPackets.Emit7043B0(source.ToImmutableArray(), 16, vertices, Identity with { Z = 108 }, Projection, context));
         Assert.Throws<InvalidDataException>(() => NativeBattleGfGeometryPackets.Emit7043B0(source.ToImmutableArray(), 16, vertices, Identity, Projection, context));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void Attempt_masks_retain_exact_native_near_NCLIP_screen_and_accepted_writes(int group)
+    {
+        bool quad = (group & 1) != 0;
+        bool textured = (group & 2) != 0;
+        bool gouraud = (group & 4) != 0;
+        int count = quad ? 4 : 3;
+        HashSet<int> prefix = [0, 1];
+        if (textured)
+        {
+            for (int corner = 0; corner < count; corner++)
+            {
+                prefix.Add(ScreenWord(corner) + 1);
+            }
+        }
+        NativeBattleModuleProjectedVertex[] near = Corners(group);
+        near[0] = near[0] with { Flags = 0x20000 };
+        NativeBattleGfGeometryAttempt nearAttempt = NativeBattleGfGeometryPackets.EmitAttempt7043B0(Face(group), near, group, Context with { Flags = 0xF00 });
+        Assert.Null(nearAttempt.Primitive);
+        CheckWords(nearAttempt, prefix);
+        if (textured)
+        {
+            Assert.Equal(0x00040302u, Word(nearAttempt, ScreenWord(1) + 1));
+        }
+        NativeBattleModuleProjectedVertex[] backwards = Corners(group);
+        (backwards[1], backwards[2]) = (backwards[2], backwards[1]);
+        NativeBattleGfGeometryContext material = Context with { Flags = 0xF00, TexturePage = 1, Clut = 2 };
+        NativeBattleGfGeometryAttempt windingAttempt = NativeBattleGfGeometryPackets.EmitAttempt7043B0(Face(group), backwards, group, material);
+        Assert.Null(windingAttempt.Primitive);
+        CheckWords(windingAttempt, prefix);
+        if (textured)
+        {
+            Assert.Equal(0x00050302u, Word(windingAttempt, ScreenWord(1) + 1));
+            Assert.Equal(0x10020201u, Word(windingAttempt, ScreenWord(0) + 1));
+        }
+        NativeBattleModuleProjectedVertex[] outside = Corners(group);
+        for (int corner = 0; corner < count; corner++)
+        {
+            outside[corner] = outside[corner] with { Screen = XY(-1, (short)(100 + corner * 100)) };
+        }
+        NativeBattleGfGeometryAttempt screenAttempt = NativeBattleGfGeometryPackets.EmitAttempt7043B0(Face(group), outside, group, material);
+        Assert.Null(screenAttempt.Primitive);
+        HashSet<int> screenWords = [.. prefix];
+        for (int corner = 0; corner < count; corner++)
+        {
+            screenWords.Add(ScreenWord(corner));
+        }
+        CheckWords(screenAttempt, screenWords);
+        NativeBattleGfGeometryAttempt accepted = NativeBattleGfGeometryPackets.EmitAttempt7043B0(Face(group), Corners(group), group, Context);
+        NativeBattleGeometryPrimitive primitive = Assert.IsType<NativeBattleGeometryPrimitive>(accepted.Primitive);
+        Assert.All(accepted.WriteMask, state => Assert.Equal(NativeBattleGfPacketByteState.Known, state));
+        Assert.Equal(new byte[] { 0, 0, 0 }, accepted.Data.AsSpan().Slice(0, 3).ToArray());
+        for (int word = 0; word < primitive.Words.Length; word++)
+        {
+            Assert.Equal(primitive.Words[word], Word(accepted, word));
+        }
+
+        int ScreenWord(int corner) => gouraud ? 2 + corner * (textured ? 3 : 2) : 2 + corner * (textured ? 2 : 1);
+
+        static uint Word(NativeBattleGfGeometryAttempt attempt, int word) => BinaryPrimitives.ReadUInt32LittleEndian(attempt.Data.AsSpan().Slice(word * 4));
+
+        static void CheckWords(NativeBattleGfGeometryAttempt attempt, HashSet<int> expectedWords)
+        {
+            Assert.Equal(attempt.PacketLength, attempt.WriteMask.Length);
+            for (int index = 0; index < attempt.WriteMask.Length; index++)
+            {
+                Assert.Equal(expectedWords.Contains(index / 4) ? NativeBattleGfPacketByteState.Known : NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[index]);
+            }
+        }
+    }
+
+    [Fact]
+    public void Rejected_attempts_reuse_cursor_and_preserve_unwritten_prior_arena_bytes_after_JSON_restore()
+    {
+        byte[] source = new byte[172];
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(16), 64);
+        BinaryPrimitives.WriteInt32LittleEndian(source.AsSpan(88), 3);
+        Face().CopyTo(source, 92);
+        Face().CopyTo(source, 112);
+        Face().CopyTo(source, 132);
+        SetNear(92, 0x26ABBCCD);
+        SetNear(132, 0x26112233);
+        (_, ImmutableArray<byte> triangle) = Geometry();
+        byte[] vertices = new byte[32];
+        triangle.AsSpan().CopyTo(vertices);
+        BinaryPrimitives.WriteInt16LittleEndian(vertices.AsSpan(28), -4096);
+        NativeBattleGfGeometryBatch batch = NativeBattleGfGeometryPackets.EmitBatch7043B0(source.ToImmutableArray(), 16, vertices.ToImmutableArray(), Identity, Projection, Context with { Flags = 0x2000 });
+        Assert.Equal(new int[] { 0, 0, 32 }, batch.Attempts.Select(attempt => attempt.ByteOffsetRelative).ToArray());
+        Assert.Equal(new bool[] { false, true, false }, batch.Attempts.Select(attempt => attempt.Primitive is not null).ToArray());
+        Assert.Equal(32, batch.AllocationBytes);
+        NativeBattleGfGeometryBatch restored = JsonSerializer.Deserialize<NativeBattleGfGeometryBatch>(JsonSerializer.Serialize(batch))!;
+        byte[] expected = Apply(batch);
+        Assert.Equal(expected, Apply(restored));
+        Assert.Equal(0x7000000u, BinaryPrimitives.ReadUInt32LittleEndian(expected.AsSpan(32)));
+        Assert.Equal(0x26112233u, BinaryPrimitives.ReadUInt32LittleEndian(expected.AsSpan(36)));
+        Assert.All(expected.AsSpan(40, 4).ToArray(), value => Assert.Equal((byte)0xA5, value));
+        Assert.Equal(0x10000201u, BinaryPrimitives.ReadUInt32LittleEndian(expected.AsSpan(44)));
+        Assert.All(expected.Skip(64), value => Assert.Equal((byte)0xA5, value));
+        NativeBattleGeometryPrimitive accepted = Assert.IsType<NativeBattleGeometryPrimitive>(batch.Attempts[1].Primitive);
+        for (int index = 0; index < accepted.Words.Length; index++)
+        {
+            Assert.Equal(accepted.Words[index], BinaryPrimitives.ReadUInt32LittleEndian(expected.AsSpan(index * 4)));
+        }
+
+        void SetNear(int start, uint command)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(source.AsSpan(start), command);
+            for (int corner = 0; corner < 3; corner++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(source.AsSpan(start + 4 + corner * 2), 6);
+            }
+        }
+
+        static byte[] Apply(NativeBattleGfGeometryBatch attempts)
+        {
+            byte[] prior = Enumerable.Repeat((byte)0xA5, 80).ToArray();
+            foreach (NativeBattleGfGeometryAttempt attempt in attempts.Attempts)
+            {
+                for (int index = 0; index < attempt.PacketLength; index++)
+                {
+                    if (attempt.WriteMask[index] == NativeBattleGfPacketByteState.Known)
+                    {
+                        prior[attempt.ByteOffsetRelative + index] = attempt.Data[index];
+                    }
+                    else
+                    {
+                        Assert.Equal(NativeBattleGfPacketByteState.Untouched, attempt.WriteMask[index]);
+                    }
+                }
+            }
+            return prior;
+        }
     }
 
     private static NativeBattleModuleProjectedVertex[] Corners() => [new(XY(100, 100), 4096, 0), new(XY(200, 100), 4096, 0), new(XY(100, 200), 4096, 0)];

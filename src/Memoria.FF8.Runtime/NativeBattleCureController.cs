@@ -8,6 +8,7 @@ public sealed record NativeBattleCureState([property: JsonRequired] int SourceAr
 {
     public int Counter278C7E0 { get; init; }
     public int Counter2783E10 { get; init; }
+    public NativeBattleCureActorContext? ActorContext { get; init; }
 }
 
 public sealed record NativeBattleCureFrame(NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect, NativeBattleCureState State);
@@ -229,7 +230,7 @@ public static class NativeBattleCureController
 
     private static NativeBattleGraphicsModel[] Models(NativeBattleCureControllerInputs inputs) => Enumerable.Range(0, 7).Select(inputs.ReadModel).ToArray();
 
-    private static NativeBattleEffectTaskActors SelectActors(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, uint parameterAddress, sbyte group, sbyte target)
+    internal static NativeBattleEffectTaskActors SelectActors(NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, uint parameterAddress, sbyte group, sbyte target)
     {
         if (parameterAddress != 0x1D99A78)
         {

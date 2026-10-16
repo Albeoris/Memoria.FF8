@@ -5,6 +5,28 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleShadowTests
 {
+    [Theory]
+    [InlineData(0, 1, -48)]
+    [InlineData(8, 1, 0)]
+    [InlineData(0, 2, 0)]
+    public void Bound_publication_updates_the_rolling_minimum_only_for_the_unlocked_default_sequence(ushort flags2, byte sequence, short expectedMinimum)
+    {
+        byte[] skeleton = new byte[64];
+        skeleton[0] = 1;
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(2), 4096);
+        BinaryPrimitives.WriteInt16LittleEndian(skeleton.AsSpan(16), -1);
+        //One actual compressed pose: XYZ=(0,-3,0), unscaled identity bone.
+        NativeBattlePoseSource source = new(skeleton.ToImmutableArray(), [1, 0, 0, 0, 8, 0, 0, 0, 1, 0x80, 2, 0]);
+        NativeBattleGraphicsModel model = new(0, 3) { Flags2 = flags2, Sequence = sequence, MinimumY146 = 0, SequenceState = new() { Pose = 0, PoseFrame114 = 1 } };
+        NativeBattleGraphicsModel published = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, source);
+        Assert.Equal(expectedMinimum, published.MinimumY146);
+        Assert.Equal((short)-48, published.GeometryBounds52!.Minimum.Y);
+        Assert.Equal((short)0, model.MinimumY146);
+        NativeBattleGraphicsModel unknown = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model with { MinimumY146 = null }, source);
+        Assert.Null(unknown.MinimumY146);
+        Assert.Equal((short)-100, NativeBattlePoseMatrices.PublishShadowBounds5086F0(model with { MinimumY146 = -100 }, source).MinimumY146);
+    }
+
     [Fact]
     public void Shadow_fan_preserves_native_packet_order_quarter_depth_and_gouraud_edges()
     {
@@ -18,7 +40,8 @@ public sealed class NativeBattleShadowTests
         Assert.Equal(new uint[] { 0x06000000, 0x32A1C3E5, vertices[0].Screen, 0, vertices[1].Screen, 0, vertices[2].Screen }, packets[1].Words);
         Assert.Equal(new int[] { 700, 700, 704, 0 }, packets[1].VertexPayload4);
         Assert.Equal(vertices[9].Screen, packets[8].Words[6]);
-        Assert.Empty(packets[0].VertexPayload4);
+        Assert.Equal(new int[] { 0, 0, 0, 0 }, packets[0].VertexPayload4);
+        Assert.Equal(new int[] { 0, 0, 0, 0 }, packets[^1].VertexPayload4);
         ImmutableArray<NativeBattleGeometryPrimitive> flat = NativeBattleShadowPackets.Emit5088A0(vertices, 0x32A1C3E5, false, 17, 4);
         Assert.Equal(0x32506172u, flat[1].Words[1]);
         Assert.Equal(flat[1].Words[1], flat[1].Words[3]);

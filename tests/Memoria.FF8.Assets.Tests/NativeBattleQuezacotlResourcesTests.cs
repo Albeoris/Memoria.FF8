@@ -76,6 +76,9 @@ public sealed class NativeBattleQuezacotlResourcesTests
         Assert.Equal((byte)128, childPrefix.Vibration!.Slots.Single(slot => slot.Priority != 0).Priority);
         Assert.NotEqual(0u, childPrefix.Effect.ReturnedDescriptor);
         Assert.Equal(240066u, resources.InitialSound);
+        Assert.Equal(240069u, resources.Frame65Sound);
+        Assert.Equal(new uint[] { 0xF0F0F0, 0xC0C0C0, 0x808080 }, resources.FlashColors!.Value.ToArray());
+        Assert.Null((resources with { Frame65Sound = null }).Frame65Sound);
         NativeBattleQuezacotlChildStep childZero = NativeBattleQuezacotlChild.AdvanceFirst6C3940(childPrefix.Memory, childPrefix.Effect);
         Assert.True(childZero.Entered);
         Assert.Equal(new NativeBattleEffectFileRequest(505, 0x2108954, 0x6C3580), childZero.FileRequest);

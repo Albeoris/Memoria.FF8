@@ -146,6 +146,20 @@ public sealed class NativeBattlePrimitiveFrameRenderingTests
         Assert.Equal(expectedRed, pixels[4 * (20 * 320 + 20)]);
     }
 
+    [Theory]
+    [InlineData(NativeBattlePcDirectTextureFormat.Rgb555, 255)]
+    [InlineData(NativeBattlePcDirectTextureFormat.Rgb565, 250)]
+    public void Direct_texture_rasterization_uses_the_explicit_format_without_an_indexed_palette(NativeBattlePcDirectTextureFormat format, byte maximumGreen)
+    {
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 0, Point(30, 10), 0x01000000, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame frame = Frame([new(command, new(0x100), 1)]);
+        NativeBattleEffectTextureState texture = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, ImmutableArray.Create((byte)0xE0, (byte)0x03))] };
+        BattleRenderer renderer = new(320, 216);
+        Assert.Throws<NotSupportedException>(() => renderer.RenderNativePrimitiveFrame(frame, texture));
+        byte[] pixels = renderer.RenderNativePrimitiveFrame(frame, texture, capabilities: NativeBattlePrimitiveCapabilities.PrimaryRgba8() with { DirectTextureFormat = format });
+        Assert.Equal(new byte[] { 0, maximumGreen, 0, 255 }, pixels.AsSpan(4 * (20 * 320 + 20), 4).ToArray());
+    }
+
     private static NativeBattlePrimitiveFrame Frame(ImmutableArray<NativeBattleLogicalResolvedCommand> commands) => new(NativeBattleLogicalOrdering.Clear(), commands, []) { LastDescriptorPerspective = false, LastDepthState = NativeBattlePrimitiveDepthState.FromColdProcess(), LastColorState = NativeBattlePrimitiveColorState.FromColdProcess() };
 
     private static NativeBattleLogicalResolvedCommand Quad(byte opcode, uint color, int bucket, byte pass)

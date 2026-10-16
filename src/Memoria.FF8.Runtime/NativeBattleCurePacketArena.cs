@@ -1,0 +1,90 @@
+using System.Buffers.Binary;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed record NativeBattleCurePacketWrite(NativeBattleEffectMemory Memory, NativeBattleCureState State, NativeBattleLogicalOrdering Ordering);
+
+/// <summary>277AEC4's packets overwrite the original effect arena while retaining logical OT links.</summary>
+public static class NativeBattleCurePacketArena
+{
+    public static NativeBattleCurePacketWrite AppendPrimary(NativeBattleEffectMemory memory, NativeBattleCureState state, NativeBattleLogicalOrdering ordering, NativeBattleModulePacketBatch batch)
+    {
+        NativeBattleEffectArena arena = memory.Arena ?? throw new NotSupportedException("Native Cure packet writes require the571870 effect arena.");
+        int cursor = state.PrimaryDrawCursor ?? throw new NotSupportedException("Native Cure packet writes require the executed8D6B30 primary cursor.");
+        if (batch.Primitives.IsDefault || batch.AllocationBytes < 0 || cursor < 0 || (cursor & 3) != 0 || cursor > NativeBattleEffectArena.Length - batch.AllocationBytes)
+        {
+            throw new InvalidDataException("Native Cure packets leave their original aligned effect arena.");
+        }
+        foreach (NativeBattleAllocatedPrimitive allocation in batch.Primitives)
+        {
+            NativeBattleGeometryPrimitive primitive = allocation.Primitive;
+            int length = checked(primitive.Words.Length * 4);
+            if (allocation.ByteOffset < 0 || (allocation.ByteOffset & 3) != 0 || allocation.ByteOffset > batch.AllocationBytes - length || primitive.Words.Length < 2)
+            {
+                throw new InvalidDataException("Native Cure primitive leaves its actual packet allocation.");
+            }
+            byte command = (byte)(primitive.Words[1] >> 24);
+            byte[] bytes = new byte[length];
+            for (int word = 0; word < primitive.Words.Length; word++)
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4 * word), primitive.Words[word]);
+            }
+            bool[] written = Enumerable.Repeat(true, length).ToArray();
+            switch (command & 0xFC)
+            {
+                case 0x24 when length == 32:
+                    Preserve(30, 2);
+                    break;
+                case 0x2C when length == 40:
+                    Preserve(30, 2);
+                    Preserve(38, 2);
+                    break;
+                case 0x34 when length == 40:
+                    Preserve(38, 2);
+                    break;
+                case 0x3C when length == 52:
+                    Preserve(38, 2);
+                    Preserve(50, 2);
+                    break;
+                case 0x30 when length == 28:
+                    Preserve(15, 1);
+                    Preserve(23, 1);
+                    break;
+                case 0x38 when length == 36:
+                    Preserve(15, 1);
+                    Preserve(23, 1);
+                    Preserve(31, 1);
+                    break;
+                case 0xE0 when command == 0xE1 && length is 8 or 12:
+                    break;
+                default:
+                    throw new NotSupportedException($"Native Cure packet command{command:X2} requires its original byte-write contract.");
+            }
+            int address = checked(cursor + allocation.ByteOffset);
+            for (int offset = 0; offset < length;)
+            {
+                if (!written[offset])
+                {
+                    offset++;
+                    continue;
+                }
+                int end = offset + 1;
+                while (end < length && written[end])
+                {
+                    end++;
+                }
+                arena = arena.Write(checked(address + offset), bytes.AsSpan(offset, end - offset));
+                offset = end;
+            }
+            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            ordering = ordering.Prepend(primitive.Bucket, new("20DFAB8", 0, address), primitive.Words, allocation.Flags20, primitive.VertexPayload4);
+            if (linked)
+            {
+                arena = arena.MarkUnknown(address, 3);
+            }
+
+            void Preserve(int first, int count) => Array.Fill(written, false, first, count);
+        }
+        return new(memory with { Arena = arena }, state with { PrimaryDrawCursor = checked(cursor + batch.AllocationBytes) }, ordering);
+    }
+}

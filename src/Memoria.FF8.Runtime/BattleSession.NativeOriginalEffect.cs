@@ -41,6 +41,10 @@ public sealed partial class BattleSession
     {
         NativeBattleOriginalEffectState effect = graphics.OriginalEffect ?? throw new NotSupportedException("Native effect invocation requires its actual loaded module entry.");
         _ = effect.Parameters ?? throw new InvalidDataException("Native effect entry lacks its50AFC0 parameter block.");
+        if (effect.Binding.Entry == 0x8D6A00)
+        {
+            return EnterNativeCure8D6A00(graphics);
+        }
         if (effect.Binding.Entry == 0x6C3550)
         {
             NativeBattleQuezacotlEntry entered = NativeBattleQuezacotl.Enter6C3640(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl requires its retained effect memory."), effect, nativeCrtRandom ?? throw new NotSupportedException("Native Quezacotl requires its retained55CBD2 random owner."), nativeActionPackets, index => (graphics.Models[index].Transform ?? throw new NotSupportedException("Native6C3640 requires the actual graphical model WORD32 position.")).Position28.Z);

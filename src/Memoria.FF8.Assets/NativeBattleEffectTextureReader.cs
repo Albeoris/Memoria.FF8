@@ -12,19 +12,19 @@ public static class NativeBattleEffectTextureReader
 
     public static PixelImage DecodeRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height)
     {
-        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null);
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null, null);
     }
 
-    public static PixelImage DecodePcRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, byte? alternatePaletteShift = null)
+    public static PixelImage DecodePcRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, byte? alternatePaletteShift = null, NativeBattlePcDirectTextureFormat? directTextureFormat = null)
     {
-        if ((texturePage & 0x180) > 0x80)
+        if ((texturePage & 0x180) == 0x100 && directTextureFormat is null)
         {
             throw new NotSupportedException("Native PC direct16-bit texture sampling requires its selected original555/565 device format.");
         }
-        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift);
+        return DecodeRegionCore(state, texturePage, clut, u, v, width, height, true, alternatePaletteShift, directTextureFormat);
     }
 
-    private static PixelImage DecodeRegionCore(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, bool pcPalette, byte? alternatePaletteShift)
+    private static PixelImage DecodeRegionCore(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height, bool pcPalette, byte? alternatePaletteShift, NativeBattlePcDirectTextureFormat? directTextureFormat)
     {
         if (u is < 0 or > 255 || v is < 0 or > 255 || width is < 1 or > 256 || height is < 1 or > 256)
         {
@@ -57,7 +57,7 @@ public static class NativeBattleEffectTextureReader
                 };
                 if (pcPalette)
                 {
-                    uint packed = alternatePaletteShift is byte paletteShift ? NativeBattlePcPalette.Decode467470(color, paletteShift) : NativeBattlePcPalette.Decode467370(color);
+                    uint packed = depth == 2 ? NativeBattlePcDirectTexture.DecodeArgb(color, directTextureFormat!.Value) : alternatePaletteShift is byte paletteShift ? NativeBattlePcPalette.Decode467470(color, paletteShift) : NativeBattlePcPalette.Decode467370(color);
                     image[column, row] = new((byte)(packed >> 16), (byte)(packed >> 8), (byte)packed, (byte)(packed >> 24));
                 }
                 else

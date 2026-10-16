@@ -11,6 +11,7 @@ internal sealed class BattleScenePresentation
 {
     private readonly BattleStage stage;
     private readonly BattleAssets assets;
+    private readonly NativeBattlePrimitiveCapabilities? primitiveCapabilities;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
     private readonly Dictionary<string, BattleModel?> weapons = [];
@@ -28,6 +29,7 @@ internal sealed class BattleScenePresentation
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
         this.assets = assets;
+        primitiveCapabilities = definition.NativeGraphics?.PrimitiveCapabilities;
         renzokukenResources = definition.NativeRenzokukenResources.ToDictionary(resource => resource.MagicId);
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
@@ -100,7 +102,7 @@ internal sealed class BattleScenePresentation
                 selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
             renderedCamera = selectedCamera;
-            return renderer.RenderNativePrimitiveFrame(rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly."), session.NativeEffectMemory?.Textures, selectedCamera);
+            return renderer.RenderNativePrimitiveFrame(rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly."), session.NativeEffectMemory?.Textures, selectedCamera, primitiveCapabilities);
         }
         renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];

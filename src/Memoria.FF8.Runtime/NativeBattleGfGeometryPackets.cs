@@ -5,12 +5,32 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGfGeometryContext(uint Flags, uint FarColor, int DepthCue, ushort? TexturePage, ushort? Clut, int DepthBias, int TableBaseBucket, byte DepthShift);
 
+public enum NativeBattleGfPacketByteState : byte
+{
+    Untouched,
+    Known,
+    Unknown
+}
+
+/// <summary>Ordered native stores at the current allocation cursor; Untouched bytes retain actual prior arena data.</summary>
+public sealed record NativeBattleGfGeometryAttempt(int ByteOffsetRelative, ImmutableArray<byte> Data, ImmutableArray<NativeBattleGfPacketByteState> WriteMask, NativeBattleGeometryPrimitive? Primitive)
+{
+    public int PacketLength => Data.Length;
+}
+
+public sealed record NativeBattleGfGeometryBatch(ImmutableArray<NativeBattleGfGeometryAttempt> Attempts, int AllocationBytes);
+
 /// <summary>7043B0's eight original geometry groups, using actual45FE10/45FAA0 projection and native packet layouts.</summary>
 public static class NativeBattleGfGeometryPackets
 {
     private static readonly int[] GroupLengths = [12, 12, 20, 24, 20, 24, 28, 36];
 
     public static ImmutableArray<NativeBattleGeometryPrimitive> Emit7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
+    {
+        return EmitBatch7043B0(source, geometryOffset, selectedVertices, matrix, projection, context, colors).Attempts.Where(attempt => attempt.Primitive is not null).Select(attempt => attempt.Primitive!).ToImmutableArray();
+    }
+
+    public static NativeBattleGfGeometryBatch EmitBatch7043B0(ImmutableArray<byte> source, int geometryOffset, ImmutableArray<byte> selectedVertices, NativeBattleActionMatrix matrix, NativeBattleCameraProjection projection, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
     {
         if (source.IsDefault || context.DepthShift > 31)
         {
@@ -28,7 +48,8 @@ public static class NativeBattleGfGeometryPackets
             vertices = Read(source, start, source.Length - start).ToArray().ToImmutableArray();
         }
         int cursor = checked(geometryOffset + Int32(source, geometryOffset));
-        ImmutableArray<NativeBattleGeometryPrimitive>.Builder primitives = ImmutableArray.CreateBuilder<NativeBattleGeometryPrimitive>();
+        ImmutableArray<NativeBattleGfGeometryAttempt>.Builder attempts = ImmutableArray.CreateBuilder<NativeBattleGfGeometryAttempt>();
+        int allocated = 0;
         Dictionary<ushort, NativeBattleModuleProjectedVertex> projected = [];
         for (int group = 0; group < GroupLengths.Length; group++)
         {
@@ -47,15 +68,16 @@ public static class NativeBattleGfGeometryPackets
                     offsets[corner] = BinaryPrimitives.ReadUInt16LittleEndian(face.Slice(4 + corner * 2));
                 }
                 ProjectedCorners corners = new(offsets, Project);
-                NativeBattleGeometryPrimitive? primitive = EmitPolygon7043B0(face, corners, group, context, colors);
-                if (primitive is not null)
+                NativeBattleGfGeometryAttempt attempt = EmitAttempt7043B0(face, corners, group, context, colors, allocated);
+                attempts.Add(attempt);
+                if (attempt.Primitive is not null)
                 {
-                    primitives.Add(primitive);
+                    allocated = checked(allocated + attempt.PacketLength);
                 }
                 cursor = checked(cursor + GroupLengths[group]);
             }
         }
-        return primitives.ToImmutable();
+        return new(attempts.ToImmutable(), allocated);
 
         NativeBattleModuleProjectedVertex Project(ushort offset)
         {
@@ -76,6 +98,11 @@ public static class NativeBattleGfGeometryPackets
 
     public static NativeBattleGeometryPrimitive? EmitPolygon7043B0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null)
     {
+        return EmitAttempt7043B0(face, vertices, group, context, colors).Primitive;
+    }
+
+    public static NativeBattleGfGeometryAttempt EmitAttempt7043B0(ReadOnlySpan<byte> face, IReadOnlyList<NativeBattleModuleProjectedVertex> vertices, int group, NativeBattleGfGeometryContext context, NativeBattleSummonColors? colors = null, int byteOffsetRelative = 0)
+    {
         bool quad = (group & 1) != 0;
         bool textured = (group & 2) != 0;
         bool gouraud = (group & 4) != 0;
@@ -84,11 +111,11 @@ public static class NativeBattleGfGeometryPackets
         {
             throw new InvalidDataException("Native7043B0 requires the selected original group record, native projected vertices and depth shift.");
         }
-        // Quad leaves gate the first RTPT flags only; the following45FAA0 RTPS flags are never tested.
-        if (((vertices[0].Flags | vertices[1].Flags | vertices[2].Flags) & 0x60000) != 0)
-        {
-            return null;
-        }
+        // NativeRTPT precedes the packet prefix stores; missing first-three sources cannot publish a prefix attempt.
+        uint firstFlags = vertices[0].Flags | vertices[1].Flags | vertices[2].Flags;
+        int length = gouraud ? 1 + count * (textured ? 3 : 2) : 2 + count * (textured ? 2 : 1);
+        PacketWrites writes = new(length, byteOffsetRelative);
+        writes.Word(0, (uint)(length - 1) << 24);
         uint flags = context.Flags;
         uint command = BinaryPrimitives.ReadUInt32LittleEndian(face);
         if ((flags & (gouraud ? 2u : 1u)) != 0)
@@ -99,6 +126,7 @@ public static class NativeBattleGfGeometryPackets
         {
             command &= 0xFDFFFFFF;
         }
+        writes.Word(1, command);
         uint[] uvs = new uint[textured ? count : 0];
         if (textured)
         {
@@ -109,6 +137,18 @@ public static class NativeBattleGfGeometryPackets
             {
                 uvs[3] = BinaryPrimitives.ReadUInt16LittleEndian(face[22..]);
             }
+            for (int corner = 0; corner < count; corner++)
+            {
+                writes.Word(ScreenWord(corner) + 1, uvs[corner]);
+            }
+        }
+        // Quad leaves gate the first RTPT flags only; following45FAA0 RTPS flags are never tested.
+        if ((firstFlags & 0x60000) != 0)
+        {
+            return writes.Finish(null);
+        }
+        if (textured)
+        {
             if ((flags & 0x400) != 0)
             {
                 uvs[1] = Material(uvs[1], context.TexturePage, true, "TPAGE");
@@ -125,20 +165,26 @@ public static class NativeBattleGfGeometryPackets
             {
                 uvs[0] = Material(uvs[0], context.Clut, false, "CLUT");
             }
+            writes.Word(ScreenWord(0) + 1, uvs[0]);
+            writes.Word(ScreenWord(1) + 1, uvs[1]);
         }
         int nclip = NativeBattleModulePackets.Nclip(vertices[0].Screen, vertices[1].Screen, vertices[2].Screen);
         if (nclip < 0 && (flags & (gouraud ? 0x20u : 0x10u)) == 0)
         {
-            return null;
+            return writes.Finish(null);
+        }
+        for (int corner = 0; corner < 3; corner++)
+        {
+            writes.Word(ScreenWord(corner), vertices[corner].Screen);
         }
         if (quad)
         {
             // The fourth RTPS occurs only after first-three near and NCLIP admission.
-            _ = vertices[3];
+            writes.Word(ScreenWord(3), vertices[3].Screen);
         }
         if (vertices.All(vertex => unchecked((ushort)vertex.Screen) > 0xA00) || vertices.All(vertex => (vertex.Screen >> 16) > 0x6C0))
         {
-            return null;
+            return writes.Finish(null);
         }
         uint[] vertexColors = new uint[gouraud ? count : 1];
         vertexColors[0] = command;
@@ -168,28 +214,14 @@ public static class NativeBattleGfGeometryPackets
         uint average = unchecked((uint)vertices.Sum(vertex => (int)vertex.Depth) * (quad ? 0x100u : 0x155u)) >> 12;
         int biased = Math.Max(unchecked((int)average + context.DepthBias), 0);
         int bucket = checked(context.TableBaseBucket + (biased >> context.DepthShift));
-        int length = gouraud ? 1 + count * (textured ? 3 : 2) : 2 + count * (textured ? 2 : 1);
-        uint[] words = new uint[length];
-        words[0] = (uint)(length - 1) << 24;
-        int cursor = 1;
-        if (!gouraud)
+        for (int corner = 0; corner < vertexColors.Length; corner++)
         {
-            words[cursor++] = vertexColors[0];
-        }
-        for (int corner = 0; corner < count; corner++)
-        {
-            if (gouraud)
-            {
-                words[cursor++] = vertexColors[corner];
-            }
-            words[cursor++] = vertices[corner].Screen;
-            if (textured)
-            {
-                words[cursor++] = uvs[corner];
-            }
+            writes.Word(gouraud ? ScreenWord(corner) - 1 : 1, vertexColors[corner]);
         }
         ImmutableArray<int> payload = quad ? [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, vertices[3].Depth] : [vertices[0].Depth, vertices[1].Depth, vertices[2].Depth, 0];
-        return new(bucket, words.ToImmutableArray(), payload);
+        return writes.Finish(new(bucket, writes.Words(), payload));
+
+        int ScreenWord(int corner) => gouraud ? 2 + corner * (textured ? 3 : 2) : 2 + corner * (textured ? 2 : 1);
     }
 
     private static uint Material(uint original, ushort? contextWord, bool add, string name)
@@ -224,5 +256,31 @@ public static class NativeBattleGfGeometryPackets
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private sealed class PacketWrites(int wordCount, int byteOffsetRelative)
+    {
+        // Zero backing values for Untouched mask entries are not writes and must never replace the retained arena bytes.
+        private readonly byte[] _bytes = new byte[wordCount * 4];
+        private readonly NativeBattleGfPacketByteState[] _mask = new NativeBattleGfPacketByteState[wordCount * 4];
+
+        public void Word(int index, uint value)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(_bytes.AsSpan(index * 4), value);
+            _mask.AsSpan(index * 4, 4).Fill(NativeBattleGfPacketByteState.Known);
+        }
+
+        public ImmutableArray<uint> Words()
+        {
+            ImmutableArray<uint>.Builder words = ImmutableArray.CreateBuilder<uint>(wordCount);
+            for (int index = 0; index < wordCount; index++)
+            {
+                words.Add(BinaryPrimitives.ReadUInt32LittleEndian(_bytes.AsSpan(index * 4)));
+            }
+            return words.ToImmutable();
+        }
+
+        // TAG links are still the explicit native initial zeros. Only the caller's successful45C870 insertion rewrites them.
+        public NativeBattleGfGeometryAttempt Finish(NativeBattleGeometryPrimitive? primitive) => new(byteOffsetRelative, _bytes.ToImmutableArray(), _mask.ToImmutableArray(), primitive);
     }
 }

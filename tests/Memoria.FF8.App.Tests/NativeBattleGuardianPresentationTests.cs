@@ -54,6 +54,20 @@ public sealed class NativeBattleGuardianPresentationTests
         }
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
+        NativeBattleLogicalResolvedCommand[] entryCommands = before.NativeGraphics!.PrimitiveFrame!.LastCommands.ToArray();
+        NativeBattleLogicalResolvedCommand[] shadowModes = entryCommands.Where(command => command.Command.Opcode == 0xE1 && command.Command.Words[0] is 0xE1000620 or 0xE1000640).ToArray();
+        foreach (NativeBattleLogicalResolvedCommand command in shadowModes)
+        {
+            Assert.Equal((ushort)0, command.Command.Flags20);
+            Assert.Equal(new[] { 0, 0, 0, 0 }, command.Command.VertexPayload4.ToArray());
+        }
+        if (entryCommands.Any(command => command.Command.OrderingBucket == 4121 && command.Command.Opcode == 0x32))
+        {
+            Assert.NotEmpty(shadowModes);
+        }
+        NativeBattleGraphicsModel[] visibleModels = before.NativeGraphics.Models.Where(model => (model.Flags0 & 6) == 2 && (model.Flags2 & 0x84) == 0).ToArray();
+        Assert.All(visibleModels, model => Assert.NotNull(model.GeometryBounds52));
+        Console.WriteLine($"Native entry: visiblemodels{visibleModels.Length}, shadowdrawmodes{shadowModes.Length}; zero modes is permitted when the actual camera culls every shadow.");
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         //Native FE/action64 selects sequence14 through495070;116 is the original kernel GF effect ID.
         (packets, int header) = packets.Prepare(new(0, 0xFE, 14, -1, 64, 116, null));
@@ -66,6 +80,8 @@ public sealed class NativeBattleGuardianPresentationTests
         bool selected = false;
         bool restoredBeforeEntry = false;
         bool sawEntry = false;
+        bool sawGeometry = false;
+        bool sawNativeFlash = false;
         NotSupportedException? boundary = null;
         BattleSnapshot? boundaryBefore = null;
         for (int callback = 0; callback < 360; callback++)
@@ -92,6 +108,8 @@ public sealed class NativeBattleGuardianPresentationTests
             }
             selected |= battle.NativeGraphics!.ActionGraphics?.Callback == 0x50B2A0;
             sawEntry |= battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor == 0x2521748;
+            sawGeometry |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Pass > 0 && command.Command.Packet.Bank == "20DFAB8") == true;
+            sawNativeFlash |= battle.NativeGraphics.PrimitiveFrame?.LastCommands.Any(command => command.Command.Packet.Bank == "20DFAB8" && command.Command.Opcode == 0x2A && command.Command.OrderingBucket == 8 && command.Command.Flags20 == 1) == true;
         }
         NativeBattleGraphicsModel finalCaster = battle.NativeGraphics!.Models[0];
         string diagnostic = $"callback={battle.NativeGraphics.Callback}; actionPhase={battle.NativeGraphics.Descriptors.Tasks.FirstOrDefault(task => task.Kind == NativeBattleDescriptorTaskKind.Action104)?.Phase}; casterFlags0={finalCaster.Flags0:X}; sequence={finalCaster.Sequence}; cursor={finalCaster.SequenceState?.Offset46}; resource44={finalCaster.ResourceFlags44:X}; IO={battle.NativeEffectIoResult}; cameraMask={battle.NativeCamera?.Mask}; descriptor={battle.NativeGraphics.OriginalEffect?.ReturnedDescriptor:X}; boundary={boundary}";
@@ -101,15 +119,21 @@ public sealed class NativeBattleGuardianPresentationTests
         Assert.True(sawEntry, diagnostic);
         Assert.NotNull(boundary);
         Assert.Contains("6C3940", boundary.Message);
-        Assert.Contains("reached original6C6060 drawable node", boundary.Message);
+        Assert.Contains("phase77 requires original7016B0 source12A9664 and701970/6C53A0", boundary.Message);
+        Assert.True(sawGeometry);
+        Assert.True(sawNativeFlash);
         Assert.Equal((ushort)116, battle.NativeGraphics!.OriginalEffect!.Binding.Effect);
         Assert.Equal(0x2521748u, battle.NativeGraphics.OriginalEffect.ReturnedDescriptor);
         Assert.Contains(battle.NativeGraphics.OriginalEffect.Pools, pool => pool.DescriptorAddress == 0x2521738 && pool.Stride == 0x8D0 && pool.Slots.Single().Callback == 0x6C3940);
         Assert.Equal((byte?)0, battle.NativeEffectMemory!.GuardianCasterBank);
         ushort boundaryPhase = battle.NativeGraphics.OriginalEffect.Pools.Single(pool => pool.DescriptorAddress == 0x2521738).Slots[0].ReadWord(12);
-        Assert.InRange(boundaryPhase, (ushort)2, (ushort)29);
-        Assert.NotEqual(0, battle.NativeGraphics.Models[3].Flags0 & 4);
+        Assert.Equal((ushort)77, boundaryPhase);
+        Assert.Equal(0, battle.NativeGraphics.Models[3].Flags0 & 4);
         Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240066, Flags: 1, Pan: 128 });
+        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Sound: 240069, Flags: 1, Pan: 128 });
+        uint stream = unchecked((uint)battle.NativeEffectMemory.SummonStream!.Number!.Value);
+        Assert.Equal(0x2108954u, battle.NativeEffectMemory.SummonStream.SourceAddress);
+        Assert.Contains(battle.Events, entry => entry.NativeModuleSound is { Flags: 0, RawPan: 128, Volume: 127 } sound && sound.Sound == stream);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");
         Assert.NotNull(boundaryBefore);
         Assert.Null(boundaryBefore.ActiveAction);

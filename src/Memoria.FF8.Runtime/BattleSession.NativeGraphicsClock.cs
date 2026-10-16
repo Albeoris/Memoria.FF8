@@ -128,6 +128,10 @@ public sealed partial class BattleSession
             if (definition.NativeGraphics?.PrimitiveTables is not null && (model.Flags0 & 2) != 0)
             {
                 NativeBattleGraphicsResource drawResource = NativeGraphicsPoseResource(graphics with { Models = models.SetItem(index, model) }, index);
+                if ((model.Flags0 & 6) == 2 && (model.Flags2!.Value & 0x84) == 0)
+                {
+                    model = NativeBattlePoseMatrices.PublishShadowBounds5086F0(model, drawResource.PoseSource ?? throw new NotSupportedException("Native5086F0 requires its actual posed body skeleton."));
+                }
                 graphics = SubmitNativeModelPackets502D40(graphics, model, drawResource);
             }
             if ((model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && !((model.Flags8!.Value & 0x18) != 0 && (model.ResourceFlags44!.Value & 0x40) != 0) && (flags & 0x201) == 0)
