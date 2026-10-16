@@ -22,6 +22,10 @@ public sealed partial class EventEngine
         }
         try
         {
+            if ((fiber.Stack.Peek() & 3) == 3 && UnsupportedPartyMenuRequest(Jsm.Opcode.JUNCTION) is string menuRefusal)
+            {
+                return menuRefusal;
+            }
             NativeJunctionResult prepared = state.PrepareJunction(fiber.Stack.Peek(), Scene.Party, controls.EventFlags104 & 7);
             if (prepared.FieldParty.Where(identity => identity != 255).Distinct().Count() != prepared.FieldParty.Count(identity => identity != 255))
             {
@@ -53,6 +57,11 @@ public sealed partial class EventEngine
         Scene.Party.Clear();
         Scene.Party.AddRange(prepared.FieldParty.Select(identity => (int)identity));
         int[] operands = Pop(fiber, 1);
+        if ((operands[0] & 3) == 3)
+        {
+            RequestGuestSelectionMenu(fiber, operands[0], checked((byte)(controls.EventFlags104 & 7)));
+            return operands;
+        }
         // Native51EFB0 returns3 on enable and disable; do not refresh retained actor bindings here.
         WaitFrames(fiber, 1);
         return operands;

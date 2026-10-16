@@ -35,13 +35,14 @@ public sealed record NativeWorldGardenDismountReceipt([property: JsonRequired] i
 }
 
 /// <summary>Executed normal-foot loader authority for native 20409E4 and C75CF8; absence in historical world snapshots remains unknown.</summary>
-public sealed record NativeFootWorldRuntimeState
+public sealed partial record NativeFootWorldRuntimeState
 {
     public const int CurrentProofVersion = 1;
     public const string FirstLoadRule = "ff8-en-first-foot-542b90-548080-save110-v1";
     public const string SavedReloadRule = "ff8-en-foot-entry62-548080-54a0d0-v1";
     public const string TrainDismountRule = "ff8-en-foot-train-dismount-548af0-retained-process-v1";
     public const string GardenDismountRule = NativeWorldGardenDismountReceipt.DismountRule;
+    public const string RagnarokDismountRule = NativeWorldRagnarokDismountReceipt.DismountRule;
 
     [JsonRequired]
     public required int ProofVersion { get; init; }
@@ -83,6 +84,8 @@ public sealed record NativeFootWorldRuntimeState
     public NativeNormalFootObjectProcess? NormalObjects { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeWorldGardenDismountReceipt? GardenDismount { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldRagnarokDismountReceipt? RagnarokDismount { get; init; }
 
     public static NativeFootWorldRuntimeState CreateGardenDismount(NativeGardenWorldRuntimeState garden, NativeGardenTransferState completedTransfer, NativeWorldProcess process, int? previousHorizontalInput)
     {
@@ -205,7 +208,19 @@ public sealed record NativeFootWorldRuntimeState
         GroundCache?.Validate();
         StationTrains?.Validate();
         NormalObjects?.Validate();
-        if (Rule == GardenDismountRule)
+        if (Rule == RagnarokDismountRule)
+        {
+            if (RagnarokDismount is null || GardenDismount is not null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant != 0 || CameraOffsetY != RagnarokDismount.ProjectionCamera.OffsetY || CameraOffsetZ != RagnarokDismount.Camera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
+            {
+                throw new InvalidDataException("Ragnarok foot handoff lost its completed landing or retained ground, forest and camera owners.");
+            }
+            RagnarokDismount.Validate();
+        }
+        else if (RagnarokDismount is not null)
+        {
+            throw new InvalidDataException("Native foot cannot acquire a Ragnarok dismount receipt without its executed completion rule.");
+        }
+        else if (Rule == GardenDismountRule)
         {
             if (GardenDismount is null || GardenDismount.ProjectionCamera is null || StationTrains is not null || TrainDismount is not null || StationTrainProcess is not null || NormalObjects is not null || ReloadSourceWorldFrame is not null || EntityType != 0 || AnimationVariant != 0 || CameraOffsetY != GardenDismount.ProjectionCamera.OffsetY || CameraOffsetZ != GardenDismount.ProjectionCamera.OffsetZ || GroundCache is null || GroundYaw is null || Forest is null)
             {
@@ -242,7 +257,7 @@ public sealed record NativeFootWorldRuntimeState
         {
             throw new InvalidDataException("Native foot retained input/yaw exceeds its physical word contract.");
         }
-        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule or GardenDismountRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
+        if (ProofVersion != CurrentProofVersion || Rule is not (FirstLoadRule or SavedReloadRule or TrainDismountRule or GardenDismountRule or RagnarokDismountRule) || EntityType > 1 || AnimationVariant > 1 || MapDisplayMode > 3 || Rule == FirstLoadRule && (AnimationVariant != 0 || ReloadSourceWorldFrame is not null) || Rule == SavedReloadRule && (ReloadSourceWorldFrame is null or < 0))
         {
             throw new InvalidDataException("Invalid native foot-world loader or saved-reload authority.");
         }

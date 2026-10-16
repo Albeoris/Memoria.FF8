@@ -27,7 +27,11 @@ public sealed partial class EventEngine
 
     private bool SelectPartyMenuSlot(int slot)
     {
-        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection, TemporaryCombatParty: not null } current || (uint)slot >= 3)
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection or NativeFieldMenuKind.GuestSelection, TemporaryCombatParty: not null } current || (uint)slot >= 3)
+        {
+            return false;
+        }
+        if (current.Kind == NativeFieldMenuKind.GuestSelection && (slot == 0 || (current.NativeEntrySelection & 1 << slot) == 0))
         {
             return false;
         }
@@ -46,7 +50,7 @@ public sealed partial class EventEngine
 
     private bool SelectPartyMenuMember(int character)
     {
-        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection, TemporaryReserveParty: not null } current || (uint)character >= 8 && character != 255)
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection or NativeFieldMenuKind.GuestSelection, TemporaryReserveParty: not null } current || (uint)character >= 8 && character != 255)
         {
             return false;
         }
@@ -56,6 +60,10 @@ public sealed partial class EventEngine
             return false;
         }
         int slot = current.SelectedPartySlot ?? Array.IndexOf(current.TemporaryCombatParty!, (byte)255);
+        if (current.Kind == NativeFieldMenuKind.GuestSelection && current.SelectedPartySlot is null)
+        {
+            slot = Enumerable.Range(1, 2).FirstOrDefault(index => (current.NativeEntrySelection & 1 << index) != 0 && current.TemporaryCombatParty![index] == 255, -1);
+        }
         if (slot < 0)
         {
             throw new NotSupportedException("Replacing an occupied party-menu cell requires an explicit SelectPartySlot input.");
@@ -76,7 +84,7 @@ public sealed partial class EventEngine
 
     private bool CancelPartyMenuSelection()
     {
-        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection, SelectedPartySlot: not null } current)
+        if (partyMenu is not { Phase: NativePartyMenuPhase.Active, Kind: NativeFieldMenuKind.PartySelection or NativeFieldMenuKind.GuestSelection, SelectedPartySlot: not null } current)
         {
             return false;
         }

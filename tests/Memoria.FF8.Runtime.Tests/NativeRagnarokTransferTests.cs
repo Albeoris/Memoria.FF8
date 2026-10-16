@@ -7,8 +7,8 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeRagnarokTransferTests
 {
-    private static NativeRagnarokTransferCamera LandedCamera => new(1024, 5216, -112, 0, -341, [2196, 2496, 2746, 2946, 4095], [1896, 2196, 2496, 2746]);
-    private static NativeRagnarokTransferCamera FlyingCamera => new(1024, 6144, -176, 400, -341, [2896, 3296, 3596, 3846, 4095], [2996, 3196, 3396, 3596]);
+    private static NativeRagnarokTransferCamera LandedCamera => new(1024, 5216, -112, 0, -7168, [2196, 2496, 2746, 2946, 4095], [1896, 2196, 2496, 2746]);
+    private static NativeRagnarokTransferCamera FlyingCamera => new(1024, 6144, -176, 400, -14336, [2896, 3296, 3596, 3846, 4095], [2996, 3196, 3396, 3596]);
 
     [Fact]
     public void TakeoffRunsFortyOneYawCallbacksThenTwentyCameraCallbacksAndSnapsAtSixtyOne()
@@ -18,7 +18,7 @@ public sealed class NativeRagnarokTransferTests
         Assert.Equal(-327, step.Position.Y);
         Assert.Equal(307, step.TransitionPhase);
         Assert.Equal(311, step.AnimationCounter);
-        Assert.Equal(120, step.InitialCooldown);
+        Assert.Equal(120, step.InitialVerticalScale);
         Assert.Equal((short)-112, step.Camera.Pitch);
         Assert.True(step.CameraProjectionMode);
         for (int count = 2; count <= 61; count++)
@@ -38,12 +38,14 @@ public sealed class NativeRagnarokTransferTests
                 Assert.Equal((short)-115, step.Camera.Pitch);
                 Assert.Equal(5262, step.Camera.CurveThreshold);
                 Assert.Equal((short)2231, step.Camera.ProjectionWords[0]);
+                Assert.Equal((short)-7526, step.Camera.OffsetZ);
                 Assert.False(step.CameraProjectionMode);
             }
         }
         Assert.Equal(new NativeWorldPathPosition(200, -1947, 900), step.Position);
         Assert.Equal((short)-175, step.Camera.Pitch);
         Assert.Equal(6144, step.Camera.CurveThreshold);
+        Assert.Equal((short)-14336, step.Camera.OffsetZ);
         Assert.Equal(new short[] { 2896, 3296, 3586, 3846, 4095 }, step.Camera.ProjectionWords);
         Assert.Equal(0, step.TransitionPhase);
         Assert.Throws<InvalidOperationException>(() => step.State.Advance());
@@ -55,7 +57,7 @@ public sealed class NativeRagnarokTransferTests
         NativeRagnarokTransferState state = new(NativeRagnarokTransferKind.Landing, new(200, -1947, 900), -301, 400, FlyingCamera with { Pitch = -175, Yaw = 0 }, LandedCamera with { ProjectionDistance = 640 });
         NativeRagnarokTransferStep step = state.Advance();
         Assert.Equal(8, step.AnimationCounter);
-        Assert.Equal(16, step.InitialCooldown);
+        Assert.Equal(16, step.InitialVerticalScale);
         Assert.Null(step.CameraProjectionMode);
         for (int count = 2; count <= 61; count++)
         {
@@ -72,6 +74,7 @@ public sealed class NativeRagnarokTransferTests
         Assert.Equal((short)-114, step.Camera.Pitch);
         Assert.Equal((short)366, step.Camera.Yaw);
         Assert.Equal((short)2225, step.Camera.ProjectionWords[0]);
+        Assert.Equal((short)-7077, step.Camera.OffsetZ);
         Assert.Equal(0, step.AnimationCounter);
         Assert.Equal(0, step.TransitionPhase);
     }
@@ -79,13 +82,13 @@ public sealed class NativeRagnarokTransferTests
     [Fact]
     public void NativeDwordDifferencesAreDividedBeforeWordStorageAndHeightStepCanWrap()
     {
-        NativeRagnarokTransferCamera initial = FlyingCamera with { ProjectionDistance = 100000, CurveThreshold = 100000, OffsetY = 32760 };
-        NativeRagnarokTransferState state = new(NativeRagnarokTransferKind.Landing, new(0, 0, 0), 2000000, 0, initial, LandedCamera with { OffsetY = -32760 });
+        NativeRagnarokTransferCamera initial = FlyingCamera with { ProjectionDistance = 100000, CurveThreshold = 100000, OffsetZ = 32760 };
+        NativeRagnarokTransferState state = new(NativeRagnarokTransferKind.Landing, new(0, 0, 0), 2000000, 0, initial, LandedCamera with { OffsetZ = -32760 });
         NativeRagnarokTransferStep first = state.Advance();
         Assert.Equal(-32203, first.Position.Y);
         Assert.Equal(98351, first.Camera.ProjectionDistance);
         Assert.Equal(98421, first.Camera.CurveThreshold);
-        Assert.Equal((short)31668, first.Camera.OffsetY);
+        Assert.Equal((short)31668, first.Camera.OffsetZ);
     }
 
     [Theory]
@@ -151,7 +154,8 @@ public sealed class NativeRagnarokTransferTests
         Assert.Equal(LandedCamera.ProjectionWords, Words(0xC767DC, 5));
         Assert.Equal(LandedCamera.PerspectiveWords, Words(0xC767F0, 4));
         Assert.Equal((short)-112, Words(0xC76D28, 1)[0]);
-        Assert.Equal((short)-341, Words(0xC76D3A, 1)[0]);
+        Assert.Equal(LandedCamera.OffsetZ, Words(0xC76D34, 1)[0]);
+        Assert.Equal(FlyingCamera.OffsetZ, Words(0xC76D3C, 1)[0]);
     }
 
     [Fact]

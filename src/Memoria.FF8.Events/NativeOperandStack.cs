@@ -9,15 +9,18 @@ internal sealed class NativeOperandStack : IEnumerable<int>
     private readonly Stack<NativeScalarValue> values = new();
     public int Count => values.Count;
     public bool HasUncertainty => values.Any(value => !value.IsExact);
+    public Action<NativeScalarValue>? Pushed { get; set; }
+    public Action? Popped { get; set; }
 
     public void Push(int value)
     {
-        values.Push(NativeScalarValue.Exact(value));
+        Push(NativeScalarValue.Exact(value));
     }
 
     public void Push(NativeScalarValue value)
     {
         value.Validate();
+        Pushed?.Invoke(value);
         values.Push(value);
     }
 
@@ -29,7 +32,7 @@ internal sealed class NativeOperandStack : IEnumerable<int>
     public int Pop()
     {
         int value = values.Peek().RequireExact();
-        values.Pop();
+        PopValue();
         return value;
     }
 
@@ -40,6 +43,7 @@ internal sealed class NativeOperandStack : IEnumerable<int>
 
     public NativeScalarValue PopValue()
     {
+        Popped?.Invoke();
         return values.Pop();
     }
 

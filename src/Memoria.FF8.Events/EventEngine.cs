@@ -200,6 +200,7 @@ public sealed partial class EventEngine
             if (nativeRuntimeProfile is { IsVerified: true } && next.NativeObjects.Take(next.NativeActorCount).Contains(obj.Index))
             {
                 actors[^1].NativePartyFlags = new NativeActorPartyFlags(false, false);
+                actors[^1].NativeOperandMemory = NativeActorOperandMemory.Allocated();
                 actors[^1].NativeTurnMode580 = 0;
                 actors[^1].NativeSavedCollisionDisabled16 = false;
                 actors[^1].NativeActorWord398 = 0;
@@ -574,6 +575,7 @@ public sealed partial class EventEngine
 
     private int Run(Fiber fiber, int instructionBudget)
     {
+        BindNativeOperandMemory(fiber);
         if (instructionBudget == 0)
         {
             return 0;
@@ -632,7 +634,15 @@ public sealed partial class EventEngine
             fiber.Position++;
             try
             {
+                NativeScalarValue[]? enteringResults = operation.Opcode == Jsm.Opcode.LBL && HasNativeOperandRecord(fiber.ObjectId) && !fiber.NativeResultFrameEntered ? ReadNativeDoorLiveResults(fiber) : null;
                 Execute(fiber, operation);
+                if (enteringResults is not null && fiber.NativeResultFrameEntered)
+                {
+                    foreach (NativeScalarValue result in enteringResults)
+                    {
+                        PushNativePhysicalOperand(fiber.ObjectId, result);
+                    }
+                }
             }
             catch (EventScriptException)
             {

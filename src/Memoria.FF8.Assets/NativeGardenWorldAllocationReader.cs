@@ -61,12 +61,18 @@ public static class NativeGardenWorldAllocationReader
             {
                 continue;
             }
-            ushort[] expected = [0xFF01, 0, 0xFF02, minimum, 0xFF03, maximum, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65, 0xFF05, 0];
-            if (clause.Length != expected.Length * 2)
+            List<ushort> expected = [0xFF01, 0, 0xFF02, minimum, 0xFF03, maximum, 0xFF04, 0, 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65];
+            bool whiteSeeDShip = clause.Length == 44 && Word(clause, 36) == 0xFF13 && Word(clause, 38) == 0x1958;
+            if (whiteSeeDShip)
+            {
+                expected.AddRange([0xFF13, 0x1958]);
+            }
+            expected.AddRange([0xFF05, 0]);
+            if (clause.Length != expected.Count * 2)
             {
                 throw new NotSupportedException("Garden's reached selected clause has additional objects or branches outside the complete ordinary allocation contract.");
             }
-            for (int word = 0; word < expected.Length; word++)
+            for (int word = 0; word < expected.Count; word++)
             {
                 if (Word(clause, word * 2) != expected[word])
                 {
@@ -86,6 +92,20 @@ public static class NativeGardenWorldAllocationReader
             int garden64 = objects.Count;
             objects.Add(new NativeGardenWorldObject(64, 0, gardenPosition, 0, unchecked((short)gardenPose.Yaw), 0));
             objects.Add(new NativeGardenWorldObject(65, 2, gardenPosition, 0, unchecked((short)gardenPose.Yaw), 0));
+            if (whiteSeeDShip)
+            {
+                //544860 decodes FF13 lowBYTE shape88/highBYTE coordinate25,
+                //then545280 copies the original section10 pose with flags0.
+                const int offset = 25 * 16;
+                if (offset > coordinates.Length - 16)
+                {
+                    throw new InvalidDataException("Native FF13/0x1958 has no complete original coordinate25.");
+                }
+                ReadOnlySpan<byte> raw = coordinates.Slice(offset, 16);
+                NativeWorldPathPosition position = new(BinaryPrimitives.ReadInt32LittleEndian(raw), BinaryPrimitives.ReadInt32LittleEndian(raw[4..]), BinaryPrimitives.ReadInt32LittleEndian(raw[8..]));
+                int orientation = BinaryPrimitives.ReadInt32LittleEndian(raw[12..]);
+                objects.Add(new NativeGardenWorldObject(88, 0, position, 0, unchecked((short)orientation), unchecked((short)(orientation >> 16))));
+            }
             if ((guardianForce13Flags & 1) == 0)
             {
                 objects.Add(new NativeGardenWorldObject(94, 0, cactuarLoadPosition, 0, 0, 0));

@@ -21,7 +21,8 @@ public enum PlayerActionKind
     SetJunctionCommand,
     SetJunctionAbility,
     SelectGuardianForceLearning,
-    SetJunctionMagic
+    SetJunctionMagic,
+    WorldButtons
 }
 
 public enum PlayerTriggerKind
@@ -113,7 +114,7 @@ public sealed partial class EventEngine
                     PlayerActionKind.SelectPartyMember => SelectPartyMenuMember(action.Value),
                     PlayerActionKind.BuyShopItem => action.Quantity is int quantity && BuyNativeShopItem(action.Value, quantity),
                     PlayerActionKind.Confirm => ConfirmPartyMenu(),
-                    PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), NativeFieldMenuKind.PartySelection => CancelPartyMenuSelection(), _ => CloseNormalMenu() },
+                    PlayerActionKind.Cancel => PartyMenu.Kind switch { NativeFieldMenuKind.Shop => CloseNativeShop(), NativeFieldMenuKind.WeaponShop => CloseNativeWeaponShop(), NativeFieldMenuKind.PartySelection or NativeFieldMenuKind.GuestSelection => CancelPartyMenuSelection(), _ => CloseNormalMenu() },
                     PlayerActionKind.Wait => true,
                     _ => false
                 };

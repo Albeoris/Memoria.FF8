@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeFieldBarMirror([property: JsonRequired] short Mode, [property: JsonRequired] short Value, [property: JsonRequired] short Maximum, [property: JsonRequired] short Minimum, [property: JsonRequired] short Flags, [property: JsonRequired] short Y, [property: JsonRequired] short X);
+public sealed record NativeFieldBarMirror([property: JsonRequired] short Mode, [property: JsonRequired] short Value, [property: JsonRequired] short Maximum, [property: JsonRequired] short Minimum, [property: JsonRequired] short Flags, [property: JsonRequired] short Y, [property: JsonRequired] short X, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] short? WidthWord5A = null);
 public sealed record NativeFieldBarDisplay([property: JsonRequired] short X, [property: JsonRequired] short Y, [property: JsonRequired] short Minimum, [property: JsonRequired] short Maximum, [property: JsonRequired] short Value, [property: JsonRequired] short Width, [property: JsonRequired] short Fill, [property: JsonRequired] byte Flags)
 {
     [JsonIgnore]
@@ -30,9 +30,13 @@ public sealed record NativeFieldBarsState([property: JsonRequired] int Version, 
         }
         foreach (NativeFieldBarSlot slot in new[] { First, Second }.OfType<NativeFieldBarSlot>())
         {
-            if (slot.Mirror is null || slot.Display is null || slot.Mirror.Mode is not (0 or 1) || slot.Display.Width != 96 || (slot.Mirror.Mode == 1) != slot.Display.Visible)
+            if (slot.Mirror is null || slot.Display is null || slot.Mirror.Mode is not (0 or 1 or 2) || slot.Mirror.Mode == 1 && slot.Display.Width != 96 || slot.Mirror.Mode == 2 && (slot.Mirror.WidthWord5A is not short width || width != slot.Display.Width) || (slot.Mirror.Mode != 0) != slot.Display.Visible)
             {
                 throw new InvalidDataException("Native field bar mirror and display visibility disagree or have unsupported geometry.");
+            }
+            if (slot.Mirror.Mode == 0 && slot.Display.Width != 96 && slot.Mirror.WidthWord5A != slot.Display.Width)
+            {
+                throw new InvalidDataException("Hidden bar width has neither its fixed constructor nor a retained variable-width mirror.");
             }
             if (slot.Mirror.X != slot.Display.X || slot.Mirror.Y != slot.Display.Y || slot.Mirror.Minimum != slot.Display.Minimum || slot.Mirror.Maximum != slot.Display.Maximum || slot.Mirror.Value != slot.Display.Value || (unchecked((byte)slot.Mirror.Flags) & 0x3F) != (slot.Display.Flags & 0x3F))
             {
@@ -44,8 +48,17 @@ public sealed record NativeFieldBarsState([property: JsonRequired] int Version, 
     public NativeFieldBarsState Display(int id, int x, int y, int flags, int minimum, int maximum, int value)
     {
         RequireId(id);
-        NativeFieldBarMirror mirror = new(1, unchecked((short)value), unchecked((short)maximum), unchecked((short)minimum), unchecked((short)flags), unchecked((short)y), unchecked((short)x));
+        NativeFieldBarMirror mirror = new(1, unchecked((short)value), unchecked((short)maximum), unchecked((short)minimum), unchecked((short)flags), unchecked((short)y), unchecked((short)x), Get(id)?.Mirror.WidthWord5A);
         NativeFieldBarDisplay display = new(unchecked((short)x), unchecked((short)y), unchecked((short)minimum), unchecked((short)maximum), unchecked((short)value), 96, unchecked((short)Scale(value, minimum, maximum, 96)), unchecked((byte)(flags | 0x80)));
+        return Set(id, new(mirror, display));
+    }
+
+    /// <summary>Native529D40/4B7D70: eight DWORD operands, initial DWORD scaling, retained signed WORD width and mode2 mirror.</summary>
+    public NativeFieldBarsState DisplayWidth(int id, int x, int y, int flags, int minimum, int maximum, int value, int width)
+    {
+        RequireId(id);
+        NativeFieldBarMirror mirror = new(2, unchecked((short)value), unchecked((short)maximum), unchecked((short)minimum), unchecked((short)flags), unchecked((short)y), unchecked((short)x), unchecked((short)width));
+        NativeFieldBarDisplay display = new(unchecked((short)x), unchecked((short)y), unchecked((short)minimum), unchecked((short)maximum), unchecked((short)value), unchecked((short)width), unchecked((short)Scale(value, minimum, maximum, width)), unchecked((byte)(flags | 0x80)));
         return Set(id, new(mirror, display));
     }
 

@@ -6,6 +6,20 @@ public sealed class NativeRagnarokWorldTests
 {
     private static NativeRagnarokMotorState Fresh => new(0, 0, 0, 0, -120, 0, -251, 0, 0);
 
+    [Theory]
+    [InlineData((byte)5)]
+    [InlineData((byte)6)]
+    public void ScriptedCallbacksDampBodyButPreserveTransferCameraAndHeight(byte mode)
+    {
+        NativeRagnarokMotorState before = Fresh with { Speed = 80, BodyYaw = 1024, BodyPitch = 33, BodyRoll = -65, CameraYaw = 128, CameraPitch = -200, CameraFollowSpeed = 64, VerticalBias204DADC = -31 };
+        NativeRagnarokMotorResult sample = NativeRagnarokMotor.StepScripted(before, mode);
+        Assert.Equal((64, 0), (sample.MotionX, sample.MotionGraphicsZ));
+        Assert.Equal((short)17, sample.State.BodyPitch);
+        Assert.Equal((short)-33, sample.State.BodyRoll);
+        Assert.Equal((short)-16, sample.State.VerticalBias204DADC);
+        Assert.Equal((before.CameraYaw, before.CameraPitch, before.CameraFollowSpeed, before.FlightHeight), (sample.State.CameraYaw, sample.State.CameraPitch, sample.State.CameraFollowSpeed, sample.State.FlightHeight));
+    }
+
     [Fact]
     public void DigitalInputUsesNativeDistinctThrottleSteeringVerticalAndOpposingPriorities()
     {

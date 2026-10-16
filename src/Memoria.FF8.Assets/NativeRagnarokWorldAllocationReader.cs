@@ -7,12 +7,12 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeRagnarokWorldAllocationReader
 {
-    public static NativeRagnarokWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay)
+    public static NativeRagnarokWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay, NativeSavedWorldPose? parkedRagnarokPose2 = null)
     {
         entry.Validate();
         memory.Validate();
         saved.Validate();
-        if (unchecked((byte)packet.Mode) != 50 || unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (unchecked((byte)packet.Mode) is not (0 or 50) || unchecked((byte)packet.Mode) == 0 && (unchecked((sbyte)packet.EntryIndex) != 62 || parkedRagnarokPose2 is null) || unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
             throw new NotSupportedException("Ragnarok allocation requires ordinary controlled50 and the original unoccupied-car allocation branch.");
         }
@@ -90,7 +90,8 @@ public static class NativeRagnarokWorldAllocationReader
             objects.Add(new(3, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
         }
         int ragnarokIndex = objects.Count;
-        objects.Add(new(1, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
+        NativeSavedWorldPose ship = parkedRagnarokPose2 ?? loadPose;
+        objects.Add(new(1, 0, new(ship.X, ship.Height, -ship.RawZ), 0, unchecked((short)ship.Yaw), 0));
         NativeWorldPathPosition gardenPosition = new(garden.X, garden.Height, -garden.RawZ);
         objects.Add(new(64, 0, gardenPosition, 0, unchecked((short)garden.Yaw), 0));
         objects.Add(new(65, 2, gardenPosition, 0, unchecked((short)garden.Yaw), 0));
@@ -108,7 +109,7 @@ public static class NativeRagnarokWorldAllocationReader
                 AddCoordinate(objects, coordinates, 80, 31 + group, 4);
             }
         }
-        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay);
+        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2 };
         result.Validate();
         return result;
     }

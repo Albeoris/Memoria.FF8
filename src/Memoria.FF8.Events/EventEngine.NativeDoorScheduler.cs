@@ -20,6 +20,10 @@ public sealed partial class EventEngine
         // live result bank produced by52C650 intact. No saved-result frame exists.
         fiber.Position = fiber.Script.Start + 1;
         fiber.NativeDoorDefaultFrame = true;
+        if (actors[fiber.ObjectId].NativeOperandMemory is { } operands)
+        {
+            actors[fiber.ObjectId].NativeOperandMemory = operands with { LiveDepth = -1 };
+        }
         foreach (var result in initialization.Results)
         {
             fiber.Results.Add(result.Key, result.Value);

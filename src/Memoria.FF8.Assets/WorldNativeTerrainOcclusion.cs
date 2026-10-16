@@ -35,7 +35,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
             }
             for (int depth = low; depth <= high; depth++)
             {
-                int curve = (depth >> 2) - CurveThreshold;
+                int curve = (depth >> 2) - curveThreshold;
                 //4022D0/5513A0 use signed >>12 here, unlike5470E0's two divisions.
                 int height = curve < 0 ? relative.Y : unchecked(((4096 - curve) * relative.Y) >> 12) + (curve >> 6) * (curve >> 6);
                 heights.Add(unchecked((short)height));
@@ -110,13 +110,16 @@ public sealed partial class WorldAssets
 {
     private readonly Dictionary<int, byte[]> nativeTerrainVertexCounts = [];
 
-    public WorldNativeTerrainOcclusionResult CertifyNativeTerrainCameraOcclusion(NativeWorldFootCameraState camera, short groundHeight, IReadOnlyDictionary<int, int> replacements, int entityType = 48)
+    public WorldNativeTerrainOcclusionResult CertifyNativeTerrainCameraOcclusion(NativeWorldFootCameraState camera, short groundHeight, IReadOnlyDictionary<int, int> replacements, int entityType = 48, int? nativeCurveThreshold = null)
     {
-        if (entityType is not (0 or 1 or 32 or 33 or 48))
+        if (entityType is not (0 or 1 or 32 or 33 or 48 or 50))
         {
             throw new NotSupportedException("Native terrain camera occlusion requires the reached ordinary foot/car/Garden renderer.");
         }
-        NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateTerrainFoot(camera);
+        //5519B0 (ordinary50 fast blocks) never writes203FDC4.552380's
+        //scripted50 fast blocks also exclude50. The shared direct5513A0
+        //branch below remains the only possible latch producer for entity50.
+        NativeWorldPathProjectionCertificate projection = NativeWorldPathProjectionCertificate.CreateTerrainFoot(camera, nativeCurveThreshold ?? (entityType == 50 ? 6144 : 5216));
         NativeTerrainScreenBounds? body = projection.ProjectTerrainOcclusion(new(camera.X, groundHeight, -camera.RawZ), groundReference: true);
         if (body is null)
         {

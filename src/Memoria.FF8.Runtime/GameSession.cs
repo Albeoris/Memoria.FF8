@@ -657,7 +657,7 @@ public sealed partial class GameSession : IEventServices
             {
                 throw new InvalidDataException("Active native foot forest cooldown disagrees with the world process authority.");
             }
-            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival))))
+            if (world.NativeFootRuntime is NativeFootWorldRuntimeState foot && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || (foot.StationTrains is { } stationSource ? state.WorldArrival != stationSource.Packet || state.SavedWorld is null || state.DepartingWorldState is null || stationSource.Load != NativeTrainWorldLoadReceipt.Create(state.SavedWorld, state.DepartingWorldState, stationSource.Load.Allocation) : unchecked((byte)state.WorldArrival.Mode) != foot.EntityType && !(unchecked((byte)state.WorldArrival.Mode) == 48 && foot.Rule == NativeFootWorldRuntimeState.GardenDismountRule && foot.GardenDismount is not null && world.NativeGardenRuntime?.Allocation.Packet == state.WorldArrival) && !(unchecked((byte)state.WorldArrival.Mode) == 50 && foot.Rule == NativeFootWorldRuntimeState.RagnarokDismountRule && foot.RagnarokDismount is not null && world.NativeRagnarokRuntime?.Allocation.Packet == state.WorldArrival))))
             {
                 throw new InvalidDataException("Native foot world state disagrees with its original transition entity type.");
             }
@@ -669,6 +669,14 @@ public sealed partial class GameSession : IEventServices
                 }
                 garden.Validate(state.WorldProcess);
                 world.NativeFootRuntime?.GardenDismount?.Validate(garden, state.WorldProcess);
+            }
+            if (world.NativeRagnarokRuntime is { } ragnarok && (state.Scene != SceneKind.WorldMap || state.WorldArrival != ragnarok.Allocation.Packet || state.WorldProcess is null || state.WorldProcess.CarCameraFollowSpeed != ragnarok.Motor.CameraFollowSpeed))
+            {
+                throw new InvalidDataException("Ragnarok scene lost its original allocation packet or shared process camera-follow owner.");
+            }
+            if (world.NativeFootRuntime?.RagnarokDismount is { } ragnarokDismount)
+            {
+                ragnarokDismount.Validate(world.NativeRagnarokRuntime ?? throw new InvalidDataException("Ragnarok foot lost its actual parked allocation."), state.WorldProcess);
             }
             if (world.NativeCarRuntime is { } car && (state.Scene != SceneKind.WorldMap || state.WorldArrival is null || unchecked((byte)state.WorldArrival.Mode) != car.EntityType || state.SavedWorld?.Slot4.ShapeId != car.ShapeId))
             {
@@ -700,6 +708,20 @@ public sealed partial class GameSession : IEventServices
         world.NativeScriptedRuntime?.Validate();
         world.NativeTrainRuntime?.Validate();
         world.NativeGardenRuntime?.Validate();
+        world.NativeRagnarokRuntime?.RequireSceneState();
+        if (world.NativeRagnarokRuntime is { } ragnarokWorld)
+        {
+            bool parkedReload = world.NativeFootRuntime?.Rule == NativeFootWorldRuntimeState.SavedReloadRule && unchecked((byte)ragnarokWorld.Allocation.Packet.Mode) == 0 && ragnarokWorld.Allocation.ParkedRagnarokPose2 is not null;
+            if (world.NativeFootRuntime is not null && world.NativeFootRuntime.RagnarokDismount is null && !parkedReload || world.NativeCarRuntime is not null || world.NativeGardenRuntime is not null || world.NativeTrainRuntime is not null || world.NativeScriptedRuntime is not null || world.GroundType is null)
+            {
+                throw new InvalidDataException("Ragnarok requires its sole current physical allocation and accepted ground owner.");
+            }
+            NativeRagnarokWorldObject controlled = ragnarokWorld.Objects[world.NativeFootRuntime is null ? ragnarokWorld.Allocation.RagnarokIndex : 0];
+            if (controlled.Position != new NativeWorldPathPosition(world.X, world.NativeHeight, -world.Z) || ((controlled.Yaw % 4096 + 4096) % 4096) != world.BodyYaw || world.NativeFootRuntime is null && ragnarokWorld.Motor.CameraYaw != world.CameraYaw)
+            {
+                throw new InvalidDataException("Ragnarok world globals disagree with its current native object or motor yaw owners.");
+            }
+        }
         if ((world.NativeCarRuntime is not null ? 1 : 0) + (world.NativeFootRuntime is not null ? 1 : 0) + (world.NativeScriptedRuntime is not null ? 1 : 0) + (world.NativeTrainRuntime is not null ? 1 : 0) > 1)
         {
             throw new InvalidDataException("A world scene cannot simultaneously own foot, car and scripted runtime authority.");

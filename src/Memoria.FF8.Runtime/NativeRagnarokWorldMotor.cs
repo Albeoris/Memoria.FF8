@@ -3,14 +3,18 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>Retained557A90 ordinary entity50/variant0/scriptMode0 scalar owners. Ground/contact publication is separate.</summary>
-public sealed record NativeRagnarokMotorState([property: JsonRequired] int Speed, [property: JsonRequired] ushort BodyYaw, [property: JsonRequired] short BodyPitch, [property: JsonRequired] short BodyRoll, [property: JsonRequired] short FlightHeight, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] short CameraPitch, [property: JsonRequired] short CameraFollowSpeed, [property: JsonRequired] short VerticalBias204DADC)
+public sealed record NativeRagnarokMotorState([property: JsonRequired] int Speed, [property: JsonRequired] ushort BodyYaw, [property: JsonRequired] short BodyPitch, [property: JsonRequired] short BodyRoll, [property: JsonRequired] short FlightHeight, [property: JsonRequired] ushort CameraYaw, [property: JsonRequired] short CameraPitch, [property: JsonRequired] short CameraFollowSpeed, [property: JsonRequired] short? VerticalBias204DADC)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldVerticalBiasState? VerticalBiasAuthority { get; init; }
+
     public void Validate()
     {
-        if (Speed is < -200 or > 200 || BodyYaw >= 4096 || CameraYaw >= 4096 || BodyRoll is < -256 or > 256 || CameraFollowSpeed is < 0 or > 128 || VerticalBias204DADC is < -4096 or > 4096)
+        if (Speed is < -200 or > 200 || BodyYaw >= 4096 || CameraYaw >= 4096 || BodyRoll is < -256 or > 256 || CameraFollowSpeed is < 0 or > 128 || VerticalBias204DADC is null && VerticalBiasAuthority is null || VerticalBias204DADC is not null && VerticalBiasAuthority is not null)
         {
             throw new InvalidDataException("Ragnarok motor lost its native scalar widths, ordinary speed or retained camera/vertical owners.");
         }
+        VerticalBiasAuthority?.Validate();
     }
 }
 
@@ -19,6 +23,24 @@ public readonly record struct NativeRagnarokMotorResult(NativeRagnarokMotorState
 public static class NativeRagnarokMotor
 {
     public const int LoaderVerticalScale = 120;
+
+    public static NativeRagnarokMotorResult StepScripted(NativeRagnarokMotorState before, byte scriptMode, int verticalScale = LoaderVerticalScale)
+    {
+        before.Validate();
+        if (scriptMode is not (5 or 6))
+        {
+            throw new ArgumentOutOfRangeException(nameof(scriptMode));
+        }
+        if (verticalScale is not (16 or 120))
+        {
+            throw new ArgumentOutOfRangeException(nameof(verticalScale));
+        }
+        int speed = Math.Abs(before.Speed) <= 16 ? 0 : before.Speed + (before.Speed > 0 ? -16 : 16);
+        NativeWorldVerticalBiasState bias = (before.VerticalBiasAuthority ?? NativeWorldVerticalBiasState.Exact(before.VerticalBias204DADC!.Value)).Damp(verticalScale >> 3, verticalScale >> 3, 1);
+        NativeRagnarokMotorState after = before with { Speed = speed, BodyPitch = ApproachZero(before.BodyPitch, 16), BodyRoll = ApproachZero(before.BodyRoll, 32), VerticalBias204DADC = bias.IsExact ? bias.Minimum : null, VerticalBiasAuthority = bias.IsExact ? null : bias };
+        (int x, int z) = NativeGardenTransform.Offset(unchecked((short)speed), unchecked((short)before.BodyYaw));
+        return new(after, x, z);
+    }
 
     public static NativeRagnarokMotorResult Step(NativeRagnarokMotorState before, sbyte steering, sbyte throttle, sbyte vertical, byte variant = 0, byte scriptMode = 0)
     {
@@ -68,17 +90,14 @@ public static class NativeRagnarokMotor
         (int motionX, int motionZ) = NativeGardenTransform.Offset(unchecked((short)speed), yaw);
         short height = before.FlightHeight;
         short pitch = before.BodyPitch;
-        short bias;
+        NativeWorldVerticalBiasState bias = (before.VerticalBiasAuthority ?? NativeWorldVerticalBiasState.Exact(before.VerticalBias204DADC!.Value)).StepRagnarok(vertical);
         if (vertical != 0)
         {
             int product = LoaderVerticalScale * vertical;
             height = unchecked((short)(height + (product >> 8)));
-            short proposedBias = unchecked((short)(before.VerticalBias204DADC - (product >> 9)));
-            bias = (short)Math.Clamp((int)proposedBias, -4096, 4096);
         }
         else
         {
-            bias = ApproachZero(before.VerticalBias204DADC, LoaderVerticalScale >> 3);
             pitch = ApproachZero(pitch, 16);
         }
         ushort bodyYaw = (ushort)Wrap(yaw);
@@ -91,7 +110,7 @@ public static class NativeRagnarokMotor
         short targetPitch = unchecked((short)(-256 - height / 24));
         short pitchDifference = unchecked((short)(targetPitch - before.CameraPitch));
         short cameraPitch = Math.Abs((int)pitchDifference) <= 32 ? targetPitch : unchecked((short)(before.CameraPitch + (pitchDifference > 0 ? 32 : -32)));
-        var after = new NativeRagnarokMotorState(speed, bodyYaw, pitch, roll, height, cameraYaw, cameraPitch, follow, bias);
+        var after = new NativeRagnarokMotorState(speed, bodyYaw, pitch, roll, height, cameraYaw, cameraPitch, follow, bias.IsExact ? bias.Minimum : null) { VerticalBiasAuthority = bias.IsExact ? null : bias };
         after.Validate();
         return new NativeRagnarokMotorResult(after, motionX, motionZ);
     }

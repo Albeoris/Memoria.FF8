@@ -158,6 +158,10 @@ public sealed partial record NativeSavedWorldState
     public byte ReadMapDisplayModeForFreshFootLoader()
     {
         Validate();
+        if (RagnarokReturn is { } ragnarok)
+        {
+            return ragnarok.MapDisplayMode110;
+        }
         if (GardenReturn is NativeSavedWorldGardenReturn garden)
         {
             return garden.MapDisplayMode110;
@@ -183,14 +187,14 @@ public sealed partial record NativeSavedWorldState
         ArgumentNullException.ThrowIfNull(receipt);
         Validate();
         receipt.Validate();
-        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null, GardenReturn = null };
+        return this with { FootReturn = receipt, CarReturn = null, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
     }
 
     public NativeSavedWorldState WithGardenReturn(NativeSavedWorldGardenReturn receipt)
     {
         Validate();
         receipt.Validate();
-        return this with { GardenPose3 = receipt.Pose3, GardenReturn = receipt, FootReturn = null, CarReturn = null, ScriptedReturn = null };
+        return this with { GardenPose3 = receipt.Pose3, GardenReturn = receipt, FootReturn = null, CarReturn = null, ScriptedReturn = null, RagnarokReturn = null };
     }
 
     public NativeSavedWorldState WithGardenParking(NativeGardenWorldRuntimeState garden)
@@ -214,7 +218,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("The native car save requires its active shape73 vehicle slot.");
         }
-        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null };
+        return this with { Slot4 = new NativeSavedWorldVehicleSlot(255, receipt.Pose), FootReturn = null, CarReturn = receipt, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
     }
 
     public NativeSavedWorldState WithScriptedReturn(NativeSavedWorldScriptedReturn receipt)
@@ -228,7 +232,7 @@ public sealed partial record NativeSavedWorldState
         {
             throw new InvalidDataException("Native scripted save differs from its preceding return and retained original object/vehicle records.");
         }
-        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt, GardenReturn = null };
+        return this with { FootReturn = null, CarReturn = null, ScriptedReturn = receipt, GardenReturn = null, RagnarokReturn = null };
     }
 
     public NativeSavedWorldState WithOrdinaryCarEntry(byte entityType = 33)
@@ -239,7 +243,7 @@ public sealed partial record NativeSavedWorldState
             throw new NotSupportedException("Native ordinary car entry would replace an unrepresented saved vehicle.");
         }
         byte shape = entityType switch { 32 => 74, 33 => 73, _ => throw new NotSupportedException("Native ordinary car entry requires its supported actual entity type.") };
-        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, GardenReturn = null };
+        return this with { Slot4 = Slot4 with { ShapeId = shape }, CarReturn = null, ScriptedReturn = null, GardenReturn = null, RagnarokReturn = null };
     }
 
     public static NativeSavedWorldState CreateNewGame()
@@ -249,6 +253,7 @@ public sealed partial record NativeSavedWorldState
 
     public void Validate()
     {
+        ValidateRagnarokReturn();
         if (SchemaVersion != CurrentSchemaVersion || Origin is null || Origin.ProofVersion != CurrentProofVersion || !Enum.IsDefined(Origin.Kind) || Origin.InitializationRule != NewGameInitializationRule)
         {
             throw new InvalidDataException("Unsupported or invalid native saved-world provenance.");
@@ -290,6 +295,7 @@ public sealed partial record NativeSavedWorldState
             Slot4 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
             Slot5 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
             GardenPose3 = new NativeSavedWorldPose(0, 0, 0, 0),
+            RagnarokPose2 = new NativeSavedWorldPose(0, 0, 0, 0),
             InitialMapDisplayMode110 = 0,
             FuelDistance112 = 0,
             WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame(),

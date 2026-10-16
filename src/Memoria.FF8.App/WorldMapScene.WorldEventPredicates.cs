@@ -7,6 +7,10 @@ internal sealed partial class WorldMapScene
 {
     private bool IsNearWorldEventShape(WorldState accepted, WorldState cameraState, ushort shape)
     {
+        if (accepted.NativeRagnarokRuntime is not null)
+        {
+            return IsNearRagnarokWorldEventShape(accepted, cameraState, shape);
+        }
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, 0, 0);
         if (accepted.NativeGardenRuntime is { } garden)
         {
@@ -51,13 +55,26 @@ internal sealed partial class WorldMapScene
     {
         switch (opcode)
         {
+            case 0xFF18:
+                return operand == 50 ? scriptMode == 6 : operand == 48 && scriptMode == 9;
+            case 0xFF19:
+                return operand == 50 ? scriptMode == 5 : operand == 48 && scriptMode == 8;
+            case 0xFF1A:
             case 0xFF1B:
+            case 0xFF1C:
+            case 0xFF1D:
+                if (state.NativeRagnarokRuntime is { } ragnarok)
+                {
+                    int FindRagnarokShape(byte shape) => ragnarok.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == shape).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
+                    int[] excluded = [FindRagnarokShape(0), FindRagnarokShape(2), FindRagnarokShape(3), ragnarok.Allocation.RagnarokIndex, -1, FindRagnarokShape(64), FindRagnarokShape(65)];
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, ragnarok.PrimaryContact, ragnarok.BroadContact, ragnarok.Objects.Length, index => ragnarok.Objects[index].ShapeId, index => ragnarok.Objects[index].Position, excluded);
+                }
                 if (state.NativeGardenRuntime is { } garden)
                 {
-                    if (!garden.Objects.Any(item => unchecked((sbyte)item.ShapeId) == operand))
-                    {
-                        return false;
-                    }
+                    int FindShape(byte shape) => garden.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.ShapeId == shape).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
+                    int car = garden.Objects.Select((item, index) => (item, index)).Where(pair => pair.item.EntityType is >= 32 and <= 40 or 132).Select(pair => pair.index).DefaultIfEmpty(-1).Single();
+                    int[] excluded = [garden.Allocation.FootObjectIndex, FindShape(2), FindShape(3), FindShape(1), car, garden.Allocation.Garden64Index, garden.Allocation.Garden65Index];
+                    return WorldAllocatedContactPredicate.Evaluate(new(state.X, state.Z, 0, 0), opcode, operand, state.BodyYaw, garden.PrimaryContact, garden.BroadContact, garden.Objects.Length, index => garden.Objects[index].ShapeId, index => garden.Objects[index].Position, excluded);
                 }
                 else
                 {
@@ -68,7 +85,7 @@ internal sealed partial class WorldMapScene
                         return false;
                     }
                 }
-                throw new NotSupportedException("World event FF1B requires its actual non-vehicle interaction contact owner for an allocated shape.");
+                throw new NotSupportedException($"World event0x{opcode:X4} requires its actual allocated primary/broad contact owner.");
             case 0xFF20:
                 return callbackInput?.Matches(operand);
             case 0xFF21:
@@ -97,7 +114,7 @@ internal sealed partial class WorldMapScene
                 }
                 return saved.MatchesWorldEventVariable(opcode, operand);
             case 0xFF32:
-                NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? throw new NotSupportedException("World event FF32 requires the executed accepted-ground owner.");
+                NativeWorldGroundCacheState cache = state.NativeFootRuntime?.GroundCache ?? state.NativeCarRuntime?.GroundCache ?? state.NativeTrainRuntime?.GroundCache ?? state.NativeGardenRuntime?.GroundCache ?? state.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException("World event FF32 requires the executed accepted-ground owner.");
                 bool? passed = null;
                 foreach (NativeWorldGroundAlternative alternative in cache.Alternatives)
                 {

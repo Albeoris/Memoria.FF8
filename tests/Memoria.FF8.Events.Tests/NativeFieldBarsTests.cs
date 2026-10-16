@@ -51,13 +51,15 @@ internal static partial class Program
         NativeFieldBarsState retained = session.FieldBars!;
         session.RequestField(152, 0);
         Require(session.FieldBars == retained, "Ordinary field load reset the global bar records needed by field152.");
-        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.DISPBAR, Jsm.Opcode.SETBAR, Jsm.Opcode.KILLBAR })
+        foreach (Jsm.Opcode opcode in new[] { Jsm.Opcode.DISPBAR, Jsm.Opcode.BROKEN, Jsm.Opcode.SETBAR, Jsm.Opcode.KILLBAR })
         {
-            int count = opcode == Jsm.Opcode.DISPBAR ? 7 : opcode == Jsm.Opcode.SETBAR ? 2 : 1;
+            int count = opcode == Jsm.Opcode.BROKEN ? 8 : opcode == Jsm.Opcode.DISPBAR ? 7 : opcode == Jsm.Opcode.SETBAR ? 2 : 1;
             (Jsm.Opcode, int)[] missing = Enumerable.Repeat((Jsm.Opcode.PSHN_L, 0), count - 1).Append((opcode, 0)).ToArray();
             (EventEngine underflow, GameSession underflowSession) = CreateNativeBarFixture(vitals, economy, missing);
             AssertNativeBarRefusal(underflow, underflowSession, opcode, count - 1);
         }
+        (EventEngine variableInvalid, GameSession variableInvalidSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 120), (Jsm.Opcode.BROKEN, 0)]);
+        AssertNativeBarRefusal(variableInvalid, variableInvalidSession, Jsm.Opcode.BROKEN, 8);
         (EventEngine invalid, GameSession invalidSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.KILLBAR, 0)]);
         AssertNativeBarRefusal(invalid, invalidSession, Jsm.Opcode.KILLBAR, 1);
         (EventEngine opaque, GameSession opaqueSession) = CreateNativeBarFixture(vitals, economy, [(Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 50), (Jsm.Opcode.SETBAR, 0)]);

@@ -95,6 +95,9 @@ public sealed class ActorState
     [JsonRequired]
     public NativeDoorSchedulerState? NativeDoorScheduler { get; internal set; }
     [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeActorOperandMemory? NativeOperandMemory { get; internal set; }
+    [JsonInclude]
     public bool FootstepsEnabled { get; internal set; }
     /// <summary>Native actor352 mask4000000, allocated clear and set sticky by SETPC.</summary>
     [JsonInclude]

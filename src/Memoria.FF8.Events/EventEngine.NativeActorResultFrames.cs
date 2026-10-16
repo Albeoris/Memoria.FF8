@@ -12,6 +12,10 @@ public sealed partial class EventEngine
             return;
         }
         Fiber? previous = fibers.Where(item => item.ObjectId == requested.ObjectId && !item.Complete && item != requested).OrderByDescending(NativeActorRequestSlot).ThenBy(item => item.Sequence).FirstOrDefault();
+        if (previous is not null)
+        {
+            SaveNativePhysicalDepth(previous);
+        }
         if (previous is not null && NativeActorRequestSlot(requested) > NativeActorRequestSlot(previous))
         {
             SetNativeDoorLiveResults(requested, ReadNativeDoorLiveResults(previous));
@@ -51,9 +55,20 @@ public sealed partial class EventEngine
         if (operation.Parameter != 8)
         {
             Fiber? target = fibers.SingleOrDefault(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) == operation.Parameter);
-            if (operation.Parameter is < 0 or > 7 || target is null || operation.Parameter >= NativeActorRequestSlot(fiber) || !target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
+            if (operation.Parameter is < 0 or > 7 || target is null || operation.Parameter >= NativeActorRequestSlot(fiber))
             {
                 return "Native explicit RET requires an occupied lower entered slot and its retained operand depth";
+            }
+            if (!target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
+            {
+                try
+                {
+                    _ = ReadNativeExplicitReturnBank(target);
+                }
+                catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)
+                {
+                    return exception.Message;
+                }
             }
             if (actors[fiber.ObjectId].NativeMovementRequest is { RestoreSuppressedByFlush: false })
             {
@@ -75,6 +90,13 @@ public sealed partial class EventEngine
             return;
         }
         int returnSlot = program!.Operations[fiber.Position - 1].Parameter;
+        if (HasNativeOperandRecord(fiber.ObjectId))
+        {
+            for (int index = 0; index < 8; index++)
+            {
+                PopNativePhysicalOperand(fiber.ObjectId);
+            }
+        }
         if (returnSlot != 8)
         {
             Fiber target = fibers.Single(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) == returnSlot);
@@ -82,8 +104,20 @@ public sealed partial class EventEngine
             // savedDepth380[target]+8 and pops a second bank. Those eight words
             // belong to the first entered frame above the target, not the current
             // frame when intermediate slots exist. Retained target operands stay.
-            Fiber firstFrame = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item.NativeResultFrameEntered && NativeActorRequestSlot(item) > returnSlot).OrderBy(NativeActorRequestSlot).First();
-            SetNativeDoorLiveResults(target, firstFrame.NativeDoorSavedResults!.Reverse().ToArray());
+            if (!target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
+            {
+                SetNativeDoorLiveResults(target, ReadNativeExplicitReturnBank(target));
+            }
+            else
+            {
+                Fiber firstFrame = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item.NativeResultFrameEntered && NativeActorRequestSlot(item) > returnSlot).OrderBy(NativeActorRequestSlot).First();
+                SetNativeDoorLiveResults(target, firstFrame.NativeDoorSavedResults!.Reverse().ToArray());
+            }
+            if (actors[fiber.ObjectId].NativeOperandMemory is { } memory)
+            {
+                byte? saved = memory.SavedDepths[returnSlot];
+                actors[fiber.ObjectId].NativeOperandMemory = memory with { LiveDepth = saved is byte depth ? unchecked((sbyte)depth) : null };
+            }
             foreach (Fiber canceled in fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && NativeActorRequestSlot(item) > returnSlot && NativeActorRequestSlot(item) <= NativeActorRequestSlot(fiber)))
             {
                 canceled.Complete = true;

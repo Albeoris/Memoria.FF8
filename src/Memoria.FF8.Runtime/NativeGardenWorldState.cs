@@ -44,12 +44,18 @@ public sealed record NativeGardenWorldAllocation([property: JsonRequired] int Ve
             throw new InvalidDataException("Garden allocation lost its distinct foot and shape64/65 native object identities.");
         }
         ushort[] header = [0xFF01, 0, 0xFF02, MinimumStory, 0xFF03, MaximumStory, 0xFF04, 0];
-        if (ClauseWords.Length != 20 || !ClauseWords.AsSpan()[..8].SequenceEqual(header) || !ClauseWords.AsSpan()[8..].SequenceEqual(new ushort[] { 0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65, 0xFF05, 0 }))
+        bool whiteSeeDShip = ClauseWords.Length == 22 && ClauseWords[18] == 0xFF13 && ClauseWords[19] == 0x1958;
+        ushort[] body = whiteSeeDShip ? [0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65, 0xFF13, 0x1958, 0xFF05, 0] : [0xFF13, 0, 0xFF13, 2, 0xFF13, 3, 0xFF13, 64, 0xFF13, 65, 0xFF05, 0];
+        if (ClauseWords.Length != header.Length + body.Length || !ClauseWords.AsSpan()[..8].SequenceEqual(header) || !ClauseWords.AsSpan()[8..].SequenceEqual(body))
         {
             throw new NotSupportedException("Garden allocation requires the reached complete ordinary foot/chocobo/Garden clause.");
         }
         List<byte> expected = (ChocoboFlags1536 & 3) == 1 ? [0, 2, 3, 64, 65] : [0, 2, 64, 65];
         int gardenIndex = expected.Count - 2;
+        if (whiteSeeDShip)
+        {
+            expected.Add(88);
+        }
         if ((GuardianForce13Flags & 1) == 0)
         {
             expected.Add(94);

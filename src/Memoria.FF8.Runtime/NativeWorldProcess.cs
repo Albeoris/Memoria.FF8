@@ -9,17 +9,21 @@ public sealed record NativeWorldProcess([property: JsonRequired] int Version, [p
 {
     public const string CurrentRule = "ff8-en-4022b0-557a90-process-v1";
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldVerticalBiasState? VerticalBias204DADC { get; init; }
+
     [JsonIgnore]
     public bool IsColdProcess => MainLoopCounter == 0 && MainLoopCallbacks == 0 && CameraCooldown == 0 && CarCameraFollowSpeed == 0;
 
     public static NativeWorldProcess FromColdProcess()
     {
         // Both DWORDs are in the preserved executable's zero-filled PE.data virtual tail.
-        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0);
+        return new NativeWorldProcess(1, CurrentRule, 0, 0, 0, 0) { VerticalBias204DADC = NativeWorldVerticalBiasState.Exact(0) };
     }
 
     public void Validate()
     {
+        VerticalBias204DADC?.Validate();
         if (Version != 1 || Rule != CurrentRule || MainLoopCallbacks < 0 || MainLoopCounter != unchecked((uint)MainLoopCallbacks) || CarCameraFollowSpeed is < 0 or > 128)
         {
             throw new InvalidDataException("Native world process state lacks its exact cold-process callback history.");

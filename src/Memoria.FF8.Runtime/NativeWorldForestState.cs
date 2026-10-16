@@ -223,6 +223,13 @@ public sealed record NativeWorldForestState
         return this with { RandomCursor = cursor, RandomOffset = offset };
     }
 
+    public NativeWorldForestState AdvanceParticlesOnly(IReadOnlyList<NativeWorldForestEffect> effects)
+    {
+        Validate();
+        //555B80 runs after550070 even when controlled50 has no emitter branch.
+        return this with { Particles = AdvanceParticles(Particles, effects) };
+    }
+
     private static byte NextRandom(ReadOnlySpan<byte> table, ref byte cursor, ref byte offset)
     {
         //541F10 increments BEFORE indexing and increases offset13 on byte wrap.

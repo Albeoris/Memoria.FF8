@@ -16,6 +16,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
     private const double RadiansPerUnit = 0.0015339808305725455;
     private const int Focal = 1024;
     private const int CurveThreshold = 5216;
+    private readonly int curveThreshold;
     private readonly Range[,] rotation;
     private readonly Range[,] view;
     private readonly Range[] translation;
@@ -25,9 +26,10 @@ public sealed partial class NativeWorldPathProjectionCertificate
     private readonly NativeWorldPathPosition sectorBase;
     private readonly bool precision53;
 
-    private NativeWorldPathProjectionCertificate(NativeWorldPathCamera camera, NativeWorldPathPosition origin, bool precision53 = false)
+    private NativeWorldPathProjectionCertificate(NativeWorldPathCamera camera, NativeWorldPathPosition origin, bool precision53 = false, int curveThreshold = 5216)
     {
         this.precision53 = precision53;
+        this.curveThreshold = curveThreshold;
         Camera = camera;
         Origin = origin;
         originSector = Sector(origin);
@@ -118,11 +120,19 @@ public sealed partial class NativeWorldPathProjectionCertificate
         return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ));
     }
 
-    internal static NativeWorldPathProjectionCertificate CreateTerrainFoot(NativeWorldFootCameraState state)
+    public static NativeWorldPathProjectionCertificate CreateRagnarok(NativeWorldFootCameraState state, int curveThreshold = 6144)
     {
         state.Validate();
         NativeWorldPathCamera camera = new(null, new NativeWorldPathPosition(state.TargetX, state.TargetNativeHeight, -state.TargetRawZ)) { FootState = state };
-        return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ), precision53: true);
+        //557250 entity50 sets the same1024 focal but its own6144 world curve.
+        return new NativeWorldPathProjectionCertificate(camera, state.Origin, curveThreshold: curveThreshold);
+    }
+
+    internal static NativeWorldPathProjectionCertificate CreateTerrainFoot(NativeWorldFootCameraState state, int curveThreshold = 5216)
+    {
+        state.Validate();
+        NativeWorldPathCamera camera = new(null, new NativeWorldPathPosition(state.TargetX, state.TargetNativeHeight, -state.TargetRawZ)) { FootState = state };
+        return new NativeWorldPathProjectionCertificate(camera, new NativeWorldPathPosition(state.X, state.NativeHeight, -state.RawZ), precision53: true, curveThreshold: curveThreshold);
     }
 
     public NativeWorldPathNodeProjection? ProjectNode(NativeWorldPathPosition node)
@@ -140,7 +150,7 @@ public sealed partial class NativeWorldPathProjectionCertificate
         HashSet<short> heights = [];
         for (int value = depth.Low; value <= depth.High; value++)
         {
-            int curve = (value >> 2) - CurveThreshold;
+            int curve = (value >> 2) - curveThreshold;
             int height = relative.Y;
             if (curve >= 0)
             {

@@ -10,7 +10,8 @@ public sealed partial class GameSession
 
     private static NativeSavedWorldState PrepareGardenParkingForFootReturn(NativeSavedWorldState saved, WorldState finalWorld)
     {
-        return finalWorld.NativeGardenRuntime is NativeGardenWorldRuntimeState garden ? saved.WithGardenParking(garden) : saved;
+        saved = finalWorld.NativeGardenRuntime is NativeGardenWorldRuntimeState garden ? saved.WithGardenParking(garden) : saved;
+        return finalWorld.NativeRagnarokRuntime is NativeRagnarokWorldRuntimeState ragnarok ? saved.WithRagnarokParking(ragnarok) : saved;
     }
 
     public void CommitPreparedGardenFieldEntry(GameState expectedDeparture, WorldState finalWorld, FieldTransition transition, NativeSavedWorldGardenReturn receipt, NativeWorldSalaryState salary, Action<GameState> validatePrepared)
@@ -56,6 +57,7 @@ public sealed partial class GameSession
             WorldProcess = PrepareWorldProcess(departure, finalWorld)
         }, finalWorld);
         candidate = candidate with { SavedWorld = PrepareOrdinaryWorldFieldEntry(candidate.SavedWorld!) };
+        candidate = AdvanceNativePlaytime(candidate);
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))

@@ -21,7 +21,18 @@ public sealed partial record NativeCharacterVitals
         }
         if ((rawOperand & 3) == 3)
         {
-            throw new NotSupportedException("Native JUNCTION requests menu22 guest selection; no menu result or mapping is inferred.");
+            NativeCharacterVitals requested = DeepCopy();
+            NativeCharacterVital[] requestedRows = requested.Records.ToArray();
+            requestedRows[0] = requestedRows[0] with { CharacterId = 8 };
+            requested = requested with { DreamEnabled = true, Records = requestedRows, JunctionPartyBackup = [.. fieldParty.Select(identity => (byte)identity), .. CombatParty] };
+            for (int row = 0; row < requested.Records.Length; row++)
+            {
+                if (requested.Records[row].CharacterId < 8)
+                {
+                    requested = requested.ResetGuardianForcesAtRow(row);
+                }
+            }
+            return new NativeJunctionResult(requested, fieldParty.Select(identity => (byte)identity).ToArray());
         }
         NativeCharacterVitals next = DeepCopy();
         NativeCharacterVital[] records = next.Records.ToArray();
@@ -81,6 +92,47 @@ public sealed partial record NativeCharacterVitals
             }
         }
         return new NativeJunctionResult(next.DeepCopy(), party);
+    }
+
+    public NativeCharacterVitals EnterGuestSelectionMenu()
+    {
+        Validate();
+        NativeCharacterVital[] rows = Records.ToArray();
+        rows[0] = rows[0] with { CharacterId = 0 };
+        return this with { DreamEnabled = false, Records = rows };
+    }
+
+    public NativeJunctionResult CompleteGuestSelectionMenu(IReadOnlyList<byte> selected, byte guestFlags)
+    {
+        Validate();
+        if (selected.Count != 3 || selected[0] != 0 || selected.Any(row => row != 255 && row >= 8) || selected.Where(row => row != 255).Distinct().Count() != selected.Count(row => row != 255))
+        {
+            throw new InvalidDataException("Guest menu requires its exact three physical selection cells and fixed row0.");
+        }
+        NativeCharacterVital[] rows = Records.ToArray();
+        rows[0] = rows[0] with { CharacterId = 0 };
+        byte[] combat = [255, 255, 255];
+        byte[] field = [255, 255, 255];
+        int destination = 0;
+        for (int slot = 0; slot < 3; slot++)
+        {
+            if ((guestFlags & 1 << slot) == 0)
+            {
+                continue;
+            }
+            byte row = selected[slot];
+            if (row == 255 || slot != 0 && (rows[row].MemberFlags & 8) == 0)
+            {
+                throw new InvalidDataException("Guest menu confirmation requires every enabled guest's eligible selected physical row.");
+            }
+            rows[row] = rows[row] with { CharacterId = checked((byte)(8 + slot)) };
+            field[destination] = checked((byte)(8 + slot));
+            combat[destination++] = row;
+        }
+        (combat[0], combat[1]) = (combat[1], combat[0]);
+        ReorderNativeDreamCombatParty(combat);
+        NativeCharacterVitals next = (this with { DreamEnabled = true, Records = rows, CombatParty = combat }).RebuildParty();
+        return new NativeJunctionResult(next, field);
     }
 
     private static void ReorderNativeDreamCombatParty(byte[] combat)

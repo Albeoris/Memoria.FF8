@@ -36,10 +36,11 @@ public sealed partial class EventEngine
                 actor.NativeEyes = PrepareNativeEyes(actor, opcode == Jsm.Opcode.CLOSEEYES);
                 break;
             case Jsm.Opcode.DISPBAR:
+            case Jsm.Opcode.BROKEN:
             case Jsm.Opcode.SETBAR:
             case Jsm.Opcode.KILLBAR:
                 NativeFieldBarsState bars = PrepareNativeBars(fiber, opcode);
-                args = Pop(fiber, opcode == Jsm.Opcode.DISPBAR ? 7 : opcode == Jsm.Opcode.SETBAR ? 2 : 1);
+                args = Pop(fiber, opcode == Jsm.Opcode.BROKEN ? 8 : opcode == Jsm.Opcode.DISPBAR ? 7 : opcode == Jsm.Opcode.SETBAR ? 2 : 1);
                 services.SetFieldBars(bars);
                 break;
             case Jsm.Opcode.RET:

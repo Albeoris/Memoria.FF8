@@ -8,8 +8,8 @@ public enum NativeRagnarokTransferKind
     Takeoff
 }
 
-/// <summary>Executed native camera globals plus the five/four signed projection words at C767C4/C767F8.</summary>
-public sealed record NativeRagnarokTransferCamera(int ProjectionDistance, int CurveThreshold, short Pitch, short Yaw, short OffsetY, ImmutableArray<short> ProjectionWords, ImmutableArray<short> PerspectiveWords)
+/// <summary>Executed native camera globals, offsetZ WORD203ECFC, and the five/four signed projection words at C767C4/C767F8. OffsetX/Y remain separately owned.</summary>
+public sealed record NativeRagnarokTransferCamera(int ProjectionDistance, int CurveThreshold, short Pitch, short Yaw, short OffsetZ, ImmutableArray<short> ProjectionWords, ImmutableArray<short> PerspectiveWords)
 {
     public void Validate()
     {
@@ -20,7 +20,7 @@ public sealed record NativeRagnarokTransferCamera(int ProjectionDistance, int Cu
     }
 }
 
-public sealed record NativeRagnarokTransferStep(NativeRagnarokTransferState State, NativeWorldPathPosition Position, NativeRagnarokTransferCamera Camera, int TransitionPhase, int AnimationCounter, int InitialCooldown, bool? CameraProjectionMode, bool Completed);
+public sealed record NativeRagnarokTransferStep(NativeRagnarokTransferState State, NativeWorldPathPosition Position, NativeRagnarokTransferCamera Camera, int TransitionPhase, int AnimationCounter, int InitialVerticalScale, bool? CameraProjectionMode, bool Completed);
 
 /// <summary>Pure54CD90/54D1A0 progression. Admission, allocation, terrain and final54B460 destination publication remain caller-owned.</summary>
 public sealed record NativeRagnarokTransferState(NativeRagnarokTransferKind Kind, NativeWorldPathPosition InitialPosition, int GroundHeight, short BodyYaw, NativeRagnarokTransferCamera InitialCamera, NativeRagnarokTransferCamera TargetCamera, int Counter = 0)
@@ -63,17 +63,17 @@ public sealed record NativeRagnarokTransferState(NativeRagnarokTransferKind Kind
         short focalStep = unchecked((short)(focalDifference / 60));
         short curveStep = unchecked((short)(unchecked(TargetCamera.CurveThreshold - InitialCamera.CurveThreshold) / cameraDivisor));
         short pitchStep = unchecked((short)(Delta(TargetCamera.Pitch, InitialCamera.Pitch) / cameraDivisor));
-        int offsetDifference = TargetCamera.OffsetY - InitialCamera.OffsetY;
+        int offsetDifference = TargetCamera.OffsetZ - InitialCamera.OffsetZ;
         short offsetStep = unchecked((short)(offsetDifference / cameraDivisor));
         short yawStep = unchecked((short)(Delta(BodyYaw, InitialCamera.Yaw) / (takeoff ? 40 : 60)));
         short yaw = takeoff && count > 41 ? BodyYaw : unchecked((short)(InitialCamera.Yaw + count * yawStep));
-        NativeRagnarokTransferCamera camera = new(unchecked(InitialCamera.ProjectionDistance + count * focalStep), unchecked(InitialCamera.CurveThreshold + cameraCount * curveStep), unchecked((short)(InitialCamera.Pitch + cameraCount * pitchStep)), yaw, unchecked((short)(InitialCamera.OffsetY + cameraCount * offsetStep)), AdvanceWords(InitialCamera.ProjectionWords, TargetCamera.ProjectionWords, cameraCount, cameraDivisor), AdvanceWords(InitialCamera.PerspectiveWords, TargetCamera.PerspectiveWords, cameraCount, cameraDivisor));
+        NativeRagnarokTransferCamera camera = new(unchecked(InitialCamera.ProjectionDistance + count * focalStep), unchecked(InitialCamera.CurveThreshold + cameraCount * curveStep), unchecked((short)(InitialCamera.Pitch + cameraCount * pitchStep)), yaw, unchecked((short)(InitialCamera.OffsetZ + cameraCount * offsetStep)), AdvanceWords(InitialCamera.ProjectionWords, TargetCamera.ProjectionWords, cameraCount, cameraDivisor), AdvanceWords(InitialCamera.PerspectiveWords, TargetCamera.PerspectiveWords, cameraCount, cameraDivisor));
         bool completed = count > 60;
         if (completed && takeoff)
         {
             //54CD90 alone snaps these globals. Pitch is recomputed from the
             //final incremented body height; landing deliberately has no snap.
-            camera = camera with { ProjectionDistance = 1024, CurveThreshold = 6144, Pitch = unchecked((short)(-256 - position.Y / 24)), OffsetY = TargetCamera.OffsetY };
+            camera = camera with { ProjectionDistance = 1024, CurveThreshold = 6144, Pitch = unchecked((short)(-256 - position.Y / 24)), OffsetZ = TargetCamera.OffsetZ };
         }
         int animation = completed && !takeoff ? 0 : takeoff ? Math.Clamp(319 - 8 * count, 0, 319) : Math.Clamp(8 * count, 0, 319);
         return new NativeRagnarokTransferStep(this with { Counter = count }, position, camera, completed ? 0 : 307, animation, takeoff ? 120 : 16, takeoff ? count <= 41 : null, completed);
