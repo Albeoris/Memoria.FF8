@@ -51,12 +51,25 @@ public sealed partial class MenuController
     private UiElement BuildMagazinePage()
     {
         var pages = Item?.NativeMagazinePages ?? [];
-        var page = Grid([1, 7, 1], [1], 8);
-        Place(page, Panel(Item?.Name ?? "Magazine", Label($"Page {_magazineIndex + 1}/{pages.Length}", 24)), 0);
-        string[] text = pages.Length == 0 ? [] : pages[Math.Clamp(_magazineIndex, 0, pages.Length - 1)].Text.SelectMany(line => line.Split('\n')).ToArray();
-        float fontSize = Math.Min(21, 410f / (Math.Max(1, text.Length) * 1.5f * TextScale));
-        Place(page, Panel(null, Lines(text, fontSize)), 1);
-        Place(page, Commands(38, 22), 2);
+        if (pages.Length == 0)
+        {
+            throw new NotSupportedException("Magazine viewing requires original page layout metadata.");
+        }
+        var selected = pages[Math.Clamp(_magazineIndex, 0, pages.Length - 1)];
+        var layout = selected.Layout ?? throw new NotSupportedException("Magazine page lacks its original layout and artwork descriptors.");
+        var page = new UiGrid { Columns = 1, Gap = 4 };
+        page.RowDefinitions.Add(UiGridLength.Star());
+        page.RowDefinitions.Add(UiGridLength.Pixel(34));
+        string? fontFamily = _readPreferences?.Invoke().UiFontFamily;
+        Place(page, new MagazinePageElement(layout, fontFamily) { Id = "magazine-page" }, 0);
+        var footer = Grid([1], [1, 3], 0);
+        Place(footer, Label($"Page {_magazineIndex + 1}/{pages.Length}", 16), 0);
+        UiList commands = Commands(30, 16);
+        commands.Orientation = UiOrientation.Horizontal;
+        commands.PointerSize = 14;
+        commands.TextInset = 24;
+        Place(footer, commands, 0, 1);
+        Place(page, footer, 1);
         return page;
     }
 }

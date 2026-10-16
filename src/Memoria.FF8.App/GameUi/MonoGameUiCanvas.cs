@@ -26,9 +26,18 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
             texture.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
             images.Add(source, texture);
         }
-        UiRect destination = UiImage.Fit(bounds, texture.Width, texture.Height);
+        UiRect destination = source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, texture.Width, texture.Height);
         Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
-        SystemTextRenderer.DrawClipped(batch, texture, new Vector2(destination.X, destination.Y), Color.White, clip, destination.Width / texture.Width);
+        float scaleX = destination.Width / texture.Width;
+        float scaleY = destination.Height / texture.Height;
+        int left = Math.Clamp((int)MathF.Ceiling((clip.Left - destination.X) / scaleX), 0, texture.Width);
+        int top = Math.Clamp((int)MathF.Ceiling((clip.Top - destination.Y) / scaleY), 0, texture.Height);
+        int right = Math.Clamp((int)MathF.Floor((clip.Right - destination.X) / scaleX), left, texture.Width);
+        int bottom = Math.Clamp((int)MathF.Floor((clip.Bottom - destination.Y) / scaleY), top, texture.Height);
+        if (right > left && bottom > top)
+        {
+            batch.Draw(texture, new Vector2(destination.X + left * scaleX, destination.Y + top * scaleY), new Rectangle(left, top, right - left, bottom - top), Color.White, 0, Vector2.Zero, new Vector2(scaleX, scaleY), SpriteEffects.None, 0);
+        }
     }
 
     public void MenuPointer(UiRect bounds)
@@ -182,6 +191,7 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
 
     public void Dispose()
     {
+        paper?.Dispose();
         menuPointer?.Dispose();
         foreach (Texture2D texture in images.Values)
         {

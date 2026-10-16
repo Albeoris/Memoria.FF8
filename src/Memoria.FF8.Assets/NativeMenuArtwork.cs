@@ -28,6 +28,14 @@ public sealed class NativeMenuArtwork
 
     public int IconCount { get; }
 
+    /// <summary>Original controller symbols used in printed Duel combinations, independent of current key bindings.</summary>
+    public PixelImage GetOriginalButtonIcon(int buttonBit)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(buttonBit);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(buttonBit, 16);
+        return DecodeIcon(iconPalettes, iconIndex, 128 + buttonBit, 0);
+    }
+
     /// <summary>Native character ID order: Squall, Zell, Irvine, Quistis, Rinoa, Selphie, Seifer, Edea, Laguna, Kiros, Ward.</summary>
     public PixelImage GetCharacterPortrait(int characterId)
     {

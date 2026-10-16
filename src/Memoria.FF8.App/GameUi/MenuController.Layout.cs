@@ -30,7 +30,7 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(IsOriginalMenuPage ? 18 : 20), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(ScreenId == "magazine" ? 0 : IsOriginalMenuPage ? 18 : 20), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
         if (CurrentScreen.BuildContent is not null)
@@ -90,8 +90,8 @@ public sealed partial class MenuController
             Place(page, Footer(), 2);
         }
         AddTutorialMessage(anchored);
-        _view = new UiView(root) { DesignWidth = 960, DesignHeight = 672, Cancel = Back };
-        _view.Resize(960, 672);
+        _view = new UiView(root) { DesignWidth = 960, DesignHeight = ScreenId == "magazine" ? 752 : 672, Cancel = Back };
+        _view.Resize(_view.DesignWidth, _view.DesignHeight);
         var focusables = FocusableDescendants(root).ToArray();
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
         _view.Focus(IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == "commands") ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());

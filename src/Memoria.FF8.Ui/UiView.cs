@@ -263,6 +263,11 @@ public sealed class UiView
 
     private sealed class ScaledCanvas(IUiCanvas canvas, float scale, float offsetX, float offsetY) : IUiCanvas
     {
+        public void Paper(UiRect bounds, UiColor color)
+        {
+            canvas.Paper(Map(bounds), color);
+        }
+
         public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
         {
             canvas.OutlinedText(text, fontSize * scale, Map(bounds), color, outline, thickness * scale);

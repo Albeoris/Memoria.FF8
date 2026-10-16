@@ -100,6 +100,11 @@ public readonly record struct UiGridLength
 public interface IUiCanvas
 {
     void Fill(UiRect bounds, UiColor color);
+    /// <summary>Procedural paper, evaluated at the output resolution by the renderer.</summary>
+    void Paper(UiRect bounds, UiColor color)
+    {
+        Fill(bounds, color);
+    }
     void Text(string text, float fontSize, UiRect bounds, UiColor color);
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment);
     /// <summary>Vertically centers the visible glyphs and outlines them with the given radius.</summary>

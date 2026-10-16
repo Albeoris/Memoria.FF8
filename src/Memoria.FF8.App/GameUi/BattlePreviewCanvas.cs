@@ -47,6 +47,27 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
         graphics.DrawImage(menuPointer, RectFor(destination));
     }
 
+    public void Paper(UiRect bounds, UiColor color)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        int width = Math.Max(1, (int)MathF.Ceiling(bounds.Width));
+        int height = Math.Max(1, (int)MathF.Ceiling(bounds.Height));
+        byte[] rgba = new byte[checked(width * height * 4)];
+        UiColor[] pixels = UiPaper.CreatePixels(width, height, color);
+        for (int index = 0; index < pixels.Length; index++)
+        {
+            rgba[index * 4] = pixels[index].R;
+            rgba[index * 4 + 1] = pixels[index].G;
+            rgba[index * 4 + 2] = pixels[index].B;
+            rgba[index * 4 + 3] = pixels[index].A;
+        }
+        using Bitmap paper = BitmapFromRgba(rgba, width, height);
+        graphics.DrawImageUnscaled(paper, (int)MathF.Round(bounds.X), (int)MathF.Round(bounds.Y));
+    }
+
     public void Image(UiImageSource source, UiRect bounds)
     {
         if (bounds.IsEmpty)
@@ -59,7 +80,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
             bitmap = BitmapFromRgba(image.Pixels.SelectMany(color => new[] { color.R, color.G, color.B, color.A }).ToArray(), image.Width, image.Height);
             images.Add(source, bitmap);
         }
-        UiRect destination = UiImage.Fit(bounds, bitmap.Width, bitmap.Height);
+        UiRect destination = source.Kind == UiImageKind.Magazine ? bounds : UiImage.Fit(bounds, bitmap.Width, bitmap.Height);
         GraphicsState previous = graphics.Save();
         try
         {

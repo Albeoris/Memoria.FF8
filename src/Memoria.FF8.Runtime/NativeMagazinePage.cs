@@ -3,6 +3,8 @@ namespace Memoria.FF8.Runtime;
 /// <summary>One original68-byte mmag page's text and saved-learning selectors.</summary>
 public sealed record NativeMagazinePage(int ItemId, byte PageId, byte WeaponRecipe, byte DuelMove, byte PetPalsIssue, string[] Text)
 {
+    public NativeMagazineLayout? Layout { get; init; }
+
     public (NativeWeaponRecipes? Recipes, NativeLimitProgress? Limits) View(NativeEconomy economy, NativeWeaponRecipes? recipes, NativeLimitProgress? limits)
     {
         economy.Validate();

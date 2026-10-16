@@ -339,7 +339,7 @@ public sealed partial class LiveMenuCatalog
         }
         LiveMenuCatalog catalog = new(kernel, guardianForceNames, cardNames, cardDescriptions, fieldItems, TripleTriadCatalog.Load(assets.GameDirectory));
         catalog.solomonRing = assets.ReadNativeSolomonRingDefinition();
-        catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions());
+        catalog.ReadMagazines(ReadMenu("mmag.bin"), textArchive.GetSection<MngrpStringTableSection>(87).Table, assets.ReadNativeWeaponShopDefinitions(), textArchive.GetSection<MngrpOpaqueSection>(7).Content, ReadMenu("magita.TEX"), NativeMagazineArtwork.ReadItemIconKinds(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe"))));
         return catalog;
     }
 
