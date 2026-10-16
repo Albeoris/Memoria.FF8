@@ -12,7 +12,7 @@ public static class NativeActorScrollPhase
         }
         if (state.Mode == 0)
         {
-            return state.Status is 0 or 1 && (state.Status == 0 || state.X.HasValue) && state.Duration == 0 && state.Counter == 0 && state.ProjectedTargetX is null;
+            return state.Status is 0 or 1 && (state.Status == 0 || state.X.HasValue) && (state.Status == 0 || state.Counter == 0) && state.ProjectedTargetX is null;
         }
         if (state.Mode is not (1 or 2) || state.Duration < 0 || state.Status is not (0 or 1 or 2) || state.X is not short x || state.Y is not short y)
         {
@@ -49,7 +49,7 @@ public sealed partial class EventEngine
         }
         int objectId = program.NativeObjects[top[1]];
         int nativeActor = Scene.NativeActorObjectIds.IndexOf(objectId);
-        if (nativeActor is < 0 or >= 255 || !CanReplaceActorBackgroundScroll(0) || CanSetNativeActorCosineBackgroundScroll?.Invoke((byte)nativeActor, (short)top[0]) != true)
+        if (nativeActor is < 0 or >= 255 || Scene.ActorBackgroundScroll is { Layer: not 0 } || !CanReplaceActorBackgroundScroll(0) || CanSetNativeActorCosineBackgroundScroll?.Invoke((byte)nativeActor, (short)top[0]) != true)
         {
             return "CSCROLLA requires a retained target, authentic previous center and certified per-callback projection";
         }
@@ -81,7 +81,7 @@ public sealed partial class EventEngine
         {
             state = state with { PreviousX = state.X, PreviousY = state.Y, Counter = 0, Status = 1 };
         }
-        (short X, short Y) target = ResolveNativeActorScrollCenter?.Invoke(state.NativeActorId) ?? throw new NotSupportedException("Native interpolated actor camera lost its selected actor projection; no leader or static target is substituted.");
+        (short X, short Y) target = ResolveActorScrollCenter(state.Layer, state.NativeActorId) ?? throw new NotSupportedException("Native interpolated actor camera lost its selected actor projection; no leader or static target is substituted.");
         short x = NativeActorScrollPhase.Interpolate(state.Mode, state.PreviousX!.Value, target.X, state.Duration, state.Counter);
         short y = NativeActorScrollPhase.Interpolate(state.Mode, state.PreviousY!.Value, target.Y, state.Duration, state.Counter);
         // 475E60 modes1/2 reproject the selected body on every active callback.

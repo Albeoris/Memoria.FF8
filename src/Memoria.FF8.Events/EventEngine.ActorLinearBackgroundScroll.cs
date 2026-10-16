@@ -15,7 +15,7 @@ public sealed partial class EventEngine
         }
         int objectId = program.NativeObjects[top[1]];
         int nativeActor = Scene.NativeActorObjectIds.IndexOf(objectId);
-        if (nativeActor is < 0 or >= 255 || !CanReplaceActorBackgroundScroll(0) || CanSetNativeActorLinearBackgroundScroll?.Invoke((byte)nativeActor, (short)top[0]) != true)
+        if (nativeActor is < 0 or >= 255 || Scene.ActorBackgroundScroll is { Layer: not 0 } || !CanReplaceActorBackgroundScroll(0) || CanSetNativeActorLinearBackgroundScroll?.Invoke((byte)nativeActor, (short)top[0]) != true)
         {
             return "LSCROLLA requires a retained target, authentic previous center and certified per-callback projection";
         }

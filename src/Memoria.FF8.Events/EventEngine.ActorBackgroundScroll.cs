@@ -2,22 +2,23 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-/// <summary>Layer0 continuous/linear/cosine actor camera; unknown old center words remain unknown until native callbacks establish them.</summary>
-public sealed record NativeActorBackgroundScroll(int Version, int NativeObjectId, int ObjectId, byte NativeActorId, byte Status, short? X, short? Y, short? PreviousX, short? PreviousY, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? PartySlot = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] byte Mode = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] short Duration = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] short Counter = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] short? ProjectedTargetX = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] short? ProjectedTargetY = null);
+/// <summary>A physical continuous/linear/cosine actor camera row; unknown old center words remain unknown until native callbacks establish them.</summary>
+public sealed record NativeActorBackgroundScroll(int Version, int NativeObjectId, int ObjectId, byte NativeActorId, byte Status, short? X, short? Y, short? PreviousX, short? PreviousY, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? PartySlot = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] byte Mode = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] short Duration = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] short Counter = 0, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] short? ProjectedTargetX = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] short? ProjectedTargetY = null, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] int Layer = 0);
 
 public sealed partial class EventEngine
 {
     public Func<byte, (short X, short Y)?>? ResolveNativeActorScrollCenter { get; set; }
+    public Func<int, byte, (short X, short Y)?>? ResolveNativeLayerActorScrollCenter { get; set; }
     public Func<SceneEventState, IReadOnlyList<ActorState>, bool>? CanRestoreNativeActorScroll { get; set; }
 
     private bool CanReplaceActorBackgroundScroll(int layer)
     {
-        return layer != 0 || Scene.ActorBackgroundScroll is null || Scene.ActorBackgroundScroll is { X: not null, Y: not null };
+        return Scene.ActorBackgroundScroll is not { } actor || actor.Layer != layer || actor is { X: not null, Y: not null };
     }
 
     private BackgroundScrollPosition TakeBackgroundScrollPosition(int layer)
     {
-        if (layer == 0 && Scene.ActorBackgroundScroll is NativeActorBackgroundScroll actor)
+        if (Scene.ActorBackgroundScroll is NativeActorBackgroundScroll actor && actor.Layer == layer)
         {
             Scene.ActorBackgroundScroll = null;
             // 475DF0 overwrites the previous words/counter before the new mode consumes them.
@@ -41,7 +42,12 @@ public sealed partial class EventEngine
 
     private byte? BackgroundScrollStatus(int layer)
     {
-        return layer == 0 && Scene.ActorBackgroundScroll is NativeActorBackgroundScroll actor ? actor.Status : Scene.BackgroundScrollPositions.GetValueOrDefault(layer)?.Status;
+        return Scene.ActorBackgroundScroll is NativeActorBackgroundScroll actor && actor.Layer == layer ? actor.Status : Scene.BackgroundScrollPositions.GetValueOrDefault(layer)?.Status;
+    }
+
+    private (short X, short Y)? ResolveActorScrollCenter(int layer, byte nativeActor)
+    {
+        return ResolveNativeLayerActorScrollCenter is { } resolve ? resolve(layer, nativeActor) : layer == 0 ? ResolveNativeActorScrollCenter?.Invoke(nativeActor) : null;
     }
 
     private string? UnsupportedActorBackgroundScroll(Fiber fiber)
@@ -52,7 +58,7 @@ public sealed partial class EventEngine
         }
         int objectId = program.NativeObjects[fiber.Stack.Peek()];
         int nativeActor = Scene.NativeActorObjectIds.IndexOf(objectId);
-        if (nativeActor is < 0 or >= 255 || ResolveNativeActorScrollCenter?.Invoke((byte)nativeActor) is null)
+        if (nativeActor is < 0 or >= 255 || Scene.ActorBackgroundScroll is { Layer: not 0 } || ResolveActorScrollCenter(0, (byte)nativeActor) is null)
         {
             return "DSCROLLA requires a retained source actor and its certified projection/clamp endpoint";
         }
@@ -70,33 +76,47 @@ public sealed partial class EventEngine
         return args;
     }
 
-    private void BeginNativeActorBackgroundScroll(int rawObjectId, int objectId, byte nativeActor, int? partySlot = null, byte mode = 0, short duration = 0)
+    private void BeginNativeActorBackgroundScroll(int rawObjectId, int objectId, byte nativeActor, int? partySlot = null, byte mode = 0, short duration = 0, int layer = 0)
     {
-        short? x = Scene.ActorBackgroundScroll?.X;
-        short? y = Scene.ActorBackgroundScroll?.Y;
-        short counter = Scene.ActorBackgroundScroll?.Counter ?? 0;
-        if (Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? prior))
+        if (Scene.ActorBackgroundScroll is { } independent && independent.Layer != layer)
+        {
+            throw new NotSupportedException("Concurrent explicit actor camera rows require independent retained selector/history owners.");
+        }
+        NativeActorBackgroundScroll? previous = Scene.ActorBackgroundScroll;
+        short? x = previous?.X;
+        short? y = previous?.Y;
+        short? previousX = previous?.PreviousX;
+        short? previousY = previous?.PreviousY;
+        short counter = previous?.Counter ?? 0;
+        short retainedDuration = previous?.Duration ?? 0;
+        if (Scene.BackgroundScrollPositions.TryGetValue(layer, out BackgroundScrollPosition? prior))
         {
             x = prior.X;
             y = prior.Y;
+            previousX = prior.PreviousX;
+            previousY = prior.PreviousY;
+            retainedDuration = prior.Duration ?? 0;
             if (prior.Counter is short previousCounter)
             {
                 counter = previousCounter;
             }
-            Scene.BackgroundScrollPositions.Remove(0);
+            Scene.BackgroundScrollPositions.Remove(layer);
         }
-        else if (Scene.CameraIndex == 0 && Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == 0)
+        else if (layer == Scene.CameraIndex && Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == layer)
         {
             x = normal.X;
             y = normal.Y;
         }
-        else if (Scene.NativeLayerZeroScrollCurrent is { Version: 1 } process)
+        else if (layer == 0 && Scene.NativeLayerZeroScrollCurrent is { Version: 1 } process)
         {
             x = process.X;
             y = process.Y;
         }
-        Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, Scene.ActorBackgroundScroll?.PreviousX, Scene.ActorBackgroundScroll?.PreviousY, partySlot, mode, duration, mode is 1 or 2 ? counter : (short)0);
-        Scene.NormalBackgroundScrollCenter = null;
+        Scene.ActorBackgroundScroll = new NativeActorBackgroundScroll(1, rawObjectId, objectId, nativeActor, 0, x, y, previousX, previousY, partySlot, mode, mode == 0 ? retainedDuration : duration, counter, Layer: layer);
+        if (layer == Scene.CameraIndex)
+        {
+            Scene.NormalBackgroundScrollCenter = null;
+        }
     }
 
     private void StepNativeActorBackgroundScroll()
@@ -110,9 +130,9 @@ public sealed partial class EventEngine
             StepNativeActorInterpolatedBackgroundScroll(state);
             return;
         }
-        (short X, short Y) center = ResolveNativeActorScrollCenter?.Invoke(state.NativeActorId) ?? throw new NotSupportedException("Continuous native actor camera projection lost its certified endpoint; no guessed center is committed.");
+        (short X, short Y) center = ResolveActorScrollCenter(state.Layer, state.NativeActorId) ?? throw new NotSupportedException("Continuous native actor camera projection lost its certified endpoint; no guessed center is committed.");
         // 475DF0 captures the prior center once;475E60 mode0 remains status1 and follows every callback.
-        Scene.ActorBackgroundScroll = state with { Status = 1, X = center.X, Y = center.Y, PreviousX = state.Status == 0 ? state.X : state.PreviousX, PreviousY = state.Status == 0 ? state.Y : state.PreviousY };
+        Scene.ActorBackgroundScroll = state with { Status = 1, Counter = 0, X = center.X, Y = center.Y, PreviousX = state.Status == 0 ? state.X : state.PreviousX, PreviousY = state.Status == 0 ? state.Y : state.PreviousY };
     }
 
     private void ValidateActorBackgroundScrollCheckpoint(Checkpoint saved)
@@ -121,7 +141,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (state.Version != 1 || state.PartySlot is < 0 or > 2 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || !NativeActorScrollPhase.IsValid(state) || saved.Scene.BackgroundScrollPositions.ContainsKey(0) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || ResolveNativeActorScrollCenter is null || CanRestoreNativeActorScroll?.Invoke(saved.Scene, saved.Actors) != true)
+        if (state.Version != 1 || (uint)state.Layer >= 8 || state.PartySlot is < 0 or > 2 || (uint)state.NativeObjectId >= program!.NativeObjects.Count || program.NativeObjects[state.NativeObjectId] != state.ObjectId || state.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[state.NativeActorId] != state.ObjectId || !NativeActorScrollPhase.IsValid(state) || saved.Scene.BackgroundScrollPositions.ContainsKey(state.Layer) || saved.Scene.NativeActorLayoutVersion != 1 || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } proof || !proof.IsFrom(NativeRuntimeProfile, saved.FieldId, saved.ProgramHash) || ResolveNativeLayerActorScrollCenter is null && (state.Layer != 0 || ResolveNativeActorScrollCenter is null) || CanRestoreNativeActorScroll?.Invoke(saved.Scene, saved.Actors) != true)
         {
             throw new InvalidDataException("Saved actor camera lost its raw/retained actor binding, phase or projection authority.");
         }

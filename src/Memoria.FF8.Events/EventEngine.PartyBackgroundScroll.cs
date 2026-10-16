@@ -12,7 +12,7 @@ public sealed partial class EventEngine
         }
         int slot = fiber.Stack.Peek();
         int nativeActor = Scene.PartyBindingMemory.At(slot);
-        if ((uint)nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(194 + slot, out int alias) && alias != nativeActor || ResolveNativeActorScrollCenter?.Invoke((byte)nativeActor) is null)
+        if (Scene.ActorBackgroundScroll is { Layer: not 0 } || (uint)nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(194 + slot, out int alias) && alias != nativeActor || ResolveNativeActorScrollCenter?.Invoke((byte)nativeActor) is null)
         {
             return "DSCROLLP requires the actual retained saved-party body and its certified projection endpoint";
         }

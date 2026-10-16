@@ -201,6 +201,12 @@ public sealed partial class EventEngine
             case Jsm.Opcode.DSCROLLA:
                 args = ExecuteActorBackgroundScroll(fiber);
                 break;
+            case Jsm.Opcode.DSCROLLA2:
+                args = ExecuteLayerActorBackgroundScroll(fiber, cosine: false);
+                break;
+            case Jsm.Opcode.CSCROLLA2:
+                args = ExecuteLayerActorBackgroundScroll(fiber, cosine: true);
+                break;
             case Jsm.Opcode.CSCROLLA:
                 args = ExecuteNativeActorCosineBackgroundScroll(fiber);
                 break;

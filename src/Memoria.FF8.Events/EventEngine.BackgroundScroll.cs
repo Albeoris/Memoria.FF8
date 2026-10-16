@@ -50,7 +50,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedBackgroundScrollSync2(Fiber fiber)
     {
-        if (fiber.Stack.Count == 0 || (uint)fiber.Stack.Peek() >= 8 || !(fiber.Stack.Peek() == 0 && Scene.ActorBackgroundScroll is not null) && (!Scene.BackgroundScrollPositions.TryGetValue(fiber.Stack.Peek(), out BackgroundScrollPosition? state) || !ValidBackgroundScrollPosition(fiber.Stack.Peek(), state, Scene)))
+        if (fiber.Stack.Count == 0 || (uint)fiber.Stack.Peek() >= 8 || !(Scene.ActorBackgroundScroll is { } actor && actor.Layer == fiber.Stack.Peek()) && (!Scene.BackgroundScrollPositions.TryGetValue(fiber.Stack.Peek(), out BackgroundScrollPosition? state) || !ValidBackgroundScrollPosition(fiber.Stack.Peek(), state, Scene)))
         {
             return "Native SCROLLSYNC2 needs its original unconsumed layer operand and known scroll phase";
         }
@@ -111,7 +111,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedBackgroundScrollSync()
     {
-        return Scene.ActorBackgroundScroll is not null || Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? state) && ValidBackgroundScrollPosition(0, state, Scene) ? null : "Native SCROLLSYNC needs its known original layer0 state";
+        return Scene.ActorBackgroundScroll is { Layer: 0 } || Scene.BackgroundScrollPositions.TryGetValue(0, out BackgroundScrollPosition? state) && ValidBackgroundScrollPosition(0, state, Scene) ? null : "Native SCROLLSYNC needs its known original layer0 state";
     }
 
     private void ExecuteBackgroundScrollSync(Fiber fiber)
@@ -126,7 +126,7 @@ public sealed partial class EventEngine
 
     private string? UnsupportedPartyBackgroundScroll(Fiber fiber)
     {
-        if (!CanReplaceActorBackgroundScroll(0))
+        if (Scene.ActorBackgroundScroll is { Layer: not 0 } || !CanReplaceActorBackgroundScroll(0))
         {
             return "Native CSCROLLP cannot replace unknown actor-scroll center history";
         }

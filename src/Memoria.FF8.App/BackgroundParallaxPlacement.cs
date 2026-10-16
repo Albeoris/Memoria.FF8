@@ -66,6 +66,17 @@ internal static class BackgroundParallaxPlacement
         return true;
     }
 
+    public static bool TryOffset(int x, int y, BackgroundScrollSettings settings, NativeActorBackgroundScroll actor, out Vector2 offset)
+    {
+        offset = default;
+        if (!NativeActorScrollPhase.IsValid(actor) || actor.X is not short currentX || actor.Y is not short currentY || !TryAxis(x, settings.OffsetX, settings.ScaleX, currentX, out int offsetX) || !TryAxis(y, settings.OffsetY, settings.ScaleY, currentY, out int offsetY))
+        {
+            return false;
+        }
+        offset = new Vector2(offsetX, offsetY);
+        return true;
+    }
+
     private static bool TryAxis(int center, short origin, short scale, short current, out int offset)
     {
         offset = 0;

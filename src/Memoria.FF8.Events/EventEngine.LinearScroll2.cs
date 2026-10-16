@@ -6,6 +6,10 @@ public sealed partial class EventEngine
 {
     private (short X, short Y)? KnownNativeLinearScrollStart(int layer)
     {
+        if (Scene.ActorBackgroundScroll is { X: short actorX, Y: short actorY } retained && retained.Layer == layer && NativeActorScrollPhase.IsValid(retained))
+        {
+            return (actorX, actorY);
+        }
         if (layer == 0)
         {
             return KnownNativeLayerZeroScrollCenter();

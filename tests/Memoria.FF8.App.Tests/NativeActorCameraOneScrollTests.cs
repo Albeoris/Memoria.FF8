@@ -12,6 +12,66 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeActorCameraOneScrollTests
 {
     [Fact]
+    public void ActualMemoryActorRowOneFollowsThenCosineRetargetsWithSelectedCameraAuthority()
+    {
+        string source = @"../fixtures/external-fixture.json";
+        Assert.SkipUnless(File.Exists(source), "The genuine memory DSCROLLA2 boundary snapshot is required.");
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
+        JsonElement checkpoint = document.RootElement.GetProperty("EventState");
+        JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
+        SceneEventState scene = JsonSerializer.Deserialize<SceneEventState>(checkpoint.GetProperty("Scene"), options)!;
+        ActorState[] actors = JsonSerializer.Deserialize<ActorState[]>(checkpoint.GetProperty("Actors"), options)!;
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        FieldAssets field = assets.LoadField(882);
+        Assert.Null(scene.ActorBackgroundScroll);
+        Assert.Equal(1, scene.CameraIndex);
+        Assert.Equal(((short)80, (short)0), (scene.NormalBackgroundScrollCenter!.X, scene.NormalBackgroundScrollCenter.Y));
+        (short X, short Y)? projected = ActorBackgroundScrollCertificate.Resolve(field, scene, actors, 6, 1);
+        Assert.True(projected.HasValue);
+        (short X, short Y) center = projected.Value;
+        JsonNode next = JsonSerializer.SerializeToNode(scene)!;
+        next.AsObject().Remove("NormalBackgroundScrollCenter");
+        next["ActorBackgroundScroll"] = JsonSerializer.SerializeToNode(new NativeActorBackgroundScroll(1, 6, 6, 6, 1, center.X, center.Y, 80, 0, Layer: 1));
+        SceneEventState following = next.Deserialize<SceneEventState>(options)!;
+        Assert.True(ActorBackgroundScrollCertificate.CanRestore(field, following, actors));
+        Assert.Equal(new Vector2(-center.X, -center.Y), ActorBackgroundScrollCertificate.Prepare(field, following)!.ActorOffset);
+        Assert.Null(DirectBackgroundScrollCertificate.ResolveNormalCenter(field, following, actors));
+        Assert.True(ActorBackgroundScrollCertificate.CanSetInterpolated(field, following, actors, 1, 80, 1));
+        (short X, short Y) target = ActorBackgroundScrollCertificate.Resolve(field, following, actors, 1, 1)!.Value;
+        foreach (short elapsed in new short[] { 0, 40, 80 })
+        {
+            short x = NativeActorScrollPhase.Interpolate(2, center.X, target.X, 80, elapsed);
+            short y = NativeActorScrollPhase.Interpolate(2, center.Y, target.Y, 80, elapsed);
+            next["ActorBackgroundScroll"] = JsonSerializer.SerializeToNode(new NativeActorBackgroundScroll(1, 1, 1, 1, elapsed == 80 ? (byte)2 : (byte)1, x, y, center.X, center.Y, Mode: 2, Duration: 80, Counter: elapsed == 80 ? elapsed : (short)(elapsed + 1), ProjectedTargetX: target.X, ProjectedTargetY: target.Y, Layer: 1));
+            SceneEventState phase = next.Deserialize<SceneEventState>(options)!;
+            Assert.True(ActorBackgroundScrollCertificate.CanRestore(field, phase, actors));
+            SceneEventState restored = JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(phase), options)!;
+            Assert.True(ActorBackgroundScrollCertificate.CanRestore(field, restored, actors));
+            Assert.Equal(new Vector2(-x, -y), ActorBackgroundScrollCertificate.Prepare(field, restored)!.ActorOffset);
+            Assert.Null(DirectBackgroundScrollCertificate.ResolveNormalCenter(field, restored, actors));
+        }
+        next["CameraIndex"] = 0;
+        SceneEventState cameraZero = next.Deserialize<SceneEventState>(options)!;
+        Assert.True(ActorBackgroundScrollCertificate.CanRestore(field, cameraZero, actors));
+        Assert.Null(ActorBackgroundScrollCertificate.Prepare(field, cameraZero));
+        Assert.NotNull(DirectBackgroundScrollCertificate.ResolveNormalCenter(field, cameraZero, actors));
+        //The later helper selects CA0 without resetting physical row1. Give the
+        //same metadata a layer1 tile to verify its retained current subtraction.
+        FieldAssets layered = field with { Background = [.. field.Background, field.Background[0] with { Layer = 1 }] };
+        BackgroundScrollFrame frame = NormalCameraCertificate.Prepare(layered, cameraZero, actors)!;
+        if (field.Information!.BackgroundWrapMask == 0)
+        {
+            Assert.Equal(new Vector2(-target.X, -target.Y) + field.GetCamera(0).Pan, frame.LayerOffsets[1]);
+        }
+        else
+        {
+            Assert.NotNull(frame.NativeWrap);
+        }
+        Assert.Equal((byte)2, cameraZero.ActorBackgroundScroll!.Status);
+        Assert.Equal(1, cameraZero.ActorBackgroundScroll.Layer);
+    }
+
+    [Fact]
     public void NonselectedContinuousActorRowKeepsTheIndependentNonzeroCameraOneCenter()
     {
         byte[] script = [5, 6];

@@ -63,7 +63,7 @@ public static class NormalCameraCertificate
                     // The native wrap-frame layer translation owns offset/ratio/current once, before this common -C.
                     layerOffset = offset;
                 }
-                else if (!BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out layerOffset))
+                else if (!(scene.ActorBackgroundScroll is { } actorRow && actorRow.Layer == layer ? BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, actorRow, out layerOffset) : BackgroundParallaxPlacement.TryOffset(center.X, center.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out layerOffset)))
                 {
                     throw new NotSupportedException("Normal parallax offsets exceed the proved native signed-WORD/eighth-pixel placement domain.");
                 }

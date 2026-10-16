@@ -199,6 +199,8 @@ internal sealed partial class GameWorld : IDisposable
         Events.CanSetBackgroundScrollRatio = (layer, settings) => BackgroundScrollCertificate.CanSetRatioForState(next, Events.Scene, Events.Actors, layer, settings);
         Events.CanSetBackgroundScrollPosition = (layer, x, y) => DirectBackgroundScrollCertificate.CanSet(next, Events.Scene, layer, x, y) || NativeNonselectedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y) || NativeWrappedBackgroundScrollCertificate.CanSetDirect(next, Events.Scene, layer, x, y);
         Events.ResolveNativeActorScrollCenter = nativeActor => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor);
+        Events.ResolveNativeLayerActorScrollCenter = (layer, nativeActor) => ActorBackgroundScrollCertificate.Resolve(next, Events.Scene, Events.Actors, nativeActor, layer);
+        Events.CanSetNativeLayerActorCosineBackgroundScroll = (layer, actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration, layer);
         Events.CanRestoreNativeActorScroll = (scene, actors) => ActorBackgroundScrollCertificate.CanRestore(next, scene, actors);
         Events.CanSetNativeActorCosineBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);
         Events.CanSetNativeActorLinearBackgroundScroll = (actor, duration) => ActorBackgroundScrollCertificate.CanSetInterpolated(next, Events.Scene, Events.Actors, actor, duration);

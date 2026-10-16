@@ -13,7 +13,7 @@ public sealed partial class EventEngine
         }
         int slot = top[1];
         int nativeActor = Scene.PartyBindingMemory.At(slot);
-        if ((uint)nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(194 + slot, out int alias) && alias != nativeActor || !CanReplaceActorBackgroundScroll(0) || CanSetNativeActorLinearBackgroundScroll?.Invoke((byte)nativeActor, (short)top[0]) != true)
+        if (Scene.ActorBackgroundScroll is { Layer: not 0 } || (uint)nativeActor >= Scene.NativeActorObjectIds.Count || variables.TryGetValue(194 + slot, out int alias) && alias != nativeActor || !CanReplaceActorBackgroundScroll(0) || CanSetNativeActorLinearBackgroundScroll?.Invoke((byte)nativeActor, (short)top[0]) != true)
         {
             return "LSCROLLP requires the actual retained saved-party body, authentic current center and certified callback projection";
         }

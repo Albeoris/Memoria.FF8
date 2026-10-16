@@ -4,7 +4,7 @@ public sealed partial class EventEngine
 {
     private (short X, short Y)? KnownNativeLayerZeroScrollCenter()
     {
-        if (Scene.ActorBackgroundScroll is { X: short x, Y: short y } actor && NativeActorScrollPhase.IsValid(actor))
+        if (Scene.ActorBackgroundScroll is { Layer: 0, X: short x, Y: short y } actor && NativeActorScrollPhase.IsValid(actor))
         {
             return (x, y);
         }

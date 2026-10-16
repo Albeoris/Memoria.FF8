@@ -14,7 +14,7 @@ public sealed partial class EventEngine
 
     private void StepNativeNormalBackgroundScrollCenter()
     {
-        if (Scene.CameraIndex == 0 && Scene.ActorBackgroundScroll is not null || Scene.BackgroundScrollPositions.ContainsKey(Scene.CameraIndex))
+        if (Scene.ActorBackgroundScroll is { } actor && actor.Layer == Scene.CameraIndex || Scene.BackgroundScrollPositions.ContainsKey(Scene.CameraIndex))
         {
             Scene.NormalBackgroundScrollCenter = null;
             return;
@@ -30,7 +30,7 @@ public sealed partial class EventEngine
             return;
         }
         (short X, short Y)? current;
-        if (Scene.ActorBackgroundScroll is { X: short actorX, Y: short actorY })
+        if (Scene.ActorBackgroundScroll is { Layer: 0, X: short actorX, Y: short actorY })
         {
             current = (actorX, actorY);
         }
@@ -60,7 +60,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (normal.Version != 1 || normal.CameraIndex is < 0 or > 1 || normal.FieldId != saved.FieldId || normal.CameraIndex != saved.Scene.CameraIndex || normal.Frame <= 0 || normal.Frame > saved.Frame || saved.Scene.FieldCallbackClock is not { Version: 1 } || normal.X is < -4095 or > 4096 || normal.Y is < -4095 or > 4096 || normal.CameraIndex == 0 && saved.Scene.ActorBackgroundScroll is not null || saved.Scene.BackgroundScrollPositions.ContainsKey(saved.Scene.CameraIndex) || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed })
+        if (normal.Version != 1 || normal.CameraIndex is < 0 or > 1 || normal.FieldId != saved.FieldId || normal.CameraIndex != saved.Scene.CameraIndex || normal.Frame <= 0 || normal.Frame > saved.Frame || saved.Scene.FieldCallbackClock is not { Version: 1 } || normal.X is < -4095 or > 4096 || normal.Y is < -4095 or > 4096 || saved.Scene.ActorBackgroundScroll is { } actor && actor.Layer == normal.CameraIndex || saved.Scene.BackgroundScrollPositions.ContainsKey(saved.Scene.CameraIndex) || saved.Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed })
         {
             throw new InvalidDataException("Saved normal background-scroll center has no authentic callback, field allocation or exclusive selected-layer authority.");
         }

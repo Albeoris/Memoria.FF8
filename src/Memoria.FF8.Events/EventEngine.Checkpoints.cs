@@ -446,7 +446,7 @@ public sealed partial class EventEngine
                     "SCROLLSYNC2" when savedFiber.Stack.Length > 0 && savedFiber.Stack[0].IsExact && (uint)savedFiber.Stack[0] < 8 => (int)savedFiber.Stack[0],
                     _ => null
                 };
-                if (savedFiber.Complete || layer is not int selected || !saved.Scene.BackgroundScrollPositions.ContainsKey(selected) && !(selected == 0 && saved.Scene.ActorBackgroundScroll is not null))
+                if (savedFiber.Complete || layer is not int selected || !saved.Scene.BackgroundScrollPositions.ContainsKey(selected) && !(saved.Scene.ActorBackgroundScroll is { } actorScroll && actorScroll.Layer == selected))
                 {
                     throw new InvalidDataException("Saved scroll synchronization wait does not preserve its original instruction, unconsumed layer operand and known scroll state.");
                 }
