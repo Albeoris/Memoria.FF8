@@ -164,7 +164,8 @@ public sealed partial class EventEngine
         }
         ActorState actor = actors[fiber.ObjectId];
         NativeActorAnimationHeader? header = actor.NativeAnimationHeader;
-        if (header is null || actor.NativeAnimationBackup is null || operation.Opcode != Jsm.Opcode.ANIMESPEED && (header.Frame is null || header.Terminal is null || header.Flags is null))
+        bool opaqueWriter = header?.BoundModelId == -1 && operation.Opcode is Jsm.Opcode.RANIME or Jsm.Opcode.RANIMEKEEP or Jsm.Opcode.RANIMELOOP or Jsm.Opcode.ANIMESTOP;
+        if (header is null || actor.NativeAnimationBackup is null || operation.Opcode != Jsm.Opcode.ANIMESPEED && !opaqueWriter && (header.Frame is null || header.Terminal is null || header.Flags is null))
         {
             return "Native animation observation requires its actual allocated header and single backup slot, with known physical words";
         }
@@ -176,10 +177,20 @@ public sealed partial class EventEngine
             }
             else if (operation.Opcode == Jsm.Opcode.ANIMESTOP)
             {
-                _ = NativeAnimationTerminal(actor, unchecked((byte)actor.BaseAnimationId));
+                if (!opaqueWriter)
+                {
+                    _ = NativeAnimationTerminal(actor, unchecked((byte)actor.BaseAnimationId));
+                }
             }
             else if (selection)
             {
+                if (opaqueWriter)
+                {
+                    //532890 skips resource lookup for an executed531D40 empty
+                    //binding; only the body BYTE selector survives.526890/526910/
+                    //526A30 still write body words and yield.
+                    return null;
+                }
                 if (unchecked((short)operation.Parameter) is < 0 or > byte.MaxValue)
                 {
                     return "Native animation WORD selector outside the represented BYTE resource/current-header domain is unsupported";
@@ -229,10 +240,10 @@ public sealed partial class EventEngine
     private void PlayNativeAnimation(Fiber fiber, ActorState actor, Jsm.Opcode opcode, int animation, out int[] args)
     {
         animation = unchecked((short)animation);
-        ushort full = NativeAnimationTerminal(actor, animation);
+        ushort? full = RequireNativeAnimationHeader(actor).BoundModelId == -1 ? null : NativeAnimationTerminal(actor, animation);
         bool ranged = opcode is Jsm.Opcode.CANIME or Jsm.Opcode.CANIMEKEEP or Jsm.Opcode.RCANIME or Jsm.Opcode.RCANIMEKEEP or Jsm.Opcode.RCANIMELOOP;
         ushort first = 0;
-        ushort terminal = full;
+        ushort? terminal = full;
         args = [];
         if (ranged)
         {
@@ -243,7 +254,7 @@ public sealed partial class EventEngine
             int[] stack = fiber.Stack.ToArray();
             first = unchecked((ushort)(16 * unchecked((short)stack[0]) - 16));
             terminal = unchecked((ushort)(16 * unchecked((short)stack[1]) - 16));
-            if (unchecked((short)first) < 0 || unchecked((short)terminal) > full)
+            if (full is null || unchecked((short)first) < 0 || unchecked((short)terminal!.Value) > full.Value)
             {
                 throw new NotSupportedException("Native ranged animation reached its original invalid-range/fatal branch.");
             }

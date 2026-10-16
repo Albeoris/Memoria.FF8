@@ -44,6 +44,7 @@ internal static partial class Program
         NativeAnimationBlockingAndSyncClock(vitals, economy);
         NativeAnimationSingleBackup(vitals, economy);
         NativeAnimationFreshPopAndOpaqueRefusal(vitals, economy);
+        NativeEmptyAnimationWriters(vitals, economy);
         Console.WriteLine("Native animation: physical full/ranged frame words, return-idle/loop/keep flags, zero/wrapped speed, one overwritten backup slot, repeated immediate POP, current binding/flags and independent restore pass.");
     }
 
