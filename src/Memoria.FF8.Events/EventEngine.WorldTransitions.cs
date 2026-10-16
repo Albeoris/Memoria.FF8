@@ -108,7 +108,7 @@ public sealed partial class EventEngine
         return new WorldTransition((short)field, BinaryPrimitives.ReadInt16LittleEndian(bytes.AsSpan(16)), bytes[28]);
     }
 
-    private void ValidateWorldTransitionCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
+    private void ValidateWorldTransitionCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence, bool dormantWorldReturn = false)
     {
         foreach ((long sequence, NativeWorldJumpWait wait) in saved.Scene.WorldJumpWaits)
         {
@@ -139,7 +139,10 @@ public sealed partial class EventEngine
         request.ControlsAtLoader.Validate();
         NativeWorldControlState expectedLoader = request.ControlsAtDeparture.WithWorldEntryMenuFlag();
         NativeWorldControlState expectedIssue = request.Origin == NativeWorldTransitionOrigin.Script ? expectedLoader : request.ControlsAtDeparture;
-        if (request.ControlsAtIssue != expectedIssue || request.ControlsAtLoader != expectedLoader || saved.WorldControls != expectedLoader)
+        //A dormant request retains its historical loader receipt; a later host
+        //capture may instead project the current normal-field footer controls.
+        bool controlsKnown = saved.WorldControls == expectedLoader || dormantWorldReturn && saved.WorldControls == services.WorldControls;
+        if (request.ControlsAtIssue != expectedIssue || request.ControlsAtLoader != expectedLoader || !controlsKnown)
         {
             throw new InvalidDataException("Saved world request changed its native issue/loader flag stages or canonical controls.");
         }

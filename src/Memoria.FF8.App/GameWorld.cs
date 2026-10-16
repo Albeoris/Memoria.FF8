@@ -119,6 +119,8 @@ internal sealed partial class GameWorld : IDisposable
 
     public EventEngine Events { get; }
 
+    internal bool HasCurrentFieldAllocation => session.State.Scene != SceneKind.WorldMap && worldScene is null && Events.FieldId == session.State.FieldId && Events.NextTrigger.Kind is not (PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap);
+
     internal bool AdvanceMovieFrame(MoviePlaybackState playback, double seconds)
     {
         int field = session.State.FieldId;
@@ -180,7 +182,7 @@ internal sealed partial class GameWorld : IDisposable
             worldScene = null;
         }
         // A world arrival starts a new visit even when its packet names the frozen departing field.
-        if (!returningFromWorld && Field?.Id == session.State.FieldId && Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
+        if (!returningFromWorld && Field?.Id == session.State.FieldId && HasCurrentFieldAllocation)
         {
             return false;
         }

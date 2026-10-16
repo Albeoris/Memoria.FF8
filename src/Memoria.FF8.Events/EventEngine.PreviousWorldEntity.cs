@@ -24,7 +24,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Native field allocation restore context does not match its saved original VM and program.");
             }
-            ValidatePreviousWorldEntityCheckpoint(saved);
+            ValidatePreviousWorldEntityCheckpoint(saved, IsDormantWorldReturnCheckpoint(context));
         }
     }
 
@@ -59,11 +59,28 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private void ValidatePreviousWorldEntityCheckpoint(Checkpoint saved)
+    private bool IsDormantWorldReturnCheckpoint(JsonElement snapshot)
+    {
+        if (services is not Memoria.FF8.Runtime.GameSession session)
+        {
+            return false;
+        }
+        Memoria.FF8.Runtime.GameState state = session.State;
+        return state.Scene == Memoria.FF8.Runtime.SceneKind.Field
+            && state.EventState is null
+            && state.FieldArrival is not null
+            && state.DepartingFieldState is JsonElement departing
+            && JsonElement.DeepEquals(departing, snapshot)
+            && state.DepartingWorldState is { } world
+            && state.WorldConfiguration is { Rule: Memoria.FF8.Runtime.NativeWorldConfiguration.ReturnRule } configuration
+            && configuration.SourceWorldFrame == world.Frame;
+    }
+
+    private void ValidatePreviousWorldEntityCheckpoint(Checkpoint saved, bool dormantWorldReturn = false)
     {
         if (saved.Scene.PreviousWorldEntityByte86 is byte known)
         {
-            if (saved.EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86) || services.CurrentScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration?.EntityByte != known)
+            if (saved.EventMemory.Cells.Any(pair => pair.Key <= 86 && (long)pair.Key + pair.Value.Width > 86) || !dormantWorldReturn && services.CurrentScene != Memoria.FF8.Runtime.SceneKind.WorldMap && services.WorldConfiguration?.EntityByte != known)
             {
                 throw new InvalidDataException("Saved world entity BYTE86 disagrees with its allocated process configuration.");
             }

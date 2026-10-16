@@ -538,7 +538,7 @@ internal sealed partial class RecreateGame : Game
         {
             world?.EnsureField();
         }
-        else if (events is not null && events.FieldId == session.State.FieldId && events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
+        else if (events is not null && world?.HasCurrentFieldAllocation == true)
         {
             session.SetEventState(events.Capture());
             DialogueState? dialogue = events.CurrentDialogue;

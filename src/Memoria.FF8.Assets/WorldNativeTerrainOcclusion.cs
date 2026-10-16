@@ -85,25 +85,58 @@ public sealed partial class NativeWorldPathProjectionCertificate
         return new(screenX, screenX, screenY, screenY, roundedDepth, roundedDepth);
     }
 
-    internal bool DefinitelyRendersTerrainCell(int cell)
+    internal bool DefinitelyRendersTerrainCell(int cell, int entityType)
     {
         int bodyCell = Sector(Origin);
         int dx = SectorX(cell, bodyCell);
         int dz = SectorZ(cell, bodyCell);
-        //53D3C0 always retains the 3x3 body neighborhood for ordinary entities.
-        //53DDA0 must also have generated this cell in its proximity-centered
-        //rectangle with exact lower/upper offsets -10239/+10239.
-        if (Math.Abs(dx) > 1 || Math.Abs(dz) > 1)
-        {
-            return false;
-        }
         int x = bodyCell % 128 + dx;
         int z = bodyCell / 128 + dz;
-        return x >= (int)Math.Floor((Origin.X + 131072d + proximity[0].High - 10239) / 2048)
+        bool generated = x >= (int)Math.Floor((Origin.X + 131072d + proximity[0].High - 10239) / 2048)
             && x <= (int)Math.Floor((Origin.X + 131072d + proximity[0].Low + 10239) / 2048)
             && z >= (int)Math.Floor((-Origin.Z + 98304d + proximity[2].High - 10239) / 2048)
             && z <= (int)Math.Floor((-Origin.Z + 98304d + proximity[2].Low + 10239) / 2048);
+        if (!generated)
+        {
+            return false;
+        }
+        int radius = entityType == 50 || entityType is >= 64 and <= 66 ? 3 : 1;
+        if (Math.Abs(dx) <= radius && Math.Abs(dz) <= radius)
+        {
+            return true;
+        }
+        //53D3C0 retains a farther generated cell when either of its original
+        //flat/vertical bound triangles has an admitted X and SZ3>>2 depth.
+        //The projected buffer is pipelined; the second triangle does not
+        //belong to the next list cell even though its coordinates are prepared early.
+        (int X, int Y, int Z)[][] triangles =
+        [
+            [(0, 0, 0), (2048, 0, 0), (2048, 0, -2048)],
+            [(0, 0, -2048), (1024, 0, -1024), (1024, -2048, -1024)]
+        ];
+        foreach ((int X, int Y, int Z)[] triangle in triangles)
+        {
+            NativeTerrainScreenBounds[] points = triangle.Select(point => ProjectTerrainCellBound(unchecked((short)(dx * 2048 + point.X)), checked((short)point.Y), unchecked((short)(-dz * 2048 + point.Z)))).ToArray();
+            int maximumDepth = entityType == 50 ? 8191 : 6144;
+            if (points.Any(point => point.MinimumX >= 0 && point.MaximumX <= 0xA00) && points[2].MaximumDepth >> 2 <= maximumDepth)
+            {
+                return true;
+            }
+        }
+        return false;
     }
+
+    private NativeTerrainScreenBounds ProjectTerrainCellBound(short x, short y, short z)
+    {
+        Range[] transformed = Rotate(view, [Range.Exact(x), Range.Exact(y), Range.Exact(z)]);
+        for (int index = 0; index < transformed.Length; index++)
+        {
+            transformed[index] = Add(transformed[index], translation[index]);
+        }
+        Range screenX = Project(transformed[0], transformed[2], 160);
+        return new(screenX.Low, screenX.High, 0, 0, Math.Clamp(transformed[2].Low, 0, ushort.MaxValue), Math.Clamp(transformed[2].High, 0, ushort.MaxValue));
+    }
+
 }
 
 public sealed partial class WorldAssets
@@ -203,11 +236,11 @@ public sealed partial class WorldAssets
                     //552380 has original per-polygon exclusions for a finite
                     //set of railway cells; no positive claim bypasses those.
                     bool polygonFilterKnown = direct || !NativeFastTerrainHasPolygonFilter(cell);
-                    if (depthAdmitted && clippingAdmitted && frontFace == true && definitelyCrosses && polygonFilterKnown && projection.DefinitelyRendersTerrainCell(cell))
+                    if (depthAdmitted && clippingAdmitted && frontFace == true && definitelyCrosses && polygonFilterKnown && projection.DefinitelyRendersTerrainCell(cell, entityType))
                     {
                         return new(true, blocks, polygons, null);
                     }
-                    uncertain ??= $"Native terrain camera occlusion is ambiguous at map{map}/block{block}/polygon{triangle.NativePolygonIndex}: depth={depthAdmitted}, clip={clippingAdmitted}, front={frontFace}, crossing={definitelyCrosses}, polygonFilter={polygonFilterKnown}, cell={projection.DefinitelyRendersTerrainCell(cell)}.";
+                    uncertain ??= $"Native terrain camera occlusion is ambiguous at map{map}/block{block}/polygon{triangle.NativePolygonIndex}: depth={depthAdmitted}, clip={clippingAdmitted}, front={frontFace}, crossing={definitelyCrosses}, polygonFilter={polygonFilterKnown}, cell={projection.DefinitelyRendersTerrainCell(cell, entityType)}.";
                 }
             }
         }

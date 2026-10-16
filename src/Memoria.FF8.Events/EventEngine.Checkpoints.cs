@@ -180,7 +180,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved dialogue lacks native confirmability; the snapshot is missing required native state");
         }
         ValidatePreviousFieldCheckpoint(saved);
-        ValidatePreviousWorldEntityCheckpoint(saved);
+        ValidatePreviousWorldEntityCheckpoint(saved, IsDormantWorldReturnCheckpoint(snapshot));
         saved.ExamTimer?.Validate();
         if (services.ExamTimer is not null && saved.ExamTimer is null)
         {
@@ -519,7 +519,7 @@ public sealed partial class EventEngine
         ValidateBackgroundShades(saved);
         ValidateNativeJoinedPositions(saved);
         ValidateNativeCopiedPositions(saved);
-        ValidateWorldTransitionCheckpoint(saved, bySequence);
+        ValidateWorldTransitionCheckpoint(saved, bySequence, IsDormantWorldReturnCheckpoint(snapshot));
         ValidateMinimalMenuCheckpoint(saved, bySequence);
         ValidatePartyMenuCheckpoint(saved, bySequence);
         ValidateNativeBattleCheckpoint(saved, bySequence);

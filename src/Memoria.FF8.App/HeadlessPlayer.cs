@@ -241,7 +241,7 @@ internal static class HeadlessPlayer
         {
             world.EnsureField();
         }
-        else if (world.Events.FieldId == session.State.FieldId && world.Events.NextTrigger.Kind != PlayerTriggerKind.FieldTransition)
+        else if (world.HasCurrentFieldAllocation)
         {
             session.SetEventState(world.Events.Capture());
         }
