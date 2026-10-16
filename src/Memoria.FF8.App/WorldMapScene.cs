@@ -36,7 +36,7 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new InvalidOperationException("A world scene requires its original field-to-world transition.");
         }
         bool car = unchecked((byte)arrival.Mode) is 32 or 33;
-        bool garden = unchecked((byte)arrival.Mode) == 48;
+        bool garden = unchecked((byte)arrival.Mode) == 48 || session.State.World is { NativeGardenRuntime: not null, NativeFootRuntime: null };
         bool ragnarok = unchecked((byte)arrival.Mode) == 50;
         bool stationFoot = session.State.World?.NativeFootRuntime?.StationTrains is not null;
         bool ridingTrain = IsRidingTrainPacket(arrival) && !stationFoot;
@@ -354,7 +354,9 @@ internal sealed partial class WorldMapScene : IDisposable
                 if (advanceUi && (callbackStart.NativeRagnarokRuntime is null || ragnarokFootAtCallback) && (callbackStart.NativeGardenRuntime is null || callbackStart.NativeFootRuntime is not null))
                 {
                     byte scriptMode = ragnarokFootBoardingTarget is not null ? (byte)6 : callbackStart.NativeScriptedRuntime?.Path.Mode ?? (callbackStart.NativeTrainRuntime is not null ? (byte)3 : (byte)0);
-                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, callbackStart.NativeRagnarokRuntime?.PreviousButtons ?? callbackStart.NativeGardenRuntime?.Buttons.LastObservedButtons, ragnarokFootBoardingTarget is not null ? true : null) ?? fieldEntry;
+                    //54A7F0 sets2040A40 before54D7E0 for either admitted boarding action; Garden leaves2036B70 unchanged.
+                    bool? activity = boardingTarget is not null || ragnarokFootBoardingTarget is not null ? true : null;
+                    fieldEntry = SelectWorldCallback(candidate, callbackStart, scriptMode, ref salary, buttons, callbackStart.NativeRagnarokRuntime?.PreviousButtons ?? callbackStart.NativeGardenRuntime?.Buttons.LastObservedButtons, activity) ?? fieldEntry;
                 }
                 if (stationChoice && fieldEntry is null)
                 {

@@ -13,7 +13,11 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Garden allocation requires the current executed world-entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Garden allocation requires its actual saved GF13 flags.");
-        NativeGardenWorldAllocation allocation = assets.ReadGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals);
+        //The allocation packet remains the original foot entry after54B460 reboards
+        //Garden. Authenticate that retained allocation without rerunning a48 loader.
+        NativeGardenWorldAllocation allocation = unchecked((byte)arrival.Mode) == 0
+            ? assets.ReadParkedGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals)
+            : assets.ReadGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals);
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = assets.ReadGardenAuxiliaryRelocations(arrival, session.State.EventMemory, allocation.LoadPose);
         if (session.State.World is null)
         {
