@@ -222,11 +222,6 @@ public static class MenuCatalog
         var recipe = c.Recipe;
         return recipe == null ? ["No recipes are projected.", .. Boundary(c)] : [recipe.Ability, $"Ingredient: {recipe.IngredientQuantity} x {recipe.IngredientName ?? c.Data.Items.FirstOrDefault(i => i.Id == recipe.IngredientId)?.Name ?? recipe.IngredientId}", $"Result: {recipe.ResultQuantity} x {recipe.ResultName}", "Recipient: " + (recipe.NativeKind is 1 or 3 or 4 ? "Inventory" : c.Character?.Name ?? "Unavailable"), recipe.NativeAbility.HasValue ? "Original recipe; final batch output caps at 100." : "Fixture recipe.", .. Boundary(c)];
     }
-    private static string NextSetting(MenuController c, MenuSetting setting)
-    {
-        var index = Array.IndexOf(setting.Values, c.Data.Settings.GetValueOrDefault(setting.Id));
-        return setting.Values[(index + 1) % setting.Values.Length];
-    }
     private static MenuCharacter? LimitCharacter(MenuController c, string family) => c.Character?.LimitBreak == family ? c.Character : c.IsDemo ? c.Data.Characters.FirstOrDefault(ch => ch.LimitBreak == family) : c.Character;
     private static IReadOnlyList<MenuEntry> LimitEntries(MenuController c, string family, bool learn = false)
     {
