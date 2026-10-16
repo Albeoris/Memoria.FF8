@@ -44,9 +44,22 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (operation.Parameter != 8 || fiber.NativeDoorDefaultFrame || !fiber.NativeResultFrameEntered || fiber.NativeDoorSavedResults is not { Length: 8 })
+        if (fiber.NativeDoorDefaultFrame || !fiber.NativeResultFrameEntered || fiber.NativeDoorSavedResults is not { Length: 8 })
         {
-            return "Native actor RET requires its actual requested LBL frame and RET8 lower-slot resumption; default frame aliases and explicit slot cancellation are unsupported";
+            return "Native actor RET requires its actual requested LBL frame; default frame aliases are unsupported";
+        }
+        if (operation.Parameter != 8)
+        {
+            Fiber? target = fibers.SingleOrDefault(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) == operation.Parameter);
+            if (operation.Parameter is < 0 or > 7 || target is null || operation.Parameter >= NativeActorRequestSlot(fiber) || !target.NativeResultFrameEntered && !target.NativeDoorDefaultFrame)
+            {
+                return "Native explicit RET requires an occupied lower entered slot and its retained operand depth";
+            }
+            if (actors[fiber.ObjectId].NativeMovementRequest is { RestoreSuppressedByFlush: false })
+            {
+                return "Native explicit RET with a movement backup requires its cancellation and motion restoration contract";
+            }
+            return null;
         }
         if (!fibers.Any(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) < NativeActorRequestSlot(fiber)))
         {
@@ -59,6 +72,22 @@ public sealed partial class EventEngine
     {
         if (fiber.Initialization || !IsNativeActorRequest(fiber.ObjectId))
         {
+            return;
+        }
+        int returnSlot = program!.Operations[fiber.Position - 1].Parameter;
+        if (returnSlot != 8)
+        {
+            Fiber target = fibers.Single(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) == returnSlot);
+            //51C5C0 first consumes the current frame, then rewinds depth388 to
+            // savedDepth380[target]+8 and pops a second bank. Those eight words
+            // belong to the first entered frame above the target, not the current
+            // frame when intermediate slots exist. Retained target operands stay.
+            Fiber firstFrame = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item.NativeResultFrameEntered && NativeActorRequestSlot(item) > returnSlot).OrderBy(NativeActorRequestSlot).First();
+            SetNativeDoorLiveResults(target, firstFrame.NativeDoorSavedResults!.Reverse().ToArray());
+            foreach (Fiber canceled in fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && NativeActorRequestSlot(item) > returnSlot && NativeActorRequestSlot(item) <= NativeActorRequestSlot(fiber)))
+            {
+                canceled.Complete = true;
+            }
             return;
         }
         Fiber lower = fibers.Where(item => item.ObjectId == fiber.ObjectId && !item.Complete && item != fiber && NativeActorRequestSlot(item) < NativeActorRequestSlot(fiber)).OrderByDescending(NativeActorRequestSlot).First();

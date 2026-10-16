@@ -29,7 +29,18 @@ internal static partial class Program
             }
             GameSession session = CreateDirectedLinearTurnSession(vitals, economy);
             EventEngine engine = new(session) { AnimationFrameCount = (_, _) => 4 };
-            engine.LoadField(600, SyntheticObjects(labels, scripts), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            byte[] content = SyntheticObjects(labels, scripts);
+            int operationsOffset = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(content.AsSpan(6));
+            int operationIndex = 0;
+            foreach (var operation in scripts.SelectMany(script => script))
+            {
+                if (operation == (Jsm.Opcode.RET, 0))
+                {
+                    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(content.AsSpan(operationsOffset + operationIndex * 4), (int)Jsm.Opcode.RET << 24);
+                }
+                operationIndex++;
+            }
+            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             engine.Step();
             return engine;
         }
@@ -103,6 +114,37 @@ internal static partial class Program
         Require(!Has(cross, "5000") && Value(cross, "5010") == 88, "Cross-entity REQ stopped yielding its caller or failed native target callback ordering.");
         cross.Step();
         Require(Value(cross, "5000") == 77 && cross.LastFault is null, "Cross-entity REQ did not resume its caller on the next callback.");
-        Console.WriteLine("Native self REQ: shared sixteen-op budget, live LBL bank/reversed RET8 restoration, busy self continuation, lower-slot queue order, mid-preemption restore and cross-entity yield PASS.");
+        (Jsm.Opcode, int)[] cancelMain = [(Jsm.Opcode.PSHN_L, 11), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.PSHI_L, 6), (Jsm.Opcode.POPM_B, 5020), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] intermediate = [(Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.POPM_B, 5021), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] cancel = [.. Enumerable.Repeat((Jsm.Opcode.NOP, 0), 20), (Jsm.Opcode.RET, 0)];
+        EventEngine cancelEngine = Create(cancelMain, intermediate, cancel);
+        cancelEngine.Step();
+        JsonElement cancelSaved = cancelEngine.Capture();
+        Require(Fiber(cancelEngine, 3).GetProperty("NativeResultFrameEntered").GetBoolean() && !Has(cancelEngine, "5020"), "Explicit RET fixture did not retain both entered frames before its cancellation.");
+
+        EventEngine cancelCopy = Create(cancelMain, intermediate, cancel);
+        cancelCopy.Restore(cancelSaved);
+        for (int callback = 0; callback < 5 && !Has(cancelEngine, "5020"); callback++)
+        {
+            cancelEngine.Step();
+            cancelCopy.Step();
+            Require(JsonElement.DeepEquals(cancelEngine.Capture(), cancelCopy.Capture()), "Explicit RET cancellation changed after independent restore.");
+        }
+        Require(Value(cancelEngine, "5020") == 11 && !Has(cancelEngine, "5021") && !cancelEngine.Capture().GetProperty("Fibers").EnumerateArray().Any(item => !item.GetProperty("Complete").GetBoolean() && item.GetProperty("ScriptId").GetInt32() is 2 or 3), "RET0 did not cancel its intermediate slot, resume the target or restore the first physical frame above the target.");
+
+        (Jsm.Opcode, int)[] targetMain = [(Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] target = [(Jsm.Opcode.PSHN_L, 22), (Jsm.Opcode.POPI_L, 1), (Jsm.Opcode.PSHN_L, 99), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.REQ, 0), (Jsm.Opcode.POPM_B, 5022), (Jsm.Opcode.PSHI_L, 6), (Jsm.Opcode.POPM_B, 5023), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
+        EventEngine targeted = Create(targetMain, target, [(Jsm.Opcode.RET, 1)]);
+        for (int callback = 0; callback < 4 && !Has(targeted, "5023"); callback++)
+        {
+            targeted.Step();
+        }
+        Require(Value(targeted, "5022") == 99 && Value(targeted, "5023") == 22, "Explicit RET1 lost its lower target's saved operand depth or reversed result bank.");
+        EventEngine targetedCopy = Create(targetMain, target, [(Jsm.Opcode.RET, 1)]);
+        targetedCopy.Restore(targeted.Capture());
+        Require(JsonElement.DeepEquals(targeted.Capture(), targetedCopy.Capture()), "Post-cancellation nondefault target failed exact restore.");
+        JsmProgram rescue = JsmProgram.Read(assets.LoadField(144).Jsm);
+        Require(rescue.Operations[539].Opcode == Jsm.Opcode.RET && rescue.Operations[539].Parameter == 4, $"Original rescue field144 operation539 is RET{rescue.Operations[539].Parameter}.");
+        Console.WriteLine("Native self REQ: shared sixteen-op budget, live LBL bank/reversed RET8 restoration, busy self continuation, lower-slot queue order, mid-preemption restore, cross-entity yield, explicit RET0 cancellation, RET1 retained operands/results and original rescue RET4 operand PASS.");
     }
 }
