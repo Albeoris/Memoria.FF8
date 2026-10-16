@@ -168,10 +168,14 @@ public sealed partial class MenuController
             return;
         }
         var entries = Entries;
-        if (_view?.FocusedElement?.Id == "details" && input is MenuInput.Up or MenuInput.Down or MenuInput.PageUp or MenuInput.PageDown)
+        UiView view = BuildView();
+        if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list &&
+            (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && ScreenId != "config" && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
         {
-            _view.Key(input switch
+            view.Key(input switch
             {
+                MenuInput.Left => UiKey.Left,
+                MenuInput.Right => UiKey.Right,
                 MenuInput.Up => UiKey.Up,
                 MenuInput.Down => UiKey.Down,
                 MenuInput.PageUp => UiKey.PageUp,

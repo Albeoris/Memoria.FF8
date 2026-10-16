@@ -163,8 +163,8 @@ public sealed class MenuViewTests
         menus.Open(screen, true);
         string expected = menus.Entries[1].Id;
         UiView view = menus.BuildView();
-        UiList quantities = Assert.Single(Descendants(view.Root).OfType<UiList>(), list => list.Id == "commands-quantities");
-        view.Pointer(quantities.Bounds.X + quantities.Bounds.Width / 2, quantities.Bounds.Y + quantities.RowHeight * 1.5f, true);
+        UiList quantities = Assert.Single(Descendants(view.Root).OfType<UiList>(), list => list.Id == "commands");
+        view.Pointer(quantities.Bounds.Right - 30, quantities.Bounds.Y + quantities.RowHeight * 1.5f, true);
         Assert.Equal(destination, menus.ScreenId);
         Assert.Equal(expected, screen == "item-use" ? menus.Item?.Id : menus.Magic?.Id);
     }
@@ -256,7 +256,7 @@ public sealed class MenuViewTests
     {
         for (int attempts = 0; menus.SelectedIndex != index && attempts < menus.Entries.Count; attempts++)
         {
-            menus.Navigate(MenuInput.Right);
+            menus.Navigate(menus.BuildView().FocusedElement is UiList { Orientation: UiOrientation.Horizontal } ? MenuInput.Right : MenuInput.Down);
         }
         Assert.Equal(index, menus.SelectedIndex);
         menus.BuildView();

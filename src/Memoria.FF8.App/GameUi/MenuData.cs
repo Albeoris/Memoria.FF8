@@ -90,7 +90,11 @@ public sealed class MenuGuardianForce
     public List<MenuAbilityChoice> LearningChoices { get; } = [];
 }
 
-public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = false, int Progress = 0, int RequiredPoints = 0);
+public sealed record MenuAbilityChoice(string Id, string Name, bool Learned = false, int Progress = 0, int RequiredPoints = 0)
+{
+    public UiImageSource? Icon { get; init; }
+    public string Description { get; init; } = "";
+}
 
 public sealed class MenuItem
 {

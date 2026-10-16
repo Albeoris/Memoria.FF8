@@ -142,7 +142,7 @@ public sealed class NativeGfMenuTests
             vitals = NativeJunctionMenuInput.Apply(vitals, input);
         });
         controller.Open("gf-learn");
-        Assert.Contains(controller.Entries, entry => !entry.Enabled && entry.Label.Contains("Learned", StringComparison.Ordinal));
+        Assert.Contains(controller.Entries, entry => !entry.Enabled && vitals.GuardianForceAbilities(0).Any(ability => ability.Learned && names.AbilityName(ability.Ability) == entry.Label));
         int selected = controller.Entries.ToList().FindIndex(entry => entry.Id == target.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         for (int index = 0; index < selected; index++)
         {

@@ -60,29 +60,16 @@ public sealed partial class MenuController
     private UiElement MagicStockPreview(MenuCharacter? character)
     {
         MenuMagic[] spells = Data.Magic.Where(value => value.CharacterId == character?.Id).ToArray();
-        var list = new UiList { Id = "magic-preview-" + character?.Id, RowHeight = 38 * TextScale, FontSize = 25 * TextScale, ShowSelection = false, Focusable = false, TrailingImages = spells.Select(value => value.Icon).ToList() };
+        var list = new UiList { Id = "magic-preview-" + character?.Id, RowHeight = 38 * TextScale, FontSize = 25 * TextScale, ShowSelection = false, Focusable = true, TrailingImages = spells.Select(value => value.Icon).ToList() };
         return InventoryQuantities(list, spells.Select(value => value.Name).ToList(), spells.Select(value => value.Quantity.ToString()).ToList());
     }
 
     private UiElement InventoryQuantities(UiList list, List<string> names, List<string> quantities)
     {
         list.Items = names;
-        list.ShowScrollbar = false;
-        var values = new UiList
-        {
-            Id = list.Id + "-quantities",
-            Items = quantities,
-            SelectedIndex = list.SelectedIndex,
-            RowHeight = list.RowHeight,
-            FontSize = list.FontSize,
-            ShowSelection = false,
-            Focusable = list.Focusable,
-            SelectionChanged = list.SelectionChanged,
-            Confirmed = list.Confirmed
-        };
-        var columns = Grid([1], [4, 1], 0);
-        Place(columns, list, 0);
-        Place(columns, values, 0, 1);
-        return columns;
+        list.Paginated = true;
+        list.SecondaryItems = quantities;
+        list.SecondaryWidth = 0.2f;
+        return list;
     }
 }

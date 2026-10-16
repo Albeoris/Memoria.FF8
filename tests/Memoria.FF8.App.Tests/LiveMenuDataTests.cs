@@ -8,6 +8,74 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class LiveMenuDataTests
 {
+    [Theory]
+    [InlineData(0, 216)]
+    [InlineData(19, 216)]
+    [InlineData(20, 217)]
+    [InlineData(38, 217)]
+    [InlineData(39, 218)]
+    [InlineData(57, 218)]
+    [InlineData(58, 219)]
+    [InlineData(77, 219)]
+    [InlineData(78, 220)]
+    [InlineData(82, 220)]
+    [InlineData(83, 221)]
+    [InlineData(91, 221)]
+    [InlineData(92, 222)]
+    [InlineData(115, 222)]
+    public void NativeAbilityCategoriesUseOriginalIconsAtEveryBoundary(int ability, int icon)
+    {
+        Assert.Equal(new UiImageSource(UiImageKind.Icon, icon), NativeAbilityMenuMetadata.Icon(ability));
+        Assert.Null(NativeAbilityMenuMetadata.Icon(-1));
+        Assert.Null(NativeAbilityMenuMetadata.Icon(116));
+    }
+
+    [Fact]
+    public void GuardianForceChoicesProjectOriginalDescriptionsWithoutChangingProgression()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed native menu resources are required.");
+        using GameAssets assets = new(directory);
+        LiveMenuCatalog catalog = LiveMenuCatalog.ReadInstalled(assets);
+        NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().AcquireGuardianForce(0);
+        string original = JsonSerializer.Serialize(vitals);
+        MenuGuardianForce force = Assert.Single(LiveMenuData.Build(new GameState { CharacterVitals = vitals }, catalog: catalog).GuardianForces);
+        Assert.NotEmpty(force.LearningChoices);
+        Assert.All(force.LearningChoices, choice =>
+        {
+            int ability = int.Parse(choice.Id, System.Globalization.CultureInfo.InvariantCulture);
+            NativeGuardianForceAbility native = vitals.GuardianForceAbilities(0).Single(entry => entry.Ability == ability);
+            Assert.Equal(catalog.AbilityName(ability), choice.Name);
+            Assert.Equal(catalog.AbilityDescription(ability), choice.Description);
+            Assert.False(string.IsNullOrWhiteSpace(choice.Description));
+            Assert.DoesNotContain("{Term", choice.Description);
+            Assert.Equal(NativeAbilityMenuMetadata.Icon(ability), choice.Icon);
+            Assert.Equal(native.Learned, choice.Learned);
+            Assert.Equal(native.Progress, choice.Progress);
+            Assert.Equal(native.RequiredPoints, choice.RequiredPoints);
+        });
+        Assert.Null(catalog.AbilityDescription(-1));
+        Assert.Null(catalog.AbilityDescription(116));
+        Assert.Equal(original, JsonSerializer.Serialize(vitals));
+    }
+
+    [Fact]
+    public void DemoGuardianForcesSupplyIconsDescriptionsAndSeparateProgress()
+    {
+        MenuData data = MenuDemoData.Create();
+        Assert.All(data.GuardianForces, force =>
+        {
+            Assert.True(force.LearningChoices.Count > 11);
+            Assert.All(force.LearningChoices, choice =>
+            {
+                Assert.NotNull(choice.Icon);
+                Assert.StartsWith("Fixture: ", choice.Description);
+            });
+            Assert.Contains(force.LearningChoices, choice => choice.Learned);
+            Assert.Contains(force.LearningChoices, choice => !choice.Learned && choice.Progress > 0 && choice.Progress < choice.RequiredPoints);
+        });
+    }
+
     [Fact]
     public void MissingNativeOwnersStayUnavailableWithoutDemoFallback()
     {

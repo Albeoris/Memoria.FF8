@@ -93,7 +93,7 @@ public static class LiveMenuData
                 character.AbilitySlots = vitals.JunctionAbilitySlots(row);
                 foreach (int ability in vitals.JunctionLearnedAbilities(row).Order())
                 {
-                    MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(ability) ?? $"Ability {ability}", true);
+                    MenuAbilityChoice choice = new(ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(ability) ?? $"Ability {ability}", true) { Icon = NativeAbilityMenuMetadata.Icon(ability), Description = catalog?.AbilityDescription(ability) ?? "Ability description unavailable." };
                     if (ability is >= 20 and < 39)
                     {
                         character.AvailableCommands.Add(choice);
@@ -152,7 +152,7 @@ public static class LiveMenuData
                     {
                         guardianForce.Abilities.Add(catalog?.AbilityName(entry.Ability) ?? $"Learned ability {entry.Ability}");
                     }
-                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints));
+                    guardianForce.LearningChoices.Add(new MenuAbilityChoice(entry.Ability.ToString(System.Globalization.CultureInfo.InvariantCulture), catalog?.AbilityName(entry.Ability) ?? $"Ability {entry.Ability}", entry.Learned, entry.Progress, entry.RequiredPoints) { Icon = NativeAbilityMenuMetadata.Icon(entry.Ability), Description = catalog?.AbilityDescription(entry.Ability) ?? "Ability description unavailable." });
                     if (entry.Ability == native.Learning && !entry.Learned)
                     {
                         guardianForce.AbilityPoints = entry.Progress;
@@ -262,6 +262,7 @@ public sealed partial class LiveMenuCatalog
     private readonly KernelData kernel;
     private readonly string[] guardianForceNames;
     private readonly string?[] abilityNames;
+    private readonly string?[] abilityDescriptions;
     private readonly string[] cardNames;
     private readonly string[] cardDescriptions;
     private readonly byte[] fieldItems;
@@ -277,6 +278,7 @@ public sealed partial class LiveMenuCatalog
         this.fieldItems = fieldItems;
         this.tripleTriad = tripleTriad;
         abilityNames = [.. kernel.JunctionAbilities.Select(ability => ability.Name), .. kernel.CommandAbilities.Select(ability => ability.Name), .. kernel.CharacterStatAbilities.Select(ability => ability.Name), .. kernel.CharacterAbilities.Select(ability => ability.Name), .. kernel.PartyAbilities.Select(ability => ability.Name), .. kernel.GuardianAbilities.Select(ability => ability.Name), .. kernel.MenuAbilities.Select(ability => ability.Name)];
+        abilityDescriptions = [.. kernel.JunctionAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CommandAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterStatAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.CharacterAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.PartyAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.GuardianAbilities.Select(ability => FormatDescription(ability.Description)), .. kernel.MenuAbilities.Select(ability => FormatDescription(ability.Description))];
     }
 
     public static LiveMenuCatalog ReadInstalled(GameAssets assets)
@@ -361,5 +363,10 @@ public sealed partial class LiveMenuCatalog
     public string? AbilityName(int id)
     {
         return (uint)id < abilityNames.Length ? abilityNames[id] : null;
+    }
+
+    public string? AbilityDescription(int id)
+    {
+        return (uint)id < abilityDescriptions.Length ? abilityDescriptions[id] : null;
     }
 }

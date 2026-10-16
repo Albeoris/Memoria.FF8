@@ -5,6 +5,249 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiTests
 {
     [Fact]
+    public void Paginated_lists_keep_fixed_page_offsets_and_clamp_rows_on_the_last_page()
+    {
+        UiList list = At(new UiList { Paginated = true, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 84));
+        List<int> changes = new();
+        list.SelectionChanged = changes.Add;
+        list.SelectedIndex = 2;
+
+        Assert.Equal(3, list.VisibleRows);
+        Assert.Equal(3, list.EffectivePageSize);
+        Assert.Equal(3, list.PageCount);
+        Assert.True(list.Key(UiKey.Right));
+        Assert.Equal(5, list.SelectedIndex);
+        Assert.Equal(1, list.CurrentPage);
+        Assert.Equal(3, list.ScrollOffset);
+        list.Key(UiKey.PageDown);
+        Assert.Equal(7, list.SelectedIndex);
+        Assert.Equal(6, list.ScrollOffset);
+        list.Key(UiKey.Right);
+        Assert.Equal(7, list.SelectedIndex);
+        list.Key(UiKey.Left);
+        Assert.Equal(4, list.SelectedIndex);
+        list.Key(UiKey.PageUp);
+        Assert.Equal(1, list.SelectedIndex);
+        list.Key(UiKey.Up);
+        list.Key(UiKey.Down);
+        Assert.Equal(new[] { 5, 7, 4, 1, 0, 1 }, changes);
+        list.SelectedIndex = 2;
+        list.Key(UiKey.Down);
+        Assert.Equal(3, list.SelectedIndex);
+        Assert.Equal(3, list.ScrollOffset);
+    }
+
+    [Theory]
+    [InlineData(2, 2, 4, 2)]
+    [InlineData(10, 3, 3, 3)]
+    public void Explicit_page_size_is_capped_to_full_visible_rows_without_fitting(int pageSize, int capacity, int pageCount, int drawnRows)
+    {
+        UiList list = At(new UiList { Paginated = true, PageSize = pageSize, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 94));
+        list.Key(UiKey.PageDown);
+        RecordingCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(capacity, list.EffectivePageSize);
+        Assert.Equal(pageCount, list.PageCount);
+        Assert.Equal(capacity, list.ScrollOffset);
+        Assert.Equal(drawnRows + 1, canvas.Texts.Count);
+        Assert.Equal(capacity.ToString(), canvas.Texts[0]);
+        Assert.Equal($"P.2 / {pageCount}", canvas.Texts[^1]);
+        Assert.All(canvas.AlignedTexts.Take(drawnRows), text => Assert.Equal(20, text.Bounds.Height));
+    }
+
+    [Fact]
+    public void Paginated_lists_draw_only_full_rows_and_keep_footer_separate_from_item_clicks()
+    {
+        UiList list = At(new UiList { Paginated = true, RowHeight = 20, ShowSelection = false, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(10, 10, 160, 94));
+        List<int> confirmed = new();
+        List<int> changes = new();
+        list.Confirmed = confirmed.Add;
+        list.SelectionChanged = changes.Add;
+        RecordingCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(new[] { "0", "1", "2", "P.1 / 3" }, canvas.Texts);
+        Assert.All(canvas.AlignedTexts.Take(3), text => Assert.True(text.Bounds.Bottom <= 70));
+        Assert.Equal(80, canvas.AlignedTexts[^1].Bounds.Y);
+        Assert.Equal(104, canvas.AlignedTexts[^1].Bounds.Bottom);
+        Assert.Equal(90, canvas.AlignedTexts[^1].Bounds.X + canvas.AlignedTexts[^1].Bounds.Width / 2);
+        Assert.Empty(canvas.Fills);
+        Assert.Equal(4, canvas.Lines);
+        list.Pointer(30, 75);
+        list.Pointer(90, 92);
+        Assert.Empty(confirmed);
+        Assert.Empty(changes);
+        list.Pointer(150, 92);
+        Assert.Equal(3, list.SelectedIndex);
+        Assert.Equal(new[] { 3 }, changes);
+        Assert.Empty(confirmed);
+        list.Pointer(60, 35);
+        Assert.Equal(new[] { 4 }, confirmed);
+        list.Pointer(30, 92);
+        Assert.Equal(1, list.SelectedIndex);
+        Assert.Equal(new[] { 3, 4, 1 }, changes);
+    }
+
+    [Fact]
+    public void Final_page_does_not_repeat_previous_items_or_activate_empty_rows()
+    {
+        UiList list = At(new UiList { Paginated = true, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 84));
+        List<int> confirmed = new();
+        list.Confirmed = confirmed.Add;
+        list.CurrentPage = 2;
+        RecordingCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        Assert.Equal(new[] { "6", "7", "P.3 / 3" }, canvas.Texts);
+        Assert.Equal(6, list.ScrollOffset);
+        list.Pointer(60, 50);
+        Assert.Empty(confirmed);
+        Assert.Equal(6, list.SelectedIndex);
+        list.Pointer(150, 72);
+        Assert.Equal(6, list.SelectedIndex);
+        Assert.Empty(confirmed);
+        list.Pointer(60, 30);
+        Assert.Equal(new[] { 7 }, confirmed);
+    }
+
+    [Fact]
+    public void Fitted_pages_render_requested_row_count_and_keep_selection_when_resized()
+    {
+        UiList list = new() { Paginated = true, PageSize = 10, FitPageRows = true, RowHeight = 40, Items = Enumerable.Range(0, 23).Select(index => index.ToString()).ToList() };
+        UiView view = new(list);
+        view.Resize(300, 224);
+        list.SelectedIndex = 17;
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        Assert.Equal(10, list.VisibleRows);
+        Assert.Equal(3, list.PageCount);
+        Assert.Equal(10, list.ScrollOffset);
+        Assert.Equal(Enumerable.Range(10, 10).Select(index => index.ToString()).Append("P.2 / 3"), canvas.Texts);
+        Assert.All(canvas.AlignedTexts.Take(10), text => Assert.Equal(20, text.Bounds.Height));
+        Assert.Equal(200, canvas.AlignedTexts[9].Bounds.Bottom);
+        view.Resize(300, 324);
+        canvas = new RecordingCanvas();
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(17, list.SelectedIndex);
+        Assert.Equal(10, list.ScrollOffset);
+        Assert.All(canvas.AlignedTexts.Take(10), text => Assert.Equal(30, text.Bounds.Height));
+        Assert.Equal(300, canvas.AlignedTexts[9].Bounds.Bottom);
+        list.Pointer(60, 45);
+        Assert.Equal(11, list.SelectedIndex);
+    }
+
+    [Fact]
+    public void Automatic_page_capacity_reflows_selection_after_resize_and_handles_empty_lists()
+    {
+        UiList list = At(new UiList { Paginated = true, RowHeight = 20, Items = Enumerable.Range(0, 8).Select(index => index.ToString()).ToList() }, new UiRect(0, 0, 160, 84));
+        list.SelectedIndex = 7;
+        list.Arrange(new UiRect(0, 0, 160, 104));
+        Assert.Equal(4, list.EffectivePageSize);
+        Assert.Equal(1, list.CurrentPage);
+        Assert.Equal(4, list.ScrollOffset);
+        list.ScrollOffset = 0;
+        Assert.Equal(3, list.SelectedIndex);
+        list.Items.Clear();
+        Assert.Equal(-1, list.SelectedIndex);
+        Assert.Equal(0, list.CurrentPage);
+        Assert.Equal(0, list.PageCount);
+        Assert.Equal(0, list.ScrollOffset);
+        Assert.False(list.Key(UiKey.Right));
+        list.Pointer(140, 92);
+        RecordingCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+        Assert.Empty(canvas.Texts);
+        Assert.Equal(0, canvas.Lines);
+        list.Items.Add("only");
+        list.Arrange(new UiRect(0, 0, 160, 30));
+        canvas = new RecordingCanvas();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(0, list.VisibleRows);
+        Assert.Empty(canvas.Texts);
+        list.Pointer(60, 2);
+        list.Arrange(new UiRect(0, 0, 160, 64));
+        canvas = new RecordingCanvas();
+        list.Draw(canvas, new UiTheme());
+        Assert.Equal(new[] { "only" }, canvas.Texts);
+        Assert.Equal(0, canvas.Lines);
+    }
+
+    [Fact]
+    public void Secondary_text_uses_one_aligned_column_across_icons_and_pages()
+    {
+        UiList list = At(new UiList
+        {
+            Paginated = true,
+            RowHeight = 30,
+            SecondaryWidth = 0.4f,
+            Items = ["Junction", "Ability", "Other"],
+            SecondaryItems = ["Complete!", "20/30", "0/40"],
+            Images = [new UiImageSource(UiImageKind.Icon, 1), null, new UiImageSource(UiImageKind.Icon, 2)],
+            TrailingImages = [new UiImageSource(UiImageKind.Icon, 3)],
+            EnabledItems = [true, false]
+        }, new UiRect(0, 0, 300, 84));
+        RecordingCanvas canvas = new();
+        UiTheme theme = new();
+        list.Draw(canvas, theme);
+
+        Assert.Equal(new[] { "Junction", "Complete!", "Ability", "20/30", "P.1 / 2" }, canvas.Texts);
+        Assert.Equal(canvas.AlignedTexts[1].Bounds.X, canvas.AlignedTexts[3].Bounds.X);
+        Assert.True(canvas.AlignedTexts[0].Bounds.Right <= canvas.AlignedTexts[1].Bounds.X);
+        Assert.True(canvas.AlignedTexts[1].Bounds.Right < canvas.Images[1].Bounds.X);
+        Assert.True(canvas.Images[0].Bounds.Right < canvas.AlignedTexts[0].Bounds.X);
+        Assert.Equal(theme.Muted, canvas.TextDetails[3].Color);
+        float columnX = canvas.AlignedTexts[1].Bounds.X;
+        list.Key(UiKey.Right);
+        canvas = new RecordingCanvas();
+        list.Draw(canvas, theme);
+        Assert.Equal(new[] { "Other", "0/40", "P.2 / 2" }, canvas.Texts);
+        Assert.Equal(columnX, canvas.AlignedTexts[1].Bounds.X);
+    }
+
+    [Fact]
+    public void Mixed_trailing_markers_reserve_one_secondary_column_on_every_page()
+    {
+        UiImageSource marker = new(UiImageKind.Icon, 192);
+        UiList list = At(new UiList
+        {
+            Paginated = true,
+            PageSize = 2,
+            RowHeight = 30,
+            Items = ["Fire", "Blizzard", "Thunder"],
+            SecondaryItems = ["100", "100", "100"],
+            TrailingImages = [marker, null]
+        }, new UiRect(0, 0, 240, 84));
+        RecordingCanvas canvas = new();
+        list.Draw(canvas, new UiTheme());
+
+        UiRect marked = canvas.AlignedTexts[1].Bounds;
+        UiRect unmarked = canvas.AlignedTexts[3].Bounds;
+        Assert.Equal(marked.X, unmarked.X);
+        Assert.Equal(marked.Width, unmarked.Width);
+        Assert.True(marked.Right < Assert.Single(canvas.Images).Bounds.X);
+        Assert.True(canvas.AlignedTexts[0].Bounds.Right <= marked.X);
+        Assert.True(canvas.AlignedTexts[2].Bounds.Right <= unmarked.X);
+        list.Key(UiKey.Right);
+        canvas = new RecordingCanvas();
+        list.Draw(canvas, new UiTheme());
+        Assert.Empty(canvas.Images);
+        Assert.Equal(marked.X, canvas.AlignedTexts[1].Bounds.X);
+        Assert.Equal(marked.Width, canvas.AlignedTexts[1].Bounds.Width);
+    }
+
+    [Fact]
+    public void Page_and_secondary_column_configuration_reject_invalid_values()
+    {
+        UiList list = new();
+        Assert.Throws<ArgumentOutOfRangeException>(() => list.PageSize = -1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => list.SecondaryWidth = -0.1f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => list.SecondaryWidth = 1.1f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => list.SecondaryWidth = float.NaN);
+    }
+
+    [Fact]
     public void Larger_menu_pointer_keeps_text_and_row_images_clear_of_the_hand()
     {
         UiList list = new() { Items = ["Potion"], Images = [new UiImageSource(UiImageKind.Icon, 1)], RowHeight = 40, PointerSize = 20, TextInset = 35 };

@@ -236,6 +236,7 @@ public sealed partial class MenuController
         return new UiList
         {
             Id = "commands",
+            Paginated = true,
             Focusable = Entries.Count > 0,
             Enabled = !IsSelectingCharacter,
             Items = Entries.Select(entry => entry.Label).ToList(),
@@ -255,7 +256,7 @@ public sealed partial class MenuController
 
     private UiElement Details()
     {
-        return new UiList { Id = "details", Items = CurrentScreen.Details(this).ToList(), FontSize = 17 * TextScale, RowHeight = 29 * TextScale, ShowSelection = false };
+        return new UiList { Id = "details", Paginated = true, Items = CurrentScreen.Details(this).ToList(), FontSize = 17 * TextScale, RowHeight = 29 * TextScale, ShowSelection = false };
     }
 
     private UiElement Lines(IReadOnlyList<string> values, float fontSize)

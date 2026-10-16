@@ -48,10 +48,64 @@ public sealed class MenuNativePagesTests
         menus.Open("gf-learn");
         UiView view = menus.BuildView();
         UiList list = Assert.Single(Descendants(view.Root).OfType<UiList>(), element => element.Id == "commands");
-        Assert.False(list.EnabledItems[0]);
-        Assert.True(list.EnabledItems[1]);
-        Assert.Contains("7/40 AP", list.Items[1]);
+        Assert.False(menus.Entries[0].Enabled);
+        Assert.True(menus.Entries[1].Enabled);
+        Assert.Empty(list.EnabledItems);
+        Assert.Equal("Card", list.Items[1]);
+        Assert.Equal(new[] { "Complete!", "7 / 40" }, list.SecondaryItems);
+        Assert.True(list.Paginated);
+        Assert.Equal(10, list.PageSize);
         Assert.Contains(Descendants(view.Root).OfType<UiLabel>(), label => label.Text == "7 / 40 AP");
+    }
+
+    [Fact]
+    public void GfPagesPreserveRowsClampTheLastPageAndKeepLearningActionsBoundToTheirAbility()
+    {
+        MenuData data = new();
+        data.SupportedActions.Add("gf-learn");
+        MenuGuardianForce force = new() { Id = "gf", Name = "Quezacotl" };
+        for (int index = 0; index < 22; index++)
+        {
+            force.LearningChoices.Add(new MenuAbilityChoice(index.ToString(), $"Ability {index}", false, index, 100));
+        }
+        data.GuardianForces.Add(force);
+        List<MenuAction> actions = [];
+        MenuController menus = new(() => data, actions.Add);
+        menus.Open("gf-learn");
+        for (int index = 0; index < 5; index++)
+        {
+            menus.Navigate(MenuInput.Down);
+        }
+        menus.Navigate(MenuInput.Right);
+        Assert.Equal(15, menus.SelectedIndex);
+        UiList list = Assert.IsType<UiList>(menus.BuildView().FocusedElement);
+        Assert.Equal(10, list.ScrollOffset);
+        Assert.Equal(1, list.CurrentPage);
+        Assert.Equal("15 / 100", list.SecondaryItems[15]);
+        menus.Navigate(MenuInput.Right);
+        Assert.Equal(21, menus.SelectedIndex);
+        menus.Navigate(MenuInput.Left);
+        Assert.Equal(11, menus.SelectedIndex);
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("11", Assert.Single(actions).SubjectId);
+    }
+
+    [Theory]
+    [InlineData("item-use")]
+    [InlineData("magic-use")]
+    [InlineData("card")]
+    [InlineData("ability-refine")]
+    public void VerticalMenuListsChangePagesWithLeftAndRight(string screen)
+    {
+        MenuController menus = new();
+        menus.Open(screen, true);
+        UiList list = Assert.IsType<UiList>(menus.BuildView().FocusedElement);
+        Assert.True(list.Paginated);
+        int size = list.VisibleRows;
+        menus.Navigate(MenuInput.Right);
+        Assert.Equal(list.PageCount > 1 ? Math.Min(size, menus.Entries.Count - 1) : 0, menus.SelectedIndex);
+        menus.Navigate(MenuInput.Left);
+        Assert.Equal(0, menus.SelectedIndex);
     }
 
     [Theory]

@@ -184,7 +184,7 @@ public sealed partial class MenuController
         }
         else
         {
-            var stock = new UiList { Id = "inventory-preview", FontSize = 25 * TextScale, RowHeight = 37 * TextScale, ShowSelection = false, Focusable = false };
+            var stock = new UiList { Id = "inventory-preview", FontSize = 25 * TextScale, RowHeight = 37 * TextScale, ShowSelection = false, Focusable = true };
             stock.Items = Data.Items.Select(value => value.Name).ToList();
             stock.Images = Data.Items.Select(value => value.Icon).ToList();
             inventory = stock;

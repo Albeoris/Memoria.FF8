@@ -6,7 +6,7 @@ namespace Memoria.FF8.App.Tests;
 public sealed class MenuSecondaryLayoutTests
 {
     [Fact]
-    public void Config_keeps_names_and_values_aligned_while_scrolling_and_accepts_value_column_clicks()
+    public void ConfigKeepsNamesAndValuesOnTheSamePageAndAcceptsValueColumnClicks()
     {
         var controller = new MenuController();
         controller.Open("config", demo: true);
@@ -16,17 +16,17 @@ public sealed class MenuSecondaryLayoutTests
         }
         UiView view = controller.BuildView();
         UiList commands = Descendants(view.Root).OfType<UiList>().Single(list => list.Id == "commands");
-        UiList values = Descendants(view.Root).OfType<UiList>().Single(list => list.Id == "setting-values");
+        Assert.True(commands.Paginated);
         Assert.True(commands.ScrollOffset > 0);
-        Assert.Equal(commands.ScrollOffset, values.ScrollOffset);
-        Assert.Equal(commands.Bounds.Y, values.Bounds.Y);
-        Assert.Equal(commands.RowHeight, values.RowHeight);
-        int clicked = values.ScrollOffset;
+        int clicked = commands.ScrollOffset;
         string setting = controller.Entries[clicked].Id;
         string before = controller.Data.Settings[setting];
-        view.Pointer(values.Bounds.X + 30, values.Bounds.Y + 10, true);
+        Assert.Equal(controller.Entries.Count, commands.SecondaryItems.Count);
+        view.Pointer(commands.Bounds.Right - 60, commands.Bounds.Y + 10, true);
         Assert.Equal(clicked, controller.SelectedIndex);
         Assert.NotEqual(before, controller.Data.Settings[setting]);
+        controller.Navigate(MenuInput.Left);
+        Assert.Equal(clicked, controller.SelectedIndex);
     }
 
     [Fact]

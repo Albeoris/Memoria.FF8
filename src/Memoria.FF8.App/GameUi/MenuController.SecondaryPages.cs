@@ -41,6 +41,7 @@ public sealed partial class MenuController
         return new UiList
         {
             Id = "commands",
+            Paginated = true,
             Items = Entries.Select(entry => entry.Label).ToList(),
             EnabledItems = Entries.Select(entry => entry.Enabled).ToList(),
             RowHeight = height * TextScale,
@@ -61,24 +62,11 @@ public sealed partial class MenuController
         Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry is { } setting ? "Set " + setting.Id.ToLowerInvariant() : "Select a setting.", 23)), 0);
         Place(header, Panel(null, Label("Config", 27)), 0, 1);
         Place(page, header, 0);
-        var settings = Grid([1], [1.05f, 1], 4);
         UiList commands = SecondaryCommands(43);
-        commands.ShowScrollbar = false;
         commands.Items = Entries.Select(entry => MenuSettings.Definitions.Any(setting => setting.Id == entry.Id) ? entry.Id : entry.Label).ToList();
-        Place(settings, commands, 0);
-        var values = new UiList
-        {
-            Id = "setting-values",
-            ShowSelection = false,
-            Items = Entries.Select(entry => Data.Settings.GetValueOrDefault(entry.Id, "")).ToList(),
-            RowHeight = commands.RowHeight,
-            FontSize = commands.FontSize,
-            SelectedIndex = SelectedIndex,
-            SelectionChanged = index => Select(index, Entries.Count),
-            Confirmed = Activate
-        };
-        Place(settings, values, 0, 1);
-        Place(page, Panel(null, settings), 1);
+        commands.SecondaryItems = Entries.Select(entry => Data.Settings.GetValueOrDefault(entry.Id, "")).ToList();
+        commands.SecondaryWidth = 0.49f;
+        Place(page, Panel(null, commands), 1);
         return page;
     }
 
@@ -130,10 +118,9 @@ public sealed partial class MenuController
         if (ScreenId is "shop-buy" or "shop-sell")
         {
             commands.Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id)?.Name ?? entry.Label).ToList();
-            var stock = Grid([1], [2, 1], 2);
-            Place(stock, commands, 0);
-            Place(stock, new UiList { ShowSelection = false, Items = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.SalePrice ?? item.Price / 2 : item.Price) + " G" : "--").ToList(), RowHeight = commands.RowHeight, FontSize = commands.FontSize, SelectedIndex = SelectedIndex, SelectionChanged = index => Select(index, Entries.Count), Confirmed = Activate }, 0, 1);
-            Place(page, Panel("ITEM", stock), 1);
+            commands.SecondaryItems = Entries.Select(entry => Data.Items.FirstOrDefault(item => item.Id == entry.Id) is { } item ? Number(ScreenId == "shop-sell" ? item.SalePrice ?? item.Price / 2 : item.Price) + " G" : "--").ToList();
+            commands.SecondaryWidth = 0.33f;
+            Place(page, Panel("ITEM", commands), 1);
         }
         else
         {

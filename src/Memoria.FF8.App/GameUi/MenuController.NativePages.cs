@@ -38,25 +38,27 @@ public sealed partial class MenuController
         MenuAbilityChoice? learning = GuardianForce?.LearningChoices.FirstOrDefault(choice => choice.Name == GuardianForce.Learning);
         Place(summary, Lines(["Learning", GuardianForce?.Learning ?? "--", learning is null ? $"AP    {Number(GuardianForce?.AbilityPoints)}" : $"{learning.Progress} / {learning.RequiredPoints} AP"], 25), 2);
         Place(body, summary, 0, 0);
-        UiElement abilities = ScreenId == "gf-detail"
-            ? new UiList { Id = "gf-ability-summary", Items = NativeGfAbilities(), FontSize = 25 * TextScale, RowHeight = 39 * TextScale, ShowSelection = false, Focusable = false }
+        bool summaryOnly = ScreenId == "gf-detail";
+        MenuAbilityChoice[] choices = GuardianForce?.LearningChoices.ToArray() ?? [];
+        UiList abilities = summaryOnly
+            ? new UiList { Id = "gf-ability-summary", Items = choices.Select(choice => choice.Name).ToList(), FontSize = 25 * TextScale, RowHeight = 39 * TextScale, ShowSelection = false }
             : NativePageCommands(false, 39, 25);
-        Place(body, Panel("ABILITY", abilities), 0, 1);
+        abilities.EnabledItems = [];
+        abilities.Paginated = true;
+        abilities.PageSize = 10;
+        abilities.FitPageRows = true;
+        abilities.SecondaryWidth = 0.35f;
+        abilities.SecondaryItems = choices.Select(choice => choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}").ToList();
+        abilities.Images = choices.Select(choice => choice.Icon).ToList();
+        if (summaryOnly && choices.Length == 0)
+        {
+            abilities.Items = GuardianForce?.Abilities.ToList() ?? [];
+        }
+        var abilityPanel = Panel("ABILITY", abilities);
+        abilityPanel.Id = "gf-abilities-panel";
+        Place(body, abilityPanel, 0, 1);
         Place(page, body, 2);
         return page;
-    }
-
-    private List<string> NativeGfAbilities()
-    {
-        if (GuardianForce is null)
-        {
-            return [];
-        }
-        if (GuardianForce.LearningChoices.Count > 0)
-        {
-            return GuardianForce.LearningChoices.Select(choice => $"{choice.Name}    {(choice.Learned ? "Complete!" : $"{choice.Progress} / {choice.RequiredPoints}")}").ToList();
-        }
-        return GuardianForce.Abilities.ToList();
     }
 
     private UiElement BuildNativeCard()
@@ -72,10 +74,9 @@ public sealed partial class MenuController
         {
             var list = NativePageCommands(false, 42, 28);
             list.Items = Entries.Select(entry => Data.Cards.FirstOrDefault(value => value.Id == entry.Id)?.Name ?? entry.Label).ToList();
-            var collection = Grid([1], [5, 0.65f], 0);
-            Place(collection, list, 0);
-            Place(collection, new UiList { Items = Entries.Select(entry => Data.Cards.FirstOrDefault(value => value.Id == entry.Id)?.Quantity.ToString() ?? "--").ToList(), SelectedIndex = SelectedIndex, ShowSelection = false, Focusable = false, FontSize = 28 * TextScale, RowHeight = 42 * TextScale }, 0, 1);
-            Place(body, Panel($"CARDS   P. {SelectedIndex / 11 + 1}                    NUM.", collection), 0);
+            list.SecondaryItems = Entries.Select(entry => Data.Cards.FirstOrDefault(value => value.Id == entry.Id)?.Quantity.ToString() ?? "--").ToList();
+            list.SecondaryWidth = 0.14f;
+            Place(body, Panel("CARDS", list), 0);
         }
         else
         {
@@ -160,6 +161,7 @@ public sealed partial class MenuController
             EnabledItems = Entries.Select(entry => entry.Enabled).ToList(),
             SelectedIndex = SelectedIndex,
             Orientation = horizontal ? UiOrientation.Horizontal : UiOrientation.Vertical,
+            Paginated = !horizontal,
             HighlightSelection = false,
             PointerSize = 20 * TextScale,
             TextInset = 35 * TextScale,
