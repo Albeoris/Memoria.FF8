@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeGraphics = graphics with { PresentationSubticks = subticks % TimeSpan.TicksPerSecond };
         for (long count = subticks / TimeSpan.TicksPerSecond; count > 0; count--)
         {
-            AdvanceNativeGraphicsFrame();
+            PumpNativeHostFrame();
         }
     }
 
@@ -69,19 +69,7 @@ public sealed partial class BattleSession
             graphics = QueueNativeEntryModels(graphics);
         }
         //500900: descriptor/callback listAA4, then published effect listAA8, then model listA94, then camera5033E0.
-        bool entryWasReady = graphics.EntryReady;
         graphics = AdvanceNativeGraphicsRequests(graphics);
-        if (!entryWasReady && graphics.EntryReady)
-        {
-            NativeGraphics = graphics;
-            QueueNativeInitialParticipants();
-            if (nativeBattleClock is not null)
-            {
-                SetNativeBattleClockActive(true);
-            }
-            InitializeNativeSupportCallbacks();
-            graphics = NativeGraphics!;
-        }
         flags = graphics.Flags;
         graphics = AdvanceNativeAuxiliary(graphics);
         graphics = AdvanceNativeModuleEffects(graphics);
@@ -118,7 +106,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(graphics.ActorIds[index]!) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask) { OriginalResource = binding.Resource, GlobalRandom = NextNativeGlobalRandom, ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable) });
+                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask) { OriginalResource = binding.Resource, GlobalRandom = NextNativeGlobalRandom, ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable), ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone) });
                 model = step.Model with { Flags2 = (ushort)(step.Model.Flags2!.Value & ~4) };
                 foreach (NativeBattleSequenceCue cue in step.Cues)
                 {
@@ -147,7 +135,9 @@ public sealed partial class BattleSession
                     }
                     else if (cue.Kind == NativeBattleSequenceCueKind.TriggerWindow)
                     {
-                        throw new NotSupportedException("Native AB callback requires its event-owned trigger-window registration.");
+                        NativeGraphics = graphics with { Models = models.SetItem(index, model) };
+                        RegisterNativeTriggerWidget(NativeGraphics, actor, cue);
+                        graphics = NativeGraphics;
                     }
                     else if (cue.Kind is NativeBattleSequenceCueKind.ActorSound or NativeBattleSequenceCueKind.SystemSound)
                     {
@@ -159,6 +149,10 @@ public sealed partial class BattleSession
         }
         NativeGraphics = graphics with { Models = models, Effects = effects.State, Callback = checked(graphics.Callback + 1) };
         AdvanceNativeCamera(flags);
+        if (NativeCamera is not null)
+        {
+            NativeCamera = NativeCamera.PublishProjection(flags);
+        }
     }
 
     private NativeBattleGraphicsState AdvanceNativeGraphicsRequests(NativeBattleGraphicsState graphics)

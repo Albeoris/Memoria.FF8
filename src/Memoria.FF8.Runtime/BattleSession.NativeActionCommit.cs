@@ -1,14 +1,31 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private readonly Dictionary<string, (BattleCombatant Actor, int Stage, long Order)> pendingNativeReactions = [];
     private int nativeActionCommitDepth;
-    private long nativeReactionOrder;
+    private byte? nativeReactionOrder;
     private bool flushingNativeReactions;
+
+    private void BeginNativeReactionBatch()
+    {
+        //485460 LABEL3 resets only globalDF8 lowBYTE before dispatching one original event packet.
+        nativeReactionOrder = 0;
+    }
+
+    private bool HasNativePendingReactions => combatants.Any(actor => actor.NativeIndex is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0);
+
+    private void SetNativeReactionActionGate(bool value)
+    {
+        NativeBattleAllocationControl control = nativeScriptState.AllocationControl ?? throw new NotSupportedException("Native DF9 mutation requires the retained DF9/DFD allocation gate owner.");
+        nativeScriptState = nativeScriptState with { AllocationControl = control with { ActionGate = value } };
+    }
 
     private void ResolveActionTransaction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (nativeActionCommitDepth == 0 && nativeProductionContext is null)
+        {
+            BeginNativeReactionBatch();
+        }
         nativeActionCommitDepth++;
         bool completed = false;
         try
@@ -21,19 +38,12 @@ public sealed partial class BattleSession
         finally
         {
             nativeActionCommitDepth--;
-            if (nativeActionCommitDepth == 0)
+            if (nativeActionCommitDepth == 0 && completed)
             {
-                if (completed)
-                {
-                    QueueNativeActionClockCompletion(0x47DE70);
-                    FlushNativeReactions();
-                    RefreshNativeKnownMagicStocks();
-                    RefreshNativeEnemyDrawSlots();
-                }
-                else
-                {
-                    pendingNativeReactions.Clear();
-                }
+                QueueNativeActionClockCompletion(0x47DE70);
+                FlushNativeReactions();
+                RefreshNativeKnownMagicStocks();
+                RefreshNativeEnemyDrawSlots();
             }
         }
     }
@@ -57,11 +67,20 @@ public sealed partial class BattleSession
         {
             return;
         }
-        // Native494410 replaces the actor's pending stage and its order;47DE70 consumes one final receipt per actor.
-        pendingNativeReactions[actor.Id] = (actor, stage, nativeReactionOrder++);
-        if (nativeActionCommitDepth == 0)
+        if (stage is not (2 or 3))
         {
-            FlushNativeReactions();
+            throw new InvalidDataException("Native494410 only produces pending stages2/3.");
+        }
+        if (stage == 2 && (nativeContactWorking?.CommittingSecondary == true || (resolvingNativeAction?.NativeQueuedCommand ?? resolvingNativeAction?.NativeAction?.Command) is 0 or 14 || !actor.IsPlayer && nativeProductionContext is { MultiCastMode: 0 }))
+        {
+            return;
+        }
+        byte order = nativeReactionOrder ?? throw new NotSupportedException("Native pending reaction requires its actual485460 dispatch-order BYTE.");
+        actor.NativePendingReaction = new(checked((byte)stage), order);
+        nativeReactionOrder = unchecked((byte)(order + 1));
+        if (actor.IsPlayer && stage == 3)
+        {
+            SetNativeReactionActionGate(true);
         }
     }
 
@@ -71,31 +90,33 @@ public sealed partial class BattleSession
         {
             return;
         }
+        byte count = nativeReactionOrder ?? throw new NotSupportedException("Native47DDA0/47DE70 requires the retained pending-order BYTE.");
+        bool partyCapable = combatants.Any(actor => actor.NativeIndex is >= 0 and < 3 && actor.IsActive && (NativeSavedStatusBits(actor) & 5) == 0);
+        bool enemyCapable = combatants.Any(actor => actor.NativeIndex is >= 3 and < 7 && (NativeSavedStatusBits(actor) & 5) == 0);
+        if (Outcome != BattleOutcome.Active || !NativeScriptAllocationPending && !(partyCapable && enemyCapable))
+        {
+            return;
+        }
+        if (count != 0 && combatants.Any(actor => actor.NativeIndex is >= 0 and < 7 && (actor.NativePendingReaction.Stage is null || actor.NativePendingReaction.Stage != 0 && actor.NativePendingReaction.Order is null)))
+        {
+            throw new NotSupportedException("Native pending reaction scan requires the retained physical BD7/BD8 bytes; old unknown values cannot be guessed.");
+        }
         flushingNativeReactions = true;
         try
         {
-            while (pendingNativeReactions.Count != 0)
+            for (int order = 0; order < count; order++)
             {
-                var reaction = pendingNativeReactions.Values.MinBy(reaction => reaction.Order);
-                BattleCombatant actor = reaction.Actor;
-                int stage = reaction.Stage;
-                pendingNativeReactions.Remove(actor.Id);
-                if (stage == 2 && !actor.IsAlive || stage == 3 && actor.AiDeathHandled)
+                BattleCombatant? actor = combatants.Where(actor => actor.NativeIndex is >= 0 and < 7).OrderBy(actor => actor.NativeIndex).FirstOrDefault(actor => actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order == order);
+                if (actor is null)
                 {
                     continue;
                 }
-                if (stage == 3)
+                byte stage = actor.NativePendingReaction.Stage!.Value;
+                if (stage != 2 || (NativeSavedStatusBits(actor) & 1) == 0)
                 {
-                    actor.AiDeathHandled = true;
+                    QueueNativeCallback(actor, stage);
                 }
-                if (actor.IsPlayer)
-                {
-                    RunNativePlayerReaction(actor, stage);
-                }
-                else
-                {
-                    RunNativeAi(actor, stage);
-                }
+                actor.NativePendingReaction = new(0, 0);
             }
         }
         finally

@@ -127,6 +127,7 @@ public sealed partial class BattleHudController
         {
             SelectingTarget = false;
             SelectingAction = false;
+        session.CloseNativeActionMenu();
             selectedMagicTargets.Clear();
         }
         return view;
@@ -242,6 +243,10 @@ public sealed partial class BattleHudController
             selectedDrawSourceId = null;
             PrepareNativeLimitChoices();
             SelectingAction = true;
+            if (SelectedCommand is BattleAbility.Magic or BattleAbility.Item or BattleAbility.GuardianForce or BattleAbility.Draw or BattleAbility.LimitBreak)
+            {
+                session.OpenNativeActionMenu();
+            }
             actionIndex = 0;
             Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Draw ? "Choose magic. Left/Right switches Stock/Cast." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
@@ -301,6 +306,7 @@ public sealed partial class BattleHudController
         SoundRequested?.Invoke(MenuSound.Confirm);
         SelectingTarget = false;
         SelectingAction = false;
+        session.CloseNativeActionMenu();
         selectedMagicTargets.Clear();
         selectedDrawSourceId = null;
         Message = $"{actor.Name}: {name} → {target.Name}";
@@ -345,6 +351,7 @@ public sealed partial class BattleHudController
                 selectedMagicTargets.Clear();
                 magicCastCount = 1;
                 SelectingAction = false;
+        session.CloseNativeActionMenu();
                 SelectingTarget = false;
                 SoundRequested?.Invoke(MenuSound.Move);
             }
@@ -475,6 +482,7 @@ public sealed partial class BattleHudController
         }
         SelectingTarget = false;
         SelectingAction = false;
+        session.CloseNativeActionMenu();
         selectedMagicTargets.Clear();
         Message = "Choose a command when a character is ready.";
     }

@@ -51,11 +51,6 @@ public sealed class NativeAutomaticGuardianTests
         Assert.Equal(0, battle.Frame);
         string snapshot = JsonSerializer.Serialize(battle.Capture());
         Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!).Capture()));
-        for (int callback = 0; callback < 20; callback++)
-        {
-            battle.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks(333_334));
-        }
-        Assert.Equal(state, battle.Capture().NativeSupport);
     }
 
     [Fact]

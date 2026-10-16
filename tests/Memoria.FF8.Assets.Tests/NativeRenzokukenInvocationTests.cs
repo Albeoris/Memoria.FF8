@@ -21,7 +21,7 @@ public sealed class NativeRenzokukenInvocationTests
         Until(battle, () => battle.GetNativeRenzokuken("squall")!.Input.ContactIndex == 1);
         BattleSnapshot first = battle.Capture();
         Assert.Equal(1, first.NativeTimedAction!.Contacts);
-        Assert.Single(first.NativeTimedAction.Reactions);
+        Assert.Single(first.Combatants, actor => actor.NativeParticipant?.PendingReaction?.Stage is > 0);
         Assert.Equal(0u, first.NativeAiVariables![0]);
         Assert.DoesNotContain(battle.Events, item => item.Message.StartsWith("Poison:", StringComparison.Ordinal));
         string snapshot = JsonSerializer.Serialize(first);

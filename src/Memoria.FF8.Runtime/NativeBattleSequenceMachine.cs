@@ -165,6 +165,13 @@ public static class NativeBattleSequenceMachine
                     case 0x94:
                         model = model with { Flags0 = (ushort)(model.Flags0 ^ 0x20) };
                         break;
+                    case 0x99:
+                    case 0xB1:
+                        byte particleBone = ReadByte();
+                        NativeBattleAuxiliaryProgram particleProgram = new(resource.SequenceSection, position);
+                        (inputs.ScheduleSoundParticle ?? throw new NotSupportedException("Native B1/99 requires its shared506BF0 auxiliary task producer."))(particleProgram, opcode == 0xB1, particleBone);
+                        position = NativeBattleAuxiliaryState.SkipSoundParticleProgram(resource.SequenceSection, position);
+                        break;
                     case 0x9C:
                         model = model with { Flags2 = (ushort)(RequireFlags2() | 0x40) };
                         break;
@@ -220,7 +227,7 @@ public static class NativeBattleSequenceMachine
                     case 0xAB:
                         int start = resource.SequenceStart(sequence);
                         BattleNativeRenzokukenBlock block = NativeBattleRenzokukenRules.ReadBlock(resource.SequenceSection.AsSpan().Slice(start, resource.SequenceEnd(sequence) - start), origin - start, resource.AnimationFrames);
-                        cues.Add(new(NativeBattleSequenceCueKind.TriggerWindow) { TriggerWindow = block });
+                        cues.Add(new(NativeBattleSequenceCueKind.TriggerWindow, sequence, origin - start) { TriggerWindow = block });
                         position = start + block.EndOffset;
                         break;
                     case 0xAC:

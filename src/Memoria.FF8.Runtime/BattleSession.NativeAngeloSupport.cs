@@ -68,5 +68,6 @@ public sealed partial class BattleSession
     {
         //494410 already admitted482F10;4877F0 stage3 retains the original actor and includes KO targets.
         QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloReverse, 240, 13, checked((ushort)((1 << actor.NativeIndex) | 0x4000)));
+        SetNativeReactionActionGate(false);
     }
 }

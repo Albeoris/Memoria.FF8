@@ -2,8 +2,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
-    private static void OnNativePlayerCommandSubmitted(BattleCombatant actor, byte command)
+    private void OnNativePlayerCommandSubmitted(BattleCombatant actor, byte command)
     {
+        if (actor.IsPlayer && command is not (0 or 254))
+        {
+            RemoveNativeUiReady(actor);
+        }
         //4847F0 clears Defend/Charged when accepting an ordinary player command;0 and254 bypass this producer.
         if (actor.IsPlayer && command is not (0 or 254))
         {

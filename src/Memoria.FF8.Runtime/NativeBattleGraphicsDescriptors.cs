@@ -32,7 +32,8 @@ public enum NativeBattleDescriptorTaskKind
     Stage506CF0,
     Texture506DE0,
     Map500AC0,
-    Appearance500B60
+    Appearance500B60,
+    Action104
 }
 
 public sealed record NativeBattleDescriptorTask([property: JsonRequired] ushort Flags, [property: JsonRequired] ushort State, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleDescriptorTaskKind Kind, [property: JsonRequired] ImmutableArray<byte> Payload)
@@ -109,34 +110,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
     public (NativeBattleDescriptorState State, int Slot) Enqueue(ushort command, byte priority, uint argument, ushort? index = null, ushort? value = null)
     {
         Validate();
-        int packet = -1;
-        for (int slot = 0; slot < 30; slot++)
-        {
-            if (Packets[slot].PriorityState == 0)
-            {
-                packet = slot;
-                break;
-            }
-        }
-        if (packet < 0)
-        {
-            throw new InvalidOperationException("Native descriptor bank exhausted its30 physical packets.");
-        }
-        ImmutableArray<NativeBattleDescriptorNode> nodes = Nodes;
-        int? root = Root;
-        if (root is null)
-        {
-            root = FreeNode(nodes);
-            nodes = nodes.SetItem(root.Value, nodes[root.Value] with { Next = null, Data = 1 });
-        }
-        int node = FreeNode(nodes);
-        nodes = nodes.SetItem(node, nodes[node] with { Next = null, Data = PacketAddress(packet) });
-        int tail = root.Value;
-        while (nodes[tail].Next is int next)
-        {
-            tail = next;
-        }
-        nodes = nodes.SetItem(tail, nodes[tail] with { Next = node });
+        (ImmutableArray<NativeBattleDescriptorPacket> packets, ImmutableArray<NativeBattleDescriptorNode> nodes, int? root, int packet) = NativeBattlePacketQueues.Allocate(Packets, Nodes, Root, 0x1D96AB8, priority);
         byte[] bytes = Packets[packet].Bytes.ToArray();
         bytes[0] = Serial;
         bytes[1] = (byte)(priority & 0xF0);
@@ -150,7 +124,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10), high);
         }
-        return (this with { Nodes = nodes, Root = root, Packets = Packets.SetItem(packet, new(bytes.ToImmutableArray())), Serial = unchecked((byte)(Serial + 1)) }, packet);
+        return (this with { Nodes = nodes, Root = root, Packets = packets.SetItem(packet, new(bytes.ToImmutableArray())), Serial = unchecked((byte)(Serial + 1)) }, packet);
     }
 
     public (NativeBattleDescriptorState State, int Slot) EnqueueMessage(BattleEvent message, byte priority, byte tag)
@@ -165,36 +139,13 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     public NativeBattleDescriptorState Rotate()
     {
-        if (Root is not int root || Nodes[root].Next is not int first || Nodes[first].Next is null)
-        {
-            return this;
-        }
-        ImmutableArray<NativeBattleDescriptorNode> nodes = Nodes.SetItem(root, Nodes[root] with { Next = Nodes[first].Next }).SetItem(first, Nodes[first] with { Next = null });
-        int tail = root;
-        while (nodes[tail].Next is int next)
-        {
-            tail = next;
-        }
-        return this with { Nodes = nodes.SetItem(tail, nodes[tail] with { Next = first }) };
+        return this with { Nodes = NativeBattlePacketQueues.Rotate(Nodes, Root) };
     }
 
     public NativeBattleDescriptorState RemoveFirst()
     {
-        if (Root is not int root || Nodes[root].Next is not int first)
-        {
-            throw new InvalidDataException("Native descriptor removal has no queued node.");
-        }
-        int packet = PacketIndex(Nodes[first].Data);
-        byte[] bytes = Packets[packet].Bytes.ToArray();
-        bytes[1] = 0;
-        ImmutableArray<NativeBattleDescriptorNode> nodes = Nodes.SetItem(root, Nodes[root] with { Next = Nodes[first].Next }).SetItem(first, Nodes[first] with { Data = 0 });
-        int? newRoot = root;
-        if (nodes[root].Next is null)
-        {
-            nodes = nodes.SetItem(root, nodes[root] with { Data = 0 });
-            newRoot = null;
-        }
-        return this with { Nodes = nodes, Root = newRoot, Packets = Packets.SetItem(packet, Packets[packet] with { Bytes = bytes.ToImmutableArray() }) };
+        (ImmutableArray<NativeBattleDescriptorPacket> packets, ImmutableArray<NativeBattleDescriptorNode> nodes, int? root) = NativeBattlePacketQueues.RemoveFirst(Packets, Nodes, Root, 0x1D96AB8);
+        return this with { Packets = packets, Nodes = nodes, Root = root };
     }
 
     public NativeBattleDescriptorState SetPacketState(int slot, byte value)
@@ -242,18 +193,6 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
         return (this with { Tasks = tasks, TaskHead = TaskTail is null ? slot : TaskHead, TaskTail = slot }, slot);
     }
 
-    private static int FreeNode(ImmutableArray<NativeBattleDescriptorNode> nodes)
-    {
-        for (int index = 0; index < nodes.Length; index++)
-        {
-            if (nodes[index].Data == 0)
-            {
-                return index;
-            }
-        }
-        throw new InvalidOperationException("Native descriptor node bank exhausted its30 physical nodes, including the sentinel.");
-    }
-
     private static uint PacketAddress(int slot)
     {
         if ((uint)slot >= 30)
@@ -265,11 +204,6 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     private static int PacketIndex(uint address)
     {
-        uint offset = unchecked(address - 0x1D96AB8u);
-        if (offset % 12 != 0 || offset / 12 >= 30)
-        {
-            throw new InvalidDataException("Native descriptor node or task has an invalid packet pointer.");
-        }
-        return (int)(offset / 12);
+        return NativeBattlePacketQueues.PacketIndex(address, 0x1D96AB8, 30);
     }
 }

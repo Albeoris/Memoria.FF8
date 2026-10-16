@@ -4,6 +4,10 @@ public sealed partial class BattleSession
 {
     private BattleAttackCommand PrepareNativeGraphicsAction(BattleCombatant actor, BattleAttackCommand command)
     {
+        if (command.NativeHeaderIndex is not null)
+        {
+            return command;
+        }
         if (NativeGraphics is not { } graphics)
         {
             return command;

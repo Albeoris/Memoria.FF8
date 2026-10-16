@@ -49,6 +49,7 @@ public sealed partial class BattleSession
         state?.Validate();
         if (state is not null)
         {
+            ValidateNativeTriggerWidget(state);
             for (int index = 0; index < 7; index++)
             {
                 if (state.ActorIds[index] is string id && (!byId.ContainsKey(id) || FindNativeGraphicsBinding(id) is null))

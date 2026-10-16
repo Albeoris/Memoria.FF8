@@ -15,6 +15,11 @@ public sealed partial class BattleSession
     internal NativeBattleVector ReadNativeGraphicsBone(int index, byte selector, short fraction)
     {
         NativeBattleGraphicsState graphics = RequireNativeGraphics();
+        return ReadNativeGraphicsBone(graphics, index, selector, fraction);
+    }
+
+    private NativeBattleVector ReadNativeGraphicsBone(NativeBattleGraphicsState graphics, int index, byte selector, short fraction)
+    {
         NativeBattlePoseSource source = NativeGraphicsPoseResource(graphics, index).PoseSource ?? throw new NotSupportedException("Native bone projection requires its original skeleton and compressed animation source.");
         return NativeBattlePoseMatrices.ReadBone(graphics.Models[index], source, selector, fraction);
     }

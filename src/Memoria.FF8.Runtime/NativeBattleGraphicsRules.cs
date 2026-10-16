@@ -4,6 +4,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleGraphicsRules(string ExecutableSha256, ImmutableArray<sbyte> SavedStatusMap, ImmutableArray<sbyte> BattleStatusMap)
 {
+    public uint? UiPublicationDuration { get; init; }
     public void Validate()
     {
         if (ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash || SavedStatusMap.IsDefault || SavedStatusMap.Length != 16 || BattleStatusMap.IsDefault || BattleStatusMap.Length != 32 || SavedStatusMap.Concat(BattleStatusMap).Any(value => value is < -1 or > 31))

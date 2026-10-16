@@ -7,9 +7,9 @@ public sealed record BattleNativeCallback([property: JsonRequired] byte ActorInd
 {
     public void Validate()
     {
-        if (ActorIndex >= 7 || Stage is not (0 or 7 or 8))
+        if (ActorIndex >= 7 || Stage is not (0 or 2 or 3 or 7 or 8))
         {
-            throw new InvalidDataException("Native queued callback is outside the owned0/7/8 physical packet contract.");
+            throw new InvalidDataException("Native queued callback is outside the owned0/2/3/7/8 physical packet contract.");
         }
     }
 }
@@ -22,6 +22,7 @@ public sealed partial class BattleSession
     {
         BattleNativeCallback callback = new(checked((byte)actor.NativeIndex), stage);
         callback.Validate();
+        actor.NativePendingReaction = actor.NativePendingReaction with { Stage = 0 };
         BattleAttackCommand packet = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 0) { NativeCallback = callback };
         if (nativeCallbackTail is not null)
         {
@@ -64,11 +65,28 @@ public sealed partial class BattleSession
         List<BattleAttackCommand> tail = actions.ToList();
         nativeCallbackTail = tail;
         actions.Clear();
+        NativeBattleActionProductionContext? previousContext = nativeProductionContext;
+        nativeProductionContext ??= new(0, 0, false, 0x47DDA0);
         try
         {
             if (callback.Stage == 0)
             {
                 RunNativeAi(actor, 0);
+            }
+            else if (callback.Stage is 2 or 3)
+            {
+                if (callback.Stage == 3)
+                {
+                    actor.AiDeathHandled = true;
+                }
+                if (actor.IsPlayer)
+                {
+                    RunNativePlayerReaction(actor, callback.Stage);
+                }
+                else
+                {
+                    RunNativeAi(actor, callback.Stage);
+                }
             }
             else if (callback.Stage == 7)
             {
@@ -90,6 +108,7 @@ public sealed partial class BattleSession
                 actions.Enqueue(packet);
             }
             nativeCallbackTail = null;
+            nativeProductionContext = previousContext;
         }
     }
 

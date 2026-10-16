@@ -10,6 +10,7 @@ public sealed partial record NativeBattleModuleInputs
     public ImmutableArray<NativeBattleModuleResource> Resources { get; init; } = [];
     public Func<int, NativeBattleModuleAnchor>? ReadModelAnchor { get; init; }
     public Func<int, short>? ReadModelRotation14 { get; init; }
+    public Func<int, byte, short, NativeBattleVector>? ReadModelBone { get; init; }
     public NativeCrtRandomState? CrtRandom { get; init; }
 }
 
@@ -67,12 +68,22 @@ public sealed partial record NativeBattleModuleState
     {
         NativeBattleModuleTask task = Slots[slot];
         short placement = S16(task.Payload, 2);
-        if (placement != 1)
+        int model = ModelIndex(U32(task.Payload, 4));
+        NativeBattleModuleAnchor anchor;
+        if (placement == 1)
+        {
+            anchor = (inputs.ReadModelAnchor ?? throw new NotSupportedException("Native module placement requires the current571400 bone240/241 anchor."))(model);
+        }
+        else if (placement == 3)
+        {
+            short fraction = S16(task.Payload, 14);
+            NativeBattleVector point = (inputs.ReadModelBone ?? throw new NotSupportedException("Native570CC0 placement3 requires its actual502170 bone."))(model, checked((byte)S16(task.Payload, 12)), (short)(fraction & 0x7FFF));
+            anchor = new(point.X, fraction < 0 ? (short)0 : point.Y, point.Z, 0);
+        }
+        else
         {
             throw new NotSupportedException($"Native module placement{placement} requires its original bone or transform input.");
         }
-        int model = ModelIndex(U32(task.Payload, 4));
-        NativeBattleModuleAnchor anchor = (inputs.ReadModelAnchor ?? throw new NotSupportedException("Native module placement requires the current571400 bone240/241 anchor."))(model);
         NativeBattleModuleResource resource = Resource(inputs, U32(task.Payload, 20));
         NativeBattleModuleKind kind = resource.Callback switch
         {

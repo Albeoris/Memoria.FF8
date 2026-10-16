@@ -67,10 +67,23 @@ public sealed partial class BattleSession
 
     private NativeBattleGraphicsState AdvanceNativeAuxiliary(NativeBattleGraphicsState graphics)
     {
-        NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance();
+        NativeBattleAuxiliaryStep step = graphics.Auxiliary.Advance(new() { ReadBone = (model, bone, fraction) => ReadNativeGraphicsBone(graphics, model, bone, fraction), ReadPan = point => (NativeCamera?.Projection ?? throw new NotSupportedException("Native50F830 requires its actual prior5033E0/500900 projection owner.")).ReadPan(point) });
         if (step.CameraBlend is ushort blend)
         {
             NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native509930 requires its initialized camera owner.")) with { BlendProgress = blend };
+        }
+        foreach (NativeBattleAuxiliaryEmission emission in step.Emissions)
+        {
+            if (emission.Particle)
+            {
+                NativeBattleModuleResource resource = definition.NativeModuleResources.Single(candidate => candidate.Id == 3);
+                graphics = graphics with { ModuleEffects = graphics.ModuleEffects.AppendBoneParticle(emission.Model, emission.Bone, short.MinValue, resource, 3u | (uint)emission.Size << 16) };
+            }
+            if (emission.Sound is ushort sound)
+            {
+                NativeBattleVector point = emission.SoundAnchor ?? throw new InvalidDataException("Native B1 sound lacks its502170 anchor.");
+                events.Add(new BattleEvent(Frame, "NativeModuleSound", graphics.ActorIds[emission.Model], null, 0, string.Empty) { NativeModuleSound = new(sound, 0, new(point.X, point.Y, point.Z, 0)) { Pan = emission.Pan } });
+            }
         }
         return graphics with { Auxiliary = step.State };
     }
@@ -91,6 +104,11 @@ public sealed partial class BattleSession
 
     private int ReadNativeCameraExternal(byte variable)
     {
+        if (variable == 23)
+        {
+            int active = nativeActionPackets.ActiveHeaderIndex ?? throw new NotSupportedException("Native50A6D0 requires its active104 action header.");
+            return nativeActionPackets.Headers[active].ReadByte(17);
+        }
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Native camera participant queries require the actual loaded model bank.");
         return NativeBattleCameraGraphics.ReadVariable(graphics, variable);
     }

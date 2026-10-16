@@ -70,7 +70,7 @@ public sealed partial class BattleSession
                 throw new NotSupportedException($"Battle command {ability} is unsupported.");
         }
         BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
-        OnNativePlayerCommandSubmitted(actor, queued.NativeQueuedCommand!.Value);
+        OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
         if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
         {
             QueueGuardianForce(actor, queued);

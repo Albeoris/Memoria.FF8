@@ -36,6 +36,7 @@ public sealed partial class BattleSession
         nativeAllocations.Add(allocation);
         spawned.NativeIndex = physicalIndex;
         spawned.NativeReturnDamage = 0;
+        spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
         spawned.LastNativeHealing = previous?.LastNativeHealing;
         spawned.LastNativeAction = previous?.LastNativeAction is { } last ? last with { AttackType = 0, AttackerIndex = 0 } : null;
         nativeLastAllocatedIndex = physicalIndex;
@@ -69,6 +70,7 @@ public sealed partial class BattleSession
     {
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
+        spawned.NativePendingReaction = new(0, 0);
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;

@@ -52,6 +52,57 @@ public sealed partial class BattleCombatant
 
 public sealed partial class BattleSession
 {
+    private bool HasNativeUiServiceClock => nativeBattleClock is not null && NativeGraphics?.UiServices is not null;
+
+    private void AdvanceNativeUiAtbService()
+    {
+        if (nativeBattleClock is null)
+        {
+            // TODO(TD-009): Graphics-only components do not own kernel ATB inputs
+            return;
+        }
+        NativeBattleUiServices ui = NativeGraphics?.UiServices ?? throw new InvalidDataException("Native4A84E0 lacks its initialized UI services.");
+        if (ui.PauseDE9)
+        {
+            return;
+        }
+        bool uiAllows = ui.AllowsAtb(definition.NativeSavedOptions);
+        bool stepAllows = nativeUiForceGaugeAdvance || Mode != BattleAtbMode.TurnBased || !combatants.Any(actor => actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor));
+        if (!stepAllows && NativeBattleClockRules.Admit(nativeBattleClock, uiAllows, false, NativeScriptAllocationPaused).AtbAdmitted != 0)
+        {
+            //The host decision hold freezes gauge/GF growth, not registration of an already-full native gauge.
+            foreach (BattleCombatant actor in combatants)
+            {
+                PublishNativeUiReady(actor);
+            }
+        }
+        if (!AdmitNativeBattleClock(uiAllows && stepAllows, false))
+        {
+            return;
+        }
+        foreach (BattleCombatant actor in combatants.ToArray())
+        {
+            AdvanceNativeAtbParticipant(actor, nativeUiBecameReady);
+        }
+        DispatchGuardianForceCasts();
+    }
+
+    private void AdvanceNativeAtbParticipant(BattleCombatant actor, HashSet<string>? becameReady)
+    {
+        if (actor.NativeAtb is not { } nativeGauge || !NativeBattleAtbState.CanAdvance(actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor)))
+        {
+            return;
+        }
+        bool wasReady = actor.IsReady;
+        actor.NativeAtb = nativeGauge.Advance(actor.NativeAtbSpeed, definition.NativeClockRules!.AtbSpeedMultiplier, actor.NativeCombatantFlags, NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
+        PublishNativeUiReady(actor);
+        if (!wasReady && actor.IsReady)
+        {
+            becameReady?.Add(actor.Id);
+            Log("Ready", actor.Id, null, 0, $"{actor.Name} is ready.");
+        }
+    }
+
     private void InitializeNativeAtb(BattleCombatant actor)
     {
         if (definition.NativeClockRules is null)

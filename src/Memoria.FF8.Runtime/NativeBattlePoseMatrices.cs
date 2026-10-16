@@ -10,7 +10,7 @@ public sealed record NativeBattleModelTransform(NativeBattleVector Initial20, Na
 }
 
 /// <summary>508C90 bone matrices and502170/571400 model anchors, with native WORD stores and biased-double matrix conversion.</summary>
-public static class NativeBattlePoseMatrices
+public static partial class NativeBattlePoseMatrices
 {
     private sealed record Matrix(short[] Rotation, int X = 0, int Y = 0, int Z = 0);
 

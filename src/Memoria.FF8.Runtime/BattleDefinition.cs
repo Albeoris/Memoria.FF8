@@ -146,6 +146,7 @@ public sealed record BattleDefinition
     public NativeBattleSupportRules? NativeSupportRules { get; init; }
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
+    public ImmutableArray<NativeBattleEffectBinding> NativeEffectCatalog { get; init; } = [];
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
     public ImmutableArray<byte> NativeStageCameraControl { get; init; } = [];
@@ -178,6 +179,7 @@ public sealed record BattleDefinition
     public BattleNativeAction[] NativeActions { get; init; } = [];
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public byte? NativeBattleSpeed { get; init; }
+    public ushort? NativeSavedOptions { get; init; }
     public NativePocketStationState? NativePocketStation { get; init; }
     public string? NativeChocoboName { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
@@ -203,6 +205,8 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    [System.Text.Json.Serialization.JsonRequired]
+    public int? NativeHeaderIndex { get; init; }
     public BattleNativeCallback? NativeCallback { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
@@ -224,6 +228,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    [System.Text.Json.Serialization.JsonRequired]
+    public int? NativeHeaderIndex { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
@@ -267,6 +273,10 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleActionPacketsState? NativeActionPackets { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public byte? NativeReactionOrder { get; init; }
     public NativeBattleClockState? NativeClock { get; init; }
     public NativeBattleSupportState? NativeSupport { get; init; }
     public NativeBattleGraphicsState? NativeGraphics { get; init; }
@@ -326,6 +336,7 @@ public sealed partial class BattleCombatant
     {
         MutableGuardianForceCompatibility = definition.GuardianForceCompatibility?.ToArray();
         this.definition = definition;
+        NativePendingReaction = definition.InitialActive ? new(0, 0) : new(null, null);
         MutableNativeStatusResistances = InitialNativeStatusResistances();
         NativeGrowth = definition.NativeGrowth;
         nativeCombatantFlags = definition.NativeCombatantFlags | (definition.NativeTemplate?.NativeCombatantFlags ?? 0);

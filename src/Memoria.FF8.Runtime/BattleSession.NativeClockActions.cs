@@ -36,11 +36,16 @@ public sealed partial class BattleSession
         // TODO(TD-009): Shared contact transactions currently consume inventory/poison/reactions once before this graphics completion
         // The original descriptor10 now owns the pause-DWORD release; do not duplicate those already-owned effects here.
         SetNativeBattleActionPause(false);
+        nativeActionPackets = nativeActionPackets.ResetCounts();
         return graphics;
     }
 
     private void RunNativePlayerReaction(BattleCombatant actor, int stage)
     {
+        if (nativeActionCommitDepth == 0 && !flushingNativeReactions)
+        {
+            BeginNativeReactionBatch();
+        }
         bool paused = actor.IsActive && actor.NativePlayerStatRules is not null && stage is 2 or 3 && (stage == 3 || (NativeSavedStatusBits(actor) & 1) == 0);
         if (paused)
         {
@@ -55,12 +60,18 @@ public sealed partial class BattleSession
 
     private void RunNativeAi(BattleCombatant actor, int callback)
     {
+        if (callback is >= 0 and <= 3 && nativeActionCommitDepth == 0 && !flushingNativeReactions)
+        {
+            BeginNativeReactionBatch();
+        }
         bool paused = actor.NativeAi is not null && actor.IsActive && callback is >= 0 and <= 3 && (callback != 2 || (NativeSavedStatusBits(actor) & 1) == 0);
         if (paused)
         {
             BeginNativeBattleActionPause();
         }
         byte? previousStage = nativeAiCallbackStage;
+        NativeBattleActionProductionContext? previousContext = nativeProductionContext;
+        nativeProductionContext ??= new(0, 0, false, callback == 1 ? 0x47DE70u : 0x47DDA0u);
         nativeAiCallbackStage = checked((byte)callback);
         try
         {
@@ -69,6 +80,7 @@ public sealed partial class BattleSession
         finally
         {
             nativeAiCallbackStage = previousStage;
+            nativeProductionContext = previousContext;
         }
         if (paused)
         {

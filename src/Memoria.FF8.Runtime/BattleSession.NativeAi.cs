@@ -273,6 +273,7 @@ public sealed partial class BattleSession
                         DrawNativeAiSpell(actor, true);
                         break;
                     case 44:
+                        actor.NativeStatus0 |= 1;
                         actor.IsActive = false;
                         actor.Untargetable = true;
                         actor.Atb = 0;
@@ -474,13 +475,15 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage, PendingReaction = actor.NativePendingReaction, RemainingHits = actor.NativeRemainingHits };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
         if (saved is null)
         {
             actor.NativeReturnDamage = null;
+            actor.NativePendingReaction = new(null, null);
+            actor.NativeRemainingHits = null;
             if (actor.NativeAi is not null || actor.SceneSlot is not null)
             {
                 throw new InvalidDataException("Battle participant lacks its explicit native lifecycle state.");
@@ -519,6 +522,9 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native battle action memory has an invalid attack type or physical attacker index.");
         }
         actor.NativeReturnDamage = saved.ReturnDamage;
+        saved.PendingReaction?.Validate();
+        actor.NativePendingReaction = saved.PendingReaction ?? new(null, null);
+        actor.NativeRemainingHits = saved.RemainingHits;
         actor.NativePreviousTargetMask = saved.PreviousTargetMask;
         actor.NativeDrawnSpell = saved.DrawnSpell;
         saved.Growth?.Validate();

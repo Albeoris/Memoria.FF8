@@ -36,7 +36,13 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     [JsonRequired]
     public int? EntryBarrierPacket { get; init; }
     [JsonRequired]
-    public bool? NativeMenuControl942Bit8 { get; init; }
+    public NativeBattleUiServices? UiServices { get; init; }
+    [JsonRequired]
+    public NativeBattleTriggerWidget? TriggerWidget { get; init; }
+    [JsonRequired]
+    public NativeBattleTriggerReceipt? PendingTrigger { get; init; }
+    [JsonIgnore]
+    public bool? NativeMenuControl942Bit8 => UiServices is null ? null : (UiServices.Flags942 & 8) != 0;
     [JsonIgnore]
     public ImmutableArray<NativeBattleGraphicsRequest> Requests => Descriptors.Queue.Select(slot => new NativeBattleGraphicsRequest(Descriptors.Packets[slot].Command, Descriptors.Packets[slot].Index is >= 0 and < 7 ? (byte)Descriptors.Packets[slot].Index : null, Descriptors.Packets[slot].PriorityState == 255 ? (byte)255 : (byte)(Descriptors.Packets[slot].PriorityState & 15), slot == EntryBarrierPacket)).ToImmutableArray();
     [JsonRequired]
@@ -45,12 +51,20 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     public bool ActionCallbackReady { get; init; }
     public NativeBattleActionGeometry? ActionContext { get; init; }
     [JsonRequired]
+    public NativeBattleActionGraphicsState? ActionGraphics { get; init; }
+    [JsonRequired]
     public long PresentationSubticks { get; init; }
 
     public void Validate()
     {
         ActionContext?.Validate();
-        if (Models.IsDefault || Models.Length != 7 || ActorIds.IsDefault || ActorIds.Length != 7 || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 3 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
+        UiServices?.Validate();
+        TriggerWidget?.Validate();
+        if ((Flags & 8) != 0 && UiServices is null)
+        {
+            throw new InvalidDataException("Native506CF0 stage has no initialized4A94D0 UI service owner; migrate the standalone snapshot explicitly.");
+        }
+        if (Models.IsDefault || Models.Length != 7 || ActorIds.IsDefault || ActorIds.Length != 7 || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 4 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
         {
             throw new InvalidDataException("Native graphics state requires seven physical model owners and valid callback gates.");
         }

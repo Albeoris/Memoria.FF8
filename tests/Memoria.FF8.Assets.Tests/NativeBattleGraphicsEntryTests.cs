@@ -77,7 +77,96 @@ public sealed class NativeBattleGraphicsEntryTests
             }
         }
         Assert.True(battle.NativeEntryReady);
-        Assert.Equal(1, battle.Frame);
+        Assert.Equal(0, battle.Frame);
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_GRAPHICS_ENTRY_OUTPUT") is string output)
+        {
+            string path = Path.GetFullPath(output);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using FileStream stream = new(path, FileMode.CreateNew, FileAccess.Write);
+            JsonSerializer.Serialize(stream, battle.Capture());
+        }
+    }
+
+    [Fact]
+    public void OriginalHostPumpAdvancesRawAtbFourTimesAndKeepsGraphicsAliveAtReadyDecision()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession seed = Create(game, assets, 61, ready: false);
+        BattleDefinition definition = seed.Capture().Definition with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Capture().Definition.Combatants.Select(actor => actor with { Speed = 1 }).ToArray() };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        Assert.Equal(0, battle.Frame);
+        //Case3 admits the first post-graphics service; the previous three pre-services still see C2=0.
+        Assert.All(battle.Combatants, actor => Assert.Equal(31, actor.NativeAtb!.Current));
+        battle.Tick();
+        Assert.All(battle.Combatants, actor => Assert.Equal(155, actor.NativeAtb!.Current));
+        BattleSnapshot snapshot = battle.Capture();
+        BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
+        actors[0] = actors[0] with { NativeAtb = new(12000, 11990), Atb = 9991 };
+        battle = BattleSession.Restore(snapshot with { Combatants = actors });
+        long beforeFrame = battle.Frame;
+        long beforeGraphics = battle.NativeGraphics!.Callback;
+        battle.Tick();
+        Assert.Equal(12000, battle.Combatants[0].NativeAtb!.Current);
+        Assert.All(battle.Combatants.Skip(1), actor => Assert.Equal(186, actor.NativeAtb!.Current));
+        Assert.Equal(beforeFrame, battle.Frame);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 4; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(beforeFrame, battle.Frame);
+        Assert.Equal(beforeGraphics + 5, battle.NativeGraphics.Callback);
+        Assert.All(battle.Combatants.Skip(1), actor => Assert.Equal(186, actor.NativeAtb!.Current));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Theory]
+    [InlineData(BattleAtbMode.Normal)]
+    [InlineData(BattleAtbMode.TurnBased)]
+    public void Initially_full_native_gauge_queues_ui_ready_once_then_wait_menu_stops_atb(BattleAtbMode mode)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSnapshot seed = Create(game, assets, 61).Capture();
+        BattleSession battle = new(seed.Definition with { NativeClockRules = new(10), NativeBattleSpeed = 2, NativeSavedOptions = 1, Combatants = seed.Definition.Combatants.Select(actor => actor with { Speed = 1 }).ToArray() }, mode);
+        for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        Assert.Equal(0u, battle.NativeGraphics!.UiServices!.ReadyMask);
+        Assert.Equal(3, battle.NativeGraphics.UiServices.Commands.Queue.Length);
+        battle.Tick();
+        Assert.Equal(7u, battle.NativeGraphics.UiServices.ReadyMask);
+        Assert.Empty(battle.NativeGraphics.UiServices.Commands.Queue);
+        Assert.Equal((sbyte)4, battle.NativeGraphics.UiServices.Menu957);
+        battle.OpenNativeActionMenu();
+        Assert.False(battle.NativeGraphics.UiServices.AllowsAtb(1));
+        int gauge = battle.Combatants[3].NativeAtb!.Current;
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        battle.Tick();
+        restored.Tick();
+        Assert.Equal(gauge, battle.Combatants[3].NativeAtb!.Current);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        battle.CloseNativeActionMenu();
+        battle.Tick();
+        Assert.True(battle.NativeGraphics.UiServices.AllowsAtb(1));
+        if (mode == BattleAtbMode.Normal)
+        {
+            Assert.True(battle.Combatants[3].NativeAtb!.Current > gauge);
+        }
+        else
+        {
+            Assert.Equal(gauge, battle.Combatants[3].NativeAtb!.Current);
+            Assert.Equal((byte)0, battle.Capture().NativeClock!.AtbAdmitted);
+        }
     }
 
     [Fact]

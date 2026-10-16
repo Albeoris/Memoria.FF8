@@ -295,20 +295,27 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
     {
         TryOutput(() =>
         {
-            if (sound.Flags != 0x8000)
-            {
-                throw new NotSupportedException("Native effect-module audio requires its reached original sound flags.");
-            }
+            uint pan = ResolveNativeModuleSoundPan(sound);
             // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output
-            PlayPresentationSound(sound.Sound, -10 - battleVoice++ % 16);
+            PlayPresentationSound(sound.Sound, -10 - battleVoice++ % 16, pan);
         });
     }
 
-    private void PlayPresentationSound(uint effect, int voice)
+    internal static uint ResolveNativeModuleSoundPan(NativeBattleModuleSound sound)
+    {
+        return sound.Flags switch
+        {
+            0 when sound.Sound is 2 or 3 => sound.Pan ?? throw new NotSupportedException("Native501740 sound requires its actual5011B0 projected pan BYTE."),
+            0x8000 => (uint?)sound.Pan ?? 64u,
+            _ => throw new NotSupportedException("Native effect-module audio requires its reached original sound flags.")
+        };
+    }
+
+    private void PlayPresentationSound(uint effect, int voice, uint pan = 64)
     {
         int sample = EventEngine.MapGlobalSoundSample(effect);
         GlobalSoundResource resource = GameWorld.CreateMutedGlobalSoundResource(GlobalAudioFormat.Read(gameDirectory, sample)) ?? throw new NotSupportedException($"Presentation sound {effect} requires an unsupported audio format.");
-        PlaySoundSample(sample, voice, 127, 64, resource.LoopPolicy);
+        PlaySoundSample(sample, voice, 127, pan, resource.LoopPolicy);
     }
 
     private void PlayMusic(int track, int slot, int? volume, int fieldId, int startPoint = 0, bool forceRestart = false)

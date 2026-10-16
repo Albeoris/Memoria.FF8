@@ -3,8 +3,8 @@ namespace Memoria.FF8.Runtime;
 public sealed partial class BattleSession
 {
     public BattleGunbladeMode GunbladeMode { get; private set; }
-    public bool CanTriggerGunblade => CanTriggerNativeRenzokuken || Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
-    public bool GunbladeTriggerWindowOpen => nativeRenzokukenProcesses.Count != 0 ? NativeRenzokukenBarVisible && NativeRenzokukenTriggerWindowOpen : CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
+    public bool CanTriggerGunblade => NativeGraphics is not null ? CanTriggerNativeWidget : CanTriggerNativeRenzokuken || Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
+    public bool GunbladeTriggerWindowOpen => NativeGraphics is not null ? NativeTriggerWindowOpen : nativeRenzokukenProcesses.Count != 0 ? NativeRenzokukenBarVisible && NativeRenzokukenTriggerWindowOpen : CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
 
     public void SetGunbladeMode(BattleGunbladeMode mode)
     {
@@ -17,6 +17,16 @@ public sealed partial class BattleSession
 
     public bool TriggerGunblade()
     {
+        if (NativeGraphics is { } graphics)
+        {
+            if (!CanTriggerNativeWidget)
+            {
+                return false;
+            }
+            bool succeeded = NativeTriggerWindowOpen;
+            NativeGraphics = graphics with { TriggerWidget = graphics.TriggerWidget! with { PendingTrigger = true } };
+            return succeeded;
+        }
         if (nativeRenzokukenProcesses.Count != 0)
         {
             return TriggerNativeRenzokuken();
@@ -30,6 +40,10 @@ public sealed partial class BattleSession
         ActiveAction = action with { GunbladeTriggerTiming = NativeGunbladeAttack.TriggerSucceeded(timing) ? timing : (short)1 };
         return NativeGunbladeAttack.TriggerSucceeded(timing);
     }
+
+    private bool CanTriggerNativeWidget => Outcome == BattleOutcome.Active && NativeGraphics?.TriggerWidget is { ClosingPhase: 0, PendingTrigger: false } widget && widget.Input.TriggerTiming == 0 && (definition.LimitProgress?.Options978 is ushort options ? (options & 1) == 0 : throw new NotSupportedException("Native trigger input requires its saved options WORD.")) && (nativeRenzokukenProcesses.Count != 0 || GunbladeMode == BattleGunbladeMode.Manual);
+
+    private bool NativeTriggerWindowOpen => CanTriggerNativeWidget && NativeGraphics!.TriggerWidget is { } widget && widget.Input.Phase is 4 or 6 && NativeGunbladeAttack.TriggerSucceeded(checked((short)(widget.Input.PoseClock + widget.Input.SubframeClock - widget.Block.Timeline.InputThresholds[widget.Input.ContactIndex] + 5)));
 
     private static bool IsGunbladeAttack(BattleCombatant actor, BattleAbility ability)
     {

@@ -96,71 +96,25 @@ public sealed partial class BattleSession
 
     private bool ResolveInstalledNativeAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action)
     {
-        BattleNativeAction native = action.NativeAction!;
-        ValidateNativeActionContract(native);
-        if (actor.IsPlayer && native.Command is 2 or 6 or 254)
+        NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
+        NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction!);
+        (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
+        NativeBattleActionProductionResult produced = ProduceNativeActionFacts(actor, target, command, action, header, context);
+        foreach (NativeBattleContactPacket packet in produced.Contacts)
         {
-            nativeAffinityAction = native;
+            (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
         }
-        BattleCombatant? firstReflector = null;
-        bool hadTargets = false;
-        for (int hit = 0; hit < native.HitCount; hit++)
+        (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
+        if (NativeGraphics is { } graphics)
         {
-            BattleCombatant[] targets;
-            if (command.NativeAction is not null)
-            {
-                targets = ResolveNativeActionMask(command.NativeTargetMask);
-            }
-            else if ((native.TargetFlags.GetValueOrDefault() & 2) != 0)
-            {
-                BattleCombatant? randomTarget = ChooseNativeRandomActionTarget(target.IsPlayer);
-                targets = randomTarget is null ? [] : [randomTarget];
-            }
-            else if (action.AllTargets)
-            {
-                targets = combatants.Where(candidate => candidate.IsActive && !candidate.Untargetable && candidate.IsPlayer == target.IsPlayer && (IsNativeRevive(action) ? candidate.CurrentHp == 0 : candidate.IsAlive)).OrderBy(candidate => candidate.NativeIndex).ToArray();
-            }
-            else
-            {
-                targets = target.IsAlive || IsNativeRevive(action) ? [target] : [];
-            }
-            (targets, byte coverSource) = ResolveNativeCover(actor, command, native, targets);
-            hadTargets |= targets.Length != 0;
-            foreach (BattleCombatant recipient in targets)
-            {
-                if (hit == 0 && (command.NativeQueuedCommand ?? native.Command) == 12)
-                {
-                    ResolveNativeMug(actor, recipient);
-                }
-                if (NativeActionReflects(recipient, native))
-                {
-                    firstReflector ??= recipient;
-                    recipient.NativeCombatantFlags |= 0x4000;
-                    recipient.LastNativeHealing = 1;
-                    RecordNativeActionMemory(actor, recipient, command);
-                    DispatchNativeActionCounter(recipient);
-                    PublishNativeReflectedContact(recipient, native);
-                    Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
-                    continue;
-                }
-                BattleActionPresentation resolved = command.NativeAction is null ? command with { NativeAction = native } : command;
-                BattleActionPresentation? previous = resolvingNativeAction;
-                resolvingNativeAction = resolved;
-                try
-                {
-                    ResolveInstalledNativeHit(actor, recipient, resolved, action, native, coverSource);
-                }
-                finally
-                {
-                    resolvingNativeAction = previous;
-                }
-            }
+            NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
         }
-        if (firstReflector is not null)
+        nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
+        if (produced.ReflectorIndex is byte reflector)
         {
-            ResolveNativeReflection(actor, firstReflector, command, native);
+            ResolveNativeReflection(actor, combatants.Single(candidate => candidate.NativeIndex == reflector), command, action.NativeAction!);
         }
-        return hadTargets;
+        return produced.PublishedTargetCount != 0;
     }
 
     private BattleCombatant[] ResolveNativeActionMask(ushort targetMask)
@@ -591,7 +545,7 @@ public sealed partial class BattleSession
         if (recipient.IsPlayer || recipient.NativeAi is not null)
         {
             QueueNativeReaction(recipient, 2);
-            if (!recipient.IsPlayer && !suppressNativeImmediateCounter && (recipient.NativeCombatantFlags & 0x10) != 0)
+            if (!recipient.IsPlayer && NativeImmediateCounterAllowed(recipient) && (recipient.NativeCombatantFlags & 0x10) != 0)
             {
                 RunNativeAi(recipient, 4);
             }

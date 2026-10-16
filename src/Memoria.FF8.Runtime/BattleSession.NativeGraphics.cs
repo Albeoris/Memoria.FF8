@@ -20,6 +20,14 @@ public sealed partial class BattleSession
 
     private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name)
     {
+        if ((nativeAiDepth != 0 || nativeCallbackTail is not null) && command.NativeRenzokuken is null)
+        {
+            command = PrepareNativeDrawCommand(actor, command);
+            command = PrepareNativeSpecialCommand(actor, command);
+            command = PrepareIndependentGuardianItem(actor, command);
+            PrepareNativeLimitCommand(command);
+            command = ProduceNativeQueuedCommand(actor, GetActor(command.TargetId), command);
+        }
         actor.Atb = 0;
         actor.IsBusy = true;
         actions.Enqueue(command);

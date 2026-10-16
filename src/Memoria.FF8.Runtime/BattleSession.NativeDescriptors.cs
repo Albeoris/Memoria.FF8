@@ -83,6 +83,10 @@ public sealed partial class BattleSession
                 case 103:
                     graphics = CompleteNativeGraphicsModel(graphics, packet);
                     return new(graphics.Descriptors, 15);
+                case 104:
+                    graphics = BeginNativeActionGraphics(graphics, packet.Argument);
+                    kind = NativeBattleDescriptorTaskKind.Action104;
+                    break;
                 case 105:
                     NativeBattleGraphicsModel removed = graphics.Models[RequireDescriptorModel(packet.Index)];
                     if ((removed.Flags0 & 2) == 0)
@@ -143,7 +147,7 @@ public sealed partial class BattleSession
                     if (phase == 1)
                     {
                         InitializeNativeStageCamera();
-                        graphics = graphics with { Flags = graphics.Flags | 8 };
+                        graphics = graphics with { Flags = graphics.Flags | 8, UiServices = NativeBattleUiServices.Initialize() };
                     }
                     completed = phase == 3;
                     phase++;
@@ -221,6 +225,9 @@ public sealed partial class BattleSession
                     graphics = InvokeNativeDescriptorCallback(graphics, packet.Argument, unchecked((ushort)packet.Index));
                     completed = true;
                     break;
+                case NativeBattleDescriptorTaskKind.Action104:
+                    (graphics, phase, completed) = PollNativeActionGraphics(graphics, phase);
+                    break;
                 default:
                     throw new NotSupportedException("Native descriptor callback requires its original task owner.");
             }
@@ -237,10 +244,11 @@ public sealed partial class BattleSession
         return callback switch
         {
             0 => graphics,
+            0x47DD90 => ResetNativeActionPacketCounts(graphics),
             0x47DDA0 or 0x47DE70 => RunNativeDescriptorActionCallback(graphics, callback),
             0x47DD80 => graphics with { EntryLifecycle = 1 },
-            0x4A94B0 => graphics with { NativeMenuControl942Bit8 = true },
-            0x47DD70 => graphics with { EntryLifecycle = 3, EntryReady = true },
+            0x4A94B0 => graphics with { UiServices = (graphics.UiServices ?? throw new NotSupportedException("Native4A94B0 requires its initialized942 menu owner.")).SetFlags(8) },
+            0x47DD70 => graphics with { EntryLifecycle = 3, EntryReady = false },
             0x48AD10 => CompleteNativeAllocationStatistics(graphics),
             0x487670 => CompleteNativeActivation(graphics, checked((int)argument)),
             0x4876B0 => CompleteNativeAllocationDescriptor(graphics),

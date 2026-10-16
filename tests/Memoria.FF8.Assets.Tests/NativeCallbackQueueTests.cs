@@ -49,6 +49,7 @@ public sealed class NativeCallbackQueueTests
         battle.Tick();
 
         Assert.False(battle.Combatants[1].IsActive);
+        Assert.NotEqual(0, battle.Capture().Combatants[1].NativeStatus!.Saved & 1);
         Assert.Null(battle.ActiveAction);
         Assert.Empty(battle.QueuedActions);
         Assert.Contains(battle.Events, item => item.Kind == "Queued" && item.ActorId == "party-0" && item.Amount == 0);

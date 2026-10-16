@@ -22,16 +22,12 @@ public sealed partial class BattleSession
 
     private NativeContactWorking? nativeContactWorking;
 
-    private void PublishNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
+    private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
     {
-        if (NativeGraphics is null)
-        {
-            return;
-        }
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), 255);
         (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
         NativeBattleContactHalf primary = new(checked((byte)recipient.NativeIndex), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
-        QueueNativeContactPacket(new(primary, new(255, 0, 0, 0, 0, 0, 0)));
+        return new(primary, new(255, 0, 0, 0, 0, 0, 0));
     }
 
     private void ResolveInstalledNativeHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
@@ -48,14 +44,27 @@ public sealed partial class BattleSession
         }
     }
 
-    private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource)
+    private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource, bool preliminary = false)
     {
+        DecrementNativeRemainingHits(recipient);
         NativeContactWorking? previous = nativeContactWorking;
-        NativeContactWorking contact = new(actor, recipient, native, specialSource);
+        NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource);
         nativeContactWorking = contact;
         try
         {
-            ResolveInstalledNativeHitCore(actor, recipient, command, action, native);
+            if (preliminary)
+            {
+                if (native.Command is 14 or 238)
+                {
+                    contact.Flags = 1;
+                }
+                FinalizeNativeContactPresentation();
+                ApplyDamage(actor, recipient, 0, action.Name, counterEligible: native.Command != 14, publishDamage: false);
+            }
+            else
+            {
+                ResolveInstalledNativeHitCore(actor, recipient, command, action, native);
+            }
             if (!contact.PrimaryCommitted && recipient.IsActive)
             {
                 //Even a formula miss reaches494410 with magnitude0 and its original counter/action metadata.
