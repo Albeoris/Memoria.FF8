@@ -15,26 +15,26 @@ public sealed class MovieSkipGestureTests
     }
 
     [Fact]
-    public void Continuous_hold_skips_at_exactly_three_seconds_and_never_earlier()
+    public void Continuous_hold_skips_at_exactly_one_second_and_never_earlier()
     {
         MovieSkipGesture gesture = new();
 
-        Assert.False(gesture.Update(TimeSpan.FromSeconds(1.5), cancelHeld: true));
+        Assert.False(gesture.Update(TimeSpan.FromSeconds(0.5), cancelHeld: true));
         Assert.True(gesture.Visible);
         Assert.Equal(0.5f, gesture.Progress);
-        Assert.False(gesture.Update(TimeSpan.FromTicks(TimeSpan.FromSeconds(1.5).Ticks - 1), cancelHeld: true));
+        Assert.False(gesture.Update(TimeSpan.FromTicks(TimeSpan.FromSeconds(0.5).Ticks - 1), cancelHeld: true));
         Assert.InRange(gesture.Progress, 0f, 1f);
         Assert.True(gesture.Update(TimeSpan.FromTicks(1), cancelHeld: true));
         Assert.Equal(1f, gesture.Progress);
     }
 
     [Fact]
-    public void Sixty_hertz_updates_reach_the_threshold_on_the_180th_frame()
+    public void Sixty_hertz_updates_reach_the_threshold_on_the_60th_frame()
     {
         MovieSkipGesture gesture = new();
         TimeSpan frame = TimeSpan.FromTicks(166667);
 
-        for (int index = 0; index < 179; index++)
+        for (int index = 0; index < 59; index++)
         {
             Assert.False(gesture.Update(frame, cancelHeld: true));
             Assert.InRange(gesture.Progress, 0f, 1f);
@@ -49,13 +49,13 @@ public sealed class MovieSkipGestureTests
     {
         MovieSkipGesture gesture = new();
 
-        Assert.False(gesture.Update(TimeSpan.FromSeconds(2), cancelHeld: true));
+        Assert.False(gesture.Update(TimeSpan.FromSeconds(0.75), cancelHeld: true));
         Assert.False(gesture.Update(TimeSpan.Zero, cancelHeld: false));
         Assert.True(gesture.Visible);
         Assert.Equal(0f, gesture.Progress);
-        Assert.False(gesture.Update(TimeSpan.FromSeconds(2), cancelHeld: true));
-        Assert.InRange(gesture.Progress, 0.66f, 0.67f);
-        Assert.True(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: true));
+        Assert.False(gesture.Update(TimeSpan.FromSeconds(0.75), cancelHeld: true));
+        Assert.Equal(0.75f, gesture.Progress);
+        Assert.True(gesture.Update(TimeSpan.FromSeconds(0.25), cancelHeld: true));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class MovieSkipGestureTests
     {
         MovieSkipGesture gesture = new();
 
-        Assert.False(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: true));
+        Assert.False(gesture.Update(TimeSpan.FromSeconds(0.25), cancelHeld: true));
         Assert.False(gesture.Update(TimeSpan.Zero, cancelHeld: false));
         Assert.False(gesture.Update(TimeSpan.FromTicks(TimeSpan.FromSeconds(3).Ticks - 1), cancelHeld: false));
         Assert.True(gesture.Visible);
@@ -79,7 +79,7 @@ public sealed class MovieSkipGestureTests
 
         for (int index = 0; index < 4; index++)
         {
-            Assert.False(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: true));
+            Assert.False(gesture.Update(TimeSpan.FromSeconds(0.25), cancelHeld: true));
             Assert.False(gesture.Update(TimeSpan.Zero, cancelHeld: false));
             Assert.False(gesture.Update(TimeSpan.FromSeconds(2), cancelHeld: false));
             Assert.True(gesture.Visible);
@@ -109,15 +109,15 @@ public sealed class MovieSkipGestureTests
     {
         MovieSkipGesture gesture = new();
 
-        Assert.Equal(completed, gesture.Update(TimeSpan.FromSeconds(completed ? 3 : 2), cancelHeld: true));
+        Assert.Equal(completed, gesture.Update(TimeSpan.FromSeconds(completed ? 1 : 0.75), cancelHeld: true));
         gesture.Reset();
 
         Assert.False(gesture.Visible);
         Assert.Equal(0f, gesture.Progress);
         Assert.False(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: false));
         Assert.False(gesture.Visible);
-        Assert.False(gesture.Update(TimeSpan.FromSeconds(2), cancelHeld: true));
-        Assert.InRange(gesture.Progress, 0.66f, 0.67f);
-        Assert.True(gesture.Update(TimeSpan.FromSeconds(1), cancelHeld: true));
+        Assert.False(gesture.Update(TimeSpan.FromSeconds(0.75), cancelHeld: true));
+        Assert.Equal(0.75f, gesture.Progress);
+        Assert.True(gesture.Update(TimeSpan.FromSeconds(0.25), cancelHeld: true));
     }
 }

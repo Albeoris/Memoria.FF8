@@ -334,7 +334,7 @@ internal sealed partial class RecreateGame
             {
                 if (events?.PartyMenu is not null)
                 {
-                    UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene), default);
+                    UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
                 }
                 return true;
             }
@@ -406,7 +406,7 @@ internal sealed partial class RecreateGame
         }
         else if (!gameMenus.IsDemo && IsNativeGridMenuActive)
         {
-            UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene), default);
+            UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
         }
         SynchronizeUiMoviePause();
         return true;

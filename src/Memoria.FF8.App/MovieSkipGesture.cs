@@ -3,7 +3,8 @@ namespace Memoria.FF8;
 /// <summary>Presentation-only hold gesture; the accepted skip uses the ordinary game action.</summary>
 internal sealed class MovieSkipGesture
 {
-    private static readonly TimeSpan Duration = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan Duration = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan HintDuration = TimeSpan.FromSeconds(3);
     private TimeSpan held;
     private TimeSpan remaining;
     private bool completed;
@@ -19,7 +20,7 @@ internal sealed class MovieSkipGesture
         }
         if (cancelHeld)
         {
-            remaining = Duration;
+            remaining = HintDuration;
             held = TimeSpan.FromTicks(Math.Min(Duration.Ticks, held.Ticks + elapsed.Ticks));
             if (held >= Duration)
             {

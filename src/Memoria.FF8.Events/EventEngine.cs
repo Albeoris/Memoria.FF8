@@ -65,6 +65,8 @@ public sealed partial class EventEngine
         private set => currentDialogue = value;
     }
     public IReadOnlyList<ActorState> Actors => actors;
+    // With locomotion disabled and character models hidden, button-polling scripts own a 2D interface and its repeat delays.
+    public bool IsScriptedInterface => !IsUserControlEnabled && !actors.Any(actor => actor.Active && actor.Visible && actor.RenderModelId >= 0) && program is not null && program.Operations.Any(operation => operation.Opcode is Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.KEYON);
     public IReadOnlyDictionary<int, int> BackgroundStates => backgroundStates;
     public SceneEventState Scene { get; private set; } = new();
     public Func<int, int, int>? AnimationFrameCount { get; set; }

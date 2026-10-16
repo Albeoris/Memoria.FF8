@@ -193,7 +193,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene);
+        TimeSpan gameplayElapsed = gameplayClock.Advance(gameTime.ElapsedGameTime, session.State.Scene, events?.IsScriptedInterface == true);
         world?.AdvanceDebug(gameplayElapsed);
         if (UpdateBattle(gameplayElapsed, input))
         {

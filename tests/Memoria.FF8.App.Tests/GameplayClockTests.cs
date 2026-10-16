@@ -23,6 +23,20 @@ public sealed class GameplayClockTests
     }
 
     [Fact]
+    public void Scripted_interface_keeps_its_callback_and_repeat_delays_when_speed_is_toggled()
+    {
+        GameplayClock clock = new();
+        TimeSpan elapsed = TimeSpan.FromMilliseconds(100);
+        Assert.Equal(elapsed, clock.Advance(elapsed, SceneKind.Field, scriptedInterface: true));
+        clock.ToggleSpeed();
+        Assert.Equal(elapsed, clock.Advance(elapsed, SceneKind.Field, scriptedInterface: true));
+        Assert.Equal(3, clock.SpeedMultiplier);
+        Assert.Equal(TimeSpan.FromMilliseconds(300), clock.Advance(elapsed, SceneKind.Field));
+        Assert.Equal(TimeSpan.FromMilliseconds(300), clock.Advance(elapsed, SceneKind.WorldMap));
+        Assert.Equal(TimeSpan.FromMilliseconds(800), clock.Total);
+    }
+
+    [Fact]
     public void Toggling_preserves_fractional_simulation_time_without_a_clock_jump()
     {
         GameplayClock clock = new();
