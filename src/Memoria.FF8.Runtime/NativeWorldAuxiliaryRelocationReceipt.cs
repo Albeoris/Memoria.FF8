@@ -27,9 +27,9 @@ public sealed record NativeWorldAuxiliaryRelocationReceipt([property: JsonRequir
     public void RequireGardenPublication(WorldTransition packet, NativeSavedWorldPose loadPose)
     {
         Validate();
-        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) != 48 || Relocations.Any(item => item.EntityType != 48))
+        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 48) || Relocations.Any(item => item.EntityType != 48))
         {
-            throw new NotSupportedException("Native auxiliary relocation requires its actual Garden48 target and dominating548080/548300 loader pose.");
+            throw new NotSupportedException("Native auxiliary relocation requires its actual Garden48 target and controlled48 or parked-foot548080/548300 loader pose.");
         }
     }
 

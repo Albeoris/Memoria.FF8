@@ -16,7 +16,7 @@ internal sealed partial class WorldMapScene
         //The allocation packet remains the original foot entry after54B460 reboards
         //Garden. Authenticate that retained allocation without rerunning a48 loader.
         NativeGardenWorldAllocation allocation = unchecked((byte)arrival.Mode) == 0
-            ? assets.ReadParkedGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals)
+            ? assets.ReadParkedGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals, session.State.World?.NativeGardenRuntime?.AuxiliaryEntry)
             : assets.ReadGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals);
         NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = assets.ReadGardenAuxiliaryRelocations(arrival, session.State.EventMemory, allocation.LoadPose);
         if (session.State.World is null)

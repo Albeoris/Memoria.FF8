@@ -81,6 +81,14 @@ public static class NativeGardenWorldAllocationReader
             }
             NativeWorldPathPosition body = new(loadPose.X, loadPose.Height, -loadPose.RawZ);
             NativeSavedWorldPose gardenPose = parkedGardenPose ?? loadPose;
+            short gardenYaw = unchecked((short)gardenPose.Yaw);
+            if (unchecked((byte)packet.Mode) == 0 && auxiliaryEntry is not null)
+            {
+                //54D6A0's ordered writes survive548300 when foot0 is controlled.
+                NativeWorldAuxiliaryRelocation last = auxiliaryEntry.Relocations[^1];
+                gardenYaw = last.Yaw;
+                gardenPose = new(last.Position.X, -last.Position.Z, checked((short)last.Position.Y), checked((ushort)((last.Yaw % 4096 + 4096) % 4096)));
+            }
             NativeWorldPathPosition gardenPosition = new(gardenPose.X, gardenPose.Height, -gardenPose.RawZ);
             var objects = ImmutableArray.CreateBuilder<NativeGardenWorldObject>();
             objects.Add(new NativeGardenWorldObject(0, 0, body, 0, unchecked((short)loadPose.Yaw), 0));
@@ -90,8 +98,8 @@ public static class NativeGardenWorldAllocationReader
                 objects.Add(new NativeGardenWorldObject(3, 0, default, 0, 0, 0));
             }
             int garden64 = objects.Count;
-            objects.Add(new NativeGardenWorldObject(64, 0, gardenPosition, 0, unchecked((short)gardenPose.Yaw), 0));
-            objects.Add(new NativeGardenWorldObject(65, 2, gardenPosition, 0, unchecked((short)gardenPose.Yaw), 0));
+            objects.Add(new NativeGardenWorldObject(64, 0, gardenPosition, 0, gardenYaw, 0));
+            objects.Add(new NativeGardenWorldObject(65, 2, gardenPosition, 0, gardenYaw, 0));
             if (whiteSeeDShip)
             {
                 //544860 decodes FF13 lowBYTE shape88/highBYTE coordinate25,
@@ -251,7 +259,7 @@ public sealed partial class WorldAssets
         }
     }
 
-    public NativeGardenWorldAllocation ReadParkedGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals)
+    public NativeGardenWorldAllocation ReadParkedGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = null)
     {
         if (unchecked((byte)packet.Mode) != 0)
         {
@@ -281,8 +289,20 @@ public sealed partial class WorldAssets
             camera = (ushort)((source.Unknown & 255) * 16);
             variant = 0;
         }
+        if (retainedAuxiliary is not null)
+        {
+            retainedAuxiliary.RequireGardenPublication(packet, foot);
+            ValidateGardenAuxiliaryRelocations(retainedAuxiliary);
+            if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
+            {
+                throw new InvalidDataException("Restored parked Garden cannot consume pending auxiliary selectors twice.");
+            }
+            //Rebuild original allocation inputs for authentication only; never publish these bytes.
+            memory = memory.Write(269, 1, NativeScalarValue.Exact(retainedAuxiliary.Before269)).Write(270, 1, NativeScalarValue.Exact(retainedAuxiliary.Before270));
+        }
+        NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, foot);
         vitals.Validate();
         NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
-        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, camera, variant, saved.ReadMapDisplayModeForFreshFootLoader(), parked);
+        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, foot, camera, variant, saved.ReadMapDisplayModeForFreshFootLoader(), parked, auxiliaryEntry);
     }
 }
