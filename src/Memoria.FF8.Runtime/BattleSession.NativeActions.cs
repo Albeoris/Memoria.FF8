@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -116,6 +116,7 @@ public sealed partial class BattleSession
             {
                 targets = target.IsAlive || IsNativeRevive(action) ? [target] : [];
             }
+            (targets, byte coverSource) = ResolveNativeCover(actor, command, native, targets);
             hadTargets |= targets.Length != 0;
             foreach (BattleCombatant recipient in targets)
             {
@@ -126,8 +127,11 @@ public sealed partial class BattleSession
                 if (NativeActionReflects(recipient, native))
                 {
                     firstReflector ??= recipient;
+                    recipient.NativeCombatantFlags |= 0x4000;
+                    recipient.LastNativeHealing = 1;
                     RecordNativeActionMemory(actor, recipient, command);
                     DispatchNativeActionCounter(recipient);
+                    PublishNativeReflectedContact(recipient, native);
                     Log("Reflect", actor.Id, recipient.Id, 0, $"{recipient.Name} reflects {action.Name}.");
                     continue;
                 }
@@ -136,7 +140,7 @@ public sealed partial class BattleSession
                 resolvingNativeAction = resolved;
                 try
                 {
-                    ResolveInstalledNativeHit(actor, recipient, resolved, action, native);
+                    ResolveInstalledNativeHit(actor, recipient, resolved, action, native, coverSource);
                 }
                 finally
                 {
@@ -219,8 +223,12 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ResolveInstalledNativeHit(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
+    private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
+        if (native.AttackType is 2 or 3 or 5 or 6 or 8 or 11 or 15 or 20 or 21 or 22 or 26 or 33)
+        {
+            recipient.NativeCombatantFlags &= ~0x4000u;
+        }
         if (TryResolveNativeSpecialHit(actor, recipient, command, native))
         {
             return;
@@ -245,6 +253,10 @@ public sealed partial class BattleSession
             Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
             return;
         }
+        if (curative)
+        {
+            MarkNativeContactFlags(0, 1);
+        }
         int damage;
         bool applyStatuses = true;
         if (native.AttackType is 5 or 6)
@@ -256,8 +268,12 @@ public sealed partial class BattleSession
             }
             else if ((saved & 1) != 0 || recipient.CurrentHp == 0)
             {
+                MarkNativeContactFlags(4, 1);
                 ApplyNativeActionStatuses(actor, recipient, native with { Statuses0 = 1, Statuses1 = 0 }, true);
                 int revived = native.AttackType == 6 ? recipient.MaximumHp : Math.Max(1, recipient.MaximumHp / 8);
+                SetNativeContactDamage(-revived);
+                FinalizeNativeContactPresentation();
+                recipient.LastNativeHealing = 1;
                 recipient.CurrentHp = revived;
                 RecordNativeActionMemory(actor, recipient, command);
                 Log("Healing", actor.Id, recipient.Id, revived, $"{action.Name}: {recipient.Name} revived.");
@@ -266,6 +282,7 @@ public sealed partial class BattleSession
             }
             else
             {
+                MarkNativeContactFlags(0, 5);
                 Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is not KO.");
                 return;
             }
@@ -274,10 +291,15 @@ public sealed partial class BattleSession
         {
             if (native.AttackType != 10 && !NativePhysicalActionHits(actor, recipient, native))
             {
+                MarkNativeContactFlags(0, 4);
                 Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {actor.Name} missed.");
                 return;
             }
             bool critical = native.AttackType != 10 && NativePhysicalCritical(actor, native);
+            if (critical)
+            {
+                MarkNativeContactFlags(0, 2);
+            }
             int vitality = (statuses & 0x1000000) != 0 || native.AttackType == 36 ? 0 : recipient.Defense;
             damage = native.AttackType switch
             {
@@ -289,6 +311,10 @@ public sealed partial class BattleSession
             };
             if ((statuses & 0x20) != 0)
             {
+                if (damage != 0)
+                {
+                    MarkNativeContactFlags(0x10, 0);
+                }
                 damage >>= 1;
             }
             if ((statuses & 0x800000) != 0)
@@ -314,6 +340,10 @@ public sealed partial class BattleSession
             bool earthImmune = (native.Element & 8) != 0 && (statuses & 0x2000) != 0;
             if (magic && !bypass && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || earthImmune) || magicCure && !bypass && ((saved & 1) != 0 || (statuses & 0x200000) != 0 || earthImmune) || fixedDamage && ((saved & 4) != 0 || (statuses & 0x800) != 0))
             {
+                if (magic || magicCure)
+                {
+                    MarkNativeContactFlags(0, 4);
+                }
                 Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
                 return;
             }
@@ -324,6 +354,7 @@ public sealed partial class BattleSession
                 case 14:
                 case 30:
                 case 31:
+                    MarkNativeContactFlags(1, 0);
                     damage = 0;
                     applyStatuses = false;
                     if (native.AttackType == 12)
@@ -339,6 +370,7 @@ public sealed partial class BattleSession
                 case 32:
                     if ((native.Hit ?? 255) <= NextRandomByte() % 100 + 1)
                     {
+                        MarkNativeContactFlags(0, 4);
                         Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} was unaffected.");
                         return;
                     }
@@ -361,6 +393,7 @@ public sealed partial class BattleSession
                 case 26:
                     if (recipient.Level % (native.Hit ?? 255) != 0)
                     {
+                        MarkNativeContactFlags(0, 4);
                         Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: level condition failed.");
                         return;
                     }
@@ -394,6 +427,10 @@ public sealed partial class BattleSession
             {
                 if (native.AttackType is 3 or 21 && (statuses & 0x40) != 0)
                 {
+                    if (damage != 0)
+                    {
+                        MarkNativeContactFlags(0x20, 0);
+                    }
                     damage >>= 1;
                 }
                 if ((saved & 4) != 0 && native.AttackType is 3 or 21)
@@ -430,8 +467,14 @@ public sealed partial class BattleSession
         {
             damage *= 5;
         }
+        if (nativeContactWorking is { SpecialSource: not 255 })
+        {
+            damage /= 2;
+        }
         int maximum = (native.AttackFlags & 8) != 0 ? 60_000 : 9_999;
         damage = Math.Clamp(damage, -maximum, maximum);
+        SetNativeContactDamage(damage);
+        FinalizeNativeContactPresentation();
         if ((NativeSavedStatusBits(recipient) & 1) != 0 && recipient.CurrentHp > 0)
         {
             damage = recipient.CurrentHp;
@@ -451,6 +494,7 @@ public sealed partial class BattleSession
             int percent = native.AttackType == 9 ? 100 : Math.Max(0, native.StatusAttack - GetNativeStatusResistance(recipient, 23));
             int drain = Math.Min(9_999, Math.Abs(damage) * percent / 100);
             bool reverseDrain = ((NativeSavedStatusBits(actor) ^ NativeSavedStatusBits(recipient)) & 0x40) != 0;
+            BeginNativeContactSecondary(actor, drain, !reverseDrain);
             if (drain > 0 && reverseDrain)
             {
                 ApplyDamage(recipient, actor, drain, action.Name, false);
@@ -459,6 +503,7 @@ public sealed partial class BattleSession
             {
                 ApplyHealing(actor, drain, action.Name);
             }
+            EndNativeContactSecondary();
         }
     }
 
@@ -490,6 +535,10 @@ public sealed partial class BattleSession
         uint statuses = NativeBattleStatusBits(recipient);
         if ((native.AttackFlags & 3) == 1 && (statuses & 0x40) != 0)
         {
+            if (damage != 0)
+            {
+                MarkNativeContactFlags(0x20, 0);
+            }
             damage >>= 1;
         }
         if ((statuses & 0x80000) != 0)
@@ -512,10 +561,11 @@ public sealed partial class BattleSession
 
     private void DispatchNativeActionCounter(BattleCombatant recipient)
     {
-        if (recipient.NativeAi is not null)
+        NoteNativeContactCommit(recipient);
+        if (recipient.IsPlayer || recipient.NativeAi is not null)
         {
             QueueNativeReaction(recipient, 2);
-            if (!suppressNativeImmediateCounter && (recipient.NativeCombatantFlags & 0x10) != 0)
+            if (!recipient.IsPlayer && !suppressNativeImmediateCounter && (recipient.NativeCombatantFlags & 0x10) != 0)
             {
                 RunNativeAi(recipient, 4);
             }

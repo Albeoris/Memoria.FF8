@@ -1,6 +1,10 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
-public sealed record BattleGuardianForceVital(int Id, ushort HitPoints, ushort MaximumHitPoints, bool Acquired = true);
+public sealed record BattleGuardianForceVital(int Id, ushort HitPoints, ushort MaximumHitPoints, bool Acquired = true)
+{
+    public ushort? KillCount { get; init; }
+    public ushort? DeathCount { get; init; }
+}
 public sealed record BattleGuardianForceCast(string ActorId, BattleAttackCommand Command, ushort RemainingTicks, ushort InitialTicks);
 public sealed record BattleGuardianForceChange(int Id, ushort HitPointsBefore, ushort HitPointsAfter);
 public sealed record BattleGuardianForceCompatibilityChange(byte Row, ushort[] Before, ushort[] After);
@@ -84,8 +88,9 @@ public sealed partial class BattleSession
         {
             return false;
         }
+        MarkNativeContactFlags(0, 0x20);
         int hp = Math.Max(0, gf.HitPoints - amount);
-        guardianForces[gf.Id] = gf with { HitPoints = (ushort)hp };
+        guardianForces[gf.Id] = NativeGuardianForceShieldResult(gf, (ushort)hp);
         Log("GuardianForceDamage", actor.Id, actor.Id, gf.HitPoints - hp, $"Summoning GF: {gf.HitPoints - hp} HP.");
         return true;
     }
@@ -144,7 +149,7 @@ public sealed partial class BattleSession
         {
             BattleGuardianForceVital initial = definition.GuardianForces.Single(entry => entry.Id == gf.Id);
             bool acquired = initial.Acquired || saved.NativeScriptState.AcquiredGuardianForces.Contains((byte)gf.Id);
-            if (gf.MaximumHitPoints != initial.MaximumHitPoints || gf.Acquired != acquired || gf.HitPoints > Math.Max(initial.HitPoints, initial.MaximumHitPoints) || !guardianForces.TryAdd(gf.Id, gf))
+            if ((gf.KillCount is null) != (initial.KillCount is null) || (gf.DeathCount is null) != (initial.DeathCount is null) || gf.MaximumHitPoints != initial.MaximumHitPoints || gf.Acquired != acquired || gf.HitPoints > Math.Max(initial.HitPoints, initial.MaximumHitPoints) || !guardianForces.TryAdd(gf.Id, gf))
             {
                 throw new InvalidDataException("Invalid saved GF HP state.");
             }

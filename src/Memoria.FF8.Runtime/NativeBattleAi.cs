@@ -30,6 +30,7 @@ public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, b
     public BattleNativeCharacterGrowth? Growth { get; init; }
     // Older valid snapshots predate opcode40 support, so their six allocation multipliers are still10.
     public byte[] StatMultipliers { get; init; } = [10, 10, 10, 10, 10, 10];
+    public byte? LastHealing { get; init; }
     public NativeBattleLastAction? LastAction { get; init; }
     public ushort PreviousTargetMask { get; init; }
     public byte? DrawnSpell { get; init; }

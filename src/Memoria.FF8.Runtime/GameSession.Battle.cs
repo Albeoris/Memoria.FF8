@@ -25,7 +25,7 @@ public sealed partial class GameSession
         State = State with { PendingBattleEncounter = encounter };
     }
 
-    public void CommitBattleResult(BattleEncounterOccurrence encounter, NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, NativeBattleVariableState? battleVariables = null, NativeSavedBattleFlags? savedBattleFlags = null, byte? savedBattleFlagsBefore = null, NativeCrtRandomState? crtRandom = null, NativeCrtRandomState? crtRandomBefore = null, byte savedBattleFlagsSetMask = 0, byte savedBattleFlagsClearMask = 0, NativeScannedModels? scannedModelsBefore = null, NativeScannedModels? scannedModelsAfter = null, byte? limitSpecialFlagsBefore = null, byte? limitSpecialFlagsAfter = null, byte limitSpecialSetMask = 0, byte? shotFlagsBefore = null, byte? shotFlagsAfter = null, byte shotFlagsSetMask = 0, NativeGlobalRandomChange? globalRandomChange = null, NativeKnownMagic? knownMagicBefore = null, NativeKnownMagic? knownMagicAfter = null)
+    public void CommitBattleResult(BattleEncounterOccurrence encounter, NativeCharacterVitals vitals, NativeEconomy economy, NativeCardInventory? cards, NativeBattleVariableState? battleVariables = null, NativeSavedBattleFlags? savedBattleFlags = null, byte? savedBattleFlagsBefore = null, NativeCrtRandomState? crtRandom = null, NativeCrtRandomState? crtRandomBefore = null, byte savedBattleFlagsSetMask = 0, byte savedBattleFlagsClearMask = 0, NativeScannedModels? scannedModelsBefore = null, NativeScannedModels? scannedModelsAfter = null, byte? limitSpecialFlagsBefore = null, byte? limitSpecialFlagsAfter = null, byte limitSpecialSetMask = 0, byte? shotFlagsBefore = null, byte? shotFlagsAfter = null, byte shotFlagsSetMask = 0, NativeGlobalRandomChange? globalRandomChange = null, NativeKnownMagic? knownMagicBefore = null, NativeKnownMagic? knownMagicAfter = null, IReadOnlyList<BattleGuardianForceCounterChange>? guardianForceCounters = null)
     {
         encounter.Validate();
         ValidateNativeScanReceipt(scannedModelsBefore, scannedModelsAfter);
@@ -33,6 +33,7 @@ public sealed partial class GameSession
         NativeLimitProgress? limitProgress = ProjectNativeLimitLearning(limitSpecialFlagsBefore, limitSpecialFlagsAfter, limitSpecialSetMask);
         NativeShotAvailabilityState? shots = ProjectNativeShotLearning(shotFlagsBefore, shotFlagsAfter, shotFlagsSetMask);
         vitals.Validate();
+        ValidateNativeGuardianForceCounterReceipt(guardianForceCounters, vitals);
         economy.Validate();
         cards?.Validate();
         battleVariables?.Validate();

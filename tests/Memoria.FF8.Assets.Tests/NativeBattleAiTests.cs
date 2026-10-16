@@ -112,11 +112,11 @@ public sealed class NativeBattleAiTests
     }
 
     [Fact]
-    public void UnsupportedReachedAiOpcodeRejectsInsteadOfUsingPrimitiveEnemyFallback()
+    public void ReachedGraphicsBarrierRequiresItsNativeOwnerInsteadOfUsingPrimitiveEnemyFallback()
     {
         NativeBattleAiDefinition program = new([[51, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleDefinition definition = new() { Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = program }] };
-        Assert.Contains("opcode 51", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal)).Message);
+        Assert.Contains("Native graphical descriptors require", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal)).Message);
     }
 
     private static BattleDefinition CreateTower(BattleAssets assets)

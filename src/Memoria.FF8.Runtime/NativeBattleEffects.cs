@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
 
@@ -10,19 +11,24 @@ public enum NativeBattleEffectKind
 }
 
 /// <summary>Owned completion/linked-list fields of a32-byte1D98428 task; presentation coordinates have their own renderer owner.</summary>
-public sealed record NativeBattleEffectTask(ushort Flags0, ushort State2, int? Next, NativeBattleEffectKind Kind)
+public sealed record NativeBattleEffectTask([property: JsonRequired] ushort Flags0, [property: JsonRequired] ushort State2, [property: JsonRequired] int? Next, [property: JsonRequired] NativeBattleEffectKind Kind)
 {
+    [JsonRequired]
     public byte ModelIndex { get; init; }
+    [JsonRequired]
     public byte Frame { get; init; }
+    [JsonRequired]
     public ImmutableArray<byte> Glyphs { get; init; } = [];
+    [JsonRequired]
     public short HalfWidth { get; init; }
+    [JsonRequired]
     public uint Color { get; init; }
 }
 
 public sealed record NativeBattleEffectsStep(NativeBattleEffectsState State, ImmutableArray<byte> ResetModelStatuses);
 
 /// <summary>Exact20-slot allocator and published callback count from506BD0/508420/500900.</summary>
-public sealed record NativeBattleEffectsState(ImmutableArray<NativeBattleEffectTask> Slots, int? Head, int? Tail, byte PublishedCount)
+public sealed record NativeBattleEffectsState([property: JsonRequired] ImmutableArray<NativeBattleEffectTask> Slots, [property: JsonRequired] int? Head, [property: JsonRequired] int? Tail, [property: JsonRequired] byte PublishedCount)
 {
     public static NativeBattleEffectsState Clear()
     {

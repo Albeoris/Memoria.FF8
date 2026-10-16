@@ -7,6 +7,30 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeRenzokukenMetadataTests
 {
     [Fact]
+    public void Embedded_Renzokuken_body_and_linked_weapon_reuse_geometry_and_decode_their_own_animation_sections()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleModel body = assets.LoadPlayer(0);
+        BattleModel weapon = assets.ResolveWeaponModel(0, game.ReadNewGameCharacterVitals().Records[0].Weapon, body) ?? throw new InvalidDataException("Installed Squall weapon has no linked model.");
+
+        foreach (var resource in game.ReadNativeRenzokukenResources())
+        {
+            BattleRenzokukenModels changed = assets.ReadNativeRenzokukenModels(resource, body, weapon);
+
+            Assert.Same(body.Bones, changed.Body.Bones);
+            Assert.Same(body.Meshes, changed.Body.Meshes);
+            Assert.Same(weapon.Bones, changed.Weapon!.Bones);
+            Assert.Same(weapon.Meshes, changed.Weapon.Meshes);
+            Assert.Same(weapon.Sequences, changed.Weapon.Sequences);
+            Assert.Equal(resource.AnimationFrameCounts, changed.Body.Animations.Select(animation => (byte)animation.Frames.Count));
+            Assert.Equal(changed.Body.Animations.Count, changed.Weapon.Animations.Count);
+            Assert.NotEmpty(changed.Body.Pose(0, 0));
+            Assert.NotEmpty(changed.Weapon.Pose(0, 0));
+        }
+    }
+
+    [Fact]
     public void Native_effect_services_replace_the_actor_resource_and_supply_four_through_eight_contacts()
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);

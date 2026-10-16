@@ -92,6 +92,18 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
     public bool Melee { get; init; }
     public int AttackSequence { get; init; } = definition.IsPlayer ? 13 : 0;
 
+    internal BattleAnimationSample SampleNativeSequence(int sequence, double poseFrames)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(poseFrames);
+        int[] clips = Sequence(sequence).Animations.ToArray();
+        if (clips.Length == 0)
+        {
+            throw new NotSupportedException($"{model.Name} native sequence{sequence} has no skeletal pose track.");
+        }
+        //TODO(TD-009): Use the shared process clock and original embedded clips until raw sequence pose receipts replace static clip projection
+        return Play(clips, poseFrames, Vector3.Zero);
+    }
+
     public float GroundOffset(BattleAnimationSample sample, bool alive, float standingOffset)
     {
         // TODO(TD-009): Ground fallen geometry at the selected pose instead of subtracting the standing-foot anchor from a flat KO pose

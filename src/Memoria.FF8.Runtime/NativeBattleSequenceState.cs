@@ -38,15 +38,20 @@ public enum NativeBattleSequenceCueKind
     Texture,
     CommandTitle,
     ActionCallback,
+    TriggerWindow,
     SuspendParticipant,
     RestoreStanding
 }
 
-public sealed record NativeBattleSequenceCue(NativeBattleSequenceCueKind Kind, int First = 0, int Second = 0, int Third = 0);
+public sealed record NativeBattleSequenceCue(NativeBattleSequenceCueKind Kind, int First = 0, int Second = 0, int Third = 0)
+{
+    public BattleNativeRenzokukenBlock? TriggerWindow { get; init; }
+}
 public sealed record NativeBattleSequenceStep(NativeBattleGraphicsModel Model, ImmutableArray<NativeBattleSequenceCue> Cues);
 
 public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? CameraTasks)
 {
+    public NativeBattleGraphicsResource? OriginalResource { get; init; }
     public Func<ushort>? GlobalRandom { get; init; }
     public Func<byte, short>? ReadExternal { get; init; }
     public Action<byte, int>? WriteExternal { get; init; }

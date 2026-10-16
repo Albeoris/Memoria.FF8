@@ -51,7 +51,7 @@ public sealed partial class BattleSession
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)
     {
-        if (actor.NativeAi is null)
+        if (actor.NativeAi is null && !actor.IsPlayer)
         {
             return;
         }
@@ -86,7 +86,14 @@ public sealed partial class BattleSession
                 {
                     actor.AiDeathHandled = true;
                 }
-                RunNativeAi(actor, stage);
+                if (actor.IsPlayer)
+                {
+                    RunNativePlayerReaction(actor, stage);
+                }
+                else
+                {
+                    RunNativeAi(actor, stage);
+                }
             }
         }
         finally

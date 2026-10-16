@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -20,6 +20,10 @@ public sealed partial class BattleSession
 
     private BattleAttackCommand PrepareNativeQueuedCommand(BattleCombatant actor, BattleAttackCommand original)
     {
+        if (original.NativePlayerReaction is not null)
+        {
+            return original;
+        }
         NativeCompelledCommand? prepared = PrepareNativeCompelledCommand(actor);
         if (prepared is null)
         {

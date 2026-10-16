@@ -42,7 +42,28 @@ public sealed partial class BattleSession
         suppressNativeImmediateCounter = !finalContact;
         try
         {
-            ResolveAction(actor, target, contact);
+            if (native.Command == 251)
+            {
+                if (target.NativeIndex is < 0 or >= 7 || targetMask != 1 << target.NativeIndex)
+                {
+                    throw new InvalidDataException("Native251 contact must retain its originally selected physical recipient.");
+                }
+                BattleActionDefinition action = new(contact.Ability, contact.ActionId, native.Name ?? "Renzokuken", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
+                BattleActionPresentation? previousAction = resolvingNativeAction;
+                resolvingNativeAction = contact;
+                try
+                {
+                    ResolveInstalledNativeHit(actor, target, contact, action, native);
+                }
+                finally
+                {
+                    resolvingNativeAction = previousAction;
+                }
+            }
+            else
+            {
+                ResolveAction(actor, target, contact);
+            }
             nativeTimedAction = timed with { Contacts = checked(timed.Contacts + 1) };
         }
         finally

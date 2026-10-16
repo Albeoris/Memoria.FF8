@@ -123,61 +123,14 @@ public static class NativeBattleSequenceMachine
 
         void Execute()
         {
-            int? accumulator = null;
-            int?[] temporaries = new int?[128];
+            NativeBattleScriptExpressionState expression = new();
             for (int instruction = 0; instruction < 100_000; instruction++)
             {
                 int origin = position;
                 byte opcode = ReadByte();
                 if (opcode >= 0xC0)
                 {
-                    if (opcode < 0xE4)
-                    {
-                        int operand = (opcode & 3) switch
-                        {
-                            0 => unchecked((short)(ReadByte() | ReadByte() << 8)),
-                            1 => unchecked((sbyte)ReadByte()),
-                            2 => ReadByte(),
-                            _ => ReadVariable(ReadByte())
-                        };
-                        int current = (opcode & 0xFC) == 0xC0 ? 0 : RequireAccumulator();
-                        accumulator = (opcode & 0xFC) switch
-                        {
-                            0xC0 => operand,
-                            0xC4 => unchecked(current + operand),
-                            0xC8 => unchecked(current - operand),
-                            0xCC => unchecked(current * operand),
-                            0xD0 => current / operand,
-                            0xD4 => current & operand,
-                            0xD8 => current | operand,
-                            0xDC => current ^ operand,
-                            0xE0 => current % operand,
-                            _ => throw new InvalidDataException("Invalid native expression operation.")
-                        };
-                    }
-                    else if (opcode == 0xE4)
-                    {
-                        accumulator = 0;
-                    }
-                    else if (opcode == 0xE5)
-                    {
-                        WriteVariable(ReadByte(), RequireAccumulator());
-                    }
-                    else if (opcode <= 0xF3)
-                    {
-                        int kind = (opcode - 0xE6) % 7;
-                        int value = kind == 0 ? 0 : RequireAccumulator();
-                        bool take = kind switch { 0 => true, 1 => value > 0, 2 => value >= 0, 3 => value == 0, 4 => value != 0, 5 => value <= 0, _ => value < 0 };
-                        int relative = opcode < 0xED ? unchecked((sbyte)ReadByte()) : unchecked((short)(ReadByte() | ReadByte() << 8));
-                        if (take)
-                        {
-                            position = origin + relative;
-                        }
-                    }
-                    else
-                    {
-                        throw new NotSupportedException($"Native expression opcode{opcode:X2} has no reached contract.");
-                    }
+                    NativeBattleScriptExpressions.Execute(opcode, origin, ref position, expression, ReadByte, ReadVariable, WriteVariable);
                     continue;
                 }
                 if (opcode < 0x80)
@@ -218,6 +171,7 @@ public static class NativeBattleSequenceMachine
                         return;
                     case 0xA2:
                         cues.Add(new(NativeBattleSequenceCueKind.RestoreStanding));
+                        RestoreStanding();
                         byte next = state.Pending3 != 0 && resource.Contains(state.Pending3) ? state.Pending3 : DefaultSequence();
                         state = state with { Pending3 = 0 };
                         SwitchSequence(next);
@@ -251,6 +205,12 @@ public static class NativeBattleSequenceMachine
                     case 0xAA:
                         cues.Add(new(NativeBattleSequenceCueKind.ActionCallback));
                         break;
+                    case 0xAB:
+                        int start = resource.SequenceStart(sequence);
+                        BattleNativeRenzokukenBlock block = NativeBattleRenzokukenRules.ReadBlock(resource.SequenceSection.AsSpan().Slice(start, resource.SequenceEnd(sequence) - start), origin - start, resource.AnimationFrames);
+                        cues.Add(new(NativeBattleSequenceCueKind.TriggerWindow) { TriggerWindow = block });
+                        position = start + block.EndOffset;
+                        break;
                     case 0xAC:
                         byte restored = ReadByte();
                         if (restored == 0)
@@ -258,11 +218,14 @@ public static class NativeBattleSequenceMachine
                             restored = state.Pending3 != 0 && resource.Contains(state.Pending3) ? state.Pending3 : DefaultSequence();
                         }
                         cues.Add(new(NativeBattleSequenceCueKind.RestoreStanding, 1));
-                        model = model with { Flags2 = (ushort)(RequireFlags2() & ~8) };
-                        state = state with { Pending3 = 0 };
+                        RestoreStanding();
+                        resource = inputs.OriginalResource ?? throw new InvalidDataException("Native AC requires its original resource-pointer owner.");
+                        model = model with { ResourceMagicId = null, Flags2 = (ushort)(RequireFlags2() & ~8) };
+                        state = state with { Pending3 = 0, Callback42 = 0 };
                         SwitchSequence(restored);
-                        flags = 1;
-                        return;
+                        //AC returns a null PC;504290 immediately re-enters the restored selected sequence in this callback.
+                        flags = 0;
+                        break;
                     case 0xB5:
                     case 0xB6:
                     case 0xB8:
@@ -293,14 +256,8 @@ public static class NativeBattleSequenceMachine
             }
             throw new InvalidDataException("Native graphics sequence exceeded the bounded instruction budget without a callback yield.");
 
-            int RequireAccumulator() => accumulator ?? throw new InvalidDataException("Native sequence reads the unresolved initial expression accumulator.");
-
             int ReadVariable(byte variable)
             {
-                if (variable >= 128)
-                {
-                    return temporaries[variable - 128] ?? throw new InvalidDataException("Native sequence reads an unwritten temporary DWORD.");
-                }
                 if (variable < 8)
                 {
                     return state.Locals[variable] ?? throw new InvalidDataException("Native sequence reads an uninitialized local WORD.");
@@ -316,23 +273,21 @@ public static class NativeBattleSequenceMachine
                     10 => state.PoseLimit115 ?? throw new InvalidDataException("Native sequence lacks its current pose limit."),
                     11 => state.Default2,
                     12 => unchecked((short)(inputs.GlobalRandom ?? throw new InvalidDataException("Native sequence lacks534AA0 random state."))()),
+                    23 => (model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF,
                     27 => model.Index,
+                    28 => model.Index >= 3 ? 2048 : ((model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF) <= 2048 ? 0 : 4096,
                     31 => unchecked((short)(model.Flags8 ?? throw new InvalidDataException("Native sequence lacks projected model flags."))),
                     34 => inputs.EntryAdvantage ?? throw new InvalidDataException("Native sequence lacks48AFD0 entry advantage."),
                     35 => unchecked((short)(inputs.CameraTasks ?? throw new InvalidDataException("Native sequence lacks actual camera task flags."))),
                     55 => model.Flags0 & 4,
-                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 28 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
+                    _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
                     _ => 0
                 };
             }
 
             void WriteVariable(byte variable, int value)
             {
-                if (variable >= 128)
-                {
-                    temporaries[variable - 128] = value;
-                }
-                else if (variable < 8)
+                if (variable < 8)
                 {
                     state = state with { Locals = state.Locals.SetItem(variable, unchecked((short)value)) };
                 }
@@ -378,5 +333,10 @@ public static class NativeBattleSequenceMachine
         }
 
         ushort RequireFlags2() => model.Flags2 ?? throw new InvalidDataException("Native graphics service requires model Flags2.");
+
+        void RestoreStanding()
+        {
+            model = model with { Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0 };
+        }
     }
 }

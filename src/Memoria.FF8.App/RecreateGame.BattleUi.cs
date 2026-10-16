@@ -82,6 +82,7 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        active.AdvanceNativeGraphicsPresentation(elapsed);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
         active.AdvanceNativeShotPresentation(elapsed);

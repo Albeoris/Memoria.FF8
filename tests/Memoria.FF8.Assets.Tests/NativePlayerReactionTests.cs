@@ -1,0 +1,99 @@
+using Memoria.FF8.Runtime;
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Assets.Tests;
+
+public sealed class NativePlayerReactionTests
+{
+    [Fact]
+    public void CounterAndAutoPotionKeepAtbAndPersistInOriginalOrderWithOneReservedItem()
+    {
+        using GameAssets game = new(GameDirectory());
+        using BattleAssets assets = new(GameDirectory());
+        BattleSession battle = Create(game, assets, 0x40004, [new(1, 2), new(3, 2)], 100);
+        AdvanceUntilReaction(battle);
+        BattleSnapshot saved = battle.Capture();
+        Assert.Equal([BattleNativePlayerReaction.Counter, BattleNativePlayerReaction.AutoPotion], saved.QueuedActions.Select(command => command.NativePlayerReaction!.Value).ToArray());
+        Assert.True(battle.Combatants[0].Atb > 0);
+        Assert.Equal(3, saved.QueuedActions[1].ActionId);
+        Assert.Equal(1, saved.NativeItemInventory!.Single(stock => stock.ItemId == 3).Count);
+        Assert.Equal((byte?)0, saved.Combatants[0].NativeParticipant!.LastHealing);
+        BattleSession restored = BattleSession.Restore(saved);
+        Assert.Equal(saved.QueuedActions, restored.Capture().QueuedActions);
+        Assert.Equal(saved.NativeItemInventory, restored.Capture().NativeItemInventory);
+        Assert.Equal(battle.Combatants[0].Atb, restored.Combatants[0].Atb);
+    }
+
+    [Theory]
+    [InlineData(3, 3)]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(4, 4)]
+    [InlineData(5, 5)]
+    [InlineData(9, 9)]
+    public void AutoPotionUsesTheOriginalLargeDeficitPriorityAndConsumesAtProduction(int available, int expected)
+    {
+        using GameAssets game = new(GameDirectory());
+        using BattleAssets assets = new(GameDirectory());
+        BattleSession battle = Create(game, assets, 0x40000, [new(available, 1)], 100);
+        AdvanceUntilReaction(battle);
+        BattleAttackCommand command = Assert.Single(battle.Capture().QueuedActions);
+        Assert.Equal(BattleNativePlayerReaction.AutoPotion, command.NativePlayerReaction);
+        Assert.Equal(expected, command.ActionId);
+        Assert.DoesNotContain(battle.Capture().NativeItemInventory!, stock => stock.ItemId == available);
+    }
+
+    [Fact]
+    public void AutoPotionDoesNotFallBackToHiPotionForSmallDeficit()
+    {
+        using GameAssets game = new(GameDirectory());
+        using BattleAssets assets = new(GameDirectory());
+        BattleSession battle = Create(game, assets, 0x40000, [new(2, 1)], 1);
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Empty(battle.Capture().QueuedActions);
+        Assert.Contains(battle.Capture().NativeItemInventory!, stock => stock.ItemId == 2 && stock.Count == 1);
+    }
+
+    private static BattleSession Create(GameAssets game, BattleAssets assets, uint flags, BattleStock[] items, byte level)
+    {
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0) with { Level = level, NativeStatusPassiveFlags = flags };
+        BattleNativeCharacterGrowth growth = new(0, ImmutableArray.Create<byte>(0, 0, 0, 0, 0, 0));
+        BattleNativePlayerStatistics stats = rules.Project(Enumerable.Repeat(new NativeMagicStock(0, 0), 32).ToArray(), growth);
+        BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8 && action.AttackType == 1 && (action.AttackFlags & 3) == 0 && action.HitCount == 1 && action.Power is > 0 and <= 10 && action.Hit >= 100 && action.Statuses0 == 0 && action.Statuses1 == 0);
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeActions = assets.NativeActions.ToArray(),
+            Items = items,
+            Combatants =
+            [
+                new() { Id = "party", Name = "Squall", ModelId = 0, IsPlayer = true, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp / 3, InitialAtb = 1234, NativePlayerStatRules = rules, NativeGrowth = growth, NativeDeathCount = 0, NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), Defense = stats.Vitality, Speed = 1, NativeStatusResistances = new byte[40] },
+                new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Attack = 10, Speed = 1, NativeStatusResistances = new byte[40] }
+            ]
+        }, BattleAtbMode.TurnBased);
+        BattleAttackCommand command = new("enemy", "party", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = 1 };
+        return BattleSession.Restore(battle.Capture() with { QueuedActions = [command] });
+    }
+
+    private static void AdvanceUntilReaction(BattleSession battle)
+    {
+        for (int frame = 0; frame < 20 && !battle.Capture().QueuedActions.Any(command => command.NativePlayerReaction is not null); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Contains(battle.Capture().QueuedActions, command => command.NativePlayerReaction is not null);
+    }
+
+    private static string GameDirectory()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
+        return directory;
+    }
+}
+
+
+

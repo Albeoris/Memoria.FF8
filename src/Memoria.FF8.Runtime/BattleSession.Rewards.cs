@@ -22,19 +22,25 @@ public sealed partial class BattleSession
             }
             throw new NotSupportedException("Repeated enemy revival rewards require the native per-actor rewarded flag contract.");
         }
+        BattleActionPresentation? action = resolvingNativeAction ?? ActiveAction;
+        byte? nativeCommand = action?.NativeAction?.Command ?? action?.NativeQueuedCommand ?? (action?.Ability == BattleAbility.Attack ? (byte)1 : null);
         byte? row = actor?.IsPlayer == true ? byte.Parse(actor.Id.AsSpan("party-".Length), System.Globalization.CultureInfo.InvariantCulture) : null;
         BattleDefeatCredit credit = row is null ? BattleDefeatCredit.Unattributed : BattleDefeatCredit.Character;
         byte? guardianForce = null;
-        if (row is not null && ActiveAction is { Ability: BattleAbility.GuardianForce } action)
+        if (row is not null && (nativeCommand == 254 || action is { Ability: BattleAbility.GuardianForce, NativeAction: null }))
         {
             credit = BattleDefeatCredit.GuardianForce;
-            guardianForce = checked((byte)action.ActionId);
+            guardianForce = checked((byte)(action!.NativeAction is { } native ? native.ActionId - 64 : action.ActionId));
         }
         // Native494410 grants card486750, then drop486650 before accruing EXP/AP494AF0.
         bool card = rewards.SelectCard(checked((byte)NextRandomByte()));
         sbyte selection = (target.NativeCombatantFlags & 0x800) != 0 ? (sbyte)-1 : rewards.SelectDrop(checked((byte)NextRandomByte())) ? BattleEnemyRewardDefinition.SelectDropSlot(checked((byte)NextRandomByte()), definition.RareItem) : (sbyte)-1;
-        BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection) { AllocationId = target.Id, NativeCommand = ActiveAction?.NativeQueuedCommand ?? ActiveAction?.NativeAction?.Command ?? (ActiveAction?.Ability == BattleAbility.Attack ? (byte)1 : null) };
+        BattleEnemyDefeat fact = new(slot, checked((byte)target.Level), credit, row, guardianForce, card, selection) { AllocationId = target.Id, NativeCommand = nativeCommand };
         fact.Validate();
+        if (guardianForce is byte id)
+        {
+            IncrementNativeGuardianForceKill(id);
+        }
         enemyDefeats.Add(fact);
         target.NativeCombatantFlags |= 0x40000;
         if (credit == BattleDefeatCredit.Character && actor is not null)

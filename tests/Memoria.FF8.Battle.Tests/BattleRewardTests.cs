@@ -14,6 +14,7 @@ public sealed class BattleRewardTests
         BattleEnemyRewardDefinition rewards = new(10, 20, 20, 30, 0, true, 255, Enumerable.Range(0, 12).Select(index => new BattleStock(index + 1, 1)).ToImmutableArray());
         BattleDefinition definition = new()
         {
+            GuardianForces = [new(1, 100, 100) { KillCount = ushort.MaxValue, DeathCount = 4 }],
             Combatants =
             [
                 new() { Id = "party-0", Name = "Owner", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Level = 8, Attack = 100, Abilities = [BattleAbility.Attack, BattleAbility.GuardianForce], EquipmentIds = [1] },
@@ -30,6 +31,15 @@ public sealed class BattleRewardTests
         Assert.Equal(BattleOutcome.Victory, session.Outcome);
         BattleEnemyDefeat fact = Assert.Single(session.EnemyDefeats);
         Assert.Equal((2, (byte)8, expected, (byte?)0, gf is int id ? (byte?)id : null), (fact.Slot, fact.Level, fact.Credit, fact.KillerRow, fact.GuardianForceId));
+        if (gf is not null)
+        {
+            Assert.Equal((ushort)0, Assert.Single(session.GuardianForces).KillCount);
+            Assert.Equal((ushort)65535, Assert.Single(session.GuardianForceCounterChanges).KillsBefore);
+        }
+        else
+        {
+            Assert.Empty(session.GuardianForceCounterChanges);
+        }
         Assert.True(fact.CardSelected);
         Assert.InRange(fact.DropSelection, (sbyte)0, (sbyte)3);
         BattleSnapshot snapshot = session.Capture() with { Events = [] };

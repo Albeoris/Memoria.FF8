@@ -22,7 +22,29 @@ public sealed class NativeBattleGraphicsModelTests
         Assert.Null(loaded.Alpha7);
         Assert.Equal((byte)0, loaded.AppearanceFrame129);
         Assert.NotEqual(0u, random.State);
-        Assert.Equal(loaded, JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(loaded)));
+        string serialized = JsonSerializer.Serialize(loaded);
+        Assert.Equal(serialized, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGraphicsModel>(serialized)));
+    }
+
+    [Fact]
+    public void BlockedKindFiveCleanupRetainsItsNativeFadeFallthroughAndCanRepeatTheIdempotentRelease()
+    {
+        NativeGlobalRandomState random = new(0);
+        NativeBattleGraphicsModel model = NativeBattleGraphicsModels.StartService(NativeBattleGraphicsModels.CompleteLoad(new(3, 0), 77, 0, ref random), 5);
+        NativeBattleGraphicsRemoval first = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1);
+        Assert.True(first.ReleaseParticipant);
+        Assert.Equal((byte)2, first.Model.Phase6);
+        model = first.Model;
+        for (int callback = 0; callback < 13; callback++)
+        {
+            NativeBattleGraphicsRemoval step = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1);
+            Assert.False(step.ReleaseParticipant);
+            model = step.Model;
+        }
+        Assert.Equal((byte)15, model.Phase6);
+        model = NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1).Model;
+        Assert.Equal((byte)0, model.Phase6);
+        Assert.True(NativeBattleGraphicsModels.AdvanceRemoval(model, false, true, 1).ReleaseParticipant);
     }
 
     [Theory]

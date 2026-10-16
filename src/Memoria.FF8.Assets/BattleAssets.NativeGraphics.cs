@@ -6,12 +6,22 @@ namespace Memoria.FF8.Assets;
 
 public sealed partial class BattleAssets
 {
+    public NativeBattleGraphicsDefinition ReadNativeGraphicsDefinition(IReadOnlyList<BattleCombatantDefinition> actors, NativeBattleGraphicsRules rules)
+    {
+        rules.Validate();
+        ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), ReadNativeGraphicsResource(actor))).ToImmutableArray();
+        //47DAC0 queues enemy103 completions before47DD30/47DBA0 player102/103 descriptors.
+        ImmutableArray<string> order = actors.Where(actor => !actor.IsPlayer && actor.InitialActive).Concat(actors.Where(actor => actor.IsPlayer)).Select(actor => actor.Id).ToImmutableArray();
+        return new(rules, bindings, order);
+    }
+
     public NativeBattleGraphicsResource ReadNativeGraphicsResource(BattleCombatantDefinition actor)
     {
         if (actor.IsPlayer)
         {
             BattleModel body = LoadPlayer(actor.ModelId, actor.Costume);
-            return LoadPlayerSequences(actor.ModelId, actor.WeaponId, body).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray() };
+            BattleModel owner = LoadPlayerSequenceOwner(actor.ModelId, actor.WeaponId, body);
+            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = owner.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray() };
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);
     }

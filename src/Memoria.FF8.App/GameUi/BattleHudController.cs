@@ -489,8 +489,8 @@ public sealed partial class BattleHudController
         return actors[(Math.Max(0, index) + direction + actors.Count) % actors.Count].Id;
     }
 
-    private static bool CanChooseCommand(BattleCombatant actor)
+    private bool CanChooseCommand(BattleCombatant actor)
     {
-        return actor.IsReady && !actor.StatusEffects.Any(effect => effect.Kind == BattleStatusKind.Sleep);
+        return session.NativeEntryReady && actor.IsReady && !actor.StatusEffects.Any(effect => effect.Kind == BattleStatusKind.Sleep);
     }
 }

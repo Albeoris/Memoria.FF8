@@ -5,7 +5,7 @@ using Albeoris.Games.FF8.Imaging.Tim;
 namespace Memoria.FF8.Assets;
 
 /// <summary>Bounded original DAT skeleton, geometry, compressed animation and X static-stage decoder.</summary>
-internal static class BattleResourceReader
+internal static partial class BattleResourceReader
 {
     private sealed record ModelTexture(TimImage Tim, PixelImage Image);
 
@@ -401,7 +401,8 @@ internal static class BattleResourceReader
         return new BattleStage(stageId, meshes, textures)
         {
             IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header),
-            NativeCameraBank = BattleStageCameraReader.ReadNativeBank(stageId, bytes, header)
+            NativeCameraBank = BattleStageCameraReader.ReadNativeBank(stageId, bytes, header),
+            NativeCameraControl = BattleStageCameraReader.ReadNativeControl(stageId, bytes, header)
         };
     }
 }

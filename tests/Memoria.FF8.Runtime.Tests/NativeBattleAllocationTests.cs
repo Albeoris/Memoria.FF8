@@ -6,6 +6,30 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleAllocationTests
 {
     [Fact]
+    public void PhysicalRemovalPreservesTargetHpGaugeAndVisibilityWhileResettingTheCallerGauge()
+    {
+        NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
+        BattleSession battle = new(new()
+        {
+            Combatants =
+            [
+                new() { Id = "party", Name = "Party", IsPlayer = true },
+                new() { Id = "caller", Name = "Caller", InitialAtb = 1234, NativeAi = new([[29, 1, 0], [0], [0], [0], [0]], abilities, 0, []) },
+                new() { Id = "removed", Name = "Removed", InitialAtb = 4567 }
+            ]
+        }, BattleAtbMode.Normal);
+        BattleCombatant removed = battle.Combatants.Single(actor => actor.Id == "removed");
+        Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "caller").Atb);
+        Assert.Equal(4567, removed.Atb);
+        Assert.Equal(100, removed.CurrentHp);
+        Assert.False(removed.IsActive);
+        Assert.False(removed.Hidden);
+        Assert.True(removed.Untargetable);
+        Assert.Equal((ushort)1, (ushort)(battle.Capture().Combatants.Single(actor => actor.Id == "removed").NativeStatus!.Saved & 1));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
+    }
+
+    [Fact]
     public void SameScenePrototypeCanOccupySeveralPhysicalSlotsAndRestoreWithoutReinitializing()
     {
         BattleSession battle = Create([52, 6, 52, 6, 0]);

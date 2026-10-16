@@ -106,6 +106,7 @@ public sealed partial class BattleSession
 
     public void QueueNativePlayerCommand(string actorId, string targetId, byte command, ushort actionId, byte sequence = 0, byte? crisis = null)
     {
+        RequireNativeEntryReady();
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         if (Outcome != BattleOutcome.Active || !actor.IsPlayer || !actor.IsReady)
@@ -267,6 +268,7 @@ public sealed partial class BattleSession
                 RestoreNativeRenzokuken(state.ActorId, state.CrisisLevel, renzokuken);
             }
         }
+        ValidateNativeRenzokukenOwners();
         ValidateNativeLimitCallbacks();
     }
 }

@@ -9,6 +9,7 @@ public sealed partial class BattleSession
 
     public void QueueAction(string actorId, string targetId, BattleAbility ability, int actionId, bool drawCast = false, IReadOnlyList<string>? magicTargets = null, string? drawCastTargetId = null)
     {
+        RequireNativeEntryReady();
         if (magicTargets is not null && ability != BattleAbility.Magic)
         {
             throw new InvalidOperationException("Only a native Magic command can retain several cast targets.");

@@ -15,7 +15,11 @@ public sealed record NativeGuardianForceLearnedBank([property: JsonRequired] ulo
         return ((ability < 64 ? Low : High) & (1UL << (ability & 63))) != 0;
     }
 }
-public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ushort? MaximumHitPoints, [property: JsonRequired] ImmutableArray<byte> AbilityProgress, [property: JsonRequired] byte Learning, [property: JsonRequired] uint ForgottenAbilities);
+public sealed record NativeGuardianForceVital([property: JsonRequired] uint Experience, [property: JsonRequired] byte Flags, [property: JsonRequired] ushort HitPoints, [property: JsonRequired] NativeGuardianForceLearnedBank LearnedBank, [property: JsonRequired] ushort? MaximumHitPoints, [property: JsonRequired] ImmutableArray<byte> AbilityProgress, [property: JsonRequired] byte Learning, [property: JsonRequired] uint ForgottenAbilities)
+{
+    public ushort? KillCount { get; init; }
+    public ushort? DeathCount { get; init; }
+}
 
 /// <summary>Immutable inputs decoded from the authenticated current kernel sections, not a cache of a saved character's identity-dependent maximum.</summary>
 public sealed record NativeStatDefinitions([property: JsonRequired] ImmutableArray<NativeStatCurve> Characters, [property: JsonRequired] ImmutableArray<byte> MagicHitPoints, [property: JsonRequired] ImmutableArray<NativeStatModifier> CharacterPassives, [property: JsonRequired] ImmutableArray<NativeStatCurve> GuardianForces, [property: JsonRequired] ImmutableArray<NativeStatModifier> GuardianForceModifiers)

@@ -120,6 +120,7 @@ public static partial class BattleResultProjection
             }
             guardianForces[change.Id] = gf with { HitPoints = change.HitPointsAfter };
         }
+        ApplyNativeGuardianForceCounters(result, guardianForces);
         vitals = vitals with { GuardianForces = guardianForces };
         BattleExperienceAwards experience = new(new Dictionary<byte, ushort>(), new Dictionary<byte, ushort>());
         BattleLootOwners loot = new(economy with { Items = items }, ApplyNativeCardChange(result, sourceCards), [], []);

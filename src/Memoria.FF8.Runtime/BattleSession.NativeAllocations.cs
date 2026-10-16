@@ -88,12 +88,10 @@ public sealed partial class BattleSession
 
     private void ReleaseNativeParticipant(BattleCombatant actor)
     {
-        actor.IsActive = false;
-        actor.Hidden = true;
+        //105/502ED0 -> kind5/48AE20 owns only untargetable, savedKO and active bits.
         actor.Untargetable = true;
-        actor.Atb = 0;
-        actor.IsBusy = false;
-        pendingNativeReactions.Remove(actor.Id);
+        actor.NativeStatus0 |= 1;
+        actor.IsActive = false;
         // TODO(TD-009): Graphics105 completes the release; scaffold presentation commits it at the same dispatch boundary
         Log("NativeModelRemoved", actor.Id, actor.Id, 0, $"{actor.Name} allocation released.");
     }

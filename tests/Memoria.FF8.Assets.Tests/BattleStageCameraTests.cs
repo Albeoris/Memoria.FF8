@@ -13,6 +13,31 @@ public sealed class BattleStageCameraTests
     [InlineData(0)]
     [InlineData(23)]
     [InlineData(31)]
+    public void OriginalStageControlWaitsForTheSelectedCameraAndThenStops(int stageId)
+    {
+        using BattleAssets assets = new(GameDirectory);
+        BattleStage stage = assets.LoadStage(stageId);
+        NativeBattleCameraBank bank = Assert.IsType<NativeBattleCameraBank>(stage.NativeCameraBank);
+        foreach (int selector in stage.IntroductionCameras.Keys)
+        {
+            NativeBattleCameraState camera = NativeBattleCameraState.Initialize() with { ControlCursor = 0, Variables = NativeBattleCameraState.Initialize().Variables.SetItem(0, (short)selector) };
+            int callbacks = 0;
+            while (camera.ControlCursor is not null && callbacks < 5000)
+            {
+                camera = camera.AdvanceControl(bank, stage.NativeCameraControl, new()).Tick(0);
+                callbacks++;
+            }
+            Assert.Null(camera.ControlCursor);
+            Assert.Empty(camera.Order);
+            Assert.Equal((ushort)0, camera.Mask);
+            Assert.Equal(1ul, camera.PoseCaptureCount);
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(23)]
+    [InlineData(31)]
     public void OriginalCameraTracksDriveTheirOwnCompletionCallbacks(int stageId)
     {
         using BattleAssets assets = new(GameDirectory);

@@ -37,6 +37,11 @@ public sealed class GuardianForceCastTests
         Assert.Equal(100, session.Combatants[0].CurrentHp);
         Assert.Equal((ushort)0, Assert.Single(session.GuardianForces).HitPoints);
         Assert.Empty(session.GuardianForceCasts);
+        Assert.Equal((ushort)0, Assert.Single(session.GuardianForces).DeathCount);
+        BattleGuardianForceCounterChange counters = Assert.Single(session.GuardianForceCounterChanges);
+        Assert.Equal((ushort)65535, counters.DeathsBefore);
+        Assert.Equal((ushort)0, counters.DeathsAfter);
+        Assert.Equal(counters, Assert.Single(BattleSession.Restore(session.Capture()).GuardianForceCounterChanges));
         Assert.Single(session.Events, item => item.Kind == "GuardianForceDamage" && item.Amount == 10);
         Assert.DoesNotContain(session.Events, item => item.Kind == "GuardianForceReady");
     }
@@ -151,7 +156,7 @@ public sealed class GuardianForceCastTests
         return new(new BattleDefinition
         {
             NativeBattleSpeed = 0,
-            GuardianForces = [new(0, gfHp, 100)],
+            GuardianForces = [new(0, gfHp, 100) { KillCount = 0, DeathCount = ushort.MaxValue }],
             ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "GF", BattleActionEffect.Native, 10, false) { NativeAction = Native(254, 64, 11) }],
             Combatants =
             [

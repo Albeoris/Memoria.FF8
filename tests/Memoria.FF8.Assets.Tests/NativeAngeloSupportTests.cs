@@ -1,0 +1,95 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using Memoria.FF8.Runtime;
+
+namespace Memoria.FF8.Assets.Tests;
+
+public sealed class NativeAngeloSupportTests
+{
+    [Theory]
+    [InlineData(1, BattleNativePlayerReaction.AngeloRush, 11, 8)]
+    [InlineData(3, BattleNativePlayerReaction.AngeloRecover, 12, 1)]
+    public void DamageCallbackUsesLearnedPriorityAndTheOriginalAttackerOrSelfMask(byte learned, BattleNativePlayerReaction reaction, int id, ushort mask)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, learned, false);
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal(reaction, queued.NativePlayerReaction);
+        Assert.Equal((byte)240, queued.NativeQueuedCommand);
+        Assert.Equal(id, queued.ActionId);
+        Assert.Equal(mask, queued.NativeTargetMask);
+        Assert.True(battle.Combatants[0].Atb > 0);
+        string snapshot = JsonSerializer.Serialize(battle.Capture());
+        Assert.Equal(snapshot, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(snapshot)!).Capture()));
+    }
+
+    [Fact]
+    public void LethalReverseRetainsItsKoActorAndPreventsOutcomeUntilTheRevivalPacketCompletes()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, 4, true);
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.False(battle.Combatants[0].IsAlive);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal(BattleNativePlayerReaction.AngeloReverse, queued.NativePlayerReaction);
+        Assert.Equal((ushort)0x4001, queued.NativeTargetMask);
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        for (int frame = 0; frame < 40 && !battle.Combatants[0].IsAlive; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.True(battle.Combatants[0].IsAlive);
+        Assert.Equal(BattleOutcome.Active, battle.Outcome);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void SavedAngeloProhibitionDoesNotConsumeAnInvocationRoll()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, 3, false, 0x10);
+        NativeBattleRandomState random = battle.Capture().Random!;
+        for (int frame = 0; frame < 13; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(random, battle.Capture().Random);
+    }
+
+    private static BattleSession Create(GameAssets game, BattleAssets assets, byte learned, bool lethal, byte savedFlags = 0)
+    {
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0) with { NativeStatusPassiveFlags = 0 };
+        BattleNativeCharacterGrowth growth = new(0, ImmutableArray.Create<byte>(0, 0, 0, 0, 0, 0));
+        // Explicit fixed-damage fixture isolates the callback's RNG draw from physical hit/critical/formula draws.
+        BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8) with { ActionId = 1000, AttackType = lethal ? (byte)27 : (byte)35, Power = 1, Hit = 0, HitCount = 1, AttackFlags = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeActions = [.. assets.NativeActions, attack],
+            NativeSavedBattleFlags = savedFlags,
+            NativeSavedBattleFlagsKnownMask = 255,
+            LimitProgress = game.ReadNewGameLimitProgress() with { AngeloFlags = learned },
+            Combatants =
+            [
+                new() { Id = "rinoa", Name = "Rinoa", ModelId = 4, IsPlayer = true, MaximumHp = 100, CurrentHp = 10, InitialAtb = 1234, NativePlayerStatRules = rules, NativeGrowth = growth, NativeDeathCount = 0, Speed = 1, NativeStatusResistances = new byte[40] },
+                new() { Id = "enemy", Name = "Enemy", MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = new byte[40] }
+            ]
+        }, BattleAtbMode.TurnBased);
+        BattleAttackCommand command = new("enemy", "rinoa", BattleAbility.EnemyAbility, attack.ActionId) { NativeQueuedCommand = 8, NativeAction = attack, NativeTargetMask = 1 };
+        NativeBattleRandomState random = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0);
+        return BattleSession.Restore(battle.Capture() with { QueuedActions = [command], Random = random });
+    }
+}

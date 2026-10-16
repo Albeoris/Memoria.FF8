@@ -28,7 +28,7 @@ public sealed partial class BattleHudController
         else if (NativeRenzokukenActor is { } gunblade)
         {
             BattleNativeRenzokukenState state = session.GetNativeRenzokuken(gunblade.Id)!;
-            Message = session.CanTriggerNativeRenzokuken ? $"Renzokuken · {GunbladeBindingHint}: Trigger · Hit {state.Input.ContactIndex + 1}" : "Renzokuken";
+            Message = session.NativeRenzokukenBarVisible && session.CanTriggerNativeRenzokuken ? $"Renzokuken · {GunbladeBindingHint}: Trigger · Hit {state.Input.ContactIndex + 1}" : "Renzokuken";
         }
     }
 

@@ -46,6 +46,11 @@ public sealed partial class BattleSession
         {
             return;
         }
+        //4877F0 admits enemy stage2 using saved lowBYTE25, battle lowBYTE9 and actor flag4000.
+        if (!actor.IsActive || callback == 2 && ((NativeSavedStatusBits(actor) & 0x25) != 0 || (NativeBattleStatusBits(actor) & 9) != 0 || (actor.NativeCombatantFlags & 0x4000) != 0))
+        {
+            return;
+        }
         if (TryRunNativeEnemyBerserk(actor, callback))
         {
             return;
@@ -105,6 +110,9 @@ public sealed partial class BattleSession
                     case 7:
                         preparedCommand = 8;
                         preparedId = (byte)ReadAiByte(code, ref pc);
+                        break;
+                    case 8:
+                        QueueNativeGraphicsDeath(actor);
                         break;
                     case 9:
                         int damagePresentation = ReadAiByte(code, ref pc);
@@ -182,7 +190,17 @@ public sealed partial class BattleSession
                     case 29:
                         int removal = ReadAiByte(code, ref pc);
                         BattleCombatant removed = removal == 200 ? actor : FindNativeActor(removal + 3);
-                        ReleaseNativeParticipant(removed);
+                        if (NativeGraphics is not null)
+                        {
+                            QueueNativeGraphicsRemoval(removed);
+                        }
+                        else
+                        {
+                            ReleaseNativeParticipant(removed);
+                        }
+                        //487DF0 calls493B60 for the executing actor, not the removed target.
+                        actor.Atb = 0;
+                        actor.IsBusy = false;
                         break;
                     case 30:
                         int effect = ReadAiByte(code, ref pc);
@@ -270,6 +288,9 @@ public sealed partial class BattleSession
                         break;
                     case 50:
                         nativeScriptState = nativeScriptState with { DisableAutomaticTargetReplacement = true };
+                        break;
+                    case 51:
+                        QueueNativeGraphicsBarrier();
                         break;
                     case 55:
                         AwardNativeCard((byte)ReadAiByte(code, ref pc));
@@ -433,7 +454,7 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
@@ -485,6 +506,11 @@ public sealed partial class BattleSession
         {
             actor.SetNativeElementDefenses(defenses);
         }
+        if (saved.LastHealing > 1)
+        {
+            throw new InvalidDataException("Native last healing flag must retain the original494410 BYTE boolean.");
+        }
+        actor.LastNativeHealing = saved.LastHealing;
         actor.LastNativeAction = saved.LastAction;
         actor.NativeKillCount = saved.KillCount ?? actor.SourceDefinition.NativeKillCount;
         if (actor.SourceDefinition.NativeDeathCount is not null && saved.DeathCount is null)

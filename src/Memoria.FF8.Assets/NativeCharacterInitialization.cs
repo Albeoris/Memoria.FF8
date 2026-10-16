@@ -108,7 +108,7 @@ public static class NativeCharacterInitialization
         for (int id = 0; id < savedGuardianForces.Length; id++)
         {
             ReadOnlySpan<byte> row = initial.AsSpan(id * 68, 68);
-            savedGuardianForces[id] = new NativeGuardianForceVital(BinaryPrimitives.ReadUInt32LittleEndian(row[12..]), row[17], BinaryPrimitives.ReadUInt16LittleEndian(row[18..]), new NativeGuardianForceLearnedBank(BinaryPrimitives.ReadUInt64LittleEndian(row[20..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..])), null, row.Slice(36, 21).ToArray().ToImmutableArray(), row[64], (uint)(row[65] | row[66] << 8 | row[67] << 16));
+            savedGuardianForces[id] = new NativeGuardianForceVital(BinaryPrimitives.ReadUInt32LittleEndian(row[12..]), row[17], BinaryPrimitives.ReadUInt16LittleEndian(row[18..]), new NativeGuardianForceLearnedBank(BinaryPrimitives.ReadUInt64LittleEndian(row[20..]), BinaryPrimitives.ReadUInt64LittleEndian(row[28..])), null, row.Slice(36, 21).ToArray().ToImmutableArray(), row[64], (uint)(row[65] | row[66] << 8 | row[67] << 16)) { KillCount = BinaryPrimitives.ReadUInt16LittleEndian(row[60..]), DeathCount = BinaryPrimitives.ReadUInt16LittleEndian(row[62..]) };
         }
         NativeCharacterVitals state = new()
         {

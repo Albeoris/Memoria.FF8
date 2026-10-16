@@ -142,8 +142,10 @@ public sealed record BattleCombatantDefinition
 
 public sealed record BattleDefinition
 {
+    public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
+    public ImmutableArray<byte> NativeStageCameraControl { get; init; } = [];
     public NativeBattleEntryInput? NativeEntry { get; init; }
     public NativeGlobalRandomState? NativeGlobalRandom { get; init; }
     public NativeKnownMagic? NativeKnownMagic { get; init; }
@@ -177,6 +179,7 @@ public sealed record BattleDefinition
     public string? NativeChocoboName { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
     public ImmutableArray<BattleNativeRenzokukenResource> NativeRenzokukenResources { get; init; } = [];
+    public ImmutableArray<byte> NativeCommandSequences { get; init; } = [];
     public NativeShotAvailabilityState? NativeShotAvailability { get; init; }
     public bool? NativeLimitsDisabled { get; init; }
     public byte? NativeFieldBattleRules { get; init; }
@@ -201,6 +204,7 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
+    public BattleNativePlayerReaction? NativePlayerReaction { get; init; }
     public NativeLimitCallback? NativeLimitCallback { get; init; }
     public BattleNativeGraphicCommand? NativeGraphic { get; init; }
     public BattleIndependentGuardianInvocation? IndependentGuardian { get; init; }
@@ -218,6 +222,7 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
+    public BattleNativePlayerReaction? NativePlayerReaction { get; init; }
     public NativeLimitCallback? NativeLimitCallback { get; init; }
     public int? NativeSequenceFrame { get; init; }
     public BattleNativeGraphicCommand? NativeGraphic { get; init; }
@@ -251,6 +256,7 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 
 public sealed record BattleSnapshot
 {
+    public NativeBattleGraphicsState? NativeGraphics { get; init; }
     public NativeBattleTimedAction? NativeTimedAction { get; init; }
     public NativeBattleCameraState? NativeCamera { get; init; }
     public byte? NativeEntryAdvantage { get; init; }
@@ -381,6 +387,7 @@ public sealed partial class BattleCombatant
     internal uint[] AiVariables { get; } = new uint[8];
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
+    internal byte? LastNativeHealing { get; set; }
     internal NativeBattleLastAction? LastNativeAction { get; set; }
     internal ushort NativePreviousTargetMask { get; set; }
     internal byte? NativeDrawnSpell { get; set; }

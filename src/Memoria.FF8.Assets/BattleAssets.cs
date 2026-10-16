@@ -283,9 +283,14 @@ public sealed partial class BattleAssets : IDisposable
 
     public BattleSequenceSet LoadPlayerSequences(int characterId, int? savedWeaponId, BattleModel character)
     {
-        if (character.Sequences is BattleSequenceSet own)
+        return LoadPlayerSequenceOwner(characterId, savedWeaponId, character).Sequences ?? throw new NotSupportedException($"Character {characterId} has no original battle sequence section.");
+    }
+
+    private BattleModel LoadPlayerSequenceOwner(int characterId, int? savedWeaponId, BattleModel character)
+    {
+        if (character.Sequences is not null)
         {
-            return own;
+            return character;
         }
         IReadOnlyList<int> installed = WeaponModelIds(characterId);
         if (installed.Count == 0)
@@ -302,7 +307,7 @@ public sealed partial class BattleAssets : IDisposable
                 throw new NotSupportedException($"Weapon {id} has no installed character {characterId} battle sequence binding.");
             }
         }
-        return LoadWeapon(characterId, installed[index], character).Sequences ?? throw new NotSupportedException($"Character {characterId} weapon has no original battle sequence section.");
+        return LoadWeapon(characterId, installed[index], character);
     }
 
     public BattleModel LoadWeapon(int characterId, int weaponModelId, BattleModel character)

@@ -1,0 +1,124 @@
+using System.Collections.Immutable;
+
+namespace Memoria.FF8.Runtime;
+
+public sealed partial class BattleSession
+{
+    public NativeBattleGraphicsState? NativeGraphics { get; private set; }
+    public bool NativeEntryReady => NativeGraphics?.EntryReady ?? true;
+    public bool? NativeGraphicsLoading => NativeGraphics is null ? null : NativeGraphics.ModelLoadCount != 0;
+    public byte NativeEffectTaskCount => (NativeGraphics ?? throw new NotSupportedException("Native graphics completion requires its original effect task owner.")).Effects.PublishedCount;
+
+    private void RequireNativeEntryReady()
+    {
+        if (!NativeEntryReady)
+        {
+            throw new InvalidOperationException("Native battle commands wait for the original entry112 completion callback.");
+        }
+    }
+
+    private void InitializeNativeGraphics()
+    {
+        if (definition.NativeGraphics is not { } source)
+        {
+            return;
+        }
+        ValidateNativeGraphicsDefinition(source);
+        NativeBattleGraphicsModel[] models = NativeBattleGraphicsModels.ClearBank();
+        string?[] actors = new string?[7];
+        foreach (string id in source.InitialLoadOrder)
+        {
+            BattleCombatant actor = GetActor(id);
+            NativeBattleGraphicsBinding binding = source.Bindings.Single(binding => binding.ActorId == id);
+            int index = actor.NativeIndex;
+            if (index is < 0 or >= 7 || actors[index] is not null)
+            {
+                throw new InvalidDataException("Native graphics load order does not identify unique allocated physical rows.");
+            }
+            NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native model initialization requires saved534AA0 random state.");
+            uint flags = source.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
+            NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(models[index], binding.ModelId, flags, ref randomState);
+            nativeGlobalRandom = randomState;
+            nativeGlobalRandomCalls = checked(nativeGlobalRandomCalls + 3);
+            byte standing = actor.IsPlayer ? NativeStandingSequence(flags) : (byte)1;
+            models[index] = model with { Flags0 = actor.Hidden ? (ushort)(model.Flags0 | 4) : model.Flags0, SequenceState = new() { Default2 = standing, Pending3 = actor.IsPlayer && standing != 8 ? standing : (byte)0 } };
+            actors[index] = id;
+        }
+        // TODO(TD-009): This loaded-resource boundary materializes native103 callbacks without reproducing asynchronous disk IO latency. Their exact ordering and three RNG calls per model are retained
+        //500870 clears flags, queued500520 sets bit4 before the native model initialization descriptors.
+        NativeGraphics = new(models.ToImmutableArray(), actors.ToImmutableArray(), 4, 0);
+    }
+
+    private static byte NativeStandingSequence(uint flags)
+    {
+        return (flags & 2) != 0 ? (byte)3 : (flags & 0x1000) != 0 ? (byte)2 : (flags & 0x1000000) != 0 ? (byte)16 : (flags & 0x800000) != 0 ? (byte)19 : (flags & 0x200000) != 0 ? (byte)29 : (flags & 0x41021) != 0 ? (byte)2 : (byte)1;
+    }
+
+    private void QueueNativeContactPacket(NativeBattleContactPacket packet)
+    {
+        packet.Validate();
+        NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Native contact presentation requires its graphical descriptor owner.");
+        NativeGraphics = graphics with { PendingContacts = graphics.PendingContacts.Add(packet) };
+    }
+
+    private void RestoreNativeGraphics(NativeBattleGraphicsState? state)
+    {
+        if ((state is null) != (definition.NativeGraphics is null))
+        {
+            throw new InvalidDataException("Native graphics owner is missing; migrate the standalone snapshot explicitly.");
+        }
+        state?.Validate();
+        if (state is not null)
+        {
+            for (int index = 0; index < 7; index++)
+            {
+                if (state.ActorIds[index] is string id && (!byId.ContainsKey(id) || FindNativeGraphicsBinding(id) is null))
+                {
+                    throw new InvalidDataException("Native graphics row does not identify its actual allocation and immutable resource.");
+                }
+            }
+        }
+        NativeGraphics = state;
+    }
+
+    private NativeBattleGraphicsBinding? FindNativeGraphicsBinding(string actorId)
+    {
+        if (definition.NativeGraphics is not { } graphics || !byId.TryGetValue(actorId, out BattleCombatant? actor))
+        {
+            return null;
+        }
+        NativeBattleGraphicsBinding? direct = graphics.Bindings.SingleOrDefault(binding => binding.ActorId == actorId);
+        if (direct is not null || actor.SceneSlot is not int sceneSlot)
+        {
+            return direct;
+        }
+        //Every dynamic allocation retains its immutable original scene resource; the graphics row may outlive the battle-slot assignment.
+        string prototypeId = definition.Combatants.Single(prototype => !prototype.IsPlayer && prototype.SceneSlot == sceneSlot).Id;
+        return graphics.Bindings.SingleOrDefault(binding => binding.ActorId == prototypeId);
+    }
+
+    private void ValidateNativeGraphicsDefinition(NativeBattleGraphicsDefinition source)
+    {
+        if (source.Rules is null || source.Bindings.IsDefault || source.InitialLoadOrder.IsDefault || source.Bindings.Any(binding => binding is null || binding.Resource is null || !byId.ContainsKey(binding.ActorId)) || source.Bindings.Select(binding => binding.ActorId).Distinct(StringComparer.Ordinal).Count() != source.Bindings.Length || source.InitialLoadOrder.Distinct(StringComparer.Ordinal).Count() != source.InitialLoadOrder.Length)
+        {
+            throw new InvalidDataException("Native graphics definition lacks its original actor bindings and initialization order.");
+        }
+        source.Rules.Validate();
+        foreach (NativeBattleGraphicsBinding binding in source.Bindings)
+        {
+            binding.Resource.Validate();
+            if (binding.Resource.AnimationFrames.IsDefaultOrEmpty)
+            {
+                throw new InvalidDataException("Native graphics binding lacks original animation frame counts.");
+            }
+        }
+        if (source.InitialLoadOrder.Any(id => !source.Bindings.Any(binding => binding.ActorId == id)))
+        {
+            throw new InvalidDataException("Native graphics initialization order names an absent resource binding.");
+        }
+        if (!source.InitialLoadOrder.ToHashSet(StringComparer.Ordinal).SetEquals(combatants.Where(actor => actor.NativeIndex is >= 0 and < 7).Select(actor => actor.Id)))
+        {
+            throw new InvalidDataException("Native graphics load order omits an allocated physical participant.");
+        }
+    }
+}

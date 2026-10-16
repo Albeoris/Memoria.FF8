@@ -1,4 +1,4 @@
-namespace Memoria.FF8.Runtime;
+﻿namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
 
     private void RefundCancelledNativeItem(BattleAttackCommand command)
     {
-        if (command.ReservedNativeItemSlot is int slot)
+        if (command.NativePlayerReaction is null && command.ReservedNativeItemSlot is int slot)
         {
             RefundNativeReservedItem(slot, command.NativeAction?.ActionId ?? command.ActionId);
         }
@@ -94,7 +94,7 @@ public sealed partial class BattleSession
 
     private void RefundCancelledNativeItem(BattleActionPresentation command)
     {
-        if (command.Phase == BattleActionPhase.Windup && command.ReservedNativeItemSlot is int slot)
+        if (command.NativePlayerReaction is null && command.Phase == BattleActionPhase.Windup && command.ReservedNativeItemSlot is int slot)
         {
             RefundNativeReservedItem(slot, command.NativeAction?.ActionId ?? command.ActionId);
         }

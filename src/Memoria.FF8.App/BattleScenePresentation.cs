@@ -18,6 +18,8 @@ internal sealed class BattleScenePresentation
     private readonly Dictionary<string, Vector3> positions = [];
     private readonly Dictionary<string, float> heights = [];
     private readonly Dictionary<string, BattleAnimationPresentation> animations = [];
+    private readonly Dictionary<ushort, BattleNativeRenzokukenResource> renzokukenResources;
+    private readonly Dictionary<(string ActorId, ushort MagicId), (BattleRenzokukenModels Models, BattleAnimationPresentation Animation)> renzokukenModels = [];
     private readonly BattleImpactTimeline impactTimeline = new();
     private readonly BattleCamera camera;
     private BattleRenderer? renderer;
@@ -25,6 +27,7 @@ internal sealed class BattleScenePresentation
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
         this.assets = assets;
+        renzokukenResources = definition.NativeRenzokukenResources.ToDictionary(resource => resource.MagicId);
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
         BattleCombatantDefinition[] party = definition.Combatants.Where(actor => actor.IsPlayer).ToArray();
@@ -104,13 +107,34 @@ internal sealed class BattleScenePresentation
             EnsureActorResources(actor.Id);
             BattleEvent? action = session.Events.LastOrDefault(item => item.Kind == "Windup" && item.ActorId == actor.Id);
             Vector3 target = action?.TargetId is string targetId ? positions[targetId] : positions[actor.Id];
-            BattleAnimationSample pose = animations[actor.Id].Sample(session, actor, positions[actor.Id], target);
-            float ground = animations[actor.Id].GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
+            BattleModel shownModel = models[actor.Id];
+            BattleModel? shownWeapon = weapons[actor.Id];
+            BattleAnimationPresentation animation = animations[actor.Id];
+            BattleAnimationSample pose;
+            if (session.GetNativeRenzokuken(actor.Id) is { } renzokuken)
+            {
+                var key = (actor.Id, renzokuken.MagicId);
+                if (!renzokukenModels.TryGetValue(key, out var replacement))
+                {
+                    BattleRenzokukenModels changed = assets.ReadNativeRenzokukenModels(renzokukenResources[renzokuken.MagicId], shownModel, shownWeapon);
+                    replacement = (changed, new(changed.Body, changed.Body.Sequences, definitions[actor.Id]));
+                    renzokukenModels.Add(key, replacement);
+                }
+                shownModel = replacement.Models.Body;
+                shownWeapon = replacement.Models.Weapon;
+                animation = replacement.Animation;
+                pose = animation.SampleNativeSequence(1, renzokuken.PoseFrames);
+            }
+            else
+            {
+                pose = animation.Sample(session, actor, positions[actor.Id], target);
+            }
+            float ground = animation.GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
             // bases yields renderer partyPI/enemy0
-            BattleActorDraw drawing = new(models[actor.Id], positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop);
+            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop);
             actors.Add(drawing);
-            if (weapons[actor.Id] is BattleModel weapon)
+            if (shownWeapon is BattleModel weapon)
             {
                 actors.Add(drawing with { Model = weapon });
             }

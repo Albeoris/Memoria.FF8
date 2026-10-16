@@ -6,9 +6,26 @@ public sealed partial class BattleSession
     {
         if (cure)
         {
-            RemoveNativeStatuses(recipient, action.Statuses0, action.Statuses1);
+            ushort savedMask = action.Statuses0;
+            uint battleMask = action.Statuses1;
+            if (!recipient.IsPlayer && recipient.NativeTemplate?.NativeStatusAllocation is { } allocation)
+            {
+                savedMask &= (ushort)~(allocation.Saved & 0x40);
+                battleMask &= ~(allocation.Battle & 0x2000);
+            }
+            bool removable = (NativeSavedStatusBits(recipient) & savedMask & 0x7F) != 0;
+            for (int bit = 0; bit < 32; bit++)
+            {
+                if ((NativeBattleStatusBits(recipient) & battleMask & (1u << bit)) != 0 && (bit >= 14 || recipient.NativeStatusTimers[bit] != -1111))
+                {
+                    removable = true;
+                }
+            }
+            MarkNativeContactStatusResult(recipient, action, removable || savedMask == 0 && battleMask == 0);
+            RemoveNativeStatuses(recipient, savedMask, battleMask);
             return;
         }
+        bool applied = false;
         uint before = NativeBattleStatusBits(recipient);
         bool physical = action.AttackType is 1 or 7 or 9 or 10 or 18 or 34 or 36;
         int attack = physical ? actor.Attack : actor.Magic;
@@ -22,7 +39,7 @@ public sealed partial class BattleSession
             uint mask = 1u << bit;
             if ((action.Statuses0 & mask) != 0)
             {
-                TryApplyNativeStatus(recipient, bit, mask, false, attack, defense, action.StatusAttack);
+                applied |= TryApplyNativeStatus(recipient, bit, mask, false, attack, defense, action.StatusAttack);
             }
         }
         for (int bit = 0; bit < 32; bit++)
@@ -30,9 +47,10 @@ public sealed partial class BattleSession
             uint mask = 1u << bit;
             if ((action.Statuses1 & mask) != 0)
             {
-                TryApplyNativeStatus(recipient, bit + 8, mask, true, attack, defense, action.StatusAttack);
+                applied |= TryApplyNativeStatus(recipient, bit + 8, mask, true, attack, defense, action.StatusAttack);
             }
         }
+        MarkNativeContactStatusResult(recipient, action, applied);
         //48F9A0/492090 retain unchanged exclusive groups, otherwise only their newly added bits.
         uint after = recipient.NativeStatus1;
         uint speed = after & 0xE;

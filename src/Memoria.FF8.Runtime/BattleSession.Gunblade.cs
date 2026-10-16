@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     public BattleGunbladeMode GunbladeMode { get; private set; }
     public bool CanTriggerGunblade => CanTriggerNativeRenzokuken || Outcome == BattleOutcome.Active && GunbladeMode == BattleGunbladeMode.Manual && ActiveAction is { Phase: BattleActionPhase.Windup, GunbladeTriggerTiming: null } action && IsGunbladeAction(byId[action.ActorId], action);
-    public bool GunbladeTriggerWindowOpen => nativeRenzokukenProcesses.Count != 0 ? NativeRenzokukenTriggerWindowOpen : CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
+    public bool GunbladeTriggerWindowOpen => nativeRenzokukenProcesses.Count != 0 ? NativeRenzokukenBarVisible && NativeRenzokukenTriggerWindowOpen : CanTriggerGunblade && NativeGunbladeAttack.TriggerSucceeded(ProjectGunbladeTiming(ActiveAction!.RemainingFrames));
 
     public void SetGunbladeMode(BattleGunbladeMode mode)
     {

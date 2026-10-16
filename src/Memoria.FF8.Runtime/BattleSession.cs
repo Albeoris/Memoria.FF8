@@ -80,6 +80,7 @@ public sealed partial class BattleSession
             RefreshNativeKnownMagicStocks();
             InitializeNativeStageCamera();
             InitializeNativeEntry();
+            InitializeNativeGraphics();
             InitializeNativeParticipants();
         }
         if (nativeScriptState.ScriptedExitRequested)
@@ -116,13 +117,21 @@ public sealed partial class BattleSession
     {
         if (Outcome != BattleOutcome.Active)
         {
+            if (!nativeGraphicsPresentationDriven)
+            {
+                AdvanceNativeGraphicsFrame();
+            }
             return;
         }
         if (Mode == BattleAtbMode.TurnBased && nativeScriptState.WaitCounters.Length == 0 && guardianForceCasts.Count == 0 && actions.Count == 0 && ActiveAction is null && combatants.Any(actor => actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)))
         {
+            if (!nativeGraphicsPresentationDriven)
+            {
+                AdvanceNativeGraphicsFrame();
+            }
             return;
         }
-        DispatchFrame();
+        DispatchFrame(!nativeGraphicsPresentationDriven);
     }
 
     public int AdvanceTurn(int maxFrames = MaximumAdvanceFrames)
@@ -156,6 +165,7 @@ public sealed partial class BattleSession
 
     public void QueueAttack(string actorId, string targetId)
     {
+        RequireNativeEntryReady();
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         if (Outcome != BattleOutcome.Active || !actor.IsReady || !CanNativeBattleActorAct(actor) || !target.IsAlive || target.Untargetable || actor.IsPlayer == target.IsPlayer || !actor.Abilities.Contains(BattleAbility.Attack))
@@ -204,6 +214,7 @@ public sealed partial class BattleSession
             Definition = CloneDefinition(definition),
             NativeEntryAdvantage = NativeEntryAdvantage,
             NativeCamera = NativeCamera,
+            NativeGraphics = NativeGraphics,
             NativeTimedAction = CaptureNativeTimedAction(),
             NativeCards = nativeCards?.DeepCopy(),
             NativeCrtRandom = nativeCrtRandom,
@@ -254,10 +265,18 @@ public sealed partial class BattleSession
         }
     }
 
-    private HashSet<string> DispatchFrame()
+    private HashSet<string> DispatchFrame(bool advanceGraphics = true)
     {
-        Frame = checked(Frame + 1);
         HashSet<string> becameReady = [];
+        if (advanceGraphics)
+        {
+            AdvanceNativeGraphicsFrame();
+        }
+        if (NativeGraphics is { EntryReady: false })
+        {
+            return becameReady;
+        }
+        Frame = checked(Frame + 1);
         if (DispatchNativeWaits())
         {
             AdvanceNativeSequenceDuringWait();
@@ -351,6 +370,10 @@ public sealed partial class BattleSession
         }
         if (ActiveAction is null)
         {
+            if (NativeGraphics is { Requests.IsEmpty: false })
+            {
+                return;
+            }
             while (actions.TryDequeue(out BattleAttackCommand? command))
             {
                 BattleCombatant actor = byId[command.ActorId];
@@ -361,7 +384,7 @@ public sealed partial class BattleSession
                     return;
                 }
                 BattleCombatant target = byId[command.TargetId];
-                if (!CanNativeBattleActorAct(actor) || !ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic))
+                if (!CanNativeSupportCommandAct(actor, command.NativePlayerReaction) || !ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic))
                 {
                     RefundCancelledNativeItem(command);
                     actor.IsBusy = false;
@@ -372,7 +395,8 @@ public sealed partial class BattleSession
                 command = PrepareNativeSpecialCommand(actor, command);
                 command = PrepareIndependentGuardianItem(actor, command);
                 PrepareNativeLimitCommand(command);
-                ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+                command = PrepareNativeGraphicsAction(actor, command);
+                ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { NativePlayerReaction = command.NativePlayerReaction, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeGraphics is not null || NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
                 Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                 PublishNativeSequenceMessages(actor, command.NativeSequence, 0);
                 return;
@@ -381,7 +405,11 @@ public sealed partial class BattleSession
         }
         BattleActionPresentation action = ActiveAction;
         int remaining;
-        if (action.Phase == BattleActionPhase.Windup && action.NativeSequenceFrame is not null)
+        if (action.Phase == BattleActionPhase.Windup && NativeGraphics is { } graphics)
+        {
+            remaining = graphics.ActionCallbackReady ? 0 : 1;
+        }
+        else if (action.Phase == BattleActionPhase.Windup && action.NativeSequenceFrame is not null)
         {
             action = AdvanceNativeControlSequence(action);
             remaining = action.NativeSequenceFrame >= NativeControlTrack(byId[action.ActorId], action.NativeSequence)!.CompletionFrame ? 0 : action.RemainingFrames;
@@ -399,7 +427,7 @@ public sealed partial class BattleSession
         {
             BattleCombatant actor = byId[action.ActorId];
             BattleCombatant target = byId[action.TargetId];
-            if (CanNativeBattleActorAct(actor) && ActionHasValidTarget(action.TargetId, action.Ability, action.ActionId, action.NativeAction, action.NativeTargetMask, action.NativeGraphic))
+            if (CanNativeSupportCommandAct(actor, action.NativePlayerReaction) && ActionHasValidTarget(action.TargetId, action.Ability, action.ActionId, action.NativeAction, action.NativeTargetMask, action.NativeGraphic))
             {
                 ResolveActionTransaction(actor, target, action);
             }
@@ -412,6 +440,7 @@ public sealed partial class BattleSession
         }
         byId[action.ActorId].IsBusy = CompleteNativeDuelAction(action) || CompleteNativeShotAction(action) || actions.Any(command => command.ActorId == action.ActorId);
         ActiveAction = null;
+        CompleteNativeGraphicsAction();
         Log("ActionComplete", action.ActorId, action.TargetId, 0, "Attack recovery completed.");
     }
 
@@ -425,7 +454,7 @@ public sealed partial class BattleSession
         Log("Queued", actor.Id, target.Id, 0, $"{actor.Name}: Attack queued.");
     }
 
-    private void ApplyDamage(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible = true)
+    private void ApplyDamage(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible = true, bool publishDamage = true)
     {
         bool ownsTransaction = nativeActionCommitDepth == 0;
         if (ownsTransaction)
@@ -434,7 +463,7 @@ public sealed partial class BattleSession
         }
         try
         {
-            ApplyDamageCore(actor, target, amount, source, counterEligible);
+            ApplyDamageCore(actor, target, amount, source, counterEligible, publishDamage);
         }
         finally
         {
@@ -446,12 +475,17 @@ public sealed partial class BattleSession
         }
     }
 
-    private void ApplyDamageCore(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible)
+    private void ApplyDamageCore(BattleCombatant? actor, BattleCombatant target, int amount, string source, bool counterEligible, bool publishDamage)
     {
         if (!target.IsActive)
         {
             return;
         }
+        if (nativeContactWorking?.CommittingSecondary != true)
+        {
+            target.LastNativeHealing = amount == 0 ? (byte)1 : (byte)0;
+        }
+        NoteNativeContactCommit(target);
         if (ApplyGuardianForceShield(target, amount))
         {
             return;
@@ -468,15 +502,23 @@ public sealed partial class BattleSession
         {
             RecordNativeActionMemory(actor, target, activeAction);
         }
-        Log("Damage", actor?.Id, target.Id, applied, $"{source}: {target.Name} takes {applied} damage.");
+        if (publishDamage)
+        {
+            Log("Damage", actor?.Id, target.Id, applied, $"{source}: {target.Name} takes {applied} damage.");
+        }
         if (!target.IsAlive)
         {
+            MarkNativeContactDeath(target);
             if (target.IsPlayer)
             {
                 target.NativeDeathCount = deathCount;
                 RemoveNativeStatuses(target, 0x37E, 0x38E7FFF);
             }
             ObserveEnemyDefeat(actor, target);
+            if (target.IsPlayer && ShouldRunNativePlayerDeathSupport(target, actor))
+            {
+                QueueNativeReaction(target, 3);
+            }
             if (target.NativeAi is not null && !target.AiDeathHandled && (target.NativeCombatantFlags & 0x20) != 0 && (NativeBattleStatusBits(target) & 0x10000) == 0)
             {
                 QueueNativeReaction(target, 3);
@@ -487,13 +529,13 @@ public sealed partial class BattleSession
             target.IsBusy = false;
             Log("Defeated", actor?.Id, target.Id, 0, $"{target.Name} is defeated.");
         }
-        else if (target.NativeAi is not null)
+        else if (target.IsPlayer || target.NativeAi is not null)
         {
             if (counterEligible && actor is not null)
             {
                 QueueNativeReaction(target, 2);
             }
-            if (counterEligible && actor is not null && !suppressNativeImmediateCounter && (target.NativeCombatantFlags & 0x10) != 0)
+            if (counterEligible && actor is not null && !target.IsPlayer && !suppressNativeImmediateCounter && (target.NativeCombatantFlags & 0x10) != 0)
             {
                 RunNativeAi(target, 4);
             }
@@ -502,6 +544,10 @@ public sealed partial class BattleSession
 
     private void ApplyHealing(BattleCombatant actor, int amount, string source)
     {
+        if (nativeContactWorking?.CommittingSecondary != true)
+        {
+            actor.LastNativeHealing = 1;
+        }
         if (!actor.IsAlive)
         {
             return;
@@ -516,7 +562,7 @@ public sealed partial class BattleSession
 
     private void CancelDeadActions()
     {
-        if (ActiveAction is { } active && (!byId[active.ActorId].IsAlive || active.Phase == BattleActionPhase.Windup && !ActionHasValidTarget(active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic)))
+        if (ActiveAction is { } active && (!CanRetainNativeSupportActor(byId[active.ActorId], active.NativePlayerReaction) || active.Phase == BattleActionPhase.Windup && !ActionHasValidTarget(active.TargetId, active.Ability, active.ActionId, active.NativeAction, active.NativeTargetMask, active.NativeGraphic)))
         {
             RefundCancelledNativeItem(active);
             byId[active.ActorId].IsBusy = false;
@@ -527,7 +573,7 @@ public sealed partial class BattleSession
         actions.Clear();
         foreach (BattleAttackCommand command in pending)
         {
-            if (byId[command.ActorId].IsAlive && (command.NativeRenzokuken is not null || ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic)))
+            if (CanRetainNativeSupportActor(byId[command.ActorId], command.NativePlayerReaction) && (command.NativeRenzokuken is not null || ActionHasValidTarget(command.TargetId, command.Ability, command.ActionId, command.NativeAction, command.NativeTargetMask, command.NativeGraphic)))
             {
                 actions.Enqueue(command);
             }
@@ -540,13 +586,13 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants)
         {
-            actor.IsBusy = actor.IsAlive && (nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id));
+            actor.IsBusy = (actor.IsAlive || ActiveAction is { NativePlayerReaction: BattleNativePlayerReaction.AngeloReverse } reverse && reverse.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id && command.NativePlayerReaction == BattleNativePlayerReaction.AngeloReverse)) && (nativeTimedAction?.Command.ActorId == actor.Id || guardianForceCasts.ContainsKey(actor.Id) || ActiveAction?.ActorId == actor.Id || actions.Any(command => command.ActorId == actor.Id));
         }
     }
 
     private BattleOutcome DetermineOutcome()
     {
-        if (nativeTimedAction is not null)
+        if (nativeTimedAction is not null || ActiveAction?.NativePlayerReaction == BattleNativePlayerReaction.AngeloReverse || actions.Any(command => command.NativePlayerReaction == BattleNativePlayerReaction.AngeloReverse))
         {
             return BattleOutcome.Active;
         }
@@ -584,6 +630,7 @@ public sealed partial class BattleSession
         actions.Clear();
         ActiveAction = null;
         guardianForceCasts.Clear();
+        CompleteNativeGraphicsAction();
         foreach (BattleCombatant actor in combatants)
         {
             actor.IsBusy = false;
@@ -603,8 +650,9 @@ public sealed partial class BattleSession
 
     private void Log(string kind, string? actorId, string? targetId, int amount, string message)
     {
-        BattleAbility ability = ActiveAction is { } active && active.ActorId == actorId ? active.Ability : BattleAbility.Attack;
-        events.Add(new BattleEvent(Frame, kind, actorId, targetId, amount, message, ability) { NativeSequence = ActiveAction is { } presented && presented.ActorId == actorId ? presented.NativeSequence : null, NativeGraphicMagicId = ActiveAction?.NativeGraphic?.MagicId });
+        BattleActionPresentation? presented = resolvingNativeAction ?? ActiveAction;
+        BattleAbility ability = presented is not null && presented.ActorId == actorId ? presented.Ability : BattleAbility.Attack;
+        events.Add(new BattleEvent(Frame, kind, actorId, targetId, amount, message, ability) { NativeSequence = presented is not null && presented.ActorId == actorId ? presented.NativeSequence : null, NativeGraphicMagicId = presented?.NativeGraphic?.MagicId });
     }
 
     private static void ValidateMode(BattleAtbMode mode)
@@ -756,6 +804,7 @@ public sealed partial class BattleSession
         }
         (snapshot.NativeScriptState ?? throw new InvalidDataException("Native battle script state is missing.")).Validate();
         RestoreGuardianForces(snapshot);
+        RestoreNativeGraphics(snapshot.NativeGraphics);
         HashSet<string> busy = new(StringComparer.Ordinal);
         if (combatants.Where(actor => actor.IsActive).GroupBy(actor => actor.NativeIndex).Any(group => group.Count() != 1))
         {
@@ -769,7 +818,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Queued GF item cannot already own a dispatched invocation.");
             }
-            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, false, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken);
+            ValidateSavedAction(command.ActorId, command.TargetId, busy, command.Ability, command.ActionId, false, command.NativeAction, command.NativeTargetMask, command.NativeGraphic, command.NativeRenzokuken, command.NativePlayerReaction);
             ValidateNativeActionInventory(byId[command.ActorId], command.Ability, command.NativeAction, command.ReservedNativeItemSlot, command.FreeNativeMagic);
             actions.Enqueue(command);
         }
@@ -783,7 +832,7 @@ public sealed partial class BattleSession
             {
                 throw new InvalidDataException("Invalid battle presentation timer.");
             }
-            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask, action.NativeGraphic);
+            ValidateSavedAction(action.ActorId, action.TargetId, busy, action.Ability, action.ActionId, action.Phase == BattleActionPhase.Recovery, action.NativeAction, action.NativeTargetMask, action.NativeGraphic, reaction: action.NativePlayerReaction);
             ValidateIndependentGuardianInvocation(byId[action.ActorId], action);
             ValidateNativeSequenceProgress(byId[action.ActorId], action);
             if (action.NativeAction?.AttackType is 17 or 19 && action.NativeSpecial is null)
@@ -866,11 +915,12 @@ public sealed partial class BattleSession
         RestoreNativeGlobalRandom(snapshot);
     }
 
-    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null)
+    private void ValidateSavedAction(string actorId, string targetId, HashSet<string> busy, BattleAbility ability, int actionId, bool allowDefeatedTarget, BattleNativeAction? nativeAction = null, ushort nativeTargetMask = 0, BattleNativeGraphicCommand? graphic = null, BattleNativeRenzokukenInvocation? renzokuken = null, BattleNativePlayerReaction? reaction = null)
     {
         BattleCombatant actor = GetActor(actorId);
         BattleCombatant target = GetActor(targetId);
         bool native = nativeAction is not null || graphic is not null || renzokuken is not null;
+        ValidateNativePlayerReaction(actor, ability, nativeAction, reaction);
         if (renzokuken is not null && (nativeAction is not null || graphic is not null || ability != BattleAbility.LimitBreak || actionId != 5 << 16 || actor.NativeLimit?.Command != 5 || renzokuken.CrisisLevel is < 1 or > 4))
         {
             throw new InvalidDataException("Native Renzokuken control packet contradicts its character or original command.");
@@ -894,7 +944,7 @@ public sealed partial class BattleSession
         bool allies = !native && ability != BattleAbility.Attack && ability != BattleAbility.Draw && FindAction(ability, actionId).Allies;
         bool unique = busy.Add(actorId);
         bool validTarget = renzokuken is not null || graphic is not null || allowDefeatedTarget || (native ? ActionHasValidTarget(targetId, ability, actionId, nativeAction, nativeTargetMask) : target.IsAlive || IsRevive(ability, actionId));
-        if (!actor.IsAlive || actor.Atb != 0 || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native || !native && !actor.Abilities.Contains(ability))
+        if (!CanRetainNativeSupportActor(actor, reaction) || actor.Atb != 0 && reaction is null || !native && nativeTargetMask == 0 && (actor.IsPlayer == target.IsPlayer) != allies || !validTarget || !unique && !native || !native && !actor.Abilities.Contains(ability))
         {
             throw new InvalidDataException("Invalid queued or active battle action.");
         }
@@ -944,6 +994,7 @@ public sealed partial class BattleSession
         enemyDefeats.AddRange(candidate.enemyDefeats);
         nativeLastAllocatedIndex = candidate.nativeLastAllocatedIndex;
         nativeScriptState = candidate.nativeScriptState.DeepCopy();
+        RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
         RestoreNativeLimits(candidate.CaptureNativeLimits());
         nativeCards = candidate.nativeCards?.DeepCopy();
         nativeCrtRandom = candidate.nativeCrtRandom;
@@ -951,7 +1002,7 @@ public sealed partial class BattleSession
         nativeGlobalRandom = candidate.nativeGlobalRandom;
         nativeGlobalRandomCalls = candidate.nativeGlobalRandomCalls;
         NativeCamera = candidate.NativeCamera;
-        RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
+        NativeGraphics = candidate.NativeGraphics;
         RestoreGuardianForces(candidate.Capture());
     }
 }

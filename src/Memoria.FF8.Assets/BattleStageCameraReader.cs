@@ -49,6 +49,19 @@ internal static class BattleStageCameraReader
         return new(bytes.AsSpan(directory, geometryOffset - directory).ToArray().ToImmutableArray());
     }
 
+    public static ImmutableArray<byte> ReadNativeControl(int stageId, byte[] bytes, int geometryOffset)
+    {
+        _ = ReadNativeBank(stageId, bytes, geometryOffset);
+        int offset = CameraOffsets[stageId];
+        int start = offset + BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 2));
+        int end = offset + BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(offset + 4));
+        if (start < offset + 6 || start >= end)
+        {
+            throw new InvalidDataException("Native camera control program exceeds its original resource.");
+        }
+        return bytes.AsSpan(start, end - start).ToArray().ToImmutableArray();
+    }
+
     public static IReadOnlyDictionary<int, BattleStageCamera> Read(int stageId, byte[] bytes, int geometryOffset)
     {
         if ((uint)stageId >= CameraOffsets.Length)

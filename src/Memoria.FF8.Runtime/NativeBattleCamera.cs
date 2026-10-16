@@ -33,14 +33,19 @@ public sealed record NativeBattleCameraBank(ImmutableArray<byte> Data)
 public sealed record NativeBattleCameraTask(byte Channel, NativeBattleCameraBank Bank, int ProgramOffset, ushort Elapsed, ushort Duration);
 
 /// <summary>5041E0/503520/5035E0 two-slot camera callback owner; mask includes the separately written high bits.</summary>
-public sealed record NativeBattleCameraState(ushort Mask, ImmutableArray<NativeBattleCameraTask?> Tasks, ImmutableArray<int> Order)
+public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray<NativeBattleCameraTask?> Tasks, ImmutableArray<int> Order)
 {
     public ImmutableArray<short> Variables { get; init; } = [0, 0, 0, 0, 0, 0, 0, 0];
+    public ImmutableArray<short?> Scratch { get; init; } = ImmutableArray.CreateRange(new short?[8]);
+    public int? ControlCursor { get; init; }
+    public bool? ForceCamera { get; init; }
+    public ushort BlendProgress { get; init; } = 4096;
+    public ulong PoseCaptureCount { get; init; }
     public static NativeBattleCameraState Initialize() => new(0, [null, null], []);
 
     public void Validate()
     {
-        if (Variables.IsDefault || Variables.Length != 8 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2)))
+        if (Variables.IsDefault || Variables.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || ControlCursor < 0 || Tasks.IsDefault || Tasks.Length != 2 || Order.IsDefault || Order.Any(slot => slot is < 0 or >= 2 || Tasks[slot] is null) || Order.Distinct().Count() != Order.Length || Order.Length != Tasks.Count(task => task is not null) || Tasks.Any(task => task is not null && (task.Channel >= 8 || task.Bank.Data.IsDefault || task.ProgramOffset < 0 || task.ProgramOffset > task.Bank.Data.Length - 2)))
         {
             throw new InvalidDataException("Native camera task owner requires its two original slots and bounded resource cursors.");
         }
@@ -50,13 +55,18 @@ public sealed record NativeBattleCameraState(ushort Mask, ImmutableArray<NativeB
     {
         Validate();
         int? track = bank.TrackOffset(selector);
-        int slot = Tasks.IndexOf(null);
-        if (track is null || slot < 0)
+        if (track is null)
         {
             return this;
         }
+        NativeBattleCameraState result = (Mask & 0xFF00) == 0 && ForceCamera != true ? this with { ForceCamera = true } : this;
+        int slot = Tasks.IndexOf(null);
+        if (slot < 0)
+        {
+            return result;
+        }
         byte channel = (byte)(selector & 7);
-        return this with { Mask = (ushort)(Mask | 1 << channel), Tasks = Tasks.SetItem(slot, new(channel, bank, track.Value, 0, 0)), Order = Order.Add(slot) };
+        return result with { Mask = (ushort)(Mask | 1 << channel), Tasks = Tasks.SetItem(slot, new(channel, bank, track.Value, 0, 0)), Order = Order.Add(slot), BlendProgress = 0 };
     }
 
     public NativeBattleCameraState Tick(uint graphicsFlags)
