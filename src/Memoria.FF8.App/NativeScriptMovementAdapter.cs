@@ -14,7 +14,7 @@ public static class NativeScriptMovementAdapter
 
     public static NativeScriptDirectionResult? ResolveDirection(FieldAssets field, SceneEventState scene, NativeScriptDirectionQuery query, ActorState? actor = null)
     {
-        bool generic = actor is not null && actor.ObjectId == query.ObjectId && SupportsGenericBinding(field, scene, actor) && query.Speed >= 0 && (actor.MovementDirectionLimit == query.DirectionLimit || query.HoldsFacing && query.DirectionLimit == 0);
+        bool generic = actor is not null && actor.ObjectId == query.ObjectId && SupportsGenericBinding(field, scene, actor) && (actor.MovementDirectionLimit == query.DirectionLimit || query.HoldsFacing && query.DirectionLimit == 0);
         if (!generic || query.Radius != actor!.PushRadius || (query.TargetX >> 12) is < short.MinValue or > short.MaxValue || (query.TargetY >> 12) is < short.MinValue or > short.MaxValue)
         {
             return null;
@@ -33,7 +33,7 @@ public static class NativeScriptMovementAdapter
 
     public static NativeScriptMovementResult? ResolveGeometry(FieldAssets field, SceneEventState scene, NativeScriptMovementQuery query, ActorState? actor = null)
     {
-        if (actor is null || actor.ObjectId != query.ObjectId || !SupportsGenericBinding(field, scene, actor) || query.Speed < 0 || query.Radius != actor.PushRadius || query.HasActorCollision is null)
+        if (actor is null || actor.ObjectId != query.ObjectId || !SupportsGenericBinding(field, scene, actor) || query.Radius != actor.PushRadius || query.HasActorCollision is null)
         {
             return null;
         }
@@ -58,7 +58,7 @@ public static class NativeScriptMovementAdapter
         // Native4789A0 drives every retained mode1 body, including536=FFFF.
         // Empty resource532890 and actor-contact47A720 have their own guards.
         bool emptyModel = actor.ModelId is -1 or ushort.MaxValue && actor.NativeMovementBaseSpeed is not null && scene.NativeFieldInitialization?.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, hash) == true;
-        return field.Id >= 72 && allocated && scene.NativeActorLayoutVersion == 1 && scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 } && (actor.ModelId >= 0 && actor.ModelId < field.Models.Count || emptyModel) && actor.PushRadius is >= 0 and <= ushort.MaxValue && actor.MovementSpeed is >= 0 and <= short.MaxValue;
+        return field.Id >= 72 && allocated && scene.NativeActorLayoutVersion == 1 && scene.NativeActorObjectIds.Contains(actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1 } && (actor.ModelId >= 0 && actor.ModelId < field.Models.Count || emptyModel) && actor.PushRadius is >= 0 and <= ushort.MaxValue && actor.MovementSpeed is >= short.MinValue and <= short.MaxValue;
     }
 
 }

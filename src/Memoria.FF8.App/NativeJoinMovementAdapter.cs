@@ -9,7 +9,7 @@ public static class NativeJoinMovementAdapter
 {
     public static bool Supports(FieldAssets field, SceneEventState scene, ActorState actor)
     {
-        return IsSavedPartyBinding(field, scene, actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 } && actor.ModelId >= 0 && actor.ModelId < field.Models.Count && actor.PushRadius is >= 0 and <= ushort.MaxValue;
+        return IsSavedPartyBinding(field, scene, actor.ObjectId) && actor.NativeMotionAuthority is { Version: 1 } && actor.ModelId >= 0 && actor.ModelId < field.Models.Count && actor.PushRadius is >= 0 and <= ushort.MaxValue;
     }
 
     public static NativeJoinMovementResult? Resolve(FieldAssets field, SceneEventState scene, NativeJoinMovementQuery query)

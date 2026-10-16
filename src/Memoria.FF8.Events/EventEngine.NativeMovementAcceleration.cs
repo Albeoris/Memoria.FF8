@@ -37,10 +37,6 @@ public sealed partial class EventEngine
             throw new NotSupportedException("MACCEL shifted target is outside the current native body coordinate domain.");
         }
         short speed = NativeMovementAcceleration.CalculateSpeed(baseSpeed, unchecked((short)args[4]), raw.X, raw.Y, x, y);
-        if (speed < 0)
-        {
-            throw new NotSupportedException("MACCEL current signed speed requires unsupported reverse mode1 geometry.");
-        }
         ActorState actor = actors[fiber.ObjectId];
         return new NativeScriptMovementState(1, true, fiber.Sequence, fiber.Script.Id, operation, raw.X, raw.Y, raw.Z, actor.WalkmeshTriangle, x, y, z, speed, unchecked((short)args[3]), movementDirection, (byte)actor.Direction, HoldsFacing: true, Accelerated: true);
     }
@@ -49,10 +45,6 @@ public sealed partial class EventEngine
     {
         short target = actor.NativeMovementAccelerationTarget ?? throw new NotSupportedException("MACCEL retry has no executed shared actor target WORD516.");
         short speed = NativeMovementAcceleration.CalculateSpeed(state.Speed, target, state.FixedX, state.FixedY, state.TargetX, state.TargetY);
-        if (speed < 0)
-        {
-            throw new NotSupportedException("MACCEL current signed speed requires unsupported reverse mode1 geometry.");
-        }
         return state with { Speed = speed };
     }
 }

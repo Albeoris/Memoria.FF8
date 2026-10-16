@@ -540,7 +540,7 @@ public sealed partial class EventEngine
             // and copies575 to577 only when the facing hold is clear.
             player.NativeMotionAuthority = nativeMovement ? motion with { MovementDirection = unchecked((byte)direction) } : motion;
         }
-        if (!certifiedNativeMotion || motion is not { Version: 1, FacingHold: 1 })
+        if (!certifiedNativeMotion || motion is not { Version: 1, FacingHold: not 0 })
         {
             player.Direction = direction;
         }

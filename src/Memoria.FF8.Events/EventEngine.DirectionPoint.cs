@@ -24,7 +24,7 @@ public sealed partial class EventEngine
         {
             return "DIRP cannot replace an active mode3 owner without its physical backup contract";
         }
-        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeMovementCompletion542 is null || actor.NativeTurnAccumulator474 is null || actor.NativeMovementBaseSpeed is null or < 0 || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || ReadNativeScriptPosition(actor) is null || !float.IsFinite(actor.Direction) || actor.Direction != (byte)actor.Direction || actor.PushRadius is < 0 or > ushort.MaxValue)
+        if (NativeRuntimeProfile is not { IsVerified: true } || actor.NativeMovementCompletion542 is null || actor.NativeTurnAccumulator474 is null || actor.NativeMovementBaseSpeed is null || actor.NativeMotionAuthority is not { Version: 1 } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(actor.ObjectId) || CanUseNativeScriptMove?.Invoke(actor) != true || ResolveNativeScriptDirection is null || ResolveNativeScriptMovement is null || ReadNativeScriptPosition(actor) is null || !float.IsFinite(actor.Direction) || actor.Direction != (byte)actor.Direction || actor.PushRadius is < 0 or > ushort.MaxValue)
         {
             return "DIRP requires its allocated WORD474/512/542, current motion bytes and certified zero-speed native body adapters";
         }

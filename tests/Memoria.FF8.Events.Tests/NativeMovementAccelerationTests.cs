@@ -9,19 +9,19 @@ namespace Memoria.FF8.Events.Tests;
 
 internal static partial class Program
 {
-    private static void NativeMovementAccelerationContract()
+    private static void NativeMovementAccelerationContract(bool reverseOnly = false)
     {
         Require(NativeMovementAcceleration.CalculateSpeed(1000, 3000, 0, 0, 100 << 12, 0) == 1400, "MACCEL did not apply clock20 and current remaining distance.");
         Require(NativeMovementAcceleration.CalculateSpeed(100, 200, 8191, 0, 0, 0) == 2100, "MACCEL rounded a negative fractional delta away from zero.");
         Require(NativeMovementAcceleration.CalculateSpeed(100, 200, 0, 0, 0, 0) == 2100, "MACCEL zero distance did not add its entire numerator.");
         Require(NativeMovementAcceleration.CalculateSpeed(32000, -32000, 0, 0, 4096, 0) == -2816, "MACCEL lost native signed WORD wrapping.");
-        (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 0)];
-        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.PSHN_L, 0x100000 + 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0x10000), (Jsm.Opcode.PSHN_L, 0x10000 + 3000), (Jsm.Opcode.MACCEL, 0), (Jsm.Opcode.PSHN_L, 19), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 150), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.POPM_B, 1101), (Jsm.Opcode.RET, 0)];
+        (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.SET3, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.DIR, 0), (Jsm.Opcode.RET, 8)];
+        (Jsm.Opcode, int)[] main = [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.MLIMIT, 0), (Jsm.Opcode.PSHN_L, 0x100000 + 100), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0x10000), (Jsm.Opcode.PSHN_L, 0x10000 + 3000), (Jsm.Opcode.MACCEL, 0), (Jsm.Opcode.PSHN_L, 19), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 150), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.PSHN_L, 200), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.MOVE, 0), (Jsm.Opcode.PSHN_L, 23), (Jsm.Opcode.POPM_B, 1101), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)];
         byte[] content = SyntheticObjects([1], [init, main]);
         int Variable(EventEngine engine, int address) => engine.Variables.GetValueOrDefault(address);
-        EventEngine Create()
+        EventEngine Create(bool reverse = false)
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateAccelerationTestSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,
@@ -46,10 +46,26 @@ internal static partial class Program
                     return new(NativeScriptMovementStatus.Accepted, x, query.FixedY, query.FixedZ, query.Triangle, query.Direction, [new(x, query.FixedY, query.Direction, fans)]);
                 }
             };
-            engine.LoadField(600, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            byte[] selected = reverse ? SyntheticObjects([1], [init, main.Select(operation => operation == (Jsm.Opcode.PSHN_L, 1000) ? (Jsm.Opcode.PSHN_L, -1000) : operation == (Jsm.Opcode.PSHN_L, 0x10000 + 3000) ? (Jsm.Opcode.PSHN_L, -3000) : operation).ToArray()]) : content;
+            engine.LoadField(600, selected, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
             return engine;
         }
         EventEngine live = Create();
+        EventEngine reverse = Create(reverse: true);
+        reverse.Step();
+        reverse.Step();
+        Require(reverse.Actors[0].NativeScriptMovement is { Active: true, Accelerated: true, Speed: -1400 } && reverse.Actors[0].NativeMovementBaseSpeed == -1000 && reverse.Actors[0].NativeMovementAccelerationTarget == -3000, "Signed MACCEL issue refused reverse mode1 speed or changed native current/base/target words.");
+        EventEngine reverseRestored = Create(reverse: true);
+        reverseRestored.Restore(reverse.Capture());
+        NativeScriptMovementState reverseBefore = reverse.Actors[0].NativeScriptMovement!;
+        short reverseExpected = NativeMovementAcceleration.CalculateSpeed(reverseBefore.Speed, -3000, reverseBefore.FixedX, reverseBefore.FixedY, reverseBefore.TargetX, reverseBefore.TargetY);
+        reverse.Step();
+        reverseRestored.Step();
+        Require(reverse.Actors[0].MovementSpeed == reverseExpected && JsonElement.DeepEquals(reverse.Capture(), reverseRestored.Capture()), "Negative MACCEL retry lost signed speed or independent restore continuity.");
+        if (reverseOnly)
+        {
+            return;
+        }
         live.Step();
         live.Step();
         ActorState actor = live.Actors[0];
@@ -112,6 +128,16 @@ internal static partial class Program
         NativeAccelerationRequestContract();
     }
 
+    private static GameSession CreateAccelerationTestSession()
+    {
+        using GameAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
+        GameSession session = GameSession.CreateColdProcess();
+        session.StartNewGame();
+        session.InitializeNewGameCharacterVitals(assets.ReadNewGameCharacterVitals());
+        session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
+        return session;
+    }
+
     private static void NativeAccelerationRequestContract()
     {
         (Jsm.Opcode, int)[] init = [(Jsm.Opcode.LBL, 0), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.THROUGHON, 0), (Jsm.Opcode.PSHN_L, 1000), (Jsm.Opcode.MSPEED, 0), (Jsm.Opcode.RET, 8)];
@@ -122,7 +148,7 @@ internal static partial class Program
         byte[] content = SyntheticObjects([2, (16 << 7) | 1], [init, lower, upper, controllerInit, controller]);
         EventEngine Create()
         {
-            GameSession session = new(new GameState());
+            GameSession session = CreateAccelerationTestSession();
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = (_, _) => 4,

@@ -44,7 +44,7 @@ public sealed partial class EventEngine
             {
                 return "Native SPLIT cannot replace an active mode3 party body without its physical overlap contract";
             }
-            if (actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } || ReadNativeSplitPosition(actor) is null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.PushRadius is < 0 or > ushort.MaxValue)
+            if (actor.NativeMotionAuthority is not { Version: 1 } || ReadNativeSplitPosition(actor) is null || actor.MovementTarget is not null || actor.MovementActorId is not null || actor.PushRadius is < 0 or > ushort.MaxValue)
             {
                 return "Native SPLIT requires proved fixed actor positions, completed prior motion and native motion authority";
             }
@@ -131,7 +131,7 @@ public sealed partial class EventEngine
         {
             return true;
         }
-        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement() || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
+        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || !CanUseNativeSplitMovement() || actor.NativeMotionAuthority is not { Version: 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 8)
         {
             throw FreezeSplit("SPLIT requires its certified native mode1 adapters, actual motion authority and retained native WORD474");
         }

@@ -220,7 +220,7 @@ public sealed partial class EventEngine
             bool partyTarget = (uint)jump.Operation < program!.Operations.Count && program.Operations[jump.Operation].Opcode == Jsm.Opcode.PJUMPA;
             bool boundedTarget = actor.NativeLandingTriangle508 is not null && (partyTarget || (jump.TargetX >> 12) is >= short.MinValue and <= short.MaxValue && (jump.TargetY >> 12) is >= short.MinValue and <= short.MaxValue && (jump.TargetX & 4095) == 0 && (jump.TargetY & 4095) == 0);
             int? landingHeight = jump.LandingPlaneTriangle is >= 0 and <= ushort.MaxValue ? ResolveNativeTriangleHeight?.Invoke(jump.LandingPlaneTriangle.Value, jump.TargetX / 4096, jump.TargetY / 4096) : null;
-            if (jump.AsyncFlag20000 == true && (jump.AnimationFlag40000 is null || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 }) || actor.NativeMovementRequest is { RestoreSuppressedByFlush: false } request && (request.RequestSequence != jump.FiberSequence || request.RequestScriptId != jump.ScriptId || jump.AsyncFlag20000 is null || jump.AnimationFlag40000 is null))
+            if (jump.AsyncFlag20000 == true && (jump.AnimationFlag40000 is null || actor.NativeMotionAuthority is not { Version: 1 }) || actor.NativeMovementRequest is { RestoreSuppressedByFlush: false } request && (request.RequestSequence != jump.FiberSequence || request.RequestScriptId != jump.ScriptId || jump.AsyncFlag20000 is null || jump.AnimationFlag40000 is null))
             {
                 throw new InvalidDataException("Saved native JUMP lost its inherited physical motion flags or the higher request slot's original owner.");
             }

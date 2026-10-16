@@ -125,7 +125,7 @@ public sealed partial class EventEngine
             {
                 return "Native JOIN requires the actual preserved companion WORD474 before target issue";
             }
-            if (actor.ObjectId != fiber.ObjectId && actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 })
+            if (actor.ObjectId != fiber.ObjectId && actor.NativeMotionAuthority is not { Version: 1 })
             {
                 return "Native JOIN requires actual companion movement575 and facing hold576 before issue";
             }
@@ -298,7 +298,7 @@ public sealed partial class EventEngine
         {
             return true;
         }
-        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || CanUseNativeJoinMovement?.Invoke(actor) != true || actor.NativeMotionAuthority is not { Version: 1, FacingHold: <= 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 96)
+        if (ResolveNativeJoinMovement is null || ResolveNativeScriptDirection is null || CanUseNativeJoinMovement?.Invoke(actor) != true || actor.NativeMotionAuthority is not { Version: 1 } authority || actor.NativeTurnAccumulator474 is null || (uint)actor.Direction > byte.MaxValue || actor.PushRadius is < 0 or > ushort.MaxValue || actor.MovementSpeed != target.Speed || actor.MovementStopDistance != 96)
         {
             throw FreezeJoin("JOIN requires its certified native mode1 adapters, actual motion authority and retained native WORD474");
         }
@@ -386,7 +386,7 @@ public sealed partial class EventEngine
             NativeJoinedPosition joined = actor.NativeJoinedPosition ?? actor.NativeSplitPosition!;
             Albeoris.Games.FF8.Jsm.Jsm.Opcode opcode = actor.NativeJoinedPosition is not null ? Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN : Albeoris.Games.FF8.Jsm.Jsm.Opcode.SPLIT;
             EventScript? script = (uint)joined.CallerObjectId < program!.Objects.Count ? program.Objects[joined.CallerObjectId].Scripts.FirstOrDefault(script => script.Id == joined.ScriptId) : null;
-            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || !script.ContainsOperation(joined.Operation) || program.Operations[joined.Operation].Opcode != opcode || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1, FacingHold: <= 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
+            if (NativeRuntimeProfile is not { IsVerified: true } || joined.Version != 1 || joined.FieldId != saved.FieldId || joined.Frame is < 1 || joined.Frame > saved.Frame || joined.FiberSequence < 1 || script is null || !script.ContainsOperation(joined.Operation) || program.Operations[joined.Operation].Opcode != opcode || !saved.Scene.NativeActorObjectIds.Contains(actor.ObjectId) || opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.JOIN && actor.ObjectId == joined.CallerObjectId || joined.Authority is not { Version: 1 } || actor.NativeMotionAuthority != joined.Authority || actor.NativeScriptMovement is not null || actor.NativeJump is not null || actor.X != joined.FixedX / 4096f || actor.Y != joined.FixedY / 4096f || actor.Z != joined.FixedZ / 4096f || actor.WalkmeshTriangle != joined.Triangle || joined.Triangle is < 0 or > short.MaxValue || (joined.FixedZ & 4095) != 0 || new[] { joined.FixedX, joined.FixedY, joined.FixedZ }.Any(value => (value >> 12) is < short.MinValue or > short.MaxValue))
             {
                 throw new InvalidDataException("Saved completed JOIN body lost its original instruction, raw position or physical motion authority.");
             }
