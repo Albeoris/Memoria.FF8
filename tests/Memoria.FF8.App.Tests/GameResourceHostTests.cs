@@ -11,6 +11,51 @@ public sealed class GameResourceHostTests : IDisposable
     private static readonly Rgba32 BaseColor = new(24, 48, 72);
 
     [Fact]
+    public void InstalledGamePackagesTakePriorityOverApplicationCopies()
+    {
+        WriteImage("Demaster/installed/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
+        string application = Path.Combine(root, "application");
+        Directory.CreateDirectory(Path.Combine(application, "Mods/Demaster/installed"));
+        Directory.CreateDirectory(Path.Combine(application, "Mods/Demaster/portable"));
+        using GameResourceHost host = new(root, application, watch: false);
+        Assert.Equal(new[] { Path.Combine(root, "Mods"), Path.Combine(application, "Mods") }, host.Mods.ModsDirectories);
+        Assert.Equal(new[] { "Demaster/installed", "Demaster/portable" }, host.Mods.Catalog.Packages.Select(package => package.Id));
+        Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
+        Assert.True(host.Mods.SetEnabled("Demaster/installed", false).Success);
+        Assert.True(File.Exists(Path.Combine(root, "Mods/Demaster/installed/mod.ini")));
+        Assert.False(File.Exists(Path.Combine(application, "Mods/Demaster/installed/mod.ini")));
+    }
+
+    [Fact]
+    public void ApplicationPackagesRemainAvailableWithoutAnInstalledModsDirectory()
+    {
+        WriteImage("Demaster/portable/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
+        using GameResourceHost host = Host();
+        Assert.Contains(Path.Combine(root, "Mods"), host.Mods.ModsDirectories);
+        Assert.Equal("Demaster/portable", Assert.Single(host.Mods.Catalog.Packages).Id);
+        Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
+    }
+
+    [Fact]
+    public void FirstInstallIsWatchedInTheGameDirectoryWhenBothLocationsAreEmpty()
+    {
+        string application = Path.Combine(root, "application");
+        Directory.CreateDirectory(application);
+        using GameResourceHost host = new(root, application);
+        Assert.Equal(new[] { Path.Combine(root, "Mods"), Path.Combine(application, "Mods") }, host.Mods.ModsDirectories);
+        Assert.Empty(host.Mods.Catalog.Packages);
+        WriteImage("Demaster/first/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (host.Mods.Catalog.Packages.Count == 0 && DateTime.UtcNow < deadline)
+        {
+            host.Pump();
+            Thread.Sleep(20);
+        }
+        Assert.Equal("Demaster/first", Assert.Single(host.Mods.Catalog.Packages).Id);
+        Assert.Equal(new Rgba32(255, 0, 0), host.Resources.GetTexture(Context(host)).Value.Image[0, 0]);
+    }
+
+    [Fact]
     public void DemasterThenTonberryThenBasePublishThroughTheSameStableHandle()
     {
         WriteImage("Demaster/high/textures/world/dat/texl/texl_001_0.png", MagickColors.Red);

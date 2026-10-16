@@ -18,7 +18,7 @@ public sealed class ModRuntime : IModService, IDisposable
     private readonly TimeSpan debounce;
     private readonly List<Action<ModCatalogSnapshot>> subscribers = [];
     private readonly Dictionary<string, FileEntry> fileEntries = new(StringComparer.Ordinal);
-    private readonly FileSystemWatcher? watcher;
+    private readonly List<(string BaseDirectory, FileSystemWatcher Watcher)> watchers = [];
     private readonly Queue<string> watcherErrors = [];
     private ModCatalogSnapshot catalog = new(0, [], []);
     private ModCatalogSnapshot? pending;
@@ -36,28 +36,36 @@ public sealed class ModRuntime : IModService, IDisposable
     private string? lastIdentity;
     private string? pendingIdentity;
 
-    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null)
+    public ModRuntime(string? applicationBaseDirectory = null, Func<ModFormat, bool>? isCompatible = null, Func<ModCatalogSnapshot, ModPreparationResult>? prepare = null, bool watch = true, TimeSpan? debounce = null, IEnumerable<string>? additionalBaseDirectories = null)
     {
         applicationRoot = Path.GetFullPath(applicationBaseDirectory ?? AppContext.BaseDirectory);
         modsRoot = Path.Combine(applicationRoot, "Mods");
+        string[] baseDirectories = (additionalBaseDirectories ?? []).Append(applicationRoot).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        ModsDirectories = Array.AsReadOnly(baseDirectories.Select(directory => Path.Combine(directory, "Mods")).ToArray());
         this.isCompatible = isCompatible ?? (_ => true);
         this.prepare = prepare ?? (_ => ModPreparationResult.Accepted);
         this.debounce = debounce ?? TimeSpan.FromMilliseconds(250);
         if (watch)
         {
-            watcher = new FileSystemWatcher(Directory.Exists(modsRoot) ? modsRoot : applicationRoot)
+            foreach (string directory in baseDirectories)
             {
-                IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size
-            };
-            watcher.Changed += OnFileChanged;
-            watcher.Created += OnFileChanged;
-            watcher.Deleted += OnFileChanged;
-            watcher.Renamed += OnFileChanged;
-            watcher.Error += OnWatcherError;
+                string root = Path.Combine(directory, "Mods");
+                FileSystemWatcher watcher = new(Directory.Exists(root) ? root : directory)
+                {
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size
+                };
+                watcher.Changed += OnFileChanged;
+                watcher.Created += OnFileChanged;
+                watcher.Deleted += OnFileChanged;
+                watcher.Renamed += OnFileChanged;
+                watcher.Error += OnWatcherError;
+                watchers.Add((directory, watcher));
+            }
             ConfigureWatcher();
         }
     }
+
+    public IReadOnlyList<string> ModsDirectories { get; }
 
     public ModCatalogSnapshot Catalog
     {
@@ -371,7 +379,10 @@ public sealed class ModRuntime : IModService, IDisposable
                 return;
             }
             disposed = true;
-            watcher?.Dispose();
+            foreach ((_, FileSystemWatcher watcher) in watchers)
+            {
+                watcher.Dispose();
+            }
             subscribers.Clear();
             pending = null;
             pendingPreparation = null;
@@ -392,12 +403,9 @@ public sealed class ModRuntime : IModService, IDisposable
         HashSet<string> visitedFiles = new(StringComparer.Ordinal);
         foreach (ModFormat format in Enum.GetValues<ModFormat>())
         {
-            string formatRoot = Path.Combine(modsRoot, format.ToString());
-            if (!Directory.Exists(formatRoot))
-            {
-                continue;
-            }
-            foreach (string root in Directory.GetDirectories(formatRoot).OrderBy(path => Path.GetFileName(path), PathOrder))
+            HashSet<string> packageIds = new(StringComparer.OrdinalIgnoreCase);
+            IEnumerable<string> roots = ModsDirectories.Select(directory => Path.Combine(directory, format.ToString())).Where(Directory.Exists).SelectMany(directory => Directory.GetDirectories(directory).OrderBy(path => Path.GetFileName(path), PathOrder)).OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase);
+            foreach (string root in roots)
             {
                 string name = Path.GetFileName(root);
                 string id = $"{format}/{name}";
@@ -406,11 +414,17 @@ public sealed class ModRuntime : IModService, IDisposable
                     notices.Add(new("package-link-rejected", "Package roots must be unpacked directories, not links.", id));
                     continue;
                 }
+                if (!packageIds.Add(id))
+                {
+                    identities.Add($"duplicate\0{root}");
+                    notices.Add(new("duplicate-package", $"A preceding mod directory owns {id}; ignoring duplicate at {root}.", id));
+                    continue;
+                }
                 bool? explicitEnabled = ModConfiguration.ReadBoolean(Path.Combine(root, "mod.ini"), "enabled");
                 bool requested = explicitEnabled ?? nextAutoEnable;
                 bool compatible = isCompatible(format);
                 ModEffectiveStatus status = !compatible ? ModEffectiveStatus.IncompatibleEdition : !requested ? ModEffectiveStatus.Disabled : ModEffectiveStatus.Active;
-                identities.Add($"{id}\0{explicitEnabled}\0{requested}\0{compatible}");
+                identities.Add($"{id}\0{root}\0{explicitEnabled}\0{requested}\0{compatible}");
                 List<(string Physical, string Relative)> packageFiles = [];
                 EnumerateFiles(root, root, string.Empty, id, new HashSet<string>(StringComparer.OrdinalIgnoreCase), packageFiles, notices);
                 HashSet<string> normalizedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -426,7 +440,7 @@ public sealed class ModRuntime : IModService, IDisposable
                         continue;
                     }
                     FileInfo info = new(physical);
-                    string key = id + "/" + relative;
+                    string key = id + "/" + relative + "\0" + physical;
                     visitedFiles.Add(key);
                     FileStamp stamp = new(info.Length, info.LastWriteTimeUtc.Ticks);
                     if (!fileEntries.TryGetValue(key, out FileEntry? previous) || previous.Stamp != stamp || forceRevalidate)
@@ -562,19 +576,19 @@ public sealed class ModRuntime : IModService, IDisposable
 
     private void ConfigureWatcher()
     {
-        if (watcher is null)
+        foreach ((string directory, FileSystemWatcher watcher) in watchers)
         {
-            return;
-        }
-        bool exists = Directory.Exists(modsRoot);
-        string path = exists ? modsRoot : applicationRoot;
-        if (!watcher.EnableRaisingEvents || !watcher.Path.Equals(path, StringComparison.OrdinalIgnoreCase) || watcher.IncludeSubdirectories != exists)
-        {
-            watcher.EnableRaisingEvents = false;
-            watcher.Path = path;
-            watcher.IncludeSubdirectories = exists;
-            watcher.Filter = exists ? "*" : "Mods";
-            watcher.EnableRaisingEvents = true;
+            string root = Path.Combine(directory, "Mods");
+            bool exists = Directory.Exists(root);
+            string path = exists ? root : directory;
+            if (!watcher.EnableRaisingEvents || !watcher.Path.Equals(path, StringComparison.OrdinalIgnoreCase) || watcher.IncludeSubdirectories != exists)
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Path = path;
+                watcher.IncludeSubdirectories = exists;
+                watcher.Filter = exists ? "*" : "Mods";
+                watcher.EnableRaisingEvents = true;
+            }
         }
     }
 

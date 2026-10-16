@@ -39,7 +39,7 @@ public sealed partial class MenuController
         List<MenuEntry> entries =
         [
             new("mod-auto", $"[{(service.AutoEnableNewMods ? "x" : " ")}] Automatically enable new mods", "Keep explicit disables; preserve existing mods when turning off.", Action: new MenuAction("mod-auto")),
-            new("mod-refresh", "Refresh", "Rescan packages and retry rejected changes.", Action: new MenuAction("mod-refresh"))
+            new("mod-refresh", "Refresh", "Rescan packages in both game and application Mods directories and retry rejected changes.", Action: new MenuAction("mod-refresh"))
         ];
         foreach (ModPackage package in service.Catalog.Packages)
         {

@@ -23,6 +23,88 @@ public sealed class ModRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void MultipleRootsMergePackagesByNameAndPreferEarlierRootsIgnoringPackageCase()
+    {
+        string gameRoot = Path.Combine(root, "game");
+        Write("Tonberry/zeta/test.png", "application");
+        Write("Demaster/EXAMPLE/test.png", "shadowed");
+        Write("Demaster/Alpha/test.png", "application alpha");
+        WriteAt(gameRoot, "Tonberry/Alpha/test.png", "game alpha");
+        WriteAt(gameRoot, "Demaster/example/test.png", "game winner");
+        WriteAt(gameRoot, "Demaster/zeta/test.png", "game zeta");
+        using ModRuntime runtime = new(root, watch: false, additionalBaseDirectories: [gameRoot, Path.Combine(gameRoot, "."), root, root.ToUpperInvariant()]);
+        Publish(runtime);
+        Assert.Equal(new[] { Path.Combine(gameRoot, "Mods"), Path.Combine(root, "Mods") }, runtime.ModsDirectories);
+        Assert.True(Assert.IsAssignableFrom<ICollection<string>>(runtime.ModsDirectories).IsReadOnly);
+        Assert.Equal(new[] { "Tonberry/Alpha", "Tonberry/zeta", "Demaster/Alpha", "Demaster/example", "Demaster/zeta" }, runtime.Catalog.Packages.Select(package => package.Id));
+        ModPackage winner = runtime.Catalog.Packages.Single(package => package.Id == "Demaster/example");
+        Assert.Equal(Path.Combine(gameRoot, "Mods", "Demaster", "example"), winner.RootDirectory);
+        Assert.Equal("game winner", System.Text.Encoding.UTF8.GetString(runtime.Catalog.FindAll(ModFormat.Demaster, "test.png")[1].ReadBytes()));
+        Assert.Single(runtime.Diagnostics, diagnostic => diagnostic.Code == "duplicate-package");
+    }
+
+    [Fact]
+    public void MultipleRootsUseApplicationGlobalPolicyAndWritePackageSettingsToTheirOwner()
+    {
+        string gameRoot = Path.Combine(root, "game");
+        Write("mods.ini", "auto_enable_new_mods = 0\n");
+        Write("Demaster/application/test.png", "application");
+        WriteAt(gameRoot, "mods.ini", "auto_enable_new_mods = 1\n");
+        WriteAt(gameRoot, "Demaster/game/test.png", "game");
+        using ModRuntime runtime = new(root, watch: false, additionalBaseDirectories: [gameRoot]);
+        Publish(runtime);
+        Assert.False(runtime.AutoEnableNewMods);
+        Assert.All(runtime.Catalog.Packages, package => Assert.False(package.RequestedEnabled));
+        Assert.True(runtime.SetEnabled("Demaster/game", true).Success);
+        Publish(runtime);
+        Assert.Contains("enabled = 1", File.ReadAllText(Path.Combine(gameRoot, "Mods/Demaster/game/mod.ini")));
+        Assert.False(File.Exists(Path.Combine(root, "Mods/Demaster/game/mod.ini")));
+        Assert.True(runtime.SetAutoEnableNewMods(true).Success);
+        Publish(runtime);
+        Assert.Contains("auto_enable_new_mods = 1", File.ReadAllText(Path.Combine(root, "Mods/mods.ini")));
+        Assert.Equal("auto_enable_new_mods = 1\n", File.ReadAllText(Path.Combine(gameRoot, "Mods/mods.ini")));
+        Assert.All(runtime.Catalog.Packages, package => Assert.True(package.RequestedEnabled));
+    }
+
+    [Theory]
+    [InlineData("example")]
+    [InlineData("EXAMPLE")]
+    public void RemovingPreferredPackageExposesFallbackBytesAndConfigurationWithIdenticalFileMetadata(string fallbackName)
+    {
+        string gameRoot = Path.Combine(root, "game");
+        string winnerDirectory = Path.Combine(gameRoot, "Mods", "Demaster", "example");
+        string fallbackDirectory = Path.Combine(root, "Mods", "Demaster", fallbackName);
+        WriteAt(gameRoot, "Demaster/example/test.png", "first");
+        WriteAt(gameRoot, "Demaster/example/mod.ini", "enabled = 1\nowner = game\n");
+        Write($"Demaster/{fallbackName}/test.png", "other");
+        Write($"Demaster/{fallbackName}/mod.ini", "enabled = 0\nowner = application\n");
+        DateTime timestamp = File.GetLastWriteTimeUtc(Path.Combine(winnerDirectory, "test.png"));
+        File.SetLastWriteTimeUtc(Path.Combine(fallbackDirectory, "test.png"), timestamp);
+        using ModRuntime runtime = new(root, watch: false, additionalBaseDirectories: [gameRoot]);
+        Publish(runtime);
+        ModFile original = Assert.Single(runtime.Catalog.Files);
+        Assert.Equal("first", System.Text.Encoding.UTF8.GetString(original.ReadBytes()));
+        Directory.Delete(winnerDirectory, true);
+        runtime.RequestRefresh();
+        Publish(runtime);
+        ModPackage fallback = Assert.Single(runtime.Catalog.Packages);
+        Assert.Equal(fallbackDirectory, fallback.RootDirectory);
+        Assert.False(fallback.ExplicitEnabled);
+        Assert.False(fallback.RequestedEnabled);
+        Assert.Empty(runtime.Catalog.Files);
+        Assert.DoesNotContain(runtime.Diagnostics, diagnostic => diagnostic.Code == "duplicate-package");
+        Assert.True(runtime.SetEnabled(fallback.Id, true).Success);
+        Publish(runtime);
+        ModFile replacement = Assert.Single(runtime.Catalog.Files);
+        Assert.True(replacement.Revision > original.Revision);
+        Assert.Equal("other", System.Text.Encoding.UTF8.GetString(replacement.ReadBytes()));
+        Assert.Equal("first", System.Text.Encoding.UTF8.GetString(original.ReadBytes()));
+        Assert.Contains("enabled = 1", File.ReadAllText(Path.Combine(fallbackDirectory, "mod.ini")));
+        Assert.Contains("owner = application", File.ReadAllText(Path.Combine(fallbackDirectory, "mod.ini")));
+        Assert.False(Directory.Exists(winnerDirectory));
+    }
+
+    [Fact]
     public void GlobalOffPinsInheritedPackagesWithoutOverwritingExplicitDisable()
     {
         Write("Tonberry/inherited/test.png", "image");
@@ -213,6 +295,32 @@ public sealed class ModRuntimeTests : IDisposable
         PumpUntilPublished(runtime, snapshot => snapshot.Generation > generation);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MultipleRootWatchersDiscoverFirstInstallationAndChangedContent(bool installInAdditionalRoot)
+    {
+        string applicationRoot = Path.Combine(root, "application");
+        string gameRoot = Path.Combine(root, "game");
+        Directory.CreateDirectory(applicationRoot);
+        Directory.CreateDirectory(gameRoot);
+        using ModRuntime runtime = new(applicationRoot, watch: true, debounce: TimeSpan.Zero, additionalBaseDirectories: [gameRoot]);
+        Publish(runtime);
+        Assert.All(runtime.ModsDirectories, directory => Assert.False(Directory.Exists(directory)));
+        string installRoot = installInAdditionalRoot ? gameRoot : applicationRoot;
+        WriteAt(installRoot, "Demaster/example/test.png", "original");
+        WaitFor(() => runtime.IsReloadPending);
+        Assert.Empty(runtime.Catalog.Packages);
+        PumpUntilPublished(runtime, snapshot => snapshot.Packages.Count == 1);
+        Assert.Equal("original", System.Text.Encoding.UTF8.GetString(Assert.Single(runtime.Catalog.Files).ReadBytes()));
+        long generation = runtime.Catalog.Generation;
+        WriteAt(installRoot, "Demaster/example/test.png", "updated content");
+        WaitFor(() => runtime.IsReloadPending);
+        Assert.Equal(generation, runtime.Catalog.Generation);
+        PumpUntilPublished(runtime, snapshot => snapshot.Files.Count == 1 && System.Text.Encoding.UTF8.GetString(snapshot.Files[0].ReadBytes()) == "updated content");
+        Assert.True(runtime.Catalog.Generation > generation);
+    }
+
     [Fact]
     public void RetryPreparationIsScheduledAndStopsAfterFourAttempts()
     {
@@ -383,7 +491,12 @@ public sealed class ModRuntimeTests : IDisposable
 
     private void Write(string relative, string contents)
     {
-        string path = Path.Combine(root, "Mods", relative);
+        WriteAt(root, relative, contents);
+    }
+
+    private static void WriteAt(string baseDirectory, string relative, string contents)
+    {
+        string path = Path.Combine(baseDirectory, "Mods", relative);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, contents);
     }

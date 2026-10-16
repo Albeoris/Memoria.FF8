@@ -19,6 +19,7 @@ public sealed class ModMenuTests : IDisposable
         Assert.Equal("Mods", entry.Label);
         Assert.Equal("mods", entry.Destination);
         menu.Open("mods");
+        Assert.Contains("game and application", menu.Entries.Single(entry => entry.Id == "mod-refresh").Help);
         Assert.Contains(menu.Entries, entry => entry.Label == "[x] Automatically enable new mods");
         Assert.Contains(menu.Entries, entry => entry.Id == "Demaster/example" && entry.Label.StartsWith("[x] example", StringComparison.Ordinal) && entry.Label.Contains("Demaster", StringComparison.Ordinal) && entry.Help == "Active");
         Assert.NotNull(menu.BuildView());
