@@ -181,6 +181,9 @@ public sealed partial class EventEngine
             case Jsm.Opcode.Unknown5:
                 args = ExecuteNativeItemPresence(fiber);
                 break;
+            case Jsm.Opcode.WHOAMI:
+                args = ExecuteNativeWhoAmI(fiber);
+                break;
             case Jsm.Opcode.GETINFO:
                 args = ExecuteNativeActorInfo(fiber, false);
                 break;
