@@ -52,73 +52,76 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new NotSupportedException("Native saved-world provenance is unknown; original vehicle state must be established before world use.");
         }
         WorldEntryVariables inputs = WorldEntryVariables.Read(session.State);
-        bool parkedRagnarok = footEntityType == 0 && (session.State.World?.NativeRagnarokRuntime is not null || session.State.SavedWorld.RagnarokPose2 is not null && session.State.DepartingWorldState?.NativeRagnarokRuntime is not null);
-        bool parkedGarden = !scripted && !stationFoot && !car && !garden && !ragnarok && !parkedRagnarok && footEntityType == 0 && session.State.SavedWorld.GardenPose3 is not null;
-        if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
-        {
-            throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
-        }
-        NativeSavedWorldFootReturn? reload = null;
-        NativeFootWorldRuntimeState? initialFootRuntime = null;
-        NativeCarWorldRuntimeState? initialCarRuntime = null;
-        NativeSavedWorldState? carSavedDeparture = null;
-        if (scripted)
-        {
-            if (session.State.World is not null && session.State.World.NativeScriptedRuntime is null && session.State.World.NativeTrainRuntime is null)
-            {
-                throw new NotSupportedException("Native scripted restoration has no executed scripted runtime authority.");
-            }
-        }
-        else if (car)
-        {
-            if (entry == 62 || unchecked((sbyte)arrival.Extra) != -1)
-            {
-                throw new NotSupportedException("Native car saved-position or scripted-route entry is outside the ordinary car contract.");
-            }
-            if (session.State.World is null)
-            {
-                carSavedDeparture = session.State.SavedWorld;
-                session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry(unchecked((byte)arrival.Mode)));
-            }
-            else if (session.State.World.NativeCarRuntime is null)
-            {
-                throw new NotSupportedException("Native car restoration has no executed vehicle runtime authority.");
-            }
-        }
-        else if (!garden && !ragnarok && !parkedRagnarok && session.State.World is null)
-        {
-            RequireUnaliasedFootAuxiliary(session.State);
-            if (entry == 62)
-            {
-                reload = session.State.SavedWorld.FootReturn ?? throw new NotSupportedException("World entry62 requires an executed native foot-save receipt.");
-                if (reload.EntityType105 != footEntityType)
-                {
-                    throw new NotSupportedException("Native foot reload changes the packet entity type outside this implemented loader contract.");
-                }
-                initialFootRuntime = NativeFootWorldRuntimeState.CreateSavedReload(reload);
-            }
-            else
-            {
-                initialFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(session.State.SavedWorld, footEntityType);
-            }
-            initialFootRuntime.RequireSupportedNormalFoot();
-        }
-        else if (!garden && !ragnarok && !parkedRagnarok)
-        {
-            NativeFootWorldRuntimeState runtime = session.State.World!.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
-            runtime.RequireSupportedNormalFoot();
-            if (runtime.EntityType != footEntityType)
-            {
-                throw new InvalidDataException("The restored native foot entity type differs from its world packet.");
-            }
-            if (entry == 62 && session.State.World.NativeFootRuntime?.Rule != NativeFootWorldRuntimeState.SavedReloadRule)
-            {
-                throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
-            }
-        }
         assets = new WorldAssets(gameDirectory, resources);
         try
         {
+            bool ordinaryFoot = !scripted && !stationFoot && !car && !garden && !ragnarok && footEntityType == 0;
+            NativeWorldAllocationClause? footClause = ordinaryFoot ? assets.ReadWorldAllocationClause(inputs.StoryWord) : null;
+            //544860 establishes vehicle indexes from the selected clause's objects; loader-initialized pose2/3 do not establish vehicle presence.
+            bool parkedRagnarok = footClause?.ContainsShape(1) == true;
+            bool parkedGarden = !parkedRagnarok && footClause?.ContainsShape(64) == true && footClause.ContainsShape(65);
+            if (!scripted && !stationFoot && !car && !garden && !ragnarok && !parkedGarden && !parkedRagnarok && (footEntityType == 2 ? inputs.StoryWord is < 2140 or >= 2500 : footEntityType == 1 ? inputs.StoryWord is < 34 or >= 205 : inputs.StoryWord is >= 34 and < 205 or >= 392))
+            {
+                throw new NotSupportedException("World entry story lies outside this entity's proved native object/contact clause.");
+            }
+            NativeSavedWorldFootReturn? reload = null;
+            NativeFootWorldRuntimeState? initialFootRuntime = null;
+            NativeCarWorldRuntimeState? initialCarRuntime = null;
+            NativeSavedWorldState? carSavedDeparture = null;
+            if (scripted)
+            {
+                if (session.State.World is not null && session.State.World.NativeScriptedRuntime is null && session.State.World.NativeTrainRuntime is null)
+                {
+                    throw new NotSupportedException("Native scripted restoration has no executed scripted runtime authority.");
+                }
+            }
+            else if (car)
+            {
+                if (entry == 62 || unchecked((sbyte)arrival.Extra) != -1)
+                {
+                    throw new NotSupportedException("Native car saved-position or scripted-route entry is outside the ordinary car contract.");
+                }
+                if (session.State.World is null)
+                {
+                    carSavedDeparture = session.State.SavedWorld;
+                    session.SetSavedWorldState(session.State.SavedWorld.WithOrdinaryCarEntry(unchecked((byte)arrival.Mode)));
+                }
+                else if (session.State.World.NativeCarRuntime is null)
+                {
+                    throw new NotSupportedException("Native car restoration has no executed vehicle runtime authority.");
+                }
+            }
+            else if (!garden && !ragnarok && !parkedRagnarok && session.State.World is null)
+            {
+                RequireUnaliasedFootAuxiliary(session.State);
+                if (entry == 62)
+                {
+                    reload = session.State.SavedWorld.FootReturn ?? throw new NotSupportedException("World entry62 requires an executed native foot-save receipt.");
+                    if (reload.EntityType105 != footEntityType)
+                    {
+                        throw new NotSupportedException("Native foot reload changes the packet entity type outside this implemented loader contract.");
+                    }
+                    initialFootRuntime = NativeFootWorldRuntimeState.CreateSavedReload(reload);
+                }
+                else
+                {
+                    initialFootRuntime = NativeFootWorldRuntimeState.CreateFirstNormalLoad(session.State.SavedWorld, footEntityType);
+                }
+                initialFootRuntime.RequireSupportedNormalFoot();
+            }
+            else if (!garden && !ragnarok && !parkedRagnarok)
+            {
+                NativeFootWorldRuntimeState runtime = session.State.World!.NativeFootRuntime ?? throw new NotSupportedException("Native foot restoration requires executed entity-type loader authority.");
+                runtime.RequireSupportedNormalFoot();
+                if (runtime.EntityType != footEntityType)
+                {
+                    throw new InvalidDataException("The restored native foot entity type differs from its world packet.");
+                }
+                if (entry == 62 && session.State.World.NativeFootRuntime?.Rule != NativeFootWorldRuntimeState.SavedReloadRule)
+                {
+                    throw new NotSupportedException("Historical entry62 world state has no proved native foot-reload authority.");
+                }
+            }
             storyByte = inputs.StoryByte;
             if (parkedRagnarok)
             {
@@ -261,7 +264,7 @@ internal sealed partial class WorldMapScene : IDisposable
     internal void ValidatePreparedSession(GameState candidate)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (rebound || candidate.Scene != SceneKind.WorldMap || candidate.WorldArrival != session.State.WorldArrival || candidate.World != State || candidate.SavedWorld != session.State.SavedWorld || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(candidate.EventMemory), System.Text.Json.JsonSerializer.SerializeToElement(session.State.EventMemory)))
+        if (rebound || candidate.Scene != SceneKind.WorldMap || candidate.WorldArrival != session.State.WorldArrival || candidate.World != State || candidate.SavedWorld != session.State.SavedWorld || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(candidate.WorldEntryMemory), System.Text.Json.JsonSerializer.SerializeToElement(session.State.WorldEntryMemory)) || !System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(candidate.EventMemory), System.Text.Json.JsonSerializer.SerializeToElement(session.State.EventMemory)))
         {
             throw new InvalidOperationException("The committed world session does not match its unused prepared entry.");
         }

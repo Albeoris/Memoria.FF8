@@ -9,47 +9,8 @@ public static class NativeTrainWorldAllocationReader
 {
     public static NativeTrainWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, ushort story, byte eventFlags103)
     {
-        if (program.Length < 12 || program.Length % 4 != 0)
-        {
-            throw new InvalidDataException("Native world allocation program has no complete pointer table or instruction words.");
-        }
-        int tableBytes = ReadPointer(program, 0);
-        if (tableBytes < 8 || tableBytes % 4 != 0 || tableBytes > program.Length - 4 || BinaryPrimitives.ReadInt32LittleEndian(program[(tableBytes - 4)..]) != 0)
-        {
-            throw new InvalidDataException("Native world allocation pointer table overlaps its clause bytes.");
-        }
-        int count = tableBytes / 4 - 1;
-        var pointers = new int[count + 1];
-        for (int index = 0; index < count; index++)
-        {
-            int pointer = ReadPointer(program, index * 4);
-            if (pointer < tableBytes || pointer % 4 != 0 || pointer >= program.Length || index > 0 && pointer <= pointers[index - 1])
-            {
-                throw new InvalidDataException("Native world allocation clause pointer is overlapping, unordered or truncated.");
-            }
-            pointers[index] = pointer;
-        }
-        pointers[count] = program.Length;
-        for (int index = 0; index < count; index++)
-        {
-            ReadOnlySpan<byte> clause = program.Slice(pointers[index], pointers[index + 1] - pointers[index]);
-            if (clause.Length < 24 || !HasHeader(clause))
-            {
-                throw new NotSupportedException("Native world allocation selection reached an unrepresented conditional or branch program.");
-            }
-            ushort minimum = ReadWord(clause, 6);
-            ushort maximum = ReadWord(clause, 10);
-            if (minimum >= maximum)
-            {
-                throw new InvalidDataException("Native world allocation story range is empty or reversed.");
-            }
-            if (story < minimum || story >= maximum)
-            {
-                continue;
-            }
-            return ReadSelected(program, coordinates, clause, index, minimum, maximum, story, eventFlags103);
-        }
-        throw new NotSupportedException("Original world allocation has no represented selected simple-range clause.");
+        NativeWorldAllocationClause selected = NativeWorldAllocationClauseReader.Read(program, story);
+        return ReadSelected(program, coordinates, program.Slice(selected.Offset, selected.Length), selected.Index, selected.MinimumStory, selected.MaximumStory, story, eventFlags103);
     }
 
     private static NativeTrainWorldAllocation ReadSelected(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, ReadOnlySpan<byte> clause, int clauseIndex, ushort minimum, ushort maximum, ushort story, byte eventFlags103)
@@ -109,19 +70,9 @@ public static class NativeTrainWorldAllocationReader
         return allocation;
     }
 
-    private static bool HasHeader(ReadOnlySpan<byte> clause)
-    {
-        return ReadWord(clause, 0) == 0xFF01 && ReadWord(clause, 2) == 0 && ReadWord(clause, 4) == 0xFF02 && ReadWord(clause, 8) == 0xFF03 && ReadWord(clause, 12) == 0xFF04 && ReadWord(clause, 14) == 0;
-    }
-
     private static ushort ReadWord(ReadOnlySpan<byte> source, int offset)
     {
         return BinaryPrimitives.ReadUInt16LittleEndian(source[offset..]);
-    }
-
-    private static int ReadPointer(ReadOnlySpan<byte> source, int offset)
-    {
-        return BinaryPrimitives.ReadInt32LittleEndian(source[offset..]);
     }
 
     private static string Hash(ReadOnlySpan<byte> source)

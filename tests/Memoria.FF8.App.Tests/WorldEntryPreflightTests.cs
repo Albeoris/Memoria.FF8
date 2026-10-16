@@ -9,12 +9,22 @@ public sealed class WorldEntryPreflightTests
     [Fact]
     public void UnsupportedEntryPreparationPreservesItsSourceBeforeResources()
     {
-        GameState departure = new() { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame() };
+        GameState departure = ComponentDeparture();
         string before = JsonSerializer.Serialize(departure);
-        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(0, 1, 0)));
-        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(62, 0, 0)));
+        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, "missing corpus", new WorldTransition(0, 127, 0)));
+        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure with { WorldEntryMemory = null }, "missing corpus", new WorldTransition(62, 0, 0)));
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure with { SavedWorld = null }, "missing corpus", new WorldTransition(0, 0, 0)));
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure with { WorldControls = null }, "missing corpus", new WorldTransition(0, 0, 0)));
+        Assert.Equal(before, JsonSerializer.Serialize(departure));
+    }
+
+    [Fact]
+    public void MissingFootReloadReceiptRefusesBeforePublishing()
+    {
+        GameState departure = ComponentDeparture();
+        Assert.Null(departure.SavedWorld!.FootReturn);
+        string before = JsonSerializer.Serialize(departure);
+        Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(departure, GameDirectory(), new WorldTransition(62, 0, 0)));
         Assert.Equal(before, JsonSerializer.Serialize(departure));
     }
 
@@ -51,7 +61,7 @@ public sealed class WorldEntryPreflightTests
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(departure));
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { WorldArrival = new WorldTransition(0, 0, 1) }));
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { World = entry.InitialState with { Frame = 1 } }));
-        Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 18 }) }));
+        Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { WorldEntryMemory = candidate.WorldEntryMemory!.WriteBytes(256, 2, 18) }));
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(candidate with { SavedWorld = candidate.SavedWorld! with { Slot4 = candidate.SavedWorld!.Slot4 with { ShapeId = 1 } } }));
         var unchangedSession = new GameSession(departure);
         string before = JsonSerializer.Serialize(unchangedSession.State);
@@ -82,14 +92,14 @@ public sealed class WorldEntryPreflightTests
         string directory = GameDirectory();
         using PreparedWorldEntry entry = WorldEntryPreflight.Prepare(departure, directory, new WorldTransition(0, 0, 0));
         GameState candidate = Candidate(departure, entry);
-        GameState changedCandidate = candidate with { EventMemory = candidate.EventMemory.Write(256, 2, NativeScalarValue.Exact(18)) };
+        GameState changedCandidate = candidate with { WorldEntryMemory = candidate.WorldEntryMemory!.WriteBytes(256, 2, 18) };
         Assert.Throws<InvalidOperationException>(() => entry.ValidateAdoption(changedCandidate));
-        GameState originalCandidate = candidate with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 17 }) };
+        GameState originalCandidate = changedCandidate with { WorldEntryMemory = changedCandidate.WorldEntryMemory!.WriteBytes(256, 2, 17) };
         entry.ValidateAdoption(originalCandidate);
         using WorldMapScene scene = entry.Adopt(new GameSession(originalCandidate));
         Assert.Equal(320 * 224 * 4, scene.Render(320, 224).Length);
 
-        GameState unsupportedContact = ComponentDeparture() with { EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 34 }) };
+        GameState unsupportedContact = departure with { WorldEntryMemory = departure.WorldEntryMemory!.WriteBytes(256, 2, 34) };
         string before = JsonSerializer.Serialize(unsupportedContact);
         Assert.Throws<NotSupportedException>(() => WorldEntryPreflight.Prepare(unsupportedContact, directory, new WorldTransition(0, 0, 0)));
         Assert.Equal(before, JsonSerializer.Serialize(unsupportedContact));
@@ -97,13 +107,23 @@ public sealed class WorldEntryPreflightTests
 
     private static GameState ComponentDeparture()
     {
-        // Isolated lifecycle fixture; it does not force a live field gateway or establish a visited world.
-        return new GameState { Scene = SceneKind.Field, SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), EventMemory = NativeEventMemory.FromDWords(new Dictionary<int, int> { [256] = 17 }) };
+        // Isolated backend lifecycle fixture derived from a genuine standalone field save; no gateway or world visit is executed here.
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            string source = Path.Combine(directory.FullName, "../fixtures/external-fixture.json");
+            if (File.Exists(source))
+            {
+                return GameSession.Load(source);
+            }
+            directory = directory.Parent;
+        }
+        throw new FileNotFoundException("The standalone field source for world-entry lifecycle fixtures is absent.");
     }
 
     private static GameState Candidate(GameState departure, PreparedWorldEntry entry)
     {
-        return departure with { Scene = SceneKind.WorldMap, WorldArrival = entry.Transition, World = entry.InitialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = departure.WorldControls!.WithWorldEntryMenuFlag() };
+        return departure with { Scene = SceneKind.WorldMap, WorldArrival = entry.Transition, World = entry.InitialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = departure.WorldControls!.WithWorldEntryMenuFlag(), SavedWorld = entry.InitialSavedWorld, EventMemory = entry.InitialEventMemory };
     }
 
     private static string GameDirectory()
