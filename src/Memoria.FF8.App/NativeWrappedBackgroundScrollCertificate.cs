@@ -101,7 +101,7 @@ internal static class NativeWrappedBackgroundScrollCertificate
 
     private static bool HasNormalRuntime(FieldAssets field, SceneEventState scene)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && BackgroundScrollCertificate.HasSupportedSettings(field, scene) && (scene.CameraIndex == 0 || scene.ActorBackgroundScroll is null && !scene.BackgroundScrollPositions.ContainsKey(0) && !scene.BackgroundScrollPositions.ContainsKey(1)) && FieldNativeNormalBackgroundWrap.SupportsLayerCurrentMetadata(field, scene.CameraIndex);
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } proof && proof.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativeActorLayoutVersion == 1 && BackgroundScrollCertificate.HasSupportedSettings(field, scene) && (scene.CameraIndex == 0 || (scene.ActorBackgroundScroll is null or { Mode: 0 }) && !scene.BackgroundScrollPositions.ContainsKey(0) && !scene.BackgroundScrollPositions.ContainsKey(1)) && FieldNativeNormalBackgroundWrap.SupportsLayerCurrentMetadata(field, scene.CameraIndex);
     }
 
     private static bool ValidPositions(FieldAssets field, SceneEventState scene, int? changedLayer = null, BackgroundScrollSettings? changedSettings = null)

@@ -49,9 +49,15 @@ internal static class NativeNonselectedBackgroundScrollCertificate
 
     internal static bool SupportsRetainedPosition(FieldAssets field, SceneEventState scene, int layer, BackgroundScrollPosition position)
     {
-        if (layer is < 1 or > 7 || field.Information is not { BackgroundWrapMask: 0 } || !field.Background.Any(tile => tile.Layer == layer) || !ValidPosition(position))
+        if (layer is < 1 or > 7 || field.Information is not { BackgroundWrapMask: 0 } || !ValidPosition(position))
         {
             return false;
+        }
+        if (!field.Background.Any(tile => tile.Layer == layer))
+        {
+            //475E60 retains every physical row even when no background tile
+            //consumes it after a different camera becomes selected.
+            return true;
         }
         if (position.Mode == 3 && position.Status == 0)
         {

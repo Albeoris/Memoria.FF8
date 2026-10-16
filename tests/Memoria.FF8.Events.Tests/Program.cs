@@ -110,6 +110,7 @@ internal static partial class Program
                     ["movie-timer"] = NativeMovieTimerClockContract,
                     ["car-commands"] = () => NativeCarCommandsContract(selectedGameDirectory),
                     ["actor-scroll"] = NativeActorScrollContract,
+                    ["actor-scroll-camera-one"] = NativeActorScrollCameraOneContract,
                     ["actor-cosine-scroll"] = NativeActorCosineScrollContract,
                     ["actor-linear-scroll"] = NativeActorLinearScrollContract,
                     ["scroll-current-lifetime"] = () => NativeScrollCurrentLifetimeContract(selectedGameDirectory),
@@ -270,6 +271,7 @@ internal static partial class Program
             NativeMovieTimerClockContract();
             NativeCarCommandsContract(gameDirectory);
             NativeActorScrollContract();
+            NativeActorScrollCameraOneContract();
             NativeSetPlacementContract();
             NativeRcMoveContract();
             NativePositiveCosineTurnContract();

@@ -88,9 +88,13 @@ public sealed partial class EventEngine
         {
             return "Native CSCROLL2 needs its four original operands, one of eight layers and a supported signed-word duration";
         }
-        if (!CanReplaceActorBackgroundScroll(top[3]) || KnownNativeLinearScrollStart(top[3]) is null)
+        if (!CanReplaceActorBackgroundScroll(top[3]))
         {
-            return "Native CSCROLL2 cannot replace unknown actor-scroll center history";
+            return $"Native CSCROLL2 layer{top[3]} cannot replace unknown row0 actor-scroll current history";
+        }
+        if (KnownNativeLinearScrollStart(top[3]) is null)
+        {
+            return $"Native CSCROLL2 layer{top[3]} has no current producer for selected camera{Scene.CameraIndex}; normal receipt camera{Scene.NormalBackgroundScrollCenter?.CameraIndex}, frame{Scene.NormalBackgroundScrollCenter?.Frame}";
         }
         return CanSetCosineBackgroundScroll?.Invoke(top[3], (short)top[2], (short)top[1], (short)top[0]) == true ? null : "Native CSCROLL2 needs certified original scroll state and renderer before mutation";
     }
@@ -99,6 +103,8 @@ public sealed partial class EventEngine
     {
         int[] args = Pop(fiber, 4);
         BackgroundScrollPosition previous = TakeBackgroundScrollPosition(args[0]);
+        //521090 writes only this full-DWORD row's targetWORDs, durationWORD,
+        //mode5/status0.475DF0 owns the later previous/counter publication.
         Scene.BackgroundScrollPositions[args[0]] = previous with { TargetX = (short)args[1], TargetY = (short)args[2], Duration = (short)args[3], Mode = 5, Status = 0, NativeLinearVersion = 0 };
         return args;
     }

@@ -23,9 +23,9 @@ public sealed partial class EventEngine
             // 475DF0 overwrites the previous words/counter before the new mode consumes them.
             return new BackgroundScrollPosition(actor.X, actor.Y, 0, 0, actor.PreviousX, actor.PreviousY, actor.Counter, 0, actor.Status, actor.Duration, actor.NativeActorId);
         }
-        if (layer == 0 && !Scene.BackgroundScrollPositions.ContainsKey(0) && Scene.NormalBackgroundScrollCenter is NativeNormalBackgroundScrollCenter normal && normal.Version == 1 && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame <= Frame)
+        if (layer == Scene.CameraIndex && !Scene.BackgroundScrollPositions.ContainsKey(layer) && Scene.NormalBackgroundScrollCenter is NativeNormalBackgroundScrollCenter normal && normal.Version == 1 && normal.FieldId == FieldId && normal.CameraIndex == layer && normal.Frame <= Frame)
         {
-            return new BackgroundScrollPosition(normal.X, normal.Y, normal.X, normal.Y, normal.X, normal.Y, 0, 0, 1);
+            return new BackgroundScrollPosition(normal.X, normal.Y, 0, 0, null, null, null, 0, 1);
         }
         if (Scene.BackgroundScrollPositions.TryGetValue(layer, out BackgroundScrollPosition? current))
         {
@@ -34,7 +34,7 @@ public sealed partial class EventEngine
         if (KnownNativeLinearScrollStart(layer) is { } known)
         {
             // 475E60 has actually established this selected/nonselected mode0 center.
-            return new BackgroundScrollPosition(known.X, known.Y, known.X, known.Y, known.X, known.Y, 0, 0, 1);
+            return new BackgroundScrollPosition(known.X, known.Y, 0, 0, null, null, null, 0, 1);
         }
         return new BackgroundScrollPosition(null, null, 0, 0, null, null, null, 0, 1);
     }
@@ -85,7 +85,7 @@ public sealed partial class EventEngine
             }
             Scene.BackgroundScrollPositions.Remove(0);
         }
-        else if (Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex)
+        else if (Scene.CameraIndex == 0 && Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == 0)
         {
             x = normal.X;
             y = normal.Y;

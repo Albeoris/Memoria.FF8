@@ -12,7 +12,7 @@ public sealed partial class EventEngine
         {
             return (currentX, currentY);
         }
-        if (Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == Scene.CameraIndex && normal.Frame > 0 && normal.Frame <= Frame)
+        if (Scene.CameraIndex == 0 && Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.FieldId == FieldId && normal.CameraIndex == 0 && normal.Frame > 0 && normal.Frame <= Frame)
         {
             return (normal.X, normal.Y);
         }

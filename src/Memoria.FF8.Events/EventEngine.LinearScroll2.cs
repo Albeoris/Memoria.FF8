@@ -14,15 +14,19 @@ public sealed partial class EventEngine
         {
             return previous.X is short x && previous.Y is short y && ValidBackgroundScrollPosition(layer, previous, Scene) ? (x, y) : null;
         }
+        if (layer == Scene.CameraIndex)
+        {
+            return Scene.NormalBackgroundScrollCenter is { Version: 1 } selected && selected.FieldId == FieldId && selected.CameraIndex == layer && selected.Frame > 0 && selected.Frame <= Frame ? (selected.X, selected.Y) : null;
+        }
         //52B4F0 initializes mode0;475E60 visits all eight rows and zeros
         //each nonselected mode0 current independently of the selected mode.
         //A normal-center receipt or an executed actor-scroll phase proves
         //that callback; a newly issued status0 actor command proves nothing.
-        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.CameraIndex != 0)
+        if (Scene.NativeFieldInitialization is not { Stage: NativeFieldInitializationStage.Completed } || Scene.NativeFieldLoadVersion != 1 || Scene.CameraIndex is < 0 or > 1)
         {
             return null;
         }
-        bool normalCallback = Scene.NormalBackgroundScrollCenter is { Version: 1, CameraIndex: 0 } normal && normal.FieldId == FieldId && normal.Frame > 0 && normal.Frame <= Frame;
+        bool normalCallback = Scene.NormalBackgroundScrollCenter is { Version: 1 } normal && normal.CameraIndex == Scene.CameraIndex && normal.FieldId == FieldId && normal.Frame > 0 && normal.Frame <= Frame;
         bool actorCallback = Scene.ActorBackgroundScroll is { Version: 1, Status: 1 or 2 } actor && NativeActorScrollPhase.IsValid(actor);
         return normalCallback || actorCallback ? ((short)0, (short)0) : null;
     }

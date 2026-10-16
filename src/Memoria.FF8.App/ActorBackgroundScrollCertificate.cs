@@ -11,6 +11,10 @@ internal static class ActorBackgroundScrollCertificate
         {
             return false;
         }
+        if (scene.CameraIndex == 1 && (state.Mode != 0 || state.Status == 1 && (state.X != 0 || state.Y != 0)))
+        {
+            return false;
+        }
         if (state.Mode is 1 or 2 && state.Status == 2)
         {
             return HasBaseline(field, scene);
@@ -21,7 +25,7 @@ internal static class ActorBackgroundScrollCertificate
 
     public static bool CanSetInterpolated(FieldAssets field, SceneEventState scene, IReadOnlyList<ActorState> actors, byte nativeActor, short duration)
     {
-        if (duration < 0 || Resolve(field, scene, actors, nativeActor) is null)
+        if (scene.CameraIndex != 0 || duration < 0 || Resolve(field, scene, actors, nativeActor) is null)
         {
             return false;
         }
@@ -51,6 +55,12 @@ internal static class ActorBackgroundScrollCertificate
         {
             return null;
         }
+        if (scene.CameraIndex == 1)
+        {
+            //520D50 owns only row0.475E60 mode0 selects the actor from row1,
+            //then explicitly zeros nonselected row0's current WORD8/10.
+            return (0, 0);
+        }
         FieldNativeCameraResult projected = NormalCameraCertificate.ProjectActorCenter(field, scene, actor);
         if (!projected.Supported || projected.Center is not FieldNativeCameraCenter center || center.X is < -4095 or > 4096 || center.Y is < -4095 or > 4096 || !DirectBackgroundScrollCertificate.SupportsCenter(field, scene, (short)center.X, (short)center.Y))
         {
@@ -63,6 +73,11 @@ internal static class ActorBackgroundScrollCertificate
     {
         if (scene.ActorBackgroundScroll is not NativeActorBackgroundScroll state)
         {
+            return null;
+        }
+        if (scene.CameraIndex == 1 && HasBaseline(field, scene) && state.Mode == 0 && NativeActorScrollPhase.IsValid(state) && (state.Status == 0 || state.X == 0 && state.Y == 0))
+        {
+            //The selected row1 camera remains the independent renderer owner.
             return null;
         }
         if (!HasBaseline(field, scene) || !NativeActorScrollPhase.IsValid(state) || state.X is not short x || state.Y is not short y)
@@ -79,6 +94,6 @@ internal static class ActorBackgroundScrollCertificate
 
     private static bool HasBaseline(FieldAssets field, SceneEventState scene)
     {
-        return DirectBackgroundScrollCertificate.HasBaseline(field, scene) && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? DirectBackgroundScrollCertificate.IsCompleted(pair.Value) : field.Information!.BackgroundWrapMask == 0 ? NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value) : NativeWrappedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
+        return DirectBackgroundScrollCertificate.HasSelectedBaseline(field, scene) && scene.NativeActorLayoutVersion == 1 && scene.BackgroundScrollPositions.All(pair => pair.Key == 0 ? DirectBackgroundScrollCertificate.IsCompleted(pair.Value) : pair.Key == scene.CameraIndex ? DirectBackgroundScrollCertificate.ValidPosition(pair.Value) : field.Information!.BackgroundWrapMask == 0 ? NativeNonselectedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value) : NativeWrappedBackgroundScrollCertificate.SupportsRetainedPosition(field, scene, pair.Key, pair.Value));
     }
 }
