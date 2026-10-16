@@ -182,7 +182,7 @@ public sealed partial class GameSession : IEventServices
             World = null,
             DepartingWorldState = finalWorldState,
             DebugView = null,
-            SavedWorld = PrepareGardenParkingForFootReturn(departure.SavedWorld, finalWorldState).WithFootReturn(receipt),
+            SavedWorld = PrepareOrdinaryWorldFieldEntry(PrepareGardenParkingForFootReturn(departure.SavedWorld, finalWorldState).WithFootReturn(receipt)),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorldState, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorldState),

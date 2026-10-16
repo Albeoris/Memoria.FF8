@@ -1,10 +1,133 @@
 using System.Buffers.Binary;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class WorldFieldEntryReaderTests
 {
+    [Theory]
+    [InlineData(800, 48, true)]
+    [InlineData(849, 48, true)]
+    public void Installed_world_event_selects_Garden_battle_from_original_clause(ushort story, int entity, bool selected)
+    {
+        using WorldAssets assets = new(GameDirectory());
+        WorldFieldSelection? result = assets.WorldEvents.SelectWorldEvent(new(-23410, 63204, story, entity), shape => shape == 79, NativeSavedWorldState.CreateNewGame().WorldEventFlags116!);
+        if (!selected)
+        {
+            Assert.Null(result);
+            return;
+        }
+        Assert.NotNull(result);
+        Assert.Equal((7, 1016, 1040), (result.ClauseIndex, result.ClauseOffset, result.InstructionOffset));
+        Assert.Equal(new WorldFieldEntry(64, 46, 1674, 71, 253, 128), result.Entry);
+        Assert.Contains(result.Predicates, item => item.Opcode == 0xFF17 && item.Operand == 79 && item.Passed == true);
+    }
+
+    [Fact]
+    public void Installed_world_event_precedes_terrain_packet_and_refuses_unimplemented_later_contracts()
+    {
+        using WorldAssets assets = new(GameDirectory());
+        WorldFieldSelectionInput input = new(12560, -26800, 800, 48);
+        Assert.Equal(253, assets.SelectWorldCallback(input, 8, shape => shape == 79, NativeWorldEventFlags.CreateNewGame())!.Entry.FieldId);
+        Assert.Throws<NotSupportedException>(() => assets.WorldEvents.SelectWorldEvent(input, _ => false, NativeWorldEventFlags.CreateNewGame()));
+        //Earlier flag61 invokes its original message script; it must not silently skip to the battle.
+        Assert.Throws<NotSupportedException>(() => assets.WorldEvents.SelectWorldEvent(input, _ => true, new(1UL << 61, ulong.MaxValue)));
+    }
+
+    [Fact]
+    public void Installed_Garden_callback_outside_battle_radius_reads_only_proven_flags_on_nonentrance_ground()
+    {
+        using WorldAssets assets = new(GameDirectory());
+        NativeWorldEventFlags flags = new(4, 0xF000000000000084);
+        WorldFieldSelectionInput input = new(-24233, 66878, 800, 48);
+        Assert.Null(assets.WorldEvents.SelectWorldEvent(input, _ => false, flags, (opcode, operand) => opcode switch
+        {
+            0xFF1B when operand == 92 => false,
+            0xFF25 => operand == 0,
+            0xFF32 => operand != 1,
+            0xFF29 => false,
+            0xFF2D when (operand & 255) == 1 => operand >> 8 == 0,
+            0xFF31 when (operand & 255) == 1 => false,
+            _ => throw new NotSupportedException($"Unexpected installed ordinary callback predicate{opcode:X4}/{operand}.")
+        }));
+    }
+
+    [Fact]
+    public void Partial_world_flag_authority_refuses_only_when_the_reached_bit_is_unknown()
+    {
+        NativeWorldEventFlags partial = new(4, 0xF000000000000004);
+        Assert.True(partial.Matches(258));
+        Assert.False(partial.Matches(317));
+        Assert.Throws<NotSupportedException>(() => partial.Matches(263));
+        Assert.Throws<InvalidDataException>(() => new NativeWorldEventFlags(4, 0).Matches(258));
+    }
+
+    [Fact]
+    public void Pure_later_predicates_reject_unknown_flag_alternatives_without_hiding_unknown_selected_commands()
+    {
+        byte[] rejected = Program([(0xFF01, 0), (0xFF27, 5), (0xFF03, 482), (0xFF04, 0), (0xFF08, 0), (0xFF16, 0)], [(0xFF01, 0), (0xFF04, 0), (0xFF08, 0), (0xFF16, 0)]);
+        WorldFieldEntryReader events = WorldFieldEntryReader.Read(rejected, Packet()).ReadWorldEvents(rejected);
+        WorldFieldSelectionInput input = new(0, 0, 800, 48);
+        WorldFieldSelection selected = Assert.IsType<WorldFieldSelection>(events.SelectWorldEvent(input, _ => false, new(0, 0)));
+        Assert.Equal(1, selected.ClauseIndex);
+        Assert.Contains(selected.Predicates, item => item.Opcode == 0xFF27 && item.Passed is null);
+        byte[] dependent = Program([(0xFF01, 0), (0xFF27, 5), (0xFF02, 800), (0xFF04, 0), (0xFF08, 0), (0xFF16, 0)]);
+        Assert.Throws<NotSupportedException>(() => WorldFieldEntryReader.Read(dependent, Packet()).ReadWorldEvents(dependent).SelectWorldEvent(input, _ => false, new(0, 0)));
+        byte[] random = Program([(0xFF01, 0), (0xFF27, 5), (0xFF2F, 2800), (0xFF03, 482), (0xFF04, 0), (0xFF08, 0), (0xFF16, 0)]);
+        bool evaluatedRandom = false;
+        Assert.Throws<NotSupportedException>(() => WorldFieldEntryReader.Read(random, Packet()).ReadWorldEvents(random).SelectWorldEvent(input, _ => false, new(0, 0), (_, _) =>
+        {
+            evaluatedRandom = true;
+            return false;
+        }));
+        Assert.False(evaluatedRandom);
+    }
+
+    [Theory]
+    [InlineData(799, 48, false)]
+    [InlineData(800, 48, true)]
+    [InlineData(849, 48, true)]
+    [InlineData(850, 48, false)]
+    [InlineData(800, 0, false)]
+    public void Event_predicates_keep_native_entity_and_story_boundaries(ushort story, int entity, bool selected)
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF09, 48), (0xFF02, 800), (0xFF03, 850), (0xFF17, 79), (0xFF04, 0), (0xFF08, 0), (0xFF16, 0)]);
+        WorldFieldEntryReader events = WorldFieldEntryReader.Read(program, Packet()).ReadWorldEvents(program);
+        Assert.Equal(selected, events.SelectWorldEvent(new(0, 0, story, entity), _ => true, NativeWorldEventFlags.CreateNewGame()) is not null);
+        Assert.Null(events.SelectWorldEvent(new(0, 0, story, entity), _ => false, NativeWorldEventFlags.CreateNewGame()));
+    }
+
+    [Fact]
+    public void World_event_continues_after_clause_terminator_and_returns_first_packet_immediately()
+    {
+        byte[] table = Packet().Concat(Packet(1, 2, 3, 4, 5)).ToArray();
+        byte[] program = Program([(0xFF01, 0), (0xFF04, 0), (0xFF16, 0)], [(0xFF01, 0), (0xFF04, 0), (0xFF08, 1), (0xFF20, 0)]);
+        WorldFieldEntryReader terrain = WorldFieldEntryReader.Read(program, table);
+        WorldFieldSelectionInput input = new(0, 0, 800, 48);
+        Assert.Null(terrain.Select(input, 8));
+        WorldFieldSelection result = Assert.IsType<WorldFieldSelection>(terrain.ReadWorldEvents(program).SelectWorldEvent(input, _ => false, NativeWorldEventFlags.CreateNewGame()));
+        Assert.Equal(1, result.ClauseIndex);
+        Assert.Equal(1, result.Entry.Index);
+    }
+
+    [Theory]
+    [InlineData(3000, true)]
+    [InlineData(3001, false)]
+    [InlineData(65536 + 3000, true)]
+    public void Allocated_shape_predicate_uses_eligible_ordered_records_and_inclusive_narrowed_horizontal_distance(int distance, bool expected)
+    {
+        NativeGardenWorldObject[] objects =
+        [
+            new(79, 0, new(0, 0, 0), 0, 0, 0),
+            new(79, 0, new(0, 0, 0), 0, 0, 0),
+            new(79, 0, new(distance, short.MaxValue, 0), 0, 0, 0)
+        ];
+        WorldFieldSelectionInput input = new(0, 0, 800, 48);
+        Assert.Equal(expected, WorldAllocatedShapeProximity.Evaluate(input, 79, objects, index => index != 1));
+        Assert.False(WorldAllocatedShapeProximity.Evaluate(input, 79, objects[..2], index => index != 1));
+    }
+
     [Theory]
     [InlineData(16400, -30000, 17, 0, 12, 0, 159, "bggate_1")]
     [InlineData(24576, -29406, 17, 0, 13, 0, 159, "bggate_1")]

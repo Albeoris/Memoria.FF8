@@ -5,6 +5,7 @@ using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Tim;
 using Memoria.FF8.Resources;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -51,6 +52,7 @@ public sealed partial class WorldAssets : IDisposable
     private PixelImage? water;
     private readonly Dictionary<byte, FieldModel> footModels = [];
     private WorldFieldEntryReader? fieldEntries;
+    private WorldFieldEntryReader? worldEvents;
 
     public WorldAssets(string gameDirectory, ResourceService? resources = null)
     {
@@ -75,7 +77,14 @@ public sealed partial class WorldAssets : IDisposable
     public int LoadedTextureCount => textures.Count;
     public FieldModel Squall => GetFootModel(0);
     public WorldFieldEntryReader FieldEntries => fieldEntries ??= ReadFieldEntries();
+    public WorldFieldEntryReader WorldEvents => worldEvents ??= FieldEntries.ReadWorldEvents(wmset.AsSpan(sections[36], sections[37] - sections[36]));
     public string AllocationProgramSha256 => Convert.ToHexString(SHA256.HashData(wmset));
+
+    public WorldFieldSelection? SelectWorldCallback(WorldFieldSelectionInput input, byte terrainTextureFlags, Func<ushort, bool> nearAllocatedShape, NativeWorldEventFlags savedWorldFlags116, Func<ushort, ushort, bool?>? evaluateRuntimePredicate = null)
+    {
+        //53FAC0 returns immediately after a54D7E0 packet, before consulting545EA0.
+        return WorldEvents.SelectWorldEvent(input, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate) ?? FieldEntries.Select(input, terrainTextureFlags);
+    }
 
     public FieldModel GetFootModel(byte entityType)
     {

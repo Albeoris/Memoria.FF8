@@ -2,6 +2,12 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    private static NativeSavedWorldState PrepareOrdinaryWorldFieldEntry(NativeSavedWorldState saved)
+    {
+        //544630 clears saved-world BYTE125 after549E80, preserving the116/120 flag bank.
+        return saved with { WorldEventVariable125 = 0 };
+    }
+
     private static NativeSavedWorldState PrepareGardenParkingForFootReturn(NativeSavedWorldState saved, WorldState finalWorld)
     {
         return finalWorld.NativeGardenRuntime is NativeGardenWorldRuntimeState garden ? saved.WithGardenParking(garden) : saved;
@@ -43,7 +49,7 @@ public sealed partial class GameSession
             World = null,
             DepartingWorldState = finalWorld,
             DebugView = null,
-            SavedWorld = departure.SavedWorld.WithGardenReturn(receipt),
+            SavedWorld = PrepareOrdinaryWorldFieldEntry(departure.SavedWorld.WithGardenReturn(receipt)),
             WorldControls = departure.WorldControls.WithNormalFieldLoad(),
             WorldConfiguration = NativeWorldConfiguration.FromWorldReturn(finalWorld, departure.FieldId),
             ExamTimer = AdvanceWorldTimer(departure, finalWorld),

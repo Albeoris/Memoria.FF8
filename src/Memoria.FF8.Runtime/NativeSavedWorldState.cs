@@ -145,6 +145,12 @@ public sealed record NativeSavedWorldState
     /// <summary>Saved-world DWORD112, cleared by native New Game and preserved by field CLEAR.</summary>
     [JsonRequired]
     public uint? FuelDistance112 { get; init; }
+    /// <summary>Saved-world DWORD116/120, cleared by native New Game and consumed by546100/FF27.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldEventFlags? WorldEventFlags116 { get; init; }
+    /// <summary>Saved-world BYTE125, the original section36 workflow channel1; absent older values remain unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte? WorldEventVariable125 { get; init; }
 
     public byte ReadMapDisplayModeForFreshFootLoader()
     {
@@ -252,6 +258,7 @@ public sealed record NativeSavedWorldState
         CarReturn?.Validate();
         ScriptedReturn?.Validate();
         GardenReturn?.Validate();
+        WorldEventFlags116?.Validate();
         if (GardenPose3 is not null && (GardenPose3.X is < -131072 or >= 131072 || GardenPose3.RawZ is < -98304 or >= 98304 || GardenPose3.Yaw >= 4096) || GardenReturn is not null && (GardenPose3 != GardenReturn.Pose3 || FootReturn is not null || CarReturn is not null || ScriptedReturn is not null))
         {
             throw new InvalidDataException("Native Garden parking/return differs from its distinct pose3 or current return owner.");
@@ -281,7 +288,9 @@ public sealed record NativeSavedWorldState
             Slot5 = new NativeSavedWorldVehicleSlot(0, new NativeSavedWorldPose(0, 0, 0, 0)),
             GardenPose3 = new NativeSavedWorldPose(0, 0, 0, 0),
             InitialMapDisplayMode110 = 0,
-            FuelDistance112 = 0
+            FuelDistance112 = 0,
+            WorldEventFlags116 = NativeWorldEventFlags.CreateNewGame(),
+            WorldEventVariable125 = 0
         };
     }
 }

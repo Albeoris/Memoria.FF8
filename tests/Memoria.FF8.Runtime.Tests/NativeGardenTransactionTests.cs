@@ -9,6 +9,7 @@ public sealed class NativeGardenTransactionTests
     {
         GameSession session = Session(GardenWorld());
         GameState before = session.State;
+        Assert.Equal((byte)3, before.SavedWorld!.WorldEventVariable125);
         WorldState final = before.World! with { Frame = 1 };
         NativeSavedWorldGardenReturn receipt = NativeSavedWorldGardenReturn.Create(final, 257, 750, 3);
         NativeWorldSalaryState batch = NativeWorldSalaryState.Begin(before).ConsumeGardenScriptRequest().Advance(null, null, null, 0, 2);
@@ -20,10 +21,13 @@ public sealed class NativeGardenTransactionTests
         {
             Assert.Same(before, session.State);
             Assert.Equal(receipt, candidate.SavedWorld!.GardenReturn);
+            Assert.Equal((byte)0, candidate.SavedWorld.WorldEventVariable125);
+            Assert.Equal(before.SavedWorld.WorldEventFlags116, candidate.SavedWorld.WorldEventFlags116);
             Assert.Equal((byte)9, candidate.WorldEntryMemory!.ReplacementFlags264);
             throw new InvalidOperationException("Declared destination refusal.");
         }));
         Assert.Same(before, session.State);
+        Assert.Equal((byte)3, session.State.SavedWorld!.WorldEventVariable125);
         session.CommitPreparedGardenFieldEntry(before, final, transition, receipt, batch, Accept);
         Assert.Equal(SceneKind.Field, session.State.Scene);
         Assert.Equal(receipt.Pose3, session.State.SavedWorld!.GardenPose3);
@@ -31,12 +35,14 @@ public sealed class NativeGardenTransactionTests
         Assert.Equal((byte)9, session.State.WorldEntryMemory!.ReplacementFlags264);
         Assert.Equal(before.SavedWorld!.Slot4, session.State.SavedWorld.Slot4);
         Assert.Equal(before.SavedWorld.Slot5, session.State.SavedWorld.Slot5);
+        Assert.Equal((byte)0, session.State.SavedWorld.WorldEventVariable125);
         string path = Path.Combine(Path.GetTempPath(), "ff8-garden-atomic-return-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
             session.Save(path);
             GameState restored = GameSession.Load(path);
             Assert.Equal(receipt, restored.SavedWorld!.GardenReturn);
+            Assert.Equal((byte)0, restored.SavedWorld.WorldEventVariable125);
             Assert.Equal((byte)9, restored.WorldEntryMemory!.ReplacementFlags264);
             Assert.Equal(final.NativeGardenRuntime!.Objects, restored.DepartingWorldState!.NativeGardenRuntime!.Objects);
         }
@@ -87,6 +93,7 @@ public sealed class NativeGardenTransactionTests
         Assert.Equal(new NativeSavedWorldPose(21180, -4600, 0, 0), session.State.SavedWorld.FootReturn!.Pose0);
         Assert.Null(session.State.SavedWorld.GardenReturn);
         Assert.Equal((byte)0, session.State.WorldConfiguration!.EntityByte);
+        Assert.Equal((byte)0, session.State.SavedWorld.WorldEventVariable125);
     }
 
     private static GameSession Session(WorldState world, NativeWorldProcess? process = null)
@@ -98,7 +105,7 @@ public sealed class NativeGardenTransactionTests
             FieldId = 257,
             WorldArrival = new(12, 48, -1),
             World = world,
-            SavedWorld = NativeSavedWorldState.CreateNewGame(),
+            SavedWorld = NativeSavedWorldState.CreateNewGame() with { WorldEventVariable125 = 3 },
             WorldControls = NativeWorldControlState.CreateNewGame(),
             WorldProcess = process ?? NativeWorldProcess.FromColdProcess(),
             WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame().WriteBytes(256, 2, 750).WriteBytes(264, 1, 0x49),
