@@ -1,13 +1,32 @@
 using Memoria.FF8.Ui;
+using Memoria.FF8.Assets;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Memoria.FF8.GameUi;
 
-/// <summary>Draws shared retained controls using a single generated white pixel and the system text rasterizer.</summary>
-internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text) : IUiCanvas, IDisposable
+/// <summary>Draws retained controls, system text and the original menu pointer.</summary>
+internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch, Texture2D pixel, SystemTextRenderer text, string gameDirectory) : IUiCanvas, IDisposable
 {
     private readonly Stack<Rectangle> clips = new();
+    private Texture2D? menuPointer;
+
+    public void MenuPointer(UiRect bounds)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        if (menuPointer is null)
+        {
+            var image = NativeMenuPointer.Read(gameDirectory).Image;
+            menuPointer = new Texture2D(device, image.Width, image.Height);
+            menuPointer.SetData(image.Pixels.Select(color => Color.FromNonPremultiplied(color.R, color.G, color.B, color.A)).ToArray());
+        }
+        float scale = Math.Min(bounds.Width / menuPointer.Width, bounds.Height / menuPointer.Height);
+        Vector2 position = new(bounds.X + (bounds.Width - menuPointer.Width * scale) / 2, bounds.Y + (bounds.Height - menuPointer.Height * scale) / 2);
+        SystemTextRenderer.DrawClipped(batch, menuPointer, position, Color.White, CurrentClip, scale);
+    }
 
     public void Fill(UiRect bounds, UiColor color)
     {
@@ -25,11 +44,26 @@ internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch,
 
     public void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily)
     {
+        Text(value, size, bounds, color, fontFamily, UiAlignment.Start);
+    }
+
+    public void Text(string value, float size, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
+    {
+        Text(value, size, bounds, color, null, verticalAlignment);
+    }
+
+    private void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily, UiAlignment verticalAlignment)
+    {
         if (bounds.Width <= 0 || bounds.Height <= 0 || size <= 0 || string.IsNullOrEmpty(value))
         {
             return;
         }
         Vector2 position = new(bounds.X, bounds.Y);
+        if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
+        {
+            float height = text.MeasureWrapped(value, size, bounds.Width, fontFamily).Y;
+            position.Y += (bounds.Height - height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
+        }
         text.DrawWrappedClipped(batch, value, size, position, bounds.Width, ColorFor(color), Rectangle.Intersect(RectangleFor(bounds), CurrentClip), fontFamily);
     }
 
@@ -117,5 +151,6 @@ internal sealed class MonoGameUiCanvas(GraphicsDevice device, SpriteBatch batch,
 
     public void Dispose()
     {
+        menuPointer?.Dispose();
     }
 }

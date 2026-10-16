@@ -13,6 +13,7 @@ internal static class MenuPreview
     {
         string screen = "debug-room";
         string? output = null;
+        string gameDirectory = LaunchOptions.DefaultGameDirectory;
         int width = 960;
         int height = 672;
         bool expanded = false;
@@ -24,13 +25,16 @@ internal static class MenuPreview
                 expanded = true;
                 continue;
             }
-            if (argument is not ("--screen" or "--output" or "--resolution") || ++index == args.Length)
+            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete menu preview argument '{argument}'.");
             }
             string value = args[index];
             switch (argument)
             {
+                case "--game-dir":
+                    gameDirectory = Path.GetFullPath(value);
+                    break;
                 case "--screen":
                     screen = value;
                     break;
@@ -86,7 +90,7 @@ internal static class MenuPreview
             view = menus.BuildView();
         }
         using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
-        using (BattlePreviewCanvas canvas = new(bitmap))
+        using (BattlePreviewCanvas canvas = new(bitmap, gameDirectory))
         {
             view.Resize(width, height);
             view.Draw(canvas, new UiTheme());

@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Ui;
 
-/// <summary>Original procedural grayscale styling; requires no game assets.</summary>
+/// <summary>Grayscale panels with the original game's menu pointer supplied by the canvas.</summary>
 public sealed class UiTheme
 {
     public UiColor Foreground { get; init; } = new(244, 244, 244);
@@ -55,11 +55,6 @@ public sealed class UiTheme
 
     public void Pointer(IUiCanvas canvas, float x, float y, float size = 10)
     {
-        float tipX = x + size;
-        canvas.Line(x + 1, y + 1, tipX + 1, y + size / 2 + 1, BorderDark, 2);
-        canvas.Line(tipX + 1, y + size / 2 + 1, x + 1, y + size + 1, BorderDark, 2);
-        canvas.Line(x, y, tipX, y + size / 2, Foreground, 2);
-        canvas.Line(tipX, y + size / 2, x, y + size, Foreground, 2);
-        canvas.Line(x, y + size, x, y, Foreground, 2);
+        canvas.MenuPointer(new UiRect(x, y, size * 1.5f, size));
     }
 }

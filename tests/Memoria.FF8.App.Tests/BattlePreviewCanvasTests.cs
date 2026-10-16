@@ -8,6 +8,34 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattlePreviewCanvasTests
 {
+    [Theory]
+    [InlineData(14, 240)]
+    [InlineData(24, 240)]
+    [InlineData(18, 90)]
+    public void Centered_text_keeps_actual_glyphs_in_the_middle_of_the_row(float size, int width)
+    {
+        using Bitmap bitmap = new(300, 120, PixelFormat.Format32bppArgb);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            canvas.Text("Refresh packages", size, new UiRect(10, 10, width, 100), new UiColor(255, 255, 255), UiAlignment.Center);
+        }
+        int top = bitmap.Height;
+        int bottom = -1;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                if (bitmap.GetPixel(x, y).R > 200)
+                {
+                    top = Math.Min(top, y);
+                    bottom = Math.Max(bottom, y);
+                }
+            }
+        }
+        Assert.True(bottom >= top);
+        Assert.InRange((top + bottom + 1) / 2f, 59, 61);
+    }
+
     [Fact]
     public void Rgba_conversion_preserves_channel_order_and_transparency()
     {

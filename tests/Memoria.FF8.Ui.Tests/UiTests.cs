@@ -5,6 +5,24 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiTests
 {
     [Fact]
+    public void Selected_rows_forward_centered_text_and_the_native_pointer_through_view_scaling()
+    {
+        UiList list = new() { Items = ["Refresh"], RowHeight = 40, FontSize = 16 };
+        UiView view = new(list) { DesignWidth = 100, DesignHeight = 100 };
+        view.Resize(200, 200);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+
+        var text = Assert.Single(canvas.AlignedTexts);
+        Assert.Equal(UiAlignment.Center, text.Alignment);
+        Assert.Equal(new UiRect(46, 0, 146, 80), text.Bounds);
+        UiRect pointer = Assert.Single(canvas.Pointers);
+        Assert.Equal(new UiRect(10, 30, 30, 20), pointer);
+        Assert.Equal(text.Bounds.Y + text.Bounds.Height / 2, pointer.Y + pointer.Height / 2);
+        Assert.Equal(0, canvas.Lines);
+    }
+
+    [Fact]
     public void RectangleUsesHalfOpenHitBoundariesAndEmptyIntersections()
     {
         UiRect bounds = new(10, 20, 30, 40);
@@ -373,6 +391,8 @@ public sealed class UiTests
         public List<UiRect> Clips { get; } = new();
         public List<(UiRect Bounds, UiColor Color)> Fills { get; } = new();
         public List<string> Texts { get; } = new();
+        public List<(UiRect Bounds, UiAlignment Alignment)> AlignedTexts { get; } = new();
+        public List<UiRect> Pointers { get; } = new();
 
         public void Fill(UiRect bounds, UiColor color)
         {
@@ -382,6 +402,17 @@ public sealed class UiTests
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
             Texts.Add(text);
+        }
+
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
+        {
+            AlignedTexts.Add((bounds, verticalAlignment));
+            Text(text, fontSize, bounds, color);
+        }
+
+        public void MenuPointer(UiRect bounds)
+        {
+            Pointers.Add(bounds);
         }
 
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)

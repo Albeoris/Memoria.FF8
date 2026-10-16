@@ -20,8 +20,8 @@ public sealed class UiToggle : UiElement
         }
 
         UiColor color = Enabled ? theme.Foreground : theme.Muted;
-        canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 22, Bounds.Y + 4, Math.Max(0, Bounds.Width - 94), Bounds.Height), color);
-        canvas.Text(Value ? "On" : "Off", theme.FontSize, new UiRect(Bounds.Right - 65, Bounds.Y + 4, 60, Bounds.Height), color);
+        canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 22, Bounds.Y, Math.Max(0, Bounds.Width - 94), Bounds.Height), color, UiAlignment.Center);
+        canvas.Text(Value ? "On" : "Off", theme.FontSize, new UiRect(Bounds.Right - 65, Bounds.Y, 60, Bounds.Height), color, UiAlignment.Center);
     }
 
     public override bool Key(UiKey key)

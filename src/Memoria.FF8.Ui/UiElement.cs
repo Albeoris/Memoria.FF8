@@ -185,7 +185,7 @@ public sealed class UiButton : UiElement
             theme.Pointer(canvas, Bounds.X + 7, Bounds.Y + (Bounds.Height - 10) / 2);
         }
 
-        canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y + 8, Math.Max(0, Bounds.Width - 32), Math.Max(0, Bounds.Height - 16)), Enabled ? theme.Foreground : theme.Muted);
+        canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
     }
 
     public override bool Key(UiKey key)

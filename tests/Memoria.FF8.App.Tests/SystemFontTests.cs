@@ -179,6 +179,15 @@ public sealed class SystemFontTests
         {
         }
 
+        public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
+        {
+            Text(text, fontSize, bounds, color);
+        }
+
+        public void MenuPointer(UiRect bounds)
+        {
+        }
+
         public void Line(float x1, float y1, float x2, float y2, UiColor color, float thickness)
         {
         }

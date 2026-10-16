@@ -25,7 +25,7 @@ internal sealed partial class RecreateGame
 
     private void InitializeGameUi()
     {
-        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text);
+        uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory);
         uiPreferences = UiPreferences.Load(UiPreferencesPath);
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);

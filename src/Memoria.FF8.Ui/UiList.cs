@@ -88,7 +88,7 @@ public sealed class UiList : UiElement
                 }
             }
 
-            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(row.X + 23, row.Y + 3, Math.Max(0, row.Width - 27), row.Height), Enabled ? theme.Foreground : theme.Muted);
+            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(row.X + 23, row.Y, Math.Max(0, row.Width - 27), row.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
         }
 
         if (Items.Count > VisibleRows && Bounds.Width > 3)

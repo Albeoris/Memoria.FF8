@@ -3,6 +3,8 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using Memoria.FF8.Ui;
+using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.GameUi;
 
@@ -11,9 +13,12 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
 {
     private readonly Graphics graphics;
     private readonly Stack<GraphicsState> clips = [];
+    private readonly string gameDirectory;
+    private Bitmap? menuPointer;
 
-    public BattlePreviewCanvas(Bitmap bitmap)
+    public BattlePreviewCanvas(Bitmap bitmap, string gameDirectory = LaunchOptions.DefaultGameDirectory)
     {
+        this.gameDirectory = gameDirectory;
         graphics = Graphics.FromImage(bitmap);
         graphics.CompositingMode = CompositingMode.SourceOver;
         graphics.CompositingQuality = CompositingQuality.HighQuality;
@@ -21,6 +26,22 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
         graphics.SmoothingMode = SmoothingMode.None;
         graphics.Clear(Color.Black);
+    }
+
+    public void MenuPointer(UiRect bounds)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+        if (menuPointer is null)
+        {
+            var image = NativeMenuPointer.Read(gameDirectory).Image;
+            menuPointer = BitmapFromRgba(image.Pixels.SelectMany(color => new[] { color.R, color.G, color.B, color.A }).ToArray(), image.Width, image.Height);
+        }
+        float scale = Math.Min(bounds.Width / menuPointer.Width, bounds.Height / menuPointer.Height);
+        UiRect destination = new(bounds.X + (bounds.Width - menuPointer.Width * scale) / 2, bounds.Y + (bounds.Height - menuPointer.Height * scale) / 2, menuPointer.Width * scale, menuPointer.Height * scale);
+        graphics.DrawImage(menuPointer, RectFor(destination));
     }
 
     public void Fill(UiRect bounds, UiColor color)
@@ -35,16 +56,27 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
 
     public void Text(string text, float fontSize, UiRect bounds, UiColor color)
     {
+        Text(text, fontSize, bounds, color, UiAlignment.Start);
+    }
+
+    public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
+    {
         if (bounds.IsEmpty || fontSize <= 0 || string.IsNullOrEmpty(text))
         {
             return;
         }
         using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, bounds.Width);
+        float y = bounds.Y;
+        if (verticalAlignment is UiAlignment.Center or UiAlignment.End)
+        {
+            float height = glyphs.Height / (float)SystemTextLayout.RasterScale;
+            y += (bounds.Height - height) * (verticalAlignment == UiAlignment.Center ? 0.5f : 1);
+        }
         PushClip(bounds);
         try
         {
-            DrawTinted(glyphs, bounds.X + 1, bounds.Y + 2, new UiColor(0, 0, 0, (byte)(color.A * 0.75f)));
-            DrawTinted(glyphs, bounds.X, bounds.Y, color);
+            DrawTinted(glyphs, bounds.X + 1, y + 2, new UiColor(0, 0, 0, (byte)(color.A * 0.75f)));
+            DrawTinted(glyphs, bounds.X, y, color);
         }
         finally
         {
@@ -155,6 +187,7 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
 
     public void Dispose()
     {
+        menuPointer?.Dispose();
         graphics.Dispose();
     }
 }
