@@ -26,6 +26,8 @@ internal static class HeadlessControlHost
             session.State.Scene, session.State.FieldId, session.State.FieldName, session.State.FieldArrival,
             session.State.MovieIndex, session.State.MovieSeconds, session.State.MoviePlayback, World = session.State.World,
             Trigger = world.NextTrigger, Dialogue = world.CurrentDialogue,
+            PartyMenu = world.Events.PartyMenu, PartyMenuCandidates = world.Events.PartyMenuCandidates,
+            FieldBars = session.State.FieldBars,
             IsUserControlEnabled = session.State.Scene == SceneKind.WorldMap || world.Events.IsUserControlEnabled,
             FieldFaulted = faulted || world.Events.LastFault is not null, FieldRenderFaulted = false,
             world.Events.LastFault, world.Events.Scene.CameraIndex, world.Events.Scene.LockedTriangles,

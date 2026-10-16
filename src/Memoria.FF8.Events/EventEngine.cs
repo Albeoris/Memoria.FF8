@@ -384,6 +384,7 @@ public sealed partial class EventEngine
         }
         StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);
+        StepNativeBars(movieUi);
         NativeSalaryPresentation? salaryUi = services.SalaryPresentation?.Advance(movieUi ? 4 : 2);
         NativeVibrationProcessState? vibrationUi = services.VibrationProcess?.Advance(movieUi ? 4 : 2);
         //4767B0 calls47B980 once after physical/model drawing; movie callbacks skip it.

@@ -960,6 +960,10 @@ internal sealed partial class RecreateGame : Game
                 DrawDialogueUi(bounds, viewport, dialogue, gameTime.TotalGameTime.TotalSeconds);
             }
         }
+        if (ActiveBattle is null && session.State.Scene is SceneKind.Field or SceneKind.Movie && session.State.FieldBars is { } bars)
+        {
+            DrawFieldBars(bounds, bars);
+        }
         if (ActiveBattle is null && session.State.Scene == SceneKind.Field && session.State.ExamTimer is { DisplayEnabled: true } timer)
         {
             DrawTimerUi(bounds, timer);

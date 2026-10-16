@@ -63,7 +63,7 @@ public sealed partial class GameSession : IEventServices
         NativeVibrationProcessState vibration = State.VibrationProcess ?? throw new NotSupportedException("New Game requires the current native vibration process.");
         NativeFieldFadeState fieldFade = State.FieldFade ?? throw new NotSupportedException("New Game requires its current native physical/saved fade process.");
         NativeMenuRandomState menuRandom = State.MenuRandom ?? throw new NotSupportedException("New Game requires the existing native menu random process.");
-        Change(new GameState { NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
+        Change(new GameState { NativeBattleMemory = State.NativeBattleMemory, Playtime = State.Playtime?.ClearSavedStateForNewGame(), CrtRandom = State.CrtRandom, BattleVariables = NativeBattleVariableState.CreateNewGame(), DiscProcess = NativeDiscProcessState.CreateNewGame(), MenuRandom = menuRandom, FieldFade = fieldFade.ClearSavedForNewGame(), VibrationProcess = vibration, EventRandom = random.ClearSavedStateForNewGame(), FieldButtonInput = State.FieldButtonInput, WorldProcess = State.WorldProcess, WorldEntryMemory = NativeWorldEntryMemory.CreateNewGame(), FieldBars = NativeFieldBarsState.CreateHidden(), FieldShake = State.FieldShake, MessageVariables = State.MessageVariables, GlobalSoundProcess = State.GlobalSoundProcess, SalaryPresentation = State.SalaryPresentation, Scene = SceneKind.Field, FieldId = 74, FieldName = "start0", SavedWorld = NativeSavedWorldState.CreateNewGame(), WorldControls = NativeWorldControlState.CreateNewGame(), CardInventory = NativeCardInventory.CreateNewGame(), SeeD = NativeSeeDState.CreateNewGame(State.SeeD), ExamTimer = reset });
     }
 
     public void Restore(GameState state)
@@ -462,6 +462,7 @@ public sealed partial class GameSession : IEventServices
         ValidateEconomyCheckpoint(state, currentVm);
         ValidatePresentationProcessCheckpoint(state, currentVm);
         ValidateFieldShakeCheckpoint(state, currentVm);
+        ValidateFieldBarsCheckpoint(state, currentVm);
         ValidateEventRandomCheckpoint(state, currentVm);
         ValidateVibrationCheckpoint(state, currentVm);
         ValidateFieldFadeCheckpoint(state, currentVm);
@@ -596,6 +597,7 @@ public sealed partial class GameSession : IEventServices
         ValidateMovieSourceCheckpoint(state, null);
         state.SalaryPresentation?.Validate();
         state.FieldShake?.Validate();
+        state.FieldBars?.Validate();
         state.EventRandom?.Validate();
         state.VibrationProcess?.Validate();
         state.FieldFade?.Validate();

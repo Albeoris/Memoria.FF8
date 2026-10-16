@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -14,6 +14,8 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    [JsonRequired]
+    public NativeFieldBarsState? FieldBars { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRetainedMemory? NativeBattleMemory { get; init; }
     public NativeKnownMagic? KnownMagic { get; init; }
@@ -283,6 +285,10 @@ public interface IEventServices
         throw new NotSupportedException("Native exam timer state is not implemented by this event service.");
     }
     NativeWorldControlState? WorldControls => null;
+    NativeFieldBarsState? FieldBars => null;
+    bool CanStoreFieldBars => false;
+    void SetFieldBars(NativeFieldBarsState state) => throw new NotSupportedException("This service cannot retain native global field bars.");
+
     NativeWorldEntryMemory? WorldEntryMemory => null;
     bool CanStoreWorldEntryMemory => false;
     void SetWorldEntryMemory(NativeWorldEntryMemory memory)
