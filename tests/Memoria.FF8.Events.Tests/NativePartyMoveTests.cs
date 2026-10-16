@@ -48,12 +48,12 @@ internal static partial class Program
         JsonElement held = issued.GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1);
         if (asynchronous)
         {
-            Require(first.Asynchronous && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([123456]) && !held.TryGetProperty("NativeMoveOperation", out _) && !held.TryGetProperty("NativeMoveTarget", out _) && held.GetProperty("Position").GetInt32() == first.Operation + 1 && !issued.GetProperty("Variables").TryGetProperty("5008", out _), "RPMOVEA did not consume both operands, advance PC and yield without a blocking target receipt.");
+            Require(first.Asynchronous && held.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual([123456]) && !held.TryGetProperty("NativeMoveOperation", out _) && !held.TryGetProperty("NativeMoveTarget", out _) && held.GetProperty("Position").GetInt32() == first.Operation + 1 && !CapturedVariables(issued).TryGetProperty("5008", out _), "RPMOVEA did not consume both operands, advance PC and yield without a blocking target receipt.");
             EventEngine restoredAsync = Create();
             restoredAsync.Restore(issued);
             live.Step();
             restoredAsync.Step();
-            JsonElement successor = live.Capture().GetProperty("Variables");
+            JsonElement successor = CapturedVariables(live.Capture());
             Require(successor.GetProperty("5000").GetInt32() == 123456 && successor.GetProperty("5004").GetInt32() == 901 && successor.GetProperty("5008").GetInt32() == 73 && live.Actors[0].NativeScriptMovement is { Active: true } && live.Actors[2].NativeScriptMovement!.FixedX != first.TargetX, "RPMOVEA failed its return3 next-callback continuation or waited for the physical move to finish.");
             for (int callback = 0; callback < 24; callback++)
             {
@@ -74,7 +74,7 @@ internal static partial class Program
         EventEngine independent = Create();
         independent.Restore(issued);
         bool retargeted = false;
-        for (int callback = 0; callback < 24 && !live.Capture().GetProperty("Variables").TryGetProperty("5008", out _); callback++)
+        for (int callback = 0; callback < 24 && !CapturedVariables(live.Capture()).TryGetProperty("5008", out _); callback++)
         {
             int previousTargetX = live.Actors[2].NativeScriptMovement!.FixedX;
             bool polling = live.Actors[0].NativeMovementCompletion542 != 2;
@@ -89,7 +89,7 @@ internal static partial class Program
             Require(JsonElement.DeepEquals(live.Capture(), independent.Capture()), "PMOVEA diverged after an independent held-slot/raw-target restore.");
             independent.Restore(live.Capture());
         }
-        JsonElement variables = live.Capture().GetProperty("Variables");
+        JsonElement variables = CapturedVariables(live.Capture());
         Require(retargeted && variables.GetProperty("5000").GetInt32() == 123456 && variables.GetProperty("5004").GetInt32() == 901 && variables.GetProperty("5008").GetInt32() == 73 && live.Actors[0].NativeScriptMovement is { Active: false, AnimationFlag40000: false } && live.Actors[0].NativeMotionAuthority?.FacingHold == 0, "PMOVEA failed its retargeted completion, held-slot consumption, unchanged R0/stack or native return2 successor.");
 
         EventEngine rejected = Create(256);

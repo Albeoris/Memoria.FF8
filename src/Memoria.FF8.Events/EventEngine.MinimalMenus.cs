@@ -32,9 +32,9 @@ public sealed partial class EventEngine
         {
             return "Native menu request requires its exact original DWORD operand";
         }
-        if (operation.Opcode == Jsm.Opcode.MENUNAME && fiber.Stack.Peek() is not (0 or 1 or 2) && !TryNativeGuardianForceName(fiber.Stack.Peek(), out _, out _))
+        if (operation.Opcode == Jsm.Opcode.MENUNAME && fiber.Stack.Peek() is not (0 or 1 or 2 or 20) && !TryNativeGuardianForceName(fiber.Stack.Peek(), out _, out _))
         {
-            return "MENUNAME argument requires its original character0..2 or Guardian Force3..18 naming request; other menu subsystems remain unsupported";
+            return "MENUNAME argument requires its original character0..2, Guardian Force3..18 or Griever20 naming request; other menu subsystems remain unsupported";
         }
         if (operation.Opcode == Jsm.Opcode.MENUNAME && TryNativeGuardianForceName(fiber.Stack.Peek(), out _, out int id))
         {

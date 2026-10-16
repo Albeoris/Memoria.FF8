@@ -534,7 +534,7 @@ public sealed partial class EventEngine
             bool directionPoint = (uint)motion.Operation < program.Operations.Count && program.Operations[motion.Operation].Opcode == Jsm.Opcode.DIRP;
             bool partyTarget = IsNativePartyMove(motion.Operation);
             bool asyncPartyTarget = IsNativeAsyncPartyMove(motion.Operation);
-            string movementOpcode = asyncPartyTarget ? "RPMOVEA" : partyTarget ? "PMOVEA" : directionPoint ? "DIRP" : motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : "MOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
+            string movementOpcode = asyncPartyTarget ? "RPMOVEA" : partyTarget ? "PMOVEA" : directionPoint ? "DIRP" : motion.Accelerated ? "MACCEL" : motion.HoldsFacing ? motion.Asynchronous ? "RCMOVE" : "CMOVE" : motion.TargetNativeObjectId is not null ? motion.Asynchronous ? "RMOVEA" : motion.AutomaticAnimation ? "MOVEA" : "FMOVEA" : motion.Asynchronous ? motion.AutomaticAnimation ? "RMOVE" : "RFMOVE" : motion.AutomaticAnimation ? "MOVE" : "FMOVE";
             if (asyncPartyTarget && (!motion.Asynchronous || !motion.AutomaticAnimation || motion.HoldsFacing || motion.Accelerated || motion.TargetNativeObjectId is null))
             {
                 throw new InvalidDataException("Saved RPMOVEA lost its one-time raw party target or asynchronous native mode1 policy.");
@@ -547,7 +547,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved held-facing CMOVE/RCMOVE lost its animation policy.");
             }
-            if (motion.ResetAnimationOnCompletion is not null && (motion.ResetAnimationOnCompletion != true || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null))
+            if (motion.ResetAnimationOnCompletion is not null && (motion.ResetAnimationOnCompletion != true || motion.AutomaticAnimation || motion.TargetNativeObjectId is not null && !IsNativeForcedActorMove(motion.Operation)))
             {
                 throw new InvalidDataException("Saved forced-animation movement has invalid inherited native animation flags.");
             }
@@ -555,7 +555,7 @@ public sealed partial class EventEngine
             {
                 throw new InvalidDataException("Saved cancelled native movement has invalid mode0 or original asynchronous ownership.");
             }
-            if (motion.TargetNativeObjectId is int targetId && ((uint)targetId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[targetId]) || !motion.AutomaticAnimation || motion.Active && !motion.Asynchronous && !partyTarget && (!validOwner || owner!.Stack.Count == 0 || owner.Stack.Peek() != targetId)))
+            if (motion.TargetNativeObjectId is int targetId && ((uint)targetId >= program.NativeObjects.Count || !saved.Scene.NativeActorObjectIds.Contains(program.NativeObjects[targetId]) || !motion.AutomaticAnimation && !IsNativeForcedActorMove(motion.Operation) || motion.Active && !motion.Asynchronous && !partyTarget && (!validOwner || owner!.Stack.Count == 0 || owner.Stack.Peek() != targetId)))
             {
                 throw new InvalidDataException("Saved native MOVEA has invalid original target identity or remaining operand.");
             }

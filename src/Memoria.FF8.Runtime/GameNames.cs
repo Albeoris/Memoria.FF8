@@ -6,6 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// <summary>Stable subjects shared by native naming and explicit research naming inputs.</summary>
 public static class GameNames
 {
+    public const int GrieverSubject = 43;
     private static readonly string[] CharacterDefaults = ["Squall", "Zell", "Irvine", "Quistis", "Rinoa", "Selphie", "Seifer", "Edea", "Laguna", "Kiros", "Ward"];
     private static readonly string[] GuardianForceDefaults = ["Quezacotl", "Shiva", "Ifrit", "Siren", "Brothers", "Diablos", "Carbuncle", "Leviathan", "Pandemona", "Cerberus", "Alexander", "Doomtrain", "Bahamut", "Cactuar", "Tonberry", "Eden"];
 
@@ -19,13 +20,14 @@ public static class GameNames
 
     public static int GuardianForceSubject(int identity) => (uint)identity < 16 ? 16 + identity : throw new ArgumentOutOfRangeException(nameof(identity));
 
-    public static bool IsValidSubject(int subject) => subject is 0 or 1 or 2 or >= 16 and <= 31 or >= 33 and <= 42 && subject != 36;
+    public static bool IsValidSubject(int subject) => subject is 0 or 1 or 2 or GrieverSubject or >= 16 and <= 31 or >= 33 and <= 42 && subject != 36;
 
     public static string DefaultName(int subject) => subject switch
     {
         0 => CharacterDefaults[0],
         1 => CharacterDefaults[4],
         2 => "Angelo",
+        GrieverSubject => "Griever",
         >= 16 and <= 31 => GuardianForceDefaults[subject - 16],
         >= 33 and <= 42 when subject != 36 => CharacterDefaults[subject - 32],
         _ => throw new ArgumentOutOfRangeException(nameof(subject))

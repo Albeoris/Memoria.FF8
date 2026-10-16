@@ -562,6 +562,7 @@ public sealed partial class EventEngine
                 CancelNativeScriptMovement(cancelledActor);
                 break;
             case Jsm.Opcode.MOVEA:
+            case Jsm.Opcode.FMOVEA:
             case Jsm.Opcode.RMOVEA:
             case Jsm.Opcode.PMOVEA:
             case Jsm.Opcode.RPMOVEA:
@@ -847,9 +848,14 @@ public sealed partial class EventEngine
                     args = Pop(fiber, 1);
                     break;
                 }
-                string defaultName = NativeCharacterName(nativeNameArgument);
+                string defaultName = nativeNameArgument == 20 ? GameNames.DefaultName(GameNames.GrieverSubject) : NativeCharacterName(NativeNamingSubject(nativeNameArgument));
                 args = Pop(fiber, 1);
-                nameEntity = args[0];
+                nameEntity = NativeNamingSubject(args[0]);
+                if (nameEntity == GameNames.GrieverSubject)
+                {
+                    // Native menu28 selects20 without80;4E696A initializes its actual saved buffer from the naming-table default.
+                    Scene.Names[nameEntity] = defaultName;
+                }
                 ShowDialogue(fiber, new DialogueState(0, -1, $"Name: {defaultName}", 0, 0, IsNamePrompt: true), true);
                 break;
             case Jsm.Opcode.MESVAR:

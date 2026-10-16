@@ -1,7 +1,16 @@
+using Memoria.FF8.Runtime;
+
 namespace Memoria.FF8.Events;
 
 public sealed partial class EventEngine
 {
+    private static int NativeNamingSubject(int argument) => argument switch
+    {
+        0 or 1 or 2 => argument,
+        20 => GameNames.GrieverSubject,
+        _ => throw new NotSupportedException("Native naming argument has no supported persistent name subject.")
+    };
+
     private string NativeCharacterName(int entity)
     {
         string original = entity switch
@@ -9,7 +18,8 @@ public sealed partial class EventEngine
             0 => "Squall",
             1 => "Rinoa",
             2 => "Angelo",
-            _ => throw new NotSupportedException("Native character naming only supports its original0/1/2 subjects.")
+            GameNames.GrieverSubject => GameNames.DefaultName(GameNames.GrieverSubject),
+            _ => throw new NotSupportedException("Native name prompt has no supported persistent subject.")
         };
         return Scene.Names.GetValueOrDefault(entity, original);
     }

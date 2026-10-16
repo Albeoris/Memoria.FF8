@@ -119,6 +119,7 @@ internal static partial class DialogueTextFormatter
         {
             >= TextTagCharacter.Squall and <= TextTagCharacter.Ward => GameNames.CharacterSubject((int)character - (int)TextTagCharacter.Squall),
             TextTagCharacter.Angelo1 or TextTagCharacter.Angelo2 => 2,
+            TextTagCharacter.UnknownCharacter3 => GameNames.GrieverSubject,
             _ => -1
         };
         if (identity >= 0 && names?.TryGetValue(identity, out string? customName) == true)
@@ -128,7 +129,8 @@ internal static partial class DialogueTextFormatter
         return character switch
         {
             TextTagCharacter.Angelo1 or TextTagCharacter.Angelo2 => "Angelo",
-            TextTagCharacter.UnknownCharacter2 or TextTagCharacter.UnknownCharacter3 or TextTagCharacter.UnknownCharacter4 => throw new NotSupportedException($"Dialogue character {character} has no resolved name."),
+            TextTagCharacter.UnknownCharacter3 => GameNames.DefaultName(GameNames.GrieverSubject),
+            TextTagCharacter.UnknownCharacter2 or TextTagCharacter.UnknownCharacter4 => throw new NotSupportedException($"Dialogue character {character} has no resolved name."),
             _ => character.ToString()
         };
     }

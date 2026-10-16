@@ -203,8 +203,9 @@ public sealed partial class EventEngine
                         accepted = CurrentDialogue?.IsNamePrompt == true;
                         if (accepted)
                         {
+                            string enteredName = GameNames.Normalize(string.IsNullOrWhiteSpace(action.Text) ? NativeCharacterName(nameEntity) : action.Text);
                             QueueConfirmEdge();
-                            ConfirmDialogue(name: action.Text);
+                            ConfirmDialogue(name: enteredName);
                         }
                         break;
                     case PlayerActionKind.Interact:

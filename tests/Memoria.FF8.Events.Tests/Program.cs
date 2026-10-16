@@ -21,6 +21,7 @@ internal static partial class Program
                     ["native-key"] = () => NativeKeyControlContract(selectedGameDirectory),
                     ["native-async-party-turn"] = () => NativeAsyncPartyTurnContract(selectedGameDirectory),
                     ["native-party-turn-replacement"] = () => NativePartyTurnReplacementContract(selectedGameDirectory),
+                    ["native-fmovea"] = () => NativeForcedActorMoveContract(selectedGameDirectory),
                     ["native-self-request"] = () => NativeSelfRequestContract(selectedGameDirectory),
                     ["message-variable"] = NativeMessageVariableContract,
                     ["native-event-random"] = () => NativeEventRandomContract(selectedGameDirectory),
