@@ -54,21 +54,15 @@ public sealed partial class BattleSession
             }
             if (context.CoverMask != 0)
             {
-                throw new NotSupportedException("Native50A9A0 cover casting requires the original cover source/recipient position exchange and sequence27 service.");
+                graphics = graphics with { Models = NativeBattleCastingCover.Enter(graphics.Models, context) };
+                graphics = SelectNativeHeaderSequence(graphics, NativeBattleCastingCover.Recipient(context.TargetMask), 27);
+                return (graphics, 5, false);
             }
             //50A9A0 advances to phase5, then falls directly into its non-cover entry call.
             phase = 5;
         }
         if (phase == 5)
         {
-            if (context.CoverMask != 0)
-            {
-                throw new NotSupportedException("Native50A9A0 resumed cover casting requires its original position exchange owner.");
-            }
-            if (header.ReadByte(1) == 0xFE)
-            {
-                throw new NotSupportedException("Native50A9A0 commandFE requires its original56DCE0 post-entry service.");
-            }
             NativeBattleGraphicsModel actor = graphics.Models[context.ActorIndex];
             graphics = graphics with { Models = graphics.Models.SetItem(context.ActorIndex, actor with { ResourceFlags44 = (ushort)(NativeCastingResourceFlags(graphics, context.ActorIndex) & ~0x20) }) };
             if ((graphics.Flags & 0x20000000) != 0)
@@ -85,6 +79,10 @@ public sealed partial class BattleSession
                 graphics = graphics with { Flags = graphics.Flags | 0x20 };
             }
             graphics = InvokeNativeOriginalEffect(graphics);
+            if (header.ReadByte(1) == 0xFE)
+            {
+                graphics = RegisterNativeGuardianBoost(graphics, NativeBattleActionGraphics.Word(header, 4));
+            }
             return (graphics with { ActionGraphics = context with { CastingWatchdog8E = 0 } }, 6, false);
         }
         if (phase == 6)
@@ -114,7 +112,7 @@ public sealed partial class BattleSession
             }
             if (context.CoverMask != 0)
             {
-                throw new NotSupportedException("Native50A9A0 cover completion requires the original source/recipient position restoration.");
+                graphics = graphics with { Models = NativeBattleCastingCover.Complete(graphics.Models, context) };
             }
             return (graphics, 7, false);
         }

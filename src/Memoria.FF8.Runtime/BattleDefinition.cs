@@ -149,6 +149,7 @@ public sealed record BattleDefinition
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
     public ImmutableArray<NativeBattleDefensiveResource> NativeDefensiveResources { get; init; } = [];
+    public ImmutableArray<NativeBattleStaticMeshResource> NativeEffectMeshes { get; init; } = [];
     public ImmutableArray<NativeBattleEffectBinding> NativeEffectCatalog { get; init; } = [];
     public NativeBattleEffectInitializerAsset? NativeCommonEffectTexture { get; init; }
     public NativeBattleActionCameraRules? NativeActionCameraRules { get; init; }

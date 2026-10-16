@@ -56,6 +56,20 @@ public sealed partial class BattleSession
             }
             return graphics with { OriginalEffect = NativeBattleFireEffect.InitializePools(effect, nativeActionPackets) };
         }
+        if (effect.Binding.Entry == 0x700C10)
+        {
+            if ((effect.Parameters.Flags79 & 1) == 0)
+            {
+                NativeBattleEffect3Resources resources = effect.Binding.Effect3Resources ?? throw new NotSupportedException("Native effect3 requires its original embedded TIM and camera resource.");
+                NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new InvalidDataException("Native effect3 lost its571870 arena owner.");
+                NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native effect3 requires the retained505E30 upload slots and VRAM.");
+                textures = textures.Register5099A0(resources.Animation);
+                (textures, _) = textures.EnqueueTim505E30(resources.Texture);
+                NativeEffectMemory = memory with { Textures = textures };
+                NativeCamera = (NativeCamera ?? throw new NotSupportedException("Native effect3 requires its camera owner.")) with { ControlResource = textures.Animation, ControlCursor = 0 };
+            }
+            return graphics with { OriginalEffect = NativeBattleEffect3.InitializePools(effect) };
+        }
         throw new NotSupportedException($"Native effect{effect.Binding.Effect} entry{effect.Binding.Entry:X} requires its original module callback and graphics-resource contract.");
     }
 

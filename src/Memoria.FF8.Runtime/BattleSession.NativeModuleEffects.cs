@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private NativeBattleGraphicsState AdvanceNativeModuleEffects(NativeBattleGraphicsState graphics)
     {
-        NativeBattleModuleStep step = graphics.ModuleEffects.Advance(new(graphics.Flags) { Resources = definition.NativeModuleResources, CrtRandom = nativeCrtRandom, ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index), ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), ReadModelRotation14 = index => graphics.Models[index].Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14.") });
+        NativeBattleModuleStep step = graphics.ModuleEffects.Advance(new(graphics.Flags) { Resources = definition.NativeModuleResources, CrtRandom = nativeCrtRandom, ReadModelAnchor = index => ReadNativeModelAnchor(graphics, index), ReadModelBone = (index, bone, fraction) => ReadNativeGraphicsBone(graphics, index, bone, fraction), ReadModelRotation14 = index => graphics.Models[index].Rotation14 ?? throw new NotSupportedException("Native module effect requires the loaded model rotationWORD14."), ReadModelTransform = index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native module effect requires its model WORD36/38 transform owner.") });
         nativeCrtRandom = step.CrtRandomAfter;
         foreach (NativeBattleModuleDraw draw in step.Draws)
         {
@@ -17,7 +17,14 @@ public sealed partial class BattleSession
         return graphics with { ModuleEffects = step.State, ModuleDraws = step.Draws };
     }
 
-    private void PublishNativeModuleSound(uint sound, ushort flags, NativeBattleModuleAnchor anchor, string? actorId = null)
+    private static NativeBattleGraphicsState ScheduleNativeModelEffect(NativeBattleGraphicsState graphics, int index, byte operand)
+    {
+        (byte effect, uint flags) = NativeBattleModuleState.SelectModelEffect(operand, graphics.Flags);
+        NativeBattleModuleState modules = graphics.ModuleEffects.AppendModelEffect(index, effect);
+        return graphics with { ModuleEffects = modules, Flags = flags };
+    }
+
+    private void PublishNativeModuleSound(uint sound, uint flags, NativeBattleModuleAnchor anchor, string? actorId = null)
     {
         //501160 clears the3D-mode switch;5017A0 then uses5011B0's current camera projection before46B2A0.
         NativeBattleCameraProjection projection = NativeCamera?.Projection ?? throw new NotSupportedException("Native5017A0 sound requires its actual5011B0 camera projection.");

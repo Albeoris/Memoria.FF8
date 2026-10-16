@@ -11,7 +11,17 @@ public enum NativeBattleModuleKind
     Placement570CC0,
     Defensive5705A0,
     DefensiveDraw570650,
-    Sprite570BC0
+    Sprite570BC0,
+    CastingSeed574C80,
+    CastingRing5753A0,
+    CastingGround575250,
+    CastingParticle574F50,
+    CastingTrail5751A0,
+    GuardianCastingSeed5742A0,
+    GuardianCastingRing574AE0,
+    GuardianCastingGround574990,
+    GuardianCastingParticle574670,
+    GuardianCastingTrail574580
 }
 
 public enum NativeBattleModuleDrawKind
@@ -19,7 +29,8 @@ public enum NativeBattleModuleDrawKind
     Flash,
     Defensive,
     Sprite,
-    Sound
+    Sound,
+    Mesh
 }
 
 public sealed partial record NativeBattleModuleDraw(NativeBattleModuleDrawKind Kind, byte Intensity);
@@ -109,6 +120,16 @@ public sealed partial record NativeBattleModuleState([property: JsonRequired] Im
                 NativeBattleModuleKind.Defensive5705A0 => state.AdvanceDefensive(index, inputs),
                 NativeBattleModuleKind.DefensiveDraw570650 => state.AdvanceDefensiveDraw(index, inputs),
                 NativeBattleModuleKind.Sprite570BC0 => state.AdvanceSprite(index, inputs),
+                NativeBattleModuleKind.CastingSeed574C80 => state.AdvanceCastingSeed(index, inputs),
+                NativeBattleModuleKind.CastingRing5753A0 => state.AdvanceCastingRing(index, inputs),
+                NativeBattleModuleKind.CastingGround575250 => state.AdvanceCastingGround(index, inputs),
+                NativeBattleModuleKind.CastingParticle574F50 => state.AdvanceCastingParticle(index, inputs),
+                NativeBattleModuleKind.CastingTrail5751A0 => state.AdvanceCastingTrail(index, inputs),
+                NativeBattleModuleKind.GuardianCastingSeed5742A0 => state.AdvanceGuardianCastingSeed(index, inputs),
+                NativeBattleModuleKind.GuardianCastingRing574AE0 => state.AdvanceGuardianCastingRing(index, inputs),
+                NativeBattleModuleKind.GuardianCastingGround574990 => state.AdvanceCastingGround(index, inputs),
+                NativeBattleModuleKind.GuardianCastingParticle574670 => state.AdvanceGuardianCastingParticle(index, inputs),
+                NativeBattleModuleKind.GuardianCastingTrail574580 => state.AdvanceGuardianCastingTrail(index, inputs),
                 _ => throw new NotSupportedException("Native effect-module task requires its original callback owner.")
             };
             state = callback.State;

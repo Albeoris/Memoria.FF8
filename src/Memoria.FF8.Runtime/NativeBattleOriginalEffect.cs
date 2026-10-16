@@ -20,10 +20,11 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     [JsonRequired]
     public uint? FireDrawBuffer { get; init; }
     public ImmutableArray<int>? FireModelCompletion { get; init; }
+    public int? DrawArenaOffset { get; init; }
 
     public void Validate()
     {
-        if (SelectedIndex is < 0 or >= 400 || Binding is null || Binding.Effect is < 1 or > 400 || Binding.Entry == 0 || Pools.IsDefault || Pools.Any(pool => pool is null) || ResourcePointers.IsDefault || ResourcePointers.Any(pointer => pointer is null || pointer.ArenaOffset is < 0 or > NativeBattleEffectArena.Length) || Parameters is { } parameters && (parameters.Actor78 >= 7 || parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity) || ReturnedDescriptor is > 0 && !Pools.Any(pool => pool.DescriptorAddress == ReturnedDescriptor))
+        if (SelectedIndex is < 0 or >= 400 || Binding is null || Binding.Effect is < 1 or > 400 || Binding.Entry == 0 || Pools.IsDefault || Pools.Any(pool => pool is null) || ResourcePointers.IsDefault || ResourcePointers.Any(pointer => pointer is null || pointer.ArenaOffset is < 0 or > NativeBattleEffectArena.Length) || DrawArenaOffset is < 0 or >= NativeBattleEffectArena.Length || Parameters is { } parameters && (parameters.Actor78 >= 7 || parameters.HeaderIndex7C is < 0 or >= NativeBattleActionPacketsState.HeaderCapacity) || ReturnedDescriptor is > 0 && !Pools.Any(pool => pool.DescriptorAddress == ReturnedDescriptor))
         {
             throw new InvalidDataException("Native effect service lacks its selected entry, parameter block or returned physical task descriptor.");
         }
@@ -43,11 +44,16 @@ public static class NativeBattleOriginalEffects
     public static (NativeBattleEffectMemory Memory, NativeBattleOriginalEffectState Effect) Initialize(NativeBattleEffectMemory memory, NativeBattleOriginalEffectState selected)
     {
         NativeBattleEffectInitializerAsset? asset = selected.Binding.InitializerAsset;
-        if (selected.Binding.Initializer == 0x629880)
+        NativeBattleEffectInitializerResource? resource = selected.Binding.InitializerResource;
+        if (resource is not null)
         {
-            if (asset is null || asset.Name != "mag001.tim" || asset.Data.IsDefault)
+            if (selected.Binding.Initializer == 0 || selected.Binding.InitializerIsRet == true || string.IsNullOrEmpty(resource.Name) || resource.GlobalAddress == 0)
             {
-                throw new NotSupportedException("Native629880 requires the actual mag001.tim asset loaded by571B80.");
+                throw new InvalidDataException("Native effect resource descriptor contradicts its actual initializer.");
+            }
+            if (asset is null || asset.Name != resource.Name || asset.Data.IsDefault)
+            {
+                throw new NotSupportedException($"Native initializer{selected.Binding.Initializer:X} requires its actual {resource.Name} asset loaded by571B80.");
             }
         }
         else if (selected.Binding.Initializer != 0 && selected.Binding.InitializerIsRet != true)
@@ -55,11 +61,11 @@ public static class NativeBattleOriginalEffects
             throw new NotSupportedException($"Native50AF20 effect{selected.Binding.Effect} initializer{selected.Binding.Initializer:X} requires its original resource-loading contract.");
         }
         memory = memory.BeginLoad(selected.SelectedIndex);
-        if (selected.Binding.Initializer == 0x629880)
+        if (resource is not null)
         {
             int offset = memory.Cursor;
             memory = memory.LoadIntoArena(asset!.Data.AsSpan());
-            selected = selected with { ResourcePointers = [new(0x24CBD68, offset)] };
+            selected = selected with { ResourcePointers = [new(resource.GlobalAddress, offset)] };
         }
         return (memory, selected);
     }

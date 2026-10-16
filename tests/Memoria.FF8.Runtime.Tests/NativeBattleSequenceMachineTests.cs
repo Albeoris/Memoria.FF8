@@ -8,6 +8,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSequenceMachineTests
 {
     [Fact]
+    public void A5_reads_one_unsigned_selector_and_dispatches_571840_before_the_next_instruction()
+    {
+        NativeBattleGraphicsResource resource = Resource((1, "A5FEAAA1"));
+        List<string> order = [];
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), resource, new(null, null)
+        {
+            ScheduleModelEffect = selector => order.Add($"A5:{selector}"),
+            ApplyActionContacts = model =>
+            {
+                order.Add("AA");
+                return model;
+            }
+        });
+        Assert.Equal(new[] { "A5:254", "AA" }, order);
+        Assert.True(step.Model.SequenceState!.Offset46 >= 3);
+        Assert.Throws<NotSupportedException>(() => NativeBattleSequenceMachine.Advance(Model(1), resource, new(null, null)));
+    }
+
+    [Fact]
     public void Action_contact_is_published_inline_before_following_status_expression()
     {
         NativeBattleGraphicsResource resource = Resource((1, "AAC31FE500A1"));

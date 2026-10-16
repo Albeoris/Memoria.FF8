@@ -12,6 +12,7 @@ internal sealed class BattleScenePresentation
     private readonly BattleStage stage;
     private readonly BattleAssets assets;
     private readonly IReadOnlyList<NativeBattleDefensiveResource> defensiveResources;
+    private readonly IReadOnlyList<NativeBattleStaticMeshResource> effectMeshes;
     private readonly Dictionary<string, BattleCombatantDefinition> definitions;
     private readonly Dictionary<string, BattleModel> models = [];
     private readonly Dictionary<string, BattleModel?> weapons = [];
@@ -30,6 +31,7 @@ internal sealed class BattleScenePresentation
     {
         this.assets = assets;
         defensiveResources = definition.NativeDefensiveResources;
+        effectMeshes = definition.NativeEffectMeshes;
         renzokukenResources = definition.NativeRenzokukenResources.ToDictionary(resource => resource.MagicId);
         definitions = definition.Combatants.ToDictionary(actor => actor.Id);
         stage = assets.LoadStage(definition.StageId ?? throw new NotSupportedException("A battle scene requires its installed stage identity."));
@@ -162,13 +164,19 @@ internal sealed class BattleScenePresentation
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
             // bases yields renderer partyPI/enemy0.
             BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose, MeshMask = session.NativeGraphics?.Models[nativeIndex].SequenceState?.MeshMask124 ?? uint.MaxValue };
+            if (session.NativeGraphics is { } nativeTextures && actor.IsPlayer)
+            {
+                NativeBattleModelTextureBinding materialBinding = nativeTextures.Models[nativeIndex].BodyTextureSlots ?? throw new NotSupportedException("Native player rendering requires its executed507400 body texture allocation; migrate the named standalone snapshot explicitly.");
+                //5022C0 pose/sequence replacements retain this body's original geometry and texture allocation.
+                drawing = drawing with { NativeTextureBinding = materialBinding, NativeTextures = session.NativeEffectMemory?.Textures ?? throw new NotSupportedException("Native actor texture allocation requires its retained original VRAM owner.") };
+            }
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)
             {
                 if (session.NativeGraphics is { } raw)
                 {
                     BattleAnimationSample linkedPose = BattleAnimationPresentation.SampleNativeLinkedModel(raw.Models[nativeIndex], weapon);
-                    actors.Add(drawing with { Model = weapon, NativePose = linkedPose.NativePose, Animation = linkedPose.Animation, Frame = linkedPose.Frame, Opacity = linkedPose.Opacity, MeshMask = uint.MaxValue });
+                    actors.Add(drawing with { Model = weapon, NativePose = linkedPose.NativePose, Animation = linkedPose.Animation, Frame = linkedPose.Frame, Opacity = linkedPose.Opacity, MeshMask = uint.MaxValue, NativeTextureBinding = null, NativeTextures = null });
                 }
                 else
                 {
@@ -179,7 +187,7 @@ internal sealed class BattleScenePresentation
         byte[] pixels = renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));
         if (session.NativeGraphics is { ModuleDraws.IsEmpty: false } effects)
         {
-            renderer.DrawNativeModuleEffects(effects.ModuleDraws, session.NativeEffectMemory?.Textures, defensiveResources);
+            renderer.DrawNativeModuleEffects(effects.ModuleDraws, session.NativeEffectMemory?.Textures, defensiveResources, meshes: effectMeshes);
         }
         return pixels;
     }
@@ -210,6 +218,19 @@ internal sealed class BattleScenePresentation
                 float x = viewport.X + projected.X * viewport.Width / renderer.Width;
                 float y = viewport.Y + projected.Y * viewport.Height / renderer.Height;
                 byte alpha = (byte)(255 * Math.Min(1, (BattleImpactPresentation.Duration - cue.Age) / 8f));
+                //TODO(TD-009): Component battles retain their existing impact projection until the raw effect dispatcher owns normal encounters
+                if (session.NativeGraphics is null && cue.IsPhysical && cue.Age < 7)
+                {
+                    float radius = (8 + cue.Age * 3) * scale;
+                    for (int ray = 0; ray < 8; ray++)
+                    {
+                        float angle = ray * MathF.PI / 4 + 0.2f;
+                        float dx = MathF.Cos(angle);
+                        float dy = MathF.Sin(angle);
+                        canvas.Line(x + dx * radius * 0.2f, y + dy * radius * 0.2f, x + dx * radius, y + dy * radius, new UiColor(255, 220, 135, alpha), 3 * scale);
+                        canvas.Line(x, y, x + dx * radius * 0.65f, y + dy * radius * 0.65f, new UiColor(255, 255, 255, alpha), scale);
+                    }
+                }
                 UiColor color = cue.IsHealing ? new UiColor(105, 255, 130, alpha) : cue.IsPhysical ? new UiColor(255, 255, 255, alpha) : new UiColor(220, 130, 255, alpha);
                 float rise = (cue.Age * 0.8f + MathF.Sin(Math.Min(1, cue.Age / 12f) * MathF.PI) * 10) * scale;
                 canvas.Text(cue.Event.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), 24 * scale, new UiRect(x - 30 * scale, y - 24 * scale - rise, 120 * scale, 38 * scale), color);

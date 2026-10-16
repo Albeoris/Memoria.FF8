@@ -88,7 +88,7 @@ public sealed class NativeAllocationDescriptorTests
             new() { Id = "prototype", Name = "Bite Bug", ModelId = 21, SceneSlot = 6, InitialActive = false, Speed = 1, NativeCombatantFlags = assets.ReadEnemyNativeCombatantFlags(21), NativeAi = spawned, NativeTemplate = assets.ReadEnemyTemplate(21, 5) }
         ];
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), assets.LoadEncounter(94));
-        BattleDefinition definition = new() { StageId = 0, NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], NativeGraphics = graphics, Combatants = actors };
+        BattleDefinition definition = new() { StageId = 0, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], NativeGraphics = graphics, Combatants = actors };
         return new(definition, BattleAtbMode.TurnBased);
     }
 }

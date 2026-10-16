@@ -40,6 +40,7 @@ public sealed class NativeBattleFirePresentationTests
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeModuleResources = game.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
+            NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalog(),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
@@ -106,8 +107,23 @@ public sealed class NativeBattleFirePresentationTests
                 continue;
             }
             sawSprites = true;
-            byte[] visible = scene.Render(battle, 320, 224).ToArray();
             BattleSnapshot snapshot = battle.Capture();
+            byte[] visible;
+            try
+            {
+                visible = scene.Render(battle, 320, 224).ToArray();
+            }
+            catch (NotSupportedException exception)
+            {
+                if (!string.IsNullOrWhiteSpace(evidence))
+                {
+                    Directory.CreateDirectory(evidence);
+                    string name = evidenceId + "-unsupported-callback" + snapshot.NativeGraphics!.Callback;
+                    File.WriteAllText(Path.Combine(evidence, name + ".battle.json"), JsonSerializer.Serialize(snapshot));
+                    File.WriteAllText(Path.Combine(evidence, name + "-details.json"), JsonSerializer.Serialize(new { exception.Message, snapshot.Frame, snapshot.NativeGraphics.Callback, Meshes = snapshot.NativeGraphics.ModuleDraws.Where(draw => draw.Kind == NativeBattleModuleDrawKind.Mesh).Select(draw => new { draw.MeshId, draw.MeshFlags }) }));
+                }
+                throw;
+            }
             BattleSession withoutSprites = BattleSession.Restore(snapshot with { NativeGraphics = snapshot.NativeGraphics! with { ModuleDraws = [] } });
             byte[] plain = scene.Render(withoutSprites, 320, 224).ToArray();
             int changedPixels = DifferentPixels(visible, plain);
@@ -173,6 +189,20 @@ public sealed class NativeBattleFirePresentationTests
         audio.Update(BattleSession.Restore(battle.Capture()));
         Assert.Equal(soundsBeforeRestore, heard.Count);
         PublishEvidence(evidence, evidenceId + "-after", battle, scene.Render(battle, 320, 224));
+    }
+
+    [Fact]
+    public void Render_the_named_native_effect_checkpoint_at_its_current_boundary()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_EFFECT_COMPONENT_SNAPSHOT");
+        Assert.SkipUnless(path is not null, "A concrete standalone native effect checkpoint is required.");
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(path!))!;
+        BattleSession battle = BattleSession.Restore(snapshot);
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        BattleScenePresentation scene = new(assets, snapshot.Definition, true);
+        Assert.Equal(320 * 224 * 4, scene.Render(battle, 320, 224).Length);
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
     }
 
     private static bool HasActionDescriptor(BattleSession battle)

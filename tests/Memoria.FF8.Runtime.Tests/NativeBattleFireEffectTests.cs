@@ -7,7 +7,7 @@ public sealed class NativeBattleFireEffectTests
     [Fact]
     public void InitializerCopiesItsActualAssetIntoTheClearedArenaAndOwnsItsGlobalPointer()
     {
-        NativeBattleEffectBinding binding = new(2, 0x6298A0, 0x629880) { InitializerAsset = new("mag001.tim", [4, 5, 6]) };
+        NativeBattleEffectBinding binding = new(2, 0x6298A0, 0x629880) { InitializerAsset = new("mag001.tim", [4, 5, 6]), InitializerResource = new("mag001.tim", 0x24CBD68) };
         NativeBattleOriginalEffectState selected = new(2, 1, binding, null, null);
         (NativeBattleEffectMemory memory, NativeBattleOriginalEffectState effect) = NativeBattleOriginalEffects.Initialize(NativeBattleEffectMemory.FromColdProcess(), selected);
         Assert.Equal(3, memory.Cursor);

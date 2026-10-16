@@ -10,6 +10,15 @@ public sealed partial class BattleSession
         {
             return graphics;
         }
+        if (effect.Binding.Entry == 0x700C10)
+        {
+            NativeBattleEffect3Step module = NativeBattleEffect3.Step(effect, new(nativeActionPackets, index => ReadNativeGraphicsBone(graphics, index, 241, 0), index => graphics.Models[index].Transform ?? throw new NotSupportedException("Native effect3 requires its original model transform.")) { ApplyContact = ApplyContact });
+            foreach (NativeBattleEffect3Sound sound in module.Sounds)
+            {
+                PublishNativeModuleSound(sound.Sound, sound.Flags, sound.Position);
+            }
+            return graphics with { OriginalEffect = module.Effect, ModuleDraws = graphics.ModuleDraws.AddRange(module.Draws) };
+        }
         if (effect.Binding.Entry != 0x6298A0)
         {
             throw new NotSupportedException($"Native effect{effect.Binding.Effect} requires its original callback scheduler.");

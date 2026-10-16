@@ -109,6 +109,29 @@ public sealed class NativeBattleEffectRenderingTests
         }
     }
 
+    [Fact]
+    public void Installed_casting_meshes_render_original_ft4_and_g4_groups_and_require_the_actual_flat_blend()
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed executable is required.");
+        byte[] executable = File.ReadAllBytes(Path.Combine(directory, "FF8_EN.exe"));
+        NativeBattleStaticMeshResource[] meshes = [NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 1), NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 7)];
+        BattleRenderer renderer = new(320, 240);
+        foreach (NativeBattleStaticMeshResource mesh in meshes)
+        {
+            //Native mesh7 is a horizontal plane at Y=-1; inspect it from above rather than edge-on.
+            byte[] pixels = renderer.Render(new BattleStage(0, [], []), [], new(new(0, 20, 30), Vector3.Zero));
+            NativeBattleModuleDraw draw = new(NativeBattleModuleDrawKind.Mesh, 0) { MeshId = mesh.Id, MeshRotation = new(0, 0, 0), MeshScale = new(4096, 4096, 4096), Anchor = new(0, 0, 0, 0), MeshFlags = mesh.Id == 1 ? 0x230u : 0xF3u, MeshClut = 0x3867 };
+            if (mesh.Id == 7)
+            {
+                Assert.Throws<NotSupportedException>(() => renderer.DrawNativeModuleEffects([draw], Textures(), [], meshes: meshes));
+            }
+            renderer.DrawNativeModuleEffects([draw], Textures(), [], 1, meshes);
+            Assert.True(renderer.DrawnTriangles > 0);
+            Assert.Contains(Enumerable.Range(0, pixels.Length / 4), index => pixels[index * 4] != 17 || pixels[index * 4 + 1] != 20 || pixels[index * 4 + 2] != 29);
+        }
+    }
+
     private static NativeBattleModuleDraw Sprite(int mode)
     {
         byte[] bytes = new byte[20];

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattlePrimitivePacket([property: JsonRequired] uint Address, [property: JsonRequired] ImmutableArray<uint> Words);
-public sealed record NativeBattlePrimitiveProxy([property: JsonRequired] uint PacketAddress, [property: JsonRequired] byte PreviousHighByte, [property: JsonRequired] ushort Flags20);
+public sealed partial record NativeBattlePrimitiveProxy([property: JsonRequired] uint PacketAddress, [property: JsonRequired] byte PreviousHighByte, [property: JsonRequired] ushort Flags20);
 public sealed record NativeBattlePrimitiveCommand(uint PacketAddress, int WordOffset, byte Opcode, ImmutableArray<uint> Words, ushort ProxyFlags20);
 public sealed record NativeBattlePrimitiveResolvedCommand(NativeBattlePrimitiveCommand Command, NativeBattlePrimitiveDrawMode DrawMode);
 public sealed record NativeBattlePrimitivePassResult(NativeBattlePrimitiveDrawMode DrawMode, ImmutableArray<NativeBattlePrimitiveResolvedCommand> Commands);
@@ -55,7 +55,7 @@ public sealed record NativeBattlePrimitiveDrawMode([property: JsonRequired] usho
 }
 
 /// <summary>45CC80's physical OT,45C8E0 proxy links and45D310's packet traversal; rendering dispatch remains explicit.</summary>
-public sealed record NativeBattlePrimitiveOrdering([property: JsonRequired] uint TableAddress, [property: JsonRequired] ImmutableArray<uint> Table, [property: JsonRequired] ImmutableArray<NativeBattlePrimitiveProxy> Proxies, [property: JsonRequired] ImmutableArray<NativeBattlePrimitivePacket> Packets)
+public sealed partial record NativeBattlePrimitiveOrdering([property: JsonRequired] uint TableAddress, [property: JsonRequired] ImmutableArray<uint> Table, [property: JsonRequired] ImmutableArray<NativeBattlePrimitiveProxy> Proxies, [property: JsonRequired] ImmutableArray<NativeBattlePrimitivePacket> Packets)
 {
     public const uint ProxyBankAddress = 0x1C48828;
     public const int ProxyCapacity = 0x60000 / 24;

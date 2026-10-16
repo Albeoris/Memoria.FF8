@@ -13,7 +13,7 @@ public sealed partial class BattleRenderer
     private readonly record struct EffectScreen(Screen Screen, Vector3 Color);
 
     /// <summary>Native571BC0/571DC0 sprites and570650/572200 defensive meshes, drawn from scheduler receipts.</summary>
-    public void DrawNativeModuleEffects(IReadOnlyList<NativeBattleModuleDraw> draws, NativeBattleEffectTextureState? textures, IReadOnlyList<NativeBattleDefensiveResource> defensiveResources, int? inheritedBlendMode = null)
+    public void DrawNativeModuleEffects(IReadOnlyList<NativeBattleModuleDraw> draws, NativeBattleEffectTextureState? textures, IReadOnlyList<NativeBattleDefensiveResource> defensiveResources, int? inheritedBlendMode = null, IReadOnlyList<NativeBattleStaticMeshResource>? meshes = null)
     {
         foreach (NativeBattleModuleDraw draw in draws)
         {
@@ -29,6 +29,9 @@ public sealed partial class BattleRenderer
                     break;
                 case NativeBattleModuleDrawKind.Defensive:
                     DrawNativeDefensive(draw, defensiveResources.SingleOrDefault(resource => resource.Variant == draw.Variant) ?? throw new NotSupportedException($"Native defensive variant{draw.Variant} lacks its571240 mesh."), inheritedBlendMode ?? throw new NotSupportedException("Native defensive rendering requires its inherited ordering-table draw mode."));
+                    break;
+                case NativeBattleModuleDrawKind.Mesh:
+                    DrawNativeStaticMesh(draw, textures, meshes?.SingleOrDefault(resource => resource.Id == draw.MeshId) ?? throw new NotSupportedException($"Native571240 mesh{draw.MeshId} lacks its immutable original resource."), inheritedBlendMode);
                     break;
                 default:
                     throw new NotSupportedException($"Native module draw{draw.Kind} has no original renderer.");
@@ -59,6 +62,8 @@ public sealed partial class BattleRenderer
         }
         NativeBattleModuleAnchor anchor = draw.Anchor ?? throw new InvalidDataException("Native sprite receipt lacks its original anchor.");
         Vector3 center = Vector3.Transform(NativeWorld(anchor.X, anchor.Y, anchor.Z), view);
+        //700DE0 adds to native positive-forward camera Z after composing its world matrix.
+        center.Z -= draw.SpriteCameraZOffset / 100f;
         if (center != Vector3.Zero)
         {
             //571BC0 normalizes camera-space translation and applies the native signed depth offset.

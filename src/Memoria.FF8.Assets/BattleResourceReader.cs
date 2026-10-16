@@ -68,6 +68,7 @@ internal static partial class BattleResourceReader
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
             NativeActionCameraBank = cameraSection >= 0 && offsets[cameraSection] != offsets[cameraSection + 1] ? new(bytes.AsSpan(offsets[cameraSection], offsets[cameraSection + 1] - offsets[cameraSection]).ToArray().ToImmutableArray()) : null,
             NativeTextureAnimations = offsets.Length is 7 or 8 ? bytes.AsSpan(offsets[3], offsets[4] - offsets[3]).ToArray().ToImmutableArray() : null,
+            NativeBodyTexturePack = offsets.Length is 7 or 8 ? new(name + ":body-textures", bytes.AsSpan(offsets[5], offsets[6] - offsets[5]).ToArray().ToImmutableArray()) : null,
             Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
         };
     }
@@ -123,7 +124,7 @@ internal static partial class BattleResourceReader
                     short x = reader.ReadInt16();
                     short y = reader.ReadInt16();
                     short z = reader.ReadInt16();
-                    vertices.Add(new BattleVertex(new Vector3(-x, -y, z) / 2048f, bone));
+                    vertices.Add(new BattleVertex(new Vector3(-x, -y, z) / 2048f, bone) { NativePosition = new(x, y, z) });
                 }
             }
             reader.BaseStream.Position = (reader.BaseStream.Position + 3) & ~3L;
@@ -137,13 +138,17 @@ internal static partial class BattleResourceReader
             for (int index = 0; index < triangles + quads; index++)
             {
                 bool quad = index >= triangles;
+                long nativePolygonPosition = reader.BaseStream.Position;
+                byte[] nativePolygon = reader.ReadBytes(quad ? 20 : 16);
+                reader.BaseStream.Position = nativePolygonPosition;
                 int a = reader.ReadUInt16() & 4095;
                 int b = reader.ReadUInt16() & 4095;
                 int c = reader.ReadUInt16() & 4095;
                 int d = quad ? reader.ReadUInt16() & 4095 : 0;
                 Vector2 uv0 = Uv(reader);
                 Vector2 uv1 = quad ? default : Uv(reader);
-                int texture = (reader.ReadUInt16() >> 6) & 7;
+                ushort clut = reader.ReadUInt16();
+                int texture = (clut >> 6) & 7;
                 if (quad)
                 {
                     uv1 = Uv(reader);
@@ -175,11 +180,12 @@ internal static partial class BattleResourceReader
                 int pixelsPerWord = 4 >> (int)material.Tim.PixelMode;
                 Vector2 origin = new(((page & 15) * 64 - material.Tim.X) * pixelsPerWord, ((page & 16) * 16) - material.Tim.Y);
                 Vector2[] uv = quad ? [uv0, uv1, uv2, uv3] : [uv0, uv1, uv2];
+                Vector2[] nativeUv = uv.ToArray();
                 for (int corner = 0; corner < uv.Length; corner++)
                 {
                     uv[corner] += origin;
                 }
-                faces.Add(new BattleFace(indices, uv, texture, new Rgba32(128, 128, 128, 255)));
+                faces.Add(new BattleFace(indices, uv, texture, new Rgba32(128, 128, 128, 255)) { NativeMaterial = new(page, clut, nativeUv), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(nativePolygon) });
             }
             meshes.Add(new BattleMesh(vertices, faces));
         }
@@ -283,7 +289,10 @@ internal static partial class BattleResourceReader
                 BattleVertex[] vertices = new BattleVertex[verticesCount];
                 for (int vertex = 0; vertex < verticesCount; vertex++)
                 {
-                    vertices[vertex] = new BattleVertex(new Vector3(reader.ReadInt16(), reader.ReadInt16(), reader.ReadInt16()) / 100f, 0);
+                    short x = reader.ReadInt16();
+                    short y = reader.ReadInt16();
+                    short z = reader.ReadInt16();
+                    vertices[vertex] = new BattleVertex(new Vector3(x, y, z) / 100f, (ushort)(objectHeader >> 16)) { NativePosition = new(x, y, z) };
                 }
                 reader.BaseStream.Position += reader.BaseStream.Position % 4 + 4;
                 int triangles = reader.ReadUInt16();
@@ -293,6 +302,9 @@ internal static partial class BattleResourceReader
                 for (int face = 0; face < triangles + quads; face++)
                 {
                     bool quad = face >= triangles;
+                    long nativePolygonPosition = reader.BaseStream.Position;
+                    byte[] nativePolygon = reader.ReadBytes(quad ? 24 : 20);
+                    reader.BaseStream.Position = nativePolygonPosition;
                     int[] indices = new int[quad ? 4 : 3];
                     for (int index = 0; index < indices.Length; index++)
                     {
@@ -306,8 +318,8 @@ internal static partial class BattleResourceReader
                         uv1 = Uv(reader);
                     }
                     Vector2 uv2 = quad ? default : Uv(reader);
-                    int page = reader.ReadByte() & 15;
-                    reader.ReadByte();
+                    ushort texturePage = reader.ReadUInt16();
+                    int page = texturePage & 15;
                     Vector2 uv3 = default;
                     if (quad)
                     {
@@ -324,6 +336,7 @@ internal static partial class BattleResourceReader
                         palettes.Add(palette, texture);
                     }
                     Vector2[] uv = quad ? [uv0, uv1, uv2, uv3] : [uv1, uv2, uv0];
+                    Vector2[] nativeUv = uv.ToArray();
                     for (int index = 0; index < uv.Length; index++)
                     {
                         uv[index].X += page * 128;
@@ -332,13 +345,14 @@ internal static partial class BattleResourceReader
                     {
                         throw new InvalidDataException("Battle stage polygon references an absent vertex.");
                     }
-                    faces.Add(new BattleFace(indices, uv, texture, color));
+                    faces.Add(new BattleFace(indices, uv, texture, color) { NativeMaterial = new(texturePage, clut, nativeUv), NativePolygon = System.Collections.Immutable.ImmutableArray.CreateRange(nativePolygon) });
                 }
-                meshes.Add(new BattleMesh(vertices, faces));
+                meshes.Add(new BattleMesh(vertices, faces) { NativeStageGroup = group });
             }
         }
         return new BattleStage(stageId, meshes, textures)
         {
+            NativeSource = NativeBattleStageSourceReader.Read(stageId, bytes, header),
             IntroductionCameras = BattleStageCameraReader.Read(stageId, bytes, header),
             NativeCameraBank = BattleStageCameraReader.ReadNativeBank(stageId, bytes, header),
             NativeCameraControl = BattleStageCameraReader.ReadNativeControl(stageId, bytes, header)

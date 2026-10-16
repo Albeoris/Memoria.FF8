@@ -273,6 +273,16 @@ public sealed partial class BattleSession
         NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
         uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], binding.ModelId, flags, ref randomState);
+        if (actor.IsPlayer)
+        {
+            NativeBattleEffectHeapAllocation pack = binding.Resource.BodyTexturePack ?? throw new NotSupportedException("Native5077B0 requires its original player DAT texture pack.");
+            NativeBattleEffectMemory memory = NativeEffectMemory ?? throw new NotSupportedException("Native507400 requires the retained process texture-upload owner.");
+            NativeBattleEffectTextureState textures = memory.Textures ?? throw new NotSupportedException("Native507400 requires observed VRAM and upload slots; migrate the named standalone snapshot explicitly.");
+            ushort mask = checked((ushort)(3 << (2 * index)));
+            NativeBattleModelTextureLoad load = NativeBattleModelTextures.Prepare507400(pack, unchecked((ushort)~mask));
+            NativeEffectMemory = memory with { Textures = NativeBattleModelTextures.Enqueue507400(textures, load) };
+            model = model with { TextureAllocationMask = mask, BodyTextureSlots = load.Binding };
+        }
         if (definition.NativeGraphics!.Rules.SummonColors is { } colors)
         {
             model = model with { Color40 = colors.Transition, Color44 = colors.Normal };

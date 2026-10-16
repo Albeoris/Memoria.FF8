@@ -29,6 +29,8 @@ public sealed record BattleActorDraw(BattleModel Model, Vector3 Position, float 
 {
     public NativeBattleDecodedPose? NativePose { get; init; }
     public uint MeshMask { get; init; } = uint.MaxValue;
+    public NativeBattleModelTextureBinding? NativeTextureBinding { get; init; }
+    public NativeBattleEffectTextureState? NativeTextures { get; init; }
 }
 
 /// <summary>Perspective-correct CPU battle renderer for original stage and skeletal DAT assets.</summary>
@@ -111,6 +113,10 @@ public sealed partial class BattleRenderer
 
     private void DrawActor(BattleActorDraw actor)
     {
+        if (actor.NativeTextures is not null && actor.NativeTextureBinding is null)
+        {
+            throw new NotSupportedException("Native actor VRAM sampling requires its original507400 allocation binding.");
+        }
         IReadOnlyList<Vector3[]> pose = actor.NativePose is { } native ? actor.Model.PoseNative(native) : actor.Model.Pose(actor.Animation, actor.Frame, actor.LoopAnimation);
         Matrix4x4 transform = Matrix4x4.CreateRotationY(actor.Facing) * Matrix4x4.CreateTranslation(actor.Position + actor.AttackOffset - Vector3.UnitY * actor.GroundOffset);
         for (int mesh = 0; mesh < actor.Model.Meshes.Count; mesh++)
@@ -119,17 +125,20 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
-            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity);
+            Draw(actor.Model.Meshes[mesh], pose[mesh].Select(position => Vector3.Transform(position, transform)).ToArray(), actor.Model.Textures, actor.Opacity, actor.NativeTextureBinding, actor.NativeTextures);
         }
     }
 
-    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity)
+    private void Draw(BattleMesh mesh, Vector3[] positions, IReadOnlyList<PixelImage> textures, float opacity, NativeBattleModelTextureBinding? nativeBinding = null, NativeBattleEffectTextureState? nativeTextures = null)
     {
         Vector3[] transformed = positions.Select(position => Vector3.Transform(position, view)).ToArray();
         foreach (BattleFace face in mesh.Faces)
         {
-            Vector2 textureScale = ResourceTextureList.PhysicalScale(textures, face.Texture);
-            Vertex At(int index) => new(transformed[face.Vertices[index]], face.Uv[index] * textureScale);
+            NativeBattleFaceMaterial? material = nativeBinding is null ? null : NativeBattleFaceMaterialBinding.Apply507550(face.NativeMaterial ?? throw new NotSupportedException("Native actor VRAM rendering requires the original polygon CLUT/page/UV fields."), nativeBinding);
+            PixelImage texture = material is null ? textures[face.Texture] : NativeActorTexturePage(nativeTextures ?? throw new NotSupportedException("Native actor material requires its retained original VRAM owner."), material.TexturePage, material.Clut);
+            Vector2 textureScale = material is null ? ResourceTextureList.PhysicalScale(textures, face.Texture) : Vector2.One;
+            Vector2[] uv = material?.Uv ?? face.Uv;
+            Vertex At(int index) => new(transformed[face.Vertices[index]], uv[index] * textureScale);
             // Native50FDF0/510680 accepts positive projected winding for both triangles and quads.
             // The camera-space plane test is equivalent before near clipping; use the original first three corners.
             Vector3 first = At(0).Position;
@@ -139,10 +148,10 @@ public sealed partial class BattleRenderer
             {
                 continue;
             }
-            Triangle(At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2), textures[face.Texture], face.Color, opacity);
+            Triangle(At(0), At(1), At(face.Vertices.Length == 4 ? 3 : 2), texture, face.Color, opacity);
             if (face.Vertices.Length == 4)
             {
-                Triangle(At(3), At(2), At(0), textures[face.Texture], face.Color, opacity);
+                Triangle(At(3), At(2), At(0), texture, face.Color, opacity);
             }
         }
     }

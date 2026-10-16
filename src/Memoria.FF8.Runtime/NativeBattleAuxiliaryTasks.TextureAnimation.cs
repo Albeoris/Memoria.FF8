@@ -47,7 +47,7 @@ public sealed partial record NativeBattleAuxiliaryState
         byte deadline = program.Source[program.Offset];
         if (deadline != 255)
         {
-            ushort elapsed = unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(task.Payload.AsSpan(10)) + 1));
+            ushort elapsed = unchecked((ushort)(BinaryPrimitives.ReadUInt16LittleEndian(task.Payload.AsSpan().Slice(10)) + 1));
             byte[] payload = task.Payload.ToArray();
             BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(10), elapsed);
             if (elapsed >= deadline)

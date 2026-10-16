@@ -107,6 +107,7 @@ internal sealed partial class GameWorld
             NativeCommandSequences = assets.ReadNativeBattleCommandSequences(),
             NativeModuleResources = assets.ReadNativeBattleModuleResources(),
             NativeDefensiveResources = assets.ReadNativeBattleDefensiveResources(),
+            NativeEffectMeshes = assets.ReadNativeEffectMeshes(),
             NativeEffectCatalog = assets.ReadNativeEffectCatalog(),
             NativeCommonEffectTexture = assets.ReadNativeCommonEffectTexture(),
             NativeActionCameraRules = assets.ReadNativeActionCameraRules(),

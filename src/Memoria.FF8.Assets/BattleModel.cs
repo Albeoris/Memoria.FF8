@@ -4,9 +4,20 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets;
 
-public readonly record struct BattleVertex(Vector3 Position, int Bone);
-public sealed record BattleFace(int[] Vertices, Vector2[] Uv, int Texture, Rgba32 Color);
-public sealed record BattleMesh(IReadOnlyList<BattleVertex> Vertices, IReadOnlyList<BattleFace> Faces);
+public readonly record struct BattleVertex(Vector3 Position, int Bone)
+{
+    public Memoria.FF8.Runtime.NativeBattleVector? NativePosition { get; init; }
+}
+public sealed record NativeBattleFaceMaterial(ushort TexturePage, ushort Clut, Vector2[] Uv);
+public sealed record BattleFace(int[] Vertices, Vector2[] Uv, int Texture, Rgba32 Color)
+{
+    public NativeBattleFaceMaterial? NativeMaterial { get; init; }
+    public System.Collections.Immutable.ImmutableArray<byte> NativePolygon { get; init; }
+}
+public sealed record BattleMesh(IReadOnlyList<BattleVertex> Vertices, IReadOnlyList<BattleFace> Faces)
+{
+    public int? NativeStageGroup { get; init; }
+}
 public sealed record BattleBone(int Parent, float Length);
 public sealed record BattlePose(Vector3 Translation, IReadOnlyList<Vector3> Rotations, IReadOnlyList<Vector3> Scales);
 public sealed record BattleAnimation(IReadOnlyList<BattlePose> Frames);
@@ -18,6 +29,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
     public Memoria.FF8.Runtime.NativeBattlePoseSource? NativePoseSource { get; init; }
     public Memoria.FF8.Runtime.NativeBattleCameraBank? NativeActionCameraBank { get; init; }
     public System.Collections.Immutable.ImmutableArray<byte>? NativeTextureAnimations { get; init; }
+    public Memoria.FF8.Runtime.NativeBattleEffectHeapAllocation? NativeBodyTexturePack { get; init; }
 
     public IReadOnlyList<Vector3[]> Pose(int animation, float frame, bool loop = true)
     {
@@ -73,6 +85,7 @@ public sealed record BattleModel(string Name, IReadOnlyList<BattleBone> Bones, I
 public sealed record BattleStageCamera(Vector3 NativeEye, Vector3 NativeTarget, int FocalLength);
 public sealed record BattleStage(int Id, IReadOnlyList<BattleMesh> Meshes, IReadOnlyList<PixelImage> Textures)
 {
+    public Memoria.FF8.Runtime.NativeBattleStageSource? NativeSource { get; init; }
     public Memoria.FF8.Runtime.NativeBattleCameraBank? NativeCameraBank { get; init; }
     public System.Collections.Immutable.ImmutableArray<byte> NativeCameraControl { get; init; } = [];
     public IReadOnlyDictionary<int, BattleStageCamera> IntroductionCameras { get; init; } = new Dictionary<int, BattleStageCamera>();

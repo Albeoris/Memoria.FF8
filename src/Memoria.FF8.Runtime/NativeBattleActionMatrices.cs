@@ -40,12 +40,12 @@ public static partial class NativeBattleActionGeometryRules
         }
         else
         {
-            var forward = Normalize(x, y, z);
-            var right = Normalize(forward.Z, 0, -forward.X);
+            var forward = NormalizeVector56BC50(x, y, z);
+            var right = NormalizeVector56BC50(forward.Z, 0, -forward.X);
             int upX = unchecked(forward.Y * right.Z - forward.Z * right.Y) >> 12;
             int upY = unchecked(forward.Z * right.X - forward.X * right.Z) >> 12;
             int upZ = unchecked(forward.X * right.Y - forward.Y * right.X) >> 12;
-            var up = Normalize(upX, upY, upZ);
+            var up = NormalizeVector56BC50(upX, upY, upZ);
             //56C040 transposes the basis published as three rows by50CBA0.
             rotation = [unchecked((short)right.X), unchecked((short)up.X), unchecked((short)forward.X), unchecked((short)right.Y), unchecked((short)up.Y), unchecked((short)forward.Y), unchecked((short)right.Z), unchecked((short)up.Z), unchecked((short)forward.Z)];
             scale = DistanceScale(first, second);
@@ -69,7 +69,7 @@ public static partial class NativeBattleActionGeometryRules
         return (x, y, z, factor);
     }
 
-    private static (int X, int Y, int Z) Normalize(int x, int y, int z)
+    public static (int X, int Y, int Z) NormalizeVector56BC50(int x, int y, int z)
     {
         //56BC50 retains X on the FPU stack while Y/Z are stored as floats before biased conversion.
         double length = Math.Sqrt((double)z * (float)z + (double)(float)y * (float)y + (double)x * x);

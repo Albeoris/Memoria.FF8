@@ -107,9 +107,12 @@ public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint I
 {
     public bool? InitializerIsRet { get; init; }
     public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
+    public NativeBattleEffectInitializerResource? InitializerResource { get; init; }
     public NativeBattleEffectProgramResources? ProgramResources { get; init; }
+    public NativeBattleEffect3Resources? Effect3Resources { get; init; }
 }
 
 public sealed record NativeBattleEffectInitializerAsset(string Name, System.Collections.Immutable.ImmutableArray<byte> Data);
+public sealed record NativeBattleEffectInitializerResource(string Name, uint GlobalAddress);
 
 public sealed record NativeBattleEffectProgramResources(NativeBattleEffectHeapAllocation Animation, System.Collections.Immutable.ImmutableArray<NativeBattleModuleResource> Sprites, uint Sound);

@@ -13,6 +13,8 @@ public sealed class NativeBattleModuleSoundTests
     [InlineData(2, 128)]
     [InlineData(3, 175)]
     [InlineData(3, 255)]
+    [InlineData(5, 80)]
+    [InlineData(6, 175)]
     public void Native501740_uses_the_committed_projection_pan(ushort sound, byte pan)
     {
         Assert.Equal((uint)pan >> 1, FieldAudioPresentation.ResolveNativeModuleSoundPan(new(sound, 0, new(1, 2, 3, 4)) { Pan = pan }));
@@ -22,7 +24,6 @@ public sealed class NativeBattleModuleSoundTests
     public void Missing_native_pan_is_rejected_instead_of_being_centered()
     {
         Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundPan(new(2, 0, new(1, 2, 3, 4))));
-        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundPan(new(4, 0, new(1, 2, 3, 4)) { Pan = 20 }));
         Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundPan(new(0x72, 0x8000, new(1, 2, 3, 4))));
         Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundPan(new(0x0D, 8, new(1, 2, 3, 4))));
         Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundPan(new(0x0E, 16, new(1, 2, 3, 4))));
@@ -42,10 +43,14 @@ public sealed class NativeBattleModuleSoundTests
     }
 
     [Fact]
-    public void Unknown_routes_do_not_acquire_an_existing_contact_voice()
+    public void Shared_native_sound_routes_use_the_original_mask_instead_of_effect_specific_admission()
     {
-        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundPan(new(0x0E, 8, new(1, 2, 3, 4)) { Pan = 128 }));
-        Assert.Throws<NotSupportedException>(() => FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(0x0D, 1, new(1, 2, 3, 4)), -11));
+        Assert.Equal(64u, FieldAudioPresentation.ResolveNativeModuleSoundPan(new(0x0E, 8, null) { Pan = 128 }));
+        Assert.Equal(10u, FieldAudioPresentation.ResolveNativeModuleSoundPan(new(4, 0, null) { Pan = 20 }));
+        Assert.Equal(1, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(0x0D, 1, null), -11));
+        Assert.Equal(4, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(300000, 0x800008, null), -11));
+        Assert.Equal(24, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(4, 0x800000, null), -11));
+        Assert.Equal(-11, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(4, 0xFF000000, null), -11));
         Assert.Equal(-11, FieldAudioPresentation.ResolveNativeModuleSoundVoice(new(2, 0, new(1, 2, 3, 4)), -11));
     }
 
@@ -76,6 +81,13 @@ public sealed class NativeBattleModuleSoundTests
                     Assert.Equal(before + 1, output.SoundVoiceCount);
                 }
                 Assert.Equal(4, output.SoundVoiceCount);
+                foreach (uint castingSound in new uint[] { 5, 6 })
+                {
+                    Assert.NotEmpty(PcmAudioDecoder.ReadSample(directory, Memoria.FF8.Events.EventEngine.MapGlobalSoundSample(castingSound)).Bytes);
+                    output.PlayBattleModuleSound(new(castingSound, 0, new(1, 2, 3, 4)) { Pan = 128 });
+                    Assert.Null(output.Error);
+                }
+                Assert.Equal(6, output.SoundVoiceCount);
                 output.StopSounds();
                 Assert.Equal(0, output.SoundVoiceCount);
                 Assert.Null(output.Error);

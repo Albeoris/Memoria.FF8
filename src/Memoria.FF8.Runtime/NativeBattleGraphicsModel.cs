@@ -25,6 +25,8 @@ public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public byte? Sequence { get; init; }
     public int SequenceFrame { get; init; }
     public NativeBattleSequenceState? SequenceState { get; init; }
+    public ushort? TextureAllocationMask { get; init; }
+    public NativeBattleModelTextureBinding? BodyTextureSlots { get; init; }
 
     public NativeBattleGraphicsModelCompletion CompletionInputs()
     {

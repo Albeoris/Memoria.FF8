@@ -16,6 +16,12 @@ public static partial class NativeBattlePoseMatrices
 
     public static ImmutableArray<short> RotationWords(NativeBattleVector rotation) => Rotation(rotation).Rotation.ToImmutableArray();
 
+    public static NativeBattleVector RotateVector(NativeBattleVector rotation, NativeBattleVector vector)
+    {
+        (int x, int y, int z) = ApplyRounded(Rotation(rotation), vector.X, vector.Y, vector.Z);
+        return new(unchecked((short)x), unchecked((short)y), unchecked((short)z));
+    }
+
     public static NativeBattleVector TransformCameraPoint(NativeBattleActionMatrix source, NativeBattleVector local, bool mirror)
     {
         source.Validate();

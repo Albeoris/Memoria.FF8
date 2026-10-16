@@ -63,4 +63,5 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
     public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyActionContacts { get; init; }
     public Action<NativeBattleAuxiliaryProgram, byte>? ScheduleTextureAnimation { get; init; }
     public Action<byte, byte>? ApplyTexture { get; init; }
+    public Action<byte>? ScheduleModelEffect { get; init; }
 }

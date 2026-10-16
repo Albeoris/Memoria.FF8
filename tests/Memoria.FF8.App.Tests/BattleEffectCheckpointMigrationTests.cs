@@ -27,7 +27,7 @@ public sealed class BattleEffectCheckpointMigrationTests
         Assert.Empty(document["ScriptedRewards"]!.AsArray());
         Assert.Null(document["ActiveAction"]);
         Assert.Empty(document["QueuedActions"]!.AsArray());
-        Assert.True(document.ContainsKey("NativeRewardItems"));
+        Assert.False(document.ContainsKey("NativeRewardItems"));
         Assert.Null(document["NativeRewardItems"]);
         Assert.Null(document["NativeEffectMemory"]!["Textures"]);
         Assert.Null(document["NativeEffectMemory"]!["Parameter80"]);
@@ -36,7 +36,7 @@ public sealed class BattleEffectCheckpointMigrationTests
         //The exact frame0 source has never produced a defeat or scripted reward; the constructor's ordered reward bank is empty.
         document["NativeRewardItems"] = new JsonArray();
         JsonObject comparison = document.DeepClone().AsObject();
-        comparison["NativeRewardItems"] = null;
+        comparison.Remove("NativeRewardItems");
         Assert.True(JsonNode.DeepEquals(original, comparison), "Migration changed more than the proved empty ordered reward owner.");
         BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(document)!;
         BattleSession battle = BattleSession.Restore(snapshot);
@@ -52,6 +52,6 @@ public sealed class BattleEffectCheckpointMigrationTests
         {
             JsonSerializer.Serialize(stream, document, new JsonSerializerOptions { WriteIndented = true });
         }
-        Console.WriteLine($"Migrated snapshot: {Path.GetFullPath(output!)}; SHA256={Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}; NativeRewardItems:null->[]; frame0 load/capture and independent frame1 continuation passed.");
+        Console.WriteLine($"Migrated snapshot: {Path.GetFullPath(output!)}; SHA256={Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(output!)))}; NativeRewardItems:absent->[]; frame0 load/capture and independent frame1 continuation passed.");
     }
 }

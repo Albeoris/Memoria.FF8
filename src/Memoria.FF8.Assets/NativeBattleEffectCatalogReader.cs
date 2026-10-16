@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
+using System.Text;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Memoria.FF8.Runtime;
 
@@ -23,7 +24,7 @@ public static class NativeBattleEffectCatalogReader
             uint initializer = ReadAddress(0xC81DB8 + 4u * (uint)(effect - 1));
             ValidateCallback(entry);
             ValidateCallback(initializer);
-            result.Add(new(effect, entry, initializer) { InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3 });
+            result.Add(new(effect, entry, initializer) { InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3, InitializerResource = initializer == 0 ? null : ReadInitializer(initializer) });
         }
         return result.MoveToImmutable();
 
@@ -39,6 +40,35 @@ public static class NativeBattleEffectCatalogReader
             long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
             SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData);
             return executable[checked((int)(rva - section.VirtualAddress + section.PointerToRawData))];
+        }
+
+        ReadOnlySpan<byte> Bytes(uint address, int count)
+        {
+            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
+            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + count <= section.VirtualAddress + section.SizeOfRawData);
+            return executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), count);
+        }
+
+        NativeBattleEffectInitializerResource? ReadInitializer(uint address)
+        {
+            ReadOnlySpan<byte> code = Bytes(address, 19);
+            if (code[0] != 0x68 || code[5] != 0xE8 || code[10] != 0x83 || code[11] != 0xC4 || code[12] != 4 || code[13] != 0xA3 || code[18] != 0xC3 || address + 10L + BinaryPrimitives.ReadInt32LittleEndian(code[6..]) != 0x571B80)
+            {
+                return null;
+            }
+            uint nameAddress = BinaryPrimitives.ReadUInt32LittleEndian(code[1..]);
+            uint global = BinaryPrimitives.ReadUInt32LittleEndian(code[14..]);
+            long globalRva = global - (long)reader.PEHeaders.PEHeader!.ImageBase;
+            if (!reader.PEHeaders.SectionHeaders.Any(section => (section.SectionCharacteristics & SectionCharacteristics.MemWrite) != 0 && globalRva >= section.VirtualAddress && globalRva + 4 <= section.VirtualAddress + section.VirtualSize))
+            {
+                throw new InvalidDataException("Native initializer global is outside its writable image storage.");
+            }
+            int length = 0;
+            while (Bytes(checked(nameAddress + (uint)length), 1)[0] != 0)
+            {
+                length++;
+            }
+            return new(Encoding.ASCII.GetString(Bytes(nameAddress, length)), global);
         }
 
         void ValidateCallback(uint address)
@@ -71,11 +101,44 @@ public sealed partial class GameAssets
             {
                 throw new InvalidDataException("Native Fire binding differs from its original resource initializer.");
             }
+            if (fire.InitializerResource != new NativeBattleEffectInitializerResource("mag001.tim", 0x24CBD68))
+            {
+                throw new InvalidDataException("Native Fire resource loader differs from its original571B80/global-store contract.");
+            }
             using IFlArchive magic = OpenArchive("magic");
             //6298A0 passes DED5FC to5099A0; its next static object is the first Fire sprite at DEDC2C.
             NativeBattleEffectProgramResources program = new(new("FF8_EN:DED5FC", NativeBattleEffectStaticResourcesReader.Read(executable, 0xDED5FC, 0x630)), [NativeBattleEffectStaticResourcesReader.ReadSprite(executable, 0xDEDC2C), NativeBattleEffectStaticResourcesReader.ReadSprite(executable, 0xDEDDD8), NativeBattleEffectStaticResourcesReader.ReadSprite(executable, 0xDEDF84)], BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, 0xDEE130, 4).AsSpan()));
             nativeEffectCatalog = catalog.SetItem(1, fire with { InitializerAsset = new("mag001.tim", Read(magic, "mag001.tim").ToImmutableArray()), ProgramResources = program });
         }
         return nativeEffectCatalog;
+    }
+
+    public ImmutableArray<NativeBattleEffectBinding> ReadNativeEffectCatalogForEffects(IEnumerable<ushort> effects)
+    {
+        ArgumentNullException.ThrowIfNull(effects);
+        ushort[] requested = effects.Distinct().ToArray();
+        if (requested.Any(effect => effect is < 1 or > 400))
+        {
+            throw new ArgumentOutOfRangeException(nameof(effects), "Native effect materialization requires original effect IDs1..400.");
+        }
+        ImmutableArray<NativeBattleEffectBinding> catalog = ReadNativeEffectCatalog();
+        using IFlArchive magic = OpenArchive("magic");
+        foreach (ushort requestedEffect in requested)
+        {
+            int index = catalog[requestedEffect - 1].Entry == 0 ? 0 : requestedEffect - 1;
+            NativeBattleEffectBinding binding = catalog[index];
+            if (binding.Entry == 0x700C10)
+            {
+                binding = binding with { Effect3Resources = ReadNativeEffect3Resources() };
+                catalog = catalog.SetItem(index, binding);
+            }
+            if (binding.Initializer == 0 || binding.InitializerIsRet == true || binding.InitializerAsset is not null)
+            {
+                continue;
+            }
+            NativeBattleEffectInitializerResource resource = binding.InitializerResource ?? throw new NotSupportedException($"Native effect{binding.Effect} initializer{binding.Initializer:X} has no proved straight-line571B80 resource loader.");
+            catalog = catalog.SetItem(index, binding with { InitializerAsset = new(resource.Name, Read(magic, resource.Name).ToImmutableArray()) });
+        }
+        return catalog;
     }
 }

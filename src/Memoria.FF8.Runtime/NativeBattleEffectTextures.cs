@@ -96,6 +96,10 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
     public NativeBattleEffectTextureDrain Drain505D20()
     {
         Validate();
+        if (Count == 0)
+        {
+            return new(this, []);
+        }
         NativeBattleEffectArena bank = new(VramRegions);
         ImmutableArray<NativeBattleEffectVramUpload>.Builder uploads = ImmutableArray.CreateBuilder<NativeBattleEffectVramUpload>();
         for (int index = 0; index < Count; index++)

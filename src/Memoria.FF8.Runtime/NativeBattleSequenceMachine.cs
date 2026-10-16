@@ -219,6 +219,9 @@ public static class NativeBattleSequenceMachine
                     case 0xA4:
                         flags |= 4;
                         break;
+                    case 0xA5:
+                        (inputs.ScheduleModelEffect ?? throw new NotSupportedException("NativeA5 requires its actual571840 shared module-pool producer."))(ReadByte());
+                        break;
                     case 0xA7:
                         SwitchSequence(ReadByte());
                         break;
@@ -284,11 +287,13 @@ public static class NativeBattleSequenceMachine
                         cues.Add(new(NativeBattleSequenceCueKind.CommandTitle));
                         break;
                     case 0xBD:
-                        cues.Add(new(NativeBattleSequenceCueKind.Texture, ReadByte(), ReadByte()));
+                        byte textureSelector = ReadByte();
+                        byte textureVariant = ReadByte();
+                        (inputs.ApplyTexture ?? throw new NotSupportedException("Native BD requires its actual50C780 texture rectangle copy owner."))(textureSelector, textureVariant);
                         break;
                     case 0xBE:
+                        (inputs.ApplyTexture ?? throw new NotSupportedException("Native BE requires its actual50C780 texture reset owner."))(0, 0);
                         byte blink = ReadByte();
-                        cues.Add(new(NativeBattleSequenceCueKind.Texture, 0, 0));
                         model = model with { Flags0 = (ushort)((model.Flags0 & ~0x400) | (blink != 0 ? 0x400 : 0)) };
                         break;
                     default:
