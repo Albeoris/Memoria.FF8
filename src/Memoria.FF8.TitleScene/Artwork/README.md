@@ -8,7 +8,7 @@ The result has 497 silhouette points and 70,022 tone-contour points across 2,021
 
 The wordmark uses individual Times New Roman glyph outlines at their natural proportions, with tracked spacing and larger word spaces. Its outlines also become vector triangles, without font textures.
 
-Crest/wordmark exposure and edge glints follow `TitleSceneAnimation.LightIntensity`, shared with the background's 8-second pulse. The crest's narrow reflection travels over the precomputed highlight slices every 16 seconds. No geometry is generated or uploaded during animation.
+Crest/wordmark exposure and edge glints follow `TitleSceneAnimation.LightIntensity`, shared with the background's 8-second pulse. The half-speed motion clock makes the crest's narrow reflection travel over the precomputed highlight slices every 32 seconds. No geometry is generated or uploaded during animation.
 
 To regenerate the vector source, supply the original design-reference image to the offline tool:
 

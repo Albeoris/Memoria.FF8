@@ -969,7 +969,7 @@ internal sealed partial class RecreateGame : Game
         }
         GraphicsDevice.Clear(Color.Black);
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
-        if (session.State.Scene == SceneKind.Title)
+        if (!startup.Active && session.State.Scene == SceneKind.Title)
         {
             titleScene ??= new TitleSceneRenderer(GraphicsDevice);
             titleArtwork ??= new TitleArtworkRenderer(GraphicsDevice);

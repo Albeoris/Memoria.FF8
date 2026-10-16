@@ -4,8 +4,14 @@ namespace Memoria.FF8.TitleScene;
 public static class TitleSceneAnimation
 {
     public const double LightPeriodSeconds = 8;
-    public const double VortexRadiansPerSecond = 0.025;
-    public const double VortexLogTravelPerSecond = 0.0225;
+    public const double MotionSpeed = 0.5;
+    public const double VortexRadiansPerSecond = 0.025 * MotionSpeed;
+    public const double VortexLogTravelPerSecond = 0.0225 * MotionSpeed;
+
+    public static double MotionSeconds(double seconds)
+    {
+        return seconds * MotionSpeed;
+    }
 
     public static float LightIntensity(double seconds)
     {

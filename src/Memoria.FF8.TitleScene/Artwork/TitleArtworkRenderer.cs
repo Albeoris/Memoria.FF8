@@ -90,7 +90,7 @@ public sealed class TitleArtworkRenderer : IDisposable
             effect.DiffuseColor = Vector3.One;
             effect.Alpha = 0.26f + pulse * 0.24f;
             DrawBuffer(glintBuffer, glintPrimitiveCount);
-            float sheenCenter = (float)(seconds / 16.0 % 1.0) * sheenBuffers.Length;
+            float sheenCenter = (float)(TitleSceneAnimation.MotionSeconds(seconds) / 16.0 % 1.0) * sheenBuffers.Length;
             for (int index = 0; index < sheenBuffers.Length; index++)
             {
                 float distance = MathF.Abs(index - sheenCenter);
