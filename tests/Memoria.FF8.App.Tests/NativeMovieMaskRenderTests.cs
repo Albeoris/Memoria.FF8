@@ -192,7 +192,8 @@ public sealed class NativeMovieMaskRenderTests
         Assert.Equal(information.FrameCount - 1, session.State.MoviePlayback!.FrameIndex);
         Assert.False(session.IsMoviePlaying);
         Assert.True(visibleTotal > 0);
-        Assert.True(world.CanPresentCurrentField);
+        Assert.False(world.CanPresentCurrentField);
+        Dictionary<int, NativeModelPartDraw> movieDraws = world.Events.Scene.ModelParts!.Draws.ToDictionary();
         world.Events.Step();
         Assert.Equal(232, session.State.FieldId);
         Assert.Equal(229, world.Field!.Id);
@@ -200,7 +201,10 @@ public sealed class NativeMovieMaskRenderTests
         Assert.False(world.CanPresentCurrentField);
         NativeFieldModelInstance instance = world.Events.Scene.ModelParts!.Instances.First(item => world.Events.Actors[item.ObjectId].Visible);
         NativeModelPartDraw draw = world.Events.Scene.ModelParts.Draws[instance.ObjectId];
-        Assert.Equal(world.Events.Frame - 1, draw.Frame);
+        // CAM suppression can retain a sample older than the preceding callback.
+        // The departing field must preserve that actual sample without relabeling it.
+        Assert.Equal(movieDraws[instance.ObjectId], draw);
+        Assert.True(draw.Frame < world.Events.Frame);
         Assert.Throws<NotSupportedException>(() => world.Events.GetNativeModelPartTranslations(instance.ObjectId));
         Assert.Throws<NotSupportedException>(() => world.Render(TimeSpan.Zero));
         object departure = new { VmField = world.Events.FieldId, SessionField = session.State.FieldId, Frame = world.Events.Frame, DrawFrame = draw.Frame, Trigger = world.Events.NextTrigger.Kind.ToString(), PresentationReady = world.CanPresentCurrentField };

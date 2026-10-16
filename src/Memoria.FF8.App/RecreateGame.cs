@@ -340,7 +340,8 @@ internal sealed partial class RecreateGame : Game
         }
         catch (Exception exception)
         {
-            error = $"Movie playback failed: {exception.Message}\nSet --media-tools to the FFmpeg bin directory. Hold Cancel for 3 seconds to skip.";
+            error = $"Movie playback failed: {exception.Message}";
+            Console.Error.WriteLine(exception);
         }
     }
 
@@ -881,13 +882,14 @@ internal sealed partial class RecreateGame : Game
         {
             try
             {
-                if (session.State.Scene == SceneKind.Movie && movie?.HasFrame == true)
+                switch (FieldPresentationReadiness.SelectRenderer(session.State.Scene, world.CanPresentCurrentField, movie?.HasFrame == true))
                 {
-                    fieldTexture.SetData(world.RenderMovieFrame(movie.DecodedPixels, movie.Texture.Width, movie.Texture.Height));
-                }
-                else
-                {
-                    UploadField(gameplayClock.Total);
+                    case FieldPresentationRenderer.Movie:
+                        fieldTexture.SetData(world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height));
+                        break;
+                    case FieldPresentationRenderer.Field:
+                        UploadField(gameplayClock.Total);
+                        break;
                 }
                 if (worldPresentationDeferred)
                 {
@@ -936,7 +938,7 @@ internal sealed partial class RecreateGame : Game
                 }
             }
         }
-        else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene is SceneKind.Field or SceneKind.Movie && world?.Field is not null)
+        else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && world?.Field is not null)
         {
             PixelBounds fit = ViewportLayout.Fit(fieldTexture.Width, fieldTexture.Height, bounds.Width, bounds.Height);
             batch.Draw(fieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
