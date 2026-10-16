@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         }
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsActive && !actor.Suspended && actor.NativeAi is not null).ToArray())
         {
-            RunNativeAi(actor, 0);
+            QueueNativeParticipantInitialization(actor);
         }
     }
 

@@ -24,6 +24,10 @@ public sealed partial class BattleSession
     private (NativeBattleGraphicsState Graphics, byte Phase, bool Complete) PollNativeActionGraphics(NativeBattleGraphicsState graphics, byte phase)
     {
         NativeBattleActionGraphicsState context = graphics.ActionGraphics ?? throw new InvalidDataException("Native104 callback lost its50BF90 action globals.");
+        if (context.Callback == 0x50BB00)
+        {
+            return PollNativeOrdinaryGraphics(graphics, context, phase);
+        }
         if (context.Callback != 0x50B190)
         {
             throw new NotSupportedException($"Native104 selected callback{context.Callback:X}; its original graphical service is not implemented.");

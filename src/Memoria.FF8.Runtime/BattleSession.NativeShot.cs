@@ -51,7 +51,7 @@ public sealed partial class BattleSession
         }
         byte flags = (action.TargetFlags!.Value & 0x10) != 0 ? (byte)0x50 : (byte)0x40;
         ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, target.NativeIndex);
-        QueueNativeCommand(actor, 14, action.ActionId, 0, mask, crisis, NativeLimitCallback.ShotOpening);
+        QueueNativeCommand(actor, 14, action.ActionId, 0, mask, crisis, NativeLimitCallback.ShotOpening, playerInput: true);
         nativeShotProcesses.Add(actor.Id, new((byte)action.ActionId, mask, timer, timer, ammo.Count, BattleNativeShotPhase.Opening));
     }
 

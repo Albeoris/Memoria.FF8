@@ -18,8 +18,40 @@ public sealed partial class BattleSession
         }
         byte flags = reflected.TargetFlags.GetValueOrDefault();
         ushort mask = (ushort)((1 << target.NativeIndex) | ((flags & 1) != 0 ? 0x4000 : 0) | ((flags & 2) != 0 ? 0x2000 : 0));
+        BattleAttackCommand packet = new(actor.Id, target.Id, BattleAbility.Magic, reflected.ActionId) { NativeQueuedCommand = 247, NativeAction = reflected, NativeTargetMask = mask, FreeNativeMagic = true };
+        if (nativeAiDepth == 0)
+        {
+            if (!TryWriteNativeSecondCommand(packet))
+            {
+                //TODO(TD-009): Components without a graphical command bank admit the same second485610 producer within their CPU dispatch
+                BattleNativeAction? affinity = nativeAffinityAction;
+                ProduceNativeReflectedBankCommand(packet);
+                nativeAffinityAction = affinity;
+            }
+            return;
+        }
         BattleActionPresentation reflectedCommand = command with { Ability = BattleAbility.Magic, ActionId = reflected.ActionId, DrawCast = false, NativeDraw = null, DrawCastTargetId = null, NativeQueuedCommand = 247, NativeAction = reflected, NativeTargetMask = mask };
         BattleActionDefinition reflectedDefinition = new(BattleAbility.Magic, reflected.ActionId, reflected.Name ?? "Reflected magic", BattleActionEffect.Native, reflected.Power, actor.IsPlayer == target.IsPlayer) { NativeAction = reflected };
         ResolveInstalledNativeAction(actor, target, reflectedCommand, reflectedDefinition);
+    }
+
+    private void ProduceNativeReflectedBankCommand(BattleAttackCommand command)
+    {
+        if (command.NativeQueuedCommand != 247 || command.NativeAction?.Command != 247 || !command.FreeNativeMagic)
+        {
+            throw new InvalidDataException("Native reflected second packet lacks its247/E0C provenance.");
+        }
+        NativeBattleActionProductionContext? previous = nativeProductionContext;
+        byte lane = nativeActionScratch.EventLane ?? throw new NotSupportedException("Native reflected485610 requires its selected physical command bank.");
+        nativeProductionContext = new(0, lane, true, 0x47DE70);
+        try
+        {
+            BattleAttackCommand produced = ProduceNativeQueuedCommand(GetActor(command.ActorId), GetActor(command.TargetId), command);
+            actions.Enqueue(produced);
+        }
+        finally
+        {
+            nativeProductionContext = previous;
+        }
     }
 }

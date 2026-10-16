@@ -24,11 +24,14 @@ public sealed class NativeActionProductionTests
             ]
         }, BattleAtbMode.TurnBased);
 
+        Assert.Equal(10000, battle.Combatants[1].CurrentHp);
+        Assert.Equal(new BattleNativeCallback(3, 0), Assert.Single(battle.QueuedActions).NativeCallback);
+        battle.Tick();
         BattleSnapshot prepared = battle.Capture();
-        Assert.Equal(0, battle.Frame);
+        Assert.Equal(1, battle.Frame);
         Assert.Equal(9999, battle.Combatants[1].CurrentHp);
         Assert.Equal(77u, prepared.NativeAiVariables![0]);
-        Assert.Equal(0, Assert.Single(prepared.QueuedActions).NativeHeaderIndex);
+        Assert.Equal(0, prepared.ActiveAction!.NativeHeaderIndex);
         Assert.Equal((byte)1, prepared.NativeActionPackets!.ActionCount);
         Assert.Equal((byte)1, prepared.NativeActionPackets.ContactCount);
         Assert.Equal((ushort)1, prepared.NativeActionPackets.ReadContact(0).Primary.Amount6);
@@ -47,5 +50,86 @@ public sealed class NativeActionProductionTests
         Assert.Equal((byte)0, battle.NativeActionPackets.ActionCount);
         Assert.Equal((byte)0, battle.NativeActionPackets.ContactCount);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void GunbladePublishesZeroThenRecomputesItsContactOnceAndCompletesVictory()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreatePhysicalBattle(game, assets, true, false);
+        battle.SetGunbladeMode(BattleGunbladeMode.Automatic);
+        NativeBattleRandomState before = battle.Capture().Random!;
+        battle.QueueAttack("party-0", "enemy");
+        battle.Tick();
+
+        Assert.Equal(1000, battle.Combatants[1].CurrentHp);
+        Assert.Equal((ushort)0, battle.NativeActionPackets.ReadContact(0).Primary.Amount6);
+        Assert.Equal(before, battle.Capture().Random);
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int tick = 0; tick < 40 && battle.Outcome == BattleOutcome.Active; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+
+        Assert.Equal(BattleOutcome.Victory, battle.Outcome);
+        Assert.Equal(0, battle.Combatants[1].CurrentHp);
+        Assert.False(battle.Capture().NativeActionScratch!.DeferredEffectsE00);
+        Assert.Single(battle.Events, item => item.Kind == "Damage");
+        Assert.Single(battle.Events, item => item.Kind == "GunbladeTrigger");
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    [Fact]
+    public void PoisonProducesOneSeparateFactualCommandAtCompletionAndE120DoesNotRepeatIt()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreatePhysicalBattle(game, assets, false, true);
+        battle.QueueAttack("party-0", "enemy");
+        battle.Tick();
+        Assert.Equal(1000, battle.Combatants[0].CurrentHp);
+        Assert.Equal(999, battle.Combatants[1].CurrentHp);
+        for (int tick = 0; tick < 40 && battle.QueuedActions.All(command => command.NativeQueuedCommand != 0); tick++)
+        {
+            battle.Tick();
+        }
+
+        BattleAttackCommand poison = Assert.Single(battle.QueuedActions);
+        Assert.Equal((byte)0, poison.NativeQueuedCommand);
+        Assert.Equal(2, poison.ActionId);
+        Assert.NotNull(poison.NativeHeaderIndex);
+        Assert.InRange(battle.Combatants[0].CurrentHp, 910, 950);
+        BattleSnapshot prepared = battle.Capture();
+        Assert.Equal(0x47E120u, prepared.NativeActionScratch!.ComponentCompletion);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(prepared))!);
+        for (int tick = 0; tick < 40; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+
+        Assert.Single(battle.Events, item => item.Kind == "Damage" && item.Message.StartsWith("Poison:", StringComparison.Ordinal));
+        Assert.Null(battle.Capture().NativeActionScratch!.ComponentCompletion);
+        Assert.Equal((byte)0, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
+    private static BattleSession CreatePhysicalBattle(GameAssets game, BattleAssets assets, bool gunblade, bool poison)
+    {
+        BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8) with { Command = 1, ActionId = 0, AttackType = gunblade ? (byte)1 : (byte)35, Power = gunblade ? (byte)150 : (byte)0, HitCount = 1, AttackFlags = 0, DamagePresentation = 4, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };
+        return new(new BattleDefinition
+        {
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
+            NativeFieldBattleRules = 0,
+            Combatants =
+            [
+                new() { Id = "party-0", Name = "Party", ModelId = gunblade ? 0 : 1, IsPlayer = true, WeaponId = gunblade ? 0 : null, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, Speed = 1, Attack = 255, NativeAttack = attack, NativeStatus0 = poison ? (ushort)2 : (ushort)0, NativeStatusResistances = new byte[40] },
+                new() { Id = "enemy", Name = "Enemy", ModelId = 28, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeStatusResistances = new byte[40] }
+            ]
+        }, BattleAtbMode.TurnBased);
     }
 }

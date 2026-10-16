@@ -19,7 +19,8 @@ public enum NativeBattleDeferredContactKind
     RenzokukenInitial,
     RenzokukenFinisher,
     DuelControl,
-    ShotControl
+    ShotControl,
+    GuardianForceInitial
 }
 
 /// <summary>Already-applied factual contacts for the single canonical header/contact bank; presentation cannot apply them again.</summary>

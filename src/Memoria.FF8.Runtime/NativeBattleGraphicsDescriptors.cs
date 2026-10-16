@@ -177,7 +177,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
             BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4), PacketAddress(owner));
         }
         //502F30 does not initialize its retained phase byte;102/105 explicitly clear BYTE13.
-        if (kind is NativeBattleDescriptorTaskKind.Load502670 or NativeBattleDescriptorTaskKind.Remove502ED0 or NativeBattleDescriptorTaskKind.Stage506CF0 or NativeBattleDescriptorTaskKind.Texture506DE0 or NativeBattleDescriptorTaskKind.Map500AC0 or NativeBattleDescriptorTaskKind.Appearance500B60)
+        if (kind is NativeBattleDescriptorTaskKind.Load502670 or NativeBattleDescriptorTaskKind.Remove502ED0 or NativeBattleDescriptorTaskKind.Stage506CF0 or NativeBattleDescriptorTaskKind.Texture506DE0 or NativeBattleDescriptorTaskKind.Map500AC0 or NativeBattleDescriptorTaskKind.Appearance500B60 or NativeBattleDescriptorTaskKind.Action104)
         {
             payload[1] = 0;
         }

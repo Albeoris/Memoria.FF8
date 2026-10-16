@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     private HashSet<string>? nativeUiBecameReady;
     private bool nativeUiForceGaugeAdvance;
 
-    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && nativeScriptState.WaitCounters.Length == 0 && guardianForceCasts.Count == 0 && actions.Count == 0 && ActiveAction is null && combatants.Any(actor => actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor));
+    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && nativeScriptState.WaitCounters.Length == 0 && guardianForceCasts.Count == 0 && QueuedActions.Count == 0 && ActiveAction is null && combatants.Any(actor => actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor));
 
     private HashSet<string> PumpNativeHostFrame(bool forceGauge = false)
     {
@@ -67,6 +67,11 @@ public sealed partial class BattleSession
             return;
         }
         (NativeBattleUiCommands commands, uint readyMask, bool selectMenu) = services.Commands.Dispatch(services.ReadyMask);
+        if (selectMenu)
+        {
+            //4BB840 resets the command widget;4ADDB0's mismatched-owner path calls4A7160(0).
+            services = services.SetFlags(0, 0x10);
+        }
         services = services with { Commands = commands, ReadyMask = readyMask, Menu957 = selectMenu ? (sbyte)4 : services.Menu957 };
         NativeGraphics = NativeGraphics with { UiServices = services };
         if ((services.Flags942 & 0x40) != 0)
@@ -100,6 +105,7 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics?.UiServices is { } ui && NativeGraphics.TriggerWidget is null)
         {
+            // TODO(TD-009): The current HUD publishes the opened-list transition without native pixel-opening phases
             //4ADD10/4FDD90 select menu2;4ADDB0/4FDD90's opened-list path calls4A7160(1).
             NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0x10) with { Menu957 = 2, Menu955 = -1 } };
         }
@@ -148,6 +154,17 @@ public sealed partial class BattleSession
             ui = ui.SetFlags(0, 0x1800) with { Menu957 = widget.PreviousMenu957, Menu955 = widget.PreviousMenu955 };
         }
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = step.Unregistered ? null : step.Widget, PendingTrigger = pending };
+    }
+
+    private void DispatchNativeTriggerReceipt()
+    {
+        if (NativeGraphics?.PendingTrigger is not { } receipt)
+        {
+            return;
+        }
+        //47CCB0 case4 calls485160 after485460 and before periodic/script callbacks, even while ATB is held.
+        RecomputeNativeTriggerContact(receipt);
+        NativeGraphics = RequireNativeGraphics() with { PendingTrigger = null };
     }
 
     private void ValidateNativeTriggerWidget(NativeBattleGraphicsState graphics)

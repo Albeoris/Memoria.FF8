@@ -20,7 +20,7 @@ public sealed class NativeBattleGraphicsModelTests
         Assert.Equal(0x80u, loaded.Flags8);
         Assert.Null(loaded.Phase6);
         Assert.Null(loaded.Alpha7);
-        Assert.Equal((byte)0, loaded.AppearanceFrame129);
+        Assert.Equal((byte)0, loaded.CameraSequence130);
         Assert.NotEqual(0u, random.State);
         string serialized = JsonSerializer.Serialize(loaded);
         Assert.Equal(serialized, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGraphicsModel>(serialized)));

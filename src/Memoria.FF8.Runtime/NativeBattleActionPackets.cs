@@ -34,6 +34,25 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
         return new(0, 0, Enumerable.Range(0, HeaderCapacity).Select(_ => new NativeBattleActionHeaderSlot(ImmutableArray.CreateRange(new byte[20]), 0xFFFFF, null, null)).ToImmutableArray(), Enumerable.Repeat<NativeBattleContactPacket?>(null, ContactCapacity).ToImmutableArray(), null);
     }
 
+    public static NativeBattleActionPacketsState FromColdLoaderStorage(ReadOnlySpan<byte> headers, ReadOnlySpan<byte> contacts)
+    {
+        if (headers.Length != HeaderCapacity * 20 || contacts.Length != ContactCapacity * 24 || headers.ContainsAnyExcept((byte)0) || contacts.ContainsAnyExcept((byte)0))
+        {
+            throw new InvalidDataException("Native cold-process action storage requires the observed zero-filled loader arenas.");
+        }
+        NativeBattleActionHeaderSlot[] headerSlots = new NativeBattleActionHeaderSlot[HeaderCapacity];
+        NativeBattleContactPacket?[] contactSlots = new NativeBattleContactPacket?[ContactCapacity];
+        for (int index = 0; index < headerSlots.Length; index++)
+        {
+            headerSlots[index] = new(ImmutableArray.CreateRange(headers.Slice(index * 20, 20).ToArray()), 0, null, null);
+        }
+        for (int index = 0; index < contactSlots.Length; index++)
+        {
+            contactSlots[index] = NativeBattleContactPacket.Decode(contacts.Slice(index * 24, 24));
+        }
+        return new(0, 0, headerSlots.ToImmutableArray(), contactSlots.ToImmutableArray(), null);
+    }
+
     public void Validate()
     {
         if (ActionCount > HeaderCapacity || ContactCount > ContactCapacity || Headers.IsDefault || Headers.Length != HeaderCapacity || Contacts.IsDefault || Contacts.Length != ContactCapacity || ActiveHeaderIndex is < 0 or >= HeaderCapacity)
@@ -58,7 +77,7 @@ public sealed record NativeBattleActionPacketsState([property: JsonRequired] byt
                     throw new InvalidDataException("Native action data pointer lacks its known NULL or logical producer binding.");
                 }
             }
-            else if ((header.UnknownByteMask & 0xFFF) != 0xFFF || header.Data is not null)
+            else if (header.Data is not null)
             {
                 throw new InvalidDataException("Native prepared action header lacks its physical contact binding.");
             }

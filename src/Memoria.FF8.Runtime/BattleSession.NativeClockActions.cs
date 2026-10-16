@@ -12,32 +12,26 @@ public sealed partial class BattleSession
 
     private void QueueNativeActionClockCompletion(uint callback)
     {
-        if (nativeBattleClock is null)
-        {
-            return;
-        }
         if (NativeGraphics is { } graphics)
         {
             NativeGraphics = QueueNativeDescriptor(graphics, 10, callback);
         }
         else
         {
-            // TODO(TD-009): Components without the original descriptor bank retain the existing shared command completion boundary
-            SetNativeBattleActionPause(false);
+            nativeActionScratch = nativeActionScratch with { ComponentCompletion = callback };
+            TryCompleteNativeComponentCommand();
         }
     }
 
     private NativeBattleGraphicsState RunNativeDescriptorActionCallback(NativeBattleGraphicsState graphics, uint callback)
     {
-        if (callback is not (0x47DDA0 or 0x47DE70))
+        if (callback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native action clock callback differs from47DDA0/47DE70.");
         }
-        // TODO(TD-009): Shared contact transactions currently consume inventory/poison/reactions once before this graphics completion
-        // The original descriptor10 now owns the pause-DWORD release; do not duplicate those already-owned effects here.
-        SetNativeBattleActionPause(false);
-        nativeActionPackets = nativeActionPackets.ResetCounts();
-        return graphics;
+        NativeGraphics = graphics;
+        CompleteNativeActionEvent(callback);
+        return NativeGraphics ?? throw new InvalidDataException("Native completion lost its graphical descriptor owner.");
     }
 
     private void RunNativePlayerReaction(BattleCombatant actor, int stage)
@@ -60,6 +54,10 @@ public sealed partial class BattleSession
 
     private void RunNativeAi(BattleCombatant actor, int callback)
     {
+        if (callback == 1)
+        {
+            actor.AiTurnCount = unchecked((byte)(actor.AiTurnCount + 1));
+        }
         if (callback is >= 0 and <= 3 && nativeActionCommitDepth == 0 && !flushingNativeReactions)
         {
             BeginNativeReactionBatch();

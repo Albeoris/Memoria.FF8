@@ -75,6 +75,7 @@ public sealed class InstalledBattleActionCoverageTests
         }
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Declared exhaustive installed player action component",
             NativeFieldBattleRules = 0,
             NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(),

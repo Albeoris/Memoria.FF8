@@ -10,7 +10,7 @@ public sealed partial class BattleSession
     private NativeBattleTimedAction? nativeTimedAction;
     private bool suppressNativeImmediateCounter;
 
-    private void BeginNativeTimedAction(BattleActionPresentation command)
+    private void BeginNativeTimedAction(BattleActionPresentation command, ushort magicId)
     {
         if (nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions)
         {
@@ -24,15 +24,31 @@ public sealed partial class BattleSession
         }
         BeginNativeBattleActionPause();
         BeginNativeReactionBatch();
+        SetNativeActionEvent(actor, 1);
         nativeTimedAction = new(command, 0);
         nativeAffinityAction = null;
         nativeActionCommitDepth = 1;
+        NativeBattleActionProductionContext? previous = nativeProductionContext;
+        nativeProductionContext = new(0, 1, false, 0x47DE70);
+        try
+        {
+            BattleNativeAction control = actor.NativeAttack! with { Command = 5, ActionId = checked((ushort)command.ActionId), KernelSection = -1, KernelIndex = -1, MagicId = magicId, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, Statuses0 = 0, Statuses1 = 0, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
+            BattleActionDefinition definition = new(command.Ability, command.ActionId, "Renzokuken", BattleActionEffect.Native, 0, false) { NativeAction = control };
+            int header = nativeActionPackets.ActionCount;
+            ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, definition);
+            nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
+            nativeTimedAction = nativeTimedAction! with { Command = command with { NativeHeaderIndex = header } };
+        }
+        finally
+        {
+            nativeProductionContext = previous;
+        }
     }
 
     private void ResolveNativeTimedContact(ushort targetMask, BattleNativeAction native, short timing, bool finalContact)
     {
         NativeBattleTimedAction timed = nativeTimedAction ?? throw new InvalidOperationException("Native contact requires its active command transaction.");
-        if (nativeActionCommitDepth != 1 || native.Command == 251 && (native.AttackType != 10 || timing is < 0 or > 32))
+        if (nativeActionCommitDepth != 1 || native.Command == 251 && native.AttackType != 10)
         {
             throw new InvalidDataException("Native contact lacks its command-depth or original trigger timing contract.");
         }
@@ -50,12 +66,13 @@ public sealed partial class BattleSession
                 {
                     throw new InvalidDataException("Native251 contact must retain its originally selected physical recipient.");
                 }
-                BattleActionDefinition action = new(contact.Ability, contact.ActionId, native.Name ?? "Renzokuken", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
                 BattleActionPresentation? previousAction = resolvingNativeAction;
                 resolvingNativeAction = contact;
                 try
                 {
-                    ResolveInstalledNativeHit(actor, target, contact, action, native);
+                    BattleNativeRenzokukenState process = nativeRenzokukenProcesses[actor.Id];
+                    short total = checked((short)RenzokukenResource(process.MagicId).Timeline.InputThresholds.Length);
+                    RecomputeNativeTriggerContact(new(checked((byte)actor.NativeIndex), checked((short)(timed.Contacts + 1)), total, timing, 32));
                 }
                 finally
                 {
@@ -64,7 +81,16 @@ public sealed partial class BattleSession
             }
             else
             {
-                ResolveAction(actor, target, contact);
+                NativeBattleActionProductionContext? previousContext = nativeProductionContext;
+                nativeProductionContext = new(0, 1, false, 0x47DE70);
+                try
+                {
+                    ResolveAction(actor, target, contact);
+                }
+                finally
+                {
+                    nativeProductionContext = previousContext;
+                }
             }
             nativeTimedAction = timed with { Contacts = checked(timed.Contacts + 1) };
         }
@@ -86,7 +112,6 @@ public sealed partial class BattleSession
         nativeTimedAction = null;
         nativeActionCommitDepth = 0;
         QueueNativeActionClockCompletion(0x47DE70);
-        FlushNativeReactions();
         RefreshNativeKnownMagicStocks();
         RefreshNativeEnemyDrawSlots();
     }

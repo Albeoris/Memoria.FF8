@@ -67,6 +67,7 @@ public sealed class NativeBattleAiDrawTests
         BattleNativeAction[] spells = [Spell(1), Spell(2)];
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Native AI Draw component",
             NativeMessageSpeed = 0,
             NativeGlobalMessages = messages,

@@ -14,7 +14,7 @@ public sealed class BattleHudNativeCommandTests
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = 0 };
-        BattleSession session = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 50000, CurrentHp = 50000 }] }, BattleAtbMode.TurnBased);
+        BattleSession session = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", Speed = 1, MaximumHp = 50000, CurrentHp = 50000 }] }, BattleAtbMode.TurnBased);
         session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("zell", 1)] });
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId)) { NativeButtonBindingHint = buttons => $"Key{buttons:X4}" };
         hud.BuildView();
@@ -52,7 +52,7 @@ public sealed class BattleHudNativeCommandTests
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
-        BattleSession session = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), NativeShotAvailability = game.ReadNewGameShotAvailability() with { Flags770 = 0 }, Items = [new(101, 2)], NativeLimitsDisabled = false, Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true, ModelId = 2, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(2) }, new() { Id = "ally", Name = "Ally", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
+        BattleSession session = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeShotAvailability = game.ReadNewGameShotAvailability() with { Flags770 = 0 }, Items = [new(101, 2)], NativeLimitsDisabled = false, Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true, ModelId = 2, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(2) }, new() { Id = "ally", Name = "Ally", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
         session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("irvine", 4)] });
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId));
         hud.BuildView();
@@ -82,7 +82,7 @@ public sealed class BattleHudNativeCommandTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
         using BattleAssets assets = new(directory);
         NativeLimitProgress progress = new(new string('A', 64), 1, 0, 0, 0, Enumerable.Repeat((byte)0, 8).ToImmutableArray());
-        BattleSession session = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "quistis", Name = "Quistis", IsPlayer = true, ModelId = 3, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(3) }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
+        BattleSession session = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "quistis", Name = "Quistis", IsPlayer = true, ModelId = 3, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(3) }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
         session = BattleSession.Restore(session.Capture() with { NativeLimits = [new("quistis", 4)] });
         BattleHudController hud = new(session, session.QueueAttack, () => { }, () => { }, execute: input => session.QueueAction(input.ActorId!, input.TargetId!, input.Ability, input.ActionId));
         string before = JsonSerializer.Serialize(session.Capture());

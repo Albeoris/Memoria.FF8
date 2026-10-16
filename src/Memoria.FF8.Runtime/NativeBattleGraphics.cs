@@ -53,6 +53,8 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     [JsonRequired]
     public NativeBattleActionGraphicsState? ActionGraphics { get; init; }
     [JsonRequired]
+    public byte? StageResourceIndex98990 { get; init; }
+    [JsonRequired]
     public long PresentationSubticks { get; init; }
 
     public void Validate()

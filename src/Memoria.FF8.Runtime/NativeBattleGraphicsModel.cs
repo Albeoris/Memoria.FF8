@@ -7,8 +7,9 @@ public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public byte? Kind5 { get; init; }
     public byte? Phase6 { get; init; }
     public byte? Alpha7 { get; init; }
-    public byte? AppearanceFrame129 { get; init; }
-    public byte? AppearancePhase130 { get; init; }
+    public byte? CameraSequence130 { get; init; }
+    public byte? CameraAccumulator131 { get; init; }
+    public bool? HasLinkedModelRing140 { get; init; }
     public byte? BlinkCountdown144 { get; init; }
     public ushort? Flags2 { get; init; }
     public uint? Flags8 { get; init; }
@@ -58,7 +59,7 @@ public static class NativeBattleGraphicsModels
                 timers = timers.SetItem(bit, 0);
             }
         }
-        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, AppearanceFrame129 = (byte)(frame % 6), AppearancePhase130 = (byte)appearance, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, Sequence = 8, SequenceFrame = 0 };
+        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, Sequence = 8, SequenceFrame = 0 };
     }
 
     public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence)

@@ -10,7 +10,7 @@ public sealed partial class BattleCombatant
 
 public sealed partial class BattleSession
 {
-    // TODO(TD-009): Retain the originating stage while48E830 facts are deferred; synchronous native fact production removes this transport
+    //487DF0's current synchronous callback owner; queued copies retain factual provenance only.
     private byte? nativeAiCallbackStage;
 
     private void AccumulateNativeReturnDamage(BattleCombatant recipient, BattleCombatant? source, int magnitude)
@@ -71,20 +71,8 @@ public sealed partial class BattleSession
         {
             return;
         }
-        //Native48E830 completes this internal command before the interpreter resumes its following command.
-        BattleAttackCommand[] tail = actions.ToArray();
-        actions.Clear();
-        try
-        {
-            QueueNativeCommand(actor, 0, 5, 0, checked((ushort)(1 << actor.NativeIndex)));
-        }
-        finally
-        {
-            foreach (BattleAttackCommand following in tail)
-            {
-                actions.Enqueue(following);
-            }
-        }
+        //The original command's header is already published. This synchronous0/5 follows it before the interpreter resumes.
+        QueueNativeCommand(actor, 0, 5, 0, checked((ushort)(1 << actor.NativeIndex)));
     }
 
     private bool TryResolveNativeReturnDamage(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleNativeAction native)

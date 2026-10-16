@@ -6,6 +6,8 @@
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Shared/NativeBattleCommandSequenceFixture.cs" Link="NativeBattleCommandSequenceFixture.cs" />
+    <Using Include="Memoria.FF8.Tests" />
     <Using Include="Xunit" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />

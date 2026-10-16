@@ -58,7 +58,7 @@ public sealed class NativeRinoaLimitTests
     private static BattleSession CreateBattle(BattleAssets assets, byte savedFlags, byte angeloFlags)
     {
         NativeLimitProgress progress = new(new string('A', 64), 0, 0, angeloFlags, 0, Enumerable.Repeat((byte)0, 8).ToImmutableArray());
-        BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), NativeSavedBattleFlags = savedFlags, NativeSavedBattleFlagsKnownMask = 255, LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "rinoa", Name = "Rinoa", IsPlayer = true, ModelId = 4, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(4) }, new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeSavedBattleFlags = savedFlags, NativeSavedBattleFlagsKnownMask = 255, LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "rinoa", Name = "Rinoa", IsPlayer = true, ModelId = 4, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(4) }, new() { Id = "ally", Name = "Ally", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy" }] }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("rinoa", 4)] });
     }
 

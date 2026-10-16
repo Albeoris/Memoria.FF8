@@ -88,6 +88,10 @@ public sealed partial class BattleSession
                 data = new(0x495070, action);
                 break;
         }
+        if (data is not null)
+        {
+            data = data with { FormattedText = ResolveNativeActionHeaderName(data, native) };
+        }
         return new(checked((byte)actor.NativeIndex), original, sequence, camera, action, effect, data);
     }
 
@@ -127,6 +131,10 @@ public sealed partial class BattleSession
         }
         byte original = command.NativeQueuedCommand ?? command.NativeAction?.Command ?? (byte)1;
         byte lane = command.NativeAiCallbackStage is not null || command.NativePlayerReaction is not null ? (byte)0 : original is 5 or 11 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 254 ? (byte)1 : (byte)2;
+        if (previousContext is null)
+        {
+            SetNativeActionEvent(actor, lane);
+        }
         nativeProductionContext ??= new(0, lane, command.DrawCast, command.NativeAiCallbackStage == 1 || lane != 0 ? 0x47DE70u : 0x47DDA0u);
         try
         {
@@ -170,7 +178,9 @@ public sealed partial class BattleSession
         if (NativeGraphics is null && command.NativeHeaderIndex is not null && !actions.Any(queued => queued.NativeHeaderIndex is not null))
         {
             //TODO(TD-009): Graphicsless components admit48D1F0 at their declared presentation completion instead of descriptor10
-            nativeActionPackets = nativeActionPackets.ResetCounts();
+            nativeActionScratch = nativeActionScratch with { ComponentCompletion = nativeActionScratch.ComponentCompletion ?? 0x47DDA0 };
+            ActiveAction = null;
+            TryCompleteNativeComponentCommand();
         }
     }
 

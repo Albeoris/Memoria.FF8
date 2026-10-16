@@ -6,6 +6,31 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeReturnDamageTests
 {
+    [Fact]
+    public void SynchronousReturnFactsAndPresentationReferencesFollowThePublishedHeaderOrder()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, 0, twice: true);
+        battle.Tick();
+
+        Assert.Equal((byte)4, battle.NativeActionPackets.ActionCount);
+        Assert.Equal(new byte[] { 8, 0, 8, 0 }, battle.NativeActionPackets.Headers.Take(4).Select(header => header.ReadByte(1)));
+        Assert.Equal(0, battle.ActiveAction!.NativeHeaderIndex);
+        Assert.Equal(new int?[] { 1, 2, 3 }, battle.QueuedActions.Select(command => command.NativeHeaderIndex));
+        Assert.Equal(9500, battle.Combatants[1].CurrentHp);
+        Assert.Equal((ushort)0, battle.Capture().Combatants[1].NativeParticipant!.ReturnDamage);
+        Assert.Equal(new[] { "party", "enemy", "party", "enemy" }, battle.Events.Where(item => item.Kind == "Damage").Select(item => item.TargetId));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int tick = 0; tick < 100; tick++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(4, battle.Events.Count(item => item.Kind == "Damage"));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Theory]
     [InlineData(0, 1000, 250)]
     [InlineData(65530, 994, 248)]

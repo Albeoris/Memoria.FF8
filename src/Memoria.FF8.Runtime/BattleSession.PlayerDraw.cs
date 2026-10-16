@@ -20,7 +20,7 @@ public sealed partial class BattleSession
         }
         BattleAttackCommand queued = new(actorId, sourceId, BattleAbility.Draw, selection, cast) { NativeQueuedCommand = 6, DrawCastTargetId = castTargetId };
         OnNativePlayerCommandSubmitted(actor, 6);
-        actions.Enqueue(queued);
+        EnqueueNativeInputCommand(queued);
         actor.Atb = 0;
         actor.IsBusy = true;
         nativeLimitLevels.Remove(actor.Id);

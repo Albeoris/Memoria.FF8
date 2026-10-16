@@ -3,11 +3,20 @@ using System.Text.Json.Serialization;
 namespace Memoria.FF8.Runtime;
 
 /// <summary>50BF90's copied globals; header and contact storage remain in their canonical physical arenas.</summary>
-public sealed record NativeBattleActionGraphicsState([property: JsonRequired] int HeaderIndex, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] int FirstContactIndex, [property: JsonRequired] ushort TargetMask, [property: JsonRequired] ushort CoverMask, [property: JsonRequired] byte? CoverSource, [property: JsonRequired] byte? FirstTarget, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback);
+public sealed record NativeBattleActionGraphicsState([property: JsonRequired] int HeaderIndex, [property: JsonRequired] byte ActorIndex, [property: JsonRequired] int FirstContactIndex, [property: JsonRequired] ushort TargetMask, [property: JsonRequired] ushort CoverMask, [property: JsonRequired] byte? CoverSource, [property: JsonRequired] byte? FirstTarget, [property: JsonRequired] byte HitFlags, [property: JsonRequired] NativeBattleActionDataReference? PendingData, [property: JsonRequired] uint Callback)
+{
+    [JsonRequired]
+    public bool? UseActionCamera { get; init; }
+}
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
 
 public static class NativeBattleActionGraphics
 {
+    public static bool IsModelBusy(NativeBattleGraphicsModel model, ushort resourceMask)
+    {
+        return (model.Flags0 & 8) == 0 && ((model.Flags8 ?? throw new NotSupportedException("Native508540 requires its reached model DWORD8.")) & 26) == 0 && ((model.Kind5 ?? throw new NotSupportedException("Native508540 requires its reached model BYTE5.")) != 0 || ((model.ResourceFlags44 ?? throw new NotSupportedException("Native508540 requires its reached resource WORD44.")) & resourceMask) == 0);
+    }
+
     public static NativeBattleActionGraphicsState Normalize(NativeBattleActionPacketsState packets, int headerIndex, NativeBattleActionGraphicsState? previous = null)
     {
         packets.Validate();
@@ -90,4 +99,7 @@ public static class NativeBattleActionGraphics
     public static ushort Word(NativeBattleActionHeaderSlot header, int offset) => (ushort)(header.ReadByte(offset) | header.ReadByte(offset + 1) << 8);
 }
 
-public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer);
+public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer)
+{
+    public bool? InitializerIsRet { get; init; }
+}

@@ -14,9 +14,9 @@ public static class NativeBattleDamage
         return enemy ? value >> 1 : value;
     }
 
-    public static int GuardianForce(int spirit, int power, int level, int levelCoefficient, int constantPower, int damagePercent, int randomByte)
+    public static int GuardianForce(int spirit, int power, int level, int levelCoefficient, int constantPower, int damagePercent, int randomByte, int boostPercent = 100)
     {
-        return (randomByte % 33 + 240) * ((damagePercent + 100) * (power * ((265 - spirit) * (levelCoefficient * level / 10 + power + constantPower) / 8) / 256) / 100) / 256;
+        return (randomByte % 33 + 240) * ((damagePercent + 100) * (boostPercent * (power * ((265 - spirit) * (levelCoefficient * level / 10 + power + constantPower) / 8) / 256) / 100) / 100) / 256;
     }
 
     public static int Cure(int magic, int power, int randomByte)

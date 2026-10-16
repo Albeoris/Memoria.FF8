@@ -12,6 +12,7 @@ public sealed class NativeBattleCommandSequenceTests
         var sequences = assets.ReadNativeBattleCommandSequences();
 
         Assert.Equal(0x27, sequences.Length);
+        Assert.Equal(NativeBattleCommandSequenceFixture.Values, sequences);
         Assert.Equal((byte)13, sequences[1]);
         Assert.Equal((byte)11, sequences[2]);
         Assert.Equal((byte)14, sequences[3]);

@@ -143,6 +143,14 @@ public sealed partial class BattleSession
             switch (task.Kind)
             {
                 case NativeBattleDescriptorTaskKind.Stage506CF0:
+                    if (phase == 0)
+                    {
+                        if ((packet.UnknownByteMask & 0x300) != 0)
+                        {
+                            throw new NotSupportedException("Native506CF0 requires its physical stage file index WORD8.");
+                        }
+                        graphics = graphics with { StageResourceIndex98990 = unchecked((byte)packet.Index) };
+                    }
                     // TODO(TD-009): The authenticated stage is already loaded; retain native506CF0 phases while materializing its IO-ready input
                     if (phase == 1)
                     {
@@ -245,7 +253,7 @@ public sealed partial class BattleSession
         {
             0 => graphics,
             0x47DD90 => ResetNativeActionPacketCounts(graphics),
-            0x47DDA0 or 0x47DE70 => RunNativeDescriptorActionCallback(graphics, callback),
+            0x47DDA0 or 0x47DE70 or 0x47E120 => RunNativeDescriptorActionCallback(graphics, callback),
             0x47DD80 => graphics with { EntryLifecycle = 1 },
             0x4A94B0 => graphics with { UiServices = (graphics.UiServices ?? throw new NotSupportedException("Native4A94B0 requires its initialized942 menu owner.")).SetFlags(8) },
             0x47DD70 => graphics with { EntryLifecycle = 3, EntryReady = false },

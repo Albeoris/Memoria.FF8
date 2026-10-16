@@ -68,11 +68,28 @@ public sealed partial class BattleSession
     {
         // Automatic is host assistance supplying one successful native trigger, not the original probabilistic Auto option/4A7080 random owner.
         //485160 overwrites the single-hit trigger WORD with1 under Blind, without an ordinary accuracy roll.
-        short timing = action.NativeAction?.Command == 251 ? action.GunbladeTriggerTiming ?? throw new InvalidDataException("Native Renzokuken contact lacks its input-owned timing WORD.") : HasStatus(actor, BattleStatusKind.Blind) ? (short)1 : GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
+        short timing = ReadGunbladeTiming(actor, action);
         if (NativeGunbladeAttack.TriggerSucceeded(timing))
         {
             Log("GunbladeTrigger", actor.Id, target.Id, 0, $"{actor.Name}: Gunblade trigger.");
         }
         return timing;
+    }
+
+    private short ReadGunbladeTiming(BattleCombatant actor, BattleActionPresentation action)
+    {
+        if (action.NativeAction?.Command is 251 or 253 or 248 or 243 && action.GunbladeTriggerTiming is short supplied)
+        {
+            return supplied;
+        }
+        if (action.NativeAction?.Command == 251)
+        {
+            throw new InvalidDataException("Native Renzokuken contact lacks its input-owned timing WORD.");
+        }
+        if (HasStatus(actor, BattleStatusKind.Blind))
+        {
+            return 1;
+        }
+        return GunbladeMode == BattleGunbladeMode.Automatic ? (short)25 : action.GunbladeTriggerTiming ?? 0;
     }
 }

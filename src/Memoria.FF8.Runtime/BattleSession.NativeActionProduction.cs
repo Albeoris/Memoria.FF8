@@ -9,7 +9,7 @@ public sealed partial class BattleSession
 
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context)
     {
-        if (header.Actor != actor.NativeIndex || header.Command != (command.NativeQueuedCommand ?? action.NativeAction!.Command) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70))
+        if (header.Actor != actor.NativeIndex || header.Command != (command.NativeQueuedCommand ?? action.NativeAction!.Command) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
@@ -110,7 +110,7 @@ public sealed partial class BattleSession
         return new(contacts.ToImmutable(), publishedCount, deferred, firstReflector is null ? null : checked((byte)firstReflector.NativeIndex));
     }
 
-    private static NativeBattleDeferredContactKind NativeDeferredContact(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
+    private NativeBattleDeferredContactKind NativeDeferredContact(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
     {
         byte original = command.NativeQueuedCommand ?? native.Command;
         return original switch
@@ -120,6 +120,7 @@ public sealed partial class BattleSession
             250 => NativeBattleDeferredContactKind.RenzokukenFinisher,
             11 => NativeBattleDeferredContactKind.DuelControl,
             14 or 238 => NativeBattleDeferredContactKind.ShotControl,
+            254 when nativeActionScratch.GuardianFormulaE1E != true => NativeBattleDeferredContactKind.GuardianForceInitial,
             _ => NativeBattleDeferredContactKind.None
         };
     }
@@ -153,6 +154,10 @@ public sealed partial class BattleSession
     private bool NativeImmediateCounterAllowed(BattleCombatant recipient)
     {
         if (suppressNativeImmediateCounter)
+        {
+            return false;
+        }
+        if (nativeContactWorking is not null && (nativeActionScratch.DeferredEffectsE00 != false || nativeActionScratch.EventLane == 0 || nativeContactWorking.CommittingSecondary || nativeActionScratch.Command is 0 or 14))
         {
             return false;
         }

@@ -25,6 +25,7 @@ public sealed partial class BattleSession
     private static NativeBattleContactPacket CreateNativeReflectedContact(BattleCombatant recipient, BattleNativeAction native)
     {
         NativeBattleContactPresentation presentation = NativeBattleContactPresentations.Complete(native.DamagePresentation, 0x31, 4, (byte)(native.AttackFlags & 3), 255);
+        RefreshNativePresentationStatus(recipient);
         (ushort saved, uint battle) = NativeContactStatusMirror(recipient);
         NativeBattleContactHalf primary = new(checked((byte)recipient.NativeIndex), presentation.Sequence, presentation.Flags2, presentation.HitFlags3, saved, 0, battle);
         return new(primary, new(255, 0, 0, 0, 0, 0, 0));
@@ -47,6 +48,14 @@ public sealed partial class BattleSession
     private NativeBattleContactPacket ResolveInstalledNativeHitWithContact(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native, byte specialSource, bool preliminary = false)
     {
         DecrementNativeRemainingHits(recipient);
+        bool? deferred = native.Command switch
+        {
+            237 => true,
+            238 or 239 or 249 => false,
+            241 => native.ActionId != 65532,
+            _ => preliminary ? true : nativeActionScratch.DeferredEffectsE00
+        };
+        nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred };
         NativeContactWorking? previous = nativeContactWorking;
         NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource);
         nativeContactWorking = contact;
@@ -90,6 +99,11 @@ public sealed partial class BattleSession
 
     private static (ushort Saved, uint Battle) NativeContactStatusMirror(BattleCombatant actor)
     {
+        return (actor.NativePresentationStatus.Saved ?? throw new NotSupportedException("Native contact requires its47E2D0 WORD B92 mirror."), actor.NativePresentationStatus.Battle ?? throw new NotSupportedException("Native contact requires its47E2D0 DWORD B1C mirror."));
+    }
+
+    private static void RefreshNativePresentationStatus(BattleCombatant actor)
+    {
         ushort saved = NativeSavedStatusBits(actor);
         uint battle = NativeBattleStatusBits(actor);
         if (!actor.IsPlayer && actor.NativeTemplate?.NativeStatusAllocation is { } allocation)
@@ -98,7 +112,7 @@ public sealed partial class BattleSession
             saved &= (ushort)~(allocation.Saved & 0x40);
             battle &= ~(allocation.Battle & 0x2000);
         }
-        return (saved, battle);
+        actor.NativePresentationStatus = new(saved, battle);
     }
 
     private void MarkNativeContactFlags(byte flags, byte hitFlags)
@@ -200,6 +214,7 @@ public sealed partial class BattleSession
     {
         if (nativeContactWorking is { } contact)
         {
+            RefreshNativePresentationStatus(contact.Actor);
             contact.CommittingSecondary = false;
         }
     }

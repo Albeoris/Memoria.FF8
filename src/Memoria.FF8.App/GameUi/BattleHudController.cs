@@ -95,8 +95,8 @@ public sealed partial class BattleHudController
     {
         get
         {
-            BattleCombatant? selected = Party.FirstOrDefault(actor => actor.Id == selectedActorId && CanChooseCommand(actor));
-            selected ??= Party.FirstOrDefault(CanChooseCommand);
+            BattleCombatant? selected = session.UsesNativeReadyMenu ? Party.FirstOrDefault(actor => actor.Id == session.SelectedPlayerCommandActorId && CanChooseCommand(actor)) : Party.FirstOrDefault(actor => actor.Id == selectedActorId && CanChooseCommand(actor));
+            selected ??= session.ReadyPlayerCommandOrder.FirstOrDefault();
             selectedActorId = selected?.Id;
             return selected;
         }
@@ -123,11 +123,11 @@ public sealed partial class BattleHudController
             Message = notification.Message;
             lastNotification = notification;
         }
-        if (SelectingTarget && SelectedActor is null)
+        if ((SelectingTarget || SelectingAction) && SelectedActor is null)
         {
             SelectingTarget = false;
             SelectingAction = false;
-        session.CloseNativeActionMenu();
+            session.CloseNativeActionMenu();
             selectedMagicTargets.Clear();
         }
         return view;
@@ -216,10 +216,10 @@ public sealed partial class BattleHudController
             else
             {
                 string? before = SelectedActor?.Id;
-                selectedActorId = Cycle(Party.Where(CanChooseCommand).ToArray(), selectedActorId, direction);
-                if (before != selectedActorId)
+                string? next = Cycle(session.ReadyPlayerCommandOrder, before, direction);
+                if (next is not null && before != next)
                 {
-                    SoundRequested?.Invoke(MenuSound.Move);
+                    SelectParty(next);
                 }
             }
         }
@@ -344,17 +344,18 @@ public sealed partial class BattleHudController
     }
     public void SelectParty(string actorId)
     {
-        if (Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
+        if (!NativeTimedLimitActive && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
             if (SelectedActor?.Id != actorId)
             {
                 selectedMagicTargets.Clear();
                 magicCastCount = 1;
                 SelectingAction = false;
-        session.CloseNativeActionMenu();
+                session.CloseNativeActionMenu();
                 SelectingTarget = false;
                 SoundRequested?.Invoke(MenuSound.Move);
             }
+            session.SelectPlayerCommandActor(actorId);
             selectedActorId = actorId;
         }
     }
@@ -499,6 +500,6 @@ public sealed partial class BattleHudController
 
     private bool CanChooseCommand(BattleCombatant actor)
     {
-        return session.NativeEntryReady && actor.IsReady && !actor.StatusEffects.Any(effect => effect.Kind == BattleStatusKind.Sleep);
+        return session.CanChoosePlayerCommand(actor.Id);
     }
 }

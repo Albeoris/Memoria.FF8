@@ -15,6 +15,7 @@ public sealed class NativeSequenceTrackTests
         BattleNativeAction action = Action(0) with { ActionId = 1 };
         BattleSession battle = new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = [action],
             Combatants =
             [
@@ -62,6 +63,7 @@ public sealed class NativeSequenceTrackTests
         NativeBattleAiDefinition ai = new([[5, 2, 30, 143, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) { SequenceTracks = [new(2, [0xA1, 0xA1, 0xAA, 0xA2], [], 2)] };
         BattleSession battle = new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = [Action(0) with { ActionId = 1, AttackFlags = 0x80 }],
             Combatants =
             [
@@ -98,6 +100,7 @@ public sealed class NativeSequenceTrackTests
         BattleNativeAction native = Action(attackType) with { Statuses0 = 2, StatusAttack = 255 };
         BattleSession battle = new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = [native],
             Combatants =
             [

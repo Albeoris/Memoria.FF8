@@ -92,6 +92,7 @@ public sealed class NativeBattleScanTests
         };
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Native Scan component",
             NativeScannedModels = known ? Empty() : null,
             NativeScanAlwaysShow = alwaysShow,

@@ -64,6 +64,7 @@ public sealed class NativePlayerDrawMetadataTests
     {
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeFieldBattleRules = 0,
             Name = "Installed Draw Cast component",
             NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(),

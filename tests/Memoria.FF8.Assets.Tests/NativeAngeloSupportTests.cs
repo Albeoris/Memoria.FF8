@@ -78,6 +78,8 @@ public sealed class NativeAngeloSupportTests
         BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8) with { ActionId = 1000, AttackType = lethal ? (byte)27 : (byte)35, Power = 1, Hit = 0, HitCount = 1, AttackFlags = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };
         BattleSession battle = new(new BattleDefinition
         {
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeFieldBattleRules = 0,
             NativeActions = [.. assets.NativeActions, attack],
             ActionDefinitions = assets.ActionDefinitions.ToArray(),

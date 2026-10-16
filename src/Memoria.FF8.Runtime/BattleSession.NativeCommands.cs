@@ -162,7 +162,7 @@ public sealed partial class BattleSession
             return;
         }
         ushort targetMask = command == 19 && actionId != 4 ? NativeAutomaticActionTargetMask(targetFlags) : NativeBattleLimitRules.PlayerTargetMask(targetFlags, NativePlayerSelectedTarget(actor, target, targetFlags).NativeIndex);
-        QueueNativeCommand(actor, command, actionId, sequence, targetMask, crisis);
+        QueueNativeCommand(actor, command, actionId, sequence, targetMask, crisis, playerInput: true);
         nativeLimitLevels.Remove(actorId);
     }
 

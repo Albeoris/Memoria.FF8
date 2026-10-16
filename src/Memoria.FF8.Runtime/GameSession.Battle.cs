@@ -4,6 +4,15 @@ public sealed partial class GameSession
 {
     private static void ValidateBattleFactsCheckpoint(GameState state)
     {
+        state.NativeBattleMemory?.Validate();
+        if (state.NativeBattleMemory is { } memory && state.Battle is { } battle)
+        {
+            NativeBattleRetainedMemory observed = NativeBattleRetainedMemory.Capture(battle, memory.ColdExecutableSha256);
+            if (!System.Text.Json.JsonElement.DeepEquals(System.Text.Json.JsonSerializer.SerializeToElement(memory), System.Text.Json.JsonSerializer.SerializeToElement(observed)))
+            {
+                throw new InvalidDataException("Retained battle memory contradicts the active battle's physical owners.");
+            }
+        }
         ValidateNativeSavedBattleFlagsCheckpoint(state);
         state.BattleVariables?.Validate();
         state.ScannedModels?.Validate();
@@ -70,6 +79,7 @@ public sealed partial class GameSession
     public void SetBattle(BattleSnapshot? snapshot)
     {
         BattleSnapshot? owned = snapshot is null ? null : BattleSession.Restore(snapshot).Capture();
-        State = State with { Battle = owned };
+        NativeBattleRetainedMemory? memory = owned is null ? State.NativeBattleMemory : NativeBattleRetainedMemory.Capture(owned, State.NativeBattleMemory?.ColdExecutableSha256 ?? owned.Definition.NativeRetainedMemory?.ColdExecutableSha256);
+        State = State with { Battle = owned, NativeBattleMemory = memory };
     }
 }

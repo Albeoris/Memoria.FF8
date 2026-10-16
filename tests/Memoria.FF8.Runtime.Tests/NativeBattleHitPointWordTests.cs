@@ -14,6 +14,7 @@ public sealed class NativeBattleHitPointWordTests
         ushort word = unchecked((ushort)change);
         NativeBattleAiDefinition ai = Program([60, (byte)word, (byte)(word >> 8), 0]);
         BattleSession battle = new(new() { Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 100, CurrentHp = before, NativeAi = ai }] }, BattleAtbMode.Normal);
+        battle.Tick();
         BattleCombatant enemy = battle.Combatants[1];
         Assert.Equal(after, enemy.CurrentHp);
         Assert.True(enemy.IsAlive);
@@ -29,6 +30,7 @@ public sealed class NativeBattleHitPointWordTests
     {
         NativeBattleAiDefinition ai = Program([60, 0xFE, 0xFF, 2, 0, 200, 2, 255, 255, 3, 0, 15, 96, 1, 0]);
         BattleSession battle = new(new() { Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 100, CurrentHp = 1, NativeAi = ai }] }, BattleAtbMode.Normal);
+        battle.Tick();
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
     }
 

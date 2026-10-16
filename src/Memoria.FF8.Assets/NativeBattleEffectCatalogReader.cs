@@ -22,7 +22,7 @@ public static class NativeBattleEffectCatalogReader
             uint initializer = ReadAddress(0xC81DB8 + 4u * (uint)(effect - 1));
             ValidateCallback(entry);
             ValidateCallback(initializer);
-            result.Add(new(effect, entry, initializer));
+            result.Add(new(effect, entry, initializer) { InitializerIsRet = initializer == 0 ? null : FirstByte(initializer) == 0xC3 });
         }
         return result.MoveToImmutable();
 
@@ -31,6 +31,13 @@ public static class NativeBattleEffectCatalogReader
             long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
             SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 4 <= section.VirtualAddress + section.SizeOfRawData);
             return BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(checked((int)(rva - section.VirtualAddress + section.PointerToRawData)), 4));
+        }
+
+        byte FirstByte(uint address)
+        {
+            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
+            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva < section.VirtualAddress + section.SizeOfRawData);
+            return executable[checked((int)(rva - section.VirtualAddress + section.PointerToRawData))];
         }
 
         void ValidateCallback(uint address)

@@ -183,6 +183,7 @@ public sealed class GuardianForceCastTests
     {
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeBattleSpeed = 0,
             GuardianForces = [new(0, gfHp, 100) { KillCount = 0, DeathCount = ushort.MaxValue }],
             ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "GF", BattleActionEffect.Native, 10, false) { NativeAction = Native(254, 64, 11) }],

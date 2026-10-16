@@ -34,6 +34,7 @@ public sealed class NativeBattleAiConditionTests
         BattleDefinition definition = Definition(Condition(1, 200, 0, 10));
         definition = definition with { Combatants = [definition.Combatants[0] with { MaximumHp = 101, CurrentHp = 25 }, definition.Combatants[1]] };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.Tick();
 
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
         Assert.Equal(NativeBattleRandomState.Initialize(0).Indexes.ToArray(), battle.Capture().Random!.Indexes.ToArray());
@@ -60,8 +61,8 @@ public sealed class NativeBattleAiConditionTests
     public void PresenceIncludesDeadModelsWhileLivingPresenceExcludesThem()
     {
         BattleDefinition presence = Definition(Condition(8, 0, 0, 0));
-        presence = presence with { Combatants = [presence.Combatants[0] with { CurrentHp = 0, NativeStatus0 = 1 }, presence.Combatants[1]] };
-        BattleDefinition living = presence with { Combatants = [presence.Combatants[0], presence.Combatants[1] with { NativeAi = Ai(Condition(9, 0, 0, 0)) }] };
+        presence = presence with { Combatants = [presence.Combatants[0] with { CurrentHp = 0, NativeStatus0 = 1 }, presence.Combatants[1], new() { Id = "living-party", Name = "Living", IsPlayer = true, ModelId = 3 }] };
+        BattleDefinition living = presence with { Combatants = [presence.Combatants[0], presence.Combatants[1] with { NativeAi = Ai(Condition(9, 0, 0, 0)) }, presence.Combatants[2]] };
 
         Assert.True(Passed(presence));
         Assert.False(Passed(living));
@@ -97,7 +98,7 @@ public sealed class NativeBattleAiConditionTests
     {
         BattleDefinition definition = Definition(Condition(18, 0, 0, 3)) with { NativeSavedBattleFlags = 1, NativeSavedBattleFlagsKnownMask = 1 };
 
-        Assert.Contains("explicit owner", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal)).Message);
+        Assert.Contains("explicit owner", Assert.Throws<NotSupportedException>(() => AdmitInitial(definition)).Message);
     }
 
     [Fact]
@@ -146,7 +147,7 @@ public sealed class NativeBattleAiConditionTests
     [Fact]
     public void LastCommandWithoutAnExecutedMetadataOwnerFailsAtTheActualCondition()
     {
-        Assert.Contains("executed action metadata owner", Assert.Throws<NotSupportedException>(() => new BattleSession(Definition(Condition(10, 3, 0, 254)), BattleAtbMode.Normal)).Message);
+        Assert.Contains("executed action metadata owner", Assert.Throws<NotSupportedException>(() => AdmitInitial(Definition(Condition(10, 3, 0, 254)))).Message);
     }
 
     [Fact]
@@ -154,6 +155,7 @@ public sealed class NativeBattleAiConditionTests
     {
         byte[] initial = [39, 0, 1, .. Condition(6, 201, 0, 0)];
         BattleSession battle = new(Definition(initial), BattleAtbMode.Normal);
+        battle.Tick();
 
         Assert.Equal(50, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
@@ -162,16 +164,23 @@ public sealed class NativeBattleAiConditionTests
     [Fact]
     public void ClearingScriptedKoIsNotOverwrittenByAConditionQueryAtZeroHp()
     {
-        byte[] initial = [39, 0, 0, .. Condition(6, 201, 0, 1)];
+        byte[] initial = [39, 0, 1, 39, 0, 0, .. Condition(6, 201, 0, 1)];
         BattleDefinition definition = Definition(initial);
-        definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { CurrentHp = 0, NativeStatus0 = 1 }] };
+        definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { CurrentHp = 0, NativeStatus0 = 0 }] };
 
         Assert.True(Passed(definition));
     }
 
     private static bool Passed(BattleDefinition definition)
     {
-        return new BattleSession(definition, BattleAtbMode.Normal).Capture().NativeAiVariables![0] == 1;
+        return AdmitInitial(definition).Capture().NativeAiVariables![0] == 1;
+    }
+
+    private static BattleSession AdmitInitial(BattleDefinition definition)
+    {
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 
     private static byte[] Condition(byte subject, byte selector, byte comparison, int value)

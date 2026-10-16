@@ -95,6 +95,7 @@ public sealed class NativeBattleCompelledActionTests
         };
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Compelled action component",
             NativeFieldBattleRules = 0,
             NativeActions = [spell],

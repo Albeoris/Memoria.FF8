@@ -144,9 +144,11 @@ public sealed record BattleDefinition
 {
     public NativeBattleClockRules? NativeClockRules { get; init; }
     public NativeBattleSupportRules? NativeSupportRules { get; init; }
+    public NativeBattleRetainedMemory? NativeRetainedMemory { get; init; }
     public NativeBattleGraphicsDefinition? NativeGraphics { get; init; }
     public ImmutableArray<NativeBattleModuleResource> NativeModuleResources { get; init; } = [];
     public ImmutableArray<NativeBattleEffectBinding> NativeEffectCatalog { get; init; } = [];
+    public NativeBattleActionCameraRules? NativeActionCameraRules { get; init; }
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public ImmutableArray<byte> NativeStageCameraSelectors { get; init; } = [];
     public ImmutableArray<byte> NativeStageCameraControl { get; init; } = [];
@@ -179,7 +181,7 @@ public sealed record BattleDefinition
     public BattleNativeAction[] NativeActions { get; init; } = [];
     public BattleGuardianForceVital[] GuardianForces { get; init; } = [];
     public byte? NativeBattleSpeed { get; init; }
-    public ushort? NativeSavedOptions { get; init; }
+    public uint? NativeSavedOptions { get; init; }
     public NativePocketStationState? NativePocketStation { get; init; }
     public string? NativeChocoboName { get; init; }
     public NativeLimitProgress? LimitProgress { get; init; }
@@ -274,7 +276,17 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 public sealed record BattleSnapshot
 {
     [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleCommandBanks? NativeCommandBanks { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public int? NativeEffectIoResult { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattlePartyPresentation? NativePartyPresentation { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattlePartyStatusMirrors? NativePartyStatusMirrors { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleActionPacketsState? NativeActionPackets { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleActionScratch? NativeActionScratch { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeReactionOrder { get; init; }
     public NativeBattleClockState? NativeClock { get; init; }

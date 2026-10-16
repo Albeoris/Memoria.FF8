@@ -39,7 +39,7 @@ public sealed partial class BattleSession
 
     private static NativeBattleStatusSnapshot CaptureNativeStatus(BattleCombatant actor)
     {
-        return new(actor.NativeStatus0, actor.NativeStatus1, actor.NativeStatusTimers.ToArray()) { Resistances = actor.MutableNativeStatusResistances.ToArray() };
+        return new(actor.NativeStatus0, actor.NativeStatus1, actor.NativeStatusTimers.ToArray()) { Resistances = actor.MutableNativeStatusResistances.ToArray(), Presentation = actor.NativePresentationStatus };
     }
 
     private static int GetNativeStatusResistance(BattleCombatant actor, int index)
@@ -103,6 +103,8 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Battle snapshot requires its explicitly migrated native status resistance bank.");
         }
+        (snapshot.Presentation ?? throw new InvalidDataException("Native B92/B1C mirror owner is missing; migrate the standalone snapshot explicitly.")).Validate();
+        actor.NativePresentationStatus = snapshot.Presentation;
         actor.NativeStatus0 = snapshot.Saved;
         actor.NativeStatus1 = snapshot.Battle;
         snapshot.Timers.CopyTo(actor.NativeStatusTimers, 0);

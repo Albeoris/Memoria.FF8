@@ -18,9 +18,9 @@ public sealed partial class BattleSession
         EnqueueNativePacket(actor, command, $"native graphics252/1 effect{magicId}");
     }
 
-    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name)
+    private void EnqueueNativePacket(BattleCombatant actor, BattleAttackCommand command, string name, bool playerInput = false)
     {
-        if ((nativeAiDepth != 0 || nativeCallbackTail is not null) && command.NativeRenzokuken is null)
+        if ((nativeAiDepth != 0 || nativeCallbackTail is not null || nativeProductionContext is not null) && command.NativeRenzokuken is null)
         {
             command = PrepareNativeDrawCommand(actor, command);
             command = PrepareNativeSpecialCommand(actor, command);
@@ -30,7 +30,18 @@ public sealed partial class BattleSession
         }
         actor.Atb = 0;
         actor.IsBusy = true;
-        actions.Enqueue(command);
+        if (playerInput)
+        {
+            EnqueueNativeInputCommand(command);
+        }
+        else
+        {
+            actions.Enqueue(command);
+        }
         Log("Queued", actor.Id, command.TargetId, command.ActionId, $"{actor.Name}: {name} queued.");
+        if (nativeAiDepth != 0 && !IsNativeReturnDamageAction(command.NativeAction))
+        {
+            CompleteNativeAiReturnDamage(actor, NativeCommandPresentation(command));
+        }
     }
 }

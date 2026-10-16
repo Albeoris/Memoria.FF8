@@ -145,6 +145,7 @@ public sealed class NativeOrdinaryCommandTests
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeFieldBattleRules = 0,
             NativeActions = assets.NativeActions.ToArray(),
             NativeStatusRules = assets.ReadNativeStatusRules(0),

@@ -39,6 +39,7 @@ public sealed partial class BattleSession
         ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).NativeIndex);
         EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
         guardianForceCasts.Add(actor.Id, new(actor.Id, command, ticks, ticks));
+        BeginNativePresentedGuardianForce(actor, gf);
         actor.NativeStatus1 |= 0x80000000;
         Log("GuardianForceCharging", actor.Id, actor.Id, ticks, $"{actor.Name}: {ActionName(command.Ability, command.ActionId)} charging.");
     }
@@ -91,7 +92,7 @@ public sealed partial class BattleSession
         {
             byte targetFlags = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native48F2C0 GF completion requires its original target flags BYTE.");
             ushort mask = NativeAutomaticActionTargetMask(targetFlags);
-            actions.Enqueue(cast.Command with { NativeTargetMask = mask });
+            EnqueueNativeInputCommand(cast.Command with { NativeTargetMask = mask });
             Log("GuardianForceReady", actor.Id, cast.Command.TargetId, cast.Command.ActionId, "GF charge completed.");
         }
         else

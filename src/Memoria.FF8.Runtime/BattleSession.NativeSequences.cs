@@ -44,7 +44,7 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics is { } graphics)
         {
-            if (action.NativeSequenceFrame is not null || graphics.ActionActorId != actor.Id || action.Phase == BattleActionPhase.Recovery && !graphics.ActionCallbackReady)
+            if (action.NativeSequenceFrame is not null || action.NativeHeaderIndex is null && (graphics.ActionActorId != actor.Id || action.Phase == BattleActionPhase.Recovery && !graphics.ActionCallbackReady))
             {
                 throw new InvalidDataException("Native active action contradicts its raw graphical callback owner.");
             }

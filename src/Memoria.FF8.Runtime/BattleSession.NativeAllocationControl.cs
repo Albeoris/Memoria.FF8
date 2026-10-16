@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleAllocationControl(byte? SceneSlot, bool ActionGate, bool PauseGate);
+public sealed record NativeBattleAllocationControl([property: System.Text.Json.Serialization.JsonRequired] byte? SceneSlot, [property: System.Text.Json.Serialization.JsonRequired] bool ActionGate, [property: System.Text.Json.Serialization.JsonRequired] bool PauseGate);
 
 public sealed partial class BattleSession
 {

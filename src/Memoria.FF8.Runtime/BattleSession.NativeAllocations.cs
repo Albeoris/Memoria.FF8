@@ -36,6 +36,7 @@ public sealed partial class BattleSession
         nativeAllocations.Add(allocation);
         spawned.NativeIndex = physicalIndex;
         spawned.NativeReturnDamage = 0;
+        spawned.NativePresentationStatus = previous?.NativePresentationStatus ?? new(null, null);
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
         spawned.LastNativeHealing = previous?.LastNativeHealing;
         spawned.LastNativeAction = previous?.LastNativeAction is { } last ? last with { AttackType = 0, AttackerIndex = 0 } : null;

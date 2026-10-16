@@ -24,6 +24,7 @@ public sealed partial class BattleSession
             return;
         }
         ValidateNativeGraphicsDefinition(source);
+        InitializeNativePartyPresentation();
         NativeBattleGraphicsState graphics = new(NativeBattleGraphicsModels.ClearBank().ToImmutableArray(), Enumerable.Repeat<string?>(null, 7).ToImmutableArray(), 0, 0);
         NativeGraphics = QueueNativeEntryLoads(graphics);
     }

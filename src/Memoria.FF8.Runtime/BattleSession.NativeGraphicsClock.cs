@@ -80,6 +80,7 @@ public sealed partial class BattleSession
         {
             models = models.SetItem(index, SetNativeGraphicsFlags(models[index], 16));
         }
+        graphics = graphics with { Models = models, Effects = effects.State };
         for (int index = 0; index < 7; index++)
         {
             NativeBattleGraphicsModel model = models[index];
@@ -106,7 +107,22 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(graphics.ActorIds[index]!) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask) { OriginalResource = binding.Resource, GlobalRandom = NextNativeGlobalRandom, ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable), ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone) });
+                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask)
+                {
+                    OriginalResource = binding.Resource,
+                    GlobalRandom = NextNativeGlobalRandom,
+                    ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable),
+                    ScheduleSoundParticle = (program, soundTwo, bone) => graphics = ScheduleNativeSoundParticle(graphics, index, program, soundTwo, bone),
+                    ApplyActionContacts = current =>
+                    {
+                        models = models.SetItem(index, current);
+                        graphics = ApplyNativeActiveHeaderContacts(graphics with { Models = models });
+                        models = graphics.Models;
+                        //TODO(TD-009): — the component presentation phase observes the original AA publication while104 owns native completion.
+                        graphics = graphics with { ActionCallbackReady = true };
+                        return models[index];
+                    }
+                });
                 model = step.Model with { Flags2 = (ushort)(step.Model.Flags2!.Value & ~4) };
                 foreach (NativeBattleSequenceCue cue in step.Cues)
                 {
@@ -127,11 +143,7 @@ public sealed partial class BattleSession
                     }
                     else if (cue.Kind == NativeBattleSequenceCueKind.ActionCallback)
                     {
-                        if (graphics.ActionActorId != actor.Id)
-                        {
-                            throw new InvalidDataException("Native AA lacks its current command callback owner.");
-                        }
-                        graphics = graphics with { ActionCallbackReady = true };
+                        throw new InvalidDataException("Native AA must publish its active header contacts inline.");
                     }
                     else if (cue.Kind == NativeBattleSequenceCueKind.TriggerWindow)
                     {
@@ -147,7 +159,7 @@ public sealed partial class BattleSession
             }
             models = models.SetItem(index, model);
         }
-        NativeGraphics = graphics with { Models = models, Effects = effects.State, Callback = checked(graphics.Callback + 1) };
+        NativeGraphics = graphics with { Models = models, Callback = checked(graphics.Callback + 1) };
         AdvanceNativeCamera(flags);
         if (NativeCamera is not null)
         {
@@ -162,7 +174,7 @@ public sealed partial class BattleSession
 
     private static bool ModelsBusy(IReadOnlyList<NativeBattleGraphicsModel> models)
     {
-        return models.Any(model => (model.Flags0 & 2) != 0 && (model.Flags0 & 8) == 0 && ((model.Flags8 ?? throw new InvalidDataException("Native508540 lacks graphics statusDWORD8.")) & 0x18) == 0 && (model.Kind5 != 0 || ((model.ResourceFlags44 ?? throw new InvalidDataException("Native508540 lacks resourceWORD44.")) & 0x40) == 0));
+        return models.Any(model => (model.Flags0 & 2) != 0 && NativeBattleActionGraphics.IsModelBusy(model, 0x40));
     }
 
     private BattleCombatant GraphicsActor(NativeBattleGraphicsState graphics, int index) => GetActor(graphics.ActorIds[index] ?? throw new InvalidDataException("Native graphical row has no bound allocation identity."));
@@ -172,6 +184,12 @@ public sealed partial class BattleSession
         foreach (NativeBattleContactPacket packet in graphics.PendingContacts)
         {
             packet.Validate();
+            //506690 invokes493D80 before checking whether the primary model is loaded.
+            graphics = PublishNativeReadyContact(graphics, packet.Primary);
+            if (packet.Secondary.ActorIndex != 255)
+            {
+                graphics = PublishNativeReadyContact(graphics, packet.Secondary);
+            }
             NativeBattleGraphicsModel primary = graphics.Models[packet.Primary.ActorIndex];
             BattleCombatant actor = GraphicsActor(graphics, packet.Primary.ActorIndex);
             NativeBattleContactEffectPlan plan = NativeBattleContactEffects.Plan(packet.Primary, primary, definition.NativeGraphics!.Rules, NativeBattleStatusBits(actor));

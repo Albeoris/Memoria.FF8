@@ -170,6 +170,25 @@ public sealed class NativeBattleGraphicsEntryTests
     }
 
     [Fact]
+    public void NativePartyHudCacheKeepsItsContactBoundaryWhenLogicalHpAlreadyChanged()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, 61, ready: false);
+        BattleSnapshot snapshot = battle.Capture();
+        int cached = battle.ReadPresentedVital("party-0").HitPoints;
+        Assert.True(cached > 1);
+        BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
+        actors[0] = actors[0] with { CurrentHp = 1 };
+        BattleSession changed = BattleSession.Restore(snapshot with { Combatants = actors });
+        Assert.Equal(1, changed.Combatants[0].CurrentHp);
+        Assert.Equal(cached, changed.ReadPresentedVital("party-0").HitPoints);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(changed.Capture()))!);
+        Assert.Equal(changed.ReadPresentedVital("party-0"), restored.ReadPresentedVital("party-0"));
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(snapshot with { NativePartyPresentation = null }));
+    }
+
+    [Fact]
     public void PresentationClockSurvivesRestoreWithoutPersistingTheHostTransportPolicy()
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);

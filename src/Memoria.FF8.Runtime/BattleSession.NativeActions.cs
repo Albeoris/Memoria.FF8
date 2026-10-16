@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -19,6 +19,10 @@ public sealed partial class BattleSession
         {
             return NativePhoenixRevivalAction();
         }
+        if (command == 0 && id is 2 or 6)
+        {
+            return NativePostActionEffect(id);
+        }
         if (command is 1 or 12 or 28 && id == 0)
         {
             BattleNativeAction attack = actor.NativeAttack ?? throw new NotSupportedException("Native physical command requires its character-owned equipped weapon and junction metadata.");
@@ -28,7 +32,7 @@ public sealed partial class BattleSession
         return FindInstalledNativeAction(command, id, crisis);
     }
 
-    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, byte? crisis = null, NativeLimitCallback? callback = null)
+    private void QueueNativeCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask, byte? crisis = null, NativeLimitCallback? callback = null, bool playerInput = false)
     {
         BattleNativeAction native = FindNativeCommandAction(actor, command, id, crisis);
         ValidateNativeActionContract(native);
@@ -43,7 +47,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
         BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
-        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}");
+        EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}", playerInput);
     }
 
     private static bool IsNativeRevive(BattleActionDefinition action)
@@ -99,6 +103,7 @@ public sealed partial class BattleSession
         NativeBattleActionProductionContext context = nativeProductionContext ?? throw new NotSupportedException("Native48E830 requires its actual485610 event/repeat context.");
         NativeBattleActionHeaderPreparation header = BuildNativeActionHeaderPreparation(actor, command, action.NativeAction!);
         (nativeActionPackets, int headerIndex) = nativeActionPackets.Prepare(header);
+        nativeActionScratch = nativeActionScratch with { ActorIndex = header.Actor, Command = header.Command, Action = header.Action, DeferredEffectsE00 = header.Command == 254, GuardianFormulaE1E = header.Command == 254 ? false : nativeActionScratch.GuardianFormulaE1E, GuardianBoostPercent = header.Command == 254 ? (byte)0 : nativeActionScratch.GuardianBoostPercent };
         NativeBattleActionProductionResult produced = ProduceNativeActionFacts(actor, target, command, action, header, context);
         foreach (NativeBattleContactPacket packet in produced.Contacts)
         {
@@ -109,7 +114,11 @@ public sealed partial class BattleSession
         {
             NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
         }
-        nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
+        nativeProductionContext = context;
+        if (nativeAiDepth == 0 && context.MultiCastMode != 0)
+        {
+            nativeProductionContext = context with { RepeatMode = unchecked((byte)(context.RepeatMode + 1)) };
+        }
         if (produced.ReflectorIndex is byte reflector)
         {
             ResolveNativeReflection(actor, combatants.Single(candidate => candidate.NativeIndex == reflector), command, action.NativeAction!);
@@ -187,6 +196,10 @@ public sealed partial class BattleSession
 
     private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
+        if (ResolveNativePostActionHit(actor, recipient, native))
+        {
+            return;
+        }
         if (native.AttackType is 2 or 3 or 5 or 6 or 8 or 11 or 15 or 20 or 21 or 22 or 26 or 33)
         {
             recipient.NativeCombatantFlags &= ~0x4000u;
@@ -354,7 +367,7 @@ public sealed partial class BattleSession
                         Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} was unaffected.");
                         return;
                     }
-                    damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - actor.CurrentHp) : -50 * native.Power;
+                    damage = native.AttackType == 32 ? -native.Power * recipient.MaximumHp / 16 : native.AttackType == 25 ? -(actor.MaximumHp - ReadNativeRecoverSourceHp(actor)) : -50 * native.Power;
                     applyStatuses = native.StatusAttack > NextRandomByte() % 100 + 1;
                     break;
                 case 21:
@@ -368,7 +381,7 @@ public sealed partial class BattleSession
                     break;
                 case 11:
                 case 15:
-                    damage = NativeBattleDamage.GuardianForce(spirit, native.Power, action.Level, native.LevelModifier ?? 0, native.PowerModifier ?? 0, action.DamagePercent, NextRandomByte());
+                    damage = NativeBattleDamage.GuardianForce(spirit, native.Power, action.Level, native.LevelModifier ?? 0, native.PowerModifier ?? 0, action.DamagePercent, NextRandomByte(), native.Command == 254 ? nativeActionScratch.GuardianBoostPercent ?? throw new NotSupportedException("Native GF formula lacks its4850A0 Boost byte.") : 100);
                     break;
                 case 26:
                     if (recipient.Level % (native.Hit ?? 255) != 0)
@@ -550,5 +563,6 @@ public sealed partial class BattleSession
                 RunNativeAi(recipient, 4);
             }
         }
+        RefreshNativePresentationStatus(recipient);
     }
 }

@@ -41,6 +41,7 @@ public sealed class NativeBattleDeathCountTests
         };
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Native KO component", BattleActionEffect.Native, 0, true) { NativeAction = death }],
             Combatants =
             [

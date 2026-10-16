@@ -97,6 +97,7 @@ public sealed class NativeMagicGroupTests
         BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0) with { NativeStatusPassiveFlags = passive };
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = assets.NativeActions.ToArray(),
             ActionDefinitions = assets.ActionDefinitions.ToArray(),
             NativeStatusRules = assets.ReadNativeStatusRules(0),

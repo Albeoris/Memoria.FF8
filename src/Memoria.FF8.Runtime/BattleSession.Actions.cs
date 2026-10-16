@@ -71,7 +71,11 @@ public sealed partial class BattleSession
         }
         BattleAttackCommand queued = new(actorId, targetId, ability, actionId, drawCast) { NativeMagicTargets = magicMasks, ReservedNativeItemSlot = reservedItemSlot, NativeQueuedCommand = ability switch { BattleAbility.Magic => 2, BattleAbility.Item => 4, BattleAbility.Draw => 6, BattleAbility.GuardianForce => 254, _ => null } };
         OnNativePlayerCommandSubmitted(actor, ability == BattleAbility.GuardianForce ? (byte)3 : queued.NativeQueuedCommand!.Value);
-        if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
+        if (NativeGraphics is not null)
+        {
+            EnqueueNativeInputCommand(ability == BattleAbility.GuardianForce ? queued with { NativeQueuedCommand = 3 } : queued);
+        }
+        else if (ability == BattleAbility.GuardianForce && action.NativeAction is not null)
         {
             QueueGuardianForce(actor, queued);
         }
@@ -111,6 +115,8 @@ public sealed partial class BattleSession
         //48FE20 commands14/238 explicitly suppress their damage/effect consumer;237 owns each accepted shot.
         if (command.NativeQueuedCommand is 14 or 238)
         {
+            BattleNativeAction control = command.NativeAction ?? throw new InvalidDataException("Native Shot control lacks its original ammunition metadata.");
+            ResolveInstalledNativeAction(actor, target, command, new(command.Ability, command.ActionId, control.Name ?? "Shot", BattleActionEffect.Native, 0, false) { NativeAction = control });
             Log("NativeLimitControl", actor.Id, target.Id, 0, command.NativeQueuedCommand == 14 ? "Shot started." : "Shot ended.");
             return;
         }

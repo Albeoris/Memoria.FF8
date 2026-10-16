@@ -69,6 +69,7 @@ public sealed partial class BattleSession
                 {
                     Log("NativeStatusExpired", actor.Id, actor.Id, bit + 16, $"Native status {bit + 16} expired.");
                 }
+                RefreshNativePresentationStatus(actor);
             }
         }
     }

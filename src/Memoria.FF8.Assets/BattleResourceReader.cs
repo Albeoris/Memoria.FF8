@@ -62,6 +62,7 @@ internal static partial class BattleResourceReader
         return new BattleModel(name, bones, meshes, textures.Select(texture => texture.Image).ToArray(), animations, scale)
         {
             NativePoseSource = new(bytes.AsSpan(offsets[0], 16 + boneCount * 48).ToArray().ToImmutableArray(), bytes.AsSpan(offsets[2], offsets.Where(offset => offset > offsets[2]).DefaultIfEmpty(bytes.Length).Min() - offsets[2]).ToArray().ToImmutableArray()),
+            NativeActionCameraBank = offsets.Length is 9 or 10 && offsets[6] != offsets[7] ? new(bytes.AsSpan(offsets[6], offsets[7] - offsets[6]).ToArray().ToImmutableArray()) : null,
             Sequences = name.StartsWith("c0m", StringComparison.OrdinalIgnoreCase) ? Sequences(bytes, offsets, 3) : offsets.Length is 9 or 10 ? Sequences(bytes, offsets, 5) : null
         };
     }

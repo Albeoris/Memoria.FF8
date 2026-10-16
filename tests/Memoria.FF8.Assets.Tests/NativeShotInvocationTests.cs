@@ -90,7 +90,7 @@ public sealed class NativeShotInvocationTests
 
     private static BattleSession CreateBattle(GameAssets game, BattleAssets assets, byte ammoCount)
     {
-        BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), NativeShotAvailability = game.ReadNewGameShotAvailability() with { Flags770 = 0 }, NativeLimitsDisabled = false, Items = [new(101, ammoCount)], Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true, ModelId = 2, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(2) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeShotAvailability = game.ReadNewGameShotAvailability() with { Flags770 = 0 }, NativeLimitsDisabled = false, Items = [new(101, ammoCount)], Combatants = [new() { Id = "irvine", Name = "Irvine", IsPlayer = true, ModelId = 2, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(2) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("irvine", 4)] });
     }
 

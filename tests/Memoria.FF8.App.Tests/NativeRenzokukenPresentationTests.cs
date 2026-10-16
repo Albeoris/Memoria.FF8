@@ -21,6 +21,8 @@ public sealed class NativeRenzokukenPresentationTests
         BattleEnemyPlacement ifrit = encounter.Enemies.Single(enemy => enemy.ModelId == 61);
         BattleDefinition definition = new()
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             EncounterId = 94,
             StageId = encounter.StageId,
             NativeActions = assets.NativeActions.ToArray(),

@@ -18,6 +18,7 @@ public sealed class NativeRevivalRulesTests
         BattleActionDefinition item = assets.ActionDefinitions.First(action => action.Ability == BattleAbility.Item && action.NativeAction?.AttackType == 5);
         BattleSession battle = new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeFieldBattleRules = 0,
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             ActionDefinitions = [item],
@@ -48,6 +49,7 @@ public sealed class NativeRevivalRulesTests
         BattleActionDefinition life = assets.ActionDefinitions.First(action => action.Ability == BattleAbility.Magic && action.NativeAction?.AttackType == type);
         BattleSession battle = new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeFieldBattleRules = rules,
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             ActionDefinitions = [life],

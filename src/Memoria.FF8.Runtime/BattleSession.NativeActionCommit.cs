@@ -40,8 +40,13 @@ public sealed partial class BattleSession
             nativeActionCommitDepth--;
             if (nativeActionCommitDepth == 0 && completed)
             {
-                QueueNativeActionClockCompletion(0x47DE70);
-                FlushNativeReactions();
+                if (nativeProductionContext is null)
+                {
+                    //Generic fixture actions have no original native event/header admission.
+                    CompleteNativeOrdinaryCommandCost(actor, command);
+                    CompleteNativeActionStatuses(actor);
+                    FlushNativeReactions();
+                }
                 RefreshNativeKnownMagicStocks();
                 RefreshNativeEnemyDrawSlots();
             }
@@ -56,9 +61,6 @@ public sealed partial class BattleSession
         {
             CompleteGuardianForceAffinity(actor, command);
         }
-        CompleteNativeOrdinaryCommandCost(actor, command);
-        CompleteNativeActionStatuses(actor);
-        CompleteNativeAiReturnDamage(actor, command);
     }
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)
@@ -71,7 +73,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native494410 only produces pending stages2/3.");
         }
-        if (stage == 2 && (nativeContactWorking?.CommittingSecondary == true || (resolvingNativeAction?.NativeQueuedCommand ?? resolvingNativeAction?.NativeAction?.Command) is 0 or 14 || !actor.IsPlayer && nativeProductionContext is { MultiCastMode: 0 }))
+        if (stage == 2 && (nativeContactWorking?.CommittingSecondary == true || (resolvingNativeAction?.NativeQueuedCommand ?? resolvingNativeAction?.NativeAction?.Command) is 0 or 14 || !actor.IsPlayer && nativeActionScratch.EventLane == 0))
         {
             return;
         }

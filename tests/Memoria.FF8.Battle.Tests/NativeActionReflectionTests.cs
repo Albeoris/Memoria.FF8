@@ -10,6 +10,7 @@ public sealed class NativeActionReflectionTests
         BattleNativeAction magic = Magic();
         BattleSession battle = new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = [magic, magic with { Command = 247 }],
             ActionDefinitions = [new(BattleAbility.Magic, 1, "Fire", BattleActionEffect.Native, 10, false, true) { NativeAction = magic }],
             Combatants =
@@ -44,6 +45,7 @@ public sealed class NativeActionReflectionTests
         BattleNativeAction magic = Magic() with { TargetFlags = 0x10, AttackFlags = 1 };
         BattleDefinition definition = new()
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeActions = [magic],
             Combatants =
             [

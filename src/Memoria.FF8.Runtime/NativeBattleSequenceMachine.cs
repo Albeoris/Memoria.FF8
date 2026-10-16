@@ -222,7 +222,22 @@ public static class NativeBattleSequenceMachine
                         //508F60 resets the decoded pose packet; its frame counter advances at the next504290 callback.
                         return;
                     case 0xAA:
-                        cues.Add(new(NativeBattleSequenceCueKind.ActionCallback));
+                        if (inputs.ApplyActionContacts is { } applyContacts)
+                        {
+                            model = applyContacts(model with { Sequence = sequence, ResourceFlags44 = flags, SequenceState = state });
+                            state = model.SequenceState ?? throw new InvalidDataException("Native AA lost its resource-header sequence owner.");
+                            flags = model.ResourceFlags44 ?? throw new InvalidDataException("Native AA lost its resource WORD44.");
+                            byte selected = model.Sequence ?? throw new InvalidDataException("Native AA lost its selected sequence.");
+                            if (selected != sequence)
+                            {
+                                sequence = selected;
+                                position = resource.SequenceStart(sequence) + state.Offset46;
+                            }
+                        }
+                        else
+                        {
+                            cues.Add(new(NativeBattleSequenceCueKind.ActionCallback));
+                        }
                         break;
                     case 0xAB:
                         int start = resource.SequenceStart(sequence);

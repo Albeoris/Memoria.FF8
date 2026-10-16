@@ -10,7 +10,7 @@ public sealed class BattleMessageTests
     public void OriginalTextCommandsQueueMessagesWithTheirNativeDurationAndMode()
     {
         BattleSession battle = Create([1, 0, 24, 1, 26, 2, 34, 3, 2, 0]);
-        Assert.Equal(new[] { "First message", "Second message" }, battle.Events.Where(item => item.Kind == "NativeText").Select(item => item.Message));
+        Assert.Equal(new[] { "First message", "Second message", "Third message" }, battle.Events.Where(item => item.Kind == "NativeText").Select(item => item.Message));
         BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int callback = 0; callback < 3; callback++)
         {
@@ -36,7 +36,6 @@ public sealed class BattleMessageTests
         Assert.Equal("First message", hud.BattleMessage);
         hud.AdvancePresentation(TimeSpan.FromSeconds(1));
         Assert.Equal("Second message", hud.BattleMessage);
-        battle.Tick();
         hud.AdvancePresentation(FrameDuration(32));
         Assert.Equal("Third message", hud.BattleMessage);
         hud.AdvancePresentation(TimeSpan.FromSeconds(1));
@@ -70,7 +69,7 @@ public sealed class BattleMessageTests
         BattleCombatantDefinition enemy = definition.Combatants[1];
         const string encoded = "{Color Red}{Char Squall} and {Name Shiva}{Line}{Color White}ready";
         enemy = enemy with { NativeAi = enemy.NativeAi! with { Texts = [encoded] } };
-        BattleSession battle = new(definition with { Combatants = [definition.Combatants[0] with { Name = "Leon" }, enemy] }, BattleAtbMode.TurnBased);
+        BattleSession battle = AdmitInitial(definition with { Combatants = [definition.Combatants[0] with { Name = "Leon" }, enemy] });
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn(), guardianForceName: id => id == 1 ? "Frost" : $"GF {id}");
 
         hud.BuildView();
@@ -89,6 +88,13 @@ public sealed class BattleMessageTests
     private static BattleSession Create(byte[] script)
     {
         NativeBattleAiDefinition ai = new([script, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, ["First message", "Second message", "Third message", "Delayed message"]);
-        return new(new() { NativeMessageSpeed = 3, Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", ModelId = 22, NativeAi = ai }] }, BattleAtbMode.TurnBased);
+        return AdmitInitial(new() { NativeMessageSpeed = 3, Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", ModelId = 22, NativeAi = ai }] });
+    }
+
+    private static BattleSession AdmitInitial(BattleDefinition definition)
+    {
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.Tick();
+        return battle;
     }
 }

@@ -86,6 +86,7 @@ public sealed class NativeBattleMugTests
         messages[119] = "s";
         return new(new BattleDefinition
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Native Mug component",
             NativeMessageSpeed = 0,
             NativeGlobalMessages = messages,

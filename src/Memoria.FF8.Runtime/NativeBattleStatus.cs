@@ -5,6 +5,8 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleStatusRules(byte BattleSpeed, ImmutableArray<byte> Durations);
 public sealed record NativeBattleStatusSnapshot(ushort Saved, uint Battle, short[] Timers)
 {
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleStatusMirror Presentation { get; init; } = new(null, null);
     public byte[]? Resistances { get; init; }
 }
 public sealed record NativeBattleStatusAllocation(ushort Saved, uint Battle, ImmutableArray<byte> Resistances);

@@ -12,7 +12,7 @@ public sealed class BattleSavedFlagOutcomeTests
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
         NativeCharacterVitals vitals = assets.ReadNewGameCharacterVitals().Rest();
         NativeSavedBattleFlags originalFlags = new(NativeInputConfiguration.OriginalInitHash, 0xF6);
-        GameSession session = new(new GameState { Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), SavedBattleFlags = originalFlags, BattleVariables = NativeBattleVariableState.CreateNewGame(), GlobalRandom = assets.ReadNewGameGlobalRandom() });
+        GameSession session = new(new GameState { NativeBattleMemory = assets.ReadColdProcessNativeBattleMemory(), Scene = SceneKind.Field, FieldId = 999, CharacterVitals = vitals, CharacterAppearance = assets.ReadNewGameCharacterAppearance(), Economy = assets.ReadNewGameEconomy(), SavedBattleFlags = originalFlags, BattleVariables = NativeBattleVariableState.CreateNewGame(), GlobalRandom = assets.ReadNewGameGlobalRandom() });
         using GameWorld world = new(session, assets.GameDirectory);
         BattleDefinition installed = world.CreateEncounterBattle(512);
         // Isolated component combat: original reward sources, short HP/ATB inputs and an explicit opcode54 callback.

@@ -88,12 +88,14 @@ internal sealed class BattleHudElement : UiElement
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
             string label = gf is null ? actor.Name : controller.GuardianForceDisplayName(gf.Id);
-            int hp = gf?.HitPoints ?? actor.CurrentHp;
-            int maximumHp = gf?.MaximumHitPoints ?? actor.MaximumHp;
+            BattlePresentedVital presented = session.ReadPresentedVital(actor.Id, gf?.Id);
+            int hp = presented.HitPoints;
+            int maximumHp = presented.MaximumHitPoints;
+            bool shownAlive = hp > 0;
             float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
-            Text(canvas, theme, label, 314, y, 190, 27, 20, !actor.IsAlive);
-            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 508, y, 228, 27, 20, !actor.IsAlive);
-            DrawGauge(canvas, Rect(746, y + 6, 176, 15), gauge, cast is null && actor.IsReady, actor.IsAlive);
+            Text(canvas, theme, label, 314, y, 190, 27, 20, !shownAlive);
+            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 508, y, 228, 27, 20, !shownAlive);
+            DrawGauge(canvas, Rect(746, y + 6, 176, 15), gauge, cast is null && actor.IsReady, shownAlive);
         }
         if (session.Outcome == BattleOutcome.Victory)
         {

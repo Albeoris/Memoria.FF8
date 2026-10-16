@@ -41,7 +41,7 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
     public bool? ForceCamera { get; init; }
     public ushort BlendProgress { get; init; } = 4096;
     public ulong PoseCaptureCount { get; init; }
-    public static NativeBattleCameraState Initialize() => new(0, [null, null], []);
+    public static NativeBattleCameraState Initialize() => new(0, [null, null], []) { Mode = 1, ForceCamera = false };
 
     public void Validate()
     {
@@ -51,8 +51,12 @@ public sealed partial record NativeBattleCameraState(ushort Mask, ImmutableArray
         }
     }
 
-    public NativeBattleCameraState Start(NativeBattleCameraBank bank, byte selector)
+    public NativeBattleCameraState Start(NativeBattleCameraBank? bank, byte selector)
     {
+        if (bank is null)
+        {
+            return this;
+        }
         Validate();
         int? track = bank.TrackOffset(selector);
         if (track is null)

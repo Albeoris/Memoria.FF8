@@ -56,7 +56,7 @@ public sealed class NativeSlotsInvocationTests
     private static BattleSession CreateBattle(BattleAssets assets, byte? specialFlags)
     {
         NativeLimitProgress progress = new(new string('A', 64), 0, 0, 0, 0, Enumerable.Repeat((byte)0, 8).ToImmutableArray()) { SpecialMagicFlags = specialFlags };
-        BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "selphie", Name = "Selphie", IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "selphie", Name = "Selphie", IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", 4)] });
     }
 

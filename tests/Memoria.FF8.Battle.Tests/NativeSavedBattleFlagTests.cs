@@ -78,6 +78,8 @@ public sealed class NativeSavedBattleFlagTests
     {
         byte[] initial = [54, 2, 18, 0, 0, 3, 0, 3, 0, 15, 96, 1, 2, 18, 0, 3, 1, 0, 3, 0, 15, 97, 1, 0];
         NativeBattleAiDefinition ai = new([initial, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
-        return new BattleSession(new BattleDefinition { NativeSavedBattleFlags = 0xF7, NativeSavedBattleFlagsKnownMask = knownMask, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new BattleDefinition { NativeSavedBattleFlags = 0xF7, NativeSavedBattleFlagsKnownMask = knownMask, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 }

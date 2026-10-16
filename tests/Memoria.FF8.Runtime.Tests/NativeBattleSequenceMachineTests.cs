@@ -8,6 +8,25 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSequenceMachineTests
 {
     [Fact]
+    public void Action_contact_is_published_inline_before_following_status_expression()
+    {
+        NativeBattleGraphicsResource resource = Resource((1, "AAC31FE500A1"));
+        int contacts = 0;
+        NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(Model(1), resource, new(null, null)
+        {
+            ApplyActionContacts = model =>
+            {
+                contacts++;
+                return model with { Flags8 = 0x1000, SequenceState = model.SequenceState! with { Pending3 = 2 } };
+            }
+        });
+        Assert.Equal(1, contacts);
+        Assert.Equal((short)0x1000, step.Model.SequenceState!.Locals[0]);
+        Assert.Equal((byte)2, step.Model.SequenceState.Pending3);
+        Assert.DoesNotContain(step.Cues, cue => cue.Kind == NativeBattleSequenceCueKind.ActionCallback);
+    }
+
+    [Fact]
     public void Linked_weapon_decodes_its_own_frame_limit_without_completing_the_body_pose_early()
     {
         NativeBattleGraphicsResource resource = Resource((1, "A300E6FF"), (2, "00AAA2")) with { AnimationFrames = [3], LinkedAnimationFrames = [1] };

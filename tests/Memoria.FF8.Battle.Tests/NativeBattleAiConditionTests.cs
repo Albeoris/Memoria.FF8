@@ -63,7 +63,7 @@ public sealed class NativeBattleAiConditionTests
     [Fact]
     public void ModelPresenceUsesTheSameNativeSlotBoundary()
     {
-        BattleSession battle = CreateCondition(9, 200, 0, 44, Party("party", 0), Enemy("one", 1), Enemy("two", 1), Enemy("three", 1), Enemy("four", 1));
+        BattleSession battle = CreateConditionWithOwner(1, 9, 200, 0, 44, Party("party", 0), Enemy("one", 1), Enemy("two", 1), Enemy("three", 1), Enemy("four", 1));
         Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
     }
 
@@ -106,10 +106,18 @@ public sealed class NativeBattleAiConditionTests
 
     private static BattleSession CreateCondition(int subject, int selector, int comparison, int status, params BattleCombatantDefinition[] others)
     {
+        return CreateConditionWithOwner(28, subject, selector, comparison, status, others);
+    }
+
+    private static BattleSession CreateConditionWithOwner(int model, int subject, int selector, int comparison, int status, params BattleCombatantDefinition[] others)
+    {
         // IF (8 bytes), SET shared96=1 (3 bytes), STOP; false branches skip exactly the SET.
         byte[] initial = [2, (byte)subject, (byte)selector, (byte)comparison, (byte)status, (byte)(status >> 8), 3, 0, 15, 96, 1, 0];
         NativeBattleAiDefinition ai = new([initial, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
-        return new(new() { EncounterId = 40, Combatants = [.. others, Enemy("owner", 28) with { NativeAi = ai }] }, BattleAtbMode.Normal);
+        //The interpreter must occupy an actual0..6 slot even when the queried synthetic actors extend beyond the native group.
+        BattleSession battle = new(new() { EncounterId = 40, Combatants = [Enemy("owner", model) with { NativeAi = ai }, .. others] }, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 
     private static BattleCombatantDefinition Party(string id, int model) => new() { Id = id, Name = id, ModelId = model, IsPlayer = true };

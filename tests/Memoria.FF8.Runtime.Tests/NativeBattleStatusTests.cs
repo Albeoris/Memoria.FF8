@@ -103,6 +103,7 @@ public sealed class NativeBattleStatusTests
     {
         BattleDefinition definition = new()
         {
+            NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Native status component",
             NativeStatusRules = new(0, Enumerable.Repeat((byte)30, 14).ToImmutableArray()),
             Combatants =

@@ -171,7 +171,7 @@ public sealed class NativeRenzokukenInvocationTests
         {
             actors.Add(new() { Id = "ally", Name = "Ally", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum });
         }
-        BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleUiRandom = new(100), LimitProgress = game.ReadNewGameLimitProgress() with { Options978 = options }, NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeActions = assets.NativeActions.ToArray(), NativeRenzokukenResources = game.ReadNativeRenzokukenResources(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleUiRandom = new(100), LimitProgress = game.ReadNewGameLimitProgress() with { Options978 = options }, NativeLimitsDisabled = false, Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
         NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
         {
             candidate = candidate.Draw(out _).Draw(out byte roll);

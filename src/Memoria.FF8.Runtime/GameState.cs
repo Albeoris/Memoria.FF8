@@ -14,6 +14,8 @@ public enum SceneKind
 /// <summary>A recreation checkpoint, not an original FF8 save-file format.</summary>
 public sealed record GameState
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleRetainedMemory? NativeBattleMemory { get; init; }
     public NativeKnownMagic? KnownMagic { get; init; }
     public NativeScannedModels? ScannedModels { get; init; }
     public NativeCrtRandomState? CrtRandom { get; init; }

@@ -60,4 +60,5 @@ public sealed record NativeBattleSequenceInputs(byte? EntryAdvantage, ushort? Ca
     public Func<byte, short>? ReadExternal { get; init; }
     public Action<byte, int>? WriteExternal { get; init; }
     public Action<NativeBattleAuxiliaryProgram, bool, byte>? ScheduleSoundParticle { get; init; }
+    public Func<NativeBattleGraphicsModel, NativeBattleGraphicsModel>? ApplyActionContacts { get; init; }
 }

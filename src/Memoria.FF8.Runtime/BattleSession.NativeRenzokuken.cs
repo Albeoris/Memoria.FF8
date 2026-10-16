@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         ushort mask = NativeBattleLimitRules.PlayerTargetMask(targetFlags, target.NativeIndex);
         OnNativePlayerCommandSubmitted(actor, 5);
         BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.LimitBreak, 5 << 16) { NativeQueuedCommand = 5, NativeTargetMask = mask, NativeRenzokuken = new(crisis) };
-        EnqueueNativePacket(actor, command, actor.NativeLimit.InvocationChoices.Single().Name);
+        EnqueueNativePacket(actor, command, actor.NativeLimit.InvocationChoices.Single().Name, playerInput: true);
     }
 
     private void StartNativeRenzokuken(BattleAttackCommand queued)
@@ -101,7 +101,8 @@ public sealed partial class BattleSession
         }
         ushort mask = checked((ushort)(1 << target.NativeIndex));
         BattleActionPresentation original = new(actor.Id, target.Id, BattleActionPhase.Windup, 1, BattleAbility.LimitBreak, finisher is null ? 0xFFFD : 0xFFFE) { NativeQueuedCommand = 5, NativeTargetMask = mask, NativeSequence = 21, NativeRenzokuken = queued.NativeRenzokuken };
-        BeginNativeTimedAction(original);
+        nativeActionScratch = nativeActionScratch with { FinisherPendingE03 = finisher is not null };
+        BeginNativeTimedAction(original, magicId);
         nativeRenzokukenProcesses.Add(actor.Id, new(magicId, mask, finisher, new()));
         Log("Renzokuken", actor.Id, target.Id, resource.Timeline.InputThresholds.Length, $"{actor.Name}: Renzokuken.");
     }
