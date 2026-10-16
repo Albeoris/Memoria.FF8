@@ -113,4 +113,3 @@ public sealed class NativeDrawPointCatalogTests
         Assert.False(NativeCharacterVitals.IsMagicJunctioned(character, 0));
     }
 }
-

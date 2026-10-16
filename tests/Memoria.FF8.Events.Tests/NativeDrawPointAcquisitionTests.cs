@@ -129,11 +129,3 @@ internal static partial class Program
         Console.WriteLine("Eligible DRAWPOINT: original discovery/selection, explicit Cancel, actual spark completion, full-stock retry, accepted-unit cap/message variable7, depletion2/3 and independent restore at phases1..7 passed.");
     }
 }
-
-
-
-
-
-
-
-

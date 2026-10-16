@@ -98,5 +98,3 @@ internal static partial class Program
         Console.WriteLine("Original draw-point corpus:102/103,134,148/149,155,160 found;106/129/130/165 absent. Verbatim102/134/148/160 setup/talk bodies, anchors/raw operands/magic/persistence flags and shared interaction/restore passed.");
     }
 }
-
-
