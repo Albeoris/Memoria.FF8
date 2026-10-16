@@ -96,6 +96,12 @@ internal static class TripleTriadPractice
         int[] opponentHand = saved?.Opponent ?? ParseDeck(opponent);
         TripleTriadController controller = new(catalog.Cards, collection, opponentHand, catalog.Name, saved?.Match.Rules ?? rules);
         uint randomState = saved?.RandomState ?? inventory?.TripleTriadRandomState ?? 0;
+        controller.ChooseOpponentMove = match =>
+        {
+            TripleTriadNativeAiResult choice = TripleTriadNativeAi.ChooseMove(catalog.Cards, catalog.TradePriorities, match, catalog.AiParameters, 7, 4, randomState, opponentHand);
+            randomState = choice.RandomState;
+            return choice.Move;
+        };
         controller.CreateMatch = selected =>
         {
             TripleTriadPreparedBoard board = TripleTriadPreparation.GenerateElements(controller.Rules, randomState);
@@ -159,8 +165,15 @@ internal static class TripleTriadPractice
             TripleTriadMatch match = controller.Match!;
             while (match.Outcome == TripleTriadOutcome.InProgress)
             {
-                TripleTriadMove move = match.ChooseMove();
-                match.Play(move.HandIndex, move.CellIndex);
+                if (match.CurrentPlayer == 1)
+                {
+                    controller.AdvanceOpponent();
+                }
+                else
+                {
+                    TripleTriadMove move = match.ChooseMove();
+                    controller.Play(move.HandIndex, move.CellIndex);
+                }
             }
             Save();
             Console.WriteLine($"Triple Triad practice: {match.Outcome}, {match.PlayerScore}:{match.OpponentScore}, round {match.Round}.");
