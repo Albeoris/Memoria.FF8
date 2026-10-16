@@ -77,11 +77,6 @@ internal sealed class BattleHudElement : UiElement
             }
         }
 
-        if (canAttack && (controller.SelectingAction || controller.SelectingTarget) && controller.BattleMessageDocument is null)
-        {
-            Text(canvas, theme, controller.CommandHelpMessage, 30, 468, 440, 42, 15);
-        }
-
         IReadOnlyList<BattleCombatant> party = controller.Party;
         for (int index = 0; index < party.Count; index++)
         {
@@ -107,17 +102,9 @@ internal sealed class BattleHudElement : UiElement
         {
             DrawRewards(canvas, theme);
         }
-        if (session.GunbladeTriggerWindowOpen)
-        {
-            Text(canvas, theme, $"Gunblade: {controller.GunbladeBindingHint}", 368, 112, 280, 30, 20);
-        }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
             Text(canvas, theme, "TRIGGER!", 372, 100, 280, 48, 30);
-        }
-        if (session.Mode == BattleAtbMode.TurnBased)
-        {
-            Text(canvas, theme, "Advance Turn  [Space]", 706, 640, 228, 26, 16);
         }
     }
 
@@ -145,8 +132,10 @@ internal sealed class BattleHudElement : UiElement
         {
             Text(canvas, theme, lines[index], 144, 98 + index * 32, 672, 30, 20);
         }
-        string help = controller.RewardPageCount > 1 ? $"< Previous     {controller.RewardPage + 1} / {controller.RewardPageCount}     Next >   [Left / Right]" : "Confirm / Continue to return";
-        Text(canvas, theme, help, 144, 382, 672, 28, 16);
+        if (controller.RewardPageCount > 1)
+        {
+            Text(canvas, theme, $"<     {controller.RewardPage + 1} / {controller.RewardPageCount}     >", 144, 382, 672, 28, 16);
+        }
     }
 
     private static void DrawGauge(IUiCanvas canvas, UiRect bounds, float ratio, bool ready, bool alive)
@@ -181,10 +170,6 @@ internal sealed class BattleHudElement : UiElement
         if (controller.Session.Outcome == BattleOutcome.Victory && Rect(144, 376, 672, 40).Contains(x, y))
         {
             controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
-        }
-        else if (controller.Session.Mode == BattleAtbMode.TurnBased && Rect(706, 640, 228, 26).Contains(x, y))
-        {
-            controller.AdvanceTurn();
         }
         else if (Rect(30, 516, 194, 132).Contains(x, y))
         {

@@ -16,7 +16,6 @@ public sealed partial class BattleHudController
     private double commandErrorUntil;
 
     public string? BattleMessage => BattleMessageDocument?.Text;
-    internal string CommandHelpMessage => commandError?.Text == Message ? "" : Message;
 
     internal double BattlePresentationSeconds => battlePresentationSeconds;
 
