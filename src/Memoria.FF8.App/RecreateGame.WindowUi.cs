@@ -6,11 +6,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private UiView? titleWindowUi;
-    private int titleWindowSelection = -1;
-    private ControlsProfile? titleControlsProfile;
-    private ControllerPresentation titleControllerPresentation;
-    private ControlDevice titleInputDevice;
+    private static readonly string[] TitleChoices = ["NEW GAME", "Continue"];
     private UiView? savesWindowUi;
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
@@ -22,26 +18,23 @@ internal sealed partial class RecreateGame
 
     private void DrawTitleUi(Rectangle bounds)
     {
-        batch.Draw(pixel, bounds, new Color(22, 22, 22));
-        if (titleWindowUi is null || titleWindowSelection != titleSelection || titleControlsProfile != keyboard.Profile || titleControllerPresentation != keyboard.ControllerPresentation || titleInputDevice != keyboard.LastInputDevice)
+        float size = Math.Min(bounds.Height * 0.044f, bounds.Width * 0.06f);
+        float rowHeight = bounds.Height * 0.074f;
+        float top = bounds.Y + bounds.Height * 0.67f;
+        for (int index = 0; index < TitleChoices.Length; index++)
         {
-            UiAnchorPanel root = new();
-            root.Children.Add(new UiSigil { Seed = 8, Anchors = new UiAnchors(0.39f, 0.05f, 0.61f, 0.31f) });
-            root.Children.Add(new UiLabel { Text = "FINAL FANTASY VIII", FontSize = 42, Anchors = new UiAnchors(0.1f, 0.29f, 0.9f, 0.39f), HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center });
-            root.Children.Add(new UiLabel { Text = "MEMORIA", FontSize = 20, Muted = true, Anchors = new UiAnchors(0.1f, 0.39f, 0.9f, 0.45f), HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center });
-            UiPanel menu = new() { Anchors = new UiAnchors(0.32f, 0.53f, 0.68f, 0.75f), Padding = new UiThickness(12, 14) };
-            UiList choices = new() { Items = new List<string> { "New Game", "Continue" }, SelectedIndex = titleSelection, RowHeight = 56, FontSize = 28 };
-            menu.Children.Add(choices);
-            root.Children.Add(menu);
-            root.Children.Add(new UiLabel { Text = $"Confirm: {keyboard.BindingHint(ControlAction.Confirm)}    Menu: {keyboard.BindingHint(ControlAction.Menu)}\nLoad: {keyboard.BindingHint(ControlAction.LoadMenu)}", FontSize = 16, Muted = true, Anchors = new UiAnchors(0.05f, 0.87f, 0.95f, 0.98f), HorizontalAlignment = UiAlignment.Center, VerticalAlignment = UiAlignment.Center });
-            titleWindowUi = CreateWindowView(root);
-            titleWindowSelection = titleSelection;
-            titleControlsProfile = keyboard.Profile;
-            titleControllerPresentation = keyboard.ControllerPresentation;
-            titleInputDevice = keyboard.LastInputDevice;
+            Vector2 measured = text.MeasureWrapped(TitleChoices[index], size, float.PositiveInfinity, "Times New Roman");
+            float y = top + rowHeight * index;
+            text.DrawCentered(batch, TitleChoices[index], size, new Vector2(bounds.Center.X, y), Color.White, "Times New Roman");
+            if (index == titleSelection)
+            {
+                float pointerHeight = size * 0.85f;
+                uiCanvas?.MenuPointer(new UiRect(bounds.Center.X - measured.X / 2 - pointerHeight * 1.8f, y + (measured.Y - pointerHeight) / 2, pointerHeight * 1.5f, pointerHeight));
+            }
         }
 
-        DrawWindowView(titleWindowUi, bounds);
+        string hint = $"Confirm: {keyboard.BindingHint(ControlAction.Confirm)}    Menu: {keyboard.BindingHint(ControlAction.Menu)}    Load: {keyboard.BindingHint(ControlAction.LoadMenu)}";
+        text.DrawCentered(batch, hint, Math.Min(bounds.Height * 0.02f, bounds.Width * 0.024f), new Vector2(bounds.Center.X, bounds.Y + bounds.Height * 0.89f), new Color(155, 155, 155), "Times New Roman");
     }
 
     private void DrawPlayerSavesUi(Rectangle bounds)

@@ -21,6 +21,7 @@
     <ProjectReference Include="../Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
     <ProjectReference Include="../Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <ProjectReference Include="../Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
+    <ProjectReference Include="../Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
     <ProjectReference Include="../Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
     <ProjectReference Include="../Memoria.FF8.Music/Memoria.FF8.Music.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" AdditionalProperties="RuntimeIdentifier=win-x86;SelfContained=true" />
   </ItemGroup>

@@ -4,6 +4,7 @@ using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
+using Memoria.FF8.TitleScene;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -35,6 +36,8 @@ internal sealed partial class RecreateGame : Game
     private int movieIndex = -1;
     private int movieDiscIndex = -1;
     private int titleSelection;
+    private TitleSceneRenderer? titleScene;
+    private TitleArtworkRenderer? titleArtwork;
     private string? error;
     private GameWorld? world;
     private FieldAssets? field => world?.Field;
@@ -65,7 +68,7 @@ internal sealed partial class RecreateGame : Game
         playerSaves = new PlayerSaveStore(options.SavePath);
         saveMenu = new PlayerSaveMenu(playerSaves);
         saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
-        graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = options.Width, PreferredBackBufferHeight = options.Height, SynchronizeWithVerticalRetrace = true };
+        graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = options.Width, PreferredBackBufferHeight = options.Height, SynchronizeWithVerticalRetrace = true, GraphicsProfile = GraphicsProfile.HiDef, PreferMultiSampling = true };
         Window.Title = "Memoria - Final Fantasy VIII";
         Window.AllowUserResizing = true;
         IsMouseVisible = true;
@@ -966,6 +969,13 @@ internal sealed partial class RecreateGame : Game
         }
         GraphicsDevice.Clear(Color.Black);
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
+        if (session.State.Scene == SceneKind.Title)
+        {
+            titleScene ??= new TitleSceneRenderer(GraphicsDevice);
+            titleArtwork ??= new TitleArtworkRenderer(GraphicsDevice);
+            titleScene.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
+            titleArtwork.Draw(bounds, gameTime.TotalGameTime.TotalSeconds);
+        }
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
         text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
@@ -1087,6 +1097,8 @@ internal sealed partial class RecreateGame : Game
         if (disposing)
         {
             DisposeStartup();
+            titleArtwork?.Dispose();
+            titleScene?.Dispose();
             controller?.Dispose();
             fieldAudio?.Dispose();
             movie?.Dispose();

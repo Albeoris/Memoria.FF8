@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.WindowsDX" />
+    <EmbeddedResource Include="Shaders/TitleScene.mgfxo" LogicalName="Memoria.FF8.TitleScene.TitleScene.mgfxo" />
+    <EmbeddedResource Include="Artwork/SilverCrest.contours.json" LogicalName="Memoria.FF8.TitleScene.SilverCrest.contours.json" />
+  </ItemGroup>
+</Project>

@@ -9,6 +9,8 @@
     <Project Path="src/Memoria.FF8.Media/Memoria.FF8.Media.csproj" />
     <Project Path="src/Memoria.FF8.Assets/Memoria.FF8.Assets.csproj" />
     <Project Path="src/Memoria.FF8.Rendering/Memoria.FF8.Rendering.csproj" />
+    <Project Path="src/Memoria.FF8.TitleScene/Memoria.FF8.TitleScene.csproj" />
+    <Project Path="tools/Memoria.FF8.TitleScene.Preview/Memoria.FF8.TitleScene.Preview.csproj" />
     <Project Path="src/Memoria.FF8.Events/Memoria.FF8.Events.csproj" />
   </Folder>
   <Folder Name="/tests/">
