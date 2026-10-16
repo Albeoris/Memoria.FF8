@@ -12,18 +12,42 @@ internal static partial class Program
     private static void NativeRestAndMembershipContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
+        byte[] DefaultProgram(params (Jsm.Opcode Opcode, int Parameter)[] operations)
+        {
+            List<(Jsm.Opcode Opcode, int Parameter)> main = [(Jsm.Opcode.LBL, 1)];
+            main.AddRange(operations);
+            main.Add((Jsm.Opcode.HALT, 0));
+            main.Add((Jsm.Opcode.RET, 8));
+            return SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], main.ToArray()]);
+        }
+        bool HasDefault(byte[] program) => JsmProgram.Read(program).Objects[0].Scripts.Count > 1;
+        JsonElement Fiber(EventEngine candidate) => candidate.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == (fiber.GetProperty("Initialization").GetBoolean() ? 0 : 1) && !fiber.GetProperty("Complete").GetBoolean());
         NativeCharacterVitals initial = assets.ReadNewGameCharacterVitals();
         NativeCharacterVital[] records = initial.Records.ToArray();
         records[0] = records[0] with { HitPoints = new NativeHpWord(0, 0), Status = 0xFFFF };
         records[2] = records[2] with { HitPoints = new NativeHpWord(1, 20), Status = 0xFFFF, MemberFlags = 0xAB09 };
         records[3] = records[3] with { HitPoints = new NativeHpWord(10, 10), Status = 0xFFFF };
         NativeCharacterVitals source = (initial with { Records = records, CombatParty = [3, 255, 0] }).AcquireGuardianForce(3);
-        byte[] restProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.REST, 0), (Jsm.Opcode.PSHN_L, 71), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        byte[] restProgram = DefaultProgram((Jsm.Opcode.REST, 0), (Jsm.Opcode.PSHN_L, 71), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.WAIT, 0));
         (GameSession Session, EventEngine Engine) Create(NativeCharacterVitals? vitals, byte[] program)
         {
-            GameSession session = new(new GameState { CharacterVitals = vitals, WorldControls = NativeWorldControlState.CreateNewGame() });
+            GameSession session;
+            if (HasDefault(program))
+            {
+                session = GameSession.CreateColdProcess();
+                session.StartNewGame();
+                session.Restore(session.State with { CharacterVitals = vitals, WorldControls = NativeWorldControlState.CreateNewGame(), InputConfiguration = assets.ReadNewGameInputConfiguration() });
+            }
+            else
+            {
+                session = new GameSession(new GameState { CharacterVitals = vitals, WorldControls = NativeWorldControlState.CreateNewGame(), InputConfiguration = assets.ReadNewGameInputConfiguration(), FieldButtonInput = NativeFieldButtonInput.FromColdProcess() });
+            }
             EventEngine engine = new(session);
-            engine.LoadField(600, program, []);
+            engine.LoadField(600, program, [], nativeRuntimeProfile: HasDefault(program) ? NativeFieldRuntimeProfile.FF8En : null);
+            if (HasDefault(program))
+            {
+                engine.Step();
+            }
             return (session, engine);
         }
         (GameSession session, EventEngine engine) = Create(source, restProgram);
@@ -57,22 +81,23 @@ internal static partial class Program
         NativeCharacterVitals dream = (source with { DreamEnabled = true, CombatParty = [0, 255, 3] }).Rest();
         Require(dream.Records[0].HitPoints.Minimum == source.Definitions.CharacterMaximum(source.Records[0]) && dream.Records[2] == source.Records[2] && dream.CombatParty.SequenceEqual(new byte[] { 0, 255, 3 }), "REST dream flag did not intersect registration with current physical combat slots.");
 
-        byte[] unknownMaxProgram = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SUBMEMBER, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.REST, 0), (Jsm.Opcode.RET, 0));
+        byte[] unknownMaxProgram = DefaultProgram((Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SUBMEMBER, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.REST, 0));
         (GameSession unknownMaxSession, EventEngine unknownMax) = Create(initial, unknownMaxProgram);
         unknownMax.Step();
         NativeCharacterVitals noMaximum = unknownMaxSession.CharacterVitals!;
         Require((noMaximum.Records[0].MemberFlags & 1) == 0 && (noMaximum.GuardianForces[0].Flags & 1) != 0 && noMaximum.GuardianForces[0].MaximumHitPoints is null, "Executed SUBMEMBER/naming fixture invented an unproduced GF maximum.");
         try
         {
+            unknownMax.Apply(new PlayerAction(PlayerActionKind.EnterName));
             unknownMax.Step();
             throw new InvalidOperationException("REST guessed the maximum of a newly acquired GF with no eligible character rebuild.");
         }
         catch (EventScriptException) when (unknownMax.LastFault?.Opcode == "REST")
         {
         }
-        Require(unknownMaxSession.CharacterVitals == noMaximum && unknownMax.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 5, "Unsupported REST changed its owners or advanced the original instruction.");
+        Require(unknownMaxSession.CharacterVitals == noMaximum && Fiber(unknownMax).GetProperty("Position").GetInt32() == 7, "Unsupported REST changed its owners or advanced the original instruction.");
 
-        (GameSession unknownSession, EventEngine unknown) = Create(null, restProgram);
+        (GameSession unknownSession, EventEngine unknown) = Create(null, SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.REST, 0), (Jsm.Opcode.RET, 0)));
         try
         {
             unknown.Step();
@@ -81,7 +106,7 @@ internal static partial class Program
         catch (EventScriptException) when (unknown.LastFault?.Opcode == "REST")
         {
         }
-        Require(unknownSession.CharacterVitals is null && unknown.Capture().GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 1, "Unknown saved state refusal changed REST PC or its owner.");
+        Require(unknownSession.CharacterVitals is null && Fiber(unknown).GetProperty("Position").GetInt32() == 1, "Unknown saved state refusal changed REST PC or its owner.");
 
         foreach (int raw in Enumerable.Range(0, 8).Append(0x20000006))
         {
@@ -148,6 +173,10 @@ internal static partial class Program
             RejectingSavedCharacterServices service = new(source, NativeWorldControlState.CreateNewGame().WithGuestMember(9, true));
             EventEngine refused = new(service, NativeEventMemory.FromDWords(new Dictionary<int, int>()));
             refused.LoadField(600, packet, []);
+            if (HasDefault(packet))
+            {
+                refused.Step();
+            }
             try
             {
                 refused.Step();
@@ -156,8 +185,8 @@ internal static partial class Program
             catch (EventScriptException)
             {
             }
-            JsonElement fiber = refused.Capture().GetProperty("Fibers")[0];
-            Require(fiber.GetProperty("Position").GetInt32() == position && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(operands) && service.CharacterVitals == source && service.WorldControls.EventFlags104 == 0x1A, "Rejected REST or composite guest SUBMEMBER consumed PC/operands or partially published saved owners.");
+            JsonElement fiber = Fiber(refused);
+            Require(fiber.GetProperty("Position").GetInt32() == position + (HasDefault(packet) ? 2 : 0) && fiber.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(operands) && service.CharacterVitals == source && service.WorldControls.EventFlags104 == 0x1A, "Rejected REST or composite guest SUBMEMBER consumed PC/operands or partially published saved owners.");
         }
         Console.WriteLine("REST/membership: exact current stat/GF healing, normal/dream registration masks, no eligible unknown-max refusal, same-callback and restore, native flag widths, full-party ADDPARTY and temporary-character inventory transfers passed.");
     }

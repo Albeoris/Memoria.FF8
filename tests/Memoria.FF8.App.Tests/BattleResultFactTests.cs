@@ -120,6 +120,13 @@ public sealed class BattleResultFactTests
         Assert.True((session.State.CardInventory!.Cards[4] & 0x7F) >= 2);
         Assert.Contains(127, world.Events.Scene.UnlockedTutorials);
         Assert.Contains(world.LastBattleRewards!.Cards, id => id == 4);
+        PendingEntityName naming = Assert.Single(session.State.PendingEntityNames!);
+        Assert.Equal(GameNames.GuardianForceSubject(2), naming.Subject);
+        Assert.Equal("Ifrit", naming.DefaultName);
+        Assert.Equal("battle:" + fact.Encounter.OccurrenceId, naming.Source);
+        session.SetEntityNameDraft("Ифрит界");
+        GameSession restored = new(JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!);
+        Assert.Equal("Ифрит界", Assert.Single(restored.State.PendingEntityNames!).Draft);
         string committed = JsonSerializer.Serialize(session.State);
         Assert.Throws<InvalidOperationException>(() => world.ApplyBattleResult(fact.Encounter, fact));
         Assert.Equal(committed, JsonSerializer.Serialize(session.State));

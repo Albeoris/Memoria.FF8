@@ -57,6 +57,7 @@ public sealed partial class EventEngine
     public bool IsMovementBlockedByDialogue => dialogues.Values.Any(dialogue => dialogue.FirstChoice is not null || dialogue.IsNamePrompt);
     public IReadOnlyCollection<DialogueState> Dialogues => dialogues.Values.Select(ExpandMessageVariables).ToArray();
     public bool CanConfirmDialogue => dialogues.Values.Any(dialogue => dialogue.CanConfirm && dialogue.FirstChoice is null && !dialogue.IsNamePrompt);
+    public int? PendingNameSubject => CurrentDialogue?.IsNamePrompt == true ? nameEntity : null;
     public string? PendingNameDefault => CurrentDialogue?.IsNamePrompt == true ? NativeCharacterName(nameEntity) : null;
     private DialogueState? currentDialogue;
     public DialogueState? CurrentDialogue

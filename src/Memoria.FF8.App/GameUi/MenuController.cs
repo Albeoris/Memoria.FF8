@@ -87,6 +87,9 @@ public sealed partial class MenuController
     public void Open(string screenId = "main", bool demo = false)
     {
         CancelControlsCapture();
+        _nameTarget = null;
+        _acceptName = null;
+        _nameHighSurrogate = null;
         if (!_screens.ContainsKey(screenId))
         {
             throw new ArgumentException($"Unknown menu screen '{screenId}'.", nameof(screenId));
@@ -144,6 +147,9 @@ public sealed partial class MenuController
     {
         CancelControlsCapture();
         IsOpen = false;
+        _nameTarget = null;
+        _acceptName = null;
+        _nameHighSurrogate = null;
         _view = null;
         _history.Clear();
         _characterSelectionDestination = "";
@@ -152,6 +158,10 @@ public sealed partial class MenuController
     public void Navigate(MenuInput input)
     {
         if (!IsOpen || IsCapturingControls)
+        {
+            return;
+        }
+        if (NavigateNaming(input))
         {
             return;
         }
@@ -270,6 +280,11 @@ public sealed partial class MenuController
 
     public void Back()
     {
+        if (IsNamePrompt)
+        {
+            DeleteNameCharacter();
+            return;
+        }
         SoundRequested?.Invoke(MenuSound.Cancel);
         if (IsSelectingCharacter)
         {

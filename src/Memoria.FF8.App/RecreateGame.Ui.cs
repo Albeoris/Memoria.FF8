@@ -1,4 +1,5 @@
 using Memoria.FF8.GameUi;
+using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
@@ -21,6 +22,8 @@ internal sealed partial class RecreateGame
     private bool previousUiMousePressed;
     private bool uiControlPointerPressed;
     private bool drainUiButtons;
+    private DialogueState? nativeNamePrompt;
+    private bool suppressNativeNameInput;
     private readonly GlobalSettingsPaths globalSettings = new();
     private string UiPreferencesPath => globalSettings.UiPreferencesPath;
     private string ControlsPreferencesPath => globalSettings.ControlsPreferencesPath;
@@ -152,6 +155,8 @@ internal sealed partial class RecreateGame
             int subject = GameNames.GuardianForceSubject(identity);
             targets.Add(new DebugNameTarget(subject, world.Events.Scene.Names.GetValueOrDefault(subject, GameNames.DefaultName(subject)), "GF"));
         }
+        targets.Add(new DebugNameTarget(GameNames.GrieverSubject, world.Events.Scene.Names.GetValueOrDefault(GameNames.GrieverSubject, GameNames.DefaultName(GameNames.GrieverSubject)), "Entity"));
+        targets.Add(new DebugNameTarget(GameNames.BokoSubject, world.Events.Scene.Names.GetValueOrDefault(GameNames.BokoSubject) ?? NativePocketStationText.ChocoboName(session.State.PocketStation) ?? GameNames.DefaultName(GameNames.BokoSubject), "Entity"));
         return targets;
     }
 
@@ -318,18 +323,19 @@ internal sealed partial class RecreateGame
         {
             return false;
         }
+        SynchronizeNativeNamePrompt();
         if (!gameMenus.IsOpen && !saveMenu.IsOpen && IsNativeGridMenuActive)
         {
             gameMenus.Open(IsNativeWeaponShopActive ? "shop-junk" : IsNativeShopActive ? "shop" : "main", false);
         }
-        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
+        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo && !gameMenus.IsNamePrompt;
         bool menuWasOpen = gameMenus.IsOpen;
         MouseState mouse = Mouse.GetState();
         bool mousePressed = IsActive && mouse.LeftButton == ButtonState.Pressed;
         bool mousePressEdge = mousePressed && !previousUiMousePressed;
         previousUiMousePressed = mousePressed;
         bool openMenu = keyboard.GameMenuRequested;
-        if (keyboard.DebugRoomRequested && !saveMenu.IsOpen)
+        if (keyboard.DebugRoomRequested && !saveMenu.IsOpen && !gameMenus.IsNamePrompt)
         {
             if (gameMenus.IsOpen)
             {
@@ -340,7 +346,7 @@ internal sealed partial class RecreateGame
                 gameMenus.Open("debug-room", true);
             }
         }
-        else if (openMenu && !saveMenu.IsOpen)
+        else if (openMenu && !saveMenu.IsOpen && !gameMenus.IsNamePrompt)
         {
             if (gameMenus.IsOpen)
             {
@@ -377,6 +383,11 @@ internal sealed partial class RecreateGame
             drainUiButtons = false;
             SynchronizeUiMoviePause();
             return false;
+        }
+        if (suppressNativeNameInput)
+        {
+            suppressNativeNameInput = false;
+            return true;
         }
         if (input.MenuVertical < 0)
         {
@@ -440,11 +451,50 @@ internal sealed partial class RecreateGame
             drainUiButtons = true;
             CompleteNativeNormalMenu(nativeMainWasOpen);
         }
-        else if (!gameMenus.IsDemo && IsNativeGridMenuActive)
+        else if (!gameMenus.IsNamePrompt && !gameMenus.IsDemo && IsNativeGridMenuActive)
         {
             UpdatePartyMenu(gameplayClock.Advance(elapsed, session.State.Scene, events?.IsScriptedInterface == true), default);
         }
         SynchronizeUiMoviePause();
+        return true;
+    }
+
+    private bool SynchronizeNativeNamePrompt()
+    {
+        bool queuedOpened = SynchronizeQueuedEntityName();
+        if (world?.PendingEntityName is not null || queuedOpened)
+        {
+            return queuedOpened;
+        }
+        if (gameMenus is null || events?.CurrentDialogue is not { IsNamePrompt: true } visibleDialogue)
+        {
+            return false;
+        }
+        DialogueState dialogue = events.DialogueTemplates.Single(item => item.Channel == visibleDialogue.Channel);
+        if (ReferenceEquals(nativeNamePrompt, dialogue) && gameMenus.IsNamePrompt)
+        {
+            return false;
+        }
+        nativeNamePrompt = dialogue;
+        suppressNativeNameInput = true;
+        presentedDialogue = dialogue;
+        (selectedChoice, enteredName) = DialoguePresentation.ResolveDraft(dialogue, session.State.DialogueDraft, events.PendingNameDefault ?? throw new InvalidOperationException("A native name prompt requires a default name."));
+        int subject = events.PendingNameSubject ?? throw new InvalidOperationException("A native name prompt requires a naming subject.");
+        gameMenus.OpenNamePrompt(subject, enteredName, name =>
+        {
+            PlayerActionResult result = world!.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: name));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail ?? "The current game state cannot accept the name.");
+            }
+            enteredName = name;
+            dialoguePages.Complete(dialogue);
+            session.SetDialogueDraft(null);
+            nativeNamePrompt = null;
+            fieldSeconds = 0;
+            drainUiButtons = true;
+        });
+        fieldSeconds = 0;
         return true;
     }
 
@@ -514,6 +564,7 @@ internal sealed partial class RecreateGame
         {
             throw new InvalidOperationException("UI is not initialized.");
         }
+        SynchronizeNativeNamePrompt();
         UiControlCommand command = request.Ui ?? new UiControlCommand();
         NativeTutorialPlayer? tutorial = world?.Tutorial;
         if (tutorial is not null)
@@ -533,7 +584,11 @@ internal sealed partial class RecreateGame
             }
             return GameUiStatus()!;
         }
-        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
+        if (gameMenus.IsNamePrompt && (request.Command.Equals("ui-close", StringComparison.OrdinalIgnoreCase) || request.Command.Equals("ui-open", StringComparison.OrdinalIgnoreCase) || request.Command.Equals("debug-room", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Confirm the required name prompt before changing screens.");
+        }
+        bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo && !gameMenus.IsNamePrompt;
         if (request.Command.Equals("ui-close", StringComparison.OrdinalIgnoreCase))
         {
             gameMenus.Close();

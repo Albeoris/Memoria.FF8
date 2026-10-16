@@ -7,12 +7,20 @@ namespace Memoria.FF8.App.Tests;
 public sealed class DebugNamingTests
 {
     [Fact]
-    public void Name_validation_counts_scalars_and_rejects_unsafe_or_missing_text()
+    public void Name_validation_counts_graphemes_and_rejects_invalid_or_missing_text()
     {
         Assert.Equal("Twelve", GameNames.Normalize(" Twelve "));
         Assert.Equal("\uFFFD", GameNames.Normalize("\uFFFD"));
-        Assert.Equal(string.Concat(Enumerable.Repeat("😀", 12)), GameNames.Normalize(string.Concat(Enumerable.Repeat("😀", 12))));
-        foreach (string text in new[] { "", "   ", "ThirteenChars!", "Bad\nName", "\tName", "{Squall}", "Broken\uD800" })
+        Assert.Equal("{Squall}", GameNames.Normalize("{Squall}"));
+        foreach (string grapheme in new[] { "A", "😀", "e\u0301", "👩🏽‍🚀", "🇺🇦" })
+        {
+            string maximum = string.Concat(Enumerable.Repeat(grapheme, GameNames.MaximumLength));
+            Assert.Equal(maximum, GameNames.Normalize(maximum));
+            Assert.True(GameNames.IsValidDraft(maximum));
+            Assert.False(GameNames.IsValidDraft(maximum + grapheme));
+            Assert.Throws<ArgumentException>(() => GameNames.Normalize(maximum + grapheme));
+        }
+        foreach (string text in new[] { "", "   ", "Bad\nName", "\tName", "Broken\uD800", "Broken\uDC00" })
         {
             Assert.Throws<ArgumentException>(() => GameNames.Normalize(text));
         }
@@ -24,7 +32,23 @@ public sealed class DebugNamingTests
         Assert.Throws<ArgumentOutOfRangeException>(() => GameNames.GuardianForceSubject(16));
         Assert.True(GameNames.IsValidDraft(""));
         Assert.False(GameNames.IsValidDraft("\uD800"));
-        Assert.False(GameNames.IsValidDraft("{Squall}"));
+        Assert.True(GameNames.IsValidDraft("{Squall}"));
+        Assert.False(GameNames.IsValidDraft(null));
+    }
+
+    [Theory]
+    [InlineData("{Page}")]
+    [InlineData("{Color Red}")]
+    [InlineData("{Char Rinoa}")]
+    [InlineData("{Var 0}")]
+    [InlineData("👩🏽‍🚀 e\u0301 🇺🇦")]
+    public void Saved_names_are_literal_text_when_native_name_tags_are_expanded(string name)
+    {
+        Dictionary<int, string> names = new() { [0] = GameNames.Normalize(name), [16] = name };
+        DialogueDocument document = DialogueTextFormatter.Parse("{Char Squall}: {Name Quetzacotl}", names);
+        Assert.Equal($"{name}: {name}", document.Text);
+        Assert.Single(document.Pages);
+        Assert.All(document.Pages.SelectMany(page => page.Lines).SelectMany(line => line.Runs), run => Assert.Equal(Microsoft.Xna.Framework.Color.White, run.Color));
     }
 
     [Fact]
@@ -54,7 +78,7 @@ public sealed class DebugNamingTests
         using GameWorld world = new(session, GameDirectory());
         string before = JsonSerializer.Serialize(session.State);
         Assert.Throws<ArgumentOutOfRangeException>(() => world.Rename(32, "Changed"));
-        Assert.Throws<ArgumentException>(() => world.Rename(0, "{Squall}"));
+        Assert.Throws<ArgumentException>(() => world.Rename(0, "Broken\uD800"));
         Assert.Null(world.Field);
         Assert.Empty(world.Events.Scene.Names);
         Assert.Equal(before, JsonSerializer.Serialize(session.State));
@@ -75,16 +99,16 @@ public sealed class DebugNamingTests
         }
         DialogueState prompt = Assert.IsType<DialogueState>(world.Events.CurrentDialogue);
         Assert.True(prompt.IsNamePrompt);
-        Assert.Equal(name, world.Events.PendingNameDefault);
+        Assert.Equal("Squall", world.Events.PendingNameDefault);
         session.SetEventState(world.Events.Capture());
         session.SetDialogueDraft(new DialogueDraft(prompt.Channel, prompt.MessageId, 0, name));
         GameSession restored = new(SaveAndLoad(session));
         using GameWorld loaded = new(restored, GameDirectory());
         loaded.EnsureField();
         Assert.Equal(name, restored.State.DialogueDraft!.EnteredName);
-        Assert.Equal(name, loaded.Events.PendingNameDefault);
-        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.EnterName)).Accepted);
-        Assert.True(loaded.Apply(new PlayerAction(PlayerActionKind.EnterName)).Accepted);
+        Assert.Equal("Squall", loaded.Events.PendingNameDefault);
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: name)).Accepted);
+        Assert.True(loaded.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: name)).Accepted);
         Assert.Equal(name, world.Events.Scene.Names[0]);
         Assert.Equal(name, loaded.Events.Scene.Names[0]);
         Assert.Null(loaded.Events.PendingNameDefault);
@@ -119,7 +143,7 @@ public sealed class DebugNamingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void All_twenty_eight_names_persist_without_frames_and_allow_identical_next_input(bool currentCheckpoint)
+    public void All_names_persist_without_frames_and_allow_identical_next_input(bool currentCheckpoint)
     {
         GameSession session;
         if (currentCheckpoint)
@@ -140,12 +164,13 @@ public sealed class DebugNamingTests
             session.SetEventState(world.Events.Capture());
             session.Save(Path.Combine(evidence, "snapshot-source-bc769ae6.json"));
         }
-        foreach (int subject in Enumerable.Range(0, 43).Where(GameNames.IsValidSubject))
+        foreach (int subject in Enumerable.Range(0, GameNames.BokoSubject + 1).Where(GameNames.IsValidSubject))
         {
             world.Rename(subject, $"Name {subject}");
         }
+        world.Rename(0, string.Concat(Enumerable.Repeat("👩🏽‍🚀", 14)) + "{Page}");
         Assert.Equal(frame, world.Events.Frame);
-        Assert.Equal(28, world.Events.Scene.Names.Count);
+        Assert.Equal(30, world.Events.Scene.Names.Count);
         if (evidence is not null)
         {
             session.Save(Path.Combine(evidence, "snapshot-named-bc769ae6.json"));

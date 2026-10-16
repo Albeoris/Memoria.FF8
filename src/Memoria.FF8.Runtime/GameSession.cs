@@ -557,6 +557,7 @@ public sealed partial class GameSession : IEventServices
 
     private static void Validate(GameState state)
     {
+        ValidateEntityNames(state);
         ValidateTripleTriadCheckpoint(state);
         ValidateNativePlaytime(state);
         ValidateBattleFactsCheckpoint(state);

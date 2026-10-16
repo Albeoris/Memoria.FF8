@@ -54,25 +54,6 @@ public sealed partial class EventEngine
         return null;
     }
 
-    private void CompleteMinimalMenu(Fiber fiber, Jsm.Opcode opcode, int argument)
-    {
-        // TODO(TD-011): replace automatic GF naming with the original menu UI
-        if (opcode != Jsm.Opcode.MENUNAME || !TryNativeGuardianForceName(argument, out int menuId, out int guardianForceId))
-        {
-            throw new InvalidOperationException("Only GF naming uses automatic minimal menu completion.");
-        }
-        MinimalMenuCompletion completion = new(1, MinimalMenuKind.GuardianForceName, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, argument, menuId, 1, guardianForceId);
-        // Native47E480 ORs mask1 only, preserving every other saved GF input
-        // and its last produced maximum. Acquisition does not rebuild stats.
-        CommitSavedCharacters(fiber, services.CharacterVitals!.AcquireGuardianForce(guardianForceId), opcode);
-        Scene.MinimalMenuWaits.Add(fiber.Sequence, Scene.MinimalMenuCompletions.Count);
-        Scene.MinimalMenuCompletions.Add(completion);
-        // Native return3 advances the PC and ends this instruction budget.
-        // Automatic completion resumes at the next ordinary update.
-        fiber.WaitUntil = Frame + 1;
-        fiber.WaitReason = WaitReason.MinimalMenu;
-    }
-
     private void ValidateMinimalMenuCheckpoint(Checkpoint saved, IReadOnlyDictionary<long, Fiber> bySequence)
     {
         foreach (MinimalMenuCompletion completion in saved.Scene.MinimalMenuCompletions)

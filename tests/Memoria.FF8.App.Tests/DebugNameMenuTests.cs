@@ -55,9 +55,9 @@ public sealed class DebugNameMenuTests
         menus.Navigate(MenuInput.Confirm);
         menus.Execute(new MenuAction("name-clear"));
         menus.BuildView();
-        menus.Navigate(MenuInput.Up);
+        menus.Navigate(MenuInput.Right);
         menus.Navigate(MenuInput.Confirm);
-        Assert.Equal("4", menus.NameDraft);
+        Assert.Equal("B", menus.NameDraft);
         menus.Execute(new MenuAction("name-clear"));
         menus.Execute(new MenuAction("name-letter", Value: "😀"));
         menus.EnterNameCharacter('\b');

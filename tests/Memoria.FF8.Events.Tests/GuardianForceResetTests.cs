@@ -18,12 +18,15 @@ internal static partial class Program
         records[6] = records[6] with { HitPoints = new NativeHpWord(0, 0), Status = 0xFFFF, Junction = records[6].Junction with { GuardianForces = 0x8003, Commands = 0x12345678, Abilities = 0x87654321, MagicJunctions = Enumerable.Range(1, 20).Select(value => (byte)value).ToArray() } };
         NativeCharacterVitals source = initial with { Records = records, CombatParty = [0, 6, 3] };
         Require(source.Records[6].Junction.GuardianForceAssignments.SequenceEqual([0, 1, 15]), "Saved GF assignment WORD did not feed its original sixteen-bit consumer.");
-        byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, 262), (Jsm.Opcode.RESETGF, 0), (Jsm.Opcode.DYING, 0), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.MENUNAME, 0), (Jsm.Opcode.PSHN_L, 262), (Jsm.Opcode.RESETGF, 0), (Jsm.Opcode.DYING, 0), (Jsm.Opcode.PSHN_L, 57), (Jsm.Opcode.POPM_B, 1100), (Jsm.Opcode.PSHN_L, 3), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         (GameSession Session, EventEngine Engine) Create(NativeCharacterVitals? state)
         {
-            GameSession session = new(new GameState { CharacterVitals = state });
+            GameSession session = GameSession.CreateColdProcess();
+            session.StartNewGame();
+            session.Restore(session.State with { CharacterVitals = state, WorldControls = NativeWorldControlState.CreateNewGame(), InputConfiguration = assets.ReadNewGameInputConfiguration() });
             EventEngine engine = new(session);
-            engine.LoadField(323, content, []);
+            engine.LoadField(323, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            engine.Step();
             return (session, engine);
         }
         (GameSession session, EventEngine engine) = Create(source);
@@ -35,9 +38,10 @@ internal static partial class Program
             if (command.Name == "RESETGF")
             {
                 executions++;
-                Require(command.Arguments.SequenceEqual([262]) && engine.Capture().GetProperty("Fibers")[0].GetProperty("Stack").GetArrayLength() == 0, "RESETGF changed its full original command argument, added a result or failed to pop its operand.");
+                Require(command.Arguments.SequenceEqual([262]) && engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ScriptId").GetInt32() == 1).GetProperty("Stack").GetArrayLength() == 0, "RESETGF changed its full original command argument, added a result or failed to pop its operand.");
             }
         };
+        engine.Apply(new PlayerAction(PlayerActionKind.EnterName));
         engine.Step();
         NativeCharacterVitals reset = session.CharacterVitals!;
         NativeCharacterVital selected = reset.Records[6];

@@ -864,20 +864,18 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.MENUNAME:
                 int nativeNameArgument = fiber.Stack.Peek();
-                if (TryNativeGuardianForceName(nativeNameArgument, out _, out _))
+                if (TryNativeGuardianForceName(nativeNameArgument, out _, out int namingGuardianForce))
                 {
-                    CompleteMinimalMenu(fiber, opcode, nativeNameArgument);
-                    args = Pop(fiber, 1);
-                    break;
+                    // Native521DA0 acquires through47E480 at issue, before the naming menu returns.
+                    // Only flag1 changes; existing saved HP and every other GF input remain owned.
+                    CommitSavedCharacters(fiber, services.CharacterVitals!.AcquireGuardianForce(namingGuardianForce), opcode);
                 }
-                string defaultName = nativeNameArgument == 20 ? GameNames.DefaultName(GameNames.GrieverSubject) : NativeCharacterName(NativeNamingSubject(nativeNameArgument));
+                string defaultName = GameNames.DefaultName(NativeNamingSubject(nativeNameArgument));
                 args = Pop(fiber, 1);
                 nameEntity = NativeNamingSubject(args[0]);
-                if (nameEntity == GameNames.GrieverSubject)
-                {
-                    // Native menu28 selects20 without80;4E696A initializes its actual saved buffer from the naming-table default.
-                    Scene.Names[nameEntity] = defaultName;
-                }
+                // Native4B3140 bare naming selectors have80 clear;4E696A initializes the saved buffer from its table default.
+                // Item-driven renames explicitly select80 and retain their independently owned current-name draft.
+                Scene.Names[nameEntity] = defaultName;
                 ShowDialogue(fiber, new DialogueState(0, -1, $"Name: {defaultName}", 0, 0, IsNamePrompt: true), true);
                 break;
             case Jsm.Opcode.MESVAR:

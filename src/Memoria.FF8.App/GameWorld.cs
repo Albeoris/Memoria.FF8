@@ -153,7 +153,7 @@ internal sealed partial class GameWorld : IDisposable
 
     public WorldMapScene? WorldScene => worldScene;
     public DialogueState? CurrentDialogue => session.State.Scene == SceneKind.WorldMap ? worldScene?.CurrentDialogue : Events.CurrentDialogue;
-    public PlayerTrigger NextTrigger => session.State.RandomEncounters?.Pending is { } random ? new(PlayerTriggerKind.Battle, random.FieldId, random.Frame, null, null) : worldScene is not null && session.State.Scene == SceneKind.WorldMap ? worldScene.CurrentDialogue is { } dialogue ? new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, worldScene.State.Frame, dialogue.MessageId, dialogue.Text) : new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
+    public PlayerTrigger NextTrigger => PendingEntityName is { } pendingName ? new(PlayerTriggerKind.Dialogue, session.State.FieldId, Events.Frame, null, pendingName.DefaultName) : session.State.RandomEncounters?.Pending is { } random ? new(PlayerTriggerKind.Battle, random.FieldId, random.Frame, null, null) : worldScene is not null && session.State.Scene == SceneKind.WorldMap ? worldScene.CurrentDialogue is { } dialogue ? new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, worldScene.State.Frame, dialogue.MessageId, dialogue.Text) : new PlayerTrigger(PlayerTriggerKind.WorldMap, session.State.FieldId, worldScene.State.Frame, null, null) : Events.FieldId != session.State.FieldId ? new PlayerTrigger(PlayerTriggerKind.FieldTransition, session.State.FieldId, worldScene?.LastDeparture?.Frame ?? Events.Frame, null, null) : Events.NextTrigger;
 
     public bool EnsureField()
     {
@@ -416,10 +416,28 @@ internal sealed partial class GameWorld : IDisposable
     public PlayerActionResult Apply(PlayerAction action)
     {
         EnsureField();
+        if (PendingEntityName is not null)
+        {
+            if (action.Kind == PlayerActionKind.EnterName)
+            {
+                if (action.Value != 0 || action.Quantity is not null || action.Frames != 1 || action.Horizontal != 0 || action.Vertical != 0 || action.CameraHorizontal != 0)
+                {
+                    throw new ArgumentException("Entity naming accepts only its name text.", nameof(action));
+                }
+                CompleteEntityName(action.Text ?? PendingEntityName.DefaultName);
+                return new PlayerActionResult(true, NextTrigger, 0);
+            }
+            return new PlayerActionResult(false, new PlayerTrigger(PlayerTriggerKind.Dialogue, session.State.FieldId, Events.Frame, null, PendingEntityName.DefaultName), 0, "Complete the required entity name before continuing.");
+        }
         if (Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null)
         {
             return ApplyNativeTutorial(action);
         }
+        if (action.Kind == PlayerActionKind.UseFieldItem && FieldItemCatalog.FieldItem(action.Value) is { SupportsNameUse: true } namingItem)
+        {
+            return ApplyItemNaming(action, namingItem);
+        }
+        int acquiredBeforeItem = action.Kind == PlayerActionKind.UseFieldItem ? AcquiredGuardianForceMask() : 0;
         if (action.Kind is PlayerActionKind.TriadSelectCard or PlayerActionKind.TriadPlaceCard or PlayerActionKind.TriadAutoMove or PlayerActionKind.TriadTradeCard || Events.PendingTripleTriad is not null && action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Cancel or PlayerActionKind.Wait)
         {
             return ApplyTripleTriad(action);
@@ -440,9 +458,17 @@ internal sealed partial class GameWorld : IDisposable
                     session.SetDepartingFieldState(Events.Capture());
                 }
             }
+            if (worldResult.Accepted && action.Kind == PlayerActionKind.UseFieldItem)
+            {
+                QueueItemGuardianForceNames(action.Value, acquiredBeforeItem);
+            }
             return worldResult;
         }
         PlayerActionResult result = Events.Apply(action);
+        if (result.Accepted && action.Kind == PlayerActionKind.UseFieldItem)
+        {
+            QueueItemGuardianForceNames(action.Value, acquiredBeforeItem);
+        }
         return PublishFieldAction(result);
     }
 

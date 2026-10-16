@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using System.Text;
 
 namespace Memoria.FF8.Runtime;
@@ -7,6 +8,8 @@ namespace Memoria.FF8.Runtime;
 public static class GameNames
 {
     public const int GrieverSubject = 43;
+    public const int BokoSubject = 44;
+    public const int MaximumLength = 20;
     private static readonly string[] CharacterDefaults = ["Squall", "Zell", "Irvine", "Quistis", "Rinoa", "Selphie", "Seifer", "Edea", "Laguna", "Kiros", "Ward"];
     private static readonly string[] GuardianForceDefaults = ["Quezacotl", "Shiva", "Ifrit", "Siren", "Brothers", "Diablos", "Carbuncle", "Leviathan", "Pandemona", "Cerberus", "Alexander", "Doomtrain", "Bahamut", "Cactuar", "Tonberry", "Eden"];
 
@@ -20,7 +23,7 @@ public static class GameNames
 
     public static int GuardianForceSubject(int identity) => (uint)identity < 16 ? 16 + identity : throw new ArgumentOutOfRangeException(nameof(identity));
 
-    public static bool IsValidSubject(int subject) => subject is 0 or 1 or 2 or GrieverSubject or >= 16 and <= 31 or >= 33 and <= 42 && subject != 36;
+    public static bool IsValidSubject(int subject) => subject is 0 or 1 or 2 or GrieverSubject or BokoSubject or >= 16 and <= 31 or >= 33 and <= 42 && subject != 36;
 
     public static string DefaultName(int subject) => subject switch
     {
@@ -28,6 +31,7 @@ public static class GameNames
         1 => CharacterDefaults[4],
         2 => "Angelo",
         GrieverSubject => "Griever",
+        BokoSubject => "Boko",
         >= 16 and <= 31 => GuardianForceDefaults[subject - 16],
         >= 33 and <= 42 when subject != 36 => CharacterDefaults[subject - 32],
         _ => throw new ArgumentOutOfRangeException(nameof(subject))
@@ -43,7 +47,7 @@ public static class GameNames
         string name = text.Trim();
         if (!IsValidDraft(name))
         {
-            throw new ArgumentException("A name can contain at most twelve Unicode characters without controls, invalid Unicode or markup braces.", nameof(text));
+            throw new ArgumentException($"A name can contain at most {MaximumLength} Unicode text elements without controls or invalid Unicode.", nameof(text));
         }
         if (name.Length == 0)
         {
@@ -58,21 +62,15 @@ public static class GameNames
         {
             return false;
         }
-        int count = 0;
         ReadOnlySpan<char> remaining = text.AsSpan();
         while (!remaining.IsEmpty)
         {
-            if (Rune.DecodeFromUtf16(remaining, out Rune rune, out int consumed) != OperationStatus.Done || Rune.IsControl(rune) || rune.Value is '{' or '}')
+            if (Rune.DecodeFromUtf16(remaining, out Rune rune, out int consumed) != OperationStatus.Done || Rune.IsControl(rune))
             {
                 return false;
             }
             remaining = remaining[consumed..];
-            count++;
-            if (count > 12)
-            {
-                return false;
-            }
         }
-        return true;
+        return StringInfo.ParseCombiningCharacters(text).Length <= MaximumLength;
     }
 }

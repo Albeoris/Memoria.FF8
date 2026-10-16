@@ -6,11 +6,46 @@ public sealed record NativeFieldItemContext(bool RestAllowed, byte MenuFlags);
 public sealed record NativeFieldItem(byte Type, byte TargetFlags, byte Power, byte StatusMask)
 {
     public NativeSolomonRingDefinition? SolomonRingDefinition { get; init; }
+    public bool SupportsNameUse => Type is 11 or 12 or 13;
     public bool SupportsInventoryUse => Type == 15 && TargetFlags == 1 && SolomonRingDefinition is not null;
     public bool SupportsRestUse => Type == 6 && (TargetFlags & 1) != 0;
     public bool SupportsCharacterUse => Type is 0 or 1 or 2 or 16 or 20 or 21 && (TargetFlags & 3) == 3 && (TargetFlags & 4) == 0;
     public bool SupportsGuardianForceUse => Type is 3 or 4 or 5 or 17 or 18 && (TargetFlags & 5) == 5 && (TargetFlags & 2) == 0;
     public bool SupportsBlueMagicUse => Type == 19 && (TargetFlags & 0x43) == 0x43 && Power < 16;
+
+    public (NativeEconomy Economy, int Subject) BeginNaming(NativeCharacterVitals vitals, NativeEconomy economy, int itemId, int target)
+    {
+        vitals.Validate();
+        economy.Validate();
+        if (!SupportsNameUse || itemId is <= 0 or > 255 || vitals.InitOutSha256 != economy.InitOutSha256)
+        {
+            throw new NotSupportedException("Item naming requires original rename-item metadata and matching saved owners.");
+        }
+        int subject;
+        if (Type == 11)
+        {
+            if (target is < 16 or > 31 || (vitals.GuardianForces[target - 16].Flags & 1) == 0)
+            {
+                throw new InvalidOperationException("Rename Card requires an acquired Guardian Force target.");
+            }
+            subject = target;
+        }
+        else
+        {
+            if (target != 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(target));
+            }
+            subject = Type == 12 ? 2 : GameNames.BokoSubject;
+        }
+        int slot = Array.FindIndex(economy.Items, stock => stock.ItemId == itemId && stock.Count > 0);
+        if (slot < 0)
+        {
+            throw new InvalidOperationException("The selected naming item stock is exhausted.");
+        }
+        // Native4FA2A0 spends the item before4FA329 opens menu15; selector bit80 preserves the saved name.
+        return (Consume(economy, slot), subject);
+    }
 
     public (NativeEconomy Economy, NativeLimitProgress Progress, bool Changed) LearnBlueMagic(NativeCharacterVitals vitals, NativeEconomy economy, NativeLimitProgress progress, int itemId, int row)
     {

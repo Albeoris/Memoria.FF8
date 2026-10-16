@@ -21,14 +21,10 @@ internal sealed partial class RecreateGame
             expanded += "\u0001" + name.Key + "=" + name.Value;
         }
         // Names and message variables can change while a persistent window retains its native identity.
-        string key = expanded + (dialogue.IsNamePrompt ? "\u0001" + enteredName : "");
+        string key = expanded;
         var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
         {
             var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables);
-            if (dialogue.IsNamePrompt)
-            {
-                document = document.WithLiteralLine(enteredName + "_  (Enter: accept)");
-            }
             float size = uiPreferences.DialogueFontSize;
             string font = uiPreferences.DialogueFontFamily;
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);

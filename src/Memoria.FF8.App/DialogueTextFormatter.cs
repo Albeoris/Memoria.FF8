@@ -148,6 +148,8 @@ internal static partial class DialogueTextFormatter
             TextTagName.Squall => CharacterName(TextTagCharacter.Squall, names),
             TextTagName.Rinoa => CharacterName(TextTagCharacter.Rinoa, names),
             TextTagName.Angelo => CharacterName(TextTagCharacter.Angelo1, names),
+            TextTagName.Boko => names?.GetValueOrDefault(GameNames.BokoSubject) ?? GameNames.DefaultName(GameNames.BokoSubject),
+            TextTagName.Griever => names?.GetValueOrDefault(GameNames.GrieverSubject) ?? GameNames.DefaultName(GameNames.GrieverSubject),
             _ => name.ToString()
         };
     }

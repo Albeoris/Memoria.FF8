@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
-using System.Text;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
@@ -115,6 +113,7 @@ internal sealed partial class RecreateGame : Game
     private void UpdateGameFrame(GameTime gameTime)
     {
         long updateStarted = Stopwatch.GetTimestamp();
+        SynchronizeNativeNamePrompt();
         KeyboardState keys = Microsoft.Xna.Framework.Input.Keyboard.GetState();
         GamePadState pad = controller!.Read();
         keyboard.ControllerPresentation = controller.Presentation;
@@ -150,7 +149,7 @@ internal sealed partial class RecreateGame : Game
             metrics.Update(updateStarted);
             return;
         }
-        if (keyboard.SpeedToggleRequested)
+        if (keyboard.SpeedToggleRequested && gameMenus?.IsNamePrompt != true)
         {
             gameplayClock.ToggleSpeed();
         }
@@ -169,7 +168,7 @@ internal sealed partial class RecreateGame : Game
             Exit();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
-        if (UpdateBattleDebugUi(input))
+        if (gameMenus?.IsNamePrompt != true && UpdateBattleDebugUi(input))
         {
             movieSkipGesture.Reset();
             fieldAudio?.Update();
@@ -367,6 +366,10 @@ internal sealed partial class RecreateGame : Game
                 fieldRenderFaulted = false;
                 Console.WriteLine($"loaded={field!.Id}:{field.Name} models={field.Models.Count} tiles={field.Background.Count}");
             }
+            if (SynchronizeNativeNamePrompt())
+            {
+                return;
+            }
             if (events!.PartyMenu is not null)
             {
                 UpdatePartyMenu(elapsed, input);
@@ -383,7 +386,7 @@ internal sealed partial class RecreateGame : Game
                 presentedDialogue = dialogue;
                 (selectedChoice, enteredName) = DialoguePresentation.ResolveDraft(dialogue, session.State.DialogueDraft, events.PendingNameDefault ?? "Squall");
             }
-            if (dialogue is { CanConfirm: true })
+            if (dialogue is { CanConfirm: true, IsNamePrompt: false })
             {
                 if (DialoguePresentation.ResolveInput(dialogue, input, ref selectedChoice, enteredName) is PlayerAction action && !AdvanceDialoguePages())
                 {
@@ -431,8 +434,9 @@ internal sealed partial class RecreateGame : Game
                     events.Step();
                     metrics.Simulate(1);
                 }
-                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null)
+                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null || events.CurrentDialogue?.IsNamePrompt == true)
                 {
+                    SynchronizeNativeNamePrompt();
                     fieldSeconds = 0;
                     return;
                 }
@@ -448,24 +452,9 @@ internal sealed partial class RecreateGame : Game
 
     private void OnTextInput(object? sender, TextInputEventArgs args)
     {
-        if (IsActive && gameMenus?.EnterNameCharacter(args.Character) == true)
+        if (IsActive)
         {
-            return;
-        }
-        if (gameMenus?.IsOpen == true || saveMenu.IsOpen || events?.CurrentDialogue?.IsNamePrompt != true)
-        {
-            return;
-        }
-        if (args.Character == '\b')
-        {
-            if (enteredName.Length > 0)
-            {
-                enteredName = enteredName[..StringInfo.ParseCombiningCharacters(enteredName)[^1]];
-            }
-        }
-        else if (!char.IsControl(args.Character) && args.Character is not ('{' or '}') && (enteredName + args.Character).EnumerateRunes().Count() <= 12)
-        {
-            enteredName += args.Character;
+            gameMenus?.EnterNameCharacter(args.Character);
         }
     }
 
@@ -541,6 +530,10 @@ internal sealed partial class RecreateGame : Game
 
     private void CaptureSession()
     {
+        if (world?.PendingEntityName is not null && gameMenus?.IsNamePrompt == true)
+        {
+            session.SetEntityNameDraft(gameMenus.NameDraft);
+        }
         if (session.State.Scene == SceneKind.WorldMap)
         {
             world?.EnsureField();
@@ -549,7 +542,7 @@ internal sealed partial class RecreateGame : Game
         {
             session.SetEventState(events.Capture());
             DialogueState? dialogue = events.CurrentDialogue;
-            session.SetDialogueDraft(dialogue is null ? null : new DialogueDraft(dialogue.Channel, dialogue.MessageId, selectedChoice, enteredName));
+            session.SetDialogueDraft(dialogue is null ? null : new DialogueDraft(dialogue.Channel, dialogue.MessageId, selectedChoice, gameMenus?.IsNamePrompt == true ? gameMenus.NameDraft : enteredName));
         }
         else if (events is not null)
         {
@@ -651,6 +644,12 @@ internal sealed partial class RecreateGame : Game
     private void RestorePlayerState(GameState state)
     {
         ClearBattlePresentation();
+        gameMenus?.Close();
+        nativeNamePrompt = null;
+        queuedEntityName = null;
+        returnToItemMenuAfterNaming = false;
+        suppressNativeNameInput = false;
+        SynchronizeUiMoviePause();
         movie?.Dispose();
         movie = null;
         movieIndex = -1;
@@ -676,6 +675,10 @@ internal sealed partial class RecreateGame : Game
     {
         ClearBattlePresentation();
         gameMenus?.Close();
+        nativeNamePrompt = null;
+        queuedEntityName = null;
+        returnToItemMenuAfterNaming = false;
+        suppressNativeNameInput = false;
         SynchronizeUiMoviePause();
         movie?.Dispose();
         movie = null;
@@ -746,6 +749,10 @@ internal sealed partial class RecreateGame : Game
                     throw new ArgumentException("Name drafts require a name prompt and at most twelve printable characters.");
                 }
                 enteredName = name;
+                if (gameMenus?.IsNamePrompt == true)
+                {
+                    gameMenus.SetNameDraft(name);
+                }
             }
             if (request.Selection is int selection)
             {

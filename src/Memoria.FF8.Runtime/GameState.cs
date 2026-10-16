@@ -15,6 +15,8 @@ public enum SceneKind
 public sealed record GameState
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PendingEntityName[]? PendingEntityNames { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeTripleTriadPlayState? TripleTriadPlay { get; init; }
     [JsonRequired]
     public NativeFieldBarsState? FieldBars { get; init; }

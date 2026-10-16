@@ -20,6 +20,8 @@ internal static class MenuPreview
         bool expanded = false;
         string? statePath = null;
         string? characterId = null;
+        int nameSubject = 0;
+        int namePage = 0;
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
@@ -28,13 +30,19 @@ internal static class MenuPreview
                 expanded = true;
                 continue;
             }
-            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character") || ++index == args.Length)
+            if (argument is not ("--screen" or "--output" or "--resolution" or "--game-dir" or "--state" or "--character" or "--name-subject" or "--name-page") || ++index == args.Length)
             {
                 throw new ArgumentException($"Unknown or incomplete menu preview argument '{argument}'.");
             }
             string value = args[index];
             switch (argument)
             {
+                case "--name-subject":
+                    nameSubject = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+                case "--name-page":
+                    namePage = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+                    break;
                 case "--game-dir":
                     gameDirectory = Path.GetFullPath(value);
                     break;
@@ -124,7 +132,7 @@ internal static class MenuPreview
             }
             menus.ConnectMods(mods);
             menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
-            Dictionary<int, string> names = Enumerable.Range(0, 43).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);
+            Dictionary<int, string> names = Enumerable.Range(0, GameNames.BokoSubject + 1).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);
             menus.ConnectNaming(() => names.Select(pair => new DebugNameTarget(pair.Key, pair.Value, pair.Key is >= 16 and <= 31 ? "GF" : "Character")).ToArray(), (subject, name) => names[subject] = name);
             menus.BattleDebugRequested += () => { };
             menus.Open(screen, liveData is null);
@@ -138,7 +146,18 @@ internal static class MenuPreview
             }
             if (screen == "debug-name-input")
             {
-                menus.Execute(new MenuAction("name-edit", "0"));
+                menus.Execute(new MenuAction("name-edit", nameSubject.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            if (screen == "name-input")
+            {
+                menus.OpenNamePrompt(nameSubject, GameNames.DefaultName(nameSubject), _ => { });
+            }
+            if (menus.IsEditingName)
+            {
+                for (int page = 0; page < namePage; page++)
+                {
+                    menus.Navigate(MenuInput.PageRight);
+                }
             }
             view = menus.BuildView();
         }

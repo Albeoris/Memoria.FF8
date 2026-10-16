@@ -43,10 +43,13 @@ public sealed class MinimalBattleAndGuardianForceTests
         Assert.Equal(3, original.Scene.NativeBattleCompletions![0].ReturnFrame);
         Assert.Equal(0, original.Variables[800]);
         Assert.Equal(new[] { 2 }, original.AcquiredGuardianForces!);
-        MinimalMenuCompletion naming = Assert.Single(original.Scene.MinimalMenuCompletions);
-        Assert.Equal((5, 7, 2), (naming.RawArgument, naming.MenuId, naming.GuardianForceId));
-        Assert.False(original.IsDialogueOpen);
+        Assert.Empty(original.Scene.MinimalMenuCompletions);
+        Assert.True(original.CurrentDialogue!.IsNamePrompt);
+        Assert.Equal(GameNames.GuardianForceSubject(2), original.PendingNameSubject);
         Assert.Equal("Existing character name", original.Scene.Names[5]);
+        Assert.True(original.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: "Ifrit named")).Accepted);
+        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: "Ifrit named")).Accepted);
+        Assert.Equal("Ifrit named", original.Scene.Names[GameNames.GuardianForceSubject(2)]);
         original.Step();
         restored.Step();
         Assert.True(JsonElement.DeepEquals(original.Capture(), restored.Capture()));
@@ -117,13 +120,19 @@ public sealed class MinimalBattleAndGuardianForceTests
         EventEngine engine = Engine(source, NativeWorldControlState.CreateNewGame());
         engine.Step();
         Assert.Equal(new[] { guardianForce }, engine.AcquiredGuardianForces!);
-        MinimalMenuCompletion completion = Assert.Single(engine.Scene.MinimalMenuCompletions);
-        Assert.Equal(menuId, completion.MenuId);
+        Assert.Empty(engine.Scene.MinimalMenuCompletions);
+        Assert.True(engine.CurrentDialogue!.IsNamePrompt);
+        Assert.Equal(guardianForce + 5, menuId);
+        Assert.Equal(GameNames.GuardianForceSubject(guardianForce), engine.PendingNameSubject);
         EventEngine restored = Engine(source, NativeWorldControlState.CreateNewGame());
         restored.Restore(engine.Capture());
         Assert.True(JsonElement.DeepEquals(engine.Capture(), restored.Capture()));
         engine.Step();
         restored.Step();
+        Assert.True(JsonElement.DeepEquals(engine.Capture(), restored.Capture()));
+        Assert.True(engine.CurrentDialogue!.IsNamePrompt);
+        Assert.True(engine.Apply(new PlayerAction(PlayerActionKind.EnterName)).Accepted);
+        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.EnterName)).Accepted);
         Assert.True(JsonElement.DeepEquals(engine.Capture(), restored.Capture()));
     }
 
@@ -161,6 +170,8 @@ public sealed class MinimalBattleAndGuardianForceTests
         GameSession session = GameSession.CreateColdProcess();
         session.StartNewGame();
         session.InitializeNewGameCharacterVitals(InitialVitals.Value.DeepCopy());
+        using GameAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         session.Restore(session.State with { FieldId = 999, FieldName = "synthetic-bare-battle-menu-component", WorldControls = controls });
         var engine = new EventEngine(session);
         engine.LoadField(999, source, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

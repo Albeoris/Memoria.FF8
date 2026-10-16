@@ -17,15 +17,12 @@ public sealed class GrieverNamingTests
     {
         string game = GameDirectory();
         string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
-        Assert.True(File.Exists(source), "Actual pre-MENUNAME675 standalone source is required.");
+        Assert.True(File.Exists(source), "Actual reached MENUNAME675 standalone prompt is required.");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);
         world.EnsureField();
         world.Rename(GameNames.GuardianForceSubject(4), "BrothersX");
-        world.Rename(GameNames.GrieverSubject, "OldLion");
         string beforeVitals = JsonSerializer.Serialize(session.CharacterVitals);
-        PlayerActionResult result = world.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 60));
-        Assert.True(result.Accepted);
         Assert.True(world.Events.CurrentDialogue!.IsNamePrompt);
         Assert.Equal("Griever", world.Events.PendingNameDefault);
         Assert.Equal(GameNames.GrieverSubject, world.Events.Capture().GetProperty("NameEntity").GetInt32());
@@ -40,7 +37,7 @@ public sealed class GrieverNamingTests
         Assert.Equal("Griever", restored.Events.PendingNameDefault);
         long promptFrame = world.Events.Frame;
         string prior = world.Events.Capture().GetRawText();
-        Assert.Throws<ArgumentException>(() => world.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: "{Bad}")));
+        Assert.Throws<ArgumentException>(() => world.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: "Bad\nName")));
         Assert.Equal(prior, world.Events.Capture().GetRawText());
         Assert.True(world.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: input)).Accepted);
         Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.EnterName, Text: input)).Accepted);

@@ -159,7 +159,7 @@ internal sealed class KeyboardInput
         GuardianBoostRequested = Pressed(ControlAction.Card);
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
-        UiTabRequested = Pressed(ControlAction.UiTab);
+        UiTabRequested = Pressed(ControlAction.UiTab) || RecoveryPressed(Keys.Tab);
         UiCharacterPage = (Pressed(ControlAction.RotateRight) ? 1 : 0) - (Pressed(ControlAction.RotateLeft) ? 1 : 0);
         UiDetailRequested = Pressed(ControlAction.Card);
         UiConfirmRequested = Pressed(ControlAction.Confirm);
@@ -184,7 +184,7 @@ internal sealed class KeyboardInput
         }
         bool confirm = UiConfirmRequested || RecoveryPressed(Keys.Enter);
         bool cancel = UiCancelRequested || RecoveryPressed(Keys.Escape);
-        InputFrame input = new(horizontal, vertical, confirm, cancel, false, Pressed(ControlAction.QuickSave), (Pressed(ControlAction.MoveDown) || RecoveryPressed(Keys.Down) ? 1 : 0) - (Pressed(ControlAction.MoveUp) || RecoveryPressed(Keys.Up) ? 1 : 0) + stickVertical, Pressed(ControlAction.QuickLoad), Pressed(ControlAction.SaveMenu), Pressed(ControlAction.LoadMenu), (Pressed(ControlAction.MoveRight) || RecoveryPressed(Keys.Right) ? 1 : 0) - (Pressed(ControlAction.MoveLeft) || RecoveryPressed(Keys.Left) ? 1 : 0) + stickHorizontal, (Pressed(ControlAction.UiPageDown) ? 1 : 0) - (Pressed(ControlAction.UiPageUp) ? 1 : 0), CameraHorizontal: active ? camera.X != 0 ? camera.X : (Down(ControlAction.RotateRight) ? 1 : 0) - (Down(ControlAction.RotateLeft) ? 1 : 0) : 0, SecondaryVertical: active ? -camera.Y : 0, SecondaryHorizontal: active ? camera.X : 0);
+        InputFrame input = new(horizontal, vertical, confirm, cancel, false, Pressed(ControlAction.QuickSave), (Pressed(ControlAction.MoveDown) || RecoveryPressed(Keys.Down) ? 1 : 0) - (Pressed(ControlAction.MoveUp) || RecoveryPressed(Keys.Up) ? 1 : 0) + stickVertical, Pressed(ControlAction.QuickLoad), Pressed(ControlAction.SaveMenu), Pressed(ControlAction.LoadMenu), (Pressed(ControlAction.MoveRight) || RecoveryPressed(Keys.Right) ? 1 : 0) - (Pressed(ControlAction.MoveLeft) || RecoveryPressed(Keys.Left) ? 1 : 0) + stickHorizontal, (Pressed(ControlAction.UiPageDown) || RecoveryPressed(Keys.PageDown) ? 1 : 0) - (Pressed(ControlAction.UiPageUp) || RecoveryPressed(Keys.PageUp) ? 1 : 0), CameraHorizontal: active ? camera.X != 0 ? camera.X : (Down(ControlAction.RotateRight) ? 1 : 0) - (Down(ControlAction.RotateLeft) ? 1 : 0) : 0, SecondaryVertical: active ? -camera.Y : 0, SecondaryHorizontal: active ? camera.X : 0);
         previous = effective;
         previousGeneration = ControllerGeneration;
         previousKeyboard = current;
