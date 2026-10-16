@@ -109,6 +109,7 @@ public sealed class UiPanel : UiElement
     public bool DrawBackground { get; set; } = true;
     public UiThickness Padding { get; set; }
     public float CaptionHeight { get; set; } = 32;
+    public float CaptionFontSize { get; set; }
 
     public override UiSize Measure(UiSize available)
     {
@@ -134,7 +135,7 @@ public sealed class UiPanel : UiElement
     {
         if (DrawBackground)
         {
-            theme.Panel(canvas, Bounds, Caption);
+            theme.Panel(canvas, Bounds, Caption, CaptionFontSize);
         }
     }
 }
@@ -166,6 +167,10 @@ public sealed class UiButton : UiElement
 
     public string Text { get; set; } = string.Empty;
     public Action? Click { get; set; }
+    public bool DrawBackground { get; set; } = true;
+    public bool HighlightSelection { get; set; } = true;
+    public float FontSize { get; set; }
+    public float PointerSize { get; set; } = 10;
 
     public override UiSize Measure(UiSize available)
     {
@@ -174,18 +179,21 @@ public sealed class UiButton : UiElement
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
-        theme.Panel(canvas, Bounds);
-        if (IsFocused && Enabled)
+        if (DrawBackground)
+        {
+            theme.Panel(canvas, Bounds);
+        }
+        if (IsFocused && Enabled && HighlightSelection)
         {
             canvas.Fill(Bounds.Inset(3), theme.Highlight);
         }
 
         if (IsFocused && Enabled)
         {
-            theme.Pointer(canvas, Bounds.X + 7, Bounds.Y + (Bounds.Height - 10) / 2);
+            theme.Pointer(canvas, Bounds.X + 7, Bounds.Y + (Bounds.Height - PointerSize) / 2, PointerSize);
         }
 
-        canvas.Text(Text, theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+        canvas.Text(Text, FontSize > 0 ? FontSize : theme.FontSize, new UiRect(Bounds.X + 24, Bounds.Y, Math.Max(0, Bounds.Width - 32), Bounds.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
     }
 
     public override bool Key(UiKey key)

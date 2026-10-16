@@ -37,7 +37,8 @@ public sealed class UiList : UiElement
         }
     }
 
-    public int VisibleRows => Math.Max(1, (int)Math.Floor(Math.Max(0, Bounds.Height) / RowHeight));
+    public UiOrientation Orientation { get; set; } = UiOrientation.Vertical;
+    public int VisibleRows => Orientation == UiOrientation.Horizontal ? Math.Max(1, Items.Count) : Math.Max(1, (int)Math.Floor(Math.Max(0, Bounds.Height) / RowHeight));
 
     public int SelectedIndex
     {
@@ -59,13 +60,20 @@ public sealed class UiList : UiElement
     public float FontSize { get; set; }
     public Action<int>? Confirmed { get; set; }
     public bool ShowSelection { get; set; } = true;
+    public bool HighlightSelection { get; set; } = true;
+    public bool ShowScrollbar { get; set; } = true;
+    public float PointerSize { get; set; } = 10;
+    public float TextInset { get; set; } = 23;
+    public IList<bool> EnabledItems { get; set; } = new List<bool>();
     public IList<UiImageSource?> Images { get; set; } = new List<UiImageSource?>();
     public IList<UiImageSource?> TrailingImages { get; set; } = new List<UiImageSource?>();
 
     public override UiSize Measure(UiSize available)
     {
-        float width = Items.Select((item, index) => item.Length * 10f + 27 + (index < Images.Count && Images[index].HasValue ? RowHeight : 0) + (index < TrailingImages.Count && TrailingImages[index].HasValue ? RowHeight : 0)).DefaultIfEmpty(0).Max();
-        return ResolveDesiredSize(width, Items.Count * RowHeight, available);
+        float width = Items.Select((item, index) => item.Length * 10f + TextInset + 4 + (index < Images.Count && Images[index].HasValue ? RowHeight : 0) + (index < TrailingImages.Count && TrailingImages[index].HasValue ? RowHeight : 0)).DefaultIfEmpty(0).Max();
+        return Orientation == UiOrientation.Horizontal
+            ? ResolveDesiredSize(width * Items.Count, RowHeight, available)
+            : ResolveDesiredSize(width, Items.Count * RowHeight, available);
     }
 
     public override void Arrange(UiRect bounds)
@@ -77,35 +85,42 @@ public sealed class UiList : UiElement
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {
         int offset = ScrollOffset;
-        int rows = Math.Min(Items.Count - offset, (int)Math.Ceiling(Math.Max(0, Bounds.Height) / RowHeight));
+        bool horizontal = Orientation == UiOrientation.Horizontal;
+        int rows = horizontal ? Items.Count : Math.Min(Items.Count - offset, (int)Math.Ceiling(Math.Max(0, Bounds.Height) / RowHeight));
         for (int index = offset; index < offset + rows; index++)
         {
-            UiRect row = new(Bounds.X, Bounds.Y + (index - offset) * RowHeight, Bounds.Width, RowHeight);
+            UiRect row = horizontal
+                ? new UiRect(Bounds.X + index * Bounds.Width / Items.Count, Bounds.Y, Bounds.Width / Items.Count, Bounds.Height)
+                : new UiRect(Bounds.X, Bounds.Y + (index - offset) * RowHeight, Bounds.Width, RowHeight);
             if (ShowSelection && index == SelectedIndex)
             {
-                canvas.Fill(row.Inset(1), theme.Highlight);
+                if (HighlightSelection)
+                {
+                    canvas.Fill(row.Inset(1), theme.Highlight);
+                }
                 if (IsFocused && Enabled)
                 {
-                    theme.Pointer(canvas, row.X + 5, row.Y + (RowHeight - 10) / 2);
+                    theme.Pointer(canvas, row.X + 5, row.Y + (row.Height - PointerSize) / 2, PointerSize);
                 }
             }
 
             float imageWidth = 0;
             if (index < Images.Count && Images[index] is { } image)
             {
-                imageWidth = Math.Min(RowHeight, Math.Max(0, row.Width - 27));
-                canvas.Image(image, new UiRect(row.X + 23, row.Y, imageWidth, row.Height).Inset(2));
+                imageWidth = Math.Min(RowHeight, Math.Max(0, row.Width - TextInset - 4));
+                canvas.Image(image, new UiRect(row.X + TextInset, row.Y, imageWidth, row.Height).Inset(2));
             }
             float trailingWidth = 0;
             if (index < TrailingImages.Count && TrailingImages[index] is { } trailing)
             {
-                trailingWidth = Math.Min(RowHeight, Math.Max(0, row.Width - 27 - imageWidth));
+                trailingWidth = Math.Min(RowHeight, Math.Max(0, row.Width - TextInset - 4 - imageWidth));
                 canvas.Image(trailing, new UiRect(row.Right - 4 - trailingWidth, row.Y, trailingWidth, row.Height).Inset(2));
             }
-            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(row.X + 23 + imageWidth, row.Y, Math.Max(0, row.Width - 27 - imageWidth - trailingWidth), row.Height), Enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
+            bool enabled = Enabled && (index >= EnabledItems.Count || EnabledItems[index]);
+            canvas.Text(Items[index], FontSize > 0 ? FontSize : theme.FontSize, new UiRect(row.X + TextInset + imageWidth, row.Y, Math.Max(0, row.Width - TextInset - 4 - imageWidth - trailingWidth), row.Height), enabled ? theme.Foreground : theme.Muted, UiAlignment.Center);
         }
 
-        if (Items.Count > VisibleRows && Bounds.Width > 3)
+        if (ShowScrollbar && Items.Count > VisibleRows && Bounds.Width > 3)
         {
             float thumbHeight = Math.Max(3, Bounds.Height * VisibleRows / Items.Count);
             float top = Bounds.Y + (Bounds.Height - thumbHeight) * ScrollOffset / Math.Max(1, Items.Count - VisibleRows);
@@ -123,10 +138,12 @@ public sealed class UiList : UiElement
         int previous = SelectedIndex;
         switch (key)
         {
-            case UiKey.Up:
+            case UiKey.Up when Orientation == UiOrientation.Vertical:
+            case UiKey.Left when Orientation == UiOrientation.Horizontal:
                 SelectedIndex = previous - 1;
                 break;
-            case UiKey.Down:
+            case UiKey.Down when Orientation == UiOrientation.Vertical:
+            case UiKey.Right when Orientation == UiOrientation.Horizontal:
                 SelectedIndex = previous + 1;
                 break;
             case UiKey.PageUp:
@@ -157,8 +174,10 @@ public sealed class UiList : UiElement
             return;
         }
 
-        int index = ScrollOffset + (int)((y - Bounds.Y) / RowHeight);
-        if (index >= Items.Count)
+        int index = Orientation == UiOrientation.Horizontal
+            ? Math.Min(Items.Count - 1, (int)((x - Bounds.X) * Items.Count / Bounds.Width))
+            : ScrollOffset + (int)((y - Bounds.Y) / RowHeight);
+        if (index < 0 || index >= Items.Count)
         {
             return;
         }

@@ -20,10 +20,10 @@ Set both `DesignWidth` and `DesignHeight`, then call `Resize(viewportWidth, view
 
 Controls:
 
-- `UiPanel`: procedural panel with optional `Caption`, `CaptionHeight`, `Padding`, `DrawBackground`.
+- `UiPanel`: procedural panel with optional `Caption`, `CaptionHeight`, `Padding`, `DrawBackground`. `CaptionFontSize` defaults to zero (theme size and standard inset); an explicit size places compact captions at the top border.
 - `UiLabel`: `Text`, `FontSize`, optional `Muted`.
-- `UiButton`: `Text`, `Click` callback.
-- `UiList`: settable `Items`, `SelectedIndex`, `RowHeight`, `ScrollOffset`, `SelectionChanged` and `Confirmed` callbacks. Up/Down and PageUp/PageDown keep keyboard selection visible. Empty lists have selection -1. `ShowSelection=false` suppresses the highlight and pointer for scrollable text panels.
+- `UiButton`: `Text`, `Click` callback, optional `FontSize` (zero uses the theme) and `PointerSize` (default 10). `DrawBackground=false` removes the panel; `PointerSize` and `TextInset` reserve a matching cursor gutter. `ShowScrollbar=false` suppresses duplicate scrollbars in aligned columns. `HighlightSelection=false` removes the focused fill while retaining the pointer. Both default to true.
+- `UiList`: settable `Items`, `SelectedIndex`, `RowHeight`, `ScrollOffset`, `SelectionChanged` and `Confirmed` callbacks. Up/Down and PageUp/PageDown keep keyboard selection visible. Empty lists have selection -1. `ShowSelection=false` suppresses the highlight and pointer for scrollable text panels; `HighlightSelection=false` suppresses only the fill. `Orientation=UiOrientation.Horizontal` displays all commands in equal-width, full-height cells, navigates with Left/Right, and has no scrolling. Vertical remains the default. `EnabledItems` supplies per-item text availability: false entries are muted but remain selectable and invoke callbacks so the owner can validate the action. Missing entries are enabled. `PointerSize` defaults to 10 and `TextInset` to 23; adjust both together for larger pointers. `ShowScrollbar=false` hides the scroll indicator while preserving scrolling.
 - `UiToggle`: `Text`, boolean `Value`, `ValueChanged`; Left sets Off and Right sets On.
 - `UiSlider`: `Text`, finite `Min`, `Max`, positive `Step`, clamped `Value`, `ValueChanged`; Left/Right change by one step. Set Max before Min when raising the range above its default 0..1.
 - `UiProgressBar`: `Min`, `Max`, `Value`, optional `Text`; clamps the displayed fraction and renders invalid/empty ranges as zero. Does not receive focus.

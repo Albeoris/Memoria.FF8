@@ -1,0 +1,233 @@
+using Memoria.FF8.Ui;
+
+namespace Memoria.FF8.GameUi;
+
+public sealed partial class MenuController
+{
+    private bool IsOriginalMenuPage => !ScreenId.StartsWith("debug-", StringComparison.Ordinal) && !ScreenId.StartsWith("mods", StringComparison.Ordinal) && !IsNamingScreen && !UseHostControls && CurrentScreen.Layout != MenuLayout.BattleHud;
+
+    private UiElement BuildMain()
+    {
+        var page = Grid([1.05f, 6.55f, 1], [3, 1.1f], 6);
+        Place(page, Help(), 0);
+        var partyArea = Grid([1, 1, 1, 3], [1], 0);
+        partyArea.Margin = new UiThickness(20, 0, 10, 0);
+        Place(page, partyArea, 1);
+        MenuCharacter[] party = CharacterChoices.ToArray();
+        for (int index = 0; index < 3; index++)
+        {
+            MenuCharacter? character = party.ElementAtOrDefault(index);
+            var row = Grid([1], [0.75f, 1.7f, 1.15f, 2.7f], 5);
+            Place(row, Portrait(character), 0);
+            Place(row, Label(character?.Name ?? "", 28), 0, 1);
+            Place(row, Label(character is null ? "" : $"Lv {Number(character.Level)}", 23), 0, 2);
+            Place(row, Label(character is null ? "" : "HP " + Hp(character), 23), 0, 3);
+            UiPanel status = Panel("STATUS", row);
+            status.Id = "party-status-" + index;
+            if (IsSelectingCharacter && character is not null)
+            {
+                string characterId = character.Id;
+                UiButton choice = new() { Id = characterId, DrawBackground = false, HighlightSelection = false, Click = () => ChooseCharacter(characterId) };
+                status.Margin = new UiThickness(24, 0, 0, 0);
+                choice.Children.Add(status);
+                Place(partyArea, choice, index);
+            }
+            else
+            {
+                Place(partyArea, status, index);
+            }
+        }
+        MenuCharacter[] reserveCharacters = Data.Characters.Where(character => !character.InParty).ToArray();
+        var reserves = Grid(Enumerable.Repeat(1f, Math.Max(3, (reserveCharacters.Length + 1) / 2)).ToArray(), [1, 1], 3);
+        for (int index = 0; index < reserveCharacters.Length; index++)
+        {
+            MenuCharacter character = reserveCharacters[index];
+            var member = Grid([1, 1], [0.75f, 2.5f], 3);
+            Place(member, Portrait(character), 0, 0, 2);
+            Place(member, Label(character.Name, 26), 0, 1);
+            Place(member, Label($"Lv {Number(character.Level)}   HP {character.HpDisplay ?? Number(character.CurrentHp)}", 20), 1, 1);
+            Place(reserves, member, index / 2, index % 2);
+        }
+        Place(partyArea, Panel(null, reserves), 3);
+        var sidebar = Grid([6.3f, 0.3f, 1.4f], [1], 0);
+        Place(page, sidebar, 0, 1, 3);
+        Place(sidebar, Panel(null, Commands(40, 29)), 0);
+        Place(page, Panel(null, Label(Data.Location, 29)), 2);
+        string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
+        Place(sidebar, Panel(null, Lines([$"PLAY  {time}", $"SeeD  {Number(Data.SeeDRank)}", $"{Number(Data.Currency)}G"], 23)), 2);
+        return page;
+    }
+
+    private UiElement NativeMenuHeader(string title, UiElement? commands = null)
+    {
+        var header = Grid([0.85f, 1.15f], [3, 1.1f], 3);
+        Place(header, Panel(null, commands ?? new UiElement()), 0);
+        Place(header, Panel(null, Label(title, 27)), 0, 1);
+        UiElement help = Help();
+        help.Margin = new UiThickness(8, 0);
+        Place(header, help, 1, 0, 1, 2);
+        return header;
+    }
+
+    private UiElement NativeCommandStrip()
+    {
+        UiElement commands = Commands(38, 24);
+        if (commands is UiList list)
+        {
+            list.Orientation = UiOrientation.Horizontal;
+        }
+        return commands;
+    }
+
+    private UiElement BuildJunction()
+    {
+        var page = Grid([1.45f, 2.7f, 1.8f], [1], 4);
+        UiElement tabs;
+        if (ScreenId == "junction")
+        {
+            tabs = NativeCommandStrip();
+        }
+        else
+        {
+            var strip = new UiGrid { Columns = 4, Gap = 0 };
+            string[] names = ["Junction", "Off", "Auto", "Ability"];
+            string[] destinations = ["junction-options", "junction-off", "junction-auto", "junction-abilities"];
+            for (int index = 0; index < names.Length; index++)
+            {
+                string destination = destinations[index];
+                strip.Children.Add(new UiButton { Text = names[index], FontSize = 24 * TextScale, DrawBackground = false, HighlightSelection = false, Click = () => Push(destination) });
+            }
+            tabs = strip;
+        }
+        Place(page, NativeMenuHeader("Junction", tabs), 0);
+        var body = Grid([1], [3, 1.1f], 4);
+        Place(page, body, 1);
+        var character = Grid([2.1f, 0.7f], [1], 4);
+        Place(body, character, 0);
+        var identity = Grid([1], [0.9f, 3], 10);
+        identity.Margin = new UiThickness(20, 0, 0, 0);
+        Place(character, identity, 0);
+        UiImage portrait = Portrait(Character);
+        Place(identity, portrait, 0);
+        var summary = Grid([1, 1, 1], [1], 0);
+        Place(identity, summary, 0, 1);
+        Place(summary, Label(Character?.Name ?? "--", 30), 0);
+        Place(summary, Label($"Lv      {Number(Character?.Level)}", 25), 1);
+        Place(summary, Label("HP    " + (Character is null ? "--" : Hp(Character)), 25), 2);
+        var experience = Grid([1, 1], [1.6f, 1.4f], 0);
+        Place(character, experience, 1);
+        Place(experience, Label("Current EXP", 22), 0);
+        Place(experience, Label(Number(Character?.Experience) + "p", 22), 0, 1);
+        Place(experience, Label("Next LEVEL", 22), 1);
+        Place(experience, Label(Number(Character?.NextLevelExperience) + "p", 22), 1, 1);
+        Place(body, Panel("COMMAND", Lines(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 0, 1);
+        if (ScreenId == "junction")
+        {
+            var stats = Grid([1], [1, 1], 12);
+            Place(stats, StatColumn(["HP", "Str", "Vit", "Mag", "Spr"]), 0);
+            Place(stats, StatColumn(["", "Spd", "Eva", "Hit", "Luck"]), 0, 1);
+            Place(page, Panel(null, stats), 2);
+        }
+        else
+        {
+            var selection = Grid([1], [1, 1], 4);
+            Place(selection, Panel(ScreenId is "junction-options" or "junction-abilities" ? null : "JUNCTION", Commands(31, 23)), 0);
+            Place(selection, Panel(null, JunctionSelectionDetails()), 0, 1);
+            Place(page, selection, 2);
+        }
+        return page;
+    }
+
+    private UiElement JunctionSelectionDetails()
+    {
+        if (ScreenId == "junction-gf")
+        {
+            MenuGuardianForce? force = Data.GuardianForces.FirstOrDefault(value => value.Id == SelectedEntry?.Id);
+            return Lines(force is null ? ["--"] : [force.Name, $"Lv {Number(force.Level)}    HP {Number(force.CurrentHp)} / {Number(force.MaximumHp)}", "Learning  " + force.Learning], 21);
+        }
+        return Lines([Character?.Name ?? "--", "HP  " + (Character is null ? "--" : Hp(Character)), "" + (SelectedEntry?.Help ?? CurrentScreen.Help)], 20);
+    }
+
+    private UiElement StatColumn(string[] names)
+    {
+        var column = Grid(Enumerable.Repeat(1f, names.Length).ToArray(), [1], 0);
+        for (int index = 0; index < names.Length; index++)
+        {
+            string name = names[index];
+            var row = Grid([1], [0.8f, 2.2f, 0.9f], 4);
+            Place(column, row, index);
+            if (name.Length == 0)
+            {
+                continue;
+            }
+            Place(row, Label(name, 23), 0);
+            Place(row, Label(Character?.Junctions.GetValueOrDefault(name, "----") ?? "----", 23), 0, 1);
+            string value = name == "HP" ? Number(Character?.MaximumHp) : Character?.Stats.TryGetValue(name, out int stat) == true ? stat.ToString() : "--";
+            Place(row, Label(value, 23), 0, 2);
+        }
+        return column;
+    }
+
+    private UiElement BuildItemPage()
+    {
+        bool rootPage = ScreenId == "item";
+        bool targetPage = ScreenId == "item-target";
+        var page = Grid([1.2f, 5], [1], 4);
+        UiElement strip = rootPage ? NativeCommandStrip() : InventoryNavigation(false);
+        Place(page, NativeMenuHeader("Item", strip), 0);
+        var body = Grid([1], [1, 1], 4);
+        Place(page, body, 1);
+        UiElement inventory;
+        if (!rootPage && !targetPage)
+        {
+            inventory = Commands(37, 25);
+        }
+        else
+        {
+            var stock = new UiList { Id = "inventory-preview", FontSize = 25 * TextScale, RowHeight = 37 * TextScale, ShowSelection = false, Focusable = false };
+            stock.Items = Data.Items.Select(value => value.Name).ToList();
+            stock.Images = Data.Items.Select(value => value.Icon).ToList();
+            inventory = stock;
+        }
+        if (inventory is UiList inventoryList && ScreenId != "item-target")
+        {
+            inventory = InventoryQuantities(inventoryList, Data.Items.Select(value => value.Name).ToList(), Data.Items.Select(value => value.Quantity.ToString()).ToList());
+        }
+        Place(body, Panel("ITEM", inventory), 0);
+        var right = Grid([3, 1], [1], 3);
+        Place(body, right, 0, 1);
+        UiElement characters = targetPage ? Commands(47, 25) : InventoryParty();
+        Place(right, Panel("NAME                 HP", characters), 0);
+        string[] conditions = targetPage ? Character?.Conditions.ToArray() ?? [] : [];
+        Place(right, Panel("STATUS", Lines(conditions, 22)), 1);
+        return page;
+    }
+
+    private UiElement InventoryNavigation(bool magic)
+    {
+        var strip = new UiGrid { Columns = magic ? 4 : 3, Gap = 0 };
+        string[] captions = magic ? ["Use", "Stock", "Exchange", "Rearrange"] : ["Use", "Rearrange", "Sort"];
+        string[] destinations = magic ? ["magic-use", "magic-stock", "magic-exchange", "magic"] : ["item-use", "item-rearrange", "item"];
+        for (int index = 0; index < captions.Length; index++)
+        {
+            string destination = destinations[index];
+            strip.Children.Add(new UiButton { Text = captions[index], FontSize = 24 * TextScale, DrawBackground = false, HighlightSelection = false, Click = () => Push(destination) });
+        }
+        return strip;
+    }
+
+    private UiElement InventoryParty()
+    {
+        MenuCharacter[] characters = Data.Characters.Where(character => character.InParty).ToArray();
+        var party = Grid(Enumerable.Repeat(1f, Math.Max(6, characters.Length)).ToArray(), [1], 2);
+        for (int index = 0; index < characters.Length; index++)
+        {
+            MenuCharacter character = characters[index];
+            var row = Grid([1], [1.8f, 1], 4);
+            Place(row, Label(character.Name, 25), 0);
+            Place(row, Label(character.HpDisplay ?? Number(character.CurrentHp), 25), 0, 1);
+            Place(party, row, index);
+        }
+        return party;
+    }
+}

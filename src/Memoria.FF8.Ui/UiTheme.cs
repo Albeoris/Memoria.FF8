@@ -10,7 +10,7 @@ public sealed class UiTheme
     public UiColor BorderDark { get; init; } = new(30, 30, 30);
     public float FontSize { get; init; } = 16;
 
-    public void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null)
+    public void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)
     {
         if (bounds.IsEmpty)
         {
@@ -20,13 +20,13 @@ public sealed class UiTheme
         canvas.PushClip(bounds);
         try
         {
-            const int bands = 24;
+            const int bands = 128;
             for (int index = 0; index < bands; index++)
             {
-                byte shade = (byte)(100 - index * 40 / (bands - 1));
-                float top = bounds.Y + bounds.Height * index / bands;
-                float bottom = bounds.Y + bounds.Height * (index + 1) / bands;
-                canvas.Fill(new UiRect(bounds.X, top, bounds.Width, bottom - top), new UiColor(shade, shade, shade));
+                byte shade = (byte)(96 - index * 40 / (bands - 1));
+                float left = bounds.X + bounds.Width * index / bands;
+                float rightEdge = bounds.X + bounds.Width * (index + 1) / bands;
+                canvas.Fill(new UiRect(left, bounds.Y, rightEdge - left, bounds.Height), new UiColor(shade, shade, shade));
             }
 
             float right = bounds.Right - 1;
@@ -44,7 +44,11 @@ public sealed class UiTheme
             }
             if (!string.IsNullOrEmpty(caption))
             {
-                canvas.Text(caption, FontSize, new UiRect(bounds.X + 10, bounds.Y + 6, Math.Max(0, bounds.Width - 20), Math.Min(FontSize * 1.5f, bounds.Height)), Foreground);
+                float size = captionFontSize > 0 ? captionFontSize : FontSize;
+                float x = captionFontSize > 0 ? 8 : 10;
+                float y = captionFontSize > 0 ? 1 : 6;
+                float height = captionFontSize > 0 ? size * 1.3f : size * 1.5f;
+                canvas.Text(caption, size, new UiRect(bounds.X + x, bounds.Y + y, Math.Max(0, bounds.Width - x * 2), Math.Min(height, Math.Max(0, bounds.Height - y))), Foreground);
             }
         }
         finally

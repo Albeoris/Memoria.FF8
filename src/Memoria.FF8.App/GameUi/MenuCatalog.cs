@@ -13,15 +13,13 @@ public static class MenuCatalog
         Add("main", "Menu", "Select a command. H / G changes the selected character.", c => c.Definitions.Where(s => s.MainCommand).Select(s => new MenuEntry(s.Id, s.Title, s.Help, s.Id)).ToArray(), layout: MenuLayout.Main);
         Add("junction", "Junction", "Junction Guardian Forces, magic, commands and abilities.", _ =>
         [
-            Link("junction-gf", "GF", "Select a Guardian Force to junction."),
-            Link("junction-magic", "Magic", "Junction stocked magic to a stat."),
-            Link("junction-element", "Elemental", "Elemental attack and defense junction slots."),
-            Link("junction-status", "Status", "Status attack and defense junction slots."),
+            Link("junction-options", "Junction", "Junction a GF or magic."),
             Link("junction-off", "Off", "Remove magic or all junctions."),
-            Link("junction-auto", "Auto", "Choose an original Auto priority; native optimization is unsupported."),
-            Link("junction-command", "Command", "Set command abilities."),
-            Link("junction-ability", "Ability", "Set passive character abilities.")
+            Link("junction-auto", "Auto", "Choose an Auto priority."),
+            Link("junction-abilities", "Ability", "Set command and character abilities.")
         ], Stats, MenuLayout.Junction, true);
+        Add("junction-options", "Junction", "Choose GF or Magic.", _ => [Link("junction-gf", "GF", "Select a Guardian Force to junction."), Link("junction-magic", "Magic", "Junction stocked magic to a stat."), Link("junction-element", "Elem-Atk/Def", "Elemental attack and defense junction slots."), Link("junction-status", "ST-Atk/Def", "Status attack and defense junction slots.")], Stats, MenuLayout.Junction);
+        Add("junction-abilities", "Ability", "Set command and character abilities.", _ => [Link("junction-command", "Command", "Set command abilities."), Link("junction-ability", "Character", "Set passive character abilities.")], Stats, MenuLayout.Junction);
         Add("junction-gf", "Junction · GF", "Choose a GF to junction or remove. A GF assigned to another character must first be removed.", c => c.Data.GuardianForces.Select(g => new MenuEntry(g.Id, $"{(c.Character?.GuardianForceIds.Contains(g.Id) == true ? "J " : "")}{g.Name}", $"Junction {g.Name} to {c.Character?.Name}.", Action: new MenuAction("junction-gf", g.Id), Enabled: c.IsDemo || !c.Data.Characters.Any(owner => owner.Id != c.Character?.Id && owner.GuardianForceIds.Contains(g.Id)))).ToArray(), c => ["Character: " + (c.Character?.Name ?? "Unavailable"), "Junctioned GF:", .. c.Data.GuardianForces.Where(g => c.Character?.GuardianForceIds.Contains(g.Id) == true).Select(g => g.Name).Take(10), .. Boundary(c)], MenuLayout.Junction);
         Add("junction-magic", "Junction · Magic", "Choose the stat, then the stocked spell.", c => Slots(c, ["HP", "Str", "Vit", "Mag", "Spr", "Spd", "Eva", "Hit", "Luck"]), Stats, MenuLayout.Junction);
         Add("junction-element", "Junction · Elemental", "Junction stocked magic to unlocked elemental attack and defense slots.", c => Slots(c, ["Elem-Atk", "Elem-Def 1", "Elem-Def 2", "Elem-Def 3", "Elem-Def 4"]), Stats, MenuLayout.Junction);
@@ -91,7 +89,7 @@ public static class MenuCatalog
         Add("switch-junction", "Switch · Junction Exchange", "Choose the source junction package.", c => c.Data.Characters.Select(ch => new MenuEntry(ch.Id, ch.Name, "Choose the destination character next.", "switch-junction-target", new MenuAction("select-exchange", ch.Id))).ToArray(), CharacterDetails);
         Add("switch-junction-target", "Switch · Junction Target", "Choose the destination for the exchange.", c => Targets(c, "junction-exchange"), CharacterDetails);
 
-        Add("card", "Card", "Browse Triple Triad collection.", c => c.Data.Cards.Select(card => new MenuEntry(card.Id, $"{card.Name} x{card.Quantity}", "Inspect card values and ownership.", "card-detail", new MenuAction("select-card", card.Id))).ToArray(), SelectedCardDetails, MenuLayout.CardGrid, true, 4);
+        Add("card", "Card", "Browse Triple Triad collection.", c => c.Data.Cards.Select(card => new MenuEntry(card.Id, $"{card.Name} x{card.Quantity}", "Inspect card values and ownership.", "card-detail", new MenuAction("select-card", card.Id))).ToArray(), SelectedCardDetails, MenuLayout.CardGrid, true, 1);
         Add("card-detail", "Card · Details", "Card rank, element and collection metadata.", _ => [], c => CardDetails(c.Card));
 
         Add("config", "Config", "Left / Right adjusts a value. Confirm selects an option.", c => [.. MenuSettings.Definitions.Select(s => new MenuEntry(s.Id, $"{s.Id}   {c.Data.Settings.GetValueOrDefault(s.Id, "Unavailable")}", s.Description, Action: new MenuAction("config", s.Id, Value: NextSetting(c, s)))), Link("config-controller", "Controller mappings", "Choose controller action mappings."), Link("config-keyboard", "Keyboard mappings", "Choose keyboard action mappings.")], c => [c.SelectedEntry?.Help ?? "Select a setting.", "Left / Right: adjust value", "Confirm: select option", "Cancel: return"], main: true);

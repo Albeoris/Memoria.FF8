@@ -46,7 +46,7 @@ internal sealed partial class RecreateGame
 
     private void DrawPlayerSavesUi(Rectangle bounds)
     {
-        batch.Draw(pixel, bounds, Color.Black * 0.6f);
+        batch.Draw(pixel, bounds, Color.Black);
         List<PlayerSaveEntry> entries = new();
         if (saveMenu.QuickEntry is PlayerSaveEntry quick)
         {
@@ -58,37 +58,71 @@ internal sealed partial class RecreateGame
         if (savesWindowUi is null || savesWindowKey != key)
         {
             UiAnchorPanel root = new();
-            UiPanel panel = new() { Anchors = new UiAnchors(0.04f, 0.04f, 0.96f, 0.96f), Padding = 16 };
-            UiGrid content = new() { Gap = 4 };
+            UiGrid content = new() { Anchors = new UiAnchors(0.02f, 0.02f, 0.98f, 0.98f), Gap = 5 };
             content.ColumnDefinitions.Add(UiGridLength.Star());
-            content.RowDefinitions.Add(UiGridLength.Pixel(36));
-            content.RowDefinitions.Add(UiGridLength.Pixel(24));
-            content.RowDefinitions.Add(UiGridLength.Star());
-            content.RowDefinitions.Add(UiGridLength.Pixel(28));
-            content.RowDefinitions.Add(UiGridLength.Pixel(52));
+            content.RowDefinitions.Add(UiGridLength.Pixel(50));
             content.RowDefinitions.Add(UiGridLength.Pixel(72));
-            content.Children.Add(new UiLabel { Text = saveMenu.Mode == PlayerSaveMenuMode.Save ? "Save Game" : "Load Game", FontSize = 28 });
-            content.Children.Add(new UiLabel { GridRow = 1, Text = $"Bank {saveMenu.Bank + 1} / {PlayerSaveStore.BankCount}    Page {saveMenu.Page + 1} / {PlayerSaveMenu.PageCount}", FontSize = 17, Muted = true });
-            UiList rows = new() { GridRow = 2, RowHeight = 50, Items = entries.Select(FormatPlayerSaveRow).ToList(), SelectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == saveMenu.SelectedSlot)) };
-            content.Children.Add(rows);
+            content.RowDefinitions.Add(UiGridLength.Star());
+            content.RowDefinitions.Add(UiGridLength.Pixel(32));
             bool loading = saveMenu.Mode == PlayerSaveMenuMode.Load;
-            content.Children.Add(new UiLabel { GridRow = 3, Text = loading ? "Choose a save to load" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose a save slot", FontSize = 18 });
-            string detail = saveMenu.Message ?? (loading ? "Confirm loads the selected save." : "Confirm saves to the selected slot. Existing saves require overwrite confirmation.");
-            content.Children.Add(new UiLabel { GridRow = 4, Text = detail, FontSize = 15 });
-            content.Children.Add(new UiLabel { GridRow = 5, Text = $"Movement: select / bank    Page: {keyboard.BindingHint(ControlAction.UiPageUp)} / {keyboard.BindingHint(ControlAction.UiPageDown)}\nConfirm: {keyboard.BindingHint(ControlAction.Confirm)}    Cancel: {keyboard.BindingHint(ControlAction.Cancel)}\nConfigure shortcuts in Menu > Config.", FontSize = 16, Muted = true });
-            panel.Children.Add(content);
-            root.Children.Add(panel);
+            UiGrid header = new() { Gap = 5 };
+            header.RowDefinitions.Add(UiGridLength.Star());
+            header.ColumnDefinitions.Add(UiGridLength.Star(3.7f));
+            header.ColumnDefinitions.Add(UiGridLength.Star(1.3f));
+            UiPanel info = new() { Caption = "INFO.", CaptionFontSize = 13, CaptionHeight = 15, Padding = new UiThickness(8, 2) };
+            info.Children.Add(new UiLabel { Text = $"Bank {saveMenu.Bank + 1} / {PlayerSaveStore.BankCount}    Page {saveMenu.Page + 1} / {PlayerSaveMenu.PageCount}", FontSize = 23 });
+            header.Children.Add(info);
+            UiPanel title = new() { GridColumn = 1, Padding = new UiThickness(8, 3) };
+            title.Children.Add(new UiLabel { Text = loading ? "Load" : "Save", FontSize = 27 });
+            header.Children.Add(title);
+            content.Children.Add(header);
+
+            string instruction = loading ? "Choose block to load" : saveMenu.ConfirmOverwrite ? "Confirm overwrite" : "Choose block to save";
+            string detail = saveMenu.Message ?? (saveMenu.ConfirmOverwrite ? "Confirm again to overwrite the selected save." : "");
+            UiPanel help = new() { GridRow = 1, Caption = "HELP", CaptionFontSize = 13, CaptionHeight = 15, Padding = new UiThickness(8, 2) };
+            help.Children.Add(new UiLabel { Text = instruction + (detail.Length > 0 ? "\n" + detail : ""), FontSize = 20 });
+            content.Children.Add(help);
+
+            UiGrid blocks = BuildPlayerSaveBlocks(entries, loading);
+            blocks.GridRow = 2;
+            int selectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == saveMenu.SelectedSlot));
+            UiButton? selectedBlock = blocks.Children.OfType<UiButton>().ElementAtOrDefault(selectedIndex);
+            content.Children.Add(blocks);
+            UiPanel footer = new() { GridRow = 3, Padding = new UiThickness(8, 3) };
+            footer.Children.Add(new UiLabel { Text = $"Select / bank: directions    Page: {keyboard.BindingHint(ControlAction.UiPageUp)} / {keyboard.BindingHint(ControlAction.UiPageDown)}    Confirm: {keyboard.BindingHint(ControlAction.Confirm)}    Back: {keyboard.BindingHint(ControlAction.Cancel)}", FontSize = 16 });
+            content.Children.Add(footer);
+            root.Children.Add(content);
             savesWindowUi = CreateWindowView(root);
+            savesWindowUi.Resize(960, 672);
+            if (selectedBlock is not null)
+            {
+                savesWindowUi.Focus(selectedBlock);
+            }
             savesWindowKey = key;
         }
 
         DrawWindowView(savesWindowUi, bounds);
     }
 
-    private static string FormatPlayerSaveRow(PlayerSaveEntry entry)
+    internal static UiGrid BuildPlayerSaveBlocks(IReadOnlyList<PlayerSaveEntry> entries, bool loading)
     {
-        string timestamp = entry.SavedAt is DateTime savedAt ? "    " + savedAt.ToString("yyyy-MM-dd HH:mm:ss") : string.Empty;
-        return entry.Label + timestamp + "\n" + entry.Details;
+        UiGrid blocks = new() { Columns = 1, Rows = Math.Max(1, entries.Count), Gap = 3 };
+        for (int index = 0; index < entries.Count; index++)
+        {
+            PlayerSaveEntry entry = entries[index];
+            UiButton block = new() { GridRow = index, Id = "save-slot-" + entry.Slot, HighlightSelection = false, PointerSize = 20 };
+            UiGrid metadata = new() { Margin = new UiThickness(35, 3, 8, 3), Gap = 1 };
+            metadata.RowDefinitions.Add(UiGridLength.Star());
+            metadata.RowDefinitions.Add(UiGridLength.Star());
+            metadata.ColumnDefinitions.Add(UiGridLength.Star(1.5f));
+            metadata.ColumnDefinitions.Add(UiGridLength.Star());
+            metadata.Children.Add(new UiLabel { Text = entry.Label, FontSize = 20, Muted = loading && !entry.CanLoad });
+            metadata.Children.Add(new UiLabel { GridColumn = 1, Text = entry.SavedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "", FontSize = 16, Muted = true });
+            metadata.Children.Add(new UiLabel { GridRow = 1, GridColumnSpan = 2, Text = entry.Details, FontSize = 20, Muted = loading && !entry.CanLoad });
+            block.Children.Add(metadata);
+            blocks.Children.Add(block);
+        }
+        return blocks;
     }
 
     private void DrawNativePartyUi(Rectangle bounds)

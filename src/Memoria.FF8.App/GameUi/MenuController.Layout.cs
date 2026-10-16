@@ -30,7 +30,7 @@ public sealed partial class MenuController
         {
             return _view;
         }
-        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(20), CaptionHeight = 0 };
+        var root = new UiPanel { Id = "menu-root", DrawBackground = false, Padding = new UiThickness(IsOriginalMenuPage ? 18 : 20), CaptionHeight = 0 };
         var anchored = new UiAnchorPanel();
         root.Children.Add(anchored);
         if (CurrentScreen.BuildContent is not null)
@@ -43,9 +43,37 @@ public sealed partial class MenuController
         {
             anchored.Children.Add(BuildMain());
         }
-        else if (ScreenId == "junction")
+        else if (ScreenId.StartsWith("junction", StringComparison.Ordinal))
         {
             anchored.Children.Add(BuildJunction());
+        }
+        else if (ScreenId.StartsWith("magic", StringComparison.Ordinal))
+        {
+            anchored.Children.Add(BuildMagicPage());
+        }
+        else if (ScreenId.StartsWith("switch", StringComparison.Ordinal))
+        {
+            anchored.Children.Add(BuildNativeSwitch());
+        }
+        else if (ScreenId.StartsWith("item", StringComparison.Ordinal))
+        {
+            anchored.Children.Add(BuildItemPage());
+        }
+        else if (ScreenId.StartsWith("status", StringComparison.Ordinal))
+        {
+            anchored.Children.Add(BuildNativeStatus());
+        }
+        else if (ScreenId == "gf" || ScreenId.StartsWith("gf-", StringComparison.Ordinal))
+        {
+            anchored.Children.Add(BuildNativeGuardianForce());
+        }
+        else if (ScreenId is "card" or "card-detail")
+        {
+            anchored.Children.Add(BuildNativeCard());
+        }
+        else if (IsNativeSecondaryScreen)
+        {
+            anchored.Children.Add(BuildNativeSecondary());
         }
         else
         {
@@ -67,111 +95,6 @@ public sealed partial class MenuController
         string? selectedCharacterId = CharacterChoices.ElementAtOrDefault(CharacterSelectionIndex)?.Id;
         _view.Focus(IsSelectingCharacter ? focusables.FirstOrDefault(element => element.Id == selectedCharacterId) : focusables.OfType<UiList>().FirstOrDefault(list => list.Id == "commands") ?? focusables.FirstOrDefault(element => element.Id == SelectedEntry?.Id) ?? focusables.FirstOrDefault());
         return _view;
-    }
-
-    private UiElement BuildMain()
-    {
-        var page = Grid([1, 7.5f, 0.7f], [3, 1]);
-        Place(page, Help(), 0, 0);
-        var partyArea = Grid([1.15f, 1.15f, 1.15f, 2.1f], [1]);
-        Place(page, partyArea, 1, 0);
-        MenuCharacter[] party = CharacterChoices.ToArray();
-        for (int index = 0; index < 3; index++)
-        {
-            MenuCharacter? character = party.ElementAtOrDefault(index);
-            var row = Grid([1], [0.9f, 2.1f, 1.3f, 2.8f]);
-            Place(row, Portrait(character), 0, 0);
-            Place(row, Label(character?.Name ?? "--", 30), 0, 1);
-            Place(row, Label($"Lv  {Number(character?.Level)}", 23), 0, 2);
-            Place(row, Label("HP  " + (character is null ? "--" : Hp(character)), 23), 0, 3);
-            if (IsSelectingCharacter && character is not null && CharacterChoices.Any(choice => choice.Id == character.Id))
-            {
-                string characterId = character.Id;
-                UiButton choice = new() { Id = characterId, Click = () => ChooseCharacter(characterId) };
-                row.Margin = new UiThickness(26, 4, 4, 4);
-                choice.Children.Add(row);
-                Place(partyArea, choice, index);
-            }
-            else
-            {
-                Place(partyArea, Panel("STATUS", row), index);
-            }
-        }
-        var reserves = Data.Characters.Where(character => !character.InParty).ToArray();
-        var reserveGrid = new UiGrid { Columns = 2, Gap = 6 };
-        foreach (MenuCharacter character in reserves)
-        {
-            var row = Grid([1, 1], [1, 3], 2);
-            Place(row, Portrait(character), 0, 0, 2);
-            Place(row, Label(character.Name, 17), 0, 1);
-            Place(row, Label($"Lv {Number(character.Level)}  HP {Hp(character)}", 14), 1, 1);
-            reserveGrid.Children.Add(row);
-        }
-        Place(partyArea, Panel(null, reserveGrid), 3);
-        var sidebar = Grid([6.5f, 1.3f], [1]);
-        Place(page, sidebar, 0, 1, 2);
-        Place(sidebar, Panel(null, Commands(41, 27)), 0);
-        string time = Data.PlayTime.HasValue ? $"{(int)Data.PlayTime.Value.TotalHours:00}:{Data.PlayTime.Value.Minutes:00}" : "--:--";
-        Place(sidebar, Panel(null, Lines([$"Play      {time}", $"SeeD   {Number(Data.SeeDRank)}", $"{Number(Data.Currency)}G"], 20)), 1);
-        Place(page, Footer(), 2, 0, 1, 2);
-        return page;
-    }
-
-    private UiElement BuildJunction()
-    {
-        var page = Grid([0.8f, 1, 3.3f, 3.2f, 0.65f], [3, 1]);
-        var tabs = new UiGrid { Columns = Math.Max(1, Entries.Count), Gap = 4 };
-        for (int index = 0; index < Entries.Count; index++)
-        {
-            int selected = index;
-            MenuEntry entry = Entries[index];
-            string label = entry.Label switch
-            {
-                "Elemental" => "Elem",
-                "Command" => "Cmd",
-                _ => entry.Label
-            };
-            tabs.Children.Add(new UiButton { Id = entry.Id, Text = label, Click = () => Activate(selected) });
-        }
-        Place(page, tabs, 0, 0);
-        Place(page, Panel(null, Label("Junction", 28)), 0, 1);
-        Place(page, Help(), 1, 0, 1, 2);
-        var characterArea = Grid([1], [1, 2.8f]);
-        Place(page, characterArea, 2, 0);
-        Place(characterArea, Portrait(Character), 0, 0);
-        var summary = Grid([1.2f, 1, 1, 0.8f], [1], 4);
-        Place(characterArea, summary, 0, 1);
-        Place(summary, Label(Character?.Name ?? "--", 34), 0);
-        Place(summary, Label($"Level       {Number(Character?.Level)}", 26), 1);
-        Place(summary, Label("HP       " + (Character is null ? "--" : Hp(Character)), 26), 2);
-        Place(summary, Label($"EXP {Number(Character?.Experience)}p   Next {Number(Character?.NextLevelExperience)}p", 18), 3);
-        Place(page, Panel("COMMAND", Lines(Character?.Commands.Take(4).ToArray() ?? ["--"], 25)), 2, 1);
-        var stats = Grid([1], [1, 1], 20);
-        Place(stats, StatColumn(["HP", "Str", "Vit", "Mag", "Spr"]), 0, 0);
-        Place(stats, StatColumn(["", "Spd", "Eva", "Hit", "Luck"]), 0, 1);
-        Place(page, Panel(null, stats), 3, 0, 1, 2);
-        Place(page, Footer(), 4, 0, 1, 2);
-        return page;
-    }
-
-    private UiElement StatColumn(string[] names)
-    {
-        var column = Grid(Enumerable.Repeat(1f, names.Length).ToArray(), [1], 4);
-        for (int index = 0; index < names.Length; index++)
-        {
-            string name = names[index];
-            var row = Grid([1], [0.7f, 2.4f, 0.7f], 8);
-            Place(column, row, index);
-            if (name.Length == 0)
-            {
-                continue;
-            }
-            Place(row, Label(name, 24), 0, 0);
-            Place(row, Label(Character?.Junctions.GetValueOrDefault(name, "--") ?? "--", 24), 0, 1);
-            string value = name == "HP" ? Number(Character?.MaximumHp) : Character?.Stats.TryGetValue(name, out int stat) == true ? stat.ToString() : "--";
-            Place(row, Label(value, 24), 0, 2);
-        }
-        return column;
     }
 
     private UiElement BuildStandard()
@@ -200,25 +123,7 @@ public sealed partial class MenuController
         Place(content, panes, showSummary ? 1 : 0);
         Place(panes, Panel(null, Commands(30, 19)), 0, 0);
         bool showFontPreviews = ScreenId == "debug-ui" || ScreenId == "config" && SelectedEntry?.Id is ("UI font" or "UI font size" or "Dialogue font" or "Dialogue font size");
-        Place(panes, Panel(ScreenId == "debug-room" ? "Selected preview" : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : ScreenId is "item-use" or "item-target" ? BuildItemParty() : Details()), 0, 1);
-        return content;
-    }
-
-    private UiElement BuildItemParty()
-    {
-        var content = Grid([1.2f, 3], [1], 8);
-        Place(content, Details(), 0);
-        MenuCharacter[] party = CharacterChoices.ToArray();
-        var members = new UiGrid { Columns = 1, Rows = Math.Max(3, party.Length), Gap = 8 };
-        foreach (MenuCharacter character in party)
-        {
-            var row = Grid([1, 1], [1, 3], 6);
-            Place(row, Portrait(character), 0, 0, 2);
-            Place(row, Label(character.Name, 23), 0, 1);
-            Place(row, Label($"Lv {Number(character.Level)}   HP {Hp(character)}", 18), 1, 1);
-            Place(members, row, members.Children.Count);
-        }
-        Place(content, members, 1);
+        Place(panes, Panel(ScreenId == "debug-room" ? "Selected preview" : CurrentScreen.Title, showFontPreviews ? BuildFontPreviews() : Details()), 0, 1);
         return content;
     }
 
@@ -311,7 +216,8 @@ public sealed partial class MenuController
 
     private UiElement Help()
     {
-        return Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry?.Help ?? CurrentScreen.Help, 18));
+        string help = ScreenId == "main" && !IsSelectingCharacter ? (SelectedEntry?.Label ?? "Main") + " Menu" : SelectedEntry?.Help ?? CurrentScreen.Help;
+        return Panel("HELP", Label(Message.Length > 0 ? Message : help, IsOriginalMenuPage ? 22 : 18));
     }
 
     private UiElement Footer()
@@ -324,20 +230,21 @@ public sealed partial class MenuController
         return Panel(null, Label(text, 14));
     }
 
-    private UiElement Commands(float rowHeight, float fontSize)
+    private UiList Commands(float rowHeight, float fontSize)
     {
-        if (Entries.Count == 0)
-        {
-            return Label("Unavailable", 20);
-        }
         return new UiList
         {
             Id = "commands",
+            Focusable = Entries.Count > 0,
             Enabled = !IsSelectingCharacter,
             Items = Entries.Select(entry => entry.Label).ToList(),
             Images = Entries.Select(EntryImage).ToList(),
             TrailingImages = Entries.Select(EntryMarker).ToList(),
-            SelectedIndex = Math.Clamp(SelectedIndex, 0, Entries.Count - 1),
+            EnabledItems = Entries.Select(entry => entry.Enabled).ToList(),
+            HighlightSelection = !IsOriginalMenuPage,
+            PointerSize = IsOriginalMenuPage ? 20 * TextScale : 10,
+            TextInset = IsOriginalMenuPage ? 35 * TextScale : 23,
+            SelectedIndex = SelectedIndex,
             RowHeight = rowHeight * TextScale,
             FontSize = fontSize * TextScale,
             SelectionChanged = index => Select(index, Entries.Count),
@@ -364,7 +271,7 @@ public sealed partial class MenuController
 
     private UiPanel Panel(string? caption, UiElement content)
     {
-        var panel = new UiPanel { Caption = caption, Padding = new UiThickness(12, 8), CaptionHeight = string.IsNullOrEmpty(caption) ? 0 : 24 * TextScale };
+        var panel = new UiPanel { Caption = caption, Padding = IsOriginalMenuPage ? new UiThickness(8, 4) : new UiThickness(12, 8), CaptionHeight = string.IsNullOrEmpty(caption) ? 0 : (IsOriginalMenuPage ? 15 : 24) * TextScale, CaptionFontSize = IsOriginalMenuPage ? 13 * TextScale : 0 };
         panel.Children.Add(content);
         return panel;
     }

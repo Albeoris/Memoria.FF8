@@ -5,6 +5,122 @@ namespace Memoria.FF8.Ui.Tests;
 public sealed class UiTests
 {
     [Fact]
+    public void Larger_menu_pointer_keeps_text_and_row_images_clear_of_the_hand()
+    {
+        UiList list = new() { Items = ["Potion"], Images = [new UiImageSource(UiImageKind.Icon, 1)], RowHeight = 40, PointerSize = 20, TextInset = 35 };
+        UiView view = new(list);
+        view.Resize(200, 40);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        UiRect pointer = Assert.Single(canvas.Pointers);
+        UiRect image = Assert.Single(canvas.Images).Bounds;
+        UiRect text = Assert.Single(canvas.AlignedTexts).Bounds;
+        Assert.Equal(new UiRect(5, 10, 30, 20), pointer);
+        Assert.True(pointer.Right < image.X);
+        Assert.True(image.Right < text.X);
+        Assert.Equal(20, pointer.Y + pointer.Height / 2);
+    }
+
+    [Fact]
+    public void Horizontal_commands_share_width_and_route_navigation_and_scaled_pointer_input()
+    {
+        UiList list = new() { Orientation = UiOrientation.Horizontal, Items = ["Use", "Rearrange", "Sort"], RowHeight = 20 };
+        List<int> selected = new();
+        List<int> confirmed = new();
+        list.SelectionChanged = selected.Add;
+        list.Confirmed = confirmed.Add;
+        UiView view = new(list) { DesignWidth = 300, DesignHeight = 60 };
+        view.Resize(600, 120);
+
+        Assert.True(view.Key(UiKey.Right));
+        Assert.Equal(1, list.SelectedIndex);
+        Assert.False(list.Key(UiKey.Down));
+        view.Pointer(400, 100, true);
+        view.Pointer(450, 100, true);
+        Assert.Equal(new[] { 1, 2 }, selected);
+        Assert.Equal(new[] { 2 }, confirmed);
+        Assert.Equal(0, list.ScrollOffset);
+        Assert.Equal(3, list.VisibleRows);
+
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(new[] { 46f, 246f, 446f }, canvas.AlignedTexts.Select(text => text.Bounds.X));
+        Assert.All(canvas.AlignedTexts, text => Assert.Equal(120, text.Bounds.Height));
+        Assert.Single(canvas.Fills);
+        Assert.Equal(new UiRect(410, 50, 30, 20), Assert.Single(canvas.Pointers));
+
+        list.Key(UiKey.Left);
+        list.Key(UiKey.PageUp);
+        Assert.Equal(0, list.SelectedIndex);
+        list.Key(UiKey.PageDown);
+        Assert.Equal(2, list.SelectedIndex);
+        list.ScrollOffset = 20;
+        Assert.Equal(0, list.ScrollOffset);
+        view.Resize(900, 180);
+        canvas = new RecordingCanvas();
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(new[] { 69f, 369f, 669f }, canvas.AlignedTexts.Select(text => text.Bounds.X));
+        list.Items.Clear();
+        list.Pointer(0, 0);
+        Assert.False(list.Key(UiKey.Confirm));
+    }
+
+    [Fact]
+    public void Muted_rows_remain_selectable_and_pointer_is_independent_of_selection_fill()
+    {
+        UiList list = new() { Items = ["Use", "Unavailable", "Sort"], EnabledItems = [true, false], HighlightSelection = false, RowHeight = 20 };
+        List<int> confirmed = new();
+        list.Confirmed = confirmed.Add;
+        UiView view = new(list);
+        view.Resize(120, 60);
+        view.Key(UiKey.Down);
+        view.Key(UiKey.Confirm);
+        RecordingCanvas canvas = new();
+        UiTheme theme = new();
+        view.Draw(canvas, theme);
+
+        Assert.Equal(new[] { 1 }, confirmed);
+        Assert.Equal(new[] { theme.Foreground, theme.Muted, theme.Foreground }, canvas.TextDetails.Select(text => text.Color));
+        Assert.Empty(canvas.Fills);
+        Assert.Single(canvas.Pointers);
+        view.Pointer(40, 25, true);
+        Assert.Equal(new[] { 1, 1 }, confirmed);
+
+        list.ShowSelection = false;
+        canvas = new RecordingCanvas();
+        view.Draw(canvas, theme);
+        Assert.Empty(canvas.Pointers);
+        list.Enabled = false;
+        canvas = new RecordingCanvas();
+        view.Draw(canvas, theme);
+        Assert.All(canvas.TextDetails, text => Assert.Equal(theme.Muted, text.Color));
+    }
+
+    [Fact]
+    public void Button_can_render_simple_text_with_custom_font_and_retains_native_pointer()
+    {
+        UiButton button = new() { Text = "Status", DrawBackground = false, HighlightSelection = false, FontSize = 22 };
+        UiView view = new(button);
+        view.Resize(120, 40);
+        RecordingCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        Assert.Empty(canvas.Fills);
+        Assert.Equal(0, canvas.Lines);
+        Assert.Single(canvas.Pointers);
+        Assert.Equal(22, Assert.Single(canvas.TextDetails).FontSize);
+
+        button.DrawBackground = true;
+        button.HighlightSelection = true;
+        button.FontSize = 0;
+        canvas = new RecordingCanvas();
+        UiTheme theme = new();
+        view.Draw(canvas, theme);
+        Assert.Contains(canvas.Fills, fill => fill.Color == theme.Highlight);
+        Assert.True(canvas.Lines > 0);
+        Assert.Equal(theme.FontSize, Assert.Single(canvas.TextDetails).FontSize);
+    }
+
+    [Fact]
     public void Images_follow_anchor_bounds_and_letterbox_scaling_without_changing_identity()
     {
         UiImageSource source = new(UiImageKind.CharacterPortrait, 3);
@@ -174,7 +290,7 @@ public sealed class UiTests
 
         Assert.Equal(0, canvas.ClipDepth);
         Assert.Contains(new UiRect(80, 80, 20, 20), canvas.Clips);
-        Assert.Equal(24, canvas.Fills.Count);
+        Assert.Equal(128, canvas.Fills.Count);
         Assert.All(canvas.Fills, fill =>
         {
             Assert.Equal(fill.Color.R, fill.Color.G);
@@ -440,6 +556,7 @@ public sealed class UiTests
         public List<UiRect> Clips { get; } = new();
         public List<(UiRect Bounds, UiColor Color)> Fills { get; } = new();
         public List<string> Texts { get; } = new();
+        public List<(float FontSize, UiColor Color)> TextDetails { get; } = new();
         public List<(UiRect Bounds, UiAlignment Alignment)> AlignedTexts { get; } = new();
         public List<UiRect> Pointers { get; } = new();
         public List<(UiImageSource Source, UiRect Bounds)> Images { get; } = new();
@@ -452,6 +569,7 @@ public sealed class UiTests
         public void Text(string text, float fontSize, UiRect bounds, UiColor color)
         {
             Texts.Add(text);
+            TextDetails.Add((fontSize, color));
         }
 
         public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)

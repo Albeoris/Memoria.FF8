@@ -101,6 +101,10 @@ public sealed partial class MenuController
                 _characterId = fixtureCharacter.Id;
             }
         }
+        if (!Data.Characters.Any(character => character.Id == _characterId))
+        {
+            _characterId = "";
+        }
         IsOpen = true;
         ScreenId = screenId;
         if (screenId.StartsWith("config-controller", StringComparison.Ordinal))

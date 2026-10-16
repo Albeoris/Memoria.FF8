@@ -8,18 +8,22 @@ public sealed class MenuViewTests
     [Theory]
     [InlineData(640, 448)]
     [InlineData(1280, 896)]
-    public void Item_party_portraits_occupy_separate_rows(int width, int height)
+    public void ItemPartyNamesOccupySeparateRowsBesideInventory(int width, int height)
     {
         MenuController menus = new();
         menus.Open("item-use", true);
         UiView view = menus.BuildView();
         view.Resize(width, height);
-        UiImage[] portraits = Descendants(view.Root).OfType<UiImage>().Where(image => image.Source?.Kind == UiImageKind.CharacterPortrait).ToArray();
-
-        Assert.Equal(menus.CharacterChoices.Count, portraits.Length);
-        for (int index = 1; index < portraits.Length; index++)
+        UiElement[] elements = Descendants(view.Root).ToArray();
+        Assert.DoesNotContain(elements.OfType<UiImage>(), image => image.Source?.Kind == UiImageKind.CharacterPortrait);
+        UiList inventory = Assert.Single(elements.OfType<UiList>(), list => list.Id == "commands");
+        Assert.Equal(menus.Data.Items.Count, inventory.Items.Count);
+        UiLabel[] names = menus.CharacterChoices.Select(character => Assert.Single(elements.OfType<UiLabel>(), label => label.Text == character.Name)).ToArray();
+        Assert.Equal(menus.CharacterChoices.Count, names.Length);
+        Assert.All(names, name => Assert.True(name.Bounds.X > inventory.Bounds.Right));
+        for (int index = 1; index < names.Length; index++)
         {
-            Assert.True(portraits[index].Bounds.Y >= portraits[index - 1].Bounds.Bottom);
+            Assert.True(names[index].Bounds.Y >= names[index - 1].Bounds.Bottom);
         }
     }
 
@@ -28,8 +32,6 @@ public sealed class MenuViewTests
     [InlineData("junction", UiImageKind.CharacterPortrait)]
     [InlineData("status", UiImageKind.CharacterPortrait)]
     [InlineData("magic", UiImageKind.CharacterPortrait)]
-    [InlineData("item-use", UiImageKind.CharacterPortrait)]
-    [InlineData("item-target", UiImageKind.CharacterPortrait)]
     [InlineData("gf", UiImageKind.GuardianForcePortrait)]
     [InlineData("gf-detail", UiImageKind.GuardianForcePortrait)]
     [InlineData("card", UiImageKind.Card)]
@@ -87,6 +89,147 @@ public sealed class MenuViewTests
     }
 
     [Fact]
+    public void MainShowsNativePortraitsForActiveAndReserveCharacters()
+    {
+        MenuController menus = new();
+        menus.Open("main", true);
+        UiImage[] portraits = Descendants(menus.BuildView().Root).OfType<UiImage>().Where(image => image.Source?.Kind == UiImageKind.CharacterPortrait).ToArray();
+        Assert.Equal(menus.Data.Characters.Count, portraits.Length);
+        foreach (MenuCharacter character in menus.Data.Characters)
+        {
+            UiImage portrait = Assert.Single(portraits, image => image.Id == "portrait-" + character.Id);
+            Assert.Equal(character.NativeId, portrait.Source?.Id);
+            Assert.True(portrait.Bounds.Width > 0 && portrait.Bounds.Height > 0);
+        }
+        Assert.Contains(menus.Data.Characters, character => character.InParty);
+        Assert.Contains(menus.Data.Characters, character => !character.InParty);
+    }
+
+    [Fact]
+    public void CardDownSelectsNextTextRowAndOpensThatCard()
+    {
+        MenuController menus = new();
+        menus.Open("card", true);
+        string expected = menus.Entries[1].Id;
+        menus.BuildView();
+        menus.Navigate(MenuInput.Down);
+        Assert.Equal(1, menus.SelectedIndex);
+        menus.BuildView();
+        menus.Navigate(MenuInput.Confirm);
+        Assert.Equal("card-detail", menus.ScreenId);
+        Assert.Equal(expected, menus.Card?.Id);
+    }
+
+    [Fact]
+    public void JunctionRootExposesFourCommandsAndReachesAllJunctionCategories()
+    {
+        MenuController menus = new();
+        menus.Open("junction", true);
+        UiList commands = Assert.Single(Descendants(menus.BuildView().Root).OfType<UiList>(), list => list.Id == "commands");
+        Assert.Equal(new[] { "Junction", "Off", "Auto", "Ability" }, commands.Items);
+        string[] categories = ["junction-gf", "junction-magic", "junction-element", "junction-status"];
+        for (int index = 0; index < categories.Length; index++)
+        {
+            menus.Open("junction", true);
+            ActivateEntry(menus, 0);
+            Assert.Equal("junction-options", menus.ScreenId);
+            ActivateEntry(menus, index);
+            Assert.Equal(categories[index], menus.ScreenId);
+            Assert.NotNull(menus.BuildView().Root);
+        }
+        string[] roots = ["junction-off", "junction-auto", "junction-abilities"];
+        for (int index = 0; index < roots.Length; index++)
+        {
+            menus.Open("junction", true);
+            ActivateEntry(menus, index + 1);
+            Assert.Equal(roots[index], menus.ScreenId);
+        }
+        menus.Open("junction", true);
+        ActivateEntry(menus, 3);
+        ActivateEntry(menus, 0);
+        Assert.Equal("junction-command", menus.ScreenId);
+        menus.Open("junction", true);
+        ActivateEntry(menus, 3);
+        ActivateEntry(menus, 1);
+        Assert.Equal("junction-ability", menus.ScreenId);
+    }
+
+    [Theory]
+    [InlineData("item-use", "item-target")]
+    [InlineData("magic-use", "magic-target")]
+    public void InventoryQuantityClickSelectsTheMatchingStock(string screen, string destination)
+    {
+        MenuController menus = new();
+        menus.Open(screen, true);
+        string expected = menus.Entries[1].Id;
+        UiView view = menus.BuildView();
+        UiList quantities = Assert.Single(Descendants(view.Root).OfType<UiList>(), list => list.Id == "commands-quantities");
+        view.Pointer(quantities.Bounds.X + quantities.Bounds.Width / 2, quantities.Bounds.Y + quantities.RowHeight * 1.5f, true);
+        Assert.Equal(destination, menus.ScreenId);
+        Assert.Equal(expected, screen == "item-use" ? menus.Item?.Id : menus.Magic?.Id);
+    }
+
+    [Fact]
+    public void DemoMagicDiscardsCharacterSelectionFromDifferentLiveRoster()
+    {
+        MenuData live = new();
+        live.Characters.Add(new MenuCharacter { Id = "character-0", NativeId = 0, Name = "Squall", InParty = true });
+        MenuController menus = new(() => live);
+        menus.Open("main");
+        menus.Execute(new MenuAction("select-character", "character-0"));
+        Assert.Equal("character-0", menus.Character?.Id);
+
+        menus.Open("magic-use", true);
+        MenuCharacter selected = Assert.IsType<MenuCharacter>(menus.Character);
+        Assert.Contains(menus.Data.Characters, character => character.Id == selected.Id);
+        Assert.NotEmpty(menus.Entries);
+        UiView view = menus.BuildView();
+        ValidationCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        Assert.True(canvas.TextCount > 0);
+        Assert.Equal(0, canvas.ClipDepth);
+    }
+
+    [Fact]
+    public void EveryRegisteredLiveScreenBuildsAndDrawsWithoutProjectedData()
+    {
+        MenuController menus = new(() => new MenuData());
+        foreach (string screen in menus.ScreenIds)
+        {
+            menus.Open(screen);
+            UiView view = menus.BuildView();
+            ValidationCanvas canvas = new();
+            view.Draw(canvas, new UiTheme());
+            Assert.Equal(0, canvas.ClipDepth);
+            Assert.True(canvas.TextCount > 0, screen);
+        }
+    }
+
+    [Fact]
+    public void MainAccommodatesEightReservePortraits()
+    {
+        MenuData data = new();
+        for (int index = 0; index < 11; index++)
+        {
+            data.Characters.Add(new MenuCharacter { Id = "character-" + index, NativeId = index, Name = "Character " + index, InParty = index < 3 });
+        }
+        MenuController menus = new(() => data);
+        menus.Open("main");
+        UiView view = menus.BuildView();
+        UiImage[] portraits = Descendants(view.Root).OfType<UiImage>().Where(image => image.Source?.Kind == UiImageKind.CharacterPortrait).ToArray();
+        Assert.Equal(11, portraits.Length);
+        Assert.All(portraits, portrait => Assert.True(portrait.Bounds.Width > 0 && portrait.Bounds.Height > 0));
+        foreach (MenuCharacter character in data.Characters)
+        {
+            Assert.Single(portraits, portrait => portrait.Id == "portrait-" + character.Id);
+        }
+        ValidationCanvas canvas = new();
+        view.Draw(canvas, new UiTheme());
+        Assert.Equal(11, canvas.Images.Count(source => source.Kind == UiImageKind.CharacterPortrait));
+        Assert.Equal(0, canvas.ClipDepth);
+    }
+
+    [Fact]
     public void Mods_can_supply_controls_and_are_discovered_in_the_gallery()
     {
         var menus = new MenuController();
@@ -107,6 +250,17 @@ public sealed class MenuViewTests
         menus.BuildView().Resize(960, 672);
         menus.Navigate(MenuInput.Confirm);
         Assert.True(invoked);
+    }
+
+    private static void ActivateEntry(MenuController menus, int index)
+    {
+        for (int attempts = 0; menus.SelectedIndex != index && attempts < menus.Entries.Count; attempts++)
+        {
+            menus.Navigate(MenuInput.Right);
+        }
+        Assert.Equal(index, menus.SelectedIndex);
+        menus.BuildView();
+        menus.Navigate(MenuInput.Confirm);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)
