@@ -9,6 +9,7 @@ public class UiElement
     public bool Enabled { get; set; } = true;
     public bool Focusable { get; set; }
     public bool IsFocused { get; internal set; }
+    public Action<bool>? FocusChanged { get; set; }
     public UiThickness Margin { get; set; }
     public UiAlignment HorizontalAlignment { get; set; } = UiAlignment.Stretch;
     public UiAlignment VerticalAlignment { get; set; } = UiAlignment.Stretch;

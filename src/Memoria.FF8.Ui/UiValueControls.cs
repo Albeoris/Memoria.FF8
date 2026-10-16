@@ -55,7 +55,7 @@ public sealed class UiToggle : UiElement
     }
 }
 
-public sealed class UiSlider : UiElement
+public class UiSlider : UiSettingRow
 {
     private float _min;
     private float _max = 1;
@@ -67,7 +67,6 @@ public sealed class UiSlider : UiElement
         Focusable = true;
     }
 
-    public string Text { get; set; } = string.Empty;
     public float Min
     {
         get => _min;
@@ -127,7 +126,7 @@ public sealed class UiSlider : UiElement
     }
 
     public Action<float>? ValueChanged { get; set; }
-    private UiRect Track => new(Bounds.X + 24, Bounds.Y + Bounds.Height * 0.7f, Math.Max(0, Bounds.Width - 38), 4);
+    protected virtual UiRect Track => new(Bounds.X + 24, Bounds.Y + Bounds.Height * 0.7f, Math.Max(0, Bounds.Width - 38), 4);
 
     protected override void DrawSelf(IUiCanvas canvas, UiTheme theme)
     {

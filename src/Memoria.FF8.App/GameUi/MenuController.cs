@@ -114,6 +114,7 @@ public sealed partial class MenuController
         }
         IsOpen = true;
         ScreenId = screenId;
+        ApplyCursorPreference(screenId);
         if (screenId.StartsWith("config-controller", StringComparison.Ordinal))
         {
             _controlsDevice = ControlDevice.Controller;
@@ -168,6 +169,15 @@ public sealed partial class MenuController
             return;
         }
         var entries = Entries;
+        if (ScreenId == "config" && input is MenuInput.PageUp or MenuInput.PageDown)
+        {
+            Select(Math.Clamp(SelectedIndex + (input == MenuInput.PageUp ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
+            return;
+        }
+        if (ScreenId == "config" && input == MenuInput.Confirm && MenuSettings.Definitions.FirstOrDefault(setting => setting.Id == SelectedEntry?.Id) is { } numericSetting && TryConfigNumbers(numericSetting, out _))
+        {
+            return;
+        }
         UiView view = BuildView();
         if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list &&
             (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && ScreenId != "config" && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
@@ -252,6 +262,7 @@ public sealed partial class MenuController
         }
         _history.Push(ScreenId);
         ScreenId = screenId;
+        ApplyCursorPreference(screenId);
         ScreenOpened?.Invoke(ScreenId);
         Message = "";
         _view = null;
@@ -427,6 +438,14 @@ public sealed partial class MenuController
             return;
         }
         var current = IsHostSettingsScreen ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id);
+        if (ScreenId == "config" && TryConfigNumbers(setting, out float[] numbers))
+        {
+            float number = float.TryParse(current?.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : numbers[0];
+            float next = direction > 0 ? numbers.FirstOrDefault(candidate => candidate > number, numbers[^1]) : numbers.LastOrDefault(candidate => candidate < number, numbers[0]);
+            SetConfigValue(setting, next);
+            SoundRequested?.Invoke(MenuSound.Move);
+            return;
+        }
         var index = Array.IndexOf(setting.Values, current);
         Execute(new MenuAction(IsHostSettingsScreen ? "host-config" : "config", setting.Id, Value: setting.Values[(index + direction + setting.Values.Length) % setting.Values.Length]));
         SoundRequested?.Invoke(MenuSound.Move);

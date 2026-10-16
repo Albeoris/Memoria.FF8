@@ -236,9 +236,15 @@ public sealed class UiView
 
     private void SetFocus(UiElement? element)
     {
-        if (_focusedElement != null)
+        if (ReferenceEquals(_focusedElement, element))
         {
-            _focusedElement.IsFocused = false;
+            return;
+        }
+
+        UiElement? previous = _focusedElement;
+        if (previous != null)
+        {
+            previous.IsFocused = false;
         }
 
         _focusedElement = element;
@@ -246,6 +252,9 @@ public sealed class UiView
         {
             element.IsFocused = true;
         }
+
+        previous?.FocusChanged?.Invoke(false);
+        element?.FocusChanged?.Invoke(true);
     }
 
     private void GetTransform(out float scale, out float offsetX, out float offsetY)

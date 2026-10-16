@@ -8,6 +8,9 @@ public sealed class UiTheme
     public UiColor Highlight { get; init; } = new(112, 112, 112);
     public UiColor BorderLight { get; init; } = new(200, 200, 200);
     public UiColor BorderDark { get; init; } = new(30, 30, 30);
+    public UiColor SliderFill { get; init; } = new(144, 104, 224);
+    public UiColor SliderLight { get; init; } = new(232, 216, 255);
+    public UiColor SliderDark { get; init; } = new(40, 20, 104);
     public float FontSize { get; init; } = 16;
 
     public void Panel(IUiCanvas canvas, UiRect bounds, string? caption = null, float captionFontSize = 0)

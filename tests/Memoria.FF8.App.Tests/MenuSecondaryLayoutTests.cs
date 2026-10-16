@@ -10,19 +10,14 @@ public sealed class MenuSecondaryLayoutTests
     {
         var controller = new MenuController();
         controller.Open("config", demo: true);
-        for (int index = 0; index < 16; index++)
-        {
-            controller.Navigate(MenuInput.Down);
-        }
+        controller.Navigate(MenuInput.PageDown);
         UiView view = controller.BuildView();
-        UiList commands = Descendants(view.Root).OfType<UiList>().Single(list => list.Id == "commands");
-        Assert.True(commands.Paginated);
-        Assert.True(commands.ScrollOffset > 0);
-        int clicked = commands.ScrollOffset;
-        string setting = controller.Entries[clicked].Id;
+        UiNumericSlider slider = Descendants(view.Root).OfType<UiNumericSlider>().First();
+        int clicked = controller.Entries.ToList().FindIndex(entry => entry.Id == slider.Id);
+        string setting = slider.Id!;
         string before = controller.Data.Settings[setting];
-        Assert.Equal(controller.Entries.Count, commands.SecondaryItems.Count);
-        view.Pointer(commands.Bounds.Right - 60, commands.Bounds.Y + 10, true);
+        Assert.True(clicked > 0);
+        view.Pointer(slider.ValueBounds.X + 5, slider.Bounds.Y + slider.Bounds.Height / 2, true);
         Assert.Equal(clicked, controller.SelectedIndex);
         Assert.NotEqual(before, controller.Data.Settings[setting]);
         controller.Navigate(MenuInput.Left);

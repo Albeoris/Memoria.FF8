@@ -62,11 +62,22 @@ public sealed partial class MenuController
         Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry is { } setting ? "Set " + setting.Id.ToLowerInvariant() : "Select a setting.", 23)), 0);
         Place(header, Panel(null, Label("Config", 27)), 0, 1);
         Place(page, header, 0);
-        UiList commands = SecondaryCommands(43);
-        commands.Items = Entries.Select(entry => MenuSettings.Definitions.Any(setting => setting.Id == entry.Id) ? entry.Id : entry.Label).ToList();
-        commands.SecondaryItems = Entries.Select(entry => Data.Settings.GetValueOrDefault(entry.Id, "")).ToList();
-        commands.SecondaryWidth = 0.49f;
-        Place(page, Panel(null, commands), 1);
+        int count = ConfigRowsPerPage;
+        int first = SelectedIndex / count * count;
+        var content = Grid([1, 0.055f], [1], 4);
+        var rows = new UiGrid { Columns = 1, Gap = 0 };
+        for (int index = 0; index < count; index++)
+        {
+            rows.RowDefinitions.Add(UiGridLength.Star(1));
+        }
+        for (int index = first; index < Math.Min(first + count, Entries.Count); index++)
+        {
+            Place(rows, BuildConfigRow(Entries[index], index), index - first);
+        }
+        Place(content, rows, 0);
+        int pages = Math.Max(1, (Entries.Count + count - 1) / count);
+        Place(content, Label($"‹  {first / count + 1} / {pages}  ›     Left / Right: adjust     Page Up / Down: page", 15), 1);
+        Place(page, Panel(null, content), 1);
         return page;
     }
 

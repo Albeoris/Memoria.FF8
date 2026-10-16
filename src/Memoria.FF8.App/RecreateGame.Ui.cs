@@ -21,13 +21,19 @@ internal sealed partial class RecreateGame
     private bool previousUiMousePressed;
     private bool uiControlPointerPressed;
     private bool drainUiButtons;
-    private string UiPreferencesPath => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "ui-settings.json");
-    private string ControlsPreferencesPath => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "controls.json");
+    private readonly GlobalSettingsPaths globalSettings = new();
+    private string UiPreferencesPath => globalSettings.UiPreferencesPath;
+    private string ControlsPreferencesPath => globalSettings.ControlsPreferencesPath;
 
     private void InitializeGameUi()
     {
         uiCanvas = new MonoGameUiCanvas(GraphicsDevice, batch, pixel, text, options.GameDirectory);
+        globalSettings.ImportLegacyFiles(options.SavePath);
         uiPreferences = UiPreferences.Load(UiPreferencesPath);
+        if (!File.Exists(UiPreferencesPath))
+        {
+            uiPreferences.Save(UiPreferencesPath);
+        }
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
@@ -52,6 +58,10 @@ internal sealed partial class RecreateGame
         gameMenus.ConnectBattleSettings(() => ActiveBattle?.Outcome == BattleOutcome.Active, victory => ApplyBattleCommand(new BattleInput(victory ? BattleInputKind.InstantVictory : BattleInputKind.InstantDefeat)));
         gameMenus.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         keyboard.Profile = ControlsProfile.Load(ControlsPreferencesPath);
+        if (!File.Exists(ControlsPreferencesPath))
+        {
+            keyboard.Profile.Save(ControlsPreferencesPath);
+        }
         gameMenus.ConnectControls(() => keyboard.Profile, profile =>
         {
             profile.Save(ControlsPreferencesPath);
@@ -87,6 +97,9 @@ internal sealed partial class RecreateGame
             NativeRefinementMenuProjection.Augment(data, session.State, nativeRefinementDefinitions!, liveMenuCatalog);
         }
         data.Settings["Music volume"] = uiPreferences.MusicVolume + "%";
+        data.Settings["Cursor"] = uiPreferences.CursorMemory ? "Memory" : "Initial";
+        data.Settings["Field message"] = uiPreferences.FieldMessageSpeed.ToString();
+        data.Settings["Vibration"] = keyboard.Profile.VibrationEnabled ? "On" : "Off";
         data.Settings["Effect volume"] = uiPreferences.SoundVolume + "%";
         data.Settings["Text scale"] = uiPreferences.TextScale + "%";
         data.Settings["UI font"] = uiPreferences.UiFontFamily;
@@ -99,6 +112,10 @@ internal sealed partial class RecreateGame
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
         data.Settings["Random encounters"] = ReadCurrentUiPreferences().RandomEncounters ? "On" : "Off";
         data.SupportedActions.Add("config:Music volume");
+        data.SupportedActions.Add("config:Cursor");
+        data.SupportedActions.Add("config:Field message");
+        data.SupportedActions.Add("config:Vibration");
+        data.SupportedActions.Add("config:Rare card markers");
         data.SupportedActions.Add("config:Effect volume");
         data.SupportedActions.Add("config:Text scale");
         data.SupportedActions.Add("config:UI font");
@@ -232,6 +249,20 @@ internal sealed partial class RecreateGame
         }
         if (action.Kind == "config")
         {
+            if (action.SubjectId == "Vibration")
+            {
+                bool enabled = action.Value switch
+                {
+                    "On" => true,
+                    "Off" => false,
+                    _ => throw new ArgumentException("Vibration requires On or Off.")
+                };
+                ControllerSettings settings = keyboard.Profile.Controller;
+                ControlsProfile profile = keyboard.Profile.WithControllerSettings(settings.LeftStickDeadZone, settings.RightStickDeadZone, settings.WalkRunThreshold, vibrationEnabled: enabled);
+                profile.Save(ControlsPreferencesPath);
+                keyboard.Profile = profile;
+                return;
+            }
             UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value);
             ApplyCurrentBattleSettings(nextPreferences, action.SubjectId);
             nextPreferences.Save(UiPreferencesPath);

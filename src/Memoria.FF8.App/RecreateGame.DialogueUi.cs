@@ -22,7 +22,7 @@ internal sealed partial class RecreateGame
         }
         // Names and message variables can change while a persistent window retains its native identity.
         string key = expanded + (dialogue.IsNamePrompt ? "\u0001" + enteredName : "");
-        return dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
+        var presentation = dialoguePages.Get(dialogue, window, uiPreferences.DialogueFontFamily, uiPreferences.DialogueFontSize, key, session.State.Scene == SceneKind.WorldMap, () =>
         {
             var document = DialogueTextFormatter.Parse(dialogue.Text, events.Scene.Names, events.MessageVariables);
             if (dialogue.IsNamePrompt)
@@ -34,6 +34,11 @@ internal sealed partial class RecreateGame
             using var measurer = SystemTextLayout.CreateMeasurer(size, font);
             return DialogueLayout.Create(document, dialogue, window, measurer.LineHeight, measurer.Measure);
         }, retainPosition: dialogue.IsNamePrompt);
+        if (dialogue.IsNamePrompt)
+        {
+            presentation.Pager.UpdateReveal(TimeSpan.Zero, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: true);
+        }
+        return presentation;
     }
 
     private IEnumerable<DialogueState> VisibleDialogues
@@ -55,20 +60,27 @@ internal sealed partial class RecreateGame
         foreach (var dialogue in visible)
         {
             var presentation = GetDialoguePages(dialogue);
+            presentation.Pager.UpdateReveal(elapsed, presentation.Pages[presentation.Pager.PageIndex], uiPreferences.FieldMessageSpeed, instant: dialogue.IsNamePrompt);
             if (!dialogue.CanConfirm)
             {
-                presentation.Pager.UpdatePopup(elapsed, presentation.Pages);
+                presentation.Pager.UpdatePopup(elapsed, presentation.Pages, DialoguePager.CharactersPerSecond(uiPreferences.FieldMessageSpeed));
             }
         }
     }
 
     private bool AdvanceDialoguePages()
     {
-        return DialoguePager.AdvanceConfirmable(VisibleDialogues.Select(dialogue =>
+        var channels = VisibleDialogues.Select(dialogue =>
         {
             var presentation = GetDialoguePages(dialogue);
-            return (dialogue, presentation.Pager, presentation.Pages.Count);
-        }));
+            return (Dialogue: dialogue, presentation.Pager, presentation.Pages);
+        }).ToArray();
+        bool revealed = false;
+        foreach (var channel in channels.Where(channel => channel.Dialogue.CanConfirm))
+        {
+            revealed |= channel.Pager.RevealCurrentPage(channel.Pages[channel.Pager.PageIndex]);
+        }
+        return revealed || DialoguePager.AdvanceConfirmable(channels.Select(channel => (channel.Dialogue, channel.Pager, channel.Pages.Count)));
     }
 
     private void DrawDialogueUi(Rectangle bounds, PixelBounds viewport, DialogueState dialogue, double seconds)
@@ -100,16 +112,18 @@ internal sealed partial class RecreateGame
             text.DrawLine(batch, speaker, fontSize * page.SpeakerScale, position, new Color(148, 213, 255), family);
             position.Y += lineHeight * page.SpeakerScale + DialogueLayout.SpeakerGap * scale;
         }
+        int remaining = presentation.Pager.VisibleCharacters;
         foreach (var line in page.Lines)
         {
-            if (line.IsChoice && line.SourceLineIndex == selectedChoice)
+            if (remaining > 0 && line.IsChoice && line.SourceLineIndex == selectedChoice)
             {
                 uiCanvas!.MenuPointer(new UiRect(position.X, position.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
             }
             foreach (var run in line.Runs)
             {
                 float alpha = run.Run.Blink ? DialogueBlink.Opacity(seconds) : 1;
-                text.DrawLine(batch, run.Run.Text, fontSize, position + new Vector2(run.X * scale, 0), run.Run.Color * alpha, family);
+                string visibleText = DialoguePager.VisiblePrefix(run.Run.Text, ref remaining);
+                text.DrawLine(batch, visibleText, fontSize, position + new Vector2(run.X * scale, 0), run.Run.Color * alpha, family);
             }
             position.Y += lineHeight;
         }

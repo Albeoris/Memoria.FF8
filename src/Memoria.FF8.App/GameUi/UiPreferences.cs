@@ -20,6 +20,8 @@ internal sealed record UiPreferences
     public string BattlePolicyLabel => BattlePolicy == "NewGameFullCombat" ? "Full combat" : "Instant victory";
     public bool RandomEncounters { get; init; } = true;
     public bool RareCardMarkers { get; init; } = true;
+    public bool CursorMemory { get; init; }
+    public int FieldMessageSpeed { get; init; } = 3;
 
     public BattleInput[] CreateBattleSettingsInputs()
     {
@@ -40,6 +42,23 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (key == "Cursor")
+        {
+            return value switch
+            {
+                "Initial" => this with { CursorMemory = false },
+                "Memory" => this with { CursorMemory = true },
+                _ => throw new ArgumentException("Cursor requires Initial or Memory.")
+            };
+        }
+        if (key == "Field message")
+        {
+            if (!int.TryParse(value, out int speed) || speed is < 1 or > 5)
+            {
+                throw new ArgumentException("Field message speed must be between 1 and 5.");
+            }
+            return this with { FieldMessageSpeed = speed };
+        }
         if (key is "UI font" or "Dialogue font")
         {
             string family = SystemFontCatalog.Families.FirstOrDefault(family => string.Equals(family, value, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException("Choose an installed OS font family.");
@@ -123,7 +142,7 @@ internal sealed record UiPreferences
 
     private void Validate()
     {
-        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }
