@@ -20,7 +20,11 @@ public sealed class NativeBattleActionCameraTests
         Assert.True(ifrit.HasActionCamera);
         Assert.NotNull(ifrit.ActionCameraBank);
         Assert.NotEmpty(ifrit.ActionCameraBank.Data);
+        Assert.Equal(760, ifrit.ActionCameraBank.Data.Length);
+        Assert.Equal((byte)1, ifrit.ActionCameraBank.Data[0]);
         NativeBattleGraphicsResource squall = battle.ReadNativeGraphicsResource(new() { IsPlayer = true, ModelId = 0, WeaponId = 0 });
+        Assert.True(squall.HasActionCamera);
+        Assert.Equal(1720, squall.ActionCameraBank!.Data.Length);
         Assert.Equal(squall.HasActionCamera == true, squall.ActionCameraBank is not null);
     }
 }

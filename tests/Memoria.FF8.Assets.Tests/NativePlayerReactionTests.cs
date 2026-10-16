@@ -49,7 +49,7 @@ public sealed class NativePlayerReactionTests
         using GameAssets game = new(GameDirectory());
         using BattleAssets assets = new(GameDirectory());
         BattleSession battle = Create(game, assets, 0x40000, [new(2, 1)], 1);
-        for (int frame = 0; frame < 13; frame++)
+        for (int frame = 0; frame < 128 && (frame == 0 || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
         }
@@ -66,6 +66,8 @@ public sealed class NativePlayerReactionTests
         BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8 && action.AttackType == 1 && (action.AttackFlags & 3) == 0 && action.HitCount == 1 && action.Power is > 0 and <= 10 && action.Hit >= 100 && action.Statuses0 == 0 && action.Statuses1 == 0);
         BattleSession battle = new(new BattleDefinition
         {
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeActions = assets.NativeActions.ToArray(),
             Items = items,
             Combatants =
@@ -80,11 +82,12 @@ public sealed class NativePlayerReactionTests
 
     private static void AdvanceUntilReaction(BattleSession battle)
     {
-        for (int frame = 0; frame < 20 && !battle.Capture().QueuedActions.Any(command => command.NativePlayerReaction is not null); frame++)
+        for (int frame = 0; frame < 128 && !battle.QueuedActions.Any(command => command.NativePlayerReaction is not null); frame++)
         {
             battle.Tick();
         }
-        Assert.Contains(battle.Capture().QueuedActions, command => command.NativePlayerReaction is not null);
+        Assert.Contains(battle.QueuedActions, command => command.NativePlayerReaction is not null);
+        Assert.Contains(battle.Events, item => item.Kind == "Damage" && item.ActorId == "enemy");
     }
 
     private static string GameDirectory()

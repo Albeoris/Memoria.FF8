@@ -16,7 +16,7 @@ public sealed class NativeBattleAiTargetTests
     {
         BattleSession battle = Create([4, selector]);
 
-        Assert.Equal(expected, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
+        Assert.Equal(expected, ReadPublishedTargetMask(battle.Capture()));
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public sealed class NativeBattleAiTargetTests
     {
         BattleSession battle = Create([38, 1, 200, 0, 0], partyStatus: 1, partyHp: 0);
 
-        Assert.Equal((ushort)0x8001, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
+        Assert.Equal((ushort)0x8001, ReadPublishedTargetMask(battle.Capture()));
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class NativeBattleAiTargetTests
     {
         BattleSession battle = Create([38, 1, 200, 3, 0]);
 
-        Assert.Equal((ushort)0x8001, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
+        Assert.Equal((ushort)0x8001, ReadPublishedTargetMask(battle.Capture()));
     }
 
     [Theory]
@@ -43,7 +43,7 @@ public sealed class NativeBattleAiTargetTests
     {
         BattleSession battle = Create([38, 1, 200, 0, criterion]);
 
-        Assert.Equal((ushort)0x8001, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
+        Assert.Equal((ushort)0x8001, ReadPublishedTargetMask(battle.Capture()));
     }
 
     [Theory]
@@ -55,7 +55,7 @@ public sealed class NativeBattleAiTargetTests
         BattleSession battle = Create([60, 11, 254, 38, 1, 201, 0, criterion]);
 
         Assert.Equal(-1, battle.Combatants.Single(actor => actor.Id == "enemy").CurrentHp);
-        Assert.Equal(mask, Assert.Single(battle.Capture().QueuedActions).NativeTargetMask);
+        Assert.Equal(mask, ReadPublishedTargetMask(battle.Capture()));
     }
 
     [Fact]
@@ -69,12 +69,14 @@ public sealed class NativeBattleAiTargetTests
             expected = expected.Draw(out value);
         }
         while ((value & 3) != 0);
+        //The same admitted callback then evaluates its zero-power spell's48FE20 damage formula.
+        expected = expected.Draw(out _);
 
         BattleSnapshot snapshot = battle.Capture();
-        Assert.Equal((ushort)8, Assert.Single(snapshot.QueuedActions).NativeTargetMask);
+        Assert.Equal((ushort)8, ReadPublishedTargetMask(snapshot));
         Assert.Equal(expected.Indexes.ToArray(), snapshot.Random!.Indexes.ToArray());
         Assert.Equal(expected.Lane, snapshot.Random.Lane);
-        Assert.Equal((ushort)8, Assert.Single(BattleSession.Restore(snapshot).Capture().QueuedActions).NativeTargetMask);
+        Assert.Equal((ushort)8, ReadPublishedTargetMask(BattleSession.Restore(snapshot).Capture()));
     }
 
     [Fact]
@@ -96,9 +98,21 @@ public sealed class NativeBattleAiTargetTests
 
         battle.Tick();
 
+        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        Assert.Null(battle.ActiveAction);
+        battle.Tick();
         Assert.Equal("enemy", battle.ActiveAction!.ActorId);
         Assert.Equal((ushort)1, battle.ActiveAction.NativeTargetMask);
         Assert.Equal((byte)7, battle.ActiveAction.NativeSequence);
+    }
+
+    private static ushort ReadPublishedTargetMask(BattleSnapshot snapshot)
+    {
+        Assert.Equal((byte)1, snapshot.NativeActionPackets!.ActionCount);
+        BattleAttackCommand[] queued = snapshot.QueuedActions.Where(command => command.NativeHeaderIndex is not null).ToArray();
+        bool active = snapshot.ActiveAction?.NativeHeaderIndex is not null;
+        Assert.Equal(1, queued.Length + (active ? 1 : 0));
+        return active ? snapshot.ActiveAction!.NativeTargetMask : Assert.Single(queued).NativeTargetMask;
     }
 
     private static BattleSession Create(byte[] select, ushort partyStatus = 0, int partyHp = 100)
@@ -111,14 +125,18 @@ public sealed class NativeBattleAiTargetTests
         };
         BattleDefinition definition = new()
         {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Name = "Native target component",
             NativeActions = [action],
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true, ModelId = 0, MaximumHp = 100, CurrentHp = partyHp, NativeStatus0 = partyStatus, Attack = 5 },
+                .. (partyHp == 0 ? new BattleCombatantDefinition[] { new() { Id = "living-party", Name = "Living party", IsPlayer = true, Speed = 1 } } : []),
                 new() { Id = "enemy", Name = "Enemy", ModelId = 1, MaximumHp = 500, CurrentHp = 500, Attack = 200, NativeAi = ai }
             ]
         };
-        return new(definition, BattleAtbMode.Normal);
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 }

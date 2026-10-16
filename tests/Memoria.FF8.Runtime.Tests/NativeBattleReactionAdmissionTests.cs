@@ -25,7 +25,7 @@ public sealed class NativeBattleReactionAdmissionTests
             ]
         }, BattleAtbMode.Normal);
         session.QueueAttack("party", "enemy");
-        for (int frame = 0; frame < 20; frame++)
+        for (int frame = 0; frame < 100 && (session.ActiveAction is not null || session.QueuedActions.Count != 0); frame++)
         {
             session.Tick();
         }

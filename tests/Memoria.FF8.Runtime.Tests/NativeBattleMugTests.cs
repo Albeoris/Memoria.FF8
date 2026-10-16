@@ -50,6 +50,10 @@ public sealed class NativeBattleMugTests
 
         Hit(battle);
 
+        for (int callback = 0; callback < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); callback++)
+        {
+            battle.Tick();
+        }
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
         Assert.Equal(-1, Assert.Single(battle.EnemyDefeats).DropSelection);
         Assert.Equal(new BattleStock(1, 2), Assert.Single(battle.Items));

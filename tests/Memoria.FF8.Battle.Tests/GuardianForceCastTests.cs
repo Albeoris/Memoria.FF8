@@ -148,6 +148,7 @@ public sealed class GuardianForceCastTests
         BattleDefinition original = Create().Capture().Definition;
         BattleDefinition definition = original with { GuardianForces = [new(0, 1000, 300, false)], Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeAi = ai }).ToArray() };
         BattleSession session = new(definition, BattleAtbMode.Normal);
+        session.Tick();
         BattleGuardianForceVital acquired = Assert.Single(session.GuardianForces);
         Assert.True(acquired.Acquired);
         Assert.Equal((ushort)1000, acquired.HitPoints);
@@ -166,7 +167,8 @@ public sealed class GuardianForceCastTests
         byte[] raw = Enumerable.Repeat((byte)100, 132).ToArray();
         raw[112] = source;
         BattleActionDefinition action = original.ActionDefinitions[0];
-        BattleDefinition definition = original with { ActionDefinitions = [action with { NativeAction = action.NativeAction! with { RawRecord = ImmutableArray.CreateRange(raw) } }] };
+        BattleNativeAction native = action.NativeAction! with { RawRecord = ImmutableArray.CreateRange(raw) };
+        BattleDefinition definition = original with { NativeActions = [native], ActionDefinitions = [action with { NativeAction = native }] };
         BattleSession session = new(definition, BattleAtbMode.Normal);
         session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
         for (int frame = 0; frame < 1000 && !session.Events.Any(item => item.Kind == "Damage" && item.ActorId == "player"); frame++)
@@ -181,12 +183,14 @@ public sealed class GuardianForceCastTests
 
     private static BattleSession Create(ushort compatibility = 35, uint statuses = 0, ushort gfHp = 100, bool enemyReady = false)
     {
+        BattleNativeAction native = Native(254, 64, 11);
         return new(new BattleDefinition
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeActions = [native],
             NativeBattleSpeed = 0,
             GuardianForces = [new(0, gfHp, 100) { KillCount = 0, DeathCount = ushort.MaxValue }],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "GF", BattleActionEffect.Native, 10, false) { NativeAction = Native(254, 64, 11) }],
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "GF", BattleActionEffect.Native, 10, false) { NativeAction = native }],
             Combatants =
             [
                 new() { Id = "player", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat(compatibility, 16).ToArray(), NativeStatus1 = statuses },

@@ -31,7 +31,8 @@ public sealed class NativeActionProductionTests
         Assert.Equal(1, battle.Frame);
         Assert.Equal(9999, battle.Combatants[1].CurrentHp);
         Assert.Equal(77u, prepared.NativeAiVariables![0]);
-        Assert.Equal(0, prepared.ActiveAction!.NativeHeaderIndex);
+        Assert.Null(prepared.ActiveAction);
+        Assert.Equal(0, Assert.Single(battle.QueuedActions).NativeHeaderIndex);
         Assert.Equal((byte)1, prepared.NativeActionPackets!.ActionCount);
         Assert.Equal((byte)1, prepared.NativeActionPackets.ContactCount);
         Assert.Equal((ushort)1, prepared.NativeActionPackets.ReadContact(0).Primary.Amount6);

@@ -92,18 +92,24 @@ public sealed class NativePlayerDrawTests
     }
 
     [Fact]
-    public void ImmediateAndPendingCounterAiStillObserveTheGuardianForceSourceEntry()
+    public void ImmediateCounterSeesTheGuardianForceSourceAndQueuedCounterObservesItsCompletionRefresh()
     {
         BattleDefinition definition = Create().Capture().Definition;
         BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
         byte[] immediate = [2, 17, 0, 0, 0, 0, 3, 0, 15, 97, 1, 0];
-        byte[] pending = [2, 17, 0, 0, 0, 0, 3, 0, 15, 98, 1, 0];
+        byte[] pending = [15, 99, 1, 2, 17, 0, 0, 0, 0, 3, 0, 15, 98, 1, 0];
         actors[3] = actors[3] with { NativeCombatantFlags = 0x10, NativeAi = new([[0], [0], pending, [0], immediate], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) };
         BattleSession battle = new(definition with { Combatants = actors }, BattleAtbMode.TurnBased);
         battle.QueueAction("party", "source", BattleAbility.Draw, 65);
         Complete(battle);
+        for (int callback = 0; callback < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); callback++)
+        {
+            battle.Tick();
+        }
         Assert.Equal(1u, battle.Capture().NativeAiVariables![1]);
-        Assert.Equal(1u, battle.Capture().NativeAiVariables![2]);
+        //47DE70 queues callback2 through484720, then48B8B0/48C7A0 clears acquired GF entries before that callback executes.
+        Assert.Equal(0u, battle.Capture().NativeAiVariables![2]);
+        Assert.Equal(1u, battle.Capture().NativeAiVariables![3]);
         Assert.Empty(battle.Combatants[3].DrawGuardianForces);
     }
 

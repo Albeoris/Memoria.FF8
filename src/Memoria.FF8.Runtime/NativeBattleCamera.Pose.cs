@@ -33,7 +33,7 @@ public sealed partial record NativeBattleCameraState
         {
             if (offset < 0 || offset > task.Bank.Data.Length - 2)
             {
-                throw new InvalidDataException("Native camera segment exceeds its original track resource.");
+                throw new InvalidDataException($"Native camera channel {task.Channel} segment at byte {task.ProgramOffset} reads byte {offset} beyond its original {task.Bank.Data.Length}-byte track resource.");
             }
             short value = BinaryPrimitives.ReadInt16LittleEndian(task.Bank.Data.AsSpan().Slice(offset));
             offset += 2;

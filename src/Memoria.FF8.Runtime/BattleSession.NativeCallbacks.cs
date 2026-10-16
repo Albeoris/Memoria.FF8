@@ -24,20 +24,8 @@ public sealed partial class BattleSession
         callback.Validate();
         actor.NativePendingReaction = actor.NativePendingReaction with { Stage = 0 };
         BattleAttackCommand packet = new(actor.Id, actor.Id, BattleAbility.EnemyAbility, 0) { NativeCallback = callback };
-        if (NativeGraphics is not null)
-        {
-            (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.EnqueueCallback(0, callback.ActorIndex, callback.Stage);
-            nativeCommandBanks = state.BindCommand(location, 0, packet);
-            return;
-        }
-        if (nativeCallbackTail is not null)
-        {
-            nativeCallbackTail.Add(packet);
-        }
-        else
-        {
-            actions.Enqueue(packet);
-        }
+        (NativeBattleCommandBanks state, NativeBattleCommandLocation location) = nativeCommandBanks.EnqueueCallback(0, callback.ActorIndex, callback.Stage);
+        nativeCommandBanks = state.BindCommand(location, 0, packet);
     }
 
     private void QueueNativeParticipantInitialization(BattleCombatant actor)
@@ -71,10 +59,6 @@ public sealed partial class BattleSession
         List<BattleAttackCommand> tail = actions.ToList();
         nativeCallbackTail = tail;
         actions.Clear();
-        if (NativeGraphics is null)
-        {
-            BeginNativeReactionBatch();
-        }
         SetNativeActionEvent(actor, 0);
         NativeBattleActionProductionContext? previousContext = nativeProductionContext;
         nativeProductionContext ??= new(0, 0, false, 0x47DDA0);
@@ -132,7 +116,7 @@ public sealed partial class BattleSession
     {
         BattleNativeCallback callback = packet.NativeCallback ?? throw new InvalidDataException("Native control packet lacks its callback owner.");
         callback.Validate();
-        if (!byId.ContainsKey(packet.ActorId) || IsNativeSupportCallback(callback) && nativeSupport is not { EntryInitialized: true, SelectedAction: not null } || callback.Stage == 8 && nativeSupport?.SelectedTargets is null || packet.Ability != BattleAbility.EnemyAbility || packet.ActionId != 0 || packet.ActorId != packet.TargetId || packet.NativeAiCallbackStage is not null || packet.NativeAction is not null || packet.NativeRenzokuken is not null || packet.NativeGraphic is not null || packet.NativePlayerReaction is not null || packet.NativeQueuedCommand is not null || packet.NativeTargetMask != 0 || packet.DrawCast || packet.NativeTargetSelector != 0 || packet.NativeSequence is not null || packet.FreeNativeMagic || packet.DrawCastTargetId is not null || packet.NativeDraw is not null || packet.NativeSpecial is not null || packet.IndependentGuardian is not null || packet.NativeLimitCallback is not null || packet.ReservedNativeItemSlot is not null || !packet.NativeMagicTargets.IsDefaultOrEmpty)
+        if (!byId.ContainsKey(packet.ActorId) || IsNativeSupportCallback(callback) && nativeSupport is not { EntryInitialized: true, SelectedAction: not null } || callback.Stage == 8 && nativeSupport?.SelectedTargets is null || packet.Ability != BattleAbility.EnemyAbility || packet.ActionId != 0 || packet.ActorId != packet.TargetId || packet.NativeAiCallbackStage is not null || packet.NativeAction is not null || packet.NativeRenzokuken is not null || packet.NativeDuel is not null || packet.NativeSlots is not null || packet.NativeGraphic is not null || packet.NativePlayerReaction is not null || packet.NativeQueuedCommand is not null || packet.NativeTargetMask != 0 || packet.DrawCast || packet.NativeTargetSelector != 0 || packet.NativeSequence is not null || packet.FreeNativeMagic || packet.DrawCastTargetId is not null || packet.NativeDraw is not null || packet.NativeSpecial is not null || packet.IndependentGuardian is not null || packet.NativeLimitCallback is not null || packet.ReservedNativeItemSlot is not null || !packet.NativeMagicTargets.IsDefaultOrEmpty)
         {
             throw new InvalidDataException("Native callback control packet also contains incompatible command/effect owners.");
         }

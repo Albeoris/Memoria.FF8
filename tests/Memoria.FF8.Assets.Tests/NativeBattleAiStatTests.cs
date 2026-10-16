@@ -20,7 +20,7 @@ public sealed class NativeBattleAiStatTests
     [Fact]
     public void Opcode40AssignsAllSixNativeMultipliersBeforeTheFinalByteProjection()
     {
-        BattleSession battle = new(Definition([40, 0, 20, 40, 1, 0, 40, 2, 255, 40, 3, 5, 40, 4, 20, 40, 5, 5, 0]), BattleAtbMode.Normal);
+        BattleSession battle = AdmitInitial(Definition([40, 0, 20, 40, 1, 0, 40, 2, 255, 40, 3, 5, 40, 4, 20, 40, 5, 5, 0]));
         BattleCombatant enemy = battle.Combatants.Single(actor => !actor.IsPlayer);
 
         Assert.Equal(new[] { 40, 0, 255, 25, 120, 255 }, new[] { enemy.Attack, enemy.Defense, enemy.Magic, enemy.Spirit, enemy.Speed, enemy.Evasion });
@@ -36,7 +36,7 @@ public sealed class NativeBattleAiStatTests
     [Fact]
     public void RepeatedAssignmentsScaleTheOriginalStatisticRatherThanThePreviousResult()
     {
-        BattleSession battle = new(Definition([40, 0, 20, 40, 0, 5, 0]), BattleAtbMode.Normal);
+        BattleSession battle = AdmitInitial(Definition([40, 0, 20, 40, 0, 5, 0]));
 
         Assert.Equal(10, battle.Combatants.Single(actor => !actor.IsPlayer).Attack);
     }
@@ -46,7 +46,7 @@ public sealed class NativeBattleAiStatTests
     [InlineData(255)]
     public void Opcode40RejectsAnIndexOutsideTheSixOriginalStatisticRows(byte index)
     {
-        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => new BattleSession(Definition([40, index, 10, 0]), BattleAtbMode.Normal));
+        NotSupportedException exception = Assert.Throws<NotSupportedException>(() => AdmitInitial(Definition([40, index, 10, 0])));
 
         Assert.Contains("six enemy statistic rows", exception.Message);
     }
@@ -56,7 +56,7 @@ public sealed class NativeBattleAiStatTests
     {
         BattleDefinition original = Definition([40, 5, 5, 0]);
         BattleDefinition missing = original with { Combatants = original.Combatants.Select(actor => actor with { NativeTemplate = null }).ToArray() };
-        Assert.Contains("original six pre-byte", Assert.Throws<NotSupportedException>(() => new BattleSession(missing, BattleAtbMode.Normal)).Message);
+        Assert.Contains("original six pre-byte", Assert.Throws<NotSupportedException>(() => AdmitInitial(missing)).Message);
     }
 
     [Fact]
@@ -69,6 +69,13 @@ public sealed class NativeBattleAiStatTests
         BattleCombatantDefinition[] actors = snapshot.Definition.Combatants.Select(actor => actor.NativeTemplate is null ? actor : actor with { NativeTemplate = actor.NativeTemplate with { Levels = actor.NativeTemplate.Levels.Select(level => level with { BaseStatistics = [] }).ToArray() } }).ToArray();
 
         Assert.Throws<NotSupportedException>(() => BattleSession.Restore(snapshot with { Definition = snapshot.Definition with { Combatants = actors } }));
+    }
+
+    private static BattleSession AdmitInitial(BattleDefinition definition)
+    {
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 
     private static BattleDefinition Definition(byte[] initialScript)

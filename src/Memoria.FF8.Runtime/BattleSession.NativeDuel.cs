@@ -52,8 +52,30 @@ public sealed partial class BattleSession
         return progress;
     }
 
-    private void BeginNativeDuel(BattleCombatant actor, BattleCombatant target, byte crisis)
+    private void QueueNativeDuelInvocation(BattleCombatant actor, BattleCombatant target, byte crisis)
     {
+        _ = RequireNativeDuelProgress();
+        ushort mask = NativeBattleLimitRules.PlayerTargetMask(actor.NativeLimit!.InvocationChoices.Single().TargetFlags, target.NativeIndex);
+        OnNativePlayerCommandSubmitted(actor, 11);
+        BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.LimitBreak, 11 << 16) { NativeQueuedCommand = 11, NativeTargetMask = mask, NativeDuel = new(crisis) };
+        EnqueueNativePacket(actor, command, "Duel", playerInput: true);
+    }
+
+    private BattleNativeAction NativeDuelControl(BattleCombatant actor, byte crisis)
+    {
+        BattleNativeLimitDefinition rules = actor.NativeLimit ?? throw new InvalidDataException("Native Duel requires Zell's kernel command owner.");
+        byte action = NativeBattleDuelRules.ActionId(rules, NativeBattleDuelRules.InitialMoveSet(rules, crisis));
+        BattleNativeAction first = FindInstalledNativeAction(241, action);
+        return first with { Command = 11, ActionId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, Statuses0 = 0, Statuses1 = 0, CrisisLevel = crisis, Name = "Duel" };
+    }
+
+    private BattleAttackCommand PrepareNativeDuelInvocation(BattleCombatant actor, BattleAttackCommand command)
+    {
+        if (command.NativeDuel is not { } invocation)
+        {
+            return command;
+        }
+        byte crisis = invocation.CrisisLevel;
         NativeLimitProgress progress = RequireNativeDuelProgress();
         if (nativeDuelProcesses.Count != 0 || nativeShotProcesses.Count != 0 || nativeRenzokukenProcesses.Count != 0)
         {
@@ -71,9 +93,15 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native Duel timer cannot be zero.");
         }
-        ushort mask = NativeBattleLimitRules.PlayerTargetMask(rules.InvocationChoices.Single().TargetFlags, target.NativeIndex);
-        QueueNativeCommand(actor, 241, action, 0, mask, callback: NativeLimitCallback.DuelOpening);
+        ushort mask = command.NativeTargetMask;
+        BattleNativeAction opening = FindInstalledNativeAction(241, action);
+        BattleAttackCommand second = new(actor.Id, command.TargetId, BattleAbility.EnemyAbility, action) { NativeQueuedCommand = 241, NativeAction = opening, NativeTargetMask = mask, NativeLimitCallback = NativeLimitCallback.DuelOpening };
+        if (!TryWriteNativeSecondCommand(second))
+        {
+            throw new InvalidDataException("Native48D200 Duel requires its selected physical command entry.");
+        }
         nativeDuelProcesses.Add(actor.Id, new(moveSet, mask, timer, timer, BattleNativeDuelPhase.Opening));
+        return command with { NativeAction = NativeDuelControl(actor, crisis) };
     }
 
     public void AdvanceNativeDuelUi(int frames = 1, ushort rawPulse = 0)
@@ -149,7 +177,7 @@ public sealed partial class BattleSession
         BattleNativeAction action = FindInstalledNativeAction(command, choice.ActionId);
         byte flags = action.TargetFlags!.Value;
         ushort mask = choice.Finisher && (flags & 0x30) != 0x10 ? NativeAutomaticActionTargetMask(flags) : state.TargetMask;
-        QueueNativeCommand(actor, command, choice.ActionId, 0, mask, callback: choice.Finisher ? NativeLimitCallback.DuelFinisher : NativeLimitCallback.DuelEffect);
+        QueueNativeCommand(actor, command, choice.ActionId, 0, mask, callback: choice.Finisher ? NativeLimitCallback.DuelFinisher : NativeLimitCallback.DuelEffect, playerInput: true);
         nativeDuelProcesses[actorId] = state with { MoveSetId = choice.MoveSetId, Phase = choice.Finisher ? BattleNativeDuelPhase.Finisher : BattleNativeDuelPhase.AwaitingEffect };
     }
 
@@ -158,7 +186,7 @@ public sealed partial class BattleSession
         nativeDuelProcesses.Remove(actorId);
         nativeLimitLevels.Remove(actorId);
         BattleCombatant actor = GetActor(actorId);
-        actor.IsBusy = actions.Any(command => command.ActorId == actorId) || ActiveAction?.ActorId == actorId;
+        actor.IsBusy = QueuedActions.Any(command => command.ActorId == actorId) || ActiveAction?.ActorId == actorId;
         //TODO(TD-009): Native241/65532 closes through its graphics end sequence; the current UI owner closes at this boundary
         Log("NativeLimitControl", actorId, null, 65532, "Duel ended.");
     }

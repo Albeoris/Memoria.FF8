@@ -144,7 +144,7 @@ public sealed class InstalledNativeActionExecutionTests
             ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce ? action with { Level = level } : action).ToArray(),
             Combatants =
             [
-                new() { Id = "party-0", Name = "Caster", IsPlayer = true, Magic = 30, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [id], GuardianForceCompatibility = new ushort[16], Abilities = [BattleAbility.Attack, ability], MagicStocks = ability == BattleAbility.Magic ? [new BattleStock(id, 2)] : [], NativeStatusResistances = new byte[40] },
+                new() { Id = "party-0", Name = "Caster", IsPlayer = true, Magic = 30, NativeDeathCount = 0, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [id], GuardianForceCompatibility = new ushort[16], Abilities = [BattleAbility.Attack, ability], MagicStocks = ability == BattleAbility.Magic ? [new BattleStock(id, 2)] : [], NativeStatusResistances = new byte[40] },
                 new() { Id = "enemy", Name = "Opponent", MaximumHp = enemyHp, CurrentHp = enemyHp, Spirit = 5, Speed = 1, NativeCombatantFlags = enemyFlags, NativeStatus1 = enemyStatuses, NativeStatusResistances = new byte[40] }
             ]
         }, BattleAtbMode.TurnBased);

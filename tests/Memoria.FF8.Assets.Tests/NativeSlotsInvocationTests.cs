@@ -26,8 +26,14 @@ public sealed class NativeSlotsInvocationTests
         Assert.Equal(roll, restored.GetNativeSlotsRoll("selphie"));
         Assert.Equal(snapshot, JsonSerializer.Serialize(restored.Capture()));
         battle.QueueNativePlayerCommand("selphie", "enemy", 16, roll.MagicId);
-        Assert.Equal(roll.Repetitions, battle.QueuedActions.Count);
-        Assert.All(battle.QueuedActions, queued => Assert.Equal((byte)16, queued.NativeAction!.Command));
+        BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
+        Assert.Equal(roll, queued.NativeSlots);
+        Assert.Equal((byte)16, queued.NativeAction!.Command);
+        Assert.Equal(1, battle.NativeCommandBanks.CountActor(0));
+        NativeBattleCommandBank bank = battle.NativeCommandBanks.Banks[1];
+        Assert.Equal(roll.Repetitions, Enumerable.Range(0, 3).Count(index => bank.Packets[0].ReadWord(6 + 2 * index) != 0));
+        string accepted = JsonSerializer.Serialize(battle.Capture());
+        Assert.Equal(accepted, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(accepted)!).Capture()));
     }
 
     [Fact]
@@ -56,7 +62,7 @@ public sealed class NativeSlotsInvocationTests
     private static BattleSession CreateBattle(BattleAssets assets, byte? specialFlags)
     {
         NativeLimitProgress progress = new(new string('A', 64), 0, 0, 0, 0, Enumerable.Repeat((byte)0, 8).ToImmutableArray()) { SpecialMagicFlags = specialFlags };
-        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "selphie", Name = "Selphie", IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) }, new() { Id = "enemy", Name = "Enemy", Speed = 1 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "selphie", Name = "Selphie", NativeStatusResistances = new byte[40], IsPlayer = true, ModelId = 5, Level = 20, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(5) }, new() { Id = "enemy", Name = "Enemy", NativeStatusResistances = new byte[40], Speed = 1 }] }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("selphie", 4)] });
     }
 

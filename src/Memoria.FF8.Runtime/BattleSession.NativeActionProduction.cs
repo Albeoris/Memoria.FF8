@@ -9,12 +9,13 @@ public sealed partial class BattleSession
 
     private NativeBattleActionProductionResult ProduceNativeActionFacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionHeaderPreparation header, NativeBattleActionProductionContext context)
     {
-        if (header.Actor != actor.NativeIndex || header.Command != (command.NativeQueuedCommand ?? action.NativeAction!.Command) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
+        if (header.Actor != actor.NativeIndex || header.Command != NativeHeaderCommand(command, action.NativeAction!) || context.CompletionCallback is not (0x47DDA0 or 0x47DE70 or 0x47E120))
         {
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
         NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, command, action, context);
-        return new(header, produced.Contacts, produced.PublishedCount, produced.DeferredContact, produced.ReflectorIndex);
+        byte count = command.IndependentGuardian?.FailureMessage is null ? produced.PublishedCount : (byte)0;
+        return new(header, produced.Contacts, count, produced.DeferredContact, produced.ReflectorIndex);
     }
 
     private NativeProducedContacts ProduceNativeInstalledContacts(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command, BattleActionDefinition action, NativeBattleActionProductionContext? context = null)

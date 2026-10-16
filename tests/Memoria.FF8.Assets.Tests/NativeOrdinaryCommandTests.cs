@@ -63,17 +63,47 @@ public sealed class NativeOrdinaryCommandTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }
 
-    [Fact]
-    public void DarksidePaysItsOriginalFixedHpCostAfterTheAttackAndBeforePoison()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DarksidePaysItsOriginalFixedHpCostAfterTheAttackAndBeforePoison(bool poison)
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 28);
+        if (poison)
+        {
+            BattleSnapshot saved = battle.Capture();
+            battle = BattleSession.Restore(saved with { Combatants = [saved.Combatants[0] with { NativeStatus = saved.Combatants[0].NativeStatus! with { Saved = 2 } }, .. saved.Combatants.Skip(1)] });
+        }
         QueueAndHit(battle, "enemy", 28, 0);
-
-        Assert.Equal(900, battle.Combatants[0].CurrentHp);
+        Assert.Contains(battle.Events, entry => entry.Kind == "Damage" && entry.TargetId == "enemy");
+        Assert.Equal(1000, battle.Combatants[0].CurrentHp);
+        Assert.DoesNotContain(battle.Events, entry => entry.Message.StartsWith("Darkside cost:", StringComparison.Ordinal) || entry.Message.StartsWith("Poison:", StringComparison.Ordinal));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
         Assert.Equal(100, Assert.Single(battle.Events, entry => entry.Kind == "Damage" && entry.Message.StartsWith("Darkside cost:", StringComparison.Ordinal)).Amount);
+        if (poison)
+        {
+            BattleEvent cost = Assert.Single(battle.Events, entry => entry.Message.StartsWith("Darkside cost:", StringComparison.Ordinal));
+            BattleEvent poisonHit = Assert.Single(battle.Events, entry => entry.Message.StartsWith("Poison:", StringComparison.Ordinal));
+            Assert.InRange(poisonHit.Amount, 50, 90);
+            Assert.True(battle.Events.ToList().IndexOf(cost) < battle.Events.ToList().IndexOf(poisonHit));
+            Assert.Equal(900 - poisonHit.Amount, battle.Combatants[0].CurrentHp);
+        }
+        else
+        {
+            Assert.Equal(900, battle.Combatants[0].CurrentHp);
+            Assert.DoesNotContain(battle.Events, entry => entry.Message.StartsWith("Poison:", StringComparison.Ordinal));
+        }
         Assert.Equal((ushort)0, battle.Combatants[0].NativeDeathCount);
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     [Fact]
@@ -145,6 +175,7 @@ public sealed class NativeOrdinaryCommandTests
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         return new(new BattleDefinition
         {
+            NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             NativeFieldBattleRules = 0,
             NativeActions = assets.NativeActions.ToArray(),
@@ -153,7 +184,7 @@ public sealed class NativeOrdinaryCommandTests
             NativeMessageSpeed = 1,
             Combatants =
             [
-                new() { Id = "actor", Name = "Squall", ModelId = 0, IsPlayer = true, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, Magic = 20, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0, NativeCommands = ImmutableArray.Create(assets.ReadNativeCommand(command)), NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), NativeStatusResistances = new byte[40] },
+                new() { Id = "actor", Name = "Squall", ModelId = 0, WeaponId = vitals.Records[0].Weapon, IsPlayer = true, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, Magic = 20, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0, NativeCommands = ImmutableArray.Create(assets.ReadNativeCommand(command)), NativeAttack = assets.ReadPlayerNativeAttackData(vitals, 0), NativeStatusResistances = new byte[40] },
                 new() { Id = "ally", Name = "Ally", ModelId = 1, IsPlayer = true, MaximumHp = 1000, CurrentHp = allyHp, NativeStatus0 = allyStatus, Speed = 1, NativeDeathCount = 0, NativeStatusResistances = new byte[40] },
                 new() { Id = "enemy", Name = "Enemy", ModelId = 1, MaximumHp = 1000000, CurrentHp = 1000000, Speed = 1, NativeStatusResistances = new byte[40] }
             ]

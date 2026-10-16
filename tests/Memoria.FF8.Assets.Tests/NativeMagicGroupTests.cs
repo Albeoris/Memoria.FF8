@@ -62,9 +62,21 @@ public sealed class NativeMagicGroupTests
         actors[0] = actors[0] with { NativeStatus = actors[0].NativeStatus! with { Saved = (ushort)(actors[0].NativeStatus!.Saved | 2) } };
         battle = BattleSession.Restore(saved with { Definition = saved.Definition with { Combatants = definitions }, Combatants = actors, NativeAiVariables = new uint[8] });
         battle.QueueAction("caster", "enemy", BattleAbility.Magic, 1, magicTargets: ["enemy", "enemy", "enemy"]);
+        battle.Tick();
+        Assert.Equal(3, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
+        Assert.Equal(400, battle.Combatants[0].CurrentHp);
+        Assert.DoesNotContain(battle.Events, item => item.Message.StartsWith("Poison:", StringComparison.Ordinal));
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         Complete(battle);
+        Complete(restored);
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
+        Assert.Equal(3, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "caster" && item.Message.StartsWith("Poison:", StringComparison.Ordinal));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        string completed = JsonSerializer.Serialize(battle.Capture());
+        Complete(battle);
+        Assert.Equal(completed, JsonSerializer.Serialize(battle.Capture()));
     }
 
     [Fact]
@@ -79,7 +91,8 @@ public sealed class NativeMagicGroupTests
 
     private static void Complete(BattleSession battle)
     {
-        for (int frame = 0; frame < 50 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
+        //Three cast presentations, one post-command poison packet and a later callback2 are separate admissions.
+        for (int frame = 0; frame < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
         }

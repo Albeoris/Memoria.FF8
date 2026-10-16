@@ -96,6 +96,12 @@ public sealed partial class BattleSession
     {
         if (invocation.FailureMessage is int message)
         {
+            BattleNativeAction item = command.NativeAction ?? FindAction(BattleAbility.Item, command.ActionId).NativeAction ?? throw new InvalidDataException("Independent GF failure lacks its original item record.");
+            //48D200 normalizes244/FFF8 and244/FFF9 to0/9;48E830 still writes its hidden zero contacts before DF4 suppresses the published count.
+            BattleNativeAction control = item with { Command = 0, ActionId = 9, KernelSection = -1, KernelIndex = -1, MagicId = 0, AttackType = 0, Power = 0, HitCount = 1, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null };
+            BattleActionPresentation failed = command with { NativeQueuedCommand = 0, NativeAction = control };
+            BattleActionDefinition failedAction = new(BattleAbility.Item, command.ActionId, item.Name ?? "GF item", BattleActionEffect.Native, 0, false) { NativeAction = control };
+            ResolveInstalledNativeAction(actor, target, failed, failedAction);
             string text = NativeBattleGlobalText(message);
             if (message == 56)
             {
@@ -108,21 +114,32 @@ public sealed partial class BattleSession
         }
         BattleNativeAction native = invocation.Action ?? throw new InvalidDataException("Independent GF invocation lacks its original action record.");
         BattleActionDefinition action = new(BattleAbility.Item, command.ActionId, native.Name ?? "GF", BattleActionEffect.Native, native.Power, actor.IsPlayer == target.IsPlayer, Level: invocation.Level) { NativeAction = native };
+        //485610 retains queued E10=4/13 while48D200 normalizes the working/header command to244.
         BattleActionPresentation resolved = command with { NativeAction = native };
         ResolveInstalledNativeAction(actor, target, resolved, action);
         if ((command.NativeAction?.ActionId ?? command.ActionId) == 31)
         {
-            CompletePhoenixRevival(actor, resolved, native);
+            CompletePhoenixRevival(actor, resolved);
         }
     }
 
-    private void CompletePhoenixRevival(BattleCombatant actor, BattleActionPresentation source, BattleNativeAction phoenix)
+    private void CompletePhoenixRevival(BattleCombatant actor, BattleActionPresentation source)
     {
         //485460 ->484050 follows Phoenix's damage with command0/8 and the nativeC007 party mask.
         BattleNativeAction revival = NativePhoenixRevivalAction();
         BattleActionDefinition action = new(BattleAbility.EnemyAbility, 8, "Rebirth Flame", BattleActionEffect.Native, 0, true) { NativeAction = revival };
         BattleActionPresentation command = source with { NativeQueuedCommand = 0, NativeAction = revival, NativeTargetMask = 0xC007 };
-        ResolveInstalledNativeAction(actor, actor, command, action);
+        NativeBattleActionProductionContext previous = nativeProductionContext ?? throw new InvalidDataException("Native484050 requires its completed485610 admission context.");
+        //485610 LABEL104 resets DF0's repeat BYTE before485460 calls484050; this direct0/8 is not a second Double/Triple cast.
+        nativeProductionContext = previous with { RepeatMode = 0 };
+        try
+        {
+            ResolveInstalledNativeAction(actor, actor, command, action);
+        }
+        finally
+        {
+            nativeProductionContext = previous;
+        }
     }
 
     private void ValidateIndependentGuardianInvocation(BattleCombatant actor, BattleActionPresentation command)

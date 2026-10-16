@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using Memoria.FF8.Runtime;
 
@@ -16,6 +17,7 @@ public sealed class NativeSequenceTrackTests
         BattleSession battle = new(new BattleDefinition
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeActions = [action],
             Combatants =
             [
@@ -23,6 +25,9 @@ public sealed class NativeSequenceTrackTests
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeAi = ai }
             ]
         }, BattleAtbMode.Normal);
+        battle.Tick();
+        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        Assert.Null(battle.ActiveAction);
         battle.Tick();
         Assert.Equal(3, battle.ActiveAction!.RemainingFrames);
         Assert.Equal("First", Assert.Single(battle.Events, entry => entry.Kind == "NativeText").Message);
@@ -64,6 +69,7 @@ public sealed class NativeSequenceTrackTests
         BattleSession battle = new(new BattleDefinition
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeActions = [Action(0) with { ActionId = 1, AttackFlags = 0x80 }],
             Combatants =
             [
@@ -71,8 +77,9 @@ public sealed class NativeSequenceTrackTests
                 new() { Id = "enemy", Name = "Enemy", MaximumHp = 1000, CurrentHp = 1000, Speed = 1, NativeAi = ai }
             ]
         }, BattleAtbMode.Normal);
+        battle.Tick();
         BattleSnapshot queued = battle.Capture();
-        BattleAttackCommand packet = Assert.Single(queued.QueuedActions);
+        BattleAttackCommand packet = Assert.Single(queued.QueuedActions, command => command.NativeHeaderIndex is not null);
         Assert.Equal((byte)252, packet.NativeQueuedCommand);
         Assert.Equal(1, packet.ActionId);
         Assert.Equal((byte)143, packet.NativeGraphic!.MagicId);
@@ -85,7 +92,7 @@ public sealed class NativeSequenceTrackTests
             restored.Tick();
         }
         Assert.Equal((byte)2, restored.ActiveAction!.NativeSequence);
-        Assert.Equal((byte)143, Assert.Single(restored.Events, entry => entry.Kind == "NativeGraphic").NativeGraphicMagicId);
+        Assert.Equal((byte)143, Assert.Single(restored.Events, entry => entry.Kind == "Windup").NativeGraphicMagicId);
         Assert.DoesNotContain(restored.Events, entry => entry.Kind is "Damage" or "Healing");
         Assert.Equal(random, JsonSerializer.Serialize(restored.Capture().Random));
         Assert.Null(restored.Capture().Combatants[0].NativeParticipant!.LastAction);
@@ -101,6 +108,7 @@ public sealed class NativeSequenceTrackTests
         BattleSession battle = new(new BattleDefinition
         {
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeActions = [native],
             Combatants =
             [
@@ -121,6 +129,6 @@ public sealed class NativeSequenceTrackTests
 
     private static BattleNativeAction Action(byte type)
     {
-        return new(8, 0, 2, 0) { Name = "Control", MagicId = 0, AttackType = type, Power = 0, HitCount = 1, TargetFlags = 0x50, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = [], SupplementalRecord = [] };
+        return new(8, 0, 2, 0) { Name = "Control", MagicId = 0, AttackType = type, Power = 0, HitCount = 1, TargetFlags = 0x50, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = new byte[20].ToImmutableArray(), SupplementalRecord = [] };
     }
 }

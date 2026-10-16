@@ -2,9 +2,20 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    private static byte NativeHeaderCommand(BattleActionPresentation command, BattleNativeAction native)
+    {
+        return command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
+    }
+
     private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
     {
-        byte original = command.NativeQueuedCommand ?? native.Command;
+        if (command.IndependentGuardian?.FailureMessage is not null)
+        {
+            BattleActionDefinition item = FindAction(BattleAbility.Item, command.ActionId);
+            NativeBattleActionDataReference title = new(0x47EA30, checked((ushort)command.ActionId)) { FormattedText = item.NativeAction?.Name ?? item.Name };
+            return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+        }
+        byte original = NativeHeaderCommand(command, native);
         byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId);
         ushort action = original == 14 ? checked((ushort)(native.ActionId + 101)) : native.ActionId;
         ushort effect = original is 0 or 1 or 12 or 28 ? (ushort)0 : native.MagicId;
@@ -76,7 +87,7 @@ public sealed partial class BattleSession
                 data = new(0x495050, action);
                 break;
             case 244:
-                data = new(0x47EA30, checked((ushort)command.ActionId));
+                data = new(0x495050, native.ActionId);
                 break;
             case 246:
                 effect = 9;
@@ -157,7 +168,7 @@ public sealed partial class BattleSession
 
     private bool HasInstalledNativeAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        return command.NativeAction is not null || command.IndependentGuardian is not null || command.Ability == BattleAbility.Attack && actor.NativeAttack is not null || definition.ActionDefinitions.Any(action => action.Ability == (command.Ability == BattleAbility.Draw ? BattleAbility.Magic : command.Ability) && action.Id == command.ActionId && action.NativeAction is not null);
+        return command.NativeAction is not null || command.NativeGraphic is not null || command.IndependentGuardian is not null || command.Ability == BattleAbility.Attack && actor.NativeAttack is not null || definition.ActionDefinitions.Any(action => action.Ability == (command.Ability == BattleAbility.Draw ? BattleAbility.Magic : command.Ability) && action.Id == command.ActionId && action.NativeAction is not null);
     }
 
     private void ValidateNativeHeaderReference(BattleCombatant actor, int? headerIndex)
@@ -186,6 +197,6 @@ public sealed partial class BattleSession
 
     private static BattleActionPresentation NativeCommandPresentation(BattleAttackCommand command)
     {
-        return new(command.ActorId, command.TargetId, BattleActionPhase.Windup, 0, command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { NativeHeaderIndex = command.NativeHeaderIndex, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeRenzokuken = command.NativeRenzokuken, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+        return new(command.ActorId, command.TargetId, BattleActionPhase.Windup, 0, command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { NativeHeaderIndex = command.NativeHeaderIndex, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeRenzokuken = command.NativeRenzokuken, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
     }
 }

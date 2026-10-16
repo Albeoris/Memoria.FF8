@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             return;
         }
         //483EF0's draw-follow-up gate BYTE1D28E0C is clear for these original interpreter-produced commands.
-        //247 is the separately owned Draw follow-up; it must not aggregate a second Return Damage command.
+        //247 is the separately owned reflected follow-up; it must not aggregate a second Return Damage command.
         if (command.NativeQueuedCommand == 247 || (NativeSavedStatusBits(actor) & 1) != 0)
         {
             return;

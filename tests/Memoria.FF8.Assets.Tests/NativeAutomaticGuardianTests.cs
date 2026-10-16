@@ -59,7 +59,7 @@ public sealed class NativeAutomaticGuardianTests
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = CreateFatalBattle(game, assets, 4, 0, 1);
-        for (int frame = 0; frame < 13; frame++)
+        for (int frame = 0; frame < 128 && !battle.QueuedActions.Any(command => command.NativeCallback?.Stage == 7); frame++)
         {
             battle.Tick();
         }
@@ -93,7 +93,7 @@ public sealed class NativeAutomaticGuardianTests
         {
             expected = expected.Draw(out _);
         }
-        for (int frame = 0; frame < 13; frame++)
+        for (int frame = 0; frame < 128 && battle.Outcome == BattleOutcome.Active; frame++)
         {
             battle.Tick();
         }
@@ -118,7 +118,7 @@ public sealed class NativeAutomaticGuardianTests
             return sample == roll;
         });
         BattleSession battle = CreateFatalBattle(game, assets, 4, 0, index);
-        for (int frame = 0; frame < 13; frame++)
+        for (int frame = 0; frame < 128 && battle.Outcome == BattleOutcome.Active && !battle.QueuedActions.Any(command => command.NativeCallback?.Stage == 7); frame++)
         {
             battle.Tick();
         }
@@ -142,6 +142,6 @@ public sealed class NativeAutomaticGuardianTests
 
     private static BattleDefinition Definition(GameAssets game, BattleAssets assets, byte flags, BattleCombatantDefinition[] actors)
     {
-        return new() { StageId = 0, NativeFieldBattleRules = 0, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeSupportRules = assets.ReadNativeSupportRules(), NativeSavedBattleFlags = flags, NativeSavedBattleFlagsKnownMask = 255, InitialRandom = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0), GuardianForces = [new(0, 100, 100) { KillCount = 0, DeathCount = 0 }], Combatants = actors };
+        return new() { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), StageId = 0, NativeFieldBattleRules = 0, NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeSupportRules = assets.ReadNativeSupportRules(), NativeSavedBattleFlags = flags, NativeSavedBattleFlagsKnownMask = 255, InitialRandom = new(Enumerable.Repeat((byte)1, 8).ToImmutableArray(), 0), GuardianForces = [new(0, 100, 100) { KillCount = 0, DeathCount = 0 }], Combatants = actors };
     }
 }

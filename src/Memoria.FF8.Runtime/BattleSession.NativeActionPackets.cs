@@ -19,6 +19,7 @@ public sealed partial class BattleSession
         nativeActionPackets = memory.ActionPackets.ResetCounts();
         nativePartyStatusMirrors = memory.PartyStatusMirrors;
         nativeActionScratch = memory.ActionScratch;
+        RestoreNativeElementAttack(memory.ElementAttack);
         NativeEffectIoResult = memory.EffectIoResult;
         nativeScriptState = nativeScriptState with { AllocationControl = memory.AllocationControl };
     }

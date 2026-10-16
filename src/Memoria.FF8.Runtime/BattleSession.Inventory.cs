@@ -71,7 +71,7 @@ public sealed partial class BattleSession
         {
             actor.TryConsumeMagic(command.NativeAction?.ActionId ?? command.ActionId);
         }
-        actor.ReprojectNativePlayerStatistics();
+        ReprojectNativePlayerStatistics(actor);
     }
 
     private void RefundNativeReservedItem(int slot, int id)

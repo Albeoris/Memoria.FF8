@@ -14,6 +14,7 @@ public sealed class NativeBattleAiTests
         NativeBattleAiDefinition program = assets.ReadEnemyAi(71, 7);
         BattleDefinition definition = new() { EncounterId = 105, Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true, NativeStatusResistances = Enumerable.Repeat((byte)100, 40).ToArray() }, new() { Id = "enemy", Name = "Original model71", ModelId = 71, NativeAi = program }] };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.Tick();
         Assert.Equal(new byte[] { 0, 0, 0, 0 }, battle.Capture().Combatants[0].NativeStatus!.Resistances![20..24]);
     }
 
@@ -63,6 +64,7 @@ public sealed class NativeBattleAiTests
     {
         using BattleAssets assets = new(GameDirectory);
         BattleSession battle = new(CreateTower(assets), BattleAtbMode.Normal);
+        battle.Tick();
         Assert.True(battle.Combatants.Single(actor => actor.SceneSlot == 1).Suspended);
         Assert.False(battle.Combatants.Single(actor => actor.SceneSlot == 2).IsActive);
         Assert.Throws<InvalidOperationException>(() => battle.QueueAttack("party-0", "enemy-1"));
@@ -106,6 +108,7 @@ public sealed class NativeBattleAiTests
             ]
         };
         BattleSession battle = new(definition, BattleAtbMode.Normal);
+        battle.Tick();
         BattleCombatant activated = battle.Combatants.Single(actor => actor.SceneSlot == 6);
         Assert.True(activated.IsAlive && !activated.Hidden && !activated.Suspended && !activated.Untargetable);
         Assert.Contains(battle.Events, item => item.Kind == "Activated" && item.ActorId == "reserve");
@@ -116,11 +119,12 @@ public sealed class NativeBattleAiTests
     {
         NativeBattleAiDefinition program = new([[51, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         BattleDefinition definition = new() { Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = program }] };
-        Assert.Contains("Native graphical descriptors require", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal)).Message);
+        Assert.Contains("Native graphical descriptors require", Assert.Throws<NotSupportedException>(() => new BattleSession(definition, BattleAtbMode.Normal).Tick()).Message);
     }
 
     private static BattleDefinition CreateTower(BattleAssets assets)
     {
+        using GameAssets game = new(GameDirectory);
         BattleEncounter formation = assets.LoadEncounter(29);
         List<BattleCombatantDefinition> actors = [new() { Id = "party-0", Name = "Squall", ModelId = 0, IsPlayer = true, Level = 7, MaximumHp = 100_000, CurrentHp = 100_000, Speed = 10_000, Attack = 255, PhysicalPower = 255, InitialAtb = 10_000 }];
         NativeBattleRandomState random = NativeBattleRandomState.Initialize(0);
@@ -135,7 +139,7 @@ public sealed class NativeBattleAiTests
             BattleEnemyNativeProjection stats = assets.ReadEnemyNativeStats(placement.ModelId).Project(level);
             actors.Add(new() { Id = $"enemy-{placement.Slot}", Name = assets.ReadEnemyName(placement.ModelId), ModelId = placement.ModelId, SceneSlot = placement.Slot, InitialActive = placement.Enabled, InitialHidden = placement.Hidden, InitialSuspended = placement.InitiallySuspended, InitialUntargetable = placement.Untargetable, Level = level, MaximumHp = stats.MaximumHp, CurrentHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = Math.Max(1, stats.Speed), ElementDefenses = stats.ElementDefenses.Select(value => (int)value).ToArray(), NativeAi = assets.ReadEnemyAi(placement.ModelId, level), NativeTemplate = assets.ReadEnemyTemplate(placement.ModelId, (byte)placement.Level), RewardSlot = placement.Slot, Rewards = assets.ReadEnemyRewards(placement.ModelId) });
         }
-        return new() { Name = "Original tower formation", EncounterId = 29, StageId = formation.StageId, Combatants = actors.ToArray(), InitialRandom = random, ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeMessageSpeed = 1, NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages() };
+        return new() { Name = "Original tower formation", EncounterId = 29, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), Combatants = actors.ToArray(), InitialRandom = random, ActionDefinitions = assets.ActionDefinitions.ToArray(), NativeActions = assets.NativeActions.ToArray(), NativeStatusRules = assets.ReadNativeStatusRules(0), NativeMessageSpeed = 1, NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages() };
     }
 
     private static void Strike(BattleSession battle, string target)
@@ -147,8 +151,9 @@ public sealed class NativeBattleAiTests
             Assert.True(++guard < 1000);
         }
         battle.QueueAttack("party-0", target);
-        for (int frame = 0; frame < BattleSession.AttackWindupFrames + 2; frame++)
+        for (int frame = 0; battle.ActiveAction is not null || battle.QueuedActions.Count != 0; frame++)
         {
+            Assert.True(frame < 1000);
             battle.Tick();
         }
     }

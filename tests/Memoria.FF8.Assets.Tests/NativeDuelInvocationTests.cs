@@ -44,7 +44,14 @@ public sealed class NativeDuelInvocationTests
         BattleActionDefinition invocation = Assert.Single(battle.GetNativePlayerActionChoices("zell", true));
         Assert.Null(invocation.NativeAction);
         battle.QueueAction("zell", "enemy", BattleAbility.LimitBreak, invocation.Id);
-        Assert.Equal((byte)241, Assert.Single(battle.QueuedActions).NativeQueuedCommand);
+        BattleAttackCommand invocationPacket = Assert.Single(battle.QueuedActions);
+        Assert.Equal((byte)11, invocationPacket.NativeQueuedCommand);
+        Assert.NotNull(invocationPacket.NativeDuel);
+        Assert.Null(battle.GetNativeDuel("zell"));
+        Assert.Equal(1, battle.NativeCommandBanks.CountActor(0));
+        string queuedSnapshot = JsonSerializer.Serialize(battle.Capture());
+        battle = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(queuedSnapshot)!);
+        Assert.Equal(queuedSnapshot, JsonSerializer.Serialize(battle.Capture()));
         Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
         BattleNativeDuelChoice choice = battle.GetNativeDuelChoices("zell")[0];
         Assert.False(choice.Finisher);
@@ -126,7 +133,7 @@ public sealed class NativeDuelInvocationTests
     private static BattleSession CreateBattle(GameAssets game, BattleAssets assets, ushort options = 0, byte crisis = 1)
     {
         NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = options };
-        BattleSession battle = new(new BattleDefinition { NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("zell", crisis)] });
     }
 

@@ -8,7 +8,7 @@ public sealed class NativeBattleScriptedExitTests
     public void HitCallbackExitWaitsForTheCurrentActionAndRestoresItsPendingRequest()
     {
         NativeBattleAiDefinition ai = new([[0], [0], [0], [0], [57, 0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
-        BattleSession battle = new(new() { NativeFieldBattleMode = 0x200, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai, NativeCombatantFlags = 0x10 }] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeFieldBattleMode = 0x200, Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai, NativeCombatantFlags = 0x10 }] }, BattleAtbMode.Normal);
         battle.QueueAttack("party", "enemy");
         for (int frame = 0; frame < 100 && !battle.NativeScriptState.ScriptedExitRequested; frame++)
         {
@@ -34,7 +34,8 @@ public sealed class NativeBattleScriptedExitTests
     public void ScriptedExitKeepsNativeResultOneAndDoesNotBecomeVictory(ushort mode, bool canReturn)
     {
         NativeBattleAiDefinition ai = new([[57, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
-        BattleSession battle = new(new() { NativeFieldBattleMode = mode, Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), NativeFieldBattleMode = mode, Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        battle.Tick();
         Assert.Equal(BattleOutcome.ScriptedExit, battle.Outcome);
         Assert.Equal((byte)1, battle.NativeResult);
         Assert.Equal(canReturn, battle.CanReturnToField);

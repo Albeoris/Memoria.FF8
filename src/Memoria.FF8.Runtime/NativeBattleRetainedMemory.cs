@@ -30,24 +30,27 @@ public sealed record NativeBattlePartyStatusMirrors([property: JsonRequired] Imm
 /// <summary>Physical process memory retained across battle entry; a new battle is not a new executable image.</summary>
 public sealed record NativeBattleRetainedMemory([property: JsonRequired] NativeBattleActionPacketsState ActionPackets, [property: JsonRequired] NativeBattleAllocationControl? AllocationControl, [property: JsonRequired] NativeBattlePartyStatusMirrors PartyStatusMirrors, [property: JsonRequired] NativeBattleActionScratch ActionScratch, [property: JsonRequired] int? EffectIoResult, [property: JsonRequired] string? ColdExecutableSha256)
 {
+    [JsonRequired]
+    public ImmutableArray<byte?> ElementAttack { get; init; } = [null, null, null, null, null, null, null];
+
     public static NativeBattleRetainedMemory FromColdProcess()
     {
         //Authenticated FF8_EN .data zero-fill: packet arenas, DF9/DFD/E01 and the three party E30/E38 mirrors.
-        NativeBattleActionScratch scratch = new() { DeferredEffectsE00 = false, GuardianFormulaE1E = false, GuardianBoostPercent = 0, FinisherPendingE03 = false, ActorIndex = 0, Command = 0, Action = 0, EventActorB0F = 0, EventLane = 0 };
-        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash);
+        NativeBattleActionScratch scratch = new() { DeferredEffectsE00 = false, GuardianFormulaE1E = false, GuardianBoostPercent = 0, FinisherPendingE03 = false, LastPublishedTargetCountE05 = 0, FinisherActionIndexE2E = 0, ActorIndex = 0, Command = 0, Action = 0, EventActorB0F = 0, EventLane = 0 };
+        return new(NativeBattleActionPacketsState.FromColdLoaderStorage(new byte[640], new byte[1176]), new(0, false, false), new([0, 0, 0], [0u, 0u, 0u]), scratch, 0, NativeFieldRuntimeProfile.FF8EnExecutableHash) { ElementAttack = [0, 0, 0, 0, 0, 0, 0] };
     }
 
     public static NativeBattleRetainedMemory Capture(BattleSnapshot snapshot, string? coldExecutableSha256)
     {
         NativeBattleActionScratch scratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native retained memory requires its actual action scratch owner.");
-        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256);
+        NativeBattleRetainedMemory result = new(snapshot.NativeActionPackets ?? throw new InvalidDataException("Native retained memory requires the actual action packet owner."), snapshot.NativeScriptState.AllocationControl, snapshot.NativePartyStatusMirrors ?? throw new InvalidDataException("Native retained memory requires its actual party status mirrors."), scratch with { ComponentCompletion = null }, snapshot.NativeEffectIoResult, coldExecutableSha256) { ElementAttack = snapshot.NativeElementAttack };
         result.Validate();
         return result;
     }
 
     public void Validate()
     {
-        if (ActionPackets is null || PartyStatusMirrors is null || ActionScratch is null || ActionScratch.ComponentCompletion is not null || ColdExecutableSha256 is not null && (ColdExecutableSha256.Length != 64 || !ColdExecutableSha256.All(Uri.IsHexDigit)))
+        if (ActionPackets is null || PartyStatusMirrors is null || ActionScratch is null || ElementAttack.IsDefault || ElementAttack.Length != 7 || ActionScratch.ComponentCompletion is not null || ColdExecutableSha256 is not null && (ColdExecutableSha256.Length != 64 || !ColdExecutableSha256.All(Uri.IsHexDigit)))
         {
             throw new InvalidDataException("Native retained battle memory lacks its physical owners or valid cold-image provenance.");
         }

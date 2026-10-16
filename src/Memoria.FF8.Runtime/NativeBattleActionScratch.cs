@@ -14,6 +14,10 @@ public sealed record NativeBattleActionScratch
     [JsonRequired]
     public bool? FinisherPendingE03 { get; init; }
     [JsonRequired]
+    public byte? LastPublishedTargetCountE05 { get; init; }
+    [JsonRequired]
+    public byte? FinisherActionIndexE2E { get; init; }
+    [JsonRequired]
     public byte? ActorIndex { get; init; }
     [JsonRequired]
     public byte? Command { get; init; }

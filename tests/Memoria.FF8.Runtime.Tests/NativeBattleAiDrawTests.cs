@@ -52,7 +52,10 @@ public sealed class NativeBattleAiDrawTests
 
         Assert.Equal((byte)255, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.DrawnSpell);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "NativeText");
-        Assert.Equal(NativeBattleRandomState.Initialize(0).Indexes.ToArray(), battle.Capture().Random!.Indexes.ToArray());
+        //Draw consumes no roll, while the preceding admitted Spell1 still performs its zero-power formula roll.
+        NativeBattleRandomState expected = NativeBattleRandomState.Initialize(0).Draw(out _);
+        Assert.Equal(expected.Indexes.ToArray(), battle.Capture().Random!.Indexes.ToArray());
+        Assert.Equal(expected.Lane, battle.Capture().Random!.Lane);
     }
 
     private static BattleSession Create(byte[] initial, NativeMagicStock[] slots)
@@ -65,8 +68,9 @@ public sealed class NativeBattleAiDrawTests
         messages[117] = "stocked";
         messages[118] = " stock";
         BattleNativeAction[] spells = [Spell(1), Spell(2)];
-        return new(new BattleDefinition
+        BattleSession battle = new(new BattleDefinition
         {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Native AI Draw component",
             NativeMessageSpeed = 0,
@@ -79,6 +83,8 @@ public sealed class NativeBattleAiDrawTests
                 new() { Id = "enemy", Name = "Enemy", ModelId = 1, NativeAi = ai }
             ]
         }, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 
     private static BattleNativeAction Spell(ushort id)

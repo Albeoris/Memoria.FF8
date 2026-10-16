@@ -40,19 +40,25 @@ public sealed class NativeBattleSpecialActionTests
     }
 
     [Fact]
-    public void DevourUsesOwnedGrowthBytesAndDoesNotRollAtItsPreparedValidation()
+    public void DevourUsesOwnedGrowthBytesAndRollsOnceAtItsSynchronousFormula()
     {
         BattleSession battle = Create(19);
+        NativeBattleRandomState before = battle.Capture().Random!;
+        NativeBattleRandomState expected = before.Draw(out _);
         battle.QueueNativePlayerCommand("party-0", "enemy", 7, 9);
-        string before = JsonSerializer.Serialize(battle.Capture().Random);
+        Assert.Equal(before, battle.Capture().Random);
         battle.Tick();
-        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture().Random));
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(battle.Capture().Random));
+        BattleSession restored = BattleSession.Restore(battle.Capture());
         Complete(battle);
+        Complete(restored);
         Assert.Equal(BattleOutcome.Victory, battle.Outcome);
         BattleNativeCharacterGrowth growth = battle.Combatants[0].NativeGrowth!;
         Assert.Equal(9999, growth.HitPointBonus);
         Assert.Equal(new byte[] { 255, 2, 3, 4, 5, 6 }, growth.StatBonuses.ToArray());
         Assert.Contains(battle.Events, item => item.Kind == "NativeText" && item.Message == "Devour effect");
+        Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(battle.Capture().Random));
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     [Fact]
@@ -98,6 +104,10 @@ public sealed class NativeBattleSpecialActionTests
         NativeBattleAiDefinition ai = new([[0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
         // Explicit component source records exercise the native algorithms without declaring an installed encounter.
         //48FE20 LABEL83 prepares240's level from acquired GF rows before dispatch, even for Search; this fixture owns one acquired level5 GF.
-        return new(new() { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, GuardianForces = type == 23 ? [new(0, 100, 100, true)] : [], ActionDefinitions = type == 23 ? [new(BattleAbility.GuardianForce, 0, "Explicit level5 GF", BattleActionEffect.Native, 0, false, Level: 5)] : [], NativeActions = [action], NativeCards = cards ?? NativeCardInventory.CreateNewGame(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeMessageSpeed = 1, NativeGlobalMessages = messages, NativeCardNames = Enumerable.Range(0, 110).Select(index => (string?)$"Card{index}").ToArray(), NativeItemNames = Enumerable.Range(0, 256).Select(index => (string?)$"Item{index}").ToArray(), NativeDevourEffects = [new(30, 0, 0, 0, 1, 10, "Devour effect")], Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, InitialAtb = BattleSession.AtbMaximum, NativeGrowth = new(9995, ImmutableArray.Create<byte>(255, 2, 3, 4, 5, 6)), NativeCommands = [new(command, "Special", flags, (byte)id)] }, new() { Id = "enemy", Name = "Enemy", ModelId = 22, MaximumHp = 1000, CurrentHp = 1, Speed = 1, NativeAi = ai, NativeSpecial = new(4, 4, [0, 0, 0], 10) }] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, GuardianForces = type == 23 ? [new(0, 100, 100, true)] : [], ActionDefinitions = type == 23 ? [new(BattleAbility.GuardianForce, 0, "Explicit level5 GF", BattleActionEffect.Native, 0, false, Level: 5)] : [], NativeActions = [action], NativeCards = cards ?? NativeCardInventory.CreateNewGame(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeMessageSpeed = 1, NativeGlobalMessages = messages, NativeCardNames = Enumerable.Range(0, 110).Select(index => (string?)$"Card{index}").ToArray(), NativeItemNames = Enumerable.Range(0, 256).Select(index => (string?)$"Item{index}").ToArray(), NativeDevourEffects = [new(30, 0, 0, 0, 1, 10, "Devour effect")], Combatants = [new() { Id = "party-0", Name = "Squall", IsPlayer = true, MaximumHp = 1000, CurrentHp = 1000, Speed = 1, InitialAtb = BattleSession.AtbMaximum, NativeGrowth = new(9995, ImmutableArray.Create<byte>(255, 2, 3, 4, 5, 6)), NativeCommands = [new(command, "Special", flags, (byte)id)] }, new() { Id = "enemy", Name = "Enemy", ModelId = 22, MaximumHp = 1000, CurrentHp = 1, Speed = 1, NativeAi = ai, NativeSpecial = new(4, 4, [0, 0, 0], 10) }] }, BattleAtbMode.Normal);
+        battle.Tick();
+        Assert.Empty(battle.QueuedActions);
+        Assert.Null(battle.ActiveAction);
+        return battle;
     }
 }

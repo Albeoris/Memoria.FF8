@@ -36,9 +36,31 @@ public sealed partial class BattleSession
             throw new NotSupportedException("Special Slots magic requires the actual saved learned BYTE1CFE771 owner.");
         }
         BattleNativeSlotsRoll roll = nativeSlotsRolls[actor.Id];
-        for (int repeat = 0; repeat < roll.Repetitions; repeat++)
+        if (roll.Repetitions is < 1 or > 3)
         {
-            QueueNativeCommand(actor, 16, action.ActionId, sequence, NativeAutomaticActionTargetMask(action.TargetFlags!.Value), crisis);
+            throw new NotSupportedException("Native Slots input exceeds its three physical target WORDs.");
+        }
+        ushort mask = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
+        BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? actor;
+        BattleAttackCommand command = new(actor.Id, target.Id, BattleAbility.EnemyAbility, action.ActionId) { NativeQueuedCommand = 16, NativeAction = action, NativeTargetMask = mask, NativeSequence = sequence, NativeSlots = roll };
+        EnqueueNativePacket(actor, command, action.Name ?? "Slots", playerInput: true);
+    }
+
+    private void ResolveNativeSlotsGroup(BattleCombatant actor, BattleActionPresentation command)
+    {
+        BattleNativeSlotsRoll slots = command.NativeSlots ?? throw new InvalidDataException("Native Slots group lacks its accepted roll.");
+        BattleNativeAction native = command.NativeAction ?? throw new InvalidDataException("Native Slots group lacks its installed magic.");
+        BattleActionDefinition action = new(command.Ability, command.ActionId, native.Name ?? "Slots", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
+        NativeBattleCommandLocation location = nativeDispatchCommandLocation ?? throw new InvalidDataException("Native Slots requires its selected physical command entry.");
+        NativeBattleCommandPacket packet = nativeCommandBanks.Banks[location.Bank].Packets[2 * location.Slot];
+        for (int repeat = 0; repeat < slots.Repetitions; repeat++)
+        {
+            ushort mask = packet.ReadWord(6 + 2 * repeat);
+            BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 7 && (mask & (1 << candidate.NativeIndex)) != 0) ?? GetActor(command.TargetId);
+            if (!ResolveInstalledNativeAction(actor, target, command with { NativeSlots = null, NativeTargetMask = mask }, action))
+            {
+                break;
+            }
         }
     }
 }

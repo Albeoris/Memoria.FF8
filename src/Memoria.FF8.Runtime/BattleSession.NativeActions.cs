@@ -11,6 +11,10 @@ public sealed partial class BattleSession
 
     private BattleNativeAction FindNativeCommandAction(BattleCombatant actor, byte command, ushort id, byte? crisis = null)
     {
+        if (command == 11 && id == 0)
+        {
+            return NativeDuelControl(actor, crisis ?? throw new InvalidDataException("Native Duel control requires its retained crisis BYTE."));
+        }
         if (command == 0 && id == 5)
         {
             return NativeReturnDamageAction();
@@ -110,6 +114,7 @@ public sealed partial class BattleSession
             (nativeActionPackets, _) = nativeActionPackets.AppendContact(packet);
         }
         (nativeActionPackets, _) = nativeActionPackets.Publish(produced.PublishedTargetCount);
+        nativeActionScratch = nativeActionScratch with { LastPublishedTargetCountE05 = produced.PublishedTargetCount };
         if (NativeGraphics is { } graphics)
         {
             NativeGraphics = QueueNativeDescriptor(graphics, 104, checked(0x1D280C4u + 20u * (uint)headerIndex));
@@ -196,7 +201,15 @@ public sealed partial class BattleSession
 
     private void ResolveInstalledNativeHitCore(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, BattleActionDefinition action, BattleNativeAction native)
     {
-        if (ResolveNativePostActionHit(actor, recipient, native))
+        if (native.Command == 0 && native.ActionId == 9)
+        {
+            //48FE20's internal9 default has zero magnitude and DF5 suppresses action-memory/counter production.
+            SetNativeContactDamage(0);
+            FinalizeNativeContactPresentation();
+            ApplyDamage(actor, recipient, 0, action.Name, counterEligible: false, publishDamage: false);
+            return;
+        }
+        if (ResolveNativeGraphicHit(actor, recipient, native) || ResolveNativePostActionHit(actor, recipient, native))
         {
             return;
         }

@@ -62,13 +62,15 @@ public sealed class NativeBattleOrdinaryGraphicsTests
         Assert.Equal(action.MagicId, NativeBattleActionGraphics.Word(header, 6));
         Assert.Equal(original.Texts[3], Assert.Single(battle.Events, item => item.Kind == "NativeText").Message);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
-        for (int callback = 0; callback < 100 && battle.NativeGraphics.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104); callback++)
+        int committedDamageEvents = battle.Events.Count(item => item.Kind == "Damage");
+        for (int callback = 0; callback < 100 && (battle.ActiveAction is not null || battle.NativeGraphics.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104)); callback++)
         {
             battle.Tick();
             restored.Tick();
             Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         }
         Assert.DoesNotContain(battle.NativeGraphics.Descriptors.Queue, slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+        Assert.Equal(committedDamageEvents, battle.Events.Count(item => item.Kind == "Damage"));
         Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage" && item.Amount != 0);
         Assert.Equal(ready.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Null(battle.ActiveAction);

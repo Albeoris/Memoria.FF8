@@ -158,7 +158,7 @@ public sealed partial class BattleSession
 
     private void RefreshNativeEnemyDrawSlots()
     {
-        //47DE70 calls48B8B0/48C7A0 only after poison and both immediate/pending reaction scripts.
+        //47DE70 calls48B8B0/48C7A0 after queuing pending reactions through484720; their later callbacks see the refreshed Draw bank.
         foreach (BattleCombatant actor in combatants.Where(actor => actor.IsActive && !actor.IsPlayer))
         {
             ResetNativeDrawAllocation(actor);

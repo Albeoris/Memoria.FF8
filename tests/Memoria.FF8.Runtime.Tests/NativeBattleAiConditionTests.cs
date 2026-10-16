@@ -131,6 +131,7 @@ public sealed class NativeBattleAiConditionTests
         BattleDefinition definition = Definition([0]);
         definition = definition with { Combatants = [definition.Combatants[0], definition.Combatants[1] with { NativeAi = ai, InitialAtb = BattleSession.AtbMaximum }] };
         BattleSession original = new(definition, BattleAtbMode.Normal);
+        original.Tick();
         BattleSnapshot snapshot = original.Capture();
         int enemyIndex = Array.FindIndex(snapshot.Combatants, actor => actor.Id == "enemy");
         BattleCombatantSnapshot enemy = snapshot.Combatants[enemyIndex];

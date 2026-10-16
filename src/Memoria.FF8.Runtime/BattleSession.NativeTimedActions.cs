@@ -10,7 +10,7 @@ public sealed partial class BattleSession
     private NativeBattleTimedAction? nativeTimedAction;
     private bool suppressNativeImmediateCounter;
 
-    private void BeginNativeTimedAction(BattleActionPresentation command, ushort magicId)
+    private void BeginNativeTimedAction(BattleActionPresentation command, ushort magicId, byte? finisher, ushort finisherTargets)
     {
         if (nativeTimedAction is not null || nativeActionCommitDepth != 0 || HasNativePendingReactions)
         {
@@ -38,6 +38,10 @@ public sealed partial class BattleSession
             ResolveInstalledNativeAction(actor, GetActor(command.TargetId), command, definition);
             nativeActionPackets = nativeActionPackets.WritePlayerRepeatMode(header, 1);
             nativeTimedAction = nativeTimedAction! with { Command = command with { NativeHeaderIndex = header } };
+            if (finisher is byte selected)
+            {
+                PrepareNativeRenzokukenFinisher(selected, finisherTargets);
+            }
         }
         finally
         {

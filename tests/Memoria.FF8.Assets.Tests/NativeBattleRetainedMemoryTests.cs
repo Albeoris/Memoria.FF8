@@ -14,6 +14,9 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
         Assert.Equal(0, actual.ActionPackets.ReadContact(48).Secondary.Amount6);
+        Assert.Equal((byte)0, actual.ActionScratch.LastPublishedTargetCountE05);
+        Assert.Equal((byte)0, actual.ActionScratch.FinisherActionIndexE2E);
+        Assert.Equal(new byte?[] { 0, 0, 0, 0, 0, 0, 0 }, actual.ElementAttack);
     }
 
     [Fact]

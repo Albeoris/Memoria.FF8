@@ -14,7 +14,7 @@ public sealed partial class BattleSession
         public bool Finalized { get; set; }
         public bool PrimaryCommitted { get; set; }
         public (ushort Saved, uint Battle)? PrimaryStatusSnapshot { get; set; }
-        public byte AttackClass { get; } = (byte)(action.AttackFlags & 3);
+        public byte AttackClass { get; set; } = (byte)(action.AttackFlags & 3);
         public byte SpecialSource { get; } = specialSource;
         public NativeBattleContactHalf? Secondary { get; set; }
         public bool CommittingSecondary { get; set; }
@@ -58,6 +58,9 @@ public sealed partial class BattleSession
         nativeActionScratch = nativeActionScratch with { DeferredEffectsE00 = deferred };
         NativeContactWorking? previous = nativeContactWorking;
         NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource);
+        byte attackClass = preliminary || native.Command is 0 or 14 or 238 or 246 or 252 || native.Command == 241 && native.ActionId is 65530 or 65532 ? (byte)3 : native.Command is 1 or 12 or 28 or 243 or 248 or 251 or 253 ? (byte)0 : (byte)(native.AttackFlags & 3);
+        contact.AttackClass = attackClass;
+        StoreNativeAttackClass(recipient, attackClass);
         nativeContactWorking = contact;
         try
         {

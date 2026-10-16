@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         nativeActionPackets = nativeActionPackets.ResetCounts();
         foreach (BattleCombatant player in combatants.Where(actor => actor.NativeIndex is >= 0 and < 3 && actor.IsActive))
         {
-            player.ReprojectNativePlayerStatistics();
+            ReprojectNativePlayerStatistics(player);
         }
         if (callback is 0x47DE70 or 0x47E120 && nativeActionScratch.EventActorB0F is byte index)
         {

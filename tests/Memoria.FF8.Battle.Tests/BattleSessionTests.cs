@@ -113,8 +113,13 @@ public sealed class BattleSessionTests
         Dispatch(session, BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames);
         Assert.Equal(46, session.Combatants[0].CurrentHp);
         Assert.Null(session.ActiveAction);
+        Assert.Equal((ushort)2, Assert.Single(session.QueuedActions).NativeCallback!.Stage);
+        long beforeCallback = session.Frame;
         session.Tick();
-        Assert.Equal(25, session.Frame);
+        Assert.Empty(session.QueuedActions);
+        Assert.Equal(beforeCallback + 1, session.Frame);
+        session.Tick();
+        Assert.Equal(beforeCallback + 1, session.Frame);
     }
 
     [Fact]
@@ -238,8 +243,12 @@ public sealed class BattleSessionTests
         {
             session.QueueAttack("player", "enemy");
         }
-        Dispatch(session, BattleSession.AttackWindupFrames + 1);
+        for (int dispatch = 0; dispatch < 2 * (BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames + 2) && session.Outcome == BattleOutcome.Active; dispatch++)
+        {
+            session.Tick();
+        }
         Assert.Equal(outcome, session.Outcome);
+        Assert.Equal(playerWins ? new[] { "enemy", "player" } : new[] { "enemy" }, session.Events.Where(item => item.Kind == "Windup").Select(item => item.ActorId));
         Assert.Empty(session.QueuedActions);
         Assert.Null(session.ActiveAction);
         Assert.All(session.Combatants, actor => Assert.False(actor.IsBusy));
@@ -358,7 +367,7 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void KillingTargetCancelsOtherQueuedAttacksAndRoundTripsRecovery()
+    public void DefeatedTargetQueuedComponentAttackCancelsAtItsOwnDispatchAndRestoresRecovery()
     {
         BattleCombatantDefinition ally = Player(initialAtb: BattleSession.AtbMaximum) with { Id = "ally", Name = "Ally" };
         BattleCombatantDefinition secondEnemy = Enemy(speed: 1) with { Id = "second", Name = "Second enemy" };
@@ -369,11 +378,16 @@ public sealed class BattleSessionTests
         Assert.False(session.Combatants[2].IsAlive);
         Assert.Equal(BattleOutcome.Active, session.Outcome);
         Assert.Equal(BattleActionPhase.Recovery, session.ActiveAction!.Phase);
-        Assert.Empty(session.QueuedActions);
-        Assert.False(session.Combatants[1].IsBusy);
+        Assert.Equal("ally", Assert.Single(session.QueuedActions).ActorId);
+        Assert.True(session.Combatants[1].IsBusy);
         BattleSession restored = BattleSession.Restore(session.Capture());
         Dispatch(session, BattleSession.AttackRecoveryFrames);
         Dispatch(restored, BattleSession.AttackRecoveryFrames);
+        AssertEquivalent(session, restored);
+        session.Tick();
+        restored.Tick();
+        Assert.Empty(session.QueuedActions);
+        Assert.False(session.Combatants[1].IsBusy);
         AssertEquivalent(session, restored);
     }
 

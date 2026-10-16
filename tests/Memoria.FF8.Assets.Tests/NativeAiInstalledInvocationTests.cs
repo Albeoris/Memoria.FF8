@@ -15,7 +15,7 @@ public sealed class NativeAiInstalledInvocationTests
         NativeBattleAiDefinition installed = assets.ReadEnemyAi(model, 7);
         Assert.Equal((ushort)0, installed.Abilities[16 * band + slot].Id);
         NativeBattleAiDefinition program = installed with { LevelBand = band, Scripts = [[12, slot, 0], [0], [0], [0], [0]] };
-        BattleSession battle = new(Definition(assets, model, program), BattleAtbMode.TurnBased);
+        BattleSession battle = AdmitInitial(Definition(assets, model, program));
 
         Assert.Empty(battle.QueuedActions);
         Assert.Null(battle.ActiveAction);
@@ -33,7 +33,7 @@ public sealed class NativeAiInstalledInvocationTests
         byte[] script = opcode == 6 ? [6, 0] : [opcode, 0, 6, 0];
         NativeBattleAiDefinition program = assets.ReadEnemyAi(0, 7) with { Scripts = [script, [0], [0], [0], [0]] };
 
-        BattleSession battle = new(Definition(assets, 0, program), BattleAtbMode.TurnBased);
+        BattleSession battle = AdmitInitial(Definition(assets, 0, program));
 
         Assert.Empty(battle.QueuedActions);
         AssertRandomEqual(NativeBattleRandomState.Initialize(0), battle.Capture().Random!);
@@ -46,7 +46,7 @@ public sealed class NativeAiInstalledInvocationTests
         NativeBattleAiDefinition program = assets.ReadEnemyAi(0, 7) with { Scripts = [[11, 4, 4, 4, 0], [0], [0], [0], [0]] };
         NativeBattleRandomState expected = NativeBattleRandomState.Initialize(0).Draw(out _);
 
-        BattleSession battle = new(Definition(assets, 0, program), BattleAtbMode.TurnBased);
+        BattleSession battle = AdmitInitial(Definition(assets, 0, program));
 
         Assert.Empty(battle.QueuedActions);
         AssertRandomEqual(expected, battle.Capture().Random!);
@@ -59,14 +59,22 @@ public sealed class NativeAiInstalledInvocationTests
     {
         using BattleAssets assets = new(LaunchOptions.DefaultGameDirectory);
         NativeBattleAiDefinition program = assets.ReadEnemyAi(128, 7) with { Scripts = [[4, 200, 12, slot, 0], [0], [0], [0], [0]] };
-        BattleSession battle = new(Definition(assets, 128, program), BattleAtbMode.TurnBased);
+        BattleSession battle = AdmitInitial(Definition(assets, 128, program));
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
 
         Assert.Equal((byte)236, queued.NativeQueuedCommand);
         Assert.Equal(id, queued.NativeAction!.ActionId);
         Assert.Equal(assets.NativeActions.Single(action => action.Command == 8 && action.ActionId == id) with { Command = 236 }, queued.NativeAction);
+        Assert.Equal(id, NativeBattleActionGraphics.Word(battle.NativeActionPackets.Headers[0], 4));
         string json = JsonSerializer.Serialize(battle.Capture());
         Assert.Equal(json, JsonSerializer.Serialize(BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(json)!).Capture()));
+    }
+
+    private static BattleSession AdmitInitial(BattleDefinition definition)
+    {
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        battle.Tick();
+        return battle;
     }
 
     private static void AssertRandomEqual(NativeBattleRandomState expected, NativeBattleRandomState actual)

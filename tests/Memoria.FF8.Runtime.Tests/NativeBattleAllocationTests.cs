@@ -11,6 +11,7 @@ public sealed class NativeBattleAllocationTests
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
         BattleSession battle = new(new()
         {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true },
@@ -18,9 +19,10 @@ public sealed class NativeBattleAllocationTests
                 new() { Id = "removed", Name = "Removed", InitialAtb = 4567 }
             ]
         }, BattleAtbMode.Normal);
+        battle.Tick();
         BattleCombatant removed = battle.Combatants.Single(actor => actor.Id == "removed");
         Assert.Equal(0, battle.Combatants.Single(actor => actor.Id == "caller").Atb);
-        Assert.Equal(4567, removed.Atb);
+        Assert.Equal(4567 + removed.Speed, removed.Atb);
         Assert.Equal(100, removed.CurrentHp);
         Assert.False(removed.IsActive);
         Assert.False(removed.Hidden);
@@ -77,8 +79,9 @@ public sealed class NativeBattleAllocationTests
         NativeBattleAiAbility[] abilities = Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray();
         NativeBattleEnemyLevel level = new(100, 10, 10, 10, 10, 10, new int[8], [], [], 0);
         NativeBattleEnemyTemplate template = new(5, Enumerable.Repeat(level, 101).ToArray()) { NativeStatusAllocation = new(0, 0, Enumerable.Repeat((byte)100, 40).ToImmutableArray()) };
-        return new(new()
+        BattleSession battle = new(new()
         {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =
             [
                 new() { Id = "party-0", Name = "Party", IsPlayer = true },
@@ -86,5 +89,7 @@ public sealed class NativeBattleAllocationTests
                 new() { Id = "enemy-6", Name = "Prototype", SceneSlot = 6, InitialActive = false, NativeTemplate = template, NativeAi = new([[0], [0], [0], [0], [0]], abilities, 0, []) }
             ]
         }, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 }

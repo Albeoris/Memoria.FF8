@@ -121,7 +121,7 @@ public sealed partial class BattleSession
         ValidateNativeActionContract(action);
         _ = ConsumeNativeItem(state.ActionId + 101);
         nativeShotProcesses[actorId] = state with { RemainingAmmo = (byte)(state.RemainingAmmo - 1), Phase = BattleNativeShotPhase.AwaitingEffect };
-        QueueNativeCommand(actor, 237, state.ActionId, 0, state.TargetMask, callback: NativeLimitCallback.ShotEffect);
+        QueueNativeCommand(actor, 237, state.ActionId, 0, state.TargetMask, callback: NativeLimitCallback.ShotEffect, playerInput: true);
         return true;
     }
 
@@ -133,7 +133,7 @@ public sealed partial class BattleSession
         }
         ValidateNativeActionContract(FindInstalledNativeAction(238, state.ActionId));
         nativeShotProcesses[actorId] = state with { Phase = BattleNativeShotPhase.Ending, RemainingTimer = -1 };
-        QueueNativeCommand(GetActor(actorId), 238, state.ActionId, 0, 0x80F8, callback: NativeLimitCallback.ShotEnding);
+        QueueNativeCommand(GetActor(actorId), 238, state.ActionId, 0, 0x80F8, callback: NativeLimitCallback.ShotEnding, playerInput: true);
     }
 
     private bool CompleteNativeShotAction(BattleActionPresentation action)

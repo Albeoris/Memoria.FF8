@@ -213,6 +213,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
+    public BattleNativeDuelInvocation? NativeDuel { get; init; }
+    public BattleNativeSlotsRoll? NativeSlots { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
@@ -235,6 +237,8 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
+    public BattleNativeDuelInvocation? NativeDuel { get; init; }
+    public BattleNativeSlotsRoll? NativeSlots { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
     public BattleNativeDrawContext? NativeDraw { get; init; }
     public string? DrawCastTargetId { get; init; }
@@ -287,6 +291,8 @@ public sealed record BattleSnapshot
     public NativeBattleActionPacketsState? NativeActionPackets { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleActionScratch? NativeActionScratch { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public System.Collections.Immutable.ImmutableArray<byte?> NativeElementAttack { get; init; } = [null, null, null, null, null, null, null];
     [System.Text.Json.Serialization.JsonRequired]
     public byte? NativeReactionOrder { get; init; }
     public NativeBattleClockState? NativeClock { get; init; }

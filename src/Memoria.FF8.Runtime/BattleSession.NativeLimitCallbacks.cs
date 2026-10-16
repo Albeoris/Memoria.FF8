@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private void RequireNativeLimitCallback(string actorId, NativeLimitCallback? expected)
     {
-        if (expected is not null && !actions.Any(command => command.ActorId == actorId && command.NativeLimitCallback == expected) && !(ActiveAction?.ActorId == actorId && ActiveAction.NativeLimitCallback == expected))
+        if (expected is not null && !QueuedActions.Any(command => command.ActorId == actorId && command.NativeLimitCallback == expected) && !(ActiveAction?.ActorId == actorId && ActiveAction.NativeLimitCallback == expected))
         {
             throw new InvalidDataException("Saved timed Limit phase lacks its registered native graphics callback.");
         }
@@ -12,7 +12,7 @@ public sealed partial class BattleSession
 
     private void ValidateNativeLimitCallbacks()
     {
-        foreach (BattleAttackCommand command in actions)
+        foreach (BattleAttackCommand command in QueuedActions)
         {
             ValidateNativeLimitCallback(command.ActorId, command.NativeLimitCallback);
         }

@@ -139,7 +139,7 @@ public sealed partial class BattleSession
         }
         if (command == 11)
         {
-            BeginNativeDuel(actor, target, crisis!.Value);
+            QueueNativeDuelInvocation(actor, target, crisis!.Value);
             return;
         }
         BattleNativeAction action = FindNativeCommandAction(actor, command, actionId, crisis);

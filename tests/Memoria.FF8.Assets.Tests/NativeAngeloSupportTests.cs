@@ -14,10 +14,7 @@ public sealed class NativeAngeloSupportTests
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, learned, false);
-        for (int frame = 0; frame < 13; frame++)
-        {
-            battle.Tick();
-        }
+        AdvanceUntilSupport(battle);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(reaction, queued.NativePlayerReaction);
         Assert.Equal((byte)240, queued.NativeQueuedCommand);
@@ -34,17 +31,14 @@ public sealed class NativeAngeloSupportTests
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 4, true);
-        for (int frame = 0; frame < 13; frame++)
-        {
-            battle.Tick();
-        }
+        AdvanceUntilSupport(battle);
         Assert.False(battle.Combatants[0].IsAlive);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
         BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
         Assert.Equal(BattleNativePlayerReaction.AngeloReverse, queued.NativePlayerReaction);
         Assert.Equal((ushort)0x4001, queued.NativeTargetMask);
         BattleSession restored = BattleSession.Restore(battle.Capture());
-        for (int frame = 0; frame < 40 && !battle.Combatants[0].IsAlive; frame++)
+        for (int frame = 0; frame < 128 && !battle.Combatants[0].IsAlive; frame++)
         {
             battle.Tick();
             restored.Tick();
@@ -61,12 +55,22 @@ public sealed class NativeAngeloSupportTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, 3, false, 0x10);
         NativeBattleRandomState random = battle.Capture().Random!;
-        for (int frame = 0; frame < 13; frame++)
+        for (int frame = 0; frame < 128 && (frame == 0 || battle.ActiveAction is not null || battle.QueuedActions.Count != 0); frame++)
         {
             battle.Tick();
         }
         Assert.Empty(battle.QueuedActions);
         Assert.Equal(random, battle.Capture().Random);
+    }
+
+    private static void AdvanceUntilSupport(BattleSession battle)
+    {
+        for (int frame = 0; frame < 128 && !battle.QueuedActions.Any(command => command.NativePlayerReaction is not null); frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Contains(battle.QueuedActions, command => command.NativePlayerReaction is not null);
+        Assert.Contains(battle.Events, item => item.Kind == "Damage" && item.ActorId == "enemy");
     }
 
     private static BattleSession Create(GameAssets game, BattleAssets assets, byte learned, bool lethal, byte savedFlags = 0)

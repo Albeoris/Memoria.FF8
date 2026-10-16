@@ -254,6 +254,7 @@ public sealed partial class BattleSession
             0 => graphics,
             0x47DD90 => ResetNativeActionPacketCounts(graphics),
             0x47DDA0 or 0x47DE70 or 0x47E120 => RunNativeDescriptorActionCallback(graphics, callback),
+            0x48F350 or 0x48F3F0 => RunNativeRenzokukenFinisherCallback(graphics, callback),
             0x47DD80 => graphics with { EntryLifecycle = 1 },
             0x4A94B0 => graphics with { UiServices = (graphics.UiServices ?? throw new NotSupportedException("Native4A94B0 requires its initialized942 menu owner.")).SetFlags(8) },
             0x47DD70 => graphics with { EntryLifecycle = 3, EntryReady = false },

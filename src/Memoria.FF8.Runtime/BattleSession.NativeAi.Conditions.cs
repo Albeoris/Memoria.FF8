@@ -149,13 +149,14 @@ public sealed partial class BattleSession
                 }
                 if (selector == 5)
                 {
-                    return CompareNativeConditionBit((last.ElementMask & (1u << value)) != 0, comparison);
+                    byte elements = last.ElementMask ?? throw new NotSupportedException("Native last-action element condition requires its retained B9C byte.");
+                    return CompareNativeConditionBit((elements & (1u << value)) != 0, comparison);
                 }
                 left = selector switch
                 {
-                    1 => last.AttackerModelId,
-                    3 => last.Command,
-                    4 => last.ActionId,
+                    1 => last.AttackerModelId ?? throw new NotSupportedException("Native last-action model condition requires its retained B9D byte."),
+                    3 => last.Command ?? throw new NotSupportedException("Native last-action command condition requires its retained B9B byte."),
+                    4 => last.ActionId ?? throw new NotSupportedException("Native last-action action condition requires its retained B9F byte."),
                     _ => throw new NotSupportedException($"Native battle AI action condition selector {selector} is unsupported.")
                 };
             }

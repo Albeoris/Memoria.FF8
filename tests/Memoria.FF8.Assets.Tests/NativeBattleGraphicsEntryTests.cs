@@ -212,7 +212,7 @@ public sealed class NativeBattleGraphicsEntryTests
     }
 
     [Fact]
-    public void OriginalIfritMessageSequenceOwnsTextAndAaReceiptDuringGameplayWaitAcrossRestore()
+    public void OriginalIfritMessageSequenceOwnsTextAndAaReceiptAcrossGameplayWaitAndRestore()
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -241,10 +241,22 @@ public sealed class NativeBattleGraphicsEntryTests
             restored.Tick();
         }
         Assert.True(battle.NativeGraphics!.ActionCallbackReady);
-        Assert.Equal(BattleActionPhase.Windup, battle.ActiveAction!.Phase);
+        Assert.Equal((ushort)9, Assert.Single(battle.Capture().NativeScriptState.WaitCounters));
+        Assert.Equal(BattleActionPhase.Recovery, battle.ActiveAction!.Phase);
         Assert.Single(battle.Events, item => item.Kind == "NativeText");
-        Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
+        Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
+        Assert.Equal(beforeText.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        for (int callback = 0; callback < 100 && (battle.ActiveAction is not null || battle.NativeGraphics.Descriptors.Queue.Any(slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104)); callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.DoesNotContain(battle.NativeGraphics.Descriptors.Queue, slot => battle.NativeGraphics.Descriptors.Packets[slot].Command == 104);
+        Assert.Null(battle.ActiveAction);
+        Assert.Equal(beforeText.Events.Count(item => item.Kind == "Damage"), battle.Events.Count(item => item.Kind == "Damage"));
+        Assert.Equal(beforeText.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
     }
 
     [Fact]
@@ -274,6 +286,6 @@ public sealed class NativeBattleGraphicsEntryTests
         }
         actors.Add(new() { Id = "enemy", Name = "Enemy", ModelId = model, Speed = 1, NativeAi = ai, NativeCombatantFlags = ai is null ? 0u : 0x10u, SceneSlot = formation.Enemies.First(enemy => enemy.ModelId == model).Slot });
         NativeBattleGraphicsDefinition graphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation);
-        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
+        return new(new() { Name = "Installed raw entry component", EncounterId = formation.Id, StageId = formation.StageId, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeGraphics = graphics, NativeActions = assets.NativeActions.Where(action => action.Command == 8 && action.ActionId == 89).ToArray(), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], Combatants = actors.ToArray() }, BattleAtbMode.TurnBased);
     }
 }

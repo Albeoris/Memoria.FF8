@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
@@ -38,6 +39,8 @@ public static class NativeBattleRetainedMemoryReader
             GuardianFormulaE1E = ReadLoaderBytes(0x1D28E1E, 1)[0] != 0,
             GuardianBoostPercent = ReadLoaderBytes(0x1D2A23A, 1)[0],
             FinisherPendingE03 = ReadLoaderBytes(0x1D28E03, 1)[0] != 0,
+            LastPublishedTargetCountE05 = ReadLoaderBytes(0x1D28E05, 1)[0],
+            FinisherActionIndexE2E = ReadLoaderBytes(0x1D28E2E, 1)[0],
             ActorIndex = ReadLoaderBytes(0x1D27AD8, 1)[0],
             Command = ReadLoaderBytes(0x1D27AD9, 1)[0],
             Action = BinaryPrimitives.ReadUInt16LittleEndian(ReadLoaderBytes(0x1D27AF4, 2)),
@@ -45,7 +48,7 @@ public static class NativeBattleRetainedMemoryReader
             EventLane = ReadLoaderBytes(0x1D28DF2, 1)[0]
         };
         int effectIoResult = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D999C8, 4));
-        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash);
+        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray() };
         result.Validate();
         return result;
 

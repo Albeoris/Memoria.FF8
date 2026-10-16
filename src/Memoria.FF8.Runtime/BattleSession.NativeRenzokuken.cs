@@ -100,9 +100,17 @@ public sealed partial class BattleSession
             _ = FindInstalledNativeAction(249, finisher.Value);
         }
         ushort mask = checked((ushort)(1 << target.NativeIndex));
+        ushort finisherTargets = mask;
+        if (finisher is byte selected)
+        {
+            BattleNativeAction action = FindInstalledNativeAction(249, selected);
+            ushort computed = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
+            finisherTargets = (computed & 0x8000) != 0 ? computed : mask;
+            nativeActionScratch = nativeActionScratch with { FinisherActionIndexE2E = selected };
+        }
         BattleActionPresentation original = new(actor.Id, target.Id, BattleActionPhase.Windup, 1, BattleAbility.LimitBreak, finisher is null ? 0xFFFD : 0xFFFE) { NativeQueuedCommand = 5, NativeTargetMask = mask, NativeSequence = 21, NativeRenzokuken = queued.NativeRenzokuken };
         nativeActionScratch = nativeActionScratch with { FinisherPendingE03 = finisher is not null };
-        BeginNativeTimedAction(original, magicId);
+        BeginNativeTimedAction(original, magicId, finisher, finisherTargets);
         nativeRenzokukenProcesses.Add(actor.Id, new(magicId, mask, finisher, new()));
         Log("Renzokuken", actor.Id, target.Id, resource.Timeline.InputThresholds.Length, $"{actor.Name}: Renzokuken.");
     }
@@ -138,13 +146,6 @@ public sealed partial class BattleSession
         }
         if (state.Input.Phase == 8 && state.PoseFrames >= resource.Timeline.TotalPoseFrames)
         {
-            if (state.FinisherActionId is byte finisher)
-            {
-                BattleNativeAction action = FindInstalledNativeAction(249, finisher);
-                ushort computed = NativeAutomaticActionTargetMask(action.TargetFlags!.Value);
-                ushort mask = (computed & 0x8000) != 0 ? computed : state.TargetMask;
-                ResolveNativeTimedContact(mask, action, 0, true);
-            }
             nativeRenzokukenProcesses.Remove(actorId);
             nativeLimitLevels.Remove(actorId);
             CompleteNativeTimedAction();
@@ -184,7 +185,7 @@ public sealed partial class BattleSession
     {
         BattleCombatant actor = GetActor(actorId);
         BattleNativeRenzokukenResource resource = RenzokukenResource(state.MagicId);
-        if (actor.NativeLimit?.Command != 5 || crisis == 0 || state.Input is null || state.Input.ContactIndex > resource.Timeline.InputThresholds.Length || state.Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || state.Input.SubframeClock is < 0 or > 3 || state.Input.PoseClock < 0 || state.Input.PoseClock % 4 != 0 || state.Input.TriggerTiming != 0 && state.Input.TriggerTiming != 1 && state.Input.TriggerTiming is not (>= 20 and <= 32) || (state.Input.Phase == 8) != (state.Input.ContactIndex == resource.Timeline.InputThresholds.Length) || state.PoseFrames < 0 || state.PoseFrames > resource.Timeline.TotalPoseFrames || state.UiPhase > 3 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || actor.NativeAttack is null || actor.NativePlayerStatRules is null)
+        if (actor.NativeLimit?.Command != 5 || crisis == 0 || state.Input is null || state.Input.ContactIndex > resource.Timeline.InputThresholds.Length || state.Input.Phase is not (0 or 1 or 2 or 3 or 4 or 6 or 8) || state.Input.SubframeClock is < 0 or > 3 || state.Input.PoseClock < 0 || state.Input.PoseClock % 4 != 0 || state.Input.TriggerTiming != 0 && state.Input.TriggerTiming != 1 && state.Input.TriggerTiming < 20 || (state.Input.Phase == 8) != (state.Input.ContactIndex == resource.Timeline.InputThresholds.Length) || state.PoseFrames < 0 || state.PoseFrames > resource.Timeline.TotalPoseFrames || state.UiPhase > 3 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond || actor.NativeAttack is null || actor.NativePlayerStatRules is null)
         {
             throw new InvalidDataException("Saved Renzokuken input contradicts its original actor or resource.");
         }

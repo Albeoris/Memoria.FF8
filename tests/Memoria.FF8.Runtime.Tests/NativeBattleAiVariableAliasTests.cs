@@ -44,13 +44,16 @@ public sealed class NativeBattleAiVariableAliasTests
     private static BattleSession Create(byte[] init, byte resistance = 100, bool known = true)
     {
         NativeBattleAiDefinition ai = new([init, [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []);
-        return new(new BattleDefinition
+        BattleSession battle = new(new BattleDefinition
         {
+            NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(),
             Combatants =
             [
                 new() { Id = "party", Name = "Party", IsPlayer = true, NativeStatusResistances = known ? Enumerable.Repeat(resistance, 40).ToArray() : [] },
                 new() { Id = "enemy", Name = "Enemy", ModelId = 71, NativeAi = ai }
             ]
         }, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 }

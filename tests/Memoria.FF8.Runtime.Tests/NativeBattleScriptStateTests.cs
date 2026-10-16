@@ -9,7 +9,8 @@ public sealed class NativeBattleScriptStateTests
     public void ScriptWaitCountersHoldGameplayAndResumeIndependentlyAcrossRestore()
     {
         BattleSession battle = Create([28, 1, 32, 1, 0]);
-        Assert.Equal(new ushort[] { 30, 15 }, battle.NativeScriptState.WaitCounters);
+        //INIT is admitted during the core service; both16-bank callbacks run once later in that sameTick.
+        Assert.Equal(new ushort[] { 29, 14 }, battle.NativeScriptState.WaitCounters);
         for (int frame = 0; frame < 20; frame++)
         {
             battle.Tick();
@@ -79,6 +80,8 @@ public sealed class NativeBattleScriptStateTests
 
     private static BattleSession Create(NativeBattleAiDefinition ai)
     {
-        return new(new() { GuardianForces = [new(2, 200, 100, false)], Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new() { NativeRetainedMemory = NativeBattleRetainedMemory.FromColdProcess(), GuardianForces = [new(2, 200, 100, false)], Combatants = [new() { Id = "party-0", Name = "Party", IsPlayer = true }, new() { Id = "enemy-0", Name = "Enemy", NativeAi = ai }] }, BattleAtbMode.Normal);
+        battle.Tick();
+        return battle;
     }
 }

@@ -12,7 +12,7 @@ public sealed partial class BattleSession
         nativeReactionOrder = 0;
     }
 
-    private bool HasNativePendingReactions => combatants.Any(actor => actor.NativeIndex is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0);
+    private bool HasNativePendingReactions => nativeReactionOrder is > 0 && combatants.Any(actor => actor.NativeIndex is >= 0 and < 7 && actor.NativePendingReaction.Stage is > 0 && actor.NativePendingReaction.Order < nativeReactionOrder);
 
     private void SetNativeReactionActionGate(bool value)
     {
@@ -25,6 +25,8 @@ public sealed partial class BattleSession
         if (nativeActionCommitDepth == 0 && nativeProductionContext is null)
         {
             BeginNativeReactionBatch();
+            //TODO(TD-009): Generic components project ordinary player bank2 admission; retain the real event lane instead of the previous INIT callback
+            SetNativeActionEvent(actor, actor.IsPlayer ? (byte)2 : (byte)0);
         }
         nativeActionCommitDepth++;
         bool completed = false;
@@ -118,7 +120,6 @@ public sealed partial class BattleSession
                 {
                     QueueNativeCallback(actor, stage);
                 }
-                actor.NativePendingReaction = new(0, 0);
             }
         }
         finally

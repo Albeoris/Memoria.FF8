@@ -81,7 +81,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            actions.Enqueue(queued);
+            EnqueueNativeInputCommand(queued);
         }
         actor.Atb = 0;
         actor.IsBusy = true;
@@ -96,6 +96,11 @@ public sealed partial class BattleSession
 
     private void ResolveAction(BattleCombatant actor, BattleCombatant target, BattleActionPresentation command)
     {
+        if (command.NativeSlots is not null)
+        {
+            ResolveNativeSlotsGroup(actor, command);
+            return;
+        }
         if (command.Ability == BattleAbility.Draw)
         {
             ResolvePlayerDraw(actor, target, command);
@@ -108,8 +113,7 @@ public sealed partial class BattleSession
         }
         if (command.NativeGraphic is { } graphic)
         {
-            //TODO(TD-009):252 has no4922B0 formula, but its common494410 tail still needs native lane/element scratch owners for reached target receipts
-            Log("NativeGraphic", actor.Id, target.Id, graphic.MagicId, $"Native graphical effect {graphic.MagicId} completed without HP/status effects.");
+            ResolveNativeGraphicCommand(actor, command, graphic);
             return;
         }
         //48FE20 commands14/238 explicitly suppress their damage/effect consumer;237 owns each accepted shot.

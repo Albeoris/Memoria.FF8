@@ -25,11 +25,17 @@ public sealed partial class BattleSession
         BattleNativeAction native = weapon with { Command = command, AttackType = 10, Power = power, HitCount = 1, Critical = 0, DamagePresentation = sequence };
         if (!ordinary)
         {
-            native = native with { AttackFlags = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255 };
+            native = native with { ActionId = nativeActionScratch.Action ?? throw new NotSupportedException("Native251 requires the retained AF4 action WORD."), AttackFlags = 0, Element = 0, ElementPercent = 0, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = 255 };
         }
         short timing = ordinary && (NativeSavedStatusBits(actor) & 8) != 0 ? (short)1 : receipt.Timing;
         BattleActionPresentation original = nativeTimedAction?.Command ?? ActiveAction ?? throw new NotSupportedException("Native485160 requires its currently admitted action provenance.");
-        BattleActionPresentation contact = original with { NativeAction = native, NativeTargetMask = checked((ushort)(1 << recipient.NativeIndex)), GunbladeTriggerTiming = timing };
+        byte? queued = original.NativeQueuedCommand;
+        if (original.NativeRenzokuken is not null)
+        {
+            ushort control = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Payload.AsSpan()[4..]);
+            queued = control == 65534 ? (byte)250 : (byte)5;
+        }
+        BattleActionPresentation contact = original with { NativeQueuedCommand = queued, NativeAction = native, NativeTargetMask = checked((ushort)(1 << recipient.NativeIndex)), GunbladeTriggerTiming = timing };
         BattleActionDefinition definition = new(contact.Ability, contact.ActionId, native.Name ?? "Gunblade", BattleActionEffect.Native, native.Power, false) { NativeAction = native };
         BattleActionPresentation? previous = resolvingNativeAction;
         nativeActionCommitDepth++;

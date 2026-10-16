@@ -4,6 +4,11 @@ public sealed partial class BattleSession
 {
     private void RecordNativeActionMemory(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation action)
     {
+        //48FE20 internal0 sets DF5;494410 skips surviving full-memory writes, including a successful revival.
+        if (nativeContactWorking is not null && nativeActionScratch.Command == 0 && recipient.CurrentHp != 0)
+        {
+            return;
+        }
         if (action.Ability == BattleAbility.Draw && action.NativeDraw is { } draw && (!action.DrawCast || draw.Failed))
         {
             StoreNativeActionMemory(actor, recipient, BattleAbility.Draw, draw.Failed ? 0 : 6, draw.Failed ? 9 : draw.Selection, 0, 3);
@@ -64,8 +69,19 @@ public sealed partial class BattleSession
 
     private void StoreNativeActionMemory(BattleCombatant actor, BattleCombatant recipient, BattleAbility ability, int command, int id, int element, byte? attackType)
     {
+        if (nativeContactWorking?.Recipient == recipient)
+        {
+            attackType = recipient.LastNativeAction?.AttackType;
+        }
         recipient.LastNativeAction = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), checked((byte)actor.NativeIndex));
         recipient.LastAttackerId = actor.Id;
         recipient.LastAttackerAbility = ability;
+    }
+
+    private static void StoreNativeAttackClass(BattleCombatant recipient, byte attackClass)
+    {
+        //48FE20 writes B99 before the independently gated494410 B98/B9B/B9C/B9D/B9F memory writes.
+        NativeBattleLastAction previous = recipient.LastNativeAction ?? new(null, null, null, null, null, null);
+        recipient.LastNativeAction = previous with { AttackType = attackClass };
     }
 }

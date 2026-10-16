@@ -6,6 +6,43 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeRenzokukenInvocationTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void FinisherCallbackAppendsAppliedFactsBeforeTheFirstTriggerAndDoesNotReplayAtTheEnd(int finisher)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets, enemyHp: 1000000, crisis: 4, finisher: true, chosenFinisher: (byte)finisher);
+        battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
+        battle.Tick();
+        BattleNativeRenzokukenState process = battle.GetNativeRenzokuken("squall")!;
+        BattleNativeAction action = assets.NativeActions.Single(action => action.Command == 249 && action.ActionId == finisher);
+        Assert.Equal((byte)finisher, process.FinisherActionId);
+        Assert.Equal(0, process.Input.ContactIndex);
+        Assert.Equal(0, battle.Capture().NativeTimedAction!.Contacts);
+        Assert.Equal((byte)2, battle.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)5, battle.NativeActionPackets.Headers[0].ReadByte(1));
+        Assert.Equal((byte)250, battle.NativeActionPackets.Headers[1].ReadByte(1));
+        Assert.Equal((byte)255, battle.NativeActionPackets.Headers[1].ReadByte(4));
+        Assert.Equal((byte)255, battle.NativeActionPackets.Headers[1].ReadByte(5));
+        Assert.Equal(action.Name, battle.NativeActionPackets.Headers[1].Data!.FormattedText);
+        Assert.Equal(action.HitCount, battle.Capture().NativeActionScratch!.LastPublishedTargetCountE05);
+        Assert.Equal(action.HitCount, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Equal(1 + 2 * action.HitCount, battle.NativeActionPackets.ContactCount);
+        Assert.Equal((byte)250, battle.Capture().Combatants[1].NativeParticipant!.LastAction!.Command);
+        Assert.Equal((byte)255, battle.Capture().Combatants[1].NativeParticipant!.LastAction!.ActionId);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        int contacts = game.ReadNativeRenzokukenResources().Single(resource => resource.MagicId == process.MagicId).Timeline.InputThresholds.Length;
+        Until(battle, () => battle.GetNativeRenzokuken("squall") is null);
+        Until(restored, () => restored.GetNativeRenzokuken("squall") is null);
+        Assert.Equal(action.HitCount + contacts, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.False(battle.Capture().NativeActionScratch!.FinisherPendingE03);
+        Assert.Equal((byte)250, battle.Capture().Combatants[1].NativeParticipant!.LastAction!.Command);
+        Assert.Equal((byte)255, battle.Capture().Combatants[1].NativeParticipant!.LastAction!.ActionId);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Fact]
     public void Contacts_restore_the_deferred_reaction_and_finish_poison_and_counter_only_once()
     {
@@ -13,10 +50,14 @@ public sealed class NativeRenzokukenInvocationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, poison: true, counter: true);
         battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
-        BattleAttackCommand invocation = Assert.Single(battle.QueuedActions);
+        BattleAttackCommand invocation = Assert.Single(battle.QueuedActions, command => command.NativeRenzokuken is not null);
         Assert.Null(invocation.NativeAction);
         Assert.Equal(new BattleNativeRenzokukenInvocation(1), invocation.NativeRenzokuken);
-        battle.Tick();
+        for (int tick = 0; tick < 100 && battle.GetNativeRenzokuken("squall") is null; tick++)
+        {
+            battle.Tick();
+        }
+        Assert.NotNull(battle.GetNativeRenzokuken("squall"));
         long frame = battle.Frame;
         Until(battle, () => battle.GetNativeRenzokuken("squall")!.Input.ContactIndex == 1);
         BattleSnapshot first = battle.Capture();
@@ -32,6 +73,12 @@ public sealed class NativeRenzokukenInvocationTests
         Assert.Equal(snapshot, JsonSerializer.Serialize(battle.Capture()));
         Until(battle, () => battle.GetNativeRenzokuken("squall") is null);
         Assert.Equal(frame, battle.Frame);
+        Assert.Equal(0u, battle.Capture().NativeAiVariables![0]);
+        Assert.Equal(0x47E120u, battle.Capture().NativeActionScratch!.ComponentCompletion);
+        for (int tick = 0; tick < 100 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0); tick++)
+        {
+            battle.Tick();
+        }
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
         Assert.Single(battle.Events, item => item.Kind == "Damage" && item.TargetId == "squall" && item.Message.StartsWith("Poison:", StringComparison.Ordinal));
         Assert.Null(battle.Capture().NativeTimedAction);
@@ -45,11 +92,14 @@ public sealed class NativeRenzokukenInvocationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession battle = Create(game, assets, precedingActor: true);
         battle.QueueAttack("ally", "enemy");
+        for (int tick = 0; tick < 100 && battle.ActiveAction is null; tick++)
+        {
+            battle.Tick();
+        }
+        //Bank1 Limits outrank queued bank2 inputs; this contract concerns an already admitted action.
+        Assert.Equal("ally", battle.ActiveAction!.ActorId);
         battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
         battle = BattleSession.Restore(battle.Capture());
-
-        battle.Tick();
-
         Assert.Equal("ally", battle.ActiveAction!.ActorId);
         Assert.Null(battle.GetNativeRenzokuken("squall"));
         Assert.Null(battle.Capture().NativeTimedAction);
@@ -152,11 +202,15 @@ public sealed class NativeRenzokukenInvocationTests
         Assert.True(complete());
     }
 
-    private static BattleSession Create(GameAssets game, BattleAssets assets, int enemyHp = 50000, bool secondEnemy = false, bool poison = false, bool counter = false, ushort options = 0, byte crisis = 1, bool finisher = false, bool precedingActor = false)
+    private static BattleSession Create(GameAssets game, BattleAssets assets, int enemyHp = 50000, bool secondEnemy = false, bool poison = false, bool counter = false, ushort options = 0, byte crisis = 1, bool finisher = false, bool precedingActor = false, byte? chosenFinisher = null)
     {
         NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
         NativeCharacterVital character = vitals.Records[0];
         BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0);
+        if (chosenFinisher is not null)
+        {
+            rules = rules with { WeaponRecord = rules.WeaponRecord.SetItem(2, 15) };
+        }
         NativeBattleAiDefinition? ai = counter ? new([[0], [0], [15, 96, 1, 0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(0, 0, 0), 48).ToArray(), 0, []) : null;
         List<BattleCombatantDefinition> actors =
         [
@@ -175,7 +229,16 @@ public sealed class NativeRenzokukenInvocationTests
         NativeBattleRandomState random = Enumerable.Range(0, 256).Select(seed => NativeBattleRandomState.Initialize((byte)seed)).First(candidate =>
         {
             candidate = candidate.Draw(out _).Draw(out byte roll);
-            return NativeBattleRenzokukenRules.HasFinisher(crisis, roll) == finisher;
+            if (NativeBattleRenzokukenRules.HasFinisher(crisis, roll) != finisher)
+            {
+                return false;
+            }
+            if (chosenFinisher is not byte selected)
+            {
+                return true;
+            }
+            candidate.Draw(out byte selection);
+            return NativeBattleRenzokukenRules.Finisher(rules.WeaponRecord[2], selection) == selected;
         });
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("squall", crisis)], Random = random });
     }

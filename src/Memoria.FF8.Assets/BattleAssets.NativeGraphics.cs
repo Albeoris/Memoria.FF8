@@ -56,9 +56,10 @@ public sealed partial class BattleAssets
             frames.Add(bytes[pointer]);
         }
         int skeletonStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(4));
-        int cameraStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(20));
-        int cameraEnd = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(24));
-        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, start - animationStart).ToArray().ToImmutableArray()), HasActionCamera = true, ActionCameraBank = new(bytes.AsSpan(cameraStart, cameraEnd > cameraStart ? cameraEnd - cameraStart : bytes.Length - cameraStart).ToArray().ToImmutableArray()) };
+        //507080 dispatches enemy models to507120, whose resource DWORD44 addresses DAT DWORD6.
+        int cameraStart = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(24));
+        int cameraEnd = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(28));
+        NativeBattleGraphicsResource resource = new(bytes.AsSpan(start, end - start).ToArray().ToImmutableArray()) { AnimationFrames = frames.MoveToImmutable(), PoseSource = new(bytes.AsSpan(skeletonStart, 16 + bytes[skeletonStart] * 48).ToArray().ToImmutableArray(), bytes.AsSpan(animationStart, start - animationStart).ToArray().ToImmutableArray()), HasActionCamera = cameraStart != cameraEnd, ActionCameraBank = cameraStart == cameraEnd ? null : new(bytes.AsSpan(cameraStart, cameraEnd - cameraStart).ToArray().ToImmutableArray()) };
         resource.Validate();
         return resource;
     }

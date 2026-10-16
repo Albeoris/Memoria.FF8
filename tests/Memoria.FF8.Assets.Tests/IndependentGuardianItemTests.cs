@@ -15,6 +15,12 @@ public sealed class IndependentGuardianItemTests
     {
         using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         BattleSession battle = Create(assets, itemId, 1);
+        NativeBattleLastAction previousKoMemory = new(1, 2, 2, 12, 4, 1);
+        if (itemId == 31)
+        {
+            BattleSnapshot before = battle.Capture();
+            battle = BattleSession.Restore(before with { Combatants = before.Combatants.Select(actor => actor.Id == "ko" ? actor with { NativeParticipant = actor.NativeParticipant! with { LastAction = previousKoMemory } } : actor).ToArray() });
+        }
         battle.QueueAction("caster", "enemy", BattleAbility.Item, itemId);
         battle = BattleSession.Restore(battle.Capture());
         battle.Tick();
@@ -23,6 +29,14 @@ public sealed class IndependentGuardianItemTests
         BattleIndependentGuardianInvocation invocation = windup.ActiveAction!.IndependentGuardian!;
         Assert.Equal((byte)244, invocation.Action!.Command);
         Assert.Equal((byte)10, invocation.Level);
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[windup.ActiveAction.NativeHeaderIndex!.Value];
+        Assert.Equal((byte)244, header.ReadByte(1));
+        Assert.Equal(invocation.Action.ActionId == 15 ? (byte)11 : (byte)14, header.ReadByte(2));
+        Assert.Equal((uint)0x495050, header.Data!.ProducerAddress);
+        if (itemId == 30)
+        {
+            Assert.Equal((byte)4, battle.Capture().Combatants.Single(actor => actor.Id == "enemy").NativeParticipant!.LastAction!.Command);
+        }
         Assert.Throws<InvalidDataException>(() => BattleSession.Restore(windup with { ActiveAction = windup.ActiveAction with { IndependentGuardian = invocation with { Level = 11 } } }));
         BattleSession restored = BattleSession.Restore(windup);
         while (battle.Frame <= BattleSession.AttackWindupFrames)
@@ -37,7 +51,7 @@ public sealed class IndependentGuardianItemTests
         {
             Assert.Equal(100, battle.Combatants[1].CurrentHp);
             Assert.Equal((byte)4, battle.NativeScriptState.SavedBattleFlagsAfter);
-            Assert.Equal((byte)0, battle.Capture().Combatants[1].NativeParticipant!.LastAction!.Command);
+            Assert.Equal(previousKoMemory with { AttackType = 3 }, battle.Capture().Combatants[1].NativeParticipant!.LastAction);
         }
     }
 
@@ -47,6 +61,16 @@ public sealed class IndependentGuardianItemTests
         using BattleAssets assets = new(@"C:\Steam\steamapps\common\FINAL FANTASY VIII");
         BattleSession battle = Create(assets, 30, 0);
         battle.QueueAction("caster", "enemy", BattleAbility.Item, 30);
+        battle.Tick();
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[battle.ActiveAction!.NativeHeaderIndex!.Value];
+        Assert.Equal((byte)0, header.ReadByte(1));
+        Assert.Equal((byte)10, header.ReadByte(2));
+        Assert.Equal((byte)9, header.ReadByte(4));
+        Assert.Equal((byte)0, header.ReadByte(16));
+        Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
+        Assert.Equal(0, battle.NativeActionPackets.ReadContact(header.FirstContactIndex!.Value).Primary.Amount6);
+        Assert.Equal((uint)0x47EA30, header.Data!.ProducerAddress);
+        Assert.Equal(30, header.Data.Argument);
         for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
         {
             battle.Tick();
