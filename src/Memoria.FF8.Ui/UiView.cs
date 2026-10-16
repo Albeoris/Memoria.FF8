@@ -85,7 +85,18 @@ public sealed class UiView
         EnsureLayout();
         EnsureFocus();
         GetTransform(out float scale, out float offsetX, out float offsetY);
-        Root.Draw(scale == 1 && offsetX == 0 && offsetY == 0 ? canvas : new ScaledCanvas(canvas, scale, offsetX, offsetY), theme);
+        IUiCanvas transformed = scale == 1 && offsetX == 0 && offsetY == 0 ? canvas : new ScaledCanvas(canvas, scale, offsetX, offsetY);
+        Root.Draw(transformed, theme);
+        // Frame captions straddle panel edges and must survive the panels' content clips.
+        canvas.PushClip(new UiRect(0, 0, _viewportWidth, _viewportHeight));
+        try
+        {
+            Root.DrawAdornments(transformed, theme);
+        }
+        finally
+        {
+            canvas.PopClip();
+        }
     }
 
     public bool Focus(UiElement? element)
@@ -252,6 +263,11 @@ public sealed class UiView
 
     private sealed class ScaledCanvas(IUiCanvas canvas, float scale, float offsetX, float offsetY) : IUiCanvas
     {
+        public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
+        {
+            canvas.OutlinedText(text, fontSize * scale, Map(bounds), color, outline, thickness * scale);
+        }
+
         public void Fill(UiRect bounds, UiColor color)
         {
             canvas.Fill(Map(bounds), color);

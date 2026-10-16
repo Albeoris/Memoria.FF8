@@ -62,6 +62,17 @@ internal sealed partial class MonoGameUiCanvas(GraphicsDevice device, SpriteBatc
         Text(value, size, bounds, color, null);
     }
 
+    public void OutlinedText(string value, float size, UiRect bounds, UiColor color, UiColor outline, float thickness)
+    {
+        if (bounds.IsEmpty || size <= 0 || string.IsNullOrEmpty(value))
+        {
+            return;
+        }
+
+        Rectangle clip = Rectangle.Intersect(RectangleFor(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2)), CurrentClip);
+        text.DrawOutlinedClipped(batch, value, size, new Vector2(bounds.X, bounds.Y + bounds.Height / 2), bounds.Width, ColorFor(color), ColorFor(outline), thickness, clip);
+    }
+
     public void Text(string value, float size, UiRect bounds, UiColor color, string? fontFamily)
     {
         Text(value, size, bounds, color, fontFamily, UiAlignment.Start);

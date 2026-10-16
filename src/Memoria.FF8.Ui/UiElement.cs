@@ -74,6 +74,19 @@ public class UiElement
     {
     }
 
+    internal virtual void DrawAdornments(IUiCanvas canvas, UiTheme theme)
+    {
+        if (!Visible || Bounds.IsEmpty)
+        {
+            return;
+        }
+
+        foreach (UiElement child in Children)
+        {
+            child.DrawAdornments(canvas, theme);
+        }
+    }
+
     public virtual UiElement? HitTest(float x, float y)
     {
         if (!Visible || !Enabled || !Bounds.Contains(x, y))
@@ -135,8 +148,22 @@ public sealed class UiPanel : UiElement
     {
         if (DrawBackground)
         {
-            theme.Panel(canvas, Bounds, Caption, CaptionFontSize);
+            theme.Panel(canvas, Bounds);
         }
+    }
+
+    internal override void DrawAdornments(IUiCanvas canvas, UiTheme theme)
+    {
+        if (!Visible || Bounds.IsEmpty)
+        {
+            return;
+        }
+
+        if (DrawBackground)
+        {
+            theme.Caption(canvas, Bounds, Caption, CaptionFontSize);
+        }
+        base.DrawAdornments(canvas, theme);
     }
 }
 

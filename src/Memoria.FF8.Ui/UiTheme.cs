@@ -23,7 +23,7 @@ public sealed class UiTheme
             const int bands = 128;
             for (int index = 0; index < bands; index++)
             {
-                byte shade = (byte)(96 - index * 40 / (bands - 1));
+                byte shade = (byte)(112 - index * 40 / (bands - 1));
                 float left = bounds.X + bounds.Width * index / bands;
                 float rightEdge = bounds.X + bounds.Width * (index + 1) / bands;
                 canvas.Fill(new UiRect(left, bounds.Y, rightEdge - left, bounds.Height), new UiColor(shade, shade, shade));
@@ -42,19 +42,26 @@ public sealed class UiTheme
                 canvas.Line(bounds.X + 2, bottomEdge - 2, right - 2, bottomEdge - 2, Muted, 1);
                 canvas.Line(right - 2, bounds.Y + 2, right - 2, bottomEdge - 2, Muted, 1);
             }
-            if (!string.IsNullOrEmpty(caption))
-            {
-                float size = captionFontSize > 0 ? captionFontSize : FontSize;
-                float x = captionFontSize > 0 ? 8 : 10;
-                float y = captionFontSize > 0 ? 1 : 6;
-                float height = captionFontSize > 0 ? size * 1.3f : size * 1.5f;
-                canvas.Text(caption, size, new UiRect(bounds.X + x, bounds.Y + y, Math.Max(0, bounds.Width - x * 2), Math.Min(height, Math.Max(0, bounds.Height - y))), Foreground);
-            }
         }
         finally
         {
             canvas.PopClip();
         }
+        Caption(canvas, bounds, caption, captionFontSize);
+    }
+
+    public void Caption(IUiCanvas canvas, UiRect bounds, string? caption, float captionFontSize = 0)
+    {
+        if (bounds.IsEmpty || string.IsNullOrEmpty(caption))
+        {
+            return;
+        }
+
+        float size = captionFontSize > 0 ? captionFontSize : FontSize;
+        float inset = captionFontSize > 0 ? 8 : 10;
+        float height = size * 1.5f;
+        UiRect textBounds = new(bounds.X + inset, bounds.Y - height / 2, Math.Max(0, bounds.Width - inset * 2), height);
+        canvas.OutlinedText(caption, size, textBounds, Foreground, new UiColor(0, 0, 0), 1);
     }
 
     public void Pointer(IUiCanvas canvas, float x, float y, float size = 10)

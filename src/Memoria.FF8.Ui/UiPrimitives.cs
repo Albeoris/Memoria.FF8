@@ -102,6 +102,21 @@ public interface IUiCanvas
     void Fill(UiRect bounds, UiColor color);
     void Text(string text, float fontSize, UiRect bounds, UiColor color);
     void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment);
+    /// <summary>Vertically centers the visible glyphs and outlines them with the given radius.</summary>
+    void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
+    {
+        for (int y = -1; y <= 1; y++)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                if (x != 0 || y != 0)
+                {
+                    Text(text, fontSize, new UiRect(bounds.X + x * thickness, bounds.Y + y * thickness, bounds.Width, bounds.Height), outline, UiAlignment.Center);
+                }
+            }
+        }
+        Text(text, fontSize, bounds, color, UiAlignment.Center);
+    }
     void MenuPointer(UiRect bounds);
     void Image(UiImageSource source, UiRect bounds);
     void Text(string text, float fontSize, UiRect bounds, UiColor color, string? fontFamily)

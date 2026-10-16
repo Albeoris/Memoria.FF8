@@ -29,6 +29,23 @@ internal sealed class SystemTextRenderer(GraphicsDevice device) : IDisposable
         DrawClipped(batch, texture, position, color, clip);
     }
 
+    public void DrawOutlinedClipped(SpriteBatch batch, string value, float size, XnaVector2 centerLeft, float maximumWidth, XnaColor color, XnaColor outline, float thickness, Microsoft.Xna.Framework.Rectangle clip)
+    {
+        Texture2D texture = GetTexture(value, size, maximumWidth);
+        XnaVector2 position = centerLeft - new XnaVector2(0, texture.Height / (2f * SystemTextLayout.RasterScale));
+        for (int y = -1; y <= 1; y++)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                if (x != 0 || y != 0)
+                {
+                    DrawClipped(batch, texture, position + new XnaVector2(x, y) * thickness, outline, clip);
+                }
+            }
+        }
+        DrawClipped(batch, texture, position, color, clip);
+    }
+
     internal static void DrawClipped(SpriteBatch batch, Texture2D texture, XnaVector2 position, XnaColor color, Microsoft.Xna.Framework.Rectangle clip, float scale = 1f / SystemTextLayout.RasterScale)
     {
         int left = Math.Clamp((int)MathF.Ceiling((clip.Left - position.X) / scale), 0, texture.Width);

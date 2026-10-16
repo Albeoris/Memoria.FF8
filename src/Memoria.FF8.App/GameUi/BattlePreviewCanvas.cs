@@ -87,6 +87,36 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
         Text(text, fontSize, bounds, color, UiAlignment.Start);
     }
 
+    public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)
+    {
+        if (bounds.IsEmpty || fontSize <= 0 || string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        using Bitmap glyphs = SystemTextLayout.Rasterize(text, fontSize, bounds.Width);
+        float y = bounds.Y + (bounds.Height - glyphs.Height / (float)SystemTextLayout.RasterScale) / 2;
+        PushClip(new UiRect(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2, bounds.Height + thickness * 2));
+        try
+        {
+            for (int offsetY = -1; offsetY <= 1; offsetY++)
+            {
+                for (int offsetX = -1; offsetX <= 1; offsetX++)
+                {
+                    if (offsetX != 0 || offsetY != 0)
+                    {
+                        DrawTinted(glyphs, bounds.X + offsetX * thickness, y + offsetY * thickness, outline);
+                    }
+                }
+            }
+            DrawTinted(glyphs, bounds.X, y, color);
+        }
+        finally
+        {
+            PopClip();
+        }
+    }
+
     public void Text(string text, float fontSize, UiRect bounds, UiColor color, UiAlignment verticalAlignment)
     {
         if (bounds.IsEmpty || fontSize <= 0 || string.IsNullOrEmpty(text))
