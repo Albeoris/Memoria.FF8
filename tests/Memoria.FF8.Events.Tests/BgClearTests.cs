@@ -122,7 +122,7 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(170);
-        string source = Path.Combine("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("Events.Tests.BgClearTests.1");
         GameSession session = new(GameSession.Load(source));
         EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
         actual.LoadField(170, field.Jsm, field.Messages, session.State.FieldArrival);

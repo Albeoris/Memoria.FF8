@@ -11,7 +11,7 @@ public sealed class NativeTrainContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original train and field corpus is required.");
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeTrainContinuationTests.1");
         GameState state = GameSession.Load(source);
         Assert.Equal(104, state.FieldId);
         var session = new GameSession(state);

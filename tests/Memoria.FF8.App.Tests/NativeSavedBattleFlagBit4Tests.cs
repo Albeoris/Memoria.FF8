@@ -97,11 +97,7 @@ public sealed class NativeSavedBattleFlagBit4Tests
     private static string Source()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        return Path.Combine(root, "../fixtures/external-fixture.json");
+        return TestResources.FixturePath("App.Tests.NativeSavedBattleFlagBit4Tests.1");
     }
 
     private static byte[] Encode((Jsm.Opcode Opcode, int Parameter)[] operations)

@@ -144,19 +144,19 @@ public sealed class SelectedAssetTests
         if (evidence is not null)
         {
             Directory.CreateDirectory(evidence);
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-background-0.rgba"), first);
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-background-5.rgba"), curtain);
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.2.rgba"), first);
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.3.rgba"), curtain);
             ActorVisual[] actors = [new(0, 0, -188, 738, 242, 64, 3, 31, true, PolygonColor: new Vector3(128)), new(8, 8, 60, 600, 0, 192, 0, 0, true, PolygonColor: new Vector3(128))];
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-models.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.4.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
             actors[0] = actors[0] with { AnimationId = 0, AnimationFrame = 0, X = 0, Y = 550, Z = 0 };
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-pose-0.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.5.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
             actors[0] = actors[0] with { AnimationId = 1, AnimationFrame = 0 };
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-pose-1.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.6.rgba"), renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero));
             // Installed initial JSM snapshot, including Squall's world-space DOFFSET(0,48,0).
             ActorVisual[] initialActors = [new(1, 1, -141, 802, 0, 192, 3, 2, true, PolygonColor: new Vector3(128)), new(8, 8, -150, 650, 0, 64, 0, 1, true, PolygonColor: new Vector3(128))];
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-script-initial.rgba"), renderer.Render(new Dictionary<int, int>(), initialActors, TimeSpan.Zero));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.7.rgba"), renderer.Render(new Dictionary<int, int>(), initialActors, TimeSpan.Zero));
             initialActors[0] = initialActors[0] with { AnimationId = 5, AnimationFrame = 33 };
-            File.WriteAllBytes(Path.Combine(evidence, "infirmary-native-seated.rgba"), renderer.Render(new Dictionary<int, int>(), initialActors, TimeSpan.Zero));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.8.rgba"), renderer.Render(new Dictionary<int, int>(), initialActors, TimeSpan.Zero));
             foreach (int id in new[] { 179, 181, 229 })
             {
                 FieldAssets scene = game.LoadField(id);
@@ -214,11 +214,11 @@ public sealed class SelectedAssetTests
             FieldRenderer renderer = new(classroom);
             Dictionary<int, int> states = new() { [0] = 1 };
             ActorVisual actor = new(11, 10, 1432, -3080, 0, 142, 4, 0, true, PolygonColor: new Vector3(128));
-            File.WriteAllBytes(Path.Combine(evidence, "classroom-actor11-raw-geta.rgba"), renderer.Render(states, [actor with { RootTranslationZ = 242 }], TimeSpan.Zero, cameraIndex: 1));
-            File.WriteAllBytes(Path.Combine(evidence, "classroom-actor11-native-elevation.rgba"), renderer.Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
-            File.WriteAllBytes(Path.Combine(evidence, "classroom-actor3-isolated.rgba"), renderer.Render(states, [new(3, 2, 0, 0, 0, 0, 0, 2, true)], TimeSpan.Zero, cameraIndex: 1));
-            File.WriteAllBytes(Path.Combine(evidence, "classroom-actor11-native-elevation-960x720.rgba"), new FieldRenderer(classroom, 960, 720).Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
-            File.WriteAllBytes(Path.Combine(evidence, "classroom-actor11-native-elevation-960x720-nearest.rgba"), new FieldRenderer(classroom, 960, 720, ModelTextureSampling.Nearest).Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.9.rgba"), renderer.Render(states, [actor with { RootTranslationZ = 242 }], TimeSpan.Zero, cameraIndex: 1));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.10.rgba"), renderer.Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.11.rgba"), renderer.Render(states, [new(3, 2, 0, 0, 0, 0, 0, 2, true)], TimeSpan.Zero, cameraIndex: 1));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.12.rgba"), new FieldRenderer(classroom, 960, 720).Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
+            File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.13.rgba"), new FieldRenderer(classroom, 960, 720, ModelTextureSampling.Nearest).Render(states, [actor], TimeSpan.Zero, cameraIndex: 1));
             WriteClassroomCheckpointEvidence(classroom, evidence);
             File.WriteAllLines(Path.Combine(evidence, "classroom-standing-actor.txt"), [$"actor11 model10 {student.Name}; texture dimensions={string.Join(",", student.Textures.Select(texture => $"{texture.Width}x{texture.Height}"))}", $"animation4/frame0 root={student.Animations[4].Frames[0].Translation}; posedZ={pose.Min(point => point.Z):F3}..{pose.Max(point => point.Z):F3}; floor={floor}", $"actor11 projected origin={classroom.GetCamera(1).Project(new Vector3(1432, -3080, 0))}; elevated origin={classroom.GetCamera(1).Project(new Vector3(1432, -3080, 242))}", $"actor3 projected origin={classroom.GetCamera(1).Project(Vector3.Zero)}", $"infirmary Squall model1 textures={string.Join(",", game.LoadField(180).Models[1].Textures.Select(texture => $"{texture.Width}x{texture.Height}"))}"]);
         }
@@ -226,7 +226,7 @@ public sealed class SelectedAssetTests
 
     private static void WriteClassroomCheckpointEvidence(FieldAssets classroom, string evidence)
     {
-        string path = Path.GetFullPath(Path.Combine(evidence, "../fixtures/external-fixture.json"));
+        string path = Path.GetFullPath(TestResources.FixturePath("Assets.Tests.SelectedAssetTests.1"));
         using JsonDocument checkpoint = JsonDocument.Parse(File.ReadAllBytes(path));
         JsonElement events = checkpoint.RootElement.GetProperty("EventState");
         static Vector3 ReadVector(JsonElement value) => new(value.GetProperty("X").GetSingle(), value.GetProperty("Y").GetSingle(), value.GetProperty("Z").GetSingle());
@@ -238,7 +238,7 @@ public sealed class SelectedAssetTests
         }).ToArray();
         Dictionary<int, int> states = events.GetProperty("BackgroundStates").EnumerateObject().ToDictionary(property => int.Parse(property.Name), property => property.Value.GetInt32());
         Dictionary<int, Vector3> shades = events.GetProperty("Scene").GetProperty("BackgroundShadeLoops").EnumerateObject().ToDictionary(property => int.Parse(property.Name), property => ReadVector(property.Value.GetProperty("CurrentColor")));
-        File.WriteAllBytes(Path.Combine(evidence, "classroom-checkpoint-corrected-960x720.rgba"), new FieldRenderer(classroom, 960, 720).Render(states, actors, TimeSpan.Zero, cameraIndex: 1, backgroundModuleShades: shades));
+        File.WriteAllBytes(TestResources.ArtifactFile("Assets.Tests.SelectedAssetTests.14.rgba"), new FieldRenderer(classroom, 960, 720).Render(states, actors, TimeSpan.Zero, cameraIndex: 1, backgroundModuleShades: shades));
     }
 
     [Fact]

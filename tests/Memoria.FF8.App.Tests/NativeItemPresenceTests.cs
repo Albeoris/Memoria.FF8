@@ -98,7 +98,7 @@ public sealed class NativeItemPresenceTests
     [Fact]
     public void ActualWhiteSeeD857InitializationAndStandaloneContinuation()
     {
-        GameSession session = new(GameSession.Load(FindRootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeItemPresenceTests.1")));
         using GameWorld world = new(session, GameDirectory);
         int calls = 0;
         world.Events.CommandExecuted += command =>

@@ -25,7 +25,7 @@ public sealed partial class BattleSession
         if (nativeActionCommitDepth == 0 && nativeProductionContext is null)
         {
             BeginNativeReactionBatch();
-            //TODO(TD-009): Generic components project ordinary player bank2 admission; retain the real event lane instead of the previous INIT callback
+            //TODO(TD-009): Generic components project ordinary player bank2 admission; retain the real event lane instead of the previous INIT callback.
             SetNativeActionEvent(actor, actor.IsPlayer ? (byte)2 : (byte)0);
         }
         nativeActionCommitDepth++;

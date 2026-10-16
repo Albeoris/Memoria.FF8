@@ -12,8 +12,7 @@ public sealed class PartyScrollRenderTests
     public void AuthenticWithdrawalPrefixRestoresSavedPartyCosineStatePixelsAndNextWait()
     {
         string directory = TestResources.GameDirectory;
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.PartyScrollRenderTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic withdrawal snapshot and installed field corpus are required.");
         GameState current = GameSession.Load(source);
         GameSession session = new(current);

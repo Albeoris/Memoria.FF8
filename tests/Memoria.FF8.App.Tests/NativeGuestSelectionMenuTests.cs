@@ -53,7 +53,7 @@ public sealed class NativeGuestSelectionMenuTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field180 is required.");
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeGuestSelectionMenuTests.1");
         GameState initial = GameSession.Load(source);
         GameSession session = new(initial);
         using GameWorld world = new(session, directory);

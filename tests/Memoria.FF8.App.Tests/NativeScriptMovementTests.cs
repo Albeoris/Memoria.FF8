@@ -14,12 +14,12 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.1");
         GameState state = GameSession.Load(source);
         using var legacy = new GameWorld(new GameSession(state), directory);
         legacy.EnsureField();
         Assert.All(legacy.Events.Actors, actor => Assert.Null(actor.NativeMotionAuthority));
-        string departure = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string departure = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.2");
         using var fresh = new GameWorld(new GameSession(state with { EventState = null, DepartingFieldState = GameSession.Load(departure).EventState }), directory);
         fresh.EnsureField();
         for (int tick = 0; tick < 4; tick++)
@@ -53,7 +53,7 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.3");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -81,7 +81,7 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.4");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -113,7 +113,7 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.5");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -193,7 +193,7 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.6");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -237,7 +237,7 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.7");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -276,7 +276,7 @@ public sealed class NativeScriptMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeScriptMovementTests.8");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

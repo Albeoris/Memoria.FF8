@@ -10,11 +10,7 @@ public sealed class NativeEstharWorldMusicTests
     public void Actual422WorldDeparturePreservesPendingFieldPreloadAndRestores()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeEstharWorldMusicTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         NativeMusicProcessState before = world.Events.Scene.MusicProcess!;

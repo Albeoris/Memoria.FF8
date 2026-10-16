@@ -21,7 +21,7 @@ public sealed class ZeroSpeedNativeMoveTests
     [Fact]
     public void ActualRinoaReturnCanWriteZeroMspeedOverRetainedMovementAndRestore()
     {
-        GameSession session = new(GameSession.Load(FindRootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.ZeroSpeedNativeMoveTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         bool executed = false;
         world.Events.CommandExecuted += command =>
@@ -54,7 +54,7 @@ public sealed class ZeroSpeedNativeMoveTests
     [Fact]
     public void Actual623ZeroSpeedMoveRetainsNativeTargetAndRestoresStationaryCallback()
     {
-        GameSession session = new(GameSession.Load(FindRootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.ZeroSpeedNativeMoveTests.2")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
         Assert.Equal(623, session.State.FieldId);

@@ -14,7 +14,7 @@ public sealed class NormalCameraTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NormalCameraTests.1");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -47,7 +47,7 @@ public sealed class NormalCameraTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NormalCameraTests.2");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -61,9 +61,9 @@ public sealed class NormalCameraTests
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(pixels, restored.Render(TimeSpan.Zero));
-        foreach (string checkpoint in new[] { "player-garden-infirmary-door-current179-checkpoint.json", "player-garden-infirmary-door-playable180-checkpoint.json" })
+        foreach (string checkpoint in new[] { "App.Tests.NormalCameraTests.4", "App.Tests.NormalCameraTests.5" })
         {
-            string adjacentSource = Path.Combine(repository.FullName, "../fixtures", checkpoint);
+            string adjacentSource = TestResources.FixturePath(checkpoint);
             var adjacentSession = new GameSession(GameSession.Load(adjacentSource));
             using var adjacent = new GameWorld(adjacentSession, directory);
             adjacent.EnsureField();
@@ -84,8 +84,7 @@ public sealed class NormalCameraTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string evidence = Path.Combine(repository!.FullName, "../fixtures");
-        var session = new GameSession(GameSession.Load(Path.Combine(evidence, "player-garden-west165-diagonal2-wall-preboundary-checkpoint.json")));
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.NormalCameraTests.6")));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(245, world.Events.Frame);
@@ -99,7 +98,7 @@ public sealed class NormalCameraTests
         restored.EnsureField();
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(pixels, restored.Render(TimeSpan.Zero));
-        var replaySession = new GameSession(GameSession.Load(Path.Combine(evidence, "player-garden-west165-west3-wall-preboundary-checkpoint.json")));
+        var replaySession = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.NormalCameraTests.7")));
         using var replay = new GameWorld(replaySession, directory);
         replay.EnsureField();
         Assert.Equal(231, replay.Events.Frame);
@@ -141,7 +140,7 @@ public sealed class NormalCameraTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NormalCameraTests.3");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

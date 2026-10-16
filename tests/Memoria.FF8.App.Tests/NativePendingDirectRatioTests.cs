@@ -13,7 +13,7 @@ public sealed class NativePendingDirectRatioTests
     public void ReachedRatioUsesPendingDirectNextDrawWithoutInventingCurrentWords()
     {
         string directory = TestResources.GameDirectory;
-        string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_PENDING_RATIO_SOURCE") ?? Path.Combine("../fixtures/external-fixture.json");
+        string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_PENDING_RATIO_SOURCE") ?? TestResources.FixturePath("App.Tests.NativePendingDirectRatioTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "The preserved actual248 ratio diagnostic and installed resources are required.");
         using GameAssets assets = new(directory);
         FieldAssets field = assets.LoadField(248);

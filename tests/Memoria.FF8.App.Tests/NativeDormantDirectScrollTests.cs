@@ -13,14 +13,14 @@ public sealed class NativeDormantDirectScrollTests
     [Fact]
     public void ActualAuditoriumDirectRowZeroKeepsSelectedCameraOneIndependent()
     {
-        string source = TestResources.FixtureFile("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeDormantDirectScrollTests.1");
         Assert.SkipUnless(File.Exists(source), "The genuine auditorium preaction snapshot is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement checkpoint = document.RootElement.GetProperty("EventState");
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         SceneEventState scene = checkpoint.GetProperty("Scene").Deserialize<SceneEventState>(options)!;
         // This preserved pre-eyes snapshot predates the required nullable field.
-        // Explicit fixture migration mirrors;
+        // Explicit fixture migration preserves the native state contract;
         // no historical eye flags or texture copies are inferred.
         JsonArray migratedActors = JsonNode.Parse(checkpoint.GetProperty("Actors").GetRawText())!.AsArray();
         foreach (JsonNode? actor in migratedActors)

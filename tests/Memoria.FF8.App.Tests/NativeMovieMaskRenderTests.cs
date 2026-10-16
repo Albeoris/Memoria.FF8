@@ -99,7 +99,7 @@ public sealed class NativeMovieMaskRenderTests
         FieldRenderer renderer = new(field, 320, 224, nativeMovieViewport: true);
         MovieInformation information = clock.Prepare();
         using FfmpegMovieDecoder decoder = new(clock.ToolsDirectory, clock.SourcePath, information: information);
-        string evidence = Path.Combine(Repository(), "../fixtures");
+        string evidence = TestResources.ArtifactDirectory;
         Directory.CreateDirectory(evidence);
         List<object> frames = [];
         int visibleTotal = 0;
@@ -153,7 +153,7 @@ public sealed class NativeMovieMaskRenderTests
             if (record == 89)
             {
                 session.SetEventState(world.Events.Capture());
-                session.Save(Path.Combine(evidence, "corridor-movie89-authentic.json"));
+                session.Save(TestResources.ArtifactFile("App.Tests.NativeMovieMaskRenderTests.1.json"));
                 GameState rebuilt = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(session.State))!;
                 Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(rebuilt)));
                 using GameWorld replay = new(new GameSession(rebuilt), GameDirectory());
@@ -184,10 +184,10 @@ public sealed class NativeMovieMaskRenderTests
                 Assert.True(replay.AdvanceMovieFrame(nextPlayback, 90 / information.FramesPerSecond));
                 Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
                 Assert.Equal(world.RenderMovieFrame(next.Rgba, information.Width, information.Height), replay.RenderMovieFrame(next.Rgba, information.Width, information.Height));
-                File.WriteAllText(Path.Combine(evidence, "corridor-movie89-reconstruction-proof.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria movie89 snapshot and decoded AVI89/90", Implementation = "Independent current Memoria snapshot continuation without a decoder", FullState89 = true, Pixels89 = true, NextDecoded90VmState = true, NextDecoded90Pixels = true, OriginalRuntimePixelParity = false }, new JsonSerializerOptions { WriteIndented = true }));
+                File.WriteAllText(TestResources.ArtifactFile("App.Tests.NativeMovieMaskRenderTests.2.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria movie89 snapshot and decoded AVI89/90", Implementation = "Independent current Memoria snapshot continuation without a decoder", FullState89 = true, Pixels89 = true, NextDecoded90VmState = true, NextDecoded90Pixels = true, OriginalRuntimePixelParity = false }, new JsonSerializerOptions { WriteIndented = true }));
             }
         }
-        File.WriteAllText(Path.Combine(evidence, "corridor-movie-mask-pixels.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria actual decoder/field VM", Implementation = "Current Memoria CPU CAM/MSK actor compositor", OriginalRuntimePixelParity = false, Frames = frames }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(TestResources.ArtifactFile("App.Tests.NativeMovieMaskRenderTests.3.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria actual decoder/field VM", Implementation = "Current Memoria CPU CAM/MSK actor compositor", OriginalRuntimePixelParity = false, Frames = frames }, new JsonSerializerOptions { WriteIndented = true }));
         TestContext.Current.TestOutputHelper!.WriteLine($"Genuine original-script movie0 frames: retained actor pixels={visibleTotal}, MSK-occluded fragments={occludedTotal}; native runtime pixel parity is unclaimed.");
         Assert.Equal(information.FrameCount - 1, session.State.MoviePlayback!.FrameIndex);
         Assert.False(session.IsMoviePlaying);
@@ -218,7 +218,7 @@ public sealed class NativeMovieMaskRenderTests
         Assert.Equal(0, world.Events.CurrentDialogue!.MessageId);
         Assert.NotEmpty(world.Render(TimeSpan.Zero));
         Assert.Null(world.Events.LastFault);
-        File.WriteAllText(Path.Combine(evidence, "corridor-natural-movie-departure-proof.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria genuine decoded movie0 through original MAP232", Implementation = "Current Memoria presentation readiness gate", Departure = departure, Destination = new { Field = world.Field.Id, Frame = world.Events.Frame, PresentationReady = world.CanPresentCurrentField, Message = world.Events.CurrentDialogue.MessageId }, SkinValidatorStillRefusesStaleSample = true }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(TestResources.ArtifactFile("App.Tests.NativeMovieMaskRenderTests.4.json"), JsonSerializer.Serialize(new { Baseline = "Current Memoria genuine decoded movie0 through original MAP232", Implementation = "Current Memoria presentation readiness gate", Departure = departure, Destination = new { Field = world.Field.Id, Frame = world.Events.Frame, PresentationReady = world.CanPresentCurrentField, Message = world.Events.CurrentDialogue.MessageId }, SkinValidatorStillRefusesStaleSample = true }, new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static string Repository()

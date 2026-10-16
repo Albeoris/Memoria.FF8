@@ -39,7 +39,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         if (!actor.IsAlive)
         {
             int[] clips = Sequence(3).Animations.ToArray();
-            // TODO(TD-009): Native party KO includes an already-KO branch before the fall/settled suffix. The scaffold enters from standing; full status-branch execution remains deferred
+            // TODO(TD-009): Native party KO includes an already-KO branch before the fall/settled suffix. The scaffold enters from standing; full status-branch execution remains deferred.
             if (actor.IsPlayer && clips.Length > 1 && clips[0] == clips[^1])
             {
                 clips = clips[1..];
@@ -49,7 +49,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
             {
                 return Play(clips, age, Vector3.Zero);
             }
-            // TODO(TD-009): Native effect-only deaths require the battle effect VM; fade is presentation tuning
+            // TODO(TD-009): Native effect-only deaths require the battle effect VM; fade is presentation tuning.
             return new BattleAnimationSample(0, 0, Vector3.Zero, (float)Math.Clamp(1 - age / 15, 0, 1));
         }
         if (actor.IsPlayer && session.Outcome == BattleOutcome.Victory)
@@ -74,7 +74,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                 {
                     throw new NotSupportedException($"{model.Name} physical action sequence has no skeletal pose track.");
                 }
-                // TODO(TD-009): Native clips use scaffold phase duration/approach until the full sequence movement/effect VM executes
+                // TODO(TD-009): Native clips use scaffold phase duration/approach until the full sequence movement/effect VM executes.
                 double progress = age / duration;
                 float approach = age < BattleSession.AttackWindupFrames ? (float)(age / BattleSession.AttackWindupFrames) : (float)((duration - age) / BattleSession.AttackRecoveryFrames);
                 bool approachTarget = definition.IsPlayer && Melee && windup.Ability == BattleAbility.Attack;
@@ -144,13 +144,13 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         {
             throw new NotSupportedException($"{model.Name} native sequence{sequence} has no skeletal pose track.");
         }
-        //TODO(TD-009): Use the shared process clock and original embedded clips until raw sequence pose receipts replace static clip projection
+        //TODO(TD-009): Use the shared process clock and original embedded clips until raw sequence pose receipts replace static clip projection.
         return Play(clips, poseFrames, Vector3.Zero);
     }
 
     public float GroundOffset(BattleAnimationSample sample, bool alive, float standingOffset)
     {
-        // TODO(TD-009): Ground fallen geometry at the selected pose instead of subtracting the standing-foot anchor from a flat KO pose
+        // TODO(TD-009): Ground fallen geometry at the selected pose instead of subtracting the standing-foot anchor from a flat KO pose.
         return alive ? standingOffset : (sample.NativePose is { } pose ? model.PoseNative(pose) : model.Pose(sample.Animation, sample.Frame, sample.Loop)).SelectMany(mesh => mesh).Min(vertex => vertex.Y);
     }
 
@@ -259,7 +259,7 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
                     Vector3 root = Vector3.Lerp(model.Animations[animation].Frames[current].Translation, model.Animations[animation].Frames[next].Translation, frame - current);
                     Vector3 delta = root - model.Animations[0].Frames[0].Translation;
                     Vector3 local = new Vector3(-delta.X, 0, delta.Z) * model.Scale;
-                    // TODO(TD-009): The scaffold owns approach translation; remove the clip's horizontal root displacement once, preserving its vertical motion
+                    // TODO(TD-009): The scaffold owns approach translation; remove the clip's horizontal root displacement once, preserving its vertical motion.
                     offset -= Vector3.TransformNormal(local, Matrix4x4.CreateRotationY(definition.IsPlayer ? MathF.PI : 0));
                 }
                 return new BattleAnimationSample(animation, frame, offset);

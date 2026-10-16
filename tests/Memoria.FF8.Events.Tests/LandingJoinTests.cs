@@ -13,10 +13,10 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(137);
-        const string source = "player-garden-preqsw137-boundary-preboundary-checkpoint.json";
+        const string source = "Events.Tests.LandingJoinTests.1";
         EventEngine Create()
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures", source)));
+            GameSession session = new(GameSession.Load(TestResources.FixturePath(source)));
             EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

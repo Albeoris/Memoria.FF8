@@ -130,7 +130,7 @@ public sealed partial class BattleSession
         {
             return false;
         }
-        // NG-005: Original483270 excludes encounter317
+        // NG-005: Original483270 excludes encounter317.
         if ((NativeSupportFlags(4) & 4) == 0 || definition.EncounterId == 317 || NextRandomByte() > 64)
         {
             return false;

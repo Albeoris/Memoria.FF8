@@ -10,8 +10,7 @@ public sealed class NativeCarFieldRenderTests
     public void ActualCarPrefixUsesSharedDirectCenterAndRestoresDormantShakeWithoutChangingPartyAliases()
     {
         string directory = TestResources.GameDirectory;
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeCarFieldRenderTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic route snapshot and installed game are required.");
         GameState current = SnapshotFixtures.Require("MEMORIA_FF8_CAR_DEPARTURE_SNAPSHOT", 262);
         Assert.Equal(262, current.FieldId);

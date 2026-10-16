@@ -14,7 +14,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(139);
         EventEngine Create()
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+            GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.AsyncRfmMoveTests.1")));
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

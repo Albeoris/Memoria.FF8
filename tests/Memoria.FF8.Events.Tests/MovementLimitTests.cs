@@ -53,7 +53,7 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(165);
-        GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.MovementLimitTests.1")));
         EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
         actual.LoadField(165, field.Jsm, field.Messages, session.State.FieldArrival);
         actual.Restore(session.State.EventState!.Value);
@@ -69,7 +69,7 @@ internal static partial class Program
         }
         Require(actual.Frame == 5 && actual.Actors[20].MovementDirectionLimit == 4 && commands.Any(command => command.ObjectId == 20 && command.Operation == 1634 && command.Name == "MLIMIT") && actual.LastFault is null && actual.Actors[20].MovementTarget is null, $"Actual165 ordinary Wait did not execute MLIMIT4 immediately with supported background-loop continuation: frame{actual.Frame}, limit{actual.Actors[20].MovementDirectionLimit}, fault{actual.LastFault}.");
         JsonElement actualSaved = actual.Capture();
-        GameSession independentSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+        GameSession independentSession = new(GameSession.Load(TestResources.FixturePath("Events.Tests.MovementLimitTests.2")));
         EventEngine independent = new(independentSession);
         independent.LoadField(165, field.Jsm, field.Messages, independentSession.State.FieldArrival);
         independent.Restore(actualSaved);

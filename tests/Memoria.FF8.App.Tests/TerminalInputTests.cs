@@ -28,8 +28,8 @@ public sealed class TerminalInputTests
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(source, JsonOptions), JsonSerializer.SerializeToElement(recreated, JsonOptions)), "Authentic terminal navigation must recreate complete state.");
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_TERMINAL_EXPORT") == "1")
         {
-            string evidence = Path.Combine(Repository(), "../fixtures");
-            session.Save(Path.Combine(evidence, "replay-classroom-terminal-keyscan-checkpoint.json"));
+            string evidence = TestResources.ArtifactDirectory;
+            session.Save(TestResources.ArtifactFile("App.Tests.TerminalInputTests.2.json"));
         }
         using var rebuilt = new GameWorld(new GameSession(recreated), directory);
         rebuilt.EnsureField();
@@ -50,7 +50,7 @@ public sealed class TerminalInputTests
         Assert.Equal(world.Render(TimeSpan.Zero), rebuilt.Render(TimeSpan.Zero));
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_TERMINAL_EXPORT") == "1")
         {
-            string proof = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+            string proof = TestResources.ArtifactFile("App.Tests.TerminalInputTests.1.json");
             File.WriteAllText(proof, JsonSerializer.Serialize(new { Baseline = "Explicit classroom232 snapshot and ordinary personal desk activation", Implementations = "Current Memoria GameWorld and independent snapshot continuation under the same code", CheckpointField = source.FieldId, CheckpointFrame = source.EventState!.Value.GetProperty("Frame").GetInt64(), CompleteStateEqual = true, IndependentCpuPixelsEqual = true, TerminalDownHeldMask = 0x4000, ConfirmHeldMask = 0x40, CancelHeldMask = 0x10, SubmenuMessage = 3, SubmenuCancelResumedMain = true, FinalField = world.Events.FieldId, FinalMessage = world.Events.CurrentDialogue?.MessageId, Limitation = "Original field scripts exercised; original FF8 runtime and GPU parity are not established." }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }

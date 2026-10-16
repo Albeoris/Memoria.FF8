@@ -144,9 +144,9 @@ public sealed class NativeDrawPointParticleTests
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_DRAWPOINT_PARTICLE_EVIDENCE");
         if (evidence is not null)
         {
-            WritePng(Path.Combine(evidence, "drawpoints-102-particles.png"), visible);
-            WritePng(Path.Combine(evidence, "drawpoints-102-without-particles.png"), plain);
-            File.WriteAllText(Path.Combine(evidence, "drawpoints-102-particles-render.json"), JsonSerializer.Serialize(new { FieldId = 102, field.Name, ObjectId = 15, ScriptId = 135, Set3Operation = 2214, SetDrawPointOperation = 2216, RawAnchor = new[] { -485, -698, 0 }, Triangle = 55, DisplayMask = 1, PointIndex = 6, CameraIndex = 0, CameraTarget = "Original draw-point anchor with native INF camera height/projection/clamp", CameraCenter = center, BackgroundAnimationStates = backgrounds, ComponentPhaseAtStart = 0, ComponentCallbacks = 20, ChangedPixels = changedPixels, Classification = "Declared initialized renderer component; original assets and script anchor; no gameplay save or travel assertion" }, new JsonSerializerOptions { WriteIndented = true }));
+            WritePng(TestResources.ArtifactFile("App.Tests.NativeDrawPointParticleTests.1.png"), visible);
+            WritePng(TestResources.ArtifactFile("App.Tests.NativeDrawPointParticleTests.2.png"), plain);
+            File.WriteAllText(TestResources.ArtifactFile("App.Tests.NativeDrawPointParticleTests.3.json"), JsonSerializer.Serialize(new { FieldId = 102, field.Name, ObjectId = 15, ScriptId = 135, Set3Operation = 2214, SetDrawPointOperation = 2216, RawAnchor = new[] { -485, -698, 0 }, Triangle = 55, DisplayMask = 1, PointIndex = 6, CameraIndex = 0, CameraTarget = "Original draw-point anchor with native INF camera height/projection/clamp", CameraCenter = center, BackgroundAnimationStates = backgrounds, ComponentPhaseAtStart = 0, ComponentCallbacks = 20, ChangedPixels = changedPixels, Classification = "Declared initialized renderer component; original assets and script anchor; no gameplay save or travel assertion" }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 

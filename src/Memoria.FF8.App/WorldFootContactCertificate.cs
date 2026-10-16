@@ -136,7 +136,7 @@ public static class WorldFootContactCertificate
     {
         ArgumentNullException.ThrowIfNull(projection);
         // Original rail.obj routes0/1;545B20 interpolation stays inside these
-        // endpoint bounds
+        // endpoint bounds.
         (int MinimumX, int MaximumX, int MinimumZ, int MaximumZ)[] routes = [(-28130, -17477, 6490, 43516), (-61703, -21000, 5871, 32258)];
         foreach ((int minimumX, int maximumX, int minimumZ, int maximumZ) in routes)
         {

@@ -56,7 +56,7 @@ public sealed partial class BattleSession
             NativeGraphics = QueueNativeDescriptor(graphics, 10, 0x4876B0);
             return spawned;
         }
-        // TODO(TD-009): Components without a native graphics owner materialize102/113 at this explicit boundary
+        // TODO(TD-009): Components without a native graphics owner materialize102/113 at this explicit boundary.
         InitializeNativeAllocatedStatistics(spawned);
         if (activate)
         {
@@ -86,7 +86,7 @@ public sealed partial class BattleSession
         Array.Fill(spawned.NativeStatMultipliers, (byte)10);
         Array.Clear(spawned.AiVariables);
         //48BBD0 always invokes4844D0, even for a fixed scene level.
-        // TODO(TD-009): Gauge projection still requires the retained physical-slot speedBYTE193; preserve its unconditional RNG draw
+        // TODO(TD-009): Gauge projection still requires the retained physical-slot speedBYTE193; preserve its unconditional RNG draw.
         _ = NextRandomByte();
         spawned.NativeAllocationPendingStatistics = false;
     }
@@ -133,7 +133,7 @@ public sealed partial class BattleSession
         actor.Untargetable = true;
         actor.NativeStatus0 |= 1;
         actor.IsActive = false;
-        // TODO(TD-009): Graphics105 completes the release; scaffold presentation commits it at the same dispatch boundary
+        // TODO(TD-009): Graphics105 completes the release; scaffold presentation commits it at the same dispatch boundary.
         Log("NativeModelRemoved", actor.Id, actor.Id, 0, $"{actor.Name} allocation released.");
     }
 }

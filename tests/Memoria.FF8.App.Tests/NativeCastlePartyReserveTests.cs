@@ -10,7 +10,7 @@ public sealed class NativeCastlePartyReserveTests
     public void Actual575PartySelectionRefreshesBothReserveBanksOnNativeReturnAndFreshLoad()
     {
         DirectoryInfo? root = new(TestResources.FixtureDirectory);
-        string? source = root is null ? null : Path.Combine(root.FullName, "../fixtures/external-fixture.json");
+        string? source = root is null ? null : TestResources.FixturePath("App.Tests.NativeCastlePartyReserveTests.1");
         Assert.SkipUnless(source is not null && File.Exists(source), "The preserved original575 party-menu standalone is required.");
         GameState original = GameSession.Load(source!);
         GameSession session = new(original);

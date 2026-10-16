@@ -62,8 +62,7 @@ public sealed class GlobalSoundCheckpointTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field and global audio corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.GlobalSoundCheckpointTests.1");
         var session = new GameSession(GameSession.Load(source));
         using var first = new GameWorld(session, directory);
         first.EnsureField();

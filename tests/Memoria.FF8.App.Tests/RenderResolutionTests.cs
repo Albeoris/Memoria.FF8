@@ -14,8 +14,7 @@ public sealed class RenderResolutionTests
         Assert.Equal(new PixelBounds(0, 0, 2880, 2160), ViewportLayout.WorldRenderTarget(3840, 2160, 4096));
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? root = new(TestResources.FixtureDirectory);
-        var session = new GameSession(GameSession.Load(Path.Combine(root!.FullName, "../fixtures/external-fixture.json")));
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.RenderResolutionTests.1")));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         ActorState quistis = Assert.Single(world.Events.Actors, actor => actor.ObjectId == 11);

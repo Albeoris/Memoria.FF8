@@ -45,12 +45,12 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(172);
-        GameSession savedSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+        GameSession savedSession = new(GameSession.Load(TestResources.FixturePath("Events.Tests.InitialInputDirectionTests.1")));
         EventEngine saved = new(savedSession) { InitInputAxisDirection = field.Information!.ControlDirection };
         saved.LoadField(172, field.Jsm, field.Messages, savedSession.State.FieldArrival);
         Require(saved.InputAxisDirection == 128, "Selected original172 INF byte9 was not installed on fresh load.");
         saved.Restore(savedSession.State.EventState!.Value);
-        GameSession baselineSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+        GameSession baselineSession = new(GameSession.Load(TestResources.FixturePath("Events.Tests.InitialInputDirectionTests.2")));
         EventEngine baseline = new(baselineSession);
         baseline.LoadField(172, field.Jsm, field.Messages, baselineSession.State.FieldArrival);
         baseline.Restore(baselineSession.State.EventState!.Value);

@@ -1,4 +1,4 @@
-﻿namespace Memoria.FF8.Runtime;
+namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
@@ -240,7 +240,7 @@ public sealed partial class BattleSession
         recipient.Effects.RemoveAll(effect => effect.Definition.Kind == status);
         if (effectKind is BattleActionEffect.Status or BattleActionEffect.Damage)
         {
-            // TODO(TD-009): Duration and periodic magnitude are bounded scaffold status tuning
+            // TODO(TD-009): Duration and periodic magnitude are bounded scaffold status tuning.
             BattleStatusEffectDefinition effect = new() { Kind = status, DurationFrames = 300, TickIntervalFrames = 30, Magnitude = Math.Max(1, recipient.MaximumHp / 20), Permanent = status != BattleStatusKind.Sleep };
             recipient.Effects.Add(new BattleStatusState(effect, effect.DurationFrames, effect.TickIntervalFrames));
         }

@@ -772,7 +772,6 @@ public sealed partial class EventEngine
     private void RefreshCurrentDialogue()
     {
         // TODO(TD-012): persist the native UI focus marker; this is the host representative.
-        
         CurrentDialogue = dialogues.Values.LastOrDefault(dialogue => dialogue.CanConfirm) ?? dialogues.Values.LastOrDefault();
         if (CurrentDialogue is not null)
         {

@@ -32,7 +32,7 @@ public sealed class NativeCardSaveCausalTests
                 Console.WriteLine($"Ordinary {fieldId}/{command.ObjectId}/{command.ScriptId}/{command.Operation}: {command.Name}({command.Arguments[0]}) at frame{world.Events.Frame}.");
             }
         };
-        string output = Path.Combine(repository, "../fixtures");
+        string output = TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         try
         {

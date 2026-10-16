@@ -14,7 +14,7 @@ public sealed class NativeNamePromptHostTests
     {
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field resources are required.");
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeNamePromptHostTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);
         world.EnsureField();
@@ -58,14 +58,14 @@ public sealed class NativeNamePromptHostTests
         Assert.Equal(frame, world.Events.Frame);
         Assert.True(Get<bool>(host, "drainUiButtons"));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
-        Evidence(session, world, "native-accepted.json");
+        Evidence(session, world, "accepted-state.json");
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), restored.Apply(new PlayerAction(PlayerActionKind.Wait)));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Evidence(restoredSession, restored, "native-continued.json");
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NAMING_EVIDENCE");
         if (evidence is not null)
         {
-            File.WriteAllText(Path.Combine(evidence, "native-proof.json"), JsonSerializer.Serialize(new
+            File.WriteAllText(TestResources.ArtifactFile("App.Tests.NativeNamePromptHostTests.2.json"), JsonSerializer.Serialize(new
             {
                 Source = source,
                 Field = session.State.FieldId,
@@ -122,6 +122,6 @@ public sealed class NativeNamePromptHostTests
     private static string Repository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Research checkout was not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

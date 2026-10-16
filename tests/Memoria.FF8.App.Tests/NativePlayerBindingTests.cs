@@ -82,7 +82,7 @@ public sealed class NativePlayerBindingTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        using var world = new GameWorld(new GameSession(GameSession.Load(FindSource("player-garden-library-scroll-boundary-preboundary-checkpoint.json"))), directory);
+        using var world = new GameWorld(new GameSession(GameSession.Load(FindSource("App.Tests.NativePlayerBindingTests.1"))), directory);
         world.EnsureField();
         Assert.Equal(145, world.Events.FieldId);
         Assert.Equal(14, world.Events.Frame);
@@ -120,9 +120,8 @@ public sealed class NativePlayerBindingTests
         return JsonSerializer.Deserialize<SceneEventState>(JsonSerializer.Serialize(scene))!;
     }
 
-    private static string FindSource(string fileName = "player-garden-library-route-boundary-preboundary-checkpoint.json")
+    private static string FindSource(string fileName = "App.Tests.NativePlayerBindingTests.2")
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return Path.Combine(repository!.FullName, "../fixtures", fileName);
+        return TestResources.FixturePath(fileName);
     }
 }

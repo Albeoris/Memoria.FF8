@@ -106,7 +106,7 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics?.UiServices is { } ui && NativeGraphics.TriggerWidget is null)
         {
-            // TODO(TD-009): The current HUD publishes the opened-list transition without native pixel-opening phases
+            // TODO(TD-009): The current HUD publishes the opened-list transition without native pixel-opening phases.
             //4ADD10/4FDD90 select menu2;4ADDB0/4FDD90's opened-list path calls4A7160(1).
             NativeGraphics = NativeGraphics with { UiServices = ui.SetFlags(0x10) with { Menu957 = 2, Menu955 = -1 } };
         }

@@ -58,7 +58,7 @@ public sealed partial class BattleSession
     {
         if (nativeBattleClock is null)
         {
-            // TODO(TD-009): Graphics-only components do not own kernel ATB inputs
+            // TODO(TD-009): Graphics-only components do not own kernel ATB inputs.
             return;
         }
         NativeBattleUiServices ui = NativeGraphics?.UiServices ?? throw new InvalidDataException("Native4A84E0 lacks its initialized UI services.");

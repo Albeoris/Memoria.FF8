@@ -76,7 +76,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        // TODO(TD-009): The component GF windup admits the native Boost widget without the original3D effect-service entry
+        // TODO(TD-009): The component GF windup admits the native Boost widget without the original3D effect-service entry.
         if (nativeGuardianBoost is not null)
         {
             throw new InvalidOperationException("A native Boost callback already owns the battle input widget.");
@@ -114,7 +114,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        // TODO(TD-009): Map admitted battle presentation callbacks to30Hz; raw widgets continue using actual Frame33/Flags942
+        // TODO(TD-009): Map admitted battle presentation callbacks to30Hz; raw widgets continue using actual Frame33/Flags942.
         long ticks = widget.ComponentSubframeTicks + elapsed.Ticks * FramesPerSecond;
         int callbacks = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeGuardianBoost = widget with { ComponentSubframeTicks = ticks % TimeSpan.TicksPerSecond };

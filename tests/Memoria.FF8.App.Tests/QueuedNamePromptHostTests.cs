@@ -12,8 +12,7 @@ public sealed class QueuedNamePromptHostTests
     [Fact]
     public void Required_item_name_draft_restores_without_reconsuming_and_returns_to_live_inventory()
     {
-        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.QueuedNamePromptHostTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();

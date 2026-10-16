@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private void DispatchNativeStatusTimers()
     {
-        // TODO(TD-009): The declared scaffold battle frame remains the scheduling input; native47CCB0 pause/presentation gates require the native battle scheduler
+        // TODO(TD-009): The declared scaffold battle frame remains the scheduling input; native47CCB0 pause/presentation gates require the native battle scheduler.
         foreach (BattleCombatant actor in combatants.Where(candidate => candidate.IsActive && candidate.NativeIndex is >= 0 and < 7))
         {
             if ((NativeSavedStatusBits(actor) & 5) != 0)

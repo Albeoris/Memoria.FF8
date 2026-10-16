@@ -12,7 +12,7 @@ public sealed class QuistisMovieBoundaryTests
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field corpus is required.");
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.QuistisMovieBoundaryTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);
         world.EnsureField();
@@ -37,7 +37,7 @@ public sealed class QuistisMovieBoundaryTests
         Assert.SkipUnless(Directory.Exists(game), "Installed original Quistis movie and field corpus is required.");
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
         Assert.NotNull(directory);
-        string source = Path.Combine(directory.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.QuistisMovieBoundaryTests.2");
         Assert.SkipUnless(File.Exists(source), "The preserved authentic field181 movie1 startup save is required.");
         byte[] original = File.ReadAllBytes(source);
         GameSession session = new(GameSession.Load(source));

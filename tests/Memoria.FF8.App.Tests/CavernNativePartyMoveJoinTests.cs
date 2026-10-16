@@ -14,7 +14,7 @@ public sealed class CavernNativePartyMoveJoinTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.CavernNativePartyMoveJoinTests.1");
         byte[] original = File.ReadAllBytes(source);
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
@@ -47,7 +47,7 @@ public sealed class CavernNativePartyMoveJoinTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.CavernNativePartyMoveJoinTests.2");
         byte[] original = File.ReadAllBytes(source);
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
@@ -64,7 +64,7 @@ public sealed class CavernNativePartyMoveJoinTests
         Assert.Null(quistis.NativeMotionAuthority);
         Assert.Null(quistis.NativeScriptMovement);
         Assert.Equal(original, File.ReadAllBytes(source));
-        string oldInitialization = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string oldInitialization = TestResources.FixturePath("App.Tests.CavernNativePartyMoveJoinTests.3");
         using var old = new GameWorld(new GameSession(GameSession.Load(oldInitialization)), directory);
         old.EnsureField();
         ActorState oldCompanion = old.Events.Actors.Single(actor => actor.ObjectId == 5);
@@ -79,8 +79,7 @@ public sealed class CavernNativePartyMoveJoinTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string evidence = Path.Combine(repository!.FullName, "../fixtures");
-        var session = new GameSession(GameSession.Load(Path.Combine(evidence, "player-dollet-cavern-guards-arrival-checkpoint.json")));
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.CavernNativePartyMoveJoinTests.4")));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.All(world.Events.Actors, actor => Assert.Equal(7929, actor.MovementSpeed));
@@ -88,7 +87,7 @@ public sealed class CavernNativePartyMoveJoinTests
         {
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         }
-        using JsonDocument navigation = JsonDocument.Parse(File.ReadAllText(Path.Combine(evidence, "player-dollet-cavern-guard-contact-proof.json")));
+        using JsonDocument navigation = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath("App.Tests.CavernNativePartyMoveJoinTests.5")));
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         foreach (JsonElement action in navigation.RootElement.GetProperty("ordinaryGuideMoves").EnumerateArray())
         {
@@ -97,7 +96,7 @@ public sealed class CavernNativePartyMoveJoinTests
         Assert.Equal(78, world.Events.Frame);
         Assert.Equal(7929, world.Events.Actors.Single(actor => actor.ObjectId == 5).MovementSpeed);
         Assert.Equal(new NativeMotionAuthority(1, 0, 0), world.Events.Actors.Single(actor => actor.ObjectId == 5).NativeMotionAuthority);
-        using JsonDocument exam = JsonDocument.Parse(File.ReadAllText(Path.Combine(evidence, "player-dollet-cavern-exam-continuation-proof.json")));
+        using JsonDocument exam = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath("App.Tests.CavernNativePartyMoveJoinTests.6")));
         bool sawNativeMove = false;
         bool sawActorCollision = false;
         world.Events.ResolveNativeScriptMovement = Wrap(world.Events.ResolveNativeScriptMovement!);

@@ -38,7 +38,7 @@ public sealed partial class BattleSequenceSet
         List<BattleSequenceSound> sounds = [];
         bool conditional = false;
         Project(sequence, animations, sounds, [], ref conditional);
-        // TODO(TD-009): A static pose palette does not resolve native branch predicates. Suppress uncertain audio rather than playing mutually exclusive branches
+        // TODO(TD-009): A static pose palette does not resolve native branch predicates. Suppress uncertain audio rather than playing mutually exclusive branches.
         BattleSequence result = new(animations.ToArray(), conditional ? [] : sounds.ToArray(), conditional);
         decoded.Add(sequence, result);
         return result;

@@ -12,12 +12,11 @@ public sealed class FreshFieldAnimationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.FreshFieldAnimationTests.1");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
-        using JsonDocument epoch = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository.FullName, "../fixtures/external-fixture.json")));
+        using JsonDocument epoch = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath("App.Tests.FreshFieldAnimationTests.2")));
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         foreach (JsonElement observation in epoch.RootElement.GetProperty("Traces").GetProperty("ActionLog").EnumerateArray())
         {

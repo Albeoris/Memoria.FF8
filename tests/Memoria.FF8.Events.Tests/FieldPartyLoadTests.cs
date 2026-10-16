@@ -11,7 +11,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(137);
-        string path = Path.Combine("../fixtures/external-fixture.json");
+        string path = TestResources.FixturePath("Events.Tests.FieldPartyLoadTests.1");
         EventEngine Create(GameSession session)
         {
             EventEngine result = new(session)
@@ -94,7 +94,7 @@ internal static partial class Program
         // metadata through the natural new LoadField, instead of promoting the
         // historical137 snapshot's lost metadata to a guessed record.
         FieldAssets departing = assets.LoadField(139);
-        GameSession seamSession = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+        GameSession seamSession = new(GameSession.Load(TestResources.FixturePath("Events.Tests.FieldPartyLoadTests.2")));
         EventEngine seam = new(seamSession)
         {
             AnimationFrameCount = departing.GetAnimationFrameCount,

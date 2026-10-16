@@ -12,8 +12,7 @@ public sealed class NativeMovieFootstepTests
     {
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original field and CAM corpus is required.");
-        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeMovieFootstepTests.1");
         Assert.SkipUnless(File.Exists(source), "The preserved authentic606 movie14 preboundary save is required.");
         byte[] original = File.ReadAllBytes(source);
         byte[] cam = File.ReadAllBytes(MovieClock.GetCameraPath(game, 1, 14));

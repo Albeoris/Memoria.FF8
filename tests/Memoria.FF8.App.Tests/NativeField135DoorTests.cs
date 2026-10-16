@@ -14,7 +14,7 @@ public sealed class NativeField135DoorTests
     public void Fresh_original135_replays_actual_moves_and_restores_facing_then_original_crossing()
     {
         string directory = GameDirectory();
-        GameState arrival = GameSession.Load(Evidence("fifth-arrival-checkpoint.json"));
+        GameState arrival = GameSession.Load(Evidence("App.Tests.NativeField135DoorTests.1"));
         Assert.Equal(new FieldTransition(135, 6, -4680, 10, 128), arrival.FieldArrival);
         Assert.Null(arrival.EventState);
         var session = new GameSession(arrival);
@@ -30,7 +30,7 @@ public sealed class NativeField135DoorTests
         Assert.Equal(new System.Numerics.Vector3(-265, -4425, 16), line.LineStart);
         Assert.Equal(new System.Numerics.Vector3(105, -4425, 16), line.LineEnd);
 
-        using JsonDocument proof = JsonDocument.Parse(File.ReadAllText(Evidence("lava-continuation-proof.json")));
+        using JsonDocument proof = JsonDocument.Parse(File.ReadAllText(Evidence("App.Tests.NativeField135DoorTests.2")));
         PlayerAction[] actions = proof.RootElement.GetProperty("acceptedActions").Deserialize<PlayerAction[]>(JsonOptions)!;
         Assert.Equal(7, actions.Length);
         foreach (PlayerAction action in actions)
@@ -39,7 +39,7 @@ public sealed class NativeField135DoorTests
         }
         Assert.Equal(9, world.Events.Frame);
         Assert.Equal(23, session.State.Variables[256]);
-        GameState legacy = GameSession.Load(Evidence("lava-line-preboundary-checkpoint.json"));
+        GameState legacy = GameSession.Load(Evidence("App.Tests.NativeField135DoorTests.3"));
         session.SetEventState(world.Events.Capture());
         JsonElement legacyVm = legacy.EventState!.Value;
         JsonElement freshVm = world.Events.Capture();
@@ -117,7 +117,7 @@ public sealed class NativeField135DoorTests
     [Fact]
     public void Historical_v2_literal_endpoints_restore_without_inventing_loader_or_execution_receipt()
     {
-        string path = Path.Combine(Path.GetDirectoryName(Evidence("fifth-arrival-checkpoint.json"))!, "player-ifrit-fresh-cavern-door-checkpoint.json");
+        string path = TestResources.FixturePath("App.Tests.NativeField135DoorTests.4");
         GameState saved = GameSession.Load(path);
         string directory = GameDirectory();
         using var world = new GameWorld(new GameSession(saved), directory);
@@ -142,7 +142,7 @@ public sealed class NativeField135DoorTests
     public void Legacy135_stays_unknown_and_changed_original_door_metadata_refuses_before_restore()
     {
         string directory = GameDirectory();
-        using var legacy = new GameWorld(new GameSession(GameSession.Load(Evidence("lava-line-preboundary-checkpoint.json"))), directory);
+        using var legacy = new GameWorld(new GameSession(GameSession.Load(Evidence("App.Tests.NativeField135DoorTests.3"))), directory);
         legacy.EnsureField();
         Assert.Null(legacy.Events.Scene.NativeDoorDriverVersion);
         JsonElement before = legacy.Events.Capture();
@@ -150,7 +150,7 @@ public sealed class NativeField135DoorTests
         Assert.True(JsonElement.DeepEquals(before, legacy.Events.Capture()));
         Assert.Empty(legacy.Events.ActionLog);
 
-        using var fresh = new GameWorld(new GameSession(GameSession.Load(Evidence("fifth-arrival-checkpoint.json"))), directory);
+        using var fresh = new GameWorld(new GameSession(GameSession.Load(Evidence("App.Tests.NativeField135DoorTests.1"))), directory);
         fresh.EnsureField();
         Assert.True(fresh.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
         Assert.True(fresh.Apply(new PlayerAction(PlayerActionKind.Wait)).Accepted);
@@ -208,7 +208,6 @@ public sealed class NativeField135DoorTests
 
     private static string Evidence(string suffix)
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return Path.Combine(repository!.FullName, "../fixtures", "player-dollet-cavern-" + suffix);
+        return TestResources.FixturePath(suffix);
     }
 }

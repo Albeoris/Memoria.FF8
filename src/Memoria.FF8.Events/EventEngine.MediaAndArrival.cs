@@ -166,7 +166,7 @@ public sealed partial class EventEngine
         {
             return seeD;
         }
-        // TODO(TD-003): reconstruct occupied RAMESW physical-stack retries
+        // TODO(TD-003): reconstruct occupied RAMESW physical-stack retries.
         if (operation.Opcode == Jsm.Opcode.RAMESW && fiber.Stack.Count >= 4 && dialogues.ContainsKey(fiber.Stack.ElementAt(3)))
         {
             return "Occupied native RAMESW consumes its operands before return5; its physical stack-residue retry requires a wider native VM contract";

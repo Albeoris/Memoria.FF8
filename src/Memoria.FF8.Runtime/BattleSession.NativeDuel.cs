@@ -187,7 +187,7 @@ public sealed partial class BattleSession
         nativeLimitLevels.Remove(actorId);
         BattleCombatant actor = GetActor(actorId);
         actor.IsBusy = QueuedActions.Any(command => command.ActorId == actorId) || ActiveAction?.ActorId == actorId;
-        //TODO(TD-009): Native241/65532 closes through its graphics end sequence; the current UI owner closes at this boundary
+        //TODO(TD-009): Native241/65532 closes through its graphics end sequence; the current UI owner closes at this boundary.
         Log("NativeLimitControl", actorId, null, 65532, "Duel ended.");
     }
 
@@ -204,7 +204,7 @@ public sealed partial class BattleSession
         }
         if (action.NativeLimitCallback is NativeLimitCallback.DuelOpening or NativeLimitCallback.DuelEffect)
         {
-            //TODO(TD-009): Native47E200 dispatches48E5A0/48E5E0 UI readiness through graphics command10
+            //TODO(TD-009): Native47E200 dispatches48E5A0/48E5E0 UI readiness through graphics command10.
             nativeDuelProcesses[action.ActorId] = state with { Phase = BattleNativeDuelPhase.Ready, InputRing = Enumerable.Repeat((ushort)0, 8).ToImmutableArray(), InputCursor = 0, AutomaticCountdown = 120, PendingPulse = 0 };
         }
         return true;
@@ -223,7 +223,7 @@ public sealed partial class BattleSession
         (string actorId, BattleNativeDuelState state) = nativeDuelProcesses.Single();
         ushort pulse = (ushort)(heldButtons & ~state.PreviousButtons);
         ushort pending = state.Phase == BattleNativeDuelPhase.Ready ? (ushort)(state.PendingPulse | pulse) : (ushort)0;
-        //TODO(TD-009): Native UI callbacks currently use the host30Hz presentation clock; preserve its fractional owner independently of gameplay ticks
+        //TODO(TD-009): Native UI callbacks currently use the host30Hz presentation clock; preserve its fractional owner independently of gameplay ticks.
         long ticks = state.UiSubframeTicks + elapsed.Ticks * FramesPerSecond;
         int frames = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeDuelProcesses[actorId] = state with { PreviousButtons = heldButtons, PendingPulse = frames == 0 ? pending : (ushort)0, UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };

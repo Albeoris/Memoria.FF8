@@ -10,7 +10,7 @@ public sealed class NativeWorldFootType2Tests
     [Fact]
     public void ActualType2EstharReturnPublishesFootSaveAndFreshFieldByte86()
     {
-        string path = Path.Combine(Path.GetDirectoryName(Source())!, "2026-10-16-disc3-zell-esthar26-before-field-entry.json");
+        string path = TestResources.FixturePath("App.Tests.NativeWorldFootType2Tests.2");
         GameSession session = new(GameSession.Load(path));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
@@ -108,10 +108,6 @@ public sealed class NativeWorldFootType2Tests
     private static string Source()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        return Path.Combine(root, "../fixtures/external-fixture.json");
+        return TestResources.FixturePath("App.Tests.NativeWorldFootType2Tests.1");
     }
 }

@@ -12,7 +12,7 @@ public sealed class NativeNormalWrappingTests
     public void FreshIfritArrivalUsesVerifiedNormalCenterAndTwoWrappingLayersWithIndependentSaveAndPixels()
     {
         (string directory, string evidence) = Corpus();
-        string source = Path.Combine(evidence, "player-ifrit-arrival-checkpoint.json");
+        string source = TestResources.FixturePath("App.Tests.NativeNormalWrappingTests.1");
         byte[] original = File.ReadAllBytes(source);
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
@@ -74,7 +74,7 @@ public sealed class NativeNormalWrappingTests
     public void HistoricalIfritInitializationWithoutRuntimeReceiptRefusesRatherThanAcquiringFreshAuthority()
     {
         (string directory, string evidence) = Corpus();
-        string source = Path.Combine(evidence, "player-ifrit-render-boundary-checkpoint.json");
+        string source = TestResources.FixturePath("App.Tests.NativeNormalWrappingTests.2");
         byte[] original = File.ReadAllBytes(source);
         using var world = new GameWorld(new GameSession(GameSession.Load(source)), directory);
         world.EnsureField();
@@ -91,7 +91,7 @@ public sealed class NativeNormalWrappingTests
     public void GenericNormalWrappingRejectsUnknownRuntimeAndScriptedStateWithoutFieldMatrixWhitelists()
     {
         (string directory, string evidence) = Corpus();
-        using var world = new GameWorld(new GameSession(GameSession.Load(Path.Combine(evidence, "player-ifrit-arrival-checkpoint.json"))), directory);
+        using var world = new GameWorld(new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.NativeNormalWrappingTests.1"))), directory);
         world.EnsureField();
         while (world.Events.Scene.NativeFieldLoadVersion == 0)
         {
@@ -118,7 +118,6 @@ public sealed class NativeNormalWrappingTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return (directory, Path.Combine(repository!.FullName, "../fixtures"));
+        return (directory, TestResources.FixtureDirectory);
     }
 }

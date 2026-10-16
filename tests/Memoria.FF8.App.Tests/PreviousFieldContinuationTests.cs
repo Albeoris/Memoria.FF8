@@ -12,14 +12,12 @@ public sealed class PreviousFieldContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string evidence = Path.Combine(repository!.FullName, "../fixtures");
-        var session = new GameSession(GameSession.Load(Path.Combine(evidence, "player-garden-async-exterior-explored160-checkpoint.json")));
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.PreviousFieldContinuationTests.1")));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(160, world.Events.FieldId);
         Assert.Equal(24, world.Events.Frame);
-        using JsonDocument epoch = JsonDocument.Parse(File.ReadAllText(Path.Combine(evidence, "player-garden-async-exterior-summary.json")));
+        using JsonDocument epoch = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath("App.Tests.PreviousFieldContinuationTests.2")));
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         JsonElement[] moves = epoch.RootElement.GetProperty("Traces").GetProperty("ActionLog").EnumerateArray().Where(entry => entry.GetProperty("FieldId").GetInt32() == 160 && entry.GetProperty("Frame").GetInt64() >= 24).ToArray();
         Assert.Equal(203, moves.Length);

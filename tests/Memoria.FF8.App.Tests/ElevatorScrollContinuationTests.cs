@@ -11,8 +11,7 @@ public sealed class ElevatorScrollContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.ElevatorScrollContinuationTests.1");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

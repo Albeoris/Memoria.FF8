@@ -12,7 +12,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(139);
-        string path = Path.Combine("../fixtures/external-fixture.json");
+        string path = TestResources.FixturePath("Events.Tests.PartyJoinTests.1");
         EventEngine Create()
         {
             GameSession session = new(GameSession.Load(path));
@@ -81,7 +81,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(139);
         JsmProgram source = JsmProgram.Read(field.Jsm);
         Console.WriteLine("JOIN original successors: " + string.Join(", ", Enumerable.Range(63, 16).Select(index => $"{index}:{source.Operations[index].Opcode}/{source.Operations[index].Parameter}")));
-        string path = Path.Combine("../fixtures/external-fixture.json");
+        string path = TestResources.FixturePath("Events.Tests.PartyJoinTests.2");
         GameSession firstSession = new(GameSession.Load(path));
         GameSession secondSession = new(GameSession.Load(path));
         EventEngine Create(GameSession session)

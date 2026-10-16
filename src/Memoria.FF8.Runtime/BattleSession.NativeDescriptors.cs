@@ -151,7 +151,7 @@ public sealed partial class BattleSession
                         }
                         graphics = graphics with { StageResourceIndex98990 = unchecked((byte)packet.Index) };
                     }
-                    // TODO(TD-009): The authenticated stage is already loaded; retain native506CF0 phases while materializing its IO-ready input
+                    // TODO(TD-009): The authenticated stage is already loaded; retain native506CF0 phases while materializing its IO-ready input.
                     if (phase == 1)
                     {
                         InitializeNativeStageCamera();
@@ -165,7 +165,7 @@ public sealed partial class BattleSession
                     phase = 1;
                     break;
                 case NativeBattleDescriptorTaskKind.Map500AC0:
-                    // TODO(TD-009): The original map/texture resources are immutable inputs; native500AC0's IO-ready endpoint is explicit here
+                    // TODO(TD-009): The original map/texture resources are immutable inputs; native500AC0's IO-ready endpoint is explicit here.
                     completed = phase == 1;
                     phase++;
                     break;

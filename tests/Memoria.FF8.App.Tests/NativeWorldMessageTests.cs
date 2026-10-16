@@ -12,8 +12,7 @@ public sealed class NativeWorldMessageTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "The installed original world resources are required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeWorldMessageTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, directory, validateWorldPresentation: false);
         world.EnsureField();

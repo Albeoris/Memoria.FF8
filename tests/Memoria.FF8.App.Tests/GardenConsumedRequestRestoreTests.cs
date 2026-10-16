@@ -11,8 +11,7 @@ public sealed class GardenConsumedRequestRestoreTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.GardenConsumedRequestRestoreTests.1");
         GameState state = GameSession.Load(source);
         Assert.Equal(72, state.World!.NativeGardenRuntime!.Allocation.ReplacementFlags264);
         Assert.Equal(8, state.WorldEntryMemory!.ReplacementFlags264);

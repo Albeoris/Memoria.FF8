@@ -46,7 +46,7 @@ internal static partial class Program
         Require(camera.Right - halfWidth == 0 && camera.Left + halfWidth == 0 && camera.Bottom - halfHeight == 0 && camera.Top + halfHeight == 0, "Selected172 native475D00 does not force both camera-centre components to zero.");
         EventEngine Create()
         {
-            GameSession source = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+            GameSession source = new(GameSession.Load(TestResources.FixturePath("Events.Tests.BackgroundScrollTests.1")));
             EventEngine result = new(source)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

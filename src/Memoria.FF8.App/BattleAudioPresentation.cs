@@ -62,7 +62,7 @@ internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic
         }
         if (outcome != active.Outcome)
         {
-            // TODO(TD-009): Default Battle/Win/Lose tracks are presentation selection until native encounter music/flag routing is recovered
+            // TODO(TD-009): Default Battle/Win/Lose tracks are presentation selection until native encounter music/flag routing is recovered.
             int track = active.Outcome switch { BattleOutcome.Active or BattleOutcome.ScriptedExit => 5, BattleOutcome.Victory => 1, BattleOutcome.Defeat => 0, _ => throw new InvalidOperationException("Unknown battle outcome.") };
             playMusic(track);
             outcome = active.Outcome;

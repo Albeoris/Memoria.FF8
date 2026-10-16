@@ -87,7 +87,7 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(165);
-        GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.BackgroundLoopTests.1")));
         EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
         actual.LoadField(165, field.Jsm, field.Messages, session.State.FieldArrival);
         actual.Restore(session.State.EventState!.Value);

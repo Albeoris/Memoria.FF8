@@ -11,8 +11,7 @@ public sealed class DebugViewTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? root = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.DebugViewTests.1");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

@@ -280,7 +280,7 @@ public sealed class IfritCausalRecreationTests
 
     private static void ApplyRecipeFromIndex(GameWorld world, string repository, string name, int skip, params string[] properties)
     {
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "../fixtures", name)));
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath(name)));
         JsonElement value = document.RootElement;
         foreach (string property in properties)
         {
@@ -315,7 +315,7 @@ public sealed class IfritCausalRecreationTests
 
     private static void ApplyWorldRecipe(GameWorld world, string repository, string name)
     {
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "../fixtures", name)));
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath(name)));
         foreach (JsonElement item in document.RootElement.GetProperty("DepartingWorldState").GetProperty("Actions").EnumerateArray())
         {
             Apply(world, new PlayerAction(Enum.Parse<PlayerActionKind>(item.GetProperty("Kind").GetString()!), Horizontal: item.GetProperty("Horizontal").GetSingle(), Vertical: item.GetProperty("Vertical").GetSingle(), Frames: item.GetProperty("RequestedFrames").GetInt32()));
@@ -324,7 +324,7 @@ public sealed class IfritCausalRecreationTests
 
     private static void ApplyStepRecipes(GameWorld world, string repository, string name, bool compactRows)
     {
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository, "../fixtures", name)));
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath(name)));
         foreach (JsonElement step in document.RootElement.GetProperty("Steps").EnumerateArray())
         {
             foreach (JsonElement item in step.GetProperty("Actions").EnumerateArray())

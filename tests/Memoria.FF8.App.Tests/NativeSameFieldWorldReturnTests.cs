@@ -9,12 +9,8 @@ public sealed class NativeSameFieldWorldReturnTests
     [Fact]
     public void IncorrectActiveVmFromThePreservedMalformedReturnStillRefuses()
     {
-        string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        InvalidDataException error = Assert.Throws<InvalidDataException>(() => GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        string source = TestResources.FixturePath("App.Tests.NativeSameFieldWorldReturnTests.1");
+        InvalidDataException error = Assert.Throws<InvalidDataException>(() => GameSession.Load(source));
         Assert.Contains("BYTE86", error.Message);
     }
 
@@ -24,11 +20,7 @@ public sealed class NativeSameFieldWorldReturnTests
     public void ActualFootReturnTo547KeepsDormantVisitSeparateAndCopiesCurrentEntityIntoFreshAllocation(bool refreshDormantProcessOwners)
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeSameFieldWorldReturnTests.2")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.Equal((byte)48, world.Events.Scene.PreviousWorldEntityByte86);

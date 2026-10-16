@@ -108,7 +108,7 @@ public sealed class WorldEntryPreflightTests
     private static GameState ComponentDeparture()
     {
         // Isolated backend lifecycle fixture derived from a genuine standalone field save; no gateway or world visit is executed here.
-        return GameSession.Load(TestResources.FixtureFile("../fixtures/external-fixture.json"));
+        return GameSession.Load(TestResources.FixturePath("App.Tests.WorldEntryPreflightTests.1"));
     }
 
     private static GameState Candidate(GameState departure, PreparedWorldEntry entry)

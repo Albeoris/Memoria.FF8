@@ -57,7 +57,7 @@ public sealed class NativeMixedWrappedScrollRestoreTests
     {
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_MIXED_SCROLL_SOURCE") ?? Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_MIXED_SCROLL_SOURCE") ?? TestResources.FixturePath("App.Tests.NativeMixedWrappedScrollRestoreTests.1");
         Assert.SkipUnless(File.Exists(source), "The genuine same-epoch field926 mixed-scroll diagnostic source is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement events = document.RootElement.GetProperty("EventState");

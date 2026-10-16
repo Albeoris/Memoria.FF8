@@ -8,7 +8,7 @@ internal sealed partial class RecreateGame
 {
     private void DrawFieldBars(Rectangle bounds, NativeFieldBarsState bars)
     {
-        // TODO(TD-003): procedural field-bar rasterization
+        // TODO(TD-003): procedural field-bar rasterization.
         PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         float scale = viewport.Width / 320f;
         foreach (NativeFieldBarDisplay bar in bars.VisibleBars)

@@ -25,7 +25,7 @@ public sealed class NativeDoorTests
     public void Fresh_original_door_contacts_restore_and_cross_to_the_original_story_request()
     {
         string directory = GameDirectory();
-        var session = new GameSession(GameSession.Load(Evidence("entry-preboundary-checkpoint.json")));
+        var session = new GameSession(GameSession.Load(Evidence("App.Tests.NativeDoorTests.1")));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
         Assert.Equal(1649, session.State.World!.Frame);
@@ -111,7 +111,7 @@ public sealed class NativeDoorTests
     public void Legacy_door_state_remains_unknown_and_malformed_v2_restore_is_atomic()
     {
         string directory = GameDirectory();
-        var legacySession = new GameSession(GameSession.Load(Evidence("door-preboundary-checkpoint.json")));
+        var legacySession = new GameSession(GameSession.Load(Evidence("App.Tests.NativeDoorTests.2")));
         using var legacy = new GameWorld(legacySession, directory);
         legacy.EnsureField();
         Assert.Null(legacy.Events.Scene.NativeDoorDriverVersion);
@@ -121,7 +121,7 @@ public sealed class NativeDoorTests
         Assert.True(JsonElement.DeepEquals(before, legacy.Events.Capture()));
         Assert.Empty(legacy.Events.ActionLog);
 
-        var freshSession = new GameSession(GameSession.Load(Evidence("arrival-checkpoint.json")));
+        var freshSession = new GameSession(GameSession.Load(Evidence("App.Tests.NativeDoorTests.3")));
         using var fresh = new GameWorld(freshSession, directory);
         fresh.EnsureField();
         AdvanceToCorner(fresh);
@@ -175,7 +175,6 @@ public sealed class NativeDoorTests
 
     private static string Evidence(string suffix)
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return Path.Combine(repository!.FullName, "../fixtures", "player-dollet-fire-cavern-" + suffix);
+        return TestResources.FixturePath(suffix);
     }
 }

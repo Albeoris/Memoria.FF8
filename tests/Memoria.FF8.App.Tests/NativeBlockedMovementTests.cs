@@ -14,7 +14,7 @@ public sealed class NativeBlockedMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world/field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeBlockedMovementTests.1");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -65,7 +65,7 @@ public sealed class NativeBlockedMovementTests
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeBlockedMovementTests.2");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
         world.EnsureField();
@@ -95,7 +95,7 @@ public sealed class NativeBlockedMovementTests
         // The archived74 snapshot predates both native authorities. Establish
         // current movement and door state by executing the retained actual
         // fresh arrival's loader/init and the original ordinary61+13 actions.
-        string freshSource = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string freshSource = TestResources.FixturePath("App.Tests.NativeBlockedMovementTests.3");
         var freshSession = new GameSession(GameSession.Load(freshSource));
         using var fresh = new GameWorld(freshSession, directory);
         fresh.EnsureField();

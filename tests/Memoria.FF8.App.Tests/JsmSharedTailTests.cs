@@ -92,11 +92,7 @@ public sealed class JsmSharedTailTests
         Assert.Equal(1040, JsmProgram.JumpTarget(973, program.Operations[973].Parameter));
 
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.JsmSharedTailTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 60)).Accepted);
         Assert.Equal(541, session.State.FieldId);

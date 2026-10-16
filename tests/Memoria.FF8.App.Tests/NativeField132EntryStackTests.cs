@@ -136,7 +136,6 @@ public sealed class NativeField132EntryStackTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return (directory, Path.Combine(repository!.FullName, "../fixtures/external-fixture.json"));
+        return (directory, TestResources.FixturePath("App.Tests.NativeField132EntryStackTests.1"));
     }
 }

@@ -197,7 +197,7 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics is null && command.NativeHeaderIndex is not null && !actions.Any(queued => queued.NativeHeaderIndex is not null))
         {
-            //TODO(TD-009): Graphicsless components admit48D1F0 at their declared presentation completion instead of descriptor10
+            //TODO(TD-009): Graphicsless components admit48D1F0 at their declared presentation completion instead of descriptor10.
             nativeActionScratch = nativeActionScratch with { ComponentCompletion = nativeActionScratch.ComponentCompletion ?? 0x47DDA0 };
             ActiveAction = null;
             TryCompleteNativeComponentCommand();

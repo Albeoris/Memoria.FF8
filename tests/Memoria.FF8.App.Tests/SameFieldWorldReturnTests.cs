@@ -18,7 +18,7 @@ public sealed class SameFieldWorldReturnTests
         string gameDirectory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed original field and world corpus is required.");
         string repository = Repository();
-        GameState source = GameSession.Load(Path.Combine(repository, "../fixtures/external-fixture.json"));
+        GameState source = GameSession.Load(TestResources.FixturePath("App.Tests.SameFieldWorldReturnTests.1"));
         if (!afterIfrit)
         {
             source = SnapshotFixtures.Require("MEMORIA_FF8_CAVERN_ENTRANCE_SNAPSHOT", 136);
@@ -81,7 +81,7 @@ public sealed class SameFieldWorldReturnTests
         Assert.Equal(world.Apply(next), restored.Apply(next));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
         Assert.Equal(world.Render(TimeSpan.Zero), restored.Render(TimeSpan.Zero));
-        string output = Path.Combine(repository, "../fixtures");
+        string output = TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         new GameSession(reached).Save(Path.Combine(output, afterIfrit ? "reentry-after-ifrit-checkpoint.json" : "reentry-before-ifrit-checkpoint.json"));
         Console.WriteLine($"Authentic cavern reentry field136: previous frame{departedFrame}, allocated frame0, arrival{arrival}; movement, portable reconstruction, VM and CPU pixels verified.");

@@ -84,7 +84,7 @@ internal sealed partial class GameWorld
             if (enemy.Enabled)
             {
                 //48BBD0 always calls4844D0 after its level rolls, before48C1C0 projects this allocation's speed.
-                // TODO(TD-009): Project the enemy's initial gauge from its retained physical-slot speed BYTE193
+                // TODO(TD-009): Project the enemy's initial gauge from its retained physical-slot speed BYTE193.
                 random = random.Draw(out _);
             }
             BattleEnemyNativeProjection stats = BattleResources.ReadEnemyNativeStats(enemy.ModelId).Project(level);
@@ -111,7 +111,7 @@ internal sealed partial class GameWorld
             NativeBattleUiRandom = session.State.Playtime?.CreateBattleUiRandom(),
             Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor : actor with { NativeRenzokukenMagicIds = BattleResources.ReadNativeRenzokukenMagicIds(actor.ModelId) }).ToArray()
         };
-        // TODO(TD-009): Native clock/support initialization belongs to the raw descriptor entry callback
+        // TODO(TD-009): Native clock/support initialization belongs to the raw descriptor entry callback.
         if (definition.NativeGraphics is not null)
         {
             definition = definition with { NativeClockRules = BattleResources.ReadNativeClockRules() };
@@ -212,7 +212,7 @@ internal sealed partial class GameWorld
         ObservePendingBattle();
         if (input.Kind == BattleInputKind.StartEncounter && input.NativeSeed is null)
         {
-            // TODO(TD-009): Original CRT entropy
+            // TODO(TD-009): Original CRT entropy provenance remains unowned.
             input = input with { NativeSeed = (byte)System.Security.Cryptography.RandomNumberGenerator.GetInt32(256) };
         }
         if (TryApplyRandomBattleInput(input, out int randomAdvanced))

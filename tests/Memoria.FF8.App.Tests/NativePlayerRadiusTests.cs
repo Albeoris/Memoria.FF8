@@ -12,8 +12,7 @@ public sealed class NativePlayerRadiusTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativePlayerRadiusTests.1");
         GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);

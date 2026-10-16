@@ -17,7 +17,7 @@ public sealed class InfirmaryDoctorTests
         var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_DOCTOR_START_SNAPSHOT", 165));
         using var world = new GameWorld(session, game);
         world.EnsureField();
-        string output = Path.Combine(repository.FullName, "../fixtures");
+        string output = TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         try
         {
@@ -29,7 +29,7 @@ public sealed class InfirmaryDoctorTests
             IfritCausalRecreationTests.WalkRoutedToInteraction(world, session, 10);
             Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Interact, 10)).Accepted);
             FinishConversation(world, session);
-            VerifyRecreation(world, session, game, Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
+            VerifyRecreation(world, session, game, TestResources.ArtifactFile("App.Tests.InfirmaryDoctorTests.1.json"));
         }
         catch (Exception exception)
         {

@@ -13,7 +13,7 @@ public sealed class NativeEyesTests
     [Fact]
     public void Actual_689_closeeyes_copies_original_bank_and_roundtrips_without_replaying_arrival()
     {
-        GameSession session = new(GameSession.Load(Path.Combine(Repository(), "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeEyesTests.1")));
         using GameWorld world = new(session, GameDirectory());
         world.EnsureField();
         for (int count = 0; count < 60 && world.Events.Actors[3].NativeEyes?.Mode != 0x200000; count++)
@@ -65,7 +65,7 @@ public sealed class NativeEyesTests
     [InlineData(true)]
     public void Commands_consume_no_operands_preserve_caller_ownership_and_finish_immediately(bool missingResource)
     {
-        GameSession session = new(GameSession.Load(Path.Combine(Repository(), "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeEyesTests.2")));
         using GameWorld world = new(session, GameDirectory());
         world.EnsureField();
         EventEngine engine = world.Events;
@@ -122,6 +122,6 @@ public sealed class NativeEyesTests
     private static string Repository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Research checkout was not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

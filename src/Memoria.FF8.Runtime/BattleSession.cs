@@ -6,7 +6,7 @@ namespace Memoria.FF8.Runtime;
 /// </summary>
 public sealed partial class BattleSession
 {
-    // TODO(TD-009): Replace scaffold gauge and action timings with recovered battle contracts
+    // TODO(TD-009): Replace scaffold gauge and action timings with recovered battle contracts.
     public const int FramesPerSecond = 30;
     public const int AtbMaximum = 10_000;
     public const int AttackWindupFrames = 12;
@@ -360,7 +360,7 @@ public sealed partial class BattleSession
             DispatchNativeScriptTasks();
             return becameReady;
         }
-        // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock
+        // TODO(TD-009): Components without the raw descriptor bank retain the existing gauge clock.
         bool clockAdmitted = HasNativeUiServiceClock ? nativeBattleClock!.AtbAdmitted != 0 : nativeBattleClock is null || NativeGraphics is null || AdmitNativeBattleClock(true, false);
         foreach (BattleCombatant actor in combatants.ToArray())
         {
@@ -437,7 +437,7 @@ public sealed partial class BattleSession
                 QueueNativeCallback(enemy, 1);
                 continue;
             }
-            // TODO(TD-009): First living opponent is scaffold AI until native enemy decision programs are implemented
+            // TODO(TD-009): First living opponent is scaffold AI until native enemy decision programs are implemented.
             BattleCombatant target = combatants.First(actor => actor.IsPlayer && actor.IsAlive);
             EnqueueAttack(enemy, target);
         }
@@ -687,7 +687,7 @@ public sealed partial class BattleSession
             }
             if (nativeContactWorking is null || NativeGraphics is null)
             {
-                //TODO(TD-009): Components without the graphical bank still project493840 at logical death; raw contacts reset readiness only when493D80 presents them
+                //TODO(TD-009): Components without the graphical bank still project493840 at logical death; raw contacts reset readiness only when493D80 presents them.
                 target.Atb = 0;
                 target.IsBusy = false;
             }

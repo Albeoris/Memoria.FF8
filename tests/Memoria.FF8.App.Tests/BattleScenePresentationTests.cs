@@ -146,9 +146,9 @@ public sealed class BattleScenePresentationTests
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PRESENTATION_EVIDENCE") is string evidence)
         {
             Directory.CreateDirectory(evidence);
-            string snapshot = Path.Combine(evidence, "battle-presentation-impact-snapshot.json");
+            string snapshot = TestResources.ArtifactFile("App.Tests.BattleScenePresentationTests.1.json");
             File.WriteAllText(snapshot, JsonSerializer.Serialize(session.Capture(), new JsonSerializerOptions { WriteIndented = true }));
-            Assert.Equal(0, BattlePreview.Run(["--snapshot", snapshot, "--output", Path.Combine(evidence, "battle-presentation-impact.png"), "--game-dir", directory]));
+            Assert.Equal(0, BattlePreview.Run(["--snapshot", snapshot, "--output", TestResources.ArtifactFile("App.Tests.BattleScenePresentationTests.2.png"), "--game-dir", directory]));
         }
     }
 

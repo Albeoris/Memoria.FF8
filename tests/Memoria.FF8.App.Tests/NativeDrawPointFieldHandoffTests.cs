@@ -9,11 +9,7 @@ public sealed class NativeDrawPointFieldHandoffTests
     public void ActualPending857KeepsKnownParticleOwnerThroughDormant849Restore()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeDrawPointFieldHandoffTests.1")));
         Assert.True(session.State.DepartingFieldState!.Value.GetProperty("Scene").TryGetProperty("NativeDrawPointParticles", out _));
         using GameWorld world = new(session, TestResources.GameDirectory);
         List<string> trace = [];

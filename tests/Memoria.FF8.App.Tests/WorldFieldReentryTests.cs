@@ -11,10 +11,8 @@ public sealed class WorldFieldReentryTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world/field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string prefix = Path.Combine(repository!.FullName, "../fixtures");
-        var session = new GameSession(GameSession.Load(prefix + "entry-preboundary-checkpoint.json"));
-        var replaySession = new GameSession(GameSession.Load(prefix + "entry-preboundary-checkpoint.json"));
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.WorldFieldReentryTests.1")));
+        var replaySession = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.WorldFieldReentryTests.1")));
         using var world = new GameWorld(session, directory);
         using var replay = new GameWorld(replaySession, directory);
         world.EnsureField();
@@ -27,7 +25,7 @@ public sealed class WorldFieldReentryTests
         Assert.Equal(PlayerTriggerKind.FieldTransition, entered.Trigger.Kind);
         Assert.Equal((136, 1650L), (entered.Trigger.FieldId, entered.Trigger.Frame));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(session.State), JsonSerializer.SerializeToElement(replaySession.State)));
-        GameState expected = GameSession.Load(prefix + "arrival-checkpoint.json");
+        GameState expected = GameSession.Load(TestResources.FixturePath("App.Tests.WorldFieldReentryTests.2"));
         Assert.True(JsonElement.DeepEquals(JsonSerializer.SerializeToElement(expected), JsonSerializer.SerializeToElement(session.State)));
         Assert.Equal(new FieldTransition(136, 175, -2269, 12, 128), session.State.FieldArrival);
         Assert.Equal(159, session.State.PreviousFieldId);
@@ -43,7 +41,7 @@ public sealed class WorldFieldReentryTests
         Assert.Equal(136, world.Events.FieldId);
         Assert.Equal((ushort?)159, world.Events.Scene.PreviousFieldWord84);
         Assert.Equal(world.Apply(new PlayerAction(PlayerActionKind.Wait)), replay.Apply(new PlayerAction(PlayerActionKind.Wait)));
-        GameState frame1 = GameSession.Load(prefix + "frame1-checkpoint.json");
+        GameState frame1 = GameSession.Load(TestResources.FixturePath("App.Tests.WorldFieldReentryTests.3"));
         Assert.True(JsonElement.DeepEquals(frame1.EventState!.Value, world.Events.Capture()));
         Assert.True(JsonElement.DeepEquals(world.Events.Capture(), replay.Events.Capture()));
         world.SetRenderSize(320, 240);

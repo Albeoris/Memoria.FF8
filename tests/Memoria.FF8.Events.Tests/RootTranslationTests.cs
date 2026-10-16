@@ -100,7 +100,7 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(225);
-        string source = Path.Combine("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("Events.Tests.RootTranslationTests.1");
         GameSession session = new(GameSession.Load(source));
         EventEngine actual = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
         actual.LoadField(225, field.Jsm, field.Messages, session.State.FieldArrival);

@@ -75,6 +75,6 @@ public sealed class NativeFieldRuntimeProfileTests
         Assert.SkipUnless(System.IO.Directory.Exists(directory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        return (directory, Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
+        return (directory, TestResources.FixturePath("App.Tests.NativeFieldRuntimeProfileTests.1"));
     }
 }

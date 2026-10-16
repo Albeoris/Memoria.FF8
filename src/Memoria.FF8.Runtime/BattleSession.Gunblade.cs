@@ -58,7 +58,7 @@ public sealed partial class BattleSession
 
     private static short ProjectGunbladeTiming(int remainingFrames)
     {
-        // TODO(TD-009): Project the native4BA6C0 quarter-pose window onto scaffold contact. The native sequenceVM must own the actual distance-dependent clip contact
+        // TODO(TD-009): Project the native4BA6C0 quarter-pose window onto scaffold contact. The native sequenceVM must own the actual distance-dependent clip contact.
         const int nativeWindowEnd = 32;
         const int nativeQuarterPoseTicksPerSecond = 60;
         return checked((short)(nativeWindowEnd - remainingFrames * nativeQuarterPoseTicksPerSecond / FramesPerSecond));

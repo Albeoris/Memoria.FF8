@@ -44,8 +44,7 @@ public sealed class NativeCosineScrollRenderTests
     public void AuthenticReachedDolletPrefixRetainsNormalCenterAndRestoresAnOrdinaryCosineCallback()
     {
         string directory = TestResources.GameDirectory;
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeCosineScrollRenderTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic reached Dollet snapshot and installed resources are required.");
         GameState current = GameSession.Load(source);
         using GameWorld world = new(new GameSession(current), directory);

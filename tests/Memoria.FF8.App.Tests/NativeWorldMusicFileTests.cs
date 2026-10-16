@@ -31,7 +31,7 @@ public sealed class NativeWorldMusicFileTests
     [Fact]
     public void Actual827RagnarokDepartureCompletesOriginalLoaderAndColdRestores()
     {
-        GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeWorldMusicFileTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         NativeMusicProcessState before = world.Events.Scene.MusicProcess!;
@@ -77,7 +77,7 @@ public sealed class NativeWorldMusicFileTests
     [Fact]
     public void CurrentOrphanageFootSaveDerivesNativeSkipWithoutSerializedMigration()
     {
-        string source = RootFile("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeWorldMusicFileTests.2");
         GameSession session = new(GameSession.Load(source));
         GameSession restoredSession = new(GameSession.Load(source));
         using GameWorld world = new(session, TestResources.GameDirectory);

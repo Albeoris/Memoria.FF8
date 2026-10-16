@@ -81,10 +81,10 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(137);
         JsmProgram program = JsmProgram.Read(field.Jsm);
         EventScript targetScript = program.Objects[5].Scripts[5];
-        const string leaf = "player-garden-audio137-boundary-preboundary-checkpoint.json";
+        const string leaf = "Events.Tests.PartyRequestStartTests.1";
         EventEngine Create(string source = leaf)
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures", source));
+            GameState state = GameSession.Load(TestResources.FixturePath(source));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, ResolveGlobalSoundResource = MutedGlobalSample };
             engine.LoadField(137, field.Jsm, field.Messages);
@@ -111,7 +111,7 @@ internal static partial class Program
         first.Apply(new PlayerAction(PlayerActionKind.Wait));
         restored.Apply(new PlayerAction(PlayerActionKind.Wait));
         Require(first.Capture().GetRawText() == restored.Capture().GetRawText(), "Actual PREQSW independent target progression diverged after restore.");
-        EventEngine retry = Create("player-garden-audio137-boundary-checkpoint.json");
+        EventEngine retry = Create("Events.Tests.PartyRequestStartTests.2");
         caller = retry.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 6);
         Require(retry.LastFault is null && caller.GetProperty("Position").GetInt32() == 57 && caller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 5, 3 }), "PREQSW upgrade changed the exact saved fault PC or original operands.");
         commands.Clear();

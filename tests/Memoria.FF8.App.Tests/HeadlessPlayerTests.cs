@@ -56,7 +56,7 @@ public sealed class HeadlessPlayerTests
         Directory.CreateDirectory(temporary);
         try
         {
-            string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+            string source = TestResources.FixturePath("App.Tests.HeadlessPlayerTests.1");
             string actions = Path.Combine(temporary, "actions.json");
             string output = Path.Combine(temporary, "output");
             File.WriteAllText(actions, "[{\"Kind\":\"Move\",\"Vertical\":-1,\"Frames\":1}]");

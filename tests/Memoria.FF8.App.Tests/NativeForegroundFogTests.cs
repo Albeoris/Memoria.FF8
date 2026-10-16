@@ -14,8 +14,7 @@ public sealed class NativeForegroundFogTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeForegroundFogTests.1");
         byte[] original = File.ReadAllBytes(source);
         using var world = new GameWorld(new GameSession(GameSession.Load(source)), directory);
         world.EnsureField();

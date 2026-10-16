@@ -24,7 +24,7 @@ public sealed class FieldAudioPresentationTests
         Assert.True(LaunchOptions.Parse([]).AudioEnabled);
         Assert.True(new LaunchOptions { StatePath = "resume.json" }.AudioEnabled);
         Assert.False(LaunchOptions.Parse(["--mute-audio"]).AudioEnabled);
-        Assert.False(LaunchOptions.Parse(["--control-dir", "../fixtures"]).AudioEnabled);
+        Assert.False(LaunchOptions.Parse(["--control-dir", Path.Combine(Path.GetTempPath(), "Memoria-test-audio-controls")]).AudioEnabled);
     }
 
     [Fact]

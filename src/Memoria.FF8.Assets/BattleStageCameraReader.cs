@@ -10,7 +10,6 @@ internal static class BattleStageCameraReader
 {
     // Original50E510 dispatch and each stage initializer's camera argument to500F70.
     // These are original resource offsets, not signatures or presentation tuning.
-    
     private static readonly int[] CameraOffsets =
     [
         1496, 1496, 1496, 1496, 1492, 1492, 1496, 1496, 1560, 1492, 1496, 1496, 1492, 1492, 1492, 1492,

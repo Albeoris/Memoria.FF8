@@ -90,7 +90,6 @@ public sealed class WorldMusicTests
     {
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original game corpus is required.");
-        string repository = Repository();
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         using var world = new GameWorld(session, game);
@@ -138,7 +137,7 @@ public sealed class WorldMusicTests
         Assert.True(audio.IsMidiPlaying);
         session.SetEventState(world.Events.Capture());
         GameState current = session.State;
-        string path = Path.Combine(repository, "../fixtures/external-fixture.json");
+        string path = TestResources.ArtifactFile("App.Tests.WorldMusicTests.1.json");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         session.Save(path);
         GameState ordinaryLoaded = GameSession.Load(path);

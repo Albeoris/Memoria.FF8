@@ -49,7 +49,7 @@ public sealed class BoundedMovieAdvanceTests
     public void Actual_movie_wait_and_raw_input_match_decoded_callbacks_and_restore_between_frames()
     {
         string game = InstalledGame();
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.BoundedMovieAdvanceTests.1");
         Assert.True(File.Exists(source), "The actual standalone pre-callback movie source is required.");
         GameState state = GameSession.Load(source);
         GameSession session = new(state);
@@ -175,6 +175,6 @@ public sealed class BoundedMovieAdvanceTests
     private static string Repository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Research checkout was not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

@@ -67,7 +67,7 @@ public sealed class OriginalIfritBattleMessageTests
                 view.Resize(960, 720);
                 view.Draw(canvas, new UiTheme());
             }
-            bitmap.Save(Path.Combine(evidence, "ifrit-native-shiva-message.png"), ImageFormat.Png);
+            bitmap.Save(TestResources.ArtifactFile("App.Tests.OriginalIfritBattleMessageTests.1.png"), ImageFormat.Png);
             using FileStream stream = new(Path.Combine(evidence, $"ifrit-native-shiva-message-frame{battle.Frame}.json"), FileMode.CreateNew, FileAccess.Write);
             JsonSerializer.Serialize(stream, battle.Capture());
         }

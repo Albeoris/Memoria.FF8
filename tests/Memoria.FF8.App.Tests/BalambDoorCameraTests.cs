@@ -13,7 +13,7 @@ public sealed class BalambDoorCameraTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.BalambDoorCameraTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, directory);
         world.EnsureField();

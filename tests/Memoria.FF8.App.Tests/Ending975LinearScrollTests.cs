@@ -48,11 +48,7 @@ public sealed class Ending975LinearScrollTests
     public void Original975RepeatsWrappedLinearScrollAndRestores()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.Ending975LinearScrollTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         world.Apply(new(PlayerActionKind.Wait, Frames: 24));

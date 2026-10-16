@@ -65,9 +65,9 @@ public sealed class NativeRenzokukenPresentationTests
         {
             Directory.CreateDirectory(evidence);
             using var initial = BattlePreviewCanvas.BitmapFromRgba(before, 640, 448);
-            initial.Save(Path.Combine(evidence, "ifrit-renz-before.png"), ImageFormat.Png);
+            initial.Save(TestResources.ArtifactFile("App.Tests.NativeRenzokukenPresentationTests.1.png"), ImageFormat.Png);
             using var active = BattlePreviewCanvas.BitmapFromRgba(during, 640, 448);
-            active.Save(Path.Combine(evidence, "ifrit-renz-active.png"), ImageFormat.Png);
+            active.Save(TestResources.ArtifactFile("App.Tests.NativeRenzokukenPresentationTests.2.png"), ImageFormat.Png);
         }
     }
 }

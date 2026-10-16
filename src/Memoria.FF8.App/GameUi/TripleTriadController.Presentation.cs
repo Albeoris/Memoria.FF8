@@ -22,7 +22,7 @@ public enum TripleTriadSound
 /// <summary>Transient presentation never changes the saved match, AI, RNG or inventory.</summary>
 public sealed partial class TripleTriadController
 {
-    // TODO(TD-016): Native callback proportions use a 60 Hz presentation clock until the original limiter is proved
+    // TODO(TD-016): Native callback proportions use a 60 Hz presentation clock until the original limiter is proved.
     public const double PlacementDuration = 0.20;
     public const double FlipDuration = 25d / 60;
     public const double FlipSettleDuration = 6d / 60;

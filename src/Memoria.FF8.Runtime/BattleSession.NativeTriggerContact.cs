@@ -59,7 +59,7 @@ public sealed partial class BattleSession
         if (NativeGraphics is null && command.NativeHeaderIndex is not null && command.NativeQueuedCommand == 254)
         {
             _ = NativeGuardianBoostBinding(command);
-            //TODO(TD-009): The component contact represents56DD70 phase5 without its effect module;4850A0 math remains shared
+            //TODO(TD-009): The component contact represents56DD70 phase5 without its effect module;4850A0 math remains shared.
             if (nativeActionScratch.GuardianFormulaE1E is not bool computed)
             {
                 throw new NotSupportedException("Native component GF completion requires its actual E1E formula gate.");
@@ -72,7 +72,7 @@ public sealed partial class BattleSession
         }
         if (NativeGraphics is null && command.NativeHeaderIndex is not null && IsGunbladeAction(GetActor(command.ActorId), command))
         {
-            //TODO(TD-009): The component windup supplies485160 admission until the original AB/UI callbacks are present. Its math/physical contact consumer is shared
+            //TODO(TD-009): The component windup supplies485160 admission until the original AB/UI callbacks are present. Its math/physical contact consumer is shared.
             BattleCombatant actor = GetActor(command.ActorId);
             short timing = ReadGunbladeTiming(actor, command);
             RecomputeNativeTriggerContact(new(checked((byte)actor.NativeIndex), 1, 1, timing, 32));

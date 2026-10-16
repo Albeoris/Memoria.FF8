@@ -42,7 +42,7 @@ public sealed partial class EventEngine
         EnsureNativeMediaHistoryBoundary();
         Scene.NativeParticleSlots[slot] = value;
         Scene.NativeParticleRequests.Add(new NativeParticleRequest(1, FieldId, programHash, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, operands[0], slot, value, instance));
-        // TODO(TD-008):. Native473DE0 emission,
+        // TODO(TD-008): Native473DE0 emission,
         // its PMD instance pool and RNG phase are not rendered by this prototype.
         // These writes do not reset counters. OFF does not kill live particles;
         // SET changes the live dense-body attachment, not a snapshot of its origin.

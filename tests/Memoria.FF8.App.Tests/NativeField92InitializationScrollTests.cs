@@ -14,7 +14,7 @@ public sealed class NativeField92InitializationScrollTests
         string directory = TestResources.GameDirectory;
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeField92InitializationScrollTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "The standalone movie8 field92 entry and installed resources are required.");
         byte[] originalHash = SHA256.HashData(File.ReadAllBytes(source));
         using GameWorld world = new(new GameSession(GameSession.Load(source)), directory);

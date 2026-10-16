@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         }
         else
         {
-            //TODO(TD-009): Components without descriptors admit the same scheduled finisher callback before their UI projection starts
+            //TODO(TD-009): Components without descriptors admit the same scheduled finisher callback before their UI projection starts.
             CompleteNativeRenzokukenFinisherCallback(callback);
         }
     }

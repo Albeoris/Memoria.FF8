@@ -18,7 +18,7 @@ public sealed class NativeField202CosineScrollTests
         string directory = TestResources.GameDirectory;
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeField202CosineScrollTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "The standalone platform202 snapshot and installed original resources are required.");
         byte[] originalHash = SHA256.HashData(File.ReadAllBytes(source));
         GameSession session = new(GameSession.Load(source));

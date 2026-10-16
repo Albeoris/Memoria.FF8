@@ -99,7 +99,7 @@ internal sealed partial class GameWorld
         bool visible = view?.Visible ?? actor.Active && actor.Visible;
         if (visible && actor.NativeEyes?.Patch is not null)
         {
-            // TODO(TD-015): project the authenticated native VRAM eye copy;.
+            // TODO(TD-015): project the authenticated native VRAM eye copy.
             throw new NotSupportedException("Drawing a native eye VRAM copy is not implemented; its authenticated headless state is retained.");
         }
         IReadOnlyDictionary<int, Vector3>? translations = visible && actor.RenderModelId >= 0 ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;

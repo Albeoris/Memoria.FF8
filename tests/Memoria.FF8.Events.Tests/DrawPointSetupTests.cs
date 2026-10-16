@@ -157,7 +157,7 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(148);
-        string source = Path.Combine("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("Events.Tests.DrawPointSetupTests.1");
         EventEngine Actual()
         {
             GameSession session = new(GameSession.Load(source));

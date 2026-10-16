@@ -72,7 +72,7 @@ public sealed partial class EventEngine
             return null;
         }
         // NG-002: original51CD60/51CED0/51D060 index356+2*lowBYTE without a slot mask.
-        // Priority21 aliases allocated physical WORD398
+        // Priority21 aliases allocated physical WORD398.
         if (native && priority == 21 && IsAllocatedPhysicalRequestActor(objectId))
         {
             ushort? word = actors[objectId].NativeActorWord398;

@@ -10,8 +10,7 @@ public sealed class FieldTransitionCheckpointTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.FieldTransitionCheckpointTests.1");
         GameSession firstSession = new(GameSession.Load(source));
         using GameWorld first = new(firstSession, directory);
         first.EnsureField();

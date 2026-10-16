@@ -35,7 +35,7 @@ public sealed record NativeWorldEventUi([property: JsonRequired] byte ScriptMode
     public NativeWorldEventUi BeginCallback()
     {
         Validate();
-        // TODO(TD-003): — retain unknown readiness until the native49FEB0 glyph stream and speed owner are implemented.
+        // TODO(TD-003): retain unknown readiness until the native49FEB0 glyph stream and speed owner are implemented.
         return this with { CloseSuppressedThisCallback = false, Windows = Windows.Select(window => window with { TextComplete = null }).ToImmutableArray() };
     }
 

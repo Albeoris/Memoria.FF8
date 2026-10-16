@@ -48,7 +48,7 @@ public sealed class BattleEffectContext
 internal sealed class ScaffoldBattleEffectHandler(BattleStatusKind kind) : IBattleStatusEffectHandler
 {
     public BattleStatusKind Kind => kind;
-    // TODO(TD-009): Replace scaffold status rates with recovered combat contracts
+    // TODO(TD-009): Replace scaffold status rates with recovered combat contracts.
     public int AtbRatePercent => kind == BattleStatusKind.Haste ? 200 : kind == BattleStatusKind.Slow ? 50 : 100;
 
     public void Validate(BattleStatusEffectDefinition definition)
@@ -61,7 +61,7 @@ internal sealed class ScaffoldBattleEffectHandler(BattleStatusKind kind) : IBatt
 
     public void Dispatch(BattleEffectContext context)
     {
-        // TODO(TD-009): Periodic magnitude is explicit debug tuning until the native status damage/healing contract is recovered
+        // TODO(TD-009): Periodic magnitude is explicit debug tuning until the native status damage/healing contract is recovered.
         if (!context.IsPeriodicTick)
         {
             return;

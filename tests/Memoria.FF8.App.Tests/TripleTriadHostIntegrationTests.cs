@@ -14,7 +14,7 @@ public sealed class TripleTriadHostIntegrationTests
     public void OriginalMartineChallengeRestoresAndCompletesTheNativeHost()
     {
         string directory = TestResources.GameDirectory;
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.TripleTriadHostIntegrationTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Original diagnostic standalone and installed resources are required.");
         string output = OutputDirectory();
         string migrated = Path.Combine(output, "martine-field621-source-physical-reset-migrated.json");
@@ -127,7 +127,7 @@ public sealed class TripleTriadHostIntegrationTests
     public void UnmigratedDiagnosticRefusesUnknownPhysicalReturnMemory()
     {
         string directory = TestResources.GameDirectory;
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.TripleTriadHostIntegrationTests.2");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Original diagnostic standalone and installed resources are required.");
         using GameWorld world = new(new GameSession(GameSession.Load(source)), directory);
         world.EnsureField();

@@ -70,11 +70,7 @@ public sealed class Pandora487LinearScrollTests
     public void Actual487FirstLinearScrollUsesDeparting434CurrentAndRestoresInclusivePhase()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.Pandora487LinearScrollTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.Null(world.Events.Scene.NormalBackgroundScrollCenter);

@@ -98,11 +98,7 @@ public sealed class NativeWhoAmITests
     public void Actual549GuestSelectionReturnUsesCurrentJunctionRowsAndRestores()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeWhoAmITests.1")));
         using GameWorld world = new(session, GameDirectory);
         List<(int Selector, int Result)> queries = [];
         world.Events.CommandExecuted += command =>

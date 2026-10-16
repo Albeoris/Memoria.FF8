@@ -71,7 +71,7 @@ internal static partial class Program
         GlobalAudioSampleDescriptor descriptor = GlobalAudioFormat.Read(gameDirectory, 69);
         GlobalSoundResource resource = new(69, GlobalSoundBackendStatus.Muted, new GlobalSoundLoopPolicy(descriptor.PlaybackFlags, descriptor.LoopStartPcmByte, descriptor.LoopEndPcmByte, descriptor.WaveFormat.SampleRate, 16, descriptor.WaveFormat.Channels, 1087));
         Require(resource == MutedGlobalSample(69) && descriptor.WaveFormat.Tag == 2 && descriptor.WaveFormat.BitsPerSample == 4, "Reached global69 original ADPCM/PCM loop descriptor differs from static native proof.");
-        string path = Path.Combine("../fixtures/external-fixture.json");
+        string path = TestResources.FixturePath("Events.Tests.GlobalSoundTests.1");
         EventEngine Create(bool backend)
         {
             GameSession session = new(GameSession.Load(path));

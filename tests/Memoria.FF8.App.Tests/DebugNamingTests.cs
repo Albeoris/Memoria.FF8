@@ -148,7 +148,7 @@ public sealed class DebugNamingTests
         GameSession session;
         if (currentCheckpoint)
         {
-            session = new(GameSession.Load(Path.Combine(RepositoryRoot(), "../fixtures/external-fixture.json")));
+            session = new(GameSession.Load(TestResources.FixturePath("App.Tests.DebugNamingTests.1")));
         }
         else
         {
@@ -162,7 +162,7 @@ public sealed class DebugNamingTests
         if (evidence is not null)
         {
             session.SetEventState(world.Events.Capture());
-            session.Save(Path.Combine(evidence, "snapshot-source-bc769ae6.json"));
+            session.Save(TestResources.ArtifactFile("App.Tests.DebugNamingTests.2.json"));
         }
         foreach (int subject in Enumerable.Range(0, GameNames.BokoSubject + 1).Where(GameNames.IsValidSubject))
         {
@@ -173,7 +173,7 @@ public sealed class DebugNamingTests
         Assert.Equal(30, world.Events.Scene.Names.Count);
         if (evidence is not null)
         {
-            session.Save(Path.Combine(evidence, "snapshot-named-bc769ae6.json"));
+            session.Save(TestResources.ArtifactFile("App.Tests.DebugNamingTests.3.json"));
         }
         GameSession restored = new(SaveAndLoad(session));
         using GameWorld loaded = new(restored, GameDirectory());
@@ -189,8 +189,8 @@ public sealed class DebugNamingTests
         if (evidence is not null)
         {
             restored.SetEventState(loaded.Events.Capture());
-            restored.Save(Path.Combine(evidence, "snapshot-loaded-bc769ae6.json"));
-            File.WriteAllText(Path.Combine(evidence, "snapshot-proof-bc769ae6.json"), JsonSerializer.Serialize(new
+            restored.Save(TestResources.ArtifactFile("App.Tests.DebugNamingTests.4.json"));
+            File.WriteAllText(TestResources.ArtifactFile("App.Tests.DebugNamingTests.5.json"), JsonSerializer.Serialize(new
             {
                 Baseline = "main bc769ae6 standalone snapshot contract",
                 Implementations = new[] { "Memoria naming on normally loaded current field220 snapshot", "Memoria independent ordinary snapshot load and next Wait" },

@@ -82,7 +82,7 @@ public sealed class NativeMusicCatalog
 
     public static int ResolveMusicId(int music, int fieldId)
     {
-        // NG-001:; original46B530 remaps landing17 outside Dollet field339.
+        // NG-001: original46B530 remaps landing17 outside Dollet field339.
         return music == 17 && fieldId != 339 ? 99 : music;
     }
 

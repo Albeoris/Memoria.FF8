@@ -69,7 +69,6 @@ public sealed class RareCardMarkerIntegrationTests
 
     private static string FixturePath()
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        return TestResources.FixturePath("App.Tests.RareCardMarkerIntegrationTests.1");
     }
 }

@@ -13,7 +13,7 @@ internal sealed partial class RecreateGame
 
     private void DrawSalaryUi(Rectangle bounds, NativeSalaryPresentation salary)
     {
-        // TODO(TD-003): native UI rasterization remains outside the procedural redesign
+        // TODO(TD-003): native UI rasterization remains outside the procedural redesign.
         if (salaryWindowUi is null)
         {
             var root = new UiAnchorPanel();

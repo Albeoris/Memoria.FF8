@@ -18,7 +18,7 @@ internal static partial class Program
         Console.WriteLine($"Original137 actor5 push local3 label{push.Id}: {string.Join(", ", program.Operations.Skip(push.Start).Take(push.End - push.Start).Select(operation => $"{operation.Opcode}({operation.Parameter})"))}");
         EventEngine Create()
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+            GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.PushContactTests.1")));
             EventEngine result = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

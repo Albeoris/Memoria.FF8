@@ -12,8 +12,7 @@ public sealed class NativeField135ZeroCenterTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeField135ZeroCenterTests.1");
         GameState recreated = NativeField135LinearScrollTests.RecreateLava(directory, source);
         using var world = new GameWorld(new GameSession(recreated), directory);
         world.EnsureField();

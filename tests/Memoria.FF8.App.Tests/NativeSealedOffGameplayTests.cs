@@ -11,8 +11,7 @@ public sealed class NativeSealedOffGameplayTests
     {
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original resources are required.");
-        DirectoryInfo? root = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(root!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeSealedOffGameplayTests.1");
         byte[] original = File.ReadAllBytes(source);
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);

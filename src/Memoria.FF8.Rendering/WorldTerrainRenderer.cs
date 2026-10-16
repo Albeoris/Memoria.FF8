@@ -217,7 +217,7 @@ public sealed class WorldTerrainRenderer
             Vertex b = new(Point(halfSize, halfSize), Vector2.UnitX);
             Vertex c = new(Point(-halfSize, -halfSize), Vector2.UnitY);
             Vertex d = new(Point(halfSize, -halfSize), Vector2.One);
-            //TODO(TD-008):. The shared CPU rasterizer
+            //TODO(TD-008): The shared CPU rasterizer
             //does not reproduce the original GPU ordering-table depth bias or fixed GTE rounding.
             Draw(a, b, c, texture, true);
             Draw(c, b, d, texture, true);

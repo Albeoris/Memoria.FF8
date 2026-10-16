@@ -58,7 +58,7 @@ public sealed partial class BattleSession
         {
             return RequireNativePartyPresentedRow(actor.NativeIndex).HitPoints;
         }
-        //TODO(TD-009): Declared graphicsless components retain their existing HP projection
+        //TODO(TD-009): Declared graphicsless components retain their existing HP projection.
         return actor.CurrentHp;
     }
 
@@ -68,7 +68,7 @@ public sealed partial class BattleSession
         BattleGuardianForceVital? gf = guardianForceId is int id ? guardianForces[id] : null;
         if (nativePartyPresentation is null)
         {
-            //TODO(TD-009): Declared graphicsless components retain their existing HUD projection
+            //TODO(TD-009): Declared graphicsless components retain their existing HUD projection.
             return new(gf?.HitPoints ?? actor.CurrentHp, gf?.MaximumHitPoints ?? actor.MaximumHp);
         }
         NativeBattlePartyPresentedVital row = RequireNativePartyPresentedRow(actor.NativeIndex);

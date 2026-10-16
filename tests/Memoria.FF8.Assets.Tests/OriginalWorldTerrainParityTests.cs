@@ -8,8 +8,7 @@ public sealed class OriginalWorldTerrainParityTests
     [Fact]
     public void Shared_contract_matches_156_executed_original_function_results()
     {
-        DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        string path = Path.Combine(directory!.FullName, "../fixtures/external-fixture.json");
+        string path = TestResources.FixturePath("Assets.Tests.OriginalWorldTerrainParityTests.1");
         using JsonDocument original = JsonDocument.Parse(File.ReadAllText(path));
         Assert.Equal("064d466b5fe2ba901fd44abf19f37c0fd6a2db40aabd95c9e5959195b6589570", original.RootElement.GetProperty("sha256").GetString());
         int count = 0;

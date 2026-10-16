@@ -165,7 +165,7 @@ public sealed partial class BattleSession
             return;
         }
         (string actorId, BattleNativeRenzokukenState state) = nativeRenzokukenProcesses.Single();
-        //TODO(TD-009): The original widgetBYTE33 phase currently projects onto four120Hz callbacks per30Hz pose. Use the shared native graphics scheduler when it owns these service callbacks
+        //TODO(TD-009): The original widgetBYTE33 phase currently projects onto four120Hz callbacks per30Hz pose. Use the shared native graphics scheduler when it owns these service callbacks.
         long ticks = state.UiSubframeTicks + elapsed.Ticks * 120;
         int callbacks = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeRenzokukenProcesses[actorId] = state with { UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };

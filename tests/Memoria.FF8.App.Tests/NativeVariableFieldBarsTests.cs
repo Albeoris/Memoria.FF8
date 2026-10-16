@@ -42,7 +42,7 @@ public sealed class NativeVariableFieldBarsTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field948 is required.");
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeVariableFieldBarsTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, directory);
         world.EnsureField();

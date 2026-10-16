@@ -9,7 +9,7 @@ public sealed class ParkedGardenReboardingInputTests
     [Fact]
     public void ActualCentraFootConfirmPublishesBoardingActivityBeforeWorldEventsAndRestores()
     {
-        string source = FindRootFile("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.ParkedGardenReboardingInputTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.NotNull(session.State.World!.NativeFootRuntime);

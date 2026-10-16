@@ -1210,7 +1210,6 @@ public sealed partial class EventEngine
             case Jsm.Opcode.MUSICVOLSYNC:
                 // Native51FDC0 calls46C040(1); the installed helper is xor eax,eax/ret.
                 // Return2 continues immediately without touching operands, registers or audio ramps.
-                
                 break;
             case Jsm.Opcode.ALLSEVOLTRANS:
                 args = ExecuteAllSoundVolumeTransition(fiber);

@@ -13,7 +13,7 @@ public sealed class IfritOutsideCheckpointTests
         Assert.SkipUnless(Directory.Exists(gameDirectory), "Installed field corpus is required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        string source = Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.IfritOutsideCheckpointTests.1");
         byte[] original = File.ReadAllBytes(source);
         GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_IFRIT_RETURN_SNAPSHOT", 129);
         var session = new GameSession(recreated);

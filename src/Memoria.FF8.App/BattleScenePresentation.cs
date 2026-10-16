@@ -36,7 +36,7 @@ internal sealed class BattleScenePresentation
         BattleEncounter? encounter = useEncounter && definition.EncounterId is int id ? assets.LoadEncounter(id) : null;
         if (definition.NativeGraphics is null)
         {
-            //TODO(TD-009): Component battles without the raw graphics owner retain their declared settled introduction view
+            //TODO(TD-009): Component battles without the raw graphics owner retain their declared settled introduction view.
             int cameraId = (encounter?.PrimaryCamera ?? 0) & 0xF7;
             if (!stage.IntroductionCameras.TryGetValue(cameraId, out BattleStageCamera? introduction))
             {
@@ -158,7 +158,7 @@ internal sealed class BattleScenePresentation
             }
             float ground = animation.GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
-            // bases yields renderer partyPI/enemy0
+            // bases yields renderer partyPI/enemy0.
             BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose, MeshMask = session.NativeGraphics?.Models[nativeIndex].SequenceState?.MeshMask124 ?? uint.MaxValue };
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)

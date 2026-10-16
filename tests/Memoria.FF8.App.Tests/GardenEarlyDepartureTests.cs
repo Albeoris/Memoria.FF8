@@ -97,7 +97,7 @@ public sealed class GardenEarlyDepartureTests
 
     private static string Source()
     {
-        return TestResources.FixtureFile("../fixtures/external-fixture.json");
+        return TestResources.FixturePath("App.Tests.GardenEarlyDepartureTests.1");
     }
 }
 

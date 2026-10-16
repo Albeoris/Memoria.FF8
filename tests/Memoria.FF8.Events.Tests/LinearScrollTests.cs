@@ -115,7 +115,7 @@ internal static partial class Program
 
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(135);
-        string source = Path.Combine("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("Events.Tests.LinearScrollTests.1");
         byte[] original = File.ReadAllBytes(source);
         EventEngine CreateActual()
         {

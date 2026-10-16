@@ -170,7 +170,7 @@ public sealed partial class EventEngine
             Scene.FieldCallbackClock = clock with { BattleCallbacks = clock.BattleCallbacks ?? 0 };
         }
         operands = Pop(fiber, 2);
-        // TODO(TD-009): replace the authorized zero-duration automatic victory backend with native combat
+        // TODO(TD-009): replace the authorized zero-duration automatic victory backend with native combat.
         NativeBattleCompletion completion = new(!suppressed && !interactive ? 2 : 1, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, operands[0], operands[1], unchecked((ushort)operands[0]), unchecked((ushort)operands[1]), suppressed, suppressed ? null : interactive ? NativeBattleBackend.Interactive : NativeBattleBackend.AutomaticVictory, null, null, 0);
         if (interactive)
         {

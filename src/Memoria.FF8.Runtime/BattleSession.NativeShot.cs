@@ -100,7 +100,7 @@ public sealed partial class BattleSession
         {
             return;
         }
-        //TODO(TD-009): Project the original active Shot widget callbacks onto the host's30Hz presentation clock until native UI/effect scheduling is owned
+        //TODO(TD-009): Project the original active Shot widget callbacks onto the host's30Hz presentation clock until native UI/effect scheduling is owned.
         long ticks = state.UiSubframeTicks + elapsed.Ticks * FramesPerSecond;
         int frames = checked((int)(ticks / TimeSpan.TicksPerSecond));
         nativeShotProcesses[actorId] = state with { UiSubframeTicks = ticks % TimeSpan.TicksPerSecond };
@@ -148,7 +148,7 @@ public sealed partial class BattleSession
             nativeLimitLevels.Remove(action.ActorId);
             return false;
         }
-        //TODO(TD-009): Native47E200 graphics command10 owns4AD7C0 readiness; use the current action completion projection until that VM is owned
+        //TODO(TD-009): Native47E200 graphics command10 owns4AD7C0 readiness; use the current action completion projection until that VM is owned.
         if (action.NativeLimitCallback is NativeLimitCallback.ShotOpening or NativeLimitCallback.ShotEffect && state.Phase != BattleNativeShotPhase.Ending)
         {
             if (state.RemainingAmmo == 0)

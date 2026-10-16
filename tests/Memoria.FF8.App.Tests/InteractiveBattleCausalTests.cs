@@ -16,7 +16,7 @@ public sealed class InteractiveBattleCausalTests
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed game corpus is required for the authentic interactive battle journey.");
         string root = RepositoryRoot();
-        string evidence = Path.Combine(root, "../fixtures");
+        string evidence = TestResources.ArtifactDirectory;
         string scratch = Path.Combine(Path.GetTempPath(), "Memoria-interactive-battle-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(scratch);
         Stopwatch routeWatch = Stopwatch.StartNew();

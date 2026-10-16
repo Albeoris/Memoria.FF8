@@ -16,7 +16,7 @@ public sealed class NativeSelectedCameraWrappedScrollTests
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field assets are required.");
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_CAMERA_SCROLL_SOURCE") ?? Path.Combine(repository.FullName, "../fixtures/external-fixture.json");
+        string source = Environment.GetEnvironmentVariable("MEMORIA_FF8_SELECTED_CAMERA_SCROLL_SOURCE") ?? TestResources.FixturePath("App.Tests.NativeSelectedCameraWrappedScrollTests.1");
         Assert.SkipUnless(File.Exists(source), "The genuine field929 post-movie diagnostic is required.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement events = document.RootElement.GetProperty("EventState");

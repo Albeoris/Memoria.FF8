@@ -136,8 +136,7 @@ public sealed class FieldNativeBackgroundWrapTests
 
     private static Dictionary<int, int> Original135BackgroundStates()
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("Assets.Tests.FieldNativeBackgroundWrapTests.1");
         using JsonDocument checkpoint = JsonDocument.Parse(File.ReadAllText(source));
         JsonElement state = checkpoint.RootElement.GetProperty("EventState");
         Assert.Equal((135, 2L), (state.GetProperty("FieldId").GetInt32(), state.GetProperty("Frame").GetInt64()));

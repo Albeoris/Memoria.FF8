@@ -11,8 +11,7 @@ public sealed class NormalCameraBindingTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NormalCameraBindingTests.1");
         using var world = new GameWorld(new GameSession(GameSession.Load(source)), directory);
         world.EnsureField();
         Assert.Equal(new[] { 1, 255, 255 }, world.Events.Scene.FieldPartyNativeActorIds);

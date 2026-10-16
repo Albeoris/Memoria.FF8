@@ -124,7 +124,7 @@ public sealed class NativeTrainStationChoiceTests
     {
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        GameState source = GameSession.Load(Path.Combine(repository.FullName, "../fixtures/external-fixture.json"));
+        GameState source = GameSession.Load(TestResources.FixturePath("App.Tests.NativeTrainStationChoiceTests.1"));
         return source;
     }
 

@@ -17,7 +17,7 @@ internal static partial class Program
         Dictionary<EventEngine, GameSession> sessions = [];
         EventEngine Create()
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+            GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.PartySplitTests.1")));
             EventEngine result = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, ResolvePartyTraceTriangle = (x, y, z) => FieldPartyTraceGeometry.Resolve(field.Walkmesh, x, y, z) };
             result.LoadField(137, field.Jsm, field.Messages);
             result.Restore(session.State.EventState!.Value);

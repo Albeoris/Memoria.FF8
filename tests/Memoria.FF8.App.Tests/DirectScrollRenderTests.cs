@@ -14,8 +14,7 @@ public sealed class DirectScrollRenderTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.DirectScrollRenderTests.1");
         var session = new GameSession(NativeField135LinearScrollTests.RecreateBoundary(directory, source, 172, 3));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

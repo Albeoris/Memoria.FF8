@@ -12,8 +12,7 @@ public sealed class LayerZeroLinearScrollProjectionTests
     public void AuthenticTowerRoadPrefixUsesItsActualDirectStartAndRestoresTheLinearCamera()
     {
         string directory = TestResources.GameDirectory;
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.LayerZeroLinearScrollProjectionTests.1");
         Assert.SkipUnless(Directory.Exists(directory) && File.Exists(source), "Authentic tower-road snapshot and installed original resources are required.");
         GameState current = GameSession.Load(source);
         using GameWorld world = new(new GameSession(current), directory);

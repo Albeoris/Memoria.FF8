@@ -55,9 +55,9 @@ public sealed class BattleTurnBasedPresentationClockTests
         {
             Directory.CreateDirectory(evidence);
             using var initial = BattlePreviewCanvas.BitmapFromRgba(firstPixels, 640, 448);
-            initial.Save(Path.Combine(evidence, "ifrit-first-turn-idle-before.png"), ImageFormat.Png);
+            initial.Save(TestResources.ArtifactFile("App.Tests.BattleTurnBasedPresentationClockTests.1.png"), ImageFormat.Png);
             using var advanced = BattlePreviewCanvas.BitmapFromRgba(advancedPixels, 640, 448);
-            advanced.Save(Path.Combine(evidence, "ifrit-first-turn-idle-after.png"), ImageFormat.Png);
+            advanced.Save(TestResources.ArtifactFile("App.Tests.BattleTurnBasedPresentationClockTests.2.png"), ImageFormat.Png);
         }
 
         session.QueueAttack(party.Id, "ifrit");

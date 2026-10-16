@@ -49,7 +49,6 @@ public sealed class DrawPointSetupContinuationTests
 
     private static string FindSource()
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        return TestResources.FixturePath("App.Tests.DrawPointSetupContinuationTests.1");
     }
 }

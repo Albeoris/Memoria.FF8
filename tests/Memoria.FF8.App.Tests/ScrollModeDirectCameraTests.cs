@@ -75,7 +75,7 @@ public sealed class ScrollModeDirectCameraTests
         // the explicit camera/scroll component inputs below vary; no game snapshot is published.
         DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         Assert.NotNull(repository);
-        using JsonDocument source = JsonDocument.Parse(File.ReadAllText(Path.Combine(repository.FullName, "../fixtures/external-fixture.json")));
+        using JsonDocument source = JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath("App.Tests.ScrollModeDirectCameraTests.1")));
         JsonNode scene = JsonNode.Parse(source.RootElement.GetProperty("EventState").GetProperty("Scene").GetRawText())!;
         Assert.Equal(field.Id, scene["NativeFieldInitialization"]!["FieldId"]!.GetValue<int>());
         Dictionary<int, BackgroundScrollSettings> settings = Enumerable.Range(0, 8).ToDictionary(layer => layer, _ => new BackgroundScrollSettings(0, 0, 256, 256));

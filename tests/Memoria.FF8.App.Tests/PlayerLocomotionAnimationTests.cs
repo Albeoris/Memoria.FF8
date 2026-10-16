@@ -72,8 +72,7 @@ public sealed class PlayerLocomotionAnimationTests
         Assert.Equal(player.AnimationSpeed / 16f, player.AnimationFrame);
 
         GameState source = session.State with { EventState = world.Events.Capture() };
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string output = Path.Combine(repository!.FullName, "../fixtures");
+        string output = TestResources.ArtifactDirectory;
         Directory.CreateDirectory(output);
         new GameSession(source).Save(Path.Combine(output, "squall-walk-source.json"));
         GameState recreated = JsonSerializer.Deserialize<GameState>(JsonSerializer.Serialize(source))!;

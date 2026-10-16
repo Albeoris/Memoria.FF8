@@ -56,7 +56,7 @@ public sealed record NativeGlobalSoundProcess
         // Native46B970 ORs46D530(0),46EB00 and46C870. This explicit backend
         // creates no original DS music buffer, segment handles or COM player.
         // Transient output belongs to separate host instances/processes.
-        // TODO(TD-003): — native buffered music status requires its real playback lifecycle.
+        // TODO(TD-003): native buffered music status requires its real playback lifecycle.
         return 0;
     }
 

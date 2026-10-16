@@ -41,7 +41,7 @@ public sealed class WorldEntryTransactionTests
     public void AuthenticWorldDepartureSaveReloadPreservesWorldMovementAndPixels()
     {
         string directory = GameDirectory();
-        var session = new GameSession(GameSession.Load(Source("world-current.json")));
+        var session = new GameSession(GameSession.Load(Source("App.Tests.WorldEntryTransactionTests.1")));
         using var host = new GameWorld(session, directory);
         host.EnsureField();
         host.SetRenderSize(320, 224);
@@ -117,10 +117,9 @@ public sealed class WorldEntryTransactionTests
         Assert.Equal(before, JsonSerializer.Serialize(departure));
     }
 
-    private static string Source(string file = "gate-current.json")
+    private static string Source(string file = "App.Tests.WorldEntryTransactionTests.2")
     {
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        return Path.Combine(repository!.FullName, "../fixtures", file);
+        return TestResources.FixturePath(file);
     }
 
     private static string GameDirectory()

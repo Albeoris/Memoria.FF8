@@ -189,7 +189,7 @@ public sealed partial class BattleAssets : IDisposable
             throw new InvalidDataException("Enemy ability bank exceeds its information section.");
         }
         int band = level < bytes[information + 244] ? 0 : level < bytes[information + 245] ? 1 : 2;
-        // TODO(TD-009): Native487DF0 enemy AI is not executed; this bounded dispatcher uses the first installed enemy-attack command in its actual level band
+        // TODO(TD-009): Native487DF0 enemy AI is not executed; this bounded dispatcher uses the first installed enemy-attack command in its actual level band.
         for (int slot = 0; slot < 16; slot++)
         {
             int offset = information + 52 + band * 64 + slot * 4;
@@ -232,7 +232,7 @@ public sealed partial class BattleAssets : IDisposable
         }
         // Native487DF0 reads command/sequence/id at info+52+4*(16*levelBand+ability),
         // preserving byte+53 as48D200's enemy sequence argument. Command8 selects enemy attacks.
-        // TODO(TD-009): The scaffold presents the first installed enemy-attack entry, not native AI/level-band selection
+        // TODO(TD-009): The scaffold presents the first installed enemy-attack entry, not native AI/level-band selection.
         for (int ability = 0; ability < 48; ability++)
         {
             int offset = information + 52 + ability * 4;
@@ -275,7 +275,7 @@ public sealed partial class BattleAssets : IDisposable
         {
             throw new NotSupportedException("Original character weapon records do not match the installed nonempty model catalog.");
         }
-        // TODO(TD-009): Match original per-character kernel order to installed model order until the executable party-model table is proved
+        // TODO(TD-009): Match original per-character kernel order to installed model order until the executable party-model table is proved.
         BattleModel model = LoadWeapon(characterId, installed[index], body);
         // The original reduced loader supplies sequence/sound services for Zell and Kiros; it creates no second render header.
         return characterId is 1 or 9 ? null : model;

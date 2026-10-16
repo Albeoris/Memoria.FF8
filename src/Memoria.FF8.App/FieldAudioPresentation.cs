@@ -173,7 +173,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
     {
         if (choiceMask is not null)
         {
-            // TODO(TD-003): — concert segments need their actual DirectMusic output lifecycle.
+            // TODO(TD-003): concert segments need their actual DirectMusic output lifecycle.
             throw new NotSupportedException("Concert segment output requires the original instrument-selection backend; ordinary full-track rendering is unsupported.");
         }
     }
@@ -261,7 +261,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             {
                 return;
             }
-            // TODO(TD-009): Centered maximum-gain contact at scaffold damage timing; native sequence/camera spatialization remains deferred
+            // TODO(TD-009): Centered maximum-gain contact at scaffold damage timing; native sequence/camera spatialization remains deferred.
             // The negative voice is device-only and cannot collide with native field voices0..31 or create a VM receipt.
             PlayPresentationSound(effect, -1);
         });
@@ -294,7 +294,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
             {
                 return;
             }
-            // TODO(TD-009): Preserve the cue's sound identity; scheduling/spatialization still use presentation tuning
+            // TODO(TD-009): Preserve the cue's sound identity; scheduling/spatialization still use presentation tuning.
             // A bounded device-only voice pool lets swing and impact tails overlap without owning field VM voices.
             int voice = -10 - battleVoice++ % 16;
             PlayPresentationSound(effect, voice);
@@ -306,7 +306,7 @@ internal sealed partial class FieldAudioPresentation(nint window, string gameDir
         TryOutput(() =>
         {
             uint pan = ResolveNativeModuleSoundPan(sound);
-            // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output
+            // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output.
             PlayPresentationSound(sound.Sound, -10 - battleVoice++ % 16, pan);
         });
     }

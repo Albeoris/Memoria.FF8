@@ -443,7 +443,7 @@ internal static partial class Program
             if (loadedField == 180 && visitedFields.Count == 2 && engine.Frame is 1 or 2 or 30)
             {
                 string snapshot = System.Text.Json.JsonSerializer.Serialize(new { engine.FieldId, engine.Frame, engine.Actors, engine.BackgroundStates }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(Path.Combine(AppContext.BaseDirectory, $"actors-180-frame{engine.Frame}.json"), snapshot);
+                File.WriteAllText(TestResources.ArtifactFile($"actors-180-frame{engine.Frame}.json"), snapshot);
             }
             if (session.IsMoviePlaying)
             {
@@ -522,8 +522,8 @@ internal static partial class Program
         Require(first.Decisions.Any(decision => decision.Predicate.Contains("W[256]")), "Branch tracing lost the source story predicate.");
         Require(first.Coverage.Any(branch => branch.TrueCount > 0 && branch.FalseCount > 0), "The actual revisit did not observe both outcomes of any source condition.");
         Require(first.Decisions.All(decision => decision.ActionIndex > 0 && decision.Operation >= 0), "A branch decision lost its source/action evidence.");
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-default.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage }));
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-alternate.json"), System.Text.Json.JsonSerializer.Serialize(new { alternate.Actions, alternate.Decisions, alternate.Dialogues, alternate.Coverage }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.14.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.15.json"), System.Text.Json.JsonSerializer.Serialize(new { alternate.Actions, alternate.Decisions, alternate.Dialogues, alternate.Coverage }));
         Console.WriteLine($"Player action corpus: {first.Actions.Length} actions, {first.Coverage.Length} branch sites, both first AASK answers; native actions passed.");
     }
 
@@ -623,8 +623,8 @@ internal static partial class Program
                 Require(applied.Accepted, "The real script chain rejected a normal player action.");
                 if (continueCorridor && applied.Detail is not null)
                 {
-                    File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "corridor-wait-checkpoint.json"), engine.Capture().GetRawText());
-                    File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "corridor-command-trace.json"), System.Text.Json.JsonSerializer.Serialize(commandTrace));
+                    File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.16.json"), engine.Capture().GetRawText());
+                    File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.17.json"), System.Text.Json.JsonSerializer.Serialize(commandTrace));
                     throw new InvalidOperationException($"Corridor wait budget exhausted at frame {engine.Frame}; checkpoint persisted for source diagnosis.");
                 }
             }
@@ -640,7 +640,7 @@ internal static partial class Program
         Require(first.Lines.Select(line => line.ObjectId).SequenceEqual(new[] { 10, 11 }), "Natural movement did not execute both original corridor crossing scripts exactly once.");
         Require(first.Lines.Select(line => line.ScriptId).SequenceEqual(new[] { 59, 67 }), "Crossing dispatch used the wrong source scripts.");
         Require(first.Dialogues.Any(dialogue => dialogue.FieldId == 229), "Crossing failed to reach the original corridor conversations.");
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-corridor.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.18.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines }));
         Console.WriteLine($"Natural corridor corpus: {first.Actions.Length} ordinary actions, lines 10/59 and 11/67 -> original movie0 trigger; native actions passed.");
     }
 
@@ -648,7 +648,7 @@ internal static partial class Program
     {
         ActionCorpus first = RunActionChain(gameDirectory, false, continueCorridor: true, continueTo232: true);
         Require(first.Decisions.Any(item => item.Predicate.Contains("L[80]") && item.ConditionPassed), "Decoded terminal frame did not satisfy the original movie-frame predicate.");
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "player-trace-movie0-arrival232.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines, Arrival = new FieldTransition(232, 1389, -3580, 50, 0) }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.19.json"), System.Text.Json.JsonSerializer.Serialize(new { first.Actions, first.Decisions, first.Dialogues, first.Coverage, first.Lines, Arrival = new FieldTransition(232, 1389, -3580, 50, 0) }));
         using GameAssets assets = new(gameDirectory);
         FieldAssets source = assets.LoadField(229);
         FieldAssets destination = assets.LoadField(232);
@@ -661,7 +661,7 @@ internal static partial class Program
         arrivalEngine.ResolveFieldArrival = arrival => destination.Walkmesh.TryPosition(arrival.X, arrival.Y, out System.Numerics.Vector3 position, out int triangle, otherTriangles) ? new WalkmeshPosition(position, triangle) : null;
         arrivalEngine.AnimationFrameCount = destination.GetAnimationFrameCount;
         JsmProgram destinationProgram = JsmProgram.Read(destination.Jsm);
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "field232-selected-scripts.json"), System.Text.Json.JsonSerializer.Serialize(new { Header = destination.Jsm.Take(4).ToArray(), RawGroups = Enumerable.Range(0, destination.Jsm.Take(4).Sum(value => (int)value)).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(destination.Jsm.AsSpan(8 + index * 2)) >> 7), Objects = destinationProgram.Objects.Select(obj => new { obj.Index, obj.Label, Scripts = obj.Scripts.Select(script => script.Id) }), Operations = destinationProgram.Operations.Skip(7348).Take(38).Select(op => new { op.Index, Opcode = op.Opcode.ToString(), op.Parameter }) }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.20.json"), System.Text.Json.JsonSerializer.Serialize(new { Header = destination.Jsm.Take(4).ToArray(), RawGroups = Enumerable.Range(0, destination.Jsm.Take(4).Sum(value => (int)value)).Select(index => BinaryPrimitives.ReadUInt16LittleEndian(destination.Jsm.AsSpan(8 + index * 2)) >> 7), Objects = destinationProgram.Objects.Select(obj => new { obj.Index, obj.Label, Scripts = obj.Scripts.Select(script => script.Id) }), Operations = destinationProgram.Operations.Skip(7348).Take(38).Select(op => new { op.Index, Opcode = op.Opcode.ToString(), op.Parameter }) }));
         arrivalEngine.ReadFaceBaseline = actor =>
         {
             FieldModel model = destination.Models[actor.ModelId];
@@ -691,7 +691,7 @@ internal static partial class Program
             }
             catch (EventScriptException exception)
             {
-                File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "field232-first-boundary.json"), System.Text.Json.JsonSerializer.Serialize(new { arrivalEngine.LastFault, Error = exception.Message, arrivalEngine.Frame, Actors = arrivalEngine.Actors.Where(actor => actor.CharacterId == 0) }));
+                File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.21.json"), System.Text.Json.JsonSerializer.Serialize(new { arrivalEngine.LastFault, Error = exception.Message, arrivalEngine.Frame, Actors = arrivalEngine.Actors.Where(actor => actor.CharacterId == 0) }));
                 Console.WriteLine($"Field232 first boundary: {exception.Message}");
                 if (arrivalEngine.LastFault is EventFault eventFault)
                 {
@@ -721,8 +721,8 @@ internal static partial class Program
         var arrivalSnapshot = arrivalEngine.Capture();
         arrivalEngine.Restore(arrivalSnapshot);
         Require(arrivalSnapshot.GetRawText() == arrivalEngine.Capture().GetRawText(), "Classroom face/audio/shade/trace/arrival snapshot did not round-trip exactly.");
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "field232-first-trigger-checkpoint.json"), arrivalEngine.Capture().GetRawText());
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "field232-first-trigger.json"), System.Text.Json.JsonSerializer.Serialize(new { arrivalEngine.FieldId, arrivalEngine.Frame, arrivalEngine.NextTrigger, arrivalEngine.IsUserControlEnabled, arrivalEngine.Scene.CameraIndex, arrivalEngine.Scene.LoadedSoundEffects, arrivalEngine.Scene.LockedTriangles, Shades = arrivalEngine.GetBackgroundModuleShades(), Opcodes = classroomOpcodes.Order().ToArray(), Players = arrivalEngine.Actors.Where(actor => actor.CharacterId == 0).Select(actor => new { actor.X, actor.Y, actor.Z, actor.Direction, actor.WalkmeshTriangle, actor.Visible }) }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.22.json"), arrivalEngine.Capture().GetRawText());
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.23.json"), System.Text.Json.JsonSerializer.Serialize(new { arrivalEngine.FieldId, arrivalEngine.Frame, arrivalEngine.NextTrigger, arrivalEngine.IsUserControlEnabled, arrivalEngine.Scene.CameraIndex, arrivalEngine.Scene.LoadedSoundEffects, arrivalEngine.Scene.LockedTriangles, Shades = arrivalEngine.GetBackgroundModuleShades(), Opcodes = classroomOpcodes.Order().ToArray(), Players = arrivalEngine.Actors.Where(actor => actor.CharacterId == 0).Select(actor => new { actor.X, actor.Y, actor.Z, actor.Direction, actor.WalkmeshTriangle, actor.Visible }) }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
         Console.WriteLine($"Field232 state at frame{arrivalEngine.Frame}: {arrivalEngine.NextTrigger.Kind}, control{arrivalEngine.IsUserControlEnabled}, dialogue{arrivalEngine.CurrentDialogue?.MessageId}.");
         Console.WriteLine($"Movie0 arrival corpus: {first.Actions.Length} ordinary actions, skip terminal325 -> native field232 (1389,-3580), triangle50, direction0; native actions passed.");
     }
@@ -778,7 +778,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(232);
-        string fixture = Path.Combine("../fixtures/external-fixture.json");
+        string fixture = TestResources.FixturePath("Events.Tests.Program.1");
         GameState saved = GameSession.Load(fixture);
         GameSession session = new(saved);
         EventEngine Create(GameSession current)
@@ -803,7 +803,7 @@ internal static partial class Program
         var baselines = model.Animations[0].Frames.Select((frame, index) => model.ReadFirstControlRotation(0, index)).ToArray();
         Console.WriteLine($"FACEDIRA actor15 control bone{model.ControlBones.First}, baseline Y/Z distinct: {string.Join(';', baselines.Select(rotation => $"{rotation.Y},{rotation.Z}").Distinct())}.");
         Require(model.ControlBones.First == 4 && baselines.Length == 1 && (int)MathF.Round(baselines[0].Y * 4096 / MathF.Tau) / 16 == 229 && (int)MathF.Round(baselines[0].Z * 4096 / MathF.Tau) / 16 == 0, "The proved legacy baseline migration fixture no longer has a single declared-control pose229/0.");
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "classroom-face-native-pose.json"), System.Text.Json.JsonSerializer.Serialize(new { Model = model.Name, model.ControlBones, Baselines = baselines, Operations = JsmProgram.Read(field.Jsm).Operations.Skip(3011).Take(25).Select(op => new { op.Index, Opcode = op.Opcode.ToString(), op.Parameter }) }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.24.json"), System.Text.Json.JsonSerializer.Serialize(new { Model = model.Name, model.ControlBones, Baselines = baselines, Operations = JsmProgram.Read(field.Jsm).Operations.Skip(3011).Take(25).Select(op => new { op.Index, Opcode = op.Opcode.ToString(), op.Parameter }) }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
         original.Step();
         Require(original.Actors[15].FaceDuration == 15 && original.Actors[15].FaceProgress == 0 && original.Actors[15].FaceTargetPoint is not null, "Retry did not execute the saved original target/duration.");
         original.Step();
@@ -820,7 +820,7 @@ internal static partial class Program
         }
         Require(original.Capture().GetRawText() == resumed.Capture().GetRawText(), "Actual FACEDIRA resume diverged before its next original trigger.");
         Require(original.NextTrigger.Kind is PlayerTriggerKind.Dialogue or PlayerTriggerKind.Playable, "Actual FACEDIRA retry failed to reach the next observable trigger.");
-        File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "classroom-face-next-trigger.json"), System.Text.Json.JsonSerializer.Serialize(new { original.Frame, original.NextTrigger, Dialogue = original.CurrentDialogue, Actor = original.Actors[15] }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
+        File.WriteAllText(TestResources.ArtifactFile("Events.Tests.Program.25.json"), System.Text.Json.JsonSerializer.Serialize(new { original.Frame, original.NextTrigger, Dialogue = original.CurrentDialogue, Actor = original.Actors[15] }, new System.Text.Json.JsonSerializerOptions { IncludeFields = true }));
         Console.WriteLine($"FACEDIRA retry reached {original.NextTrigger.Kind}, message{original.CurrentDialogue?.MessageId}, frame{original.Frame}.");
     }
 
@@ -838,8 +838,7 @@ internal static partial class Program
             engine.Restore(state.EventState!.Value);
             return engine;
         }
-        string evidenceDirectory = Path.Combine("../fixtures");
-        string beforePath = Path.Combine(evidenceDirectory, "player-performance-movecancel-preboundary-checkpoint.json");
+        string beforePath = TestResources.FixturePath("Events.Tests.Program.26");
         EventEngine original = Create(GameSession.Load(beforePath));
         EventEngine replayed = Create(GameSession.Load(beforePath));
         Require(original.Frame == 363 && original.NextTrigger.Kind == PlayerTriggerKind.Waiting, "MOVECANCEL replay did not start at the actual immediately preceding frame.");
@@ -861,7 +860,7 @@ internal static partial class Program
         replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         Require(cancellations == 1 && original.Frame == 364 && original.LastFault is null, $"Exact-before MOVECANCEL action failed: count{cancellations}, frame{original.Frame}, fault{original.LastFault}.");
         Require(original.Capture().GetRawText() == replayed.Capture().GetRawText(), "Exact-before MOVECANCEL action replay changed the VM.");
-        EventEngine retry = Create(GameSession.Load(Path.Combine(evidenceDirectory, "player-performance-movecancel-exact-fault-checkpoint.json")));
+        EventEngine retry = Create(GameSession.Load(TestResources.FixturePath("Events.Tests.Program.27")));
         var preserved = retry.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 90);
         Require(retry.LastFault is null && preserved.GetProperty("Position").GetInt32() == 1337 && preserved.GetProperty("Stack")[0].GetInt32() == 14, "MOVECANCEL source upgrade changed the saved retry PC or native operand.");
         int retries = 0;
@@ -1065,14 +1064,14 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(232);
         EventEngine Create(string leaf)
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures", leaf));
+            GameState state = GameSession.Load(TestResources.FixturePath(leaf));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
             engine.LoadField(232, field.Jsm, field.Messages);
             engine.Restore(state.EventState!.Value);
             return engine;
         }
-        const string beforeLeaf = "player-performance-preq-preboundary-checkpoint.json";
+        const string beforeLeaf = "Events.Tests.Program.28";
         EventEngine original = Create(beforeLeaf);
         EventEngine replayed = Create(beforeLeaf);
         Require(original.Frame == 2241 && original.Scene.Party.SequenceEqual([0]), "PREQ fixture lost its exact preceding frame or party.");
@@ -1097,7 +1096,7 @@ internal static partial class Program
         original.Step();
         resumed.Step();
         Require(original.Capture().GetRawText() == resumed.Capture().GetRawText() && !original.Capture().GetProperty("Fibers").EnumerateArray().Any(fiber => fiber.GetProperty("ObjectId").GetInt32() == 1 && fiber.GetProperty("ScriptId").GetInt32() == 19 && !fiber.GetProperty("Complete").GetBoolean()), "Actual Squall facing loop did not finish on its next scheduler turn after the original bit128 signal.");
-        EventEngine retry = Create("player-performance-preq-exact-fault-checkpoint.json");
+        EventEngine retry = Create("Events.Tests.Program.29");
         var preserved = retry.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 91);
         Require(retry.LastFault is null && preserved.GetProperty("Position").GetInt32() == 1693 && preserved.GetProperty("Stack")[0].GetInt32() == 15 && preserved.GetProperty("Stack")[1].GetInt32() == 1, "PREQ source upgrade changed the exact fault PC or operands.");
         retry.Step();
@@ -1224,7 +1223,7 @@ internal static partial class Program
         entry.LoadField(180, field.Jsm, field.Messages);
         Require(entry.Frame == 0 && entry.Scene.Party.SequenceEqual([0]) && entry.Capture().GetProperty("BackgroundAnimations").EnumerateArray().All(animation => animation.GetProperty("NativeVersion").GetInt32() == 1 && !animation.GetProperty("Active").GetBoolean()), "Fresh ordinary field180 entry already contained a legacy curtain phase.");
         entrySession.SetEventState(entry.Capture());
-        string beforeInitPath = Path.Combine(AppContext.BaseDirectory, "field180-native-before-init.json");
+        string beforeInitPath = TestResources.ArtifactFile("Events.Tests.Program.30.json");
         entrySession.Save(beforeInitPath);
         EventEngine Create()
         {
@@ -1237,7 +1236,7 @@ internal static partial class Program
         }
         EventEngine original = Create();
         var beforeInvalidRestore = original.Capture();
-        GameState oldFront = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState oldFront = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.2"));
         foreach ((int last, bool complete) in new[] { (12, false), (9, false), (9, true) })
         {
             var diagnostic = System.Text.Json.Nodes.JsonNode.Parse(oldFront.EventState!.Value.GetRawText())!;
@@ -1249,7 +1248,7 @@ internal static partial class Program
                 original.Restore(document.RootElement);
                 throw new InvalidOperationException("Legacy front-view curtain arithmetic/timing was silently converted.");
             }
-            catch (InvalidDataException exception) when (exception.Message.Contains("field180-native-before-init.json", StringComparison.Ordinal))
+            catch (InvalidDataException exception) when (exception.Message.Contains("Events.Tests.Program.30", StringComparison.Ordinal))
             {
             }
             Require(beforeInvalidRestore.GetRawText() == original.Capture().GetRawText(), "Rejecting a legacy front-view curtain mutated the ordinary replay world.");
@@ -1304,7 +1303,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(181);
         EventEngine Create()
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+            GameState state = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.3"));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount };
             engine.LoadField(181, field.Jsm, field.Messages);
@@ -1313,13 +1312,13 @@ internal static partial class Program
         }
         EventEngine engine = Create();
         var beforeInvalidRestore = engine.Capture();
-        GameState invalidLegacy = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState invalidLegacy = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.4"));
         try
         {
             engine.Restore(invalidLegacy.EventState!.Value);
             throw new InvalidOperationException("The known legacy curtain0..29 animation was silently converted or clamped.");
         }
-        catch (InvalidDataException exception) when (exception.Message.Contains("field181-side-start.json", StringComparison.Ordinal))
+        catch (InvalidDataException exception) when (exception.Message.Contains("Events.Tests.Program.3", StringComparison.Ordinal))
         {
         }
         Require(beforeInvalidRestore.GetRawText() == engine.Capture().GetRawText(), "Rejecting invalid legacy curtain state changed the existing VM.");
@@ -1336,7 +1335,7 @@ internal static partial class Program
                 engine.Restore(plausibleDocument.RootElement);
                 throw new InvalidOperationException("A plausible legacy curtain range retained arithmetic state from before the native fix.");
             }
-            catch (InvalidDataException exception) when (exception.Message.Contains("field181-side-start.json", StringComparison.Ordinal))
+            catch (InvalidDataException exception) when (exception.Message.Contains("Events.Tests.Program.3", StringComparison.Ordinal))
             {
             }
             Require(beforeInvalidRestore.GetRawText() == engine.Capture().GetRawText(), "Rejecting a valid-range or completed legacy curtain changed the existing VM.");
@@ -1382,7 +1381,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(232);
-        GameState state = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState state = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.5"));
         GameSession session = new(state);
         EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
         engine.ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out System.Numerics.Vector3 position, out int triangle, engine.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
@@ -1420,7 +1419,7 @@ internal static partial class Program
         Require(engine.Scene.NativeActorLayoutVersion == 1 && engine.Scene.NativeActorObjectIds.SequenceEqual(new[] { 0, 5, 16, 18, 19, 20, 21, 22 }), "Original field139 init retained the wrong compact actor order or included doors/modules/areas.");
         Require(engine.Capture().GetProperty("PendingArrival").ValueKind == System.Text.Json.JsonValueKind.Null && player.X == -3172 && player.Y == -5705 && player.Z == spawn.Z && player.WalkmeshTriangle == 130 && player.Direction == 72 && engine.Scene.UnlockedTutorials.SetEquals([0]) && session.State.Variables[256] == 17, "Actual destination init failed to apply native arrival before default scripts or preserve persistent scene state.");
         Console.WriteLine($"Field139 original init arrival applied at frame{engine.Frame}; player{player.ObjectId} XY({player.X},{player.Y}) Z{player.Z}/triangle{player.WalkmeshTriangle}/dir{player.Direction}.");
-        GameState faultState = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState faultState = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.6"));
         GameSession retrySession = new(faultState);
         EventEngine retry = new(retrySession) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
         retry.LoadField(232, field.Jsm, field.Messages);
@@ -1522,10 +1521,10 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(139);
-        GameState state = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
-        (GameSession Session, EventEngine Engine) Create(string checkpoint = "player-garden-139-postinit-preboundary-checkpoint.json")
+        GameState state = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.7"));
+        (GameSession Session, EventEngine Engine) Create(string checkpoint = "Events.Tests.Program.7")
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures", checkpoint)));
+            GameSession session = new(GameSession.Load(TestResources.FixturePath(checkpoint)));
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
             engine.CanDisableAdditionalControl = actor =>
             {
@@ -1547,7 +1546,7 @@ internal static partial class Program
         first.Engine.Restore(applied);
         Require(applied.GetRawText() == first.Engine.Capture().GetRawText(), "Actual ACTORMODE state changed during restoration.");
         Require(CapturedVariables(applied).EnumerateObject().Select(variable => (variable.Name, variable.Value.GetInt32())).SequenceEqual(CapturedVariables(state.EventState!.Value).EnumerateObject().Select(variable => (variable.Name, variable.Value.GetInt32()))), "ACTORMODE3 changed story or temporary variables.");
-        var retry = Create("player-garden-139-postinit-checkpoint.json");
+        var retry = Create("Events.Tests.Program.31");
         var retryCaller = retry.Engine.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 0 && fiber.GetProperty("ScriptId").GetInt32() == 1);
         Require(retry.Engine.LastFault is null && retryCaller.GetProperty("Position").GetInt32() == 15 && retryCaller.GetProperty("Stack").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { 3 }), "ACTORMODE source-upgrade retry changed its exact saved PC or operand.");
         retry.Engine.Step();
@@ -1609,7 +1608,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(139);
         EventEngine Create()
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+            GameState state = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.8"));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, CanDisableAdditionalControl = _ => true };
             engine.ResolveWalkmesh = (x, y) => field.Walkmesh.TryPosition(x, y, out System.Numerics.Vector3 position, out int triangle, engine.Scene.LockedTriangles) ? new WalkmeshPosition(position, triangle) : null;
@@ -1629,7 +1628,7 @@ internal static partial class Program
         var applied = engine.Capture();
         engine.Restore(applied);
         Require(applied.GetRawText() == engine.Capture().GetRawText(), "Actual area gate state changed after restore.");
-        using var frozenDocument = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine("../fixtures/external-fixture.json")));
+        using var frozenDocument = System.Text.Json.JsonDocument.Parse(File.ReadAllText(TestResources.FixturePath("Events.Tests.Program.9")));
         var frozen = frozenDocument.RootElement;
         Require(frozen.GetProperty("LastFault").GetProperty("Operation").GetInt32() == 10673 && frozen.GetProperty("LastFault").GetProperty("Opcode").GetString() == nameof(Jsm.Opcode.DOORLINEOFF), "Selected frozen component proof is not the genuine next area command.");
         EventEngine retry = Create();
@@ -1757,7 +1756,7 @@ internal static partial class Program
     {
         using GameAssets assets = new(gameDirectory);
         FieldAssets field = assets.LoadField(139);
-        GameState state = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState state = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.10"));
         GameSession session = new(state);
         EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted, CanDisableAdditionalControl = _ => true };
         engine.LoadField(139, field.Jsm, field.Messages);
@@ -1784,7 +1783,7 @@ internal static partial class Program
         {
         }
         Require(frozen.GetRawText() == engine.Capture().GetRawText(), "Legacy missing-layout boundary failed exact frozen restoration.");
-        GameState incorrect = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState incorrect = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.11"));
         try
         {
             engine.Restore(incorrect.EventState!.Value);
@@ -2001,7 +2000,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(232);
         EventEngine Create(string leaf)
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures", leaf));
+            GameState state = GameSession.Load(TestResources.FixturePath(leaf));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
             engine.LoadField(232, field.Jsm, field.Messages);
@@ -2009,7 +2008,7 @@ internal static partial class Program
             Require(engine.Scene.UnlockedTutorials.Count == 0, "A legacy checkpoint without tutorial state acquired unlocks during restore.");
             return engine;
         }
-        const string beforeLeaf = "player-performance-menutips-preboundary-checkpoint.json";
+        const string beforeLeaf = "Events.Tests.Program.32";
         EventEngine original = Create(beforeLeaf);
         EventEngine replayed = Create(beforeLeaf);
         Require(original.Frame == 2333 && !original.IsUserControlEnabled, "MENUTIPS exact-before fixture lost its frame or original control state.");
@@ -2020,7 +2019,7 @@ internal static partial class Program
         var completed = original.Capture();
         original.Restore(completed);
         Require(completed.GetRawText() == original.Capture().GetRawText(), "Actual tutorial0 checkpoint failed an exact typed round-trip.");
-        EventEngine retry = Create("player-performance-menutips-fault-checkpoint.json");
+        EventEngine retry = Create("Events.Tests.Program.33");
         var preserved = retry.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 91);
         Require(retry.LastFault is null && preserved.GetProperty("Position").GetInt32() == 1720 && preserved.GetProperty("Stack").GetArrayLength() == 1 && preserved.GetProperty("Stack")[0].GetInt32() == 0, "MENUTIPS source upgrade changed the exact saved fault PC or operand.");
         retry.Step();
@@ -2034,7 +2033,7 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(232);
         EventEngine Create(string leaf)
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures", leaf));
+            GameState state = GameSession.Load(TestResources.FixturePath(leaf));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
             engine.LoadField(232, field.Jsm, field.Messages);
@@ -2042,8 +2041,8 @@ internal static partial class Program
             return engine;
         }
         // Historical snapshots retain the pre-SETPC defect. They diagnose this request boundary only, not corrected normal traversal.
-        EventEngine original = Create("player-performance-preqew-preboundary-checkpoint.json");
-        EventEngine replayed = Create("player-performance-preqew-preboundary-checkpoint.json");
+        EventEngine original = Create("Events.Tests.Program.34");
+        EventEngine replayed = Create("Events.Tests.Program.34");
         Require(original.Frame == 1427 && original.Scene.Party.SequenceEqual([0]), "PREQEW fixture did not start at the actual preceding frame and party.");
         original.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
         replayed.Apply(new PlayerAction(PlayerActionKind.Wait, Frames: 1));
@@ -2058,7 +2057,7 @@ internal static partial class Program
         original.Step();
         replayed.Step();
         Require(original.Actors[1].X == -189 && original.Actors[1].Y == -2121 && original.Actors[1].WalkmeshTriangle == 58 && original.Capture().GetRawText() == replayed.Capture().GetRawText(), "The requested original Squall script did not execute its SET3/INITTRACE or changed across request restore.");
-        EventEngine retry = Create("player-performance-preqew-exact-fault-checkpoint.json");
+        EventEngine retry = Create("Events.Tests.Program.35");
         var preserved = retry.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 18 && fiber.GetProperty("ScriptId").GetInt32() == 171);
         Require(retry.LastFault is null && preserved.GetProperty("Position").GetInt32() == 3527 && preserved.GetProperty("Stack")[0].GetInt32() == 7 && preserved.GetProperty("Stack")[1].GetInt32() == 1, "PREQEW upgrade changed the original fault PC or operands.");
         retry.Step();
@@ -2115,14 +2114,14 @@ internal static partial class Program
         FieldAssets field = assets.LoadField(232);
         EventEngine Create(string leaf)
         {
-            GameState state = GameSession.Load(Path.Combine("../fixtures", leaf));
+            GameState state = GameSession.Load(TestResources.FixturePath(leaf));
             GameSession session = new(state);
             EventEngine engine = new(session) { AnimationFrameCount = field.GetAnimationFrameCount, LoadSoundResource = _ => SoundResourceStatus.Muted };
             engine.LoadField(232, field.Jsm, field.Messages);
             engine.Restore(state.EventState!.Value);
             return engine;
         }
-        const string beforeLeaf = "player-performance-party-corrected-pcturn-preboundary-checkpoint.json";
+        const string beforeLeaf = "Events.Tests.Program.12";
         EventEngine original = Create(beforeLeaf);
         EventEngine replayed = Create(beforeLeaf);
         Require(original.Frame == 1724 && original.Actors[11].Direction == 120 && original.Scene.Party.SequenceEqual([0]), "PCTURN fixture lost its original party, starting angle or immediately preceding frame.");
@@ -2144,7 +2143,7 @@ internal static partial class Program
             Require(original.Capture().GetRawText() == resumed.Capture().GetRawText(), "Actual PCTURN resume changed angular samples or the next original message.");
         }
         Require(original.Frame == 1741 && original.Actors[11].Direction == 143 && original.CurrentDialogue?.MessageId == 11 && original.CurrentDialogue?.Operation == 1624, "Actual PCTURN did not complete its16 driver samples before original Quistis message11.");
-        EventEngine retry = Create("player-performance-party-corrected-pcturn-exact-fault-checkpoint.json");
+        EventEngine retry = Create("Events.Tests.Program.36");
         var preserved = retry.Capture().GetProperty("Fibers").EnumerateArray().Single(fiber => fiber.GetProperty("ObjectId").GetInt32() == 11 && fiber.GetProperty("ScriptId").GetInt32() == 91);
         Require(retry.LastFault is null && preserved.GetProperty("Position").GetInt32() == 1618 && preserved.GetProperty("Stack")[0].GetInt32() == 15 && preserved.GetProperty("Stack")[1].GetInt32() == 0, "PCTURN source upgrade changed the saved PC or original party/duration operands.");
         retry.Step();
@@ -2185,7 +2184,7 @@ internal static partial class Program
         Require(deskModule.Index == 35 && deskModule.Label == 328 && deskModule.Scripts[0].Start == 7480 && deskModule.Scripts[0].End == 7482, "Actual desk-sprite module no longer matches its original no-selection init script.");
         BackgroundTile[] deskTiles = classroom.Background.Where(tile => tile.AnimationId == 6).ToArray();
         Require(deskTiles.Length == 11 && deskTiles.All(tile => tile.AnimationState == 0) && deskTiles.Select(tile => tile.Z).Distinct().Order().SequenceEqual([391, 559]), "Actual two desk sprites lost their module6/frame0 MAP selection or depth groups.");
-        GameState historical = GameSession.Load(Path.Combine("../fixtures/external-fixture.json"));
+        GameState historical = GameSession.Load(TestResources.FixturePath("Events.Tests.Program.12"));
         GameSession historicalSession = new(historical);
         EventEngine restoredHistorical = new(historicalSession);
         restoredHistorical.LoadField(232, classroom.Jsm, classroom.Messages);

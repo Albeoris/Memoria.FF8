@@ -14,10 +14,8 @@ public sealed class NaturalWorldContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed world corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string prefix = Path.Combine(repository!.FullName, "../fixtures");
-        var session = new GameSession(GameSession.Load(prefix + "walking-checkpoint.json"));
-        var resumedSession = new GameSession(GameSession.Load(prefix + "walking-checkpoint.json"));
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.NaturalWorldContinuationTests.1")));
+        var resumedSession = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.NaturalWorldContinuationTests.1")));
         using var world = new GameWorld(session, directory);
         using var resumed = new GameWorld(resumedSession, directory);
         world.EnsureField();
@@ -32,7 +30,7 @@ public sealed class NaturalWorldContinuationTests
         Assert.Equal(634, world.Events.Frame);
         byte[] walkingPixels = world.Render(TimeSpan.Zero).ToArray();
         Assert.Equal(walkingPixels, resumed.Render(TimeSpan.Zero));
-        Assert.Equal(ReadPixels(prefix + "walking.png"), walkingPixels);
+        Assert.Equal(ReadPixels(TestResources.FixturePath("App.Tests.NaturalWorldContinuationTests.2")), walkingPixels);
         PlayerAction[] actions = [new(PlayerActionKind.Wait), new(PlayerActionKind.Wait), new(PlayerActionKind.Move, Vertical: -1), new(PlayerActionKind.Move, Vertical: -1)];
         foreach (PlayerAction action in actions)
         {
@@ -41,7 +39,7 @@ public sealed class NaturalWorldContinuationTests
             Assert.True(JsonElement.DeepEquals(frozenVm, world.Events.Capture()));
             Assert.True(JsonElement.DeepEquals(frozenVm, resumed.Events.Capture()));
         }
-        GameState expected = GameSession.Load(prefix + "final-checkpoint.json");
+        GameState expected = GameSession.Load(TestResources.FixturePath("App.Tests.NaturalWorldContinuationTests.3"));
         Assert.True(JsonElement.DeepEquals(expected.DepartingFieldState!.Value, frozenVm));
         Assert.Null(session.State.DepartingFieldState);
         // Reload consumes this pending field-to-world transfer marker. The
@@ -56,7 +54,7 @@ public sealed class NaturalWorldContinuationTests
         Assert.Equal((24682, -29442, 8), (session.State.World.X, session.State.World.Z, session.State.World.Frame));
         byte[] finalPixels = world.Render(TimeSpan.Zero);
         Assert.Equal(finalPixels, resumed.Render(TimeSpan.Zero));
-        Assert.Equal(ReadPixels(prefix + "final.png"), finalPixels);
+        Assert.Equal(ReadPixels(TestResources.FixturePath("App.Tests.NaturalWorldContinuationTests.4")), finalPixels);
         Assert.NotEqual(walkingPixels, finalPixels);
     }
 

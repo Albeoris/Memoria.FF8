@@ -26,7 +26,7 @@ public sealed class BattleRewardPreviewTests
         if (evidence is not null)
         {
             Directory.CreateDirectory(evidence);
-            File.WriteAllText(Path.Combine(evidence, "formation512-frame0.json"), JsonSerializer.Serialize(active.Capture(), new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(TestResources.ArtifactFile("App.Tests.BattleRewardPreviewTests.1.json"), JsonSerializer.Serialize(active.Capture(), new JsonSerializerOptions { WriteIndented = true }));
         }
         for (int frame = 0; frame < 1000 && active.Outcome == BattleOutcome.Active; frame++)
         {
@@ -65,7 +65,7 @@ public sealed class BattleRewardPreviewTests
                 view.Resize(1280, 896);
                 view.Draw(canvas, new UiTheme());
             }
-            bitmap.Save(Path.Combine(evidence, "victory-rewards.png"), ImageFormat.Png);
+            bitmap.Save(TestResources.ArtifactFile("App.Tests.BattleRewardPreviewTests.2.png"), ImageFormat.Png);
         }
         BattleResult result = world.CaptureBattleOutcome(world.Battle!, occurrence);
         world.ApplyBattleResult(occurrence, result);

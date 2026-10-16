@@ -16,7 +16,6 @@ public sealed class ExamTimerContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         var session = new GameSession(SnapshotFixtures.Require("MEMORIA_FF8_GUARD_TIMER_CHOICE_SNAPSHOT", 129));
         using var world = new GameWorld(session, directory);
         world.EnsureField();

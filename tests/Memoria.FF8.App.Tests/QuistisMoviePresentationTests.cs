@@ -9,16 +9,15 @@ namespace Memoria.FF8.App.Tests;
 public sealed class QuistisMoviePresentationTests
 {
     [Theory]
-    [InlineData("fresh-field181-before-movie1.json", 320, 224, 1)]
-    [InlineData("fresh-field181-before-movie1.json", 640, 448, 3)]
-    [InlineData("fresh-field181-movie1-admitted.json", 320, 224, 1)]
-    [InlineData("fresh-field181-movie1-admitted.json", 640, 448, 3)]
+    [InlineData("App.Tests.QuistisMoviePresentationTests.1", 320, 224, 1)]
+    [InlineData("App.Tests.QuistisMoviePresentationTests.1", 640, 448, 3)]
+    [InlineData("App.Tests.QuistisMoviePresentationTests.2", 320, 224, 1)]
+    [InlineData("App.Tests.QuistisMoviePresentationTests.2", 640, 448, 3)]
     public void QuistisMovieUsesOnlyTheRendererOwnedByEachCallbackPhase(string checkpoint, int width, int height, int speed)
     {
         string game = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(game), "Installed original movie and field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string source = Path.Combine(repository!.FullName, "../fixtures", checkpoint);
+        string source = TestResources.FixturePath(checkpoint);
         byte[] original = File.ReadAllBytes(source);
         GameSession session = new(GameSession.Load(source));
         MovieClock clock = new(session, game);

@@ -11,7 +11,6 @@ public sealed class NativeMovementRequestTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
         GameState recreated = SnapshotFixtures.Require("MEMORIA_FF8_MOVEMENT_REQUEST_SNAPSHOT", 327, 36);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);

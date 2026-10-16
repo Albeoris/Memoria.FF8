@@ -37,7 +37,7 @@ public sealed class WorldForestMovementTests
         NativeWorldForestState visible = scene.State.NativeFootRuntime!.Forest!;
         session.SetWorldState(scene.State with { NativeFootRuntime = scene.State.NativeFootRuntime with { Forest = visible with { Particles = [] } } });
         Assert.NotEqual(pixels, scene.Render(640, 448));
-        string output = Path.Combine(Repository(), "../fixtures/external-fixture.png");
+        string output = TestResources.ArtifactFile("App.Tests.WorldForestMovementTests.1.png");
         using Bitmap bitmap = new(640, 448, PixelFormat.Format32bppArgb);
         BitmapData data = bitmap.LockBits(new Rectangle(0, 0, 640, 448), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
         byte[] bgra = pixels.ToArray();

@@ -108,9 +108,9 @@ public sealed class TexturePipelineIntegrationTests
         if (evidence is not null)
         {
             Directory.CreateDirectory(evidence);
-            WritePng(Path.Combine(evidence, "world-base.png"), baseline, 640, 448);
-            WritePng(Path.Combine(evidence, "world-tonberry.png"), tonberryFrame, 640, 448);
-            WritePng(Path.Combine(evidence, "world-demaster.png"), demasterFrame, 640, 448);
+            WritePng(TestResources.ArtifactFile("Mods.Tests.TexturePipelineIntegrationTests.1.png"), baseline, 640, 448);
+            WritePng(TestResources.ArtifactFile("Mods.Tests.TexturePipelineIntegrationTests.2.png"), tonberryFrame, 640, 448);
+            WritePng(TestResources.ArtifactFile("Mods.Tests.TexturePipelineIntegrationTests.3.png"), demasterFrame, 640, 448);
         }
     }
 

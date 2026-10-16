@@ -10,11 +10,7 @@ public sealed class NativeWorldAuxiliaryFootEntryTests
     public void Actual547ExitRelocatesParkedGardenAndColdRestoresWithoutConsumingSelectorsTwice()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeWorldAuxiliaryFootEntryTests.1")));
         NativeSavedWorldPose originalParking = session.State.SavedWorld!.GardenPose3!;
         Assert.Equal(7, session.State.EventMemory.Read(269, 1).RequireExact());
         using GameWorld world = new(session, TestResources.GameDirectory);

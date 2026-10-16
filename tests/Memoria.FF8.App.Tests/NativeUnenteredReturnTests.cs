@@ -38,7 +38,7 @@ public sealed class NativeUnenteredReturnTests
     public void Original948Ret5ConsumesStalePhysicalWordAndEntersQueuedLowerLbl()
     {
         string directory = TestResources.GameDirectory;
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeUnenteredReturnTests.1");
         GameState initial = GameSession.Load(source);
         JsonNode explicitMigration = JsonNode.Parse(initial.EventState!.Value.GetRawText())!;
         NativeActorOperandMemory partial = NativeActorOperandMemory.Unknown() with { LiveDepth = -1 };

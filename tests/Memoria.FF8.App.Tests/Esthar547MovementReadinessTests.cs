@@ -9,11 +9,7 @@ public sealed class Esthar547MovementReadinessTests
     public void ActualReadyEastSourceFinishesPendingControllerBeforeOrdinaryMovement()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.Esthar547MovementReadinessTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         int callbacks = 0;

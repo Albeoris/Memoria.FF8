@@ -110,7 +110,7 @@ internal static partial class Program
             JsonElement failed = invalidParty.Capture();
             Require(invalidParty.LastFault?.Opcode == "ADDPARTY" && failed.GetProperty("Fibers")[0].GetProperty("Position").GetInt32() == 2 && failed.GetProperty("Fibers")[0].GetProperty("Stack")[0].GetInt32() == character && invalidPartySession.CharacterVitals == initial, "Unmapped ADDPARTY consumed its operand or changed native vitals.");
         }
-        string mismatchPath = Path.Combine("../fixtures/external-fixture.json");
+        string mismatchPath = TestResources.ArtifactFile("Events.Tests.DyingTests.1.json");
         Directory.CreateDirectory(Path.GetDirectoryName(mismatchPath)!);
         System.Text.Json.Nodes.JsonNode missing = System.Text.Json.Nodes.JsonNode.Parse(snapshot.GetRawText())!;
         missing.AsObject().Remove("CharacterVitals");

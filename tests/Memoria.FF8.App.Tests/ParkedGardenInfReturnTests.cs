@@ -9,7 +9,7 @@ public sealed class ParkedGardenInfReturnTests
     [Fact]
     public void Actual505InfExitKeepsItsZeroExtraByteAndContinuesAfterStandaloneRestore()
     {
-        string source = FindRootFile("../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.ParkedGardenInfReturnTests.1");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, TestResources.GameDirectory);
         NativeSavedWorldPose parked = session.State.SavedWorld!.GardenPose3!;

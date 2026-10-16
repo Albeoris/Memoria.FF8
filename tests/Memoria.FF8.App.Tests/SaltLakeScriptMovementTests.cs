@@ -12,11 +12,7 @@ public sealed class SaltLakeScriptMovementTests
     public void Actual516Move405ContinuesThroughNativeContactGeometry()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.SaltLakeScriptMovementTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         FieldNativeMovementRequest request = new(1, -399114, 6707494, -3149824, 126, 7929, 48, false, true, 0, true);

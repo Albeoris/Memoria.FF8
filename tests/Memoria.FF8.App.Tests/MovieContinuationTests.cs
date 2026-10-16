@@ -13,7 +13,7 @@ public sealed class MovieContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        string source = Path.Combine(FindRepository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.MovieContinuationTests.1");
         Assert.True(File.Exists(source), "The independently reached pre-dispatch face checkpoint is required.");
         var session = new GameSession(GameSession.Load(source));
         using var world = new GameWorld(session, directory);
@@ -48,7 +48,6 @@ public sealed class MovieContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
-        string repository = FindRepository();
         var session = GameSession.CreateColdProcess();
         session.StartNewGame();
         var clock = new MovieClock(session, directory);
@@ -110,7 +109,7 @@ public sealed class MovieContinuationTests
             Assert.Equal(50, spawn.Triangle);
             Assert.True(float.IsFinite(spawn.Position.Z));
             resumed.SetEventState(restored.Events.Capture());
-            resumed.Save(Path.Combine(repository, "../fixtures/external-fixture.json"));
+            resumed.Save(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.2.json"));
             for (int frame = 0; frame < 300 && !restored.Events.Capture().GetProperty("DefaultsStarted").GetBoolean(); frame++)
             {
                 restored.Events.Step();
@@ -137,13 +136,13 @@ public sealed class MovieContinuationTests
             Assert.Contains(3, restored.Events.GetBackgroundModuleShades().Keys);
             Assert.Equal(320 * 240 * 4, restored.Render(TimeSpan.Zero).Length);
             resumed.SetEventState(restored.Events.Capture());
-            resumed.Save(Path.Combine(repository, "../fixtures/external-fixture.json"));
-            using var initialized = new GameWorld(new GameSession(GameSession.Load(Path.Combine(repository, "../fixtures/external-fixture.json"))), directory);
+            resumed.Save(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.3.json"));
+            using var initialized = new GameWorld(new GameSession(GameSession.Load(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.3.json"))), directory);
             initialized.EnsureField();
             Assert.Equal(restored.Events.Capture().GetRawText(), initialized.Events.Capture().GetRawText());
             Assert.Equal(restored.Render(TimeSpan.Zero), initialized.Render(TimeSpan.Zero));
             Assert.Equal(232, resumed.State.FieldId);
-            File.WriteAllText(Path.Combine(repository, "../fixtures/external-fixture.json"), JsonSerializer.Serialize(new
+            File.WriteAllText(TestResources.ArtifactFile("App.Tests.MovieContinuationTests.5.json"), JsonSerializer.Serialize(new
             {
                 restored.Field.Id,
                 restored.Field.Name,
@@ -169,6 +168,6 @@ public sealed class MovieContinuationTests
     private static string FindRepository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("FF8 research root was not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

@@ -52,7 +52,7 @@ public sealed class WorldTests
                 {
                     session.SetEventState(world.Events.Capture());
                     session.SetMoviePosition(12);
-                    session.Save(Path.Combine(FindRepository(), "../fixtures/external-fixture.json"));
+                    session.Save(TestResources.ArtifactFile("App.Tests.WorldTests.1.json"));
                     capturedMovieTail = true;
                 }
                 Assert.True(world.Apply(new PlayerAction(PlayerActionKind.SkipMovie)).Accepted);
@@ -62,7 +62,7 @@ public sealed class WorldTests
                 if (!capturedDialogue && world.Field!.Id == 180)
                 {
                     session.SetEventState(world.Events.Capture());
-                    session.Save(Path.Combine(FindRepository(), "../fixtures/external-fixture.json"));
+                    session.Save(TestResources.ArtifactFile("App.Tests.WorldTests.2.json"));
                     capturedDialogue = true;
                 }
                 PlayerAction action = dialogue.IsNamePrompt ? new PlayerAction(PlayerActionKind.EnterName, Text: "Cecilia") : dialogue.FirstChoice is int choice ? new PlayerAction(PlayerActionKind.Choose, choice) : new PlayerAction(PlayerActionKind.Confirm);
@@ -86,7 +86,7 @@ public sealed class WorldTests
             if (!capturedSide && world.Field!.Id == 181 && color.X == 0 && world.Events.Actors.Any(actor => actor.Active && actor.Visible))
             {
                 session.SetEventState(world.Events.Capture());
-                session.Save(Path.Combine(FindRepository(), "../fixtures/external-fixture.json"));
+                session.Save(TestResources.ArtifactFile("App.Tests.WorldTests.3.json"));
                 capturedSide = true;
             }
             if (!capturedRamp && world.Field!.Id == 181 && color.X > 120 && color.X < 135)
@@ -94,13 +94,13 @@ public sealed class WorldTests
                 byte[] pixels = world.Render(TimeSpan.FromSeconds(world.Events.Frame / 30d));
                 Assert.Contains(pixels.Where((value, index) => index % 4 != 3), value => value > 0 && value < 136);
                 session.SetEventState(world.Events.Capture());
-                session.Save(Path.Combine(FindRepository(), "../fixtures/external-fixture.json"));
+                session.Save(TestResources.ArtifactFile("App.Tests.WorldTests.4.json"));
                 capturedRamp = true;
             }
             if (world.Field!.Id == 229 && world.Events.NextTrigger.Kind == PlayerTriggerKind.Playable)
             {
                 session.SetEventState(world.Events.Capture());
-                session.Save(Path.Combine(FindRepository(), "../fixtures/external-fixture.json"));
+                session.Save(TestResources.ArtifactFile("App.Tests.WorldTests.5.json"));
                 break;
             }
         }
@@ -151,6 +151,6 @@ public sealed class WorldTests
     private static string FindRepository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("FF8 research root was not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

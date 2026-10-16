@@ -14,7 +14,7 @@ public sealed class ParkedRagnarokInfReturnTests
     [InlineData(62, -1)]
     public void OriginalFootPacketSelectsSpawnOrSavedPoseWithoutMovingParkedShip(short entry, short extra)
     {
-        GameState state = GameSession.Load(RootFile("../fixtures/external-fixture.json"));
+        GameState state = GameSession.Load(TestResources.FixturePath("App.Tests.ParkedRagnarokInfReturnTests.1"));
         using WorldAssets assets = new(TestResources.GameDirectory);
         NativeRagnarokWorldAllocation allocation = assets.ReadParkedRagnarokAllocation(new(entry, 0, extra), state.WorldEntryMemory!, state.EventMemory, state.SavedWorld!, state.CharacterVitals!);
         allocation.Validate();
@@ -43,7 +43,7 @@ public sealed class ParkedRagnarokInfReturnTests
     [Fact]
     public void Actual505ExitUsesOriginalSpawnAndIndependentParkedShipThenColdRestores()
     {
-        GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.ParkedRagnarokInfReturnTests.1")));
         NativeSavedWorldPose ship = session.State.SavedWorld!.RagnarokPose2!;
         NativeSavedWorldPose garden = session.State.SavedWorld.GardenPose3!;
         using GameWorld world = new(session, TestResources.GameDirectory, validateWorldPresentation: false);

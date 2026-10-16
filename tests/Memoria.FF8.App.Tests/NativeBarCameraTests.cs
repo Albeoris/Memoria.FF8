@@ -12,7 +12,7 @@ public sealed class NativeBarCameraTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original bar field corpus is required.");
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.NativeBarCameraTests.1");
         GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);

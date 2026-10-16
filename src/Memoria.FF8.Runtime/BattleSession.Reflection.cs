@@ -23,7 +23,7 @@ public sealed partial class BattleSession
         {
             if (!TryWriteNativeSecondCommand(packet))
             {
-                //TODO(TD-009): Components without a graphical command bank admit the same second485610 producer within their CPU dispatch
+                //TODO(TD-009): Components without a graphical command bank admit the same second485610 producer within their CPU dispatch.
                 BattleNativeAction? affinity = nativeAffinityAction;
                 ProduceNativeReflectedBankCommand(packet);
                 nativeAffinityAction = affinity;

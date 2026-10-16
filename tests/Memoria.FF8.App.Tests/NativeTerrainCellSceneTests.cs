@@ -10,11 +10,7 @@ public sealed class NativeTerrainCellSceneTests
     public void ActualEstharRoadCallbackExcludesUngeneratedCellAndColdRestores()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeTerrainCellSceneTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: -0.018045771313400415f, Vertical: -0.9998371618107144f, Frames: 16)).Accepted);
@@ -32,11 +28,7 @@ public sealed class NativeTerrainCellSceneTests
     public void ActualEstharFootCallbackPassesNativeFarCellOcclusionAndColdRestore()
     {
         string root = AppContext.BaseDirectory;
-        while (!File.Exists(Path.Combine(root, "AGENTS.md")))
-        {
-            root = Directory.GetParent(root)!.FullName;
-        }
-        GameSession session = new(GameSession.Load(Path.Combine(root, "../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeTerrainCellSceneTests.2")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         world.EnsureField();
         Assert.True(world.Apply(new(PlayerActionKind.Move, Horizontal: -0.8226757f, Vertical: -0.56851095f)).Accepted);

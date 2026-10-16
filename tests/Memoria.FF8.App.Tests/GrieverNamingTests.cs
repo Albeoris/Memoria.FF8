@@ -16,7 +16,7 @@ public sealed class GrieverNamingTests
     public void Actual_ring_name_prompt_uses_distinct_saved_subject_and_restores_before_confirmation(string? input, string expected)
     {
         string game = GameDirectory();
-        string source = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+        string source = TestResources.FixturePath("App.Tests.GrieverNamingTests.1");
         Assert.True(File.Exists(source), "Actual reached MENUNAME675 standalone prompt is required.");
         GameSession session = new(GameSession.Load(source));
         using GameWorld world = new(session, game);
@@ -136,6 +136,6 @@ public sealed class GrieverNamingTests
     private static string Repository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Research checkout was not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

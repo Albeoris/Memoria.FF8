@@ -11,7 +11,7 @@ public sealed class NativeModelDoorContinuationTests
     public void AuthenticMidDoorRenderingIsPureAndItsExecutedSamplesRestoreAcrossTheNextCallback()
     {
         string directory = GameDirectory();
-        string source = Evidence("replay-timber-arrival-pre-door-checkpoint.json");
+        string source = Evidence("App.Tests.NativeModelDoorContinuationTests.1");
         GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);
@@ -60,7 +60,7 @@ public sealed class NativeModelDoorContinuationTests
     public void AuthenticPlayableDoorEndpointColdRecreatesAndContinuesAfterNormalSaveLoad()
     {
         string directory = GameDirectory();
-        string source = Evidence("replay-timber-door-current-checkpoint.json");
+        string source = Evidence("App.Tests.NativeModelDoorContinuationTests.2");
         GameState recreated = GameSession.Load(source);
         var session = new GameSession(recreated);
         using var world = new GameWorld(session, directory);
@@ -117,6 +117,6 @@ public sealed class NativeModelDoorContinuationTests
     private static string Evidence(string name)
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return Path.Combine(directory!.FullName, "../fixtures", name);
+        return TestResources.FixturePath(name);
     }
 }

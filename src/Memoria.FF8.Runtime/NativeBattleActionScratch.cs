@@ -27,7 +27,7 @@ public sealed record NativeBattleActionScratch
     public byte? EventActorB0F { get; init; }
     [JsonRequired]
     public byte? EventLane { get; init; }
-    //TODO(TD-009): Without the descriptor bank this retains its single pending10 callback until component presentation completes
+    //TODO(TD-009): Without the descriptor bank this retains its single pending10 callback until component presentation completes.
     [JsonRequired]
     public uint? ComponentCompletion { get; init; }
 

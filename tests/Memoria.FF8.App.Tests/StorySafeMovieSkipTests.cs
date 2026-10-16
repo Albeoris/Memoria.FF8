@@ -19,7 +19,7 @@ public sealed class StorySafeMovieSkipTests
         GameSession session;
         if (userPrefix)
         {
-            string prefixPath = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+            string prefixPath = TestResources.FixturePath("App.Tests.StorySafeMovieSkipTests.1");
             session = new GameSession(GameSession.Load(prefixPath));
         }
         else
@@ -88,7 +88,7 @@ public sealed class StorySafeMovieSkipTests
             Assert.Equal(world.Render(TimeSpan.Zero), replay.Render(TimeSpan.Zero));
             if (skipFrame == 34)
             {
-                string checkpoint = Path.Combine(Repository(), "../fixtures/external-fixture.json");
+                string checkpoint = TestResources.ArtifactFile("App.Tests.StorySafeMovieSkipTests.2.json");
                 session.SetEventState(world.Events.Capture());
                 session.Save(checkpoint);
             }
@@ -150,6 +150,6 @@ public sealed class StorySafeMovieSkipTests
     internal static string Repository()
     {
         DirectoryInfo? directory = new(TestResources.FixtureDirectory);
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Research checkout not found.");
+        return directory?.FullName ?? throw new DirectoryNotFoundException("External fixture directory was not found.");
     }
 }

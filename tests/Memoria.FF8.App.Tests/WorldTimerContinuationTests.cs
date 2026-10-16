@@ -12,8 +12,7 @@ public sealed class WorldTimerContinuationTests
     {
         string directory = TestResources.GameDirectory;
         Assert.SkipUnless(Directory.Exists(directory), "Installed original field/world corpus is required.");
-        DirectoryInfo? repository = new(TestResources.FixtureDirectory);
-        string sourcePath = Path.Combine(repository!.FullName, "../fixtures/external-fixture.json");
+        string sourcePath = TestResources.FixturePath("App.Tests.WorldTimerContinuationTests.1");
         GameState recreated = GameSession.Load(sourcePath);
         Assert.Equal(SceneKind.WorldMap, recreated.Scene);
         Assert.Equal(136, recreated.FieldId);

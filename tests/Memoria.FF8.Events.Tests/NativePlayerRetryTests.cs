@@ -16,7 +16,7 @@ internal static partial class Program
         PlayerAction action = new(PlayerActionKind.Move, Horizontal: 0.99919f, Vertical: 0.04016f);
         EventEngine Create(Action<JsonNode>? alter = null)
         {
-            GameSession session = new(GameSession.Load(Path.Combine("../fixtures/external-fixture.json")));
+            GameSession session = new(GameSession.Load(TestResources.FixturePath("Events.Tests.NativePlayerRetryTests.1")));
             EventEngine engine = new(session)
             {
                 AnimationFrameCount = field.GetAnimationFrameCount,

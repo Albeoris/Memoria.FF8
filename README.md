@@ -29,7 +29,7 @@ To also run the resource-independent launcher, UI and runtime tests:
 ./Build.ps1 -Test
 ```
 
-Open `Memoria.FF8.slnx` for development. Individual test executables support the xUnit command line through `dotnet run --project tests/<project>`. Tests that use original resources require `MEMORIA_FF8_GAME_DIR`; saved-state fixtures, where needed, are supplied separately through `MEMORIA_FF8_TEST_FIXTURES`. External acceptance checks require a recording workspace through `MEMORIA_FF8_RECOMP_WORKSPACE` and the `recomp` tool (or its executable path in `RECOMP`).
+Open `Memoria.FF8.slnx` for development. Individual test executables support the xUnit command line through `dotnet run --project tests/<project>`. Tests that use original resources require `MEMORIA_FF8_GAME_DIR`. Optional saved-state fixtures use `MEMORIA_FF8_TEST_FIXTURE_CATALOG`, a JSON object mapping the resource IDs in the tests to external file paths. Relative catalog paths resolve against `MEMORIA_FF8_TEST_FIXTURES`, or the catalog's directory when that variable is absent. Tests skip when their optional resources are unconfigured. Generated test artifacts use temporary storage. External acceptance checks require a recording workspace through `MEMORIA_FF8_RECOMP_WORKSPACE` and the `recomp` tool (or its executable path in `RECOMP`).
 
 The required Albeoris.Frameworks source closure is vendored, with its upstream revision and retained changes documented in [vendor/Albeoris.Frameworks/README.md](vendor/Albeoris.Frameworks/README.md). Building needs no sibling repository or submodule. Package versions are centralized in `Directory.Packages.props`. Ordinary builds use the checked-in compiled title shader; its project README describes shader regeneration.
 

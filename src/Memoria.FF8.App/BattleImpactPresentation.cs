@@ -10,7 +10,7 @@ internal readonly record struct BattleImpactCue(BattleEvent Event, int Age)
 
 internal static class BattleImpactPresentation
 {
-    // TODO(TD-009): Hit sparks, floating HP values and their durations provide presentation feedback until native effect scripts/atlases are decoded
+    // TODO(TD-009): Hit sparks, floating HP values and their durations provide presentation feedback until native effect scripts/atlases are decoded.
     public const int Duration = 30;
 
     public static IReadOnlyList<BattleImpactCue> Collect(BattleSession session)

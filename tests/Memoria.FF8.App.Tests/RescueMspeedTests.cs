@@ -83,7 +83,7 @@ public sealed class RescueMspeedTests
     [Fact]
     public void Actual878ReleaseExecutesOrdinaryMspeedAndColdRestoresSignedMovement()
     {
-        GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.RescueMspeedTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         bool ordinary = false;
         world.Events.CommandExecuted += command => ordinary |= command.Name == "MSPEED" && command.Arguments.Single() == 42704;
@@ -94,7 +94,7 @@ public sealed class RescueMspeedTests
         Assert.Equal(-22832, world.Events.Actors[2].MovementSpeed);
         Assert.Equal((short)-22832, world.Events.Actors[2].NativeMovementBaseSpeed!.Value);
         session.SetEventState(world.Events.Capture());
-        string snapshot = Path.Combine(Path.GetDirectoryName(RootFile("../fixtures/external-fixture.md"))!, "rescue-signed-mspeed-test-" + Guid.NewGuid().ToString("N") + ".json");
+        string snapshot = Path.Combine(Path.GetTempPath(), "rescue-signed-mspeed-test-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
             session.Save(snapshot);

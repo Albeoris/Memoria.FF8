@@ -69,7 +69,7 @@ public sealed class NativeMessageSpeedReturnTests
     [Fact]
     public void Original828PeeksBothChannelsAndRestoresTheirRetainedWords()
     {
-        GameSession session = new(GameSession.Load(RootFile("../fixtures/external-fixture.json")));
+        GameSession session = new(GameSession.Load(TestResources.FixturePath("App.Tests.NativeMessageSpeedReturnTests.1")));
         using GameWorld world = new(session, TestResources.GameDirectory);
         Assert.True(world.Apply(new(PlayerActionKind.Wait, Frames: 4)).Accepted);
         Assert.Null(world.Events.LastFault);
