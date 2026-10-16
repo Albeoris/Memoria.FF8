@@ -93,6 +93,11 @@ public sealed partial class BattleSession
             {
                 model = NativeBattleGraphicsModels.AdvanceCover(model);
                 model = NativeBattleGraphicsModels.AdvanceAppearance(model, (flags & 1) != 0);
+                if (model.Kind5 is 11 or 12)
+                {
+                    NativeBattleSummonColors colors = definition.NativeGraphics!.Rules.SummonColors ?? throw new NotSupportedException("Native summon model service requires its authenticated color constants.");
+                    model = NativeBattleSummonModels.Advance(model, (flags & 1) != 0, colors);
+                }
                 byte camera = model.Kind5 == 5 && model.Phase6 > 0 ? NativeCameraTaskMask : (byte)0;
                 NativeBattleGraphicsRemoval removal = NativeBattleGraphicsModels.AdvanceRemoval(model, (flags & 1) != 0, graphics.ModelLoadCount != 0, camera);
                 model = removal.Model;
@@ -164,6 +169,10 @@ public sealed partial class BattleSession
         if (NativeCamera is not null)
         {
             NativeCamera = NativeCamera.PublishProjection(flags);
+        }
+        if (NativeEffectMemory is { } effectMemory)
+        {
+            NativeEffectMemory = effectMemory.PublishSound();
         }
     }
 

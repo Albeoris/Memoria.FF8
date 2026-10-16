@@ -7,6 +7,7 @@ public sealed partial class BattleSession
     public NativeBattleActionPacketsState NativeActionPackets => nativeActionPackets;
     public NativeBattlePartyStatusMirrors NativePartyStatusMirrors => nativePartyStatusMirrors;
     public int? NativeEffectIoResult { get; private set; }
+    public NativeBattleEffectMemory? NativeEffectMemory { get; private set; }
 
     private void InitializeNativeRetainedMemory()
     {
@@ -21,6 +22,8 @@ public sealed partial class BattleSession
         nativeActionScratch = memory.ActionScratch;
         RestoreNativeElementAttack(memory.ElementAttack);
         NativeEffectIoResult = memory.EffectIoResult;
+        NativeEffectMemory = memory.EffectMemory;
+        RestoreNativeActionMemory(memory.ActionMemory);
         nativeScriptState = nativeScriptState with { AllocationControl = memory.AllocationControl };
     }
 

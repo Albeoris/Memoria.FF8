@@ -48,7 +48,20 @@ public static class NativeBattleRetainedMemoryReader
             EventLane = ReadLoaderBytes(0x1D28DF2, 1)[0]
         };
         int effectIoResult = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D999C8, 4));
-        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray() };
+        byte[] effectAllocator = ReadLoaderBytes(0x21DFAB8, 8 + 256 * 4);
+        if (effectAllocator.Any(value => value != 0))
+        {
+            throw new InvalidDataException("Authenticated cold effect allocator unexpectedly contains a live heap pointer or cursor.");
+        }
+        NativeBattleEffectMemory effectMemory = NativeBattleEffectMemory.FromColdProcess() with
+        {
+            Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
+            SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
+            SoundPendingFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB4, 4)),
+            SoundPublishedFlags = BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(0x1D96DB8, 4))
+        };
+        NativeBattleActionMemory actionMemory = new(Enumerable.Range(0, 7).Select(index => ReadLoaderBytes(checked(0x1D27B98u + 208u * (uint)index), 8).Select(value => (byte?)value).ToImmutableArray()).ToImmutableArray());
+        NativeBattleRetainedMemory result = new(packets, allocation, mirrors, scratch, effectIoResult, hash) { ElementAttack = Enumerable.Range(0, 7).Select(index => (byte?)ReadLoaderBytes(checked(0x1D27BD5u + 208u * (uint)index), 1)[0]).ToImmutableArray(), EffectMemory = effectMemory, ActionMemory = actionMemory };
         result.Validate();
         return result;
 

@@ -19,7 +19,8 @@ public sealed class IndependentGuardianItemTests
         if (itemId == 31)
         {
             BattleSnapshot before = battle.Capture();
-            battle = BattleSession.Restore(before with { Combatants = before.Combatants.Select(actor => actor.Id == "ko" ? actor with { NativeParticipant = actor.NativeParticipant! with { LastAction = previousKoMemory } } : actor).ToArray() });
+            int index = before.Combatants.Single(actor => actor.Id == "ko").NativeParticipant!.ActorIndex;
+            battle = BattleSession.Restore(before with { Combatants = before.Combatants.Select(actor => actor.Id == "ko" ? actor with { NativeParticipant = actor.NativeParticipant! with { LastAction = previousKoMemory } } : actor).ToArray(), NativeActionMemory = before.NativeActionMemory!.WithAction(index, previousKoMemory) });
         }
         battle.QueueAction("caster", "enemy", BattleAbility.Item, itemId);
         battle = BattleSession.Restore(battle.Capture());

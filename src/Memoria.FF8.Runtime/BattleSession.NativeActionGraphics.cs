@@ -28,24 +28,18 @@ public sealed partial class BattleSession
         {
             return PollNativeOrdinaryGraphics(graphics, context, phase);
         }
+        if (context.Callback is 0x50BD00 or 0x50BD80)
+        {
+            return PollNativeControlGraphics(graphics, context, phase);
+        }
+        if (context.Callback == 0x50B0C0)
+        {
+            return PollNativeReflectionGraphics(graphics, context, phase);
+        }
         if (context.Callback != 0x50B190)
         {
             throw new NotSupportedException($"Native104 selected callback{context.Callback:X}; its original graphical service is not implemented.");
         }
-        if (phase == 0)
-        {
-            if (ModelsBusy(graphics.Models))
-            {
-                return (graphics, phase, false);
-            }
-            phase = 1;
-        }
-        ushort effect = NativeBattleActionGraphics.Word(nativeActionPackets.Headers[context.HeaderIndex], 6);
-        if (phase == 1)
-        {
-            NativeBattleEffectBinding binding = definition.NativeEffectCatalog.SingleOrDefault(binding => binding.Effect == effect) ?? throw new NotSupportedException($"Native50B190 effect{effect} requires its authenticated C81774/C81DB8 entry binding.");
-            throw new NotSupportedException($"Native50AF20 effect{effect}, initializer{binding.Initializer:X}, entry{binding.Entry:X} requires its original effect-module memory, IO and callback pools.");
-        }
-        throw new InvalidDataException("Native50B190 reached an effect phase without its original module owner.");
+        return PollNativeOriginalGraphics(graphics, context, phase);
     }
 }

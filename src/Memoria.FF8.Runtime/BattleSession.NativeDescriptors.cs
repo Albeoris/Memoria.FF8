@@ -273,6 +273,10 @@ public sealed partial class BattleSession
         NativeGlobalRandomState randomState = nativeGlobalRandom ?? throw new NotSupportedException("Native103 requires saved534AA0 random state.");
         uint flags = definition.NativeGraphics!.Rules.Project(NativeSavedStatusBits(actor), NativeBattleStatusBits(actor));
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.CompleteLoad(graphics.Models[index], binding.ModelId, flags, ref randomState);
+        if (definition.NativeGraphics!.Rules.SummonColors is { } colors)
+        {
+            model = model with { Color40 = colors.Transition, Color44 = colors.Normal };
+        }
         if (binding.InitialPosition is NativeBattleVector position)
         {
             NativeBattlePoseSource pose = binding.Resource.PoseSource ?? throw new NotSupportedException("Native103 transform requires its original skeleton scaleWORD2.");

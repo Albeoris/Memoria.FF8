@@ -17,6 +17,7 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal((byte)0, actual.ActionScratch.LastPublishedTargetCountE05);
         Assert.Equal((byte)0, actual.ActionScratch.FinisherActionIndexE2E);
         Assert.Equal(new byte?[] { 0, 0, 0, 0, 0, 0, 0 }, actual.ElementAttack);
+        Assert.All(actual.ActionMemory.Rows, row => Assert.All(row, value => Assert.Equal((byte)0, value)));
     }
 
     [Fact]

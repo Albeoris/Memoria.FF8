@@ -22,9 +22,16 @@ public static class NativeBattleGraphicsRulesReader
         long durationRva = 0xB8A3E4 - (long)reader.PEHeaders.PEHeader.ImageBase;
         SectionHeader durationSection = reader.PEHeaders.SectionHeaders.Single(section => durationRva >= section.VirtualAddress && durationRva + 4 <= section.VirtualAddress + section.SizeOfRawData);
         int durationOffset = checked((int)(durationRva - durationSection.VirtualAddress + durationSection.PointerToRawData));
-        NativeBattleGraphicsRules rules = new(hash, executable.AsSpan(offset, 16).ToArray().Select(value => unchecked((sbyte)value)).ToImmutableArray(), executable.AsSpan(offset + 16, 32).ToArray().Select(value => unchecked((sbyte)value)).ToImmutableArray()) { UiPublicationDuration = BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(durationOffset, 4)) };
+        NativeBattleGraphicsRules rules = new(hash, executable.AsSpan(offset, 16).ToArray().Select(value => unchecked((sbyte)value)).ToImmutableArray(), executable.AsSpan(offset + 16, 32).ToArray().Select(value => unchecked((sbyte)value)).ToImmutableArray()) { UiPublicationDuration = BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(durationOffset, 4)), SummonColors = new(BinaryPrimitives.ReadUInt32LittleEndian(At(0xB8B7D8, 4)), BinaryPrimitives.ReadUInt32LittleEndian(At(0xB8B9A8, 4)), BitConverter.ToSingle(At(0xB695F8, 4)), BitConverter.ToDouble(At(0xB693D8, 8))) };
         rules.Validate();
         return rules;
+
+        ReadOnlySpan<byte> At(uint address, int length)
+        {
+            long relative = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
+            SectionHeader source = reader.PEHeaders.SectionHeaders.Single(candidate => relative >= candidate.VirtualAddress && relative + length <= candidate.VirtualAddress + candidate.SizeOfRawData);
+            return executable.AsSpan(checked((int)(relative - source.VirtualAddress + source.PointerToRawData)), length);
+        }
     }
 }
 

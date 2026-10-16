@@ -21,7 +21,7 @@ public sealed class BattleRewardPreviewTests
         // Explicit component combat inputs shorten this test without fabricating any defeat/reward receipts.
         BattleDefinition definition = original with { Combatants = original.Combatants.Select(actor => actor.IsPlayer ? actor with { Attack = 255, PhysicalPower = 255, Speed = 10_000, InitialAtb = 10_000 } : actor with { CurrentHp = 1, Speed = 1 }).ToArray() };
         string? resumeSnapshot = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_COMPONENT_SNAPSHOT");
-        BattleSession active = resumeSnapshot is null ? new(definition, BattleAtbMode.Normal) : BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(resumeSnapshot))!);
+        BattleSession active = resumeSnapshot is null ? GameWorld.CreateLiveBattleSession(definition, BattleAtbMode.Normal) : BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(resumeSnapshot))!);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_ENCOUNTER_FIX_EVIDENCE");
         if (evidence is not null)
         {
@@ -54,12 +54,13 @@ public sealed class BattleRewardPreviewTests
         {
             File.WriteAllText(Path.Combine(evidence, $"formation512-victory-frame{active.Frame}.json"), JsonSerializer.Serialize(active.Capture(), new JsonSerializerOptions { WriteIndented = true }));
             using BattleAssets battles = new(assets.GameDirectory);
-            BattleScenePresentation scene = new(battles, active.Capture().Definition, true);
+            BattleDefinition display = active.Capture().Definition;
+            BattleScenePresentation scene = new(battles, display, true);
             using Bitmap bitmap = new(1280, 896, PixelFormat.Format32bppArgb);
             using (BattlePreviewCanvas canvas = new(bitmap, assets.GameDirectory))
             {
                 canvas.DrawRgba(scene.Render(active, 1280, 896), 1280, 896, new UiRect(0, 0, 1280, 896));
-                BattleHudController hud = new(active, active.QueueAttack, () => { }, () => active.AdvanceTurn(), previewRewards: world.PreviewBattleRewards, guardianForceName: id => "Quezacotl");
+                BattleHudController hud = new(active, active.QueueAttack, () => { }, () => active.AdvanceTurn(), previewRewards: world.PreviewBattleRewards, guardianForceName: id => "Quezacotl", itemName: id => display.NativeItemNames[id]!, cardName: id => display.NativeCardNames[id]!);
                 UiView view = hud.BuildView();
                 view.Resize(1280, 896);
                 view.Draw(canvas, new UiTheme());

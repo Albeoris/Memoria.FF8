@@ -19,6 +19,7 @@ internal static class BattlePartyProjection
             }
             NativeGuardianForceVital gf = vitals.GuardianForces[action.Id];
             int percent = 0;
+            byte flags = 0;
             for (int bit = 19; bit < 28; bit++)
             {
                 NativeStatModifier modifier = vitals.Definitions.GuardianForceModifiers[bit - 19];
@@ -26,8 +27,12 @@ internal static class BattlePartyProjection
                 {
                     percent += modifier.Percentage;
                 }
+                if ((gf.LearnedBank.High & (1UL << bit)) != 0)
+                {
+                    flags |= modifier.Flags;
+                }
             }
-            return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray() };
+            return action with { Level = NativeStatDefinitions.Level(gf.Experience, vitals.Definitions.GuardianForces[action.Id]), DamagePercent = unchecked((byte)percent), Available = gf.HitPoints > 0 && (gf.Flags & 1) != 0, Statuses = action.Statuses?.ToArray(), NativeGuardianBoostAvailable = (flags & 1) != 0 };
         }).ToArray();
     }
 

@@ -59,17 +59,17 @@ public sealed class NativeBattleGraphicProductionTests
     }
 
     [Fact]
-    public void EnemyLaneZeroWritesAttackClassWithoutInventingTheOtherLastActionBytes()
+    public void EnemyLaneZeroWritesAttackClassAndPreservesTheActualColdZeroMetadata()
     {
         BattleSession battle = new(Definition([4, 200, 30, 7, 2, 10, 0, 0, 3, 0, 3, 0, 15, 96, 1, 0], NativeBattleRetainedMemory.FromColdProcess()), BattleAtbMode.Normal);
         battle.Tick();
         NativeBattleParticipantSnapshot enemy = battle.Capture().Combatants[1].NativeParticipant!;
         NativeBattleLastAction memory = Assert.IsType<NativeBattleLastAction>(enemy.LastAction);
         Assert.Equal((byte)3, memory.AttackType);
-        Assert.Null(memory.Command);
-        Assert.Null(memory.ActionId);
-        Assert.Null(memory.ElementMask);
-        Assert.Null(memory.AttackerModelId);
+        Assert.Equal((byte)0, memory.Command);
+        Assert.Equal((byte)0, memory.ActionId);
+        Assert.Equal((byte)0, memory.ElementMask);
+        Assert.Equal((byte)0, memory.AttackerModelId);
         Assert.Equal(1u, battle.Capture().NativeAiVariables![0]);
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }
@@ -77,7 +77,10 @@ public sealed class NativeBattleGraphicProductionTests
     [Fact]
     public void AConditionCannotReadAnUnwrittenCommandAfterTheIndependentAttackClassWrite()
     {
-        BattleSession battle = new(Definition([4, 200, 30, 7, 2, 10, 3, 0, 252, 0, 3, 0, 15, 96, 1, 0], NativeBattleRetainedMemory.FromColdProcess()), BattleAtbMode.Normal);
+        BattleSession initial = new(Definition([4, 200, 30, 7, 2, 10, 3, 0, 252, 0, 3, 0, 15, 96, 1, 0], null), BattleAtbMode.Normal);
+        //This explicit component fact supplies only the reached BD5 byte; no cold B9B history is inferred.
+        BattleSession battle = BattleSession.Restore(initial.Capture() with { NativeElementAttack = [null, null, null, 0, null, null, null] });
+        Assert.Null(battle.NativeActionMemory.Action(3)!.Command);
         Assert.Contains("retained B9B byte", Assert.Throws<NotSupportedException>(() => battle.Tick()).Message);
     }
 

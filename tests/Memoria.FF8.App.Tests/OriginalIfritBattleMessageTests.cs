@@ -1,7 +1,11 @@
 using System.Collections.Immutable;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Text.Json;
 using Memoria.FF8.Assets;
 using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
+using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.App.Tests;
 
@@ -21,8 +25,9 @@ public sealed class OriginalIfritBattleMessageTests
         {
             Name = "Original Ifrit completed GF packet component",
             EncounterId = encounter,
+            StageId = assets.LoadEncounter(encounter).StageId,
             NativeActions = assets.NativeActions.ToArray(),
-            ActionDefinitions = assets.ActionDefinitions.ToArray(),
+            ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce ? action with { NativeGuardianBoostAvailable = false } : action).ToArray(),
             NativeStatusRules = assets.ReadNativeStatusRules(0),
             NativeGlobalMessages = assets.ReadNativeGlobalBattleMessages(),
             NativeMessageSpeed = 1,
@@ -50,5 +55,21 @@ public sealed class OriginalIfritBattleMessageTests
         Assert.Contains("Frost", hud.BattleMessage!);
         Assert.DoesNotContain("{Name", hud.BattleMessage!);
         Assert.DoesNotContain("{Color", hud.BattleMessage!);
+        if (Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PRESENTATION_EVIDENCE") is string evidence)
+        {
+            Directory.CreateDirectory(evidence);
+            using Bitmap bitmap = new(960, 720, PixelFormat.Format32bppArgb);
+            using (BattlePreviewCanvas canvas = new(bitmap, LaunchOptions.DefaultGameDirectory))
+            {
+                BattleScenePresentation scene = new(assets, battle.Capture().Definition, true);
+                canvas.DrawRgba(scene.Render(battle, 960, 720), 960, 720, new UiRect(0, 0, 960, 720));
+                UiView view = hud.BuildView();
+                view.Resize(960, 720);
+                view.Draw(canvas, new UiTheme());
+            }
+            bitmap.Save(Path.Combine(evidence, "ifrit-native-shiva-message.png"), ImageFormat.Png);
+            using FileStream stream = new(Path.Combine(evidence, $"ifrit-native-shiva-message-frame{battle.Frame}.json"), FileMode.CreateNew, FileAccess.Write);
+            JsonSerializer.Serialize(stream, battle.Capture());
+        }
     }
 }

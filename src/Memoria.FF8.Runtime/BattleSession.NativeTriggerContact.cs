@@ -16,10 +16,11 @@ public sealed partial class BattleSession
         bool ordinary = receipt.TotalContacts == 1;
         byte command = ordinary ? first.ReadByte(1) switch { 12 => (byte)248, 28 => (byte)243, _ => (byte)253 } : (byte)251;
         bool last = receipt.ContactIndex == receipt.TotalContacts;
-        bool finisher = nativeActionScratch.FinisherPendingE03 ?? throw new NotSupportedException("Native48F480 requires the retained E03 finisher byte.");
+        //48F480 reads E03 only when the supplied contact index equals the total.
+        bool finisher = last && (nativeActionScratch.FinisherPendingE03 ?? throw new NotSupportedException("Native48F480 requires the retained E03 finisher byte."));
         bool deferred = !last || finisher;
         byte sequence = deferred ? (byte)255 : command == 251 ? (NativeSavedStatusBits(recipient) & 1) != 0 ? (byte)4 : (byte)255 : (byte)4;
-        nativeActionScratch = nativeActionScratch with { ActorIndex = actorIndex, Command = command, DeferredEffectsE00 = deferred, FinisherPendingE03 = last && finisher ? false : finisher };
+        nativeActionScratch = nativeActionScratch with { ActorIndex = actorIndex, Command = command, DeferredEffectsE00 = deferred, FinisherPendingE03 = last && finisher ? false : nativeActionScratch.FinisherPendingE03 };
         BattleNativeAction weapon = actor.NativeAttack ?? throw new NotSupportedException("Native485160 requires the retained actor's weapon/junction metadata.");
         byte power = ordinary ? weapon.Power : actor.NativePlayerStatRules?.CharacterRecord[33] ?? throw new NotSupportedException("Native251 requires its character kernel power byte33.");
         BattleNativeAction native = weapon with { Command = command, AttackType = 10, Power = power, HitCount = 1, Critical = 0, DamagePresentation = sequence };
@@ -57,8 +58,16 @@ public sealed partial class BattleSession
     {
         if (NativeGraphics is null && command.NativeHeaderIndex is not null && command.NativeQueuedCommand == 254)
         {
+            _ = NativeGuardianBoostBinding(command);
             //TODO(TD-009): The component contact represents56DD70 phase5 without its effect module;4850A0 math remains shared
-            RecomputeNativeGuardianContacts(100);
+            if (nativeActionScratch.GuardianFormulaE1E is not bool computed)
+            {
+                throw new NotSupportedException("Native component GF completion requires its actual E1E formula gate.");
+            }
+            if (!computed)
+            {
+                RecomputeNativeGuardianContacts(100);
+            }
             return;
         }
         if (NativeGraphics is null && command.NativeHeaderIndex is not null && IsGunbladeAction(GetActor(command.ActorId), command))

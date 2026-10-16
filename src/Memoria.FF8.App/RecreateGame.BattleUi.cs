@@ -82,7 +82,13 @@ internal sealed partial class RecreateGame
             return false;
         }
         EnsureBattleHud(active);
+        bool boostInput = keyboard.GuardianBoostRequested && active.NativeGuardianBoost is not null;
+        if (boostInput)
+        {
+            ApplyBattleCommand(new BattleInput(BattleInputKind.GuardianBoost));
+        }
         active.AdvanceNativeGraphicsPresentation(elapsed);
+        active.AdvanceComponentGuardianBoostPresentation(elapsed);
         battleScene!.AdvancePresentation(elapsed);
         battleHud!.AdvancePresentation(elapsed);
         active.AdvanceNativeShotPresentation(elapsed);
@@ -110,7 +116,7 @@ internal sealed partial class RecreateGame
         }
         else
         {
-            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput);
+            NavigateBattleView(battleHud!.Navigate, input, gunbladeInput || shotInput || boostInput);
             if (ActiveBattle is null || battleHud is null)
             {
                 return true;
@@ -244,6 +250,9 @@ internal sealed partial class RecreateGame
                 break;
             case BattleInputKind.GunbladeTrigger:
                 debugBattle.TriggerGunblade();
+                break;
+            case BattleInputKind.GuardianBoost:
+                debugBattle.PressNativeGuardianBoost();
                 break;
             case BattleInputKind.ShotTrigger:
                 debugBattle.TriggerNativeShot(input.ActorId ?? throw new InvalidDataException("Shot trigger requires its process owner."));

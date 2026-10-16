@@ -141,7 +141,7 @@ public sealed class InstalledNativeActionExecutionTests
             NativeRetainedMemory = NativeBattleTestInputs.ColdMemory,
             NativeStatusRules = assets.ReadNativeStatusRules(0), NativeBattleSpeed = 0, GuardianForces = Enumerable.Range(0, 16).Select(gf => new BattleGuardianForceVital(gf, 1000, 1000)).ToArray(),
             NativeActions = assets.NativeActions.ToArray(),
-            ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce ? action with { Level = level } : action).ToArray(),
+            ActionDefinitions = assets.ActionDefinitions.Select(action => action.Ability == BattleAbility.GuardianForce ? action with { Level = level, NativeGuardianBoostAvailable = false } : action).ToArray(),
             Combatants =
             [
                 new() { Id = "party-0", Name = "Caster", IsPlayer = true, Magic = 30, NativeDeathCount = 0, InitialAtb = BattleSession.AtbMaximum, EquipmentIds = [id], GuardianForceCompatibility = new ushort[16], Abilities = [BattleAbility.Attack, ability], MagicStocks = ability == BattleAbility.Magic ? [new BattleStock(id, 2)] : [], NativeStatusResistances = new byte[40] },

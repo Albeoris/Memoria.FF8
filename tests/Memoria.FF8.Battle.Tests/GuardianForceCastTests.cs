@@ -190,7 +190,7 @@ public sealed class GuardianForceCastTests
             NativeActions = [native],
             NativeBattleSpeed = 0,
             GuardianForces = [new(0, gfHp, 100) { KillCount = 0, DeathCount = ushort.MaxValue }],
-            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "GF", BattleActionEffect.Native, 10, false) { NativeAction = native }],
+            ActionDefinitions = [new(BattleAbility.GuardianForce, 0, "GF", BattleActionEffect.Native, 10, false) { NativeAction = native, NativeGuardianBoostAvailable = false }],
             Combatants =
             [
                 new() { Id = "player", Name = "Caster", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Abilities = [BattleAbility.GuardianForce], EquipmentIds = [0], GuardianForceCompatibility = Enumerable.Repeat(compatibility, 16).ToArray(), NativeStatus1 = statuses },

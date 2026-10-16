@@ -81,9 +81,9 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("A native timed Limit input process already owns the battle menu.");
         }
-        if ((progress.Options978!.Value & 2) != 0 && nativeCrtRandom is null)
+        if ((progress.Options978!.Value & 2) != 0 && nativeBattleUiRandom is null)
         {
-            throw new NotSupportedException("Automatic Duel requires its actual CRT thread random owner.");
+            throw new NotSupportedException("Automatic Duel requires its actual4A7080 battle UI random owner.");
         }
         BattleNativeLimitDefinition rules = actor.NativeLimit!;
         byte moveSet = NativeBattleDuelRules.InitialMoveSet(rules, crisis);
@@ -139,11 +139,11 @@ public sealed partial class BattleSession
                         BattleNativeDuelChoice selected = choices[0];
                         if (learned.Length != 0)
                         {
-                            nativeCrtRandom = nativeCrtRandom!.Draw(out ushort roll);
+                            nativeBattleUiRandom = (nativeBattleUiRandom ?? throw new NotSupportedException("Automatic Duel requires its actual4A7080 battle UI random owner.")).Draw(out ushort roll);
                             int index = roll / (0x8000 / learned.Length);
                             if (index >= learned.Length)
                             {
-                                throw new NotSupportedException("Native automatic Duel selects an uninitialized fourth stack entry for this CRT roll.");
+                                throw new NotSupportedException("Native4AF840 automatic Duel reads an uninitialized fourth stack byte for this4A7080 roll.");
                             }
                             selected = learned[index];
                         }
@@ -236,7 +236,11 @@ public sealed partial class BattleSession
     private void RestoreNativeDuel(string actorId, byte crisis, BattleNativeDuelState state)
     {
         BattleCombatant actor = GetActor(actorId);
-        _ = RequireNativeDuelProgress();
+        NativeLimitProgress progress = RequireNativeDuelProgress();
+        if ((progress.Options978!.Value & 2) != 0 && definition.NativeBattleUiRandom is null)
+        {
+            throw new InvalidDataException("Saved automatic Duel lacks its actual4A7080 battle UI random owner.");
+        }
         if (Outcome != BattleOutcome.Active || !actor.IsAlive || actor.NativeLimit is not { Command: 11 } rules || crisis == 0 || state.InitialTimer != NativeBattleDuelRules.Timer(rules, crisis) || state.InitialTimer == 0 || state.RemainingTimer is <= 0 || state.RemainingTimer > state.InitialTimer || !Enum.IsDefined(state.Phase) || state.InputRing.IsDefault || state.InputRing.Length != 8 || state.InputCursor >= 8 || state.AutomaticCountdown > 120 || state.UiSubframeTicks is < 0 or >= TimeSpan.TicksPerSecond)
         {
             throw new InvalidDataException("Saved Duel process contradicts its native character, timer or raw input ring.");

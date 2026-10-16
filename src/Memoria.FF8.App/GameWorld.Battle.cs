@@ -90,6 +90,7 @@ internal sealed partial class GameWorld
         definition = definition with
         {
             NativeSavedOptions = (session.State.InputConfiguration ?? assets.ReadNewGameInputConfiguration()).Options,
+            NativeSupportRules = BattleResources.ReadNativeSupportRules(),
             NativeRetainedMemory = session.State.NativeBattleMemory,
             NativeEntry = new(encounter.Flags, session.State.CharacterVitals!.GetEncounterAbilityFlags()),
             NativeStageCameraBank = BattleResources.LoadStage(encounter.StageId).NativeCameraBank,
@@ -106,7 +107,7 @@ internal sealed partial class GameWorld
         // TODO(TD-009): Native clock/support initialization belongs to the raw descriptor entry callback
         if (definition.NativeGraphics is not null)
         {
-            definition = definition with { NativeSupportRules = BattleResources.ReadNativeSupportRules(), NativeClockRules = BattleResources.ReadNativeClockRules() };
+            definition = definition with { NativeClockRules = BattleResources.ReadNativeClockRules() };
         }
         _ = new BattleScenePresentation(BattleResources, definition, true);
         return definition;
@@ -272,6 +273,9 @@ internal sealed partial class GameWorld
                 break;
             case BattleInputKind.GunbladeTrigger:
                 active.TriggerGunblade();
+                break;
+            case BattleInputKind.GuardianBoost:
+                active.PressNativeGuardianBoost();
                 break;
             case BattleInputKind.ShotTrigger:
                 active.TriggerNativeShot(input.ActorId ?? throw new InvalidDataException("Shot trigger requires its process owner."));

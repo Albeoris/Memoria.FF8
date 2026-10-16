@@ -69,8 +69,9 @@ public sealed partial class BattleSession
 
     private void StoreNativeActionMemory(BattleCombatant actor, BattleCombatant recipient, BattleAbility ability, int command, int id, int element, byte? attackType)
     {
-        if (nativeContactWorking?.Recipient == recipient)
+        if (nativeContactWorking is not null)
         {
+            //494410 never writes B99, including its a9=1 secondary death path.
             attackType = recipient.LastNativeAction?.AttackType;
         }
         recipient.LastNativeAction = new(attackType, checked((byte)NativeModelId(actor)), checked((byte)command), unchecked((byte)id), checked((byte)element), checked((byte)actor.NativeIndex));

@@ -140,7 +140,7 @@ public sealed partial class BattleHudController
             session.EndNativeShot(shotActor.Id);
             return;
         }
-        if (NativeTimedLimitActive)
+        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return;
         }
@@ -227,7 +227,7 @@ public sealed partial class BattleHudController
 
     public void Attack()
     {
-        if (NativeTimedLimitActive)
+        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return;
         }
@@ -344,7 +344,7 @@ public sealed partial class BattleHudController
     }
     public void SelectParty(string actorId)
     {
-        if (!NativeTimedLimitActive && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
+        if (!NativeTimedLimitActive && session.NativeGuardianBoost is null && Party.Any(actor => actor.Id == actorId && CanChooseCommand(actor)))
         {
             if (SelectedActor?.Id != actorId)
             {

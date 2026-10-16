@@ -53,6 +53,8 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     [JsonRequired]
     public NativeBattleActionGraphicsState? ActionGraphics { get; init; }
     [JsonRequired]
+    public NativeBattleOriginalEffectState? OriginalEffect { get; init; }
+    [JsonRequired]
     public byte? StageResourceIndex98990 { get; init; }
     [JsonRequired]
     public long PresentationSubticks { get; init; }
@@ -60,6 +62,7 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     public void Validate()
     {
         ActionContext?.Validate();
+        OriginalEffect?.Validate();
         UiServices?.Validate();
         TriggerWidget?.Validate();
         if ((Flags & 8) != 0 && UiServices is null)

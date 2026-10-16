@@ -95,8 +95,8 @@ public sealed class NativeSequenceTrackTests
         Assert.Equal((byte)143, Assert.Single(restored.Events, entry => entry.Kind == "Windup").NativeGraphicMagicId);
         Assert.DoesNotContain(restored.Events, entry => entry.Kind is "Damage" or "Healing");
         Assert.Equal(random, JsonSerializer.Serialize(restored.Capture().Random));
-        Assert.Null(restored.Capture().Combatants[0].NativeParticipant!.LastAction);
-        Assert.Null(restored.Capture().Combatants[1].NativeParticipant!.LastAction);
+        Assert.Equal(new NativeBattleLastAction(0, 0, 0, 0, 0, 0), restored.Capture().Combatants[0].NativeParticipant!.LastAction);
+        Assert.Equal(new NativeBattleLastAction(0, 0, 0, 0, 0, 0), restored.Capture().Combatants[1].NativeParticipant!.LastAction);
     }
 
     [Theory]

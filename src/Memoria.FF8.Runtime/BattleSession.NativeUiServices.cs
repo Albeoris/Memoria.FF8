@@ -77,6 +77,7 @@ public sealed partial class BattleSession
         if ((services.Flags942 & 0x40) != 0)
         {
             AdvanceNativeTriggerWidget();
+            AdvanceNativeGuardianBoost();
         }
         AdvanceNativeUiAtbService();
     }
@@ -126,6 +127,7 @@ public sealed partial class BattleSession
         NativeBattleUiServices ui = graphics.UiServices ?? throw new NotSupportedException("Native AB requires its initialized4A94D0 UI service owner.");
         ushort options = definition.LimitProgress?.Options978 ?? throw new NotSupportedException("Native AB requires its actual saved options WORD1CFE978.");
         NativeBattleTriggerWidget widget = NativeBattleTriggerWidget.Register(checked((byte)actor.NativeIndex), block, options, ui) with { SourceSequence = checked((byte)cue.First), SourceAbOffset = cue.Second, SourceMagicId = graphics.Models[actor.NativeIndex].ResourceMagicId };
+        nativeGuardianBoost = null;
         ui = widget.Visible ? ui.SetFlags(0x1800) with { Menu957 = 6, Menu955 = -2 } : ui.SetFlags(0, 0x1800);
         NativeGraphics = graphics with { UiServices = ui, TriggerWidget = widget };
     }

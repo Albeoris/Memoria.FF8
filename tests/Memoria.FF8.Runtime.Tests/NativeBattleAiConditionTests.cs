@@ -137,6 +137,7 @@ public sealed class NativeBattleAiConditionTests
         BattleCombatantSnapshot enemy = snapshot.Combatants[enemyIndex];
         enemy = enemy with { NativeParticipant = enemy.NativeParticipant! with { LastAction = new(1, 0, 254, 65, 2, 3) } };
         snapshot.Combatants[enemyIndex] = enemy;
+        snapshot = snapshot with { NativeActionMemory = snapshot.NativeActionMemory!.WithAction(enemy.NativeParticipant!.ActorIndex, enemy.NativeParticipant.LastAction) };
         BattleSession restored = BattleSession.Restore(snapshot);
 
         restored.Tick();
@@ -148,7 +149,7 @@ public sealed class NativeBattleAiConditionTests
     [Fact]
     public void LastCommandWithoutAnExecutedMetadataOwnerFailsAtTheActualCondition()
     {
-        Assert.Contains("executed action metadata owner", Assert.Throws<NotSupportedException>(() => AdmitInitial(Definition(Condition(10, 3, 0, 254)))).Message);
+        Assert.Contains("retained B9B", Assert.Throws<NotSupportedException>(() => AdmitInitial(Definition(Condition(10, 3, 0, 254)))).Message);
     }
 
     [Fact]

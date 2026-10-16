@@ -13,7 +13,7 @@ public sealed class NativeBattleGraphicsModelTests
         Assert.All(bank, model => Assert.Equal((ushort)0, model.Flags0));
         Assert.All(bank, model => Assert.Null(model.ResourceFlags44));
         NativeGlobalRandomState random = new(0);
-        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(bank[3], 77, 0x80, ref random);
+        NativeBattleGraphicsModel loaded = NativeBattleGraphicsModels.CompleteLoad(bank[3] with { ResourceMagicId = 160 }, 77, 0x80, ref random);
         Assert.Equal((ushort)3, loaded.Flags0);
         Assert.Equal((byte)8, loaded.Sequence);
         Assert.Equal((ushort)1, loaded.ResourceFlags44);
@@ -21,6 +21,7 @@ public sealed class NativeBattleGraphicsModelTests
         Assert.Null(loaded.Phase6);
         Assert.Null(loaded.Alpha7);
         Assert.Equal((byte)0, loaded.CameraSequence130);
+        Assert.Null(loaded.ResourceMagicId);
         Assert.NotEqual(0u, random.State);
         string serialized = JsonSerializer.Serialize(loaded);
         Assert.Equal(serialized, JsonSerializer.Serialize(JsonSerializer.Deserialize<NativeBattleGraphicsModel>(serialized)));

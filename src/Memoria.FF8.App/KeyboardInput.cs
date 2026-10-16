@@ -61,6 +61,7 @@ internal sealed class KeyboardInput
     public bool BattleInstantVictoryRequested { get; private set; }
     public bool BattleAdvanceTurnRequested { get; private set; }
     public bool GunbladeTriggerRequested { get; private set; }
+    public bool GuardianBoostRequested { get; private set; }
     public ushort HeldFieldButtons { get; private set; }
 
     public string NativeButtonBindingHint(ushort buttons)
@@ -155,6 +156,7 @@ internal sealed class KeyboardInput
         BattleInstantVictoryRequested = Pressed(ControlAction.BattleInstantVictory);
         BattleAdvanceTurnRequested = Pressed(ControlAction.BattleAdvanceTurn);
         GunbladeTriggerRequested = Pressed(ControlAction.RotateRight);
+        GuardianBoostRequested = Pressed(ControlAction.Card);
         GameMenuRequested = Pressed(ControlAction.Menu);
         PauseRequested = Pressed(ControlAction.Pause);
         UiTabRequested = Pressed(ControlAction.UiTab);

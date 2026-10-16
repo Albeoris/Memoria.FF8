@@ -103,7 +103,7 @@ public sealed class NativeDuelInvocationTests
     }
 
     [Fact]
-    public void Duel_timeout_changes_no_gameplay_clock_or_hp_and_automatic_mode_uses_the_owned_CRT_draw()
+    public void Duel_timeout_changes_no_gameplay_clock_or_hp_and_automatic_mode_uses_the_owned_UI_draw()
     {
         using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
         using BattleAssets assets = new(game.GameDirectory);
@@ -121,19 +121,62 @@ public sealed class NativeDuelInvocationTests
         BattleSession automatic = CreateBattle(game, assets, 2, 4);
         automatic.QueueNativePlayerCommand("zell", "enemy", 11, 0);
         Until(automatic, () => automatic.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
-        NativeCrtRandomState expected = automatic.Capture().NativeCrtRandom!.Draw(out _);
+        BattleSnapshot automaticBefore = automatic.Capture();
+        NativeBattleUiRandomState expected = automaticBefore.NativeBattleUiRandom!.Draw(out _);
+        Assert.Throws<InvalidDataException>(() => BattleSession.Restore(automaticBefore with { Definition = automaticBefore.Definition with { NativeBattleUiRandom = null }, NativeBattleUiRandom = null }));
 
         automatic.AdvanceNativeDuelUi(90);
 
         Assert.Single(automatic.QueuedActions);
-        Assert.Equal(expected, automatic.Capture().NativeCrtRandom);
+        Assert.Equal(expected, automatic.Capture().NativeBattleUiRandom);
+        Assert.Equal(automaticBefore.NativeCrtRandom, automatic.Capture().NativeCrtRandom);
+        Assert.Equal(automaticBefore.Random, automatic.Capture().Random);
         Assert.NotEqual(BattleNativeDuelPhase.Ready, automatic.GetNativeDuel("zell")!.Phase);
+    }
+
+    [Theory]
+    [InlineData(31195u, 32765, false)]
+    [InlineData(29360u, 32766, true)]
+    [InlineData(27525u, 32767, true)]
+    public void Automatic_three_choice_boundary_preserves_the_native_UI_draw_and_unknown_stack_read(uint seed, int roll, bool invalidStackRead)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreateBattle(game, assets, 2, 4);
+        battle.QueueNativePlayerCommand("zell", "enemy", 11, 0);
+        Until(battle, () => battle.GetNativeDuel("zell")?.Phase == BattleNativeDuelPhase.Ready);
+        BattleSnapshot saved = battle.Capture();
+        BattleNativeLimitState selected = Assert.Single(saved.NativeLimits);
+        byte moveSet = (byte)Enumerable.Range(0, saved.Definition.Combatants[0].NativeLimit!.DuelMoveSets.Length / 4).First(set => NativeBattleDuelRules.Choices(saved.Definition.Combatants[0].NativeLimit!, (byte)set, 0x3FF, assets.NativeActions).Count(choice => choice.Learned) == 3);
+        battle = BattleSession.Restore(saved with { NativeBattleUiRandom = new(seed), NativeLimits = [selected with { Duel = selected.Duel! with { MoveSetId = moveSet, AutomaticCountdown = 31 } }] });
+        BattleNativeDuelChoice[] choices = battle.GetNativeDuelChoices("zell").Where(choice => choice.Learned).ToArray();
+        NativeBattleUiRandomState expected = new NativeBattleUiRandomState(seed).Draw(out ushort actualRoll);
+        Assert.Equal(roll, actualRoll);
+        BattleSnapshot before = battle.Capture();
+
+        if (invalidStackRead)
+        {
+            NotSupportedException error = Assert.Throws<NotSupportedException>(() => battle.AdvanceNativeDuelUi());
+            Assert.Contains("uninitialized fourth stack byte", error.Message);
+            Assert.Empty(battle.QueuedActions);
+        }
+        else
+        {
+            battle.AdvanceNativeDuelUi();
+            Assert.Equal(choices[2].ActionId, Assert.Single(battle.QueuedActions).ActionId);
+        }
+
+        Assert.Equal(expected, battle.Capture().NativeBattleUiRandom);
+        Assert.Equal(before.NativeCrtRandom, battle.Capture().NativeCrtRandom);
+        Assert.Equal(before.Random, battle.Capture().Random);
+        Assert.Equal(before.Frame, battle.Frame);
+        Assert.Equal(before.Combatants[1].CurrentHp, battle.Combatants[1].CurrentHp);
     }
 
     private static BattleSession CreateBattle(GameAssets game, BattleAssets assets, ushort options = 0, byte crisis = 1)
     {
         NativeLimitProgress progress = game.ReadNewGameLimitProgress() with { DuelFlags = 0x3FF, Options978 = options };
-        BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
+        BattleSession battle = new(new BattleDefinition { NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), NativeCommandSequences = NativeBattleCommandSequenceFixture.Values, NativeActions = assets.NativeActions.ToArray(), NativeCrtRandom = NativeCrtRandomState.FromColdProcess(), NativeBattleUiRandom = new(0), LimitProgress = progress, NativeLimitsDisabled = false, Combatants = [new() { Id = "zell", Name = "Zell", IsPlayer = true, ModelId = 1, Attack = 80, Hit = 255, InitialAtb = BattleSession.AtbMaximum, NativeLimit = assets.ReadNativeLimitDefinition(1) }, new() { Id = "enemy", Name = "Enemy", MaximumHp = 50000, CurrentHp = 50000, Speed = 1, Defense = 1 }] }, BattleAtbMode.TurnBased);
         return BattleSession.Restore(battle.Capture() with { NativeLimits = [new("zell", crisis)] });
     }
 

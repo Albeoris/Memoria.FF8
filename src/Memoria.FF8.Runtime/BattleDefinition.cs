@@ -50,6 +50,7 @@ public sealed record BattleActionDefinition(BattleAbility Ability, int Id, strin
 {
     public byte? NativeAttackFlags { get; init; }
     public BattleNativeAction? NativeAction { get; init; }
+    public bool? NativeGuardianBoostAvailable { get; init; }
 }
 public sealed record BattleStock(int Id, int Count);
 public sealed record BattleDrawSpell(int Id, int Resistance);
@@ -280,9 +281,15 @@ public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, 
 public sealed record BattleSnapshot
 {
     [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleGuardianBoost? NativeGuardianBoost { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
     public NativeBattleCommandBanks? NativeCommandBanks { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public int? NativeEffectIoResult { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleEffectMemory? NativeEffectMemory { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public NativeBattleActionMemory? NativeActionMemory { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
     public NativeBattlePartyPresentation? NativePartyPresentation { get; init; }
     [System.Text.Json.Serialization.JsonRequired]
@@ -430,9 +437,26 @@ public sealed partial class BattleCombatant
     internal uint[] AiVariables { get; } = new uint[8];
     internal byte AiTurnCount { get; set; }
     internal string? LastAttackerId { get; set; }
-    internal byte? LastNativeHealing { get; set; }
+    internal NativeBattleActionMemoryOwner? NativeActionMemoryOwner { get; set; }
+    internal byte? LastNativeHealing
+    {
+        get => NativeActionMemoryOwner?.State.Healing(NativeIndex);
+        set
+        {
+            NativeBattleActionMemoryOwner owner = NativeActionMemoryOwner ?? throw new InvalidOperationException("Native healing memory has no bound physical bank.");
+            owner.State = owner.State.WithHealing(NativeIndex, value);
+        }
+    }
     internal bool NativeAllocationPendingStatistics { get; set; }
-    internal NativeBattleLastAction? LastNativeAction { get; set; }
+    internal NativeBattleLastAction? LastNativeAction
+    {
+        get => NativeActionMemoryOwner?.State.Action(NativeIndex);
+        set
+        {
+            NativeBattleActionMemoryOwner owner = NativeActionMemoryOwner ?? throw new InvalidOperationException("Native action memory has no bound physical bank.");
+            owner.State = owner.State.WithAction(NativeIndex, value);
+        }
+    }
     internal ushort NativePreviousTargetMask { get; set; }
     internal byte? NativeDrawnSpell { get; set; }
     internal BattleAbility? LastAttackerAbility { get; set; }

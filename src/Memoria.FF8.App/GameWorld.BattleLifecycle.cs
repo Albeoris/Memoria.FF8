@@ -7,9 +7,14 @@ internal sealed partial class GameWorld
 {
     private bool observingBattle;
 
-    private static BattleSession CreateLiveBattleSession(BattleDefinition definition, BattleAtbMode mode)
+    internal static BattleSession CreateLiveBattleSession(BattleDefinition definition, BattleAtbMode mode)
     {
-        return new BattleSession(definition, mode);
+        BattleSession active = new(definition, mode);
+        if (definition.NativeGraphics is null && definition.NativeSupportRules is not null)
+        {
+            active.CompleteComponentBattleEntry();
+        }
+        return active;
     }
 
     private void ObservePendingBattle()

@@ -7,6 +7,9 @@ public sealed record NativeBattleActionGraphicsState([property: JsonRequired] in
 {
     [JsonRequired]
     public bool? UseActionCamera { get; init; }
+
+    [JsonRequired]
+    public ushort? ReflectionWatchdog4A { get; init; }
 }
 public sealed record NativeBattleActionServiceSelection(uint Callback, uint SetGraphicsFlags = 0, byte? Sequence = null);
 
@@ -102,4 +105,7 @@ public static class NativeBattleActionGraphics
 public sealed record NativeBattleEffectBinding(ushort Effect, uint Entry, uint Initializer)
 {
     public bool? InitializerIsRet { get; init; }
+    public NativeBattleEffectInitializerAsset? InitializerAsset { get; init; }
 }
+
+public sealed record NativeBattleEffectInitializerAsset(string Name, System.Collections.Immutable.ImmutableArray<byte> Data);

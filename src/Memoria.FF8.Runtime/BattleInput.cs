@@ -15,7 +15,8 @@ public enum BattleInputKind
     InstantDefeat,
     SetGunbladeMode,
     GunbladeTrigger,
-    ShotTrigger
+    ShotTrigger,
+    GuardianBoost
 }
 
 /// <summary>Live combat controls and settings for the current game.</summary>

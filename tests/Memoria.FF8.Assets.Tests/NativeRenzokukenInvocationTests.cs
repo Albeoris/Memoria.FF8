@@ -6,6 +6,33 @@ namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeRenzokukenInvocationTests
 {
+    [Fact]
+    public void Unknown_retained_finisher_byte_is_preserved_through_intermediate_contacts_and_required_at_the_last()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = Create(game, assets);
+        battle.QueueNativePlayerCommand("squall", "enemy", 5, 0);
+        battle.Tick();
+        BattleNativeRenzokukenState process = battle.GetNativeRenzokuken("squall")!;
+        int contacts = game.ReadNativeRenzokukenResources().Single(resource => resource.MagicId == process.MagicId).Timeline.InputThresholds.Length;
+        Assert.True(contacts > 1);
+        BattleSnapshot historical = battle.Capture();
+        battle = BattleSession.Restore(historical with { NativeActionScratch = historical.NativeActionScratch! with { FinisherPendingE03 = null } });
+        Until(battle, () => battle.GetNativeRenzokuken("squall")!.Input.ContactIndex == contacts - 1);
+        Assert.Equal(contacts - 1, battle.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.True(battle.Capture().NativeActionScratch!.DeferredEffectsE00);
+        Assert.Null(battle.Capture().NativeActionScratch!.FinisherPendingE03);
+        BattleSnapshot beforeLast = battle.Capture();
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(beforeLast))!);
+        Assert.Equal(JsonSerializer.Serialize(beforeLast), JsonSerializer.Serialize(restored.Capture()));
+        NotSupportedException failure = Assert.Throws<NotSupportedException>(() => Until(restored, () => restored.GetNativeRenzokuken("squall") is null));
+        Assert.Contains("retained E03", failure.Message);
+        Assert.Equal(JsonSerializer.Serialize(beforeLast.Random), JsonSerializer.Serialize(restored.Capture().Random));
+        Assert.Equal(contacts - 1, restored.Events.Count(item => item.Kind == "Damage" && item.TargetId == "enemy"));
+        Assert.Null(restored.Capture().NativeActionScratch!.FinisherPendingE03);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(3)]

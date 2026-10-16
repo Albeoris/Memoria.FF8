@@ -30,11 +30,11 @@ public sealed partial class BattleSession
             return;
         }
         uint flags = actor.NativePlayerStatRules.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native player reactions require the equipped character-ability flags.");
-        //48B5F0 clears B98/B99; B9E has no established initialization and remains unknown until a primary commit.
-        byte attacker = actor.LastNativeAction?.AttackerIndex ?? 0;
+        //48B5F0 clears B98/B99; B9E retains its physical byte until a primary commit.
+        byte attacker = actor.LastNativeAction?.AttackerIndex ?? throw new NotSupportedException("Native player reactions require the retained attacker BYTE B98.");
         if (attacker >= 3 && (flags & 4) != 0)
         {
-            byte attackClass = actor.LastNativeAction is { } last ? last.AttackType ?? throw new NotSupportedException("Native Counter requires the received attack's original class byte.") : (byte)0;
+            byte attackClass = actor.LastNativeAction?.AttackType ?? throw new NotSupportedException("Native Counter requires the received attack's original class byte.");
             if (attackClass == 0)
             {
                 QueueNativePlayerReaction(actor, BattleNativePlayerReaction.Counter, 1, 0, checked((ushort)(1 << attacker)));

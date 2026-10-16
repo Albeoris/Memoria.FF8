@@ -38,8 +38,6 @@ public sealed partial class BattleSession
         spawned.NativeReturnDamage = 0;
         spawned.NativePresentationStatus = previous?.NativePresentationStatus ?? new(null, null);
         spawned.NativePendingReaction = previous?.NativePendingReaction ?? new(null, null);
-        spawned.LastNativeHealing = previous?.LastNativeHealing;
-        spawned.LastNativeAction = previous?.LastNativeAction is { } last ? last with { AttackType = 0, AttackerIndex = 0 } : null;
         nativeLastAllocatedIndex = physicalIndex;
         Log("NativeSpawn", caller.Id, spawned.Id, sceneSlot, $"{spawned.Name} allocated from formation slot {sceneSlot} into physical slot {physicalIndex}.");
         if (NativeGraphics is not null)
@@ -72,6 +70,7 @@ public sealed partial class BattleSession
         NativeBattleEnemyTemplate template = spawned.NativeTemplate ?? throw new InvalidDataException("Native allocation lacks its original level resource.");
         spawned.NativeCombatantFlags = template.NativeCombatantFlags | 0x11;
         spawned.NativePendingReaction = new(0, 0);
+        nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(spawned.NativeIndex);
         int drawCount = NativeBattleEnemyLevelRules.RandomByteCount(template.SceneLevel);
         byte firstRoll = drawCount > 0 ? (byte)NextRandomByte() : (byte)0;
         byte? secondRoll = drawCount == 2 ? (byte)NextRandomByte() : null;
@@ -104,6 +103,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native allocation references a scene without an original allocation template.");
         }
         BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
+        actor.NativeActionMemoryOwner = nativeActionMemory;
         InitializeNativeAtb(actor);
         combatants.Add(actor);
         byId.Add(actor.Id, actor);

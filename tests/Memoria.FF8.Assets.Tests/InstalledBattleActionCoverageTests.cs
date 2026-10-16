@@ -78,7 +78,7 @@ public sealed class InstalledBattleActionCoverageTests
             NativeCommandSequences = NativeBattleCommandSequenceFixture.Values,
             Name = "Declared exhaustive installed player action component",
             NativeFieldBattleRules = 0,
-            NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.ToArray(),
+            NativeActions = assets.NativeActions.ToArray(), ActionDefinitions = assets.ActionDefinitions.Select(definition => definition.Ability == BattleAbility.GuardianForce ? definition with { NativeGuardianBoostAvailable = false } : definition).ToArray(),
             GuardianForces = Enumerable.Range(0, 16).Select(id => new BattleGuardianForceVital(id, 1000, 1000)).ToArray(), NativeBattleSpeed = 0,
             NativePocketStation = game.ReadNewGamePocketStation(), NativeSavedBattleFlags = 0, NativeSavedBattleFlagsKnownMask = 255,
             NativeScannedModels = game.ReadNewGameScannedModels(), NativeScanAlwaysShow = false, NativeElapsedCounter = 1000,

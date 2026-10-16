@@ -8,6 +8,51 @@ namespace Memoria.FF8.App.Tests;
 public sealed class BattleActionPacketMigrationTests
 {
     [Fact]
+    public void ExplicitlyMigrateTheNamedFinisherBoundaryWithUnknownPhysicalActionAndEffectMemory()
+    {
+        string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_PHYSICAL_MEMORY_MIGRATION_SOURCE");
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_PHYSICAL_MEMORY_MIGRATION_OUTPUT");
+        Assert.SkipUnless(input is not null && output is not null, "Explicit original and separately named physical-memory migration paths are required.");
+        Assert.NotEqual(Path.GetFullPath(input!), Path.GetFullPath(output!));
+        Assert.False(File.Exists(output!), "Preserve existing standalone snapshots; choose a distinct output path.");
+        byte[] bytes = File.ReadAllBytes(input!);
+        const string sourceHash = "688F9A7504427800EE532B1A6D3A0D59E6769A687954AEB78766C09942497D29";
+        Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(bytes)));
+        JsonObject document = JsonNode.Parse(bytes)!.AsObject();
+        Assert.Equal(0, document["Frame"]!.GetValue<int>());
+        Assert.Equal(512, document["Definition"]!["EncounterId"]!.GetValue<int>());
+        Assert.Null(document["Definition"]!["NativeRetainedMemory"]);
+        Assert.Null(document["NativeGraphics"]);
+        Assert.Null(document["ActiveAction"]);
+        Assert.Empty(document["QueuedActions"]!.AsArray());
+        Assert.Empty(document["Events"]!.AsArray());
+        Assert.False(document.ContainsKey("NativeEffectMemory"));
+        Assert.False(document.ContainsKey("NativeActionMemory"));
+        foreach (JsonNode? combatant in document["Combatants"]!.AsArray())
+        {
+            Assert.Null(combatant!["NativeParticipant"]!["LastAction"]);
+            Assert.Null(combatant["NativeParticipant"]!["LastHealing"]);
+        }
+        document["NativeEffectMemory"] = null;
+        document["NativeActionMemory"] = JsonSerializer.SerializeToNode(NativeBattleActionMemory.Unknown());
+        document["NativeGuardianBoost"] = null;
+        BattleSnapshot snapshot = JsonSerializer.Deserialize<BattleSnapshot>(document)!;
+        BattleSession battle = BattleSession.Restore(snapshot);
+        Assert.Equal(JsonSerializer.Serialize(snapshot), JsonSerializer.Serialize(battle.Capture()));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output!))!);
+        using (FileStream stream = new(output!, FileMode.CreateNew, FileAccess.Write))
+        {
+            JsonSerializer.Serialize(stream, battle.Capture(), new JsonSerializerOptions { WriteIndented = true });
+        }
+        BattleSession independent = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllText(output!))!);
+        battle.Tick();
+        independent.Tick();
+        Assert.Equal(1, independent.Frame);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(independent.Capture()));
+        Assert.Equal(sourceHash, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(input!))));
+    }
+
+    [Fact]
     public void ExplicitlyMigrateTheNamedRetainedBoundaryForFinisherAndElementScratch()
     {
         string? input = Environment.GetEnvironmentVariable("MEMORIA_FF8_FINISHER_MIGRATION_SOURCE");

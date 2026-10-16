@@ -54,6 +54,7 @@ public sealed partial class BattleSession
         combatants = this.definition.Combatants.Select(actor => new BattleCombatant(actor)).ToList();
         foreach (BattleCombatant actor in combatants)
         {
+            actor.NativeActionMemoryOwner = nativeActionMemory;
             InitializeNativeAtb(actor);
         }
         Combatants = combatants.AsReadOnly();
@@ -81,6 +82,10 @@ public sealed partial class BattleSession
         foreach (BattleCombatant actor in combatants.ToArray())
         {
             actor.NativeIndex = actor.IsPlayer ? nativePartySlot++ : actor.IsActive ? nativeEnemySlot++ : -1;
+            if (initializeNativeAi && actor.IsActive && actor.NativeIndex is >= 0 and < 7)
+            {
+                nativeActionMemory.State = nativeActionMemory.State.InitializeStatistics(actor.NativeIndex);
+            }
             if (initializeNativeAi)
             {
                 PublishNativeElementAttack(actor);
@@ -241,12 +246,15 @@ public sealed partial class BattleSession
             NativeCamera = NativeCamera,
             NativeGraphics = NativeGraphics,
             NativeTimedAction = CaptureNativeTimedAction(),
+            NativeGuardianBoost = nativeGuardianBoost,
             NativeReactionOrder = nativeReactionOrder,
             NativeActionPackets = nativeActionPackets,
             NativeCommandBanks = nativeCommandBanks,
             NativePartyStatusMirrors = nativePartyStatusMirrors,
             NativePartyPresentation = nativePartyPresentation,
             NativeEffectIoResult = NativeEffectIoResult,
+            NativeEffectMemory = NativeEffectMemory,
+            NativeActionMemory = nativeActionMemory.State,
             NativeActionScratch = nativeActionScratch,
             NativeElementAttack = nativeElementAttack,
             NativeCards = nativeCards?.DeepCopy(),
@@ -412,7 +420,7 @@ public sealed partial class BattleSession
         {
             DispatchNativeStatusTimers();
         }
-        DispatchNativePeriodicSupport();
+        DispatchNativePeriodicSupport(clockAdmitted);
         DispatchNativeScriptTasks();
         CancelDeadActions();
         CompleteBattleIfNeeded();
@@ -478,6 +486,7 @@ public sealed partial class BattleSession
                     command = PrepareNativeGraphicsAction(actor, command);
                     BeginNativeBattleActionPause();
                     ActiveAction = new BattleActionPresentation(actor.Id, target.Id, BattleActionPhase.Windup, NativeActionWindupFrames(actor, command.NativeSequence), command.Ability, command.ActionId, command.DrawCast, command.NativeTargetSelector) { NativeHeaderIndex = command.NativeHeaderIndex, NativeDuel = command.NativeDuel, NativeSlots = command.NativeSlots, NativeAiCallbackStage = command.NativeAiCallbackStage, NativePlayerReaction = command.NativePlayerReaction, NativeDraw = command.NativeDraw, DrawCastTargetId = command.DrawCastTargetId, NativeLimitCallback = command.NativeLimitCallback, NativeMagicTargets = command.NativeMagicTargets, NativeSequenceFrame = NativeGraphics is not null || NativeControlTrack(actor, command.NativeSequence) is null ? null : 0, NativeGraphic = command.NativeGraphic, IndependentGuardian = command.IndependentGuardian, NativeSpecial = command.NativeSpecial, NativeQueuedCommand = command.NativeQueuedCommand, NativeAction = command.NativeAction, NativeSequence = command.NativeSequence, NativeTargetMask = command.NativeTargetMask, FreeNativeMagic = command.FreeNativeMagic, ReservedNativeItemSlot = command.ReservedNativeItemSlot };
+                    BeginComponentGuardianBoost(ActiveAction);
                     Log("Windup", actor.Id, target.Id, 0, $"{actor.Name}: {command.NativeAction?.Name ?? ActionName(command.Ability, command.ActionId)} → {target.Name}.");
                     if (command.NativeHeaderIndex is not null && command.NativeQueuedCommand is not (0 or 247) && command.NativeAiCallbackStage is null && command.NativePlayerReaction is null && nativeActionScratch.ComponentCompletion is null)
                     {
@@ -498,6 +507,10 @@ public sealed partial class BattleSession
         if (action.Phase == BattleActionPhase.Windup && NativeGraphics is { } graphics)
         {
             remaining = graphics.ActionCallbackReady ? 0 : 1;
+        }
+        else if (action.Phase == BattleActionPhase.Windup && NativeGraphics is null && nativeGuardianBoost is not null && action.NativeQueuedCommand == 254)
+        {
+            remaining = Math.Max(1, action.RemainingFrames - 1);
         }
         else if (action.Phase == BattleActionPhase.Windup && action.NativeSequenceFrame is not null)
         {
@@ -771,6 +784,7 @@ public sealed partial class BattleSession
         actions.Clear();
         ActiveAction = null;
         ClearNativeQueuedCommands();
+        nativeGuardianBoost = null;
         guardianForceCasts.Clear();
         CompleteNativeGraphicsAction();
         foreach (BattleCombatant actor in combatants)
@@ -914,6 +928,9 @@ public sealed partial class BattleSession
         nativePartyStatusMirrors.Validate();
         RestoreNativePartyPresentation(snapshot.NativePartyPresentation);
         NativeEffectIoResult = snapshot.NativeEffectIoResult;
+        snapshot.NativeEffectMemory?.Validate();
+        NativeEffectMemory = snapshot.NativeEffectMemory;
+        RestoreNativeActionMemory(snapshot.NativeActionMemory);
         nativeActionScratch = snapshot.NativeActionScratch ?? throw new InvalidDataException("Native action scratch owner is missing; explicitly migrate the standalone snapshot.");
         nativeActionScratch.Validate();
         HashSet<string> restored = new(StringComparer.Ordinal);
@@ -1080,6 +1097,7 @@ public sealed partial class BattleSession
         ValidateNativeSavedBattleFlagEffects();
         RestoreNativeLimits(snapshot.NativeLimits);
         RestoreNativeBattleUiRandom(snapshot.NativeBattleUiRandom);
+        RestoreNativeGuardianBoost(snapshot.NativeGuardianBoost);
         RestoreNativeScannedModels(snapshot.NativeScannedModels);
         RestoreNativeKnownMagic(snapshot.NativeKnownMagic);
         RestoreNativeSpecialOwners(snapshot);
@@ -1125,6 +1143,7 @@ public sealed partial class BattleSession
 
     private void PublishCandidate(BattleSession candidate)
     {
+        nativeActionMemory.State = candidate.nativeActionMemory.State;
         foreach (NativeBattleEnemyAllocation allocation in candidate.nativeAllocations.Skip(nativeAllocations.Count))
         {
             CreateNativeAllocation(allocation);
@@ -1179,6 +1198,7 @@ public sealed partial class BattleSession
         nativeElementAttack = candidate.nativeElementAttack;
         nativePartyPresentation = candidate.nativePartyPresentation;
         NativeEffectIoResult = candidate.NativeEffectIoResult;
+        NativeEffectMemory = candidate.NativeEffectMemory;
         nativeActionScratch = candidate.nativeActionScratch;
         RestoreNativeTimedAction(candidate.CaptureNativeTimedAction());
         RestoreNativeLimits(candidate.CaptureNativeLimits());
@@ -1189,6 +1209,7 @@ public sealed partial class BattleSession
         nativeGlobalRandomCalls = candidate.nativeGlobalRandomCalls;
         NativeCamera = candidate.NativeCamera;
         NativeGraphics = candidate.NativeGraphics;
+        RestoreNativeGuardianBoost(candidate.nativeGuardianBoost);
         RestoreGuardianForces(candidate.Capture());
         RestoreNativeSupport(candidate.nativeSupport);
         RestoreNativeBattleClock(candidate.nativeBattleClock);

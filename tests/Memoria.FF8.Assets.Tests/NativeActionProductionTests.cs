@@ -118,6 +118,31 @@ public sealed class NativeActionProductionTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
+    [Fact]
+    public void Ordinary_attack_does_not_invent_a_clear_for_historical_unknown_E03()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleSession battle = CreatePhysicalBattle(game, assets, true, false);
+        battle.SetGunbladeMode(BattleGunbladeMode.Automatic);
+        battle.QueueAttack("party-0", "enemy");
+        battle.Tick();
+        BattleSnapshot prepared = battle.Capture();
+        battle = BattleSession.Restore(prepared with { NativeActionScratch = prepared.NativeActionScratch! with { FinisherPendingE03 = null } });
+        NotSupportedException failure = Assert.Throws<NotSupportedException>(() =>
+        {
+            for (int tick = 0; tick < 20; tick++)
+            {
+                battle.Tick();
+            }
+        });
+        Assert.Contains("retained E03", failure.Message);
+        Assert.Equal(1000, battle.Combatants[1].CurrentHp);
+        Assert.Equal(JsonSerializer.Serialize(prepared.Random), JsonSerializer.Serialize(battle.Capture().Random));
+        Assert.Null(battle.Capture().NativeActionScratch!.FinisherPendingE03);
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "Damage");
+    }
+
     private static BattleSession CreatePhysicalBattle(GameAssets game, BattleAssets assets, bool gunblade, bool poison)
     {
         BattleNativeAction attack = assets.NativeActions.First(action => action.Command == 8) with { Command = 1, ActionId = 0, AttackType = gunblade ? (byte)1 : (byte)35, Power = gunblade ? (byte)150 : (byte)0, HitCount = 1, AttackFlags = 0, DamagePresentation = 4, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Element = 0 };

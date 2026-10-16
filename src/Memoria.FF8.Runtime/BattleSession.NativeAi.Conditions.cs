@@ -139,7 +139,7 @@ public sealed partial class BattleSession
             if (selector == 0)
             {
                 //48B5F0/48BBD0 clearB99 even before any action reaches this actor.
-                left = last is null ? 0 : last.AttackType ?? throw new NotSupportedException("Native last-action attack type requires the original action flags.");
+                left = last?.AttackType ?? throw new NotSupportedException("Native last-action attack type requires the retained B99 owner.");
             }
             else
             {
@@ -178,8 +178,7 @@ public sealed partial class BattleSession
 
     private int NativeConditionLastAttackerIndex(BattleCombatant actor)
     {
-        //Allocation explicitly clearsB98 to0. Older saves may still own the precise attacker identity.
-        return actor.LastNativeAction?.AttackerIndex ?? (actor.LastAttackerId is string id ? byId[id].NativeIndex : 0);
+        return actor.LastNativeAction?.AttackerIndex ?? throw new NotSupportedException("Native last attacker requires its retained B98 owner.");
     }
 
     private int NativeConditionActorIndex(int model)

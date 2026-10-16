@@ -7,6 +7,8 @@ public sealed record NativeBattleGraphicsModel(int Index, ushort Flags0)
     public byte? Kind5 { get; init; }
     public byte? Phase6 { get; init; }
     public byte? Alpha7 { get; init; }
+    public uint? Color40 { get; init; }
+    public uint? Color44 { get; init; }
     public byte? CameraSequence130 { get; init; }
     public byte? CameraAccumulator131 { get; init; }
     public bool? HasLinkedModelRing140 { get; init; }
@@ -59,7 +61,8 @@ public static class NativeBattleGraphicsModels
                 timers = timers.SetItem(bit, 0);
             }
         }
-        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, Sequence = 8, SequenceFrame = 0 };
+        //5027D0 copies resourceDWORD100 to originalDWORD104, ending any temporary magic-resource override.
+        return model with { Flags0 = 3, Flags2 = 4, ModelId4 = modelId, Kind5 = 0, Phase6 = null, Alpha7 = null, CameraSequence130 = (byte)(frame % 6), CameraAccumulator131 = (byte)appearance, HasLinkedModelRing140 = false, BlinkCountdown144 = (byte)(blink % 45 + 15), Flags8 = projectedStatusFlags, StatusTimers = timers, Rotation12 = 0, Rotation14 = model.Index >= 3 ? (short)2048 : (short)0, Rotation16 = 0, ResourceFlags44 = 1, ResourceMagicId = null, Sequence = 8, SequenceFrame = 0 };
     }
 
     public static NativeBattleGraphicsModel SelectSequence(NativeBattleGraphicsModel model, byte sequence)
@@ -96,11 +99,11 @@ public static class NativeBattleGraphicsModels
         {
             throw new NotSupportedException("Native kind10 appearance requires the50C330 effect owner.");
         }
-        if (kind is not (1 or 2 or 5 or 6 or 7 or 9))
+        if (kind is not (1 or 2 or 5 or 6 or 7 or 9 or 11 or 12))
         {
             throw new NotSupportedException($"Native graphics removal kind{kind} requires its own original service.");
         }
-        return model with { Kind5 = kind, Phase6 = 0, Flags0 = kind == 2 ? (ushort)(model.Flags0 & ~4) : model.Flags0, Flags2 = kind == 2 ? (ushort)(flags2 & ~0x80) : flags2 };
+        return model with { Kind5 = kind, Phase6 = 0, Flags0 = kind is 2 or 12 ? (ushort)(model.Flags0 & ~4) : model.Flags0, Flags2 = kind is 2 or 12 ? (ushort)(flags2 & ~0x80) : flags2 };
     }
 
     public static NativeBattleGraphicsModel AdvanceCover(NativeBattleGraphicsModel model)

@@ -17,7 +17,12 @@ public sealed partial class BattleHudController
 
     private void PresentNativeShot()
     {
-        if (NativeShotActor is { } actor && session.GetNativeShot(actor.Id) is { } shot)
+        if (session.NativeGuardianBoost is { } boost)
+        {
+            string window = boost.Phase == 4 ? boost.Window == 0 ? "STOP" : $"{NativeButtonBindingHint(0x80)}: PRESS" : "WAIT";
+            Message = $"GF Boost {boost.DisplayPercent}% · {window}";
+        }
+        else if (NativeShotActor is { } actor && session.GetNativeShot(actor.Id) is { } shot)
         {
             Message = shot.Phase == BattleNativeShotPhase.Ready ? $"Shot · {GunbladeBindingHint}: Fire · Cancel: Finish · {shot.RemainingAmmo} ammo" : "Shot";
         }
@@ -53,7 +58,7 @@ public sealed partial class BattleHudController
 
     private IReadOnlyList<BattleAbility> GetPlayerCommandChoices()
     {
-        if (NativeTimedLimitActive)
+        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return [];
         }
@@ -66,7 +71,7 @@ public sealed partial class BattleHudController
 
     private void RefreshNativeLimitSelection()
     {
-        if (NativeTimedLimitActive)
+        if (NativeTimedLimitActive || session.NativeGuardianBoost is not null)
         {
             return;
         }
