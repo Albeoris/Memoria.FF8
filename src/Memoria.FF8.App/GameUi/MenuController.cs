@@ -61,9 +61,9 @@ public sealed partial class MenuController
     public IReadOnlyList<MenuCharacter> CharacterChoices => Data.Characters.Where(character => character.InParty && !string.IsNullOrWhiteSpace(character.Id)).ToArray();
     public MenuGuardianForce? GuardianForce => Data.GuardianForces.FirstOrDefault(g => g.Id == _gfId) ?? Data.GuardianForces.FirstOrDefault();
     public MenuItem? Item => _itemId.Length == 0 ? Data.Items.FirstOrDefault() : Data.Items.FirstOrDefault(i => i.Id == _itemId);
-    public MenuMagic? Magic => Data.Magic.FirstOrDefault(m => m.Id == _magicId && m.CharacterId == Character?.Id) ?? Data.Magic.FirstOrDefault(m => m.CharacterId == Character?.Id);
+    public MenuMagic? Magic => _magicId.Length > 0 ? Data.Magic.FirstOrDefault(m => m.Id == _magicId && m.CharacterId == Character?.Id) : Data.Magic.FirstOrDefault(m => m.CharacterId == Character?.Id);
     public MenuCard? Card => Data.Cards.FirstOrDefault(c => c.Id == _cardId) ?? Data.Cards.FirstOrDefault();
-    public MenuRecipe? Recipe => Data.Recipes.FirstOrDefault(r => r.Id == _recipeId) ?? Data.Recipes.FirstOrDefault();
+    public MenuRecipe? Recipe => _recipeId.Length > 0 ? Data.Recipes.FirstOrDefault(r => r.Id == _recipeId) : Data.Recipes.FirstOrDefault();
     public MenuSaveSlot? SaveSlot => Data.SaveSlots.FirstOrDefault(s => s.Id == _saveSlotId) ?? Data.SaveSlots.FirstOrDefault();
     public MenuBattleTarget? BattleTarget => Data.BattleTargets.FirstOrDefault(t => t.Id == _battleTargetId) ?? Data.BattleTargets.FirstOrDefault();
     public string BattleCommand => _battleCommand;
@@ -90,6 +90,11 @@ public sealed partial class MenuController
         if (!_screens.ContainsKey(screenId))
         {
             throw new ArgumentException($"Unknown menu screen '{screenId}'.", nameof(screenId));
+        }
+        if (IsDemo != demo)
+        {
+            _magicId = "";
+            _recipeId = "";
         }
         IsDemo = demo;
         _liveData = null;
@@ -339,6 +344,7 @@ public sealed partial class MenuController
         }
         string destination = _characterSelectionDestination;
         _characterId = id;
+        _magicId = "";
         _characterSelectionDestination = "";
         Push(destination);
         SoundRequested?.Invoke(MenuSound.Confirm);
@@ -354,6 +360,7 @@ public sealed partial class MenuController
         }
         var index = characters.FindIndex(c => c.Id == Character?.Id);
         _characterId = characters[(index + delta + characters.Count) % characters.Count].Id;
+        _magicId = "";
         if (!IsDemo)
         {
             _abilitySlot = Math.Clamp(_abilitySlot, 0, Math.Max(0, (Character?.AbilitySlots ?? 2) - 1));
@@ -447,6 +454,7 @@ public sealed partial class MenuController
                 return;
             case "select-character":
                 _characterId = action.SubjectId;
+                _magicId = "";
                 return;
             case "select-gf":
                 _gfId = action.SubjectId;
@@ -522,6 +530,20 @@ public sealed partial class MenuController
         }
         if (!IsDemo)
         {
+            if (action.Kind is "magic-use" or "magic-transfer")
+            {
+                if (Magic is not { Quantity: > 0 } selectedMagic)
+                {
+                    Message = "Selected magic stock is no longer available. Select a spell again.";
+                    return;
+                }
+                action = action with { SubjectId = selectedMagic.Id, TargetId = action.Kind == "magic-transfer" && action.TargetId.Length == 0 ? _exchangeId : action.TargetId };
+                if (Character?.CurrentHp is null || Data.Characters.FirstOrDefault(character => character.Id == action.TargetId)?.CurrentHp is null)
+                {
+                    Message = "Magic requires exact saved HP values for the selected characters.";
+                    return;
+                }
+            }
             var supported = Data.SupportedActions.Contains(action.Kind) || Data.SupportedActions.Contains($"{action.Kind}:{action.SubjectId}");
             if (!supported || _liveAction == null)
             {

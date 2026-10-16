@@ -139,6 +139,16 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (NativeMagicMenuProjection.IsAction(action))
+        {
+            PlayerActionResult result = world!.Apply(NativeMagicMenuProjection.PlayerAction(action));
+            if (!result.Accepted)
+            {
+                throw new NotSupportedException(result.Detail ?? "The current game state cannot accept a magic action.");
+            }
+            fieldSeconds = 0;
+            return;
+        }
         if (action.Kind == "card-mod" && liveMenuCatalog is not null)
         {
             if (!action.SubjectId.StartsWith("card-", StringComparison.Ordinal) || !int.TryParse(action.SubjectId.AsSpan(5), out int cardId) || liveMenuCatalog.CardRefinement(cardId) is not { } recipe || !session.RefineCard(recipe))

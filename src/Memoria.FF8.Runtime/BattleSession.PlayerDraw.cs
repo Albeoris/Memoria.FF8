@@ -35,7 +35,7 @@ public sealed partial class BattleSession
         }
         BattleCombatant recipient = GetActor(targetId);
         bool fixedSelf = spell.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        if (!recipient.IsActive || recipient.Untargetable || (recipient.IsPlayer == actor.IsPlayer) != spell.Allies || recipient.IsAlive == IsNativeRevive(spell) || fixedSelf && recipient != actor)
+        if (!recipient.IsActive || recipient.Untargetable || (recipient.IsPlayer == actor.IsPlayer) != spell.Allies || !HasValidTargetLifeState(spell, recipient) || fixedSelf && recipient != actor)
         {
             throw new InvalidOperationException("Draw Cast recipient does not satisfy the selected spell's target contract.");
         }

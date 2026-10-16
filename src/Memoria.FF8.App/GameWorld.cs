@@ -83,6 +83,7 @@ internal sealed partial class GameWorld : IDisposable
         }
         MovieClock clock = movieClock ?? new MovieClock(session, gameDirectory);
         Events = new EventEngine(session);
+        Events.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
         Events.ResolveNativeFieldItem = id => FieldItemCatalog.FieldItem(id);
         Events.ResolveNativeFieldItemStatRules = assets.ReadFieldItemStatRules;
         ConfigureTripleTriadHost();
@@ -166,6 +167,7 @@ internal sealed partial class GameWorld : IDisposable
                 throw new NotSupportedException("World restoration requires its executed native music-loader receipt; migrate this save explicitly.");
             }
             worldScene = new WorldMapScene(session, assets.GameDirectory, resources);
+            worldScene.ReadFieldMagicStatRules = (vitals, row) => BattleResources.ReadPlayerNativeStatRules(vitals, row);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);
             if (session.State.DepartingFieldState is System.Text.Json.JsonElement frozenDeparture)

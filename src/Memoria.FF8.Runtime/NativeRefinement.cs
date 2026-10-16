@@ -21,6 +21,10 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
     {
         Validate();
         vitals.Validate();
+        if (!string.Equals(vitals.KernelSha256, KernelHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException("Refinement requires character definitions from its authenticated recipe kernel.");
+        }
         //4C2B40 includes every acquired GF, whether junctioned or not.
         return Enumerable.Range(0, 16).Where(id => (vitals.GuardianForces[id].Flags & 1) != 0).SelectMany(id => vitals.GuardianForceAbilities(id)).Where(ability => ability.Learned && ability.Ability is >= 97 and < 116).Select(ability => ability.Ability).Distinct().Order().ToArray();
     }
@@ -44,14 +48,22 @@ public sealed record NativeRefinementDefinitions(string ExecutableHash, string K
     {
         NativeRefinementRecipe recipe = Recipe(abilityId, recipeIndex);
         economy.Validate();
+        if (!string.Equals(vitals.InitOutSha256, economy.InitOutSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Refinement requires character and inventory owners from the same authenticated initialization.");
+        }
         if (!LearnedAbilities(vitals).Contains(abilityId) || recipe.Requirement > 100)
         {
             return 0;
         }
         byte kind = Abilities[abilityId - 92].Kind;
-        if (kind is 0 or 2 && ((uint)row >= 8 || (vitals.Records[row].MemberFlags & 1) == 0 || vitals.DreamEnabled && !vitals.CombatParty.Contains((byte)row)))
+        if (kind is 0 or 2 && (uint)row >= 8)
         {
             return 0;
+        }
+        if (vitals.Records.Any(record => record.MagicInventory.Any(stock => stock.SpellId != 0 && stock.Count > 100) || record.MagicInventory.Where(stock => stock.SpellId != 0 && stock.Count > 0).GroupBy(stock => stock.SpellId).Any(group => group.Count() > 1)) || economy.Items.Any(stock => stock.ItemId != 0 && stock.Count > 100) || economy.Items.Where(stock => stock.ItemId != 0).GroupBy(stock => stock.ItemId).Any(group => group.Count() > 1))
+        {
+            throw new InvalidDataException("Refinement requires unambiguous native stock IDs with counts at most100.");
         }
         NativeCharacterVital? character = kind is 0 or 2 ? NativeCharacterVitals.NormalizeMagicInventory(vitals.Records[row]) : null;
         if (character is not null && NativeCharacterVitals.GetMagicCapacity(character, recipe.Output) != 0)

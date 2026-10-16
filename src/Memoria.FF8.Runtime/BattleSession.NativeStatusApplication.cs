@@ -39,7 +39,7 @@ public sealed partial class BattleSession
             uint mask = 1u << bit;
             if ((action.Statuses0 & mask) != 0)
             {
-                applied |= TryApplyNativeStatus(recipient, bit, mask, false, attack, defense, action.StatusAttack);
+                applied |= TryApplyNativeStatus(recipient, bit, mask, false, attack, defense, action.StatusAttack, action.AttackType is 5 or 6);
             }
         }
         for (int bit = 0; bit < 32; bit++)
@@ -47,7 +47,7 @@ public sealed partial class BattleSession
             uint mask = 1u << bit;
             if ((action.Statuses1 & mask) != 0)
             {
-                applied |= TryApplyNativeStatus(recipient, bit + 8, mask, true, attack, defense, action.StatusAttack);
+                applied |= TryApplyNativeStatus(recipient, bit + 8, mask, true, attack, defense, action.StatusAttack, action.AttackType is 5 or 6);
             }
         }
         MarkNativeContactStatusResult(recipient, action, applied);
@@ -66,7 +66,7 @@ public sealed partial class BattleSession
         recipient.NativeStatus1 = after & 0xFFFFFCF1 | speed | crisis;
     }
 
-    private bool TryApplyNativeStatus(BattleCombatant recipient, int resistanceIndex, uint mask, bool battle, int attack, int defense, byte chance)
+    private bool TryApplyNativeStatus(BattleCombatant recipient, int resistanceIndex, uint mask, bool battle, int attack, int defense, byte chance, bool revival)
     {
         uint current = battle ? NativeBattleStatusBits(recipient) : NativeSavedStatusBits(recipient);
         if ((current & mask) != 0)
@@ -121,7 +121,8 @@ public sealed partial class BattleSession
         }
         else
         {
-            if ((saved & 0x40) != 0 && (mask & 1) != 0 || (statuses & 0x2000000) != 0 && (mask & 0x30) != 0)
+            //491940/4935A0 set E29 before492090;48F9F0 then allows revival's Death on Zombie.
+            if (!revival && (saved & 0x40) != 0 && (mask & 1) != 0 || (statuses & 0x2000000) != 0 && (mask & 0x30) != 0)
             {
                 return false;
             }

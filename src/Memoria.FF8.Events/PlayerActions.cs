@@ -34,7 +34,9 @@ public enum PlayerActionKind
     TriadPlaceCard,
     TriadAutoMove,
     TriadTradeCard,
-    RemoveJunctions
+    RemoveJunctions,
+    UseFieldMagic,
+    TransferMagic
 }
 
 public enum PlayerTriggerKind
@@ -137,6 +139,15 @@ public sealed partial class EventEngine
             {
                 bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
                 accepted = ApplyFieldItemAction(action);
+                if (accepted && menuCallback)
+                {
+                    advanced = 1;
+                }
+            }
+            else if (NativeMagicMenuInput.IsMenuAction(action.Kind))
+            {
+                bool menuCallback = PartyMenu is { Kind: NativeFieldMenuKind.Normal, Phase: NativePartyMenuPhase.Active };
+                accepted = ApplyMagicMenuAction(action);
                 if (accepted && menuCallback)
                 {
                     advanced = 1;

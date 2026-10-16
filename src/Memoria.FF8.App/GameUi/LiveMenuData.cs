@@ -119,7 +119,12 @@ public static class LiveMenuData
                 foreach (NativeMagicStock stock in native.MagicInventory.Where(stock => stock.SpellId != 0 && stock.Count != 0))
                 {
                     // Native4C8990 draws icon192 for a junctioned stock; ordinary rows have no category icon.
-                    result.Magic.Add(new MenuMagic { Id = $"magic-{row}-{stock.SpellId}", Icon = NativeCharacterVitals.IsMagicJunctioned(native, stock.SpellId) ? new UiImageSource(UiImageKind.Icon, 192) : null, CharacterId = character.Id, Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}", Quantity = stock.Count, Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic effect unavailable; casting, exchanging and junctioning are unsupported." });
+                    string magicId = $"magic-{row}-{stock.SpellId}";
+                    result.Magic.Add(new MenuMagic { Id = magicId, Icon = NativeCharacterVitals.IsMagicJunctioned(native, stock.SpellId) ? new UiImageSource(UiImageKind.Icon, 192) : null, CharacterId = character.Id, Name = catalog?.MagicName(stock.SpellId) ?? $"Magic {stock.SpellId}", Quantity = stock.Count, Description = catalog?.MagicDescription(stock.SpellId) ?? "Magic description unavailable." });
+                    if (state.Scene is SceneKind.Field or SceneKind.WorldMap && character.CurrentHp is not null && catalog?.IsFieldMagic(stock.SpellId) == true)
+                    {
+                        result.SupportedActions.Add($"magic-use:{magicId}");
+                    }
                 }
                 result.Characters.Add(character);
             }
@@ -157,7 +162,7 @@ public static class LiveMenuData
             }
             if (state.Scene is SceneKind.Field or SceneKind.WorldMap)
             {
-                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn"]);
+                result.SupportedActions.UnionWith(["junction-gf", "junction-command", "junction-ability", "junction-magic", "junction-off", "gf-learn", "magic-transfer"]);
             }
         }
         if (state.CardInventory is { } cards)
@@ -345,6 +350,7 @@ public sealed partial class LiveMenuCatalog
     public TripleTriadCard? CardDefinition(int id) => (uint)id < tripleTriad.Cards.Length ? tripleTriad.Cards[id] : null;
     public TripleTriadRefinement? CardRefinement(int id) => (uint)id < tripleTriad.Refinements.Length ? tripleTriad.Refinements[id] : null;
     public string? MagicName(int id) => (uint)id < kernel.MagicSpells.Count ? kernel.MagicSpells[id].Name : null;
+    public bool IsFieldMagic(int id) => (uint)id < kernel.MagicSpells.Count && kernel.MagicSpells[id].AttackType is 3 or 5 or 6;
     public string? MagicDescription(int id) => (uint)id < kernel.MagicSpells.Count ? FormatDescription(kernel.MagicSpells[id].Description) : null;
     public string? WeaponName(int id) => (uint)id < kernel.Weapons.Count ? kernel.Weapons[id].Name : null;
     public string? CommandName(int id) => (uint)id < kernel.BattleCommands.Count ? kernel.BattleCommands[id].Name : null;

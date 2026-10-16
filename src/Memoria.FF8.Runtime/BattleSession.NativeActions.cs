@@ -245,7 +245,7 @@ public sealed partial class BattleSession
             Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
             return;
         }
-        if (curative)
+        if (curative && (native.AttackType is not (5 or 6) || (saved & 0x40) == 0))
         {
             MarkNativeContactFlags(0, 1);
         }
@@ -256,7 +256,15 @@ public sealed partial class BattleSession
             if ((saved & 0x40) != 0)
             {
                 curative = false;
-                damage = ModifyNativeMagicDamage(recipient, native, NativeBattleDamage.Magic(actor.Magic, recipient.Spirit, native.Power, NextRandomByte(), !actor.IsPlayer));
+                //491940/4935A0 enter the complete491AD0 contract, including immunity before RNG/statuses.
+                if (!bypass && ((saved & 5) != 0 || (statuses & 0x200800) != 0 || (native.Element & 8) != 0 && (statuses & 0x2000) != 0))
+                {
+                    MarkNativeContactFlags(0, 4);
+                    Log("Miss", actor.Id, recipient.Id, 0, $"{action.Name}: {recipient.Name} is immune.");
+                    return;
+                }
+                int spirit = (statuses & 0x1000000) != 0 ? 0 : recipient.Spirit;
+                damage = ModifyNativeMagicDamage(recipient, native, NativeBattleDamage.Magic(actor.Magic, spirit, native.Power, NextRandomByte(), !actor.IsPlayer));
             }
             else if ((saved & 1) != 0 || recipient.CurrentHp == 0)
             {

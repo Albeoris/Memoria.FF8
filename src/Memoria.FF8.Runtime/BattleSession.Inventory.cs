@@ -64,14 +64,18 @@ public sealed partial class BattleSession
         return added;
     }
 
-    private void CompleteNativeActionInventory(BattleCombatant actor, BattleActionPresentation command)
+    private bool CompleteNativeActionInventory(BattleCombatant actor, BattleActionPresentation command)
     {
+        bool continueAffinity = true;
         //485610 consumes ordinary player magic after its effects; Angel Wing and Draw-cast remain free.
         if (actor.IsPlayer && command.NativeMagicTargets.IsDefaultOrEmpty && command.Ability != BattleAbility.Draw && !command.FreeNativeMagic && (command.Ability == BattleAbility.Magic || command.NativeAction?.Command == 2))
         {
-            actor.TryConsumeMagic(command.NativeAction?.ActionId ?? command.ActionId);
+            int spell = command.NativeAction?.ActionId ?? command.ActionId;
+            //486A10 returns FF on the last debit;485610 then skips the affinity loop.
+            continueAffinity = actor.TryConsumeMagic(spell) && actor.NativeMagicInventory.Any(stock => stock.SpellId == spell && stock.Count > 0);
         }
         ReprojectNativePlayerStatistics(actor);
+        return continueAffinity;
     }
 
     private void RefundNativeReservedItem(int slot, int id)

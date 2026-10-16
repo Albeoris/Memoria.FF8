@@ -22,7 +22,7 @@ public static class NativeRefinementMenuProjection
                 bool magicOutput = ability.Kind is 0 or 2;
                 string ingredientName = ability.Kind == 4 ? catalog.CardName(recipe.Ingredient) ?? $"Card {recipe.Ingredient}" : ability.Kind == 2 ? catalog.MagicName(recipe.Ingredient) ?? $"Magic {recipe.Ingredient}" : catalog.ItemName(recipe.Ingredient) ?? $"Item {recipe.Ingredient}";
                 string resultName = magicOutput ? catalog.MagicName(recipe.Output) ?? $"Magic {recipe.Output}" : catalog.ItemName(recipe.Output) ?? $"Item {recipe.Output}";
-                Dictionary<int, int> maxima = (magicOutput ? Enumerable.Range(0, 8) : [0]).ToDictionary(row => row, row => definitions.MaximumBatches(vitals, economy, state.CardInventory, abilityId, index, row));
+                Dictionary<int, int> maxima = (magicOutput ? Enumerable.Range(0, 8) : [0]).ToDictionary(row => row, row => magicOutput && (!vitals.IsMenuCharacterAvailable(row, state.WorldControls) || vitals.Records[row].HitPoints.Minimum != vitals.Records[row].HitPoints.Maximum) ? 0 : definitions.MaximumBatches(vitals, economy, state.CardInventory, abilityId, index, row));
                 data.Recipes.Add(new MenuRecipe($"native-refine-{abilityId}-{index}", ability.Name, $"{(ability.Kind == 4 ? "card" : ability.Kind == 2 ? "magic" : "item")}-{recipe.Ingredient}", recipe.IngredientCount, $"{(magicOutput ? "magic" : "item")}-{recipe.Output}", resultName, recipe.OutputCount) { NativeAbility = abilityId, NativeRecipeIndex = index, NativeKind = ability.Kind, IngredientName = ingredientName, MaximumBatches = maxima });
             }
         }

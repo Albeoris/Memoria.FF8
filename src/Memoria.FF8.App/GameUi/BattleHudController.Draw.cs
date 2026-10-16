@@ -35,9 +35,8 @@ public sealed partial class BattleHudController
         {
             return [];
         }
-        bool revive = action.Effect == BattleActionEffect.Revive || action.NativeAction?.AttackType is 5 or 6;
         bool fixedSelf = action.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        return session.Combatants.Where(actor => actor.IsActive && !actor.Untargetable && (actor.IsPlayer == caster.IsPlayer) == action.Allies && actor.IsAlive != revive && (!fixedSelf || actor == caster)).ToArray();
+        return session.Combatants.Where(actor => actor.IsActive && !actor.Untargetable && (actor.IsPlayer == caster.IsPlayer) == action.Allies && BattleSession.HasValidTargetLifeState(action, actor) && (!fixedSelf || actor == caster)).ToArray();
     }
 
     private bool CollectDrawTarget(BattleCombatant target)

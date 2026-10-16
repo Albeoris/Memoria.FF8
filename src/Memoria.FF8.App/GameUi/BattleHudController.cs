@@ -77,9 +77,8 @@ public sealed partial class BattleHudController
     public IReadOnlyList<BattleCombatant> Targets => SelectedCommand == BattleAbility.Draw ? DrawTargets() : session.Combatants.Where(actor =>
     {
         bool allies = SelectedCommand != BattleAbility.Attack && SelectedCommand != BattleAbility.Draw && SelectedAction?.Allies == true;
-        bool revive = SelectedCommand != BattleAbility.Draw && (SelectedAction?.Effect == BattleActionEffect.Revive || SelectedAction?.NativeAction?.AttackType is 5 or 6);
         bool fixedSelf = SelectedAction?.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        return actor.IsPlayer == allies && (!fixedSelf || actor.Id == SelectedActor?.Id) && (revive ? !actor.IsAlive : actor.IsAlive);
+        return actor.IsPlayer == allies && (!fixedSelf || actor.Id == SelectedActor?.Id) && (SelectedAction is { } action ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive);
     }).ToArray();
     public IReadOnlyList<BattleCombatant> VisibleTargets
     {

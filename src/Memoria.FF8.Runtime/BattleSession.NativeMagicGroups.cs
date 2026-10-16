@@ -4,6 +4,20 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class BattleSession
 {
+    public static bool HasValidTargetLifeState(BattleActionDefinition action, BattleCombatant target)
+    {
+        if (!target.IsActive)
+        {
+            return false;
+        }
+        if (!IsNativeRevive(action))
+        {
+            return target.IsAlive;
+        }
+        //491940/4935A0 route Life/Full-life against Zombie through491AD0 damage.
+        return !target.IsAlive || action.NativeAction?.AttackType is 5 or 6 && (NativeSavedStatusBits(target) & 0x40) != 0;
+    }
+
     public IReadOnlyList<int> GetNativeMagicCastCounts(string actorId, int spellId)
     {
         BattleCombatant actor = GetActor(actorId);
@@ -40,12 +54,11 @@ public sealed partial class BattleSession
         {
             throw new InvalidOperationException("Magic target groups require the current native Double/Triple status, sufficient stock and one installed spell.");
         }
-        bool revive = IsNativeRevive(action);
         ImmutableArray<ushort>.Builder masks = ImmutableArray.CreateBuilder<ushort>(targets.Count);
         foreach (string targetId in targets)
         {
             BattleCombatant target = GetActor(targetId);
-            if (!target.IsActive || target.Untargetable || (target.IsPlayer == actor.IsPlayer) != action.Allies || target.IsAlive == revive || NativeBattleLimitRules.IsFixedAllyTarget(flags) && target.Id != actor.Id)
+            if (!target.IsActive || target.Untargetable || (target.IsPlayer == actor.IsPlayer) != action.Allies || !HasValidTargetLifeState(action, target) || NativeBattleLimitRules.IsFixedAllyTarget(flags) && target.Id != actor.Id)
             {
                 throw new InvalidOperationException("Every selected magic target must satisfy the original spell's target contract.");
             }
@@ -77,12 +90,14 @@ public sealed partial class BattleSession
             {
                 break;
             }
-            CompleteGuardianForceAffinity(actor, cast);
             completed++;
-            if (!singleCost && !actor.TryConsumeMagic(command.ActionId))
+            //486A10 returns FF after clearing the last stock as well as when no stock exists.
+            //485610 exits before the next cast and this cast's affinity update in either case.
+            if (!singleCost && (!actor.TryConsumeMagic(command.ActionId) || !actor.NativeMagicInventory.Any(stock => stock.SpellId == command.ActionId && stock.Count > 0)))
             {
                 break;
             }
+            CompleteGuardianForceAffinity(actor, cast);
         }
         if (singleCost && completed != 0)
         {

@@ -58,8 +58,8 @@ public sealed partial class BattleSession
     private void CompleteNativeActionOwners(BattleCombatant actor, BattleActionPresentation command)
     {
         CompleteNativeOrdinaryCommand(actor, command);
-        CompleteNativeActionInventory(actor, command);
-        if (command.NativeMagicTargets.IsDefaultOrEmpty)
+        bool continueAffinity = CompleteNativeActionInventory(actor, command);
+        if (continueAffinity && command.NativeMagicTargets.IsDefaultOrEmpty)
         {
             CompleteGuardianForceAffinity(actor, command);
         }

@@ -283,6 +283,10 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(action), "World action duration must be between one and 30000 simulation frames.");
         }
+        if (NativeMagicMenuInput.IsMenuAction(action.Kind))
+        {
+            return ApplyMagicMenuAction(action);
+        }
         if (NativeJunctionMenuInput.IsMenuAction(action.Kind))
         {
             return ApplyJunctionMenuAction(action);

@@ -29,6 +29,10 @@ public sealed partial class EventEngine
             return false;
         }
         NativeRefinementDefinitions definitions = ResolveNativeRefinementDefinitions?.Invoke() ?? throw new NotSupportedException("Refinement requires original installed recipe definitions.");
+        if (definitions.Abilities[action.Value - 92].Kind is 0 or 2 && services.CharacterVitals?.IsMenuCharacterAvailable(row, services.WorldControls) != true)
+        {
+            throw new InvalidOperationException("Refinement selected a character outside the current native menu roster.");
+        }
         NativeRefinementResult next = definitions.Refine(services.CharacterVitals ?? throw new NotSupportedException("Refinement has no character owner."), services.Economy ?? throw new NotSupportedException("Refinement has no inventory owner."), services.CardInventory, action.Value, recipe, row, action.Quantity!.Value);
         if (activeMenu)
         {

@@ -37,14 +37,13 @@ public sealed partial class BattleSession
         BattleCombatant target = GetActor(targetId);
         BattleActionDefinition action = FindAction(ability == BattleAbility.Draw ? BattleAbility.Magic : ability, actionId);
         System.Collections.Immutable.ImmutableArray<ushort> magicMasks = PrepareNativeMagicTargets(actor, action, targetId, magicTargets);
-        bool revive = IsNativeRevive(action);
         if (action.NativeAction is { } native)
         {
             ValidateNativeActionContract(native);
             ValidateIndependentGuardianItem(actor, native);
         }
         bool allies = ability != BattleAbility.Draw && action.Allies;
-        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(ability) || target.Untargetable || !target.IsActive || (actor.IsPlayer == target.IsPlayer) != allies || (!target.IsAlive && !revive) || target.IsAlive && revive || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
+        if (Outcome != BattleOutcome.Active || !actor.IsReady || !actor.Abilities.Contains(ability) || target.Untargetable || !target.IsActive || (actor.IsPlayer == target.IsPlayer) != allies || !HasValidTargetLifeState(action, target) || HasStatus(actor, BattleStatusKind.Sleep) || ability is BattleAbility.Magic or BattleAbility.Draw && HasStatus(actor, BattleStatusKind.Silence))
         {
             throw new InvalidOperationException("Action requires an available command, a ready actor and a valid target.");
         }
