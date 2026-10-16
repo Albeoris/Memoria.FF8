@@ -376,7 +376,8 @@ public sealed partial class EventEngine
             case Jsm.Opcode.CLEAR:
                 SetEventMemory(EventMemory.Clear(256, 1280));
                 ClearWorldEntryMemory();
-                Scene.WorldMusicSelection = null;
+                // 51D8B0 clears the entire256..1279 bank, including268.
+                Scene.WorldMusicSelection = new NativeWorldMusicSelection(FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, null, 0, NativeWorldMusicSelectionOrigin.ExecutedClear);
                 break;
             case Jsm.Opcode.SETMODEL:
                 actor.ModelId = parameter;

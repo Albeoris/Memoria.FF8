@@ -3,7 +3,39 @@ using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeWorldMusicSelection(int FieldId, int ObjectId, int ScriptId, int Operation, long Frame, int RawOperand, byte Music);
+public enum NativeWorldMusicSelectionOrigin
+{
+    ExecutedStore,
+    ExecutedClear,
+    RetainedPhysicalByte
+}
+public sealed record NativeWorldMusicSelectionMigration(int Version, string Rule, string SourceSnapshotSha256);
+public sealed record NativeWorldMusicSelection(int? FieldId, int? ObjectId, int? ScriptId, int? Operation, long? Frame, int? RawOperand, byte Music, NativeWorldMusicSelectionOrigin Origin = NativeWorldMusicSelectionOrigin.ExecutedStore, NativeWorldMusicSelectionMigration? Migration = null)
+{
+    public const string MigrationRule = "ff8-en-retained-exact-byte268-migration-v1";
+
+    public static NativeWorldMusicSelection FromRetainedPhysicalByte(byte music, string sourceSnapshotSha256)
+    {
+        NativeWorldMusicSelection selection = new(null, null, null, null, null, null, music, NativeWorldMusicSelectionOrigin.RetainedPhysicalByte, new(1, MigrationRule, sourceSnapshotSha256));
+        selection.Validate();
+        return selection;
+    }
+
+    public void Validate()
+    {
+        if (Origin == NativeWorldMusicSelectionOrigin.RetainedPhysicalByte)
+        {
+            if (FieldId is not null || ObjectId is not null || ScriptId is not null || Operation is not null || Frame is not null || RawOperand is not null || Migration is not { Version: 1, Rule: MigrationRule, SourceSnapshotSha256: { Length: 64 } hash } || !hash.All(Uri.IsHexDigit))
+            {
+                throw new InvalidDataException("Retained world music requires its explicit exact-byte migration and no invented writer history.");
+            }
+        }
+        else if (Origin is not (NativeWorldMusicSelectionOrigin.ExecutedStore or NativeWorldMusicSelectionOrigin.ExecutedClear) || FieldId is null or < 72 || ObjectId is null or < 0 || ScriptId is null or < 0 || Operation is null or < 0 || Frame is null or < 0 || Migration is not null || Origin == NativeWorldMusicSelectionOrigin.ExecutedStore && (RawOperand is not int raw || Music != unchecked((byte)raw)) || Origin == NativeWorldMusicSelectionOrigin.ExecutedClear && (RawOperand is not null || Music != 0))
+        {
+            throw new InvalidDataException("World music selection lost its actual BYTE268 store or CLEAR producer.");
+        }
+    }
+}
 public enum NativeWorldMusicOperation
 {
     Keep,
@@ -42,6 +74,7 @@ public sealed partial class EventEngine
         ArgumentNullException.ThrowIfNull(packet);
         ArgumentNullException.ThrowIfNull(resolveResource);
         NativeWorldMusicSelection selection = Scene.WorldMusicSelection ?? throw new NotSupportedException("World music needs its executed BYTE268 selection; the snapshot is missing required native state");
+        selection.Validate();
         NativeMusicProcessState process = Scene.MusicProcess ?? throw new NotSupportedException("World music requires the current native music process.");
         if (UnsupportedNativeMusicAliases(EventMemory) is string aliases)
         {
@@ -140,14 +173,19 @@ public sealed partial class EventEngine
     {
         if (saved.Scene.WorldMusicSelection is NativeWorldMusicSelection selection)
         {
-            if (selection.Music != unchecked((byte)selection.RawOperand) || saved.EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
+            selection.Validate();
+            if (saved.EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
             {
                 throw new InvalidDataException("Saved world music selection lost its executed BYTE268 writer.");
             }
-            ValidateMusicRequestSite(saved, selection.FieldId, selection.ObjectId, selection.ScriptId, selection.Operation, selection.Frame, Jsm.Opcode.POPM_B);
-            if (selection.FieldId == saved.FieldId && program!.Operations[selection.Operation].Parameter != 268)
+            if (selection.Origin != NativeWorldMusicSelectionOrigin.RetainedPhysicalByte)
             {
-                throw new InvalidDataException("Saved world music selection points to a different memory operand.");
+                Jsm.Opcode opcode = selection.Origin == NativeWorldMusicSelectionOrigin.ExecutedClear ? Jsm.Opcode.CLEAR : Jsm.Opcode.POPM_B;
+                ValidateMusicRequestSite(saved, selection.FieldId!.Value, selection.ObjectId!.Value, selection.ScriptId!.Value, selection.Operation!.Value, selection.Frame!.Value, opcode);
+                if (opcode == Jsm.Opcode.POPM_B && selection.FieldId == saved.FieldId && program!.Operations[selection.Operation.Value].Parameter != 268)
+                {
+                    throw new InvalidDataException("Saved world music selection points to a different memory operand.");
+                }
             }
         }
         if (saved.Scene.WorldMusicLoad is not NativeWorldMusicLoad load)

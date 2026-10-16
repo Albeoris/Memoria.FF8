@@ -1,4 +1,5 @@
 using System.Numerics;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -122,9 +123,7 @@ public static class FieldNativeCameraProbe
         // Original B693D8 magic double under the PC nearest-even precision53
         // control word027F. Decode the stored low DWORD exactly as45FAA0 does;
         // converting to int first would lose native wrap outside signed range.
-        const double magic = 4503601774854144.0; // 2^52 + 2^31.
-        double stored = value + magic;
-        return unchecked((int)BitConverter.DoubleToInt64Bits(stored) + int.MinValue);
+        return NativePrecision53.RoundInteger(value);
     }
 
     private static bool TryAxis(Vector3 value, out FieldNativeCameraPoint axis)

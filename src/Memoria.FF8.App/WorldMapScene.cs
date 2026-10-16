@@ -312,8 +312,8 @@ internal sealed partial class WorldMapScene : IDisposable
                 uint buttons = gardenAction && index == 0 ? 0x40u : 0;
                 if (action.Kind == PlayerActionKind.Move)
                 {
-                    buttons |= action.Vertical < 0 ? 0x80u : action.Vertical > 0 ? 0x10u : 0;
-                    buttons |= action.Horizontal < 0 ? 0x2000u : action.Horizontal > 0 ? 0x8000u : 0;
+                    buttons |= action.Vertical == -1 ? 0x80u : action.Vertical == 1 ? 0x10u : 0;
+                    buttons |= action.Horizontal == -1 ? 0x2000u : action.Horizontal == 1 ? 0x8000u : 0;
                 }
                 candidate = Step(candidate, action.Kind == PlayerActionKind.Move ? action.Horizontal : 0, action.Kind == PlayerActionKind.Move ? action.Vertical : 0, action.CameraHorizontal, priorGraphics, buttons, salary.WorldEntryMemory, out bool consumeGardenRequest, out NativeGardenWorldObject? boardingTarget, out fieldEntry, out uint movementUnits, out int graphicsSpeed);
                 if (consumeGardenRequest)

@@ -5,6 +5,13 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeGardenTransferTests
 {
     [Fact]
+    public void ReachedWakeAngleUsesTheProvedPrecision53StoredIntegerContract()
+    {
+        Assert.Equal((2244, -3427), NativeGardenTransform.Offset(4096, 5766));
+        Assert.Equal(-3427, NativePrecision53.RoundInteger(-3426.5000430720015));
+    }
+
+    [Fact]
     public void LoweringAddsItsRoundedWordOnAllThirtyOneCallbacksAndRestoresIndependently()
     {
         NativeGardenTransferState state = NativeGardenTransferState.Create(10, 2, 0, new NativeWorldPathPosition(700, -200, 0));

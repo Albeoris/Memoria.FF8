@@ -34,6 +34,7 @@ internal static partial class Program
                     ["native-actor-visibility"] = () => NativeActorVisibilityContract(selectedGameDirectory),
                     ["native-request-physical-alias"] = () => NativeRequestPhysicalAliasContract(selectedGameDirectory),
                     ["native-world-entry-memory"] = () => NativeWorldEntryMemoryContract(selectedGameDirectory),
+                    ["native-world-music-selection"] = () => NativeWorldMusicSelectionContract(selectedGameDirectory),
                     ["native-maccel"] = NativeMovementAccelerationContract,
                     ["native-model-door"] = () => NativeModelDoorContract(selectedGameDirectory),
                     ["native-sethp"] = () => NativeSetHitPointsContract(selectedGameDirectory),
