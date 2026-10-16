@@ -47,7 +47,7 @@ public sealed partial class EventEngine
     private bool userControlSequenceDisabled;
     public bool IsUserControlEnabled
     {
-        get => partyMenu is null && userControlEnabled && (NativeRuntimeProfile is not { IsVerified: true } || defaultsStarted);
+        get => Scene.NativeTutorial is null && Scene.NativeMenuTutorial is null && partyMenu is null && userControlEnabled && (NativeRuntimeProfile is not { IsVerified: true } || defaultsStarted);
         private set => userControlEnabled = value;
     }
     public bool IsDialogueOpen => dialogues.Count != 0;
@@ -243,12 +243,21 @@ public sealed partial class EventEngine
         {
             throw new ArgumentOutOfRangeException(nameof(elapsed), "Field updates must be between zero and ten seconds.");
         }
+        if (Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
+        {
+            return;
+        }
         accumulatedSeconds += elapsed.TotalSeconds;
         double secondsPerFrame = 1d / SimulationFps;
         while (accumulatedSeconds + 1e-9 >= secondsPerFrame)
         {
             accumulatedSeconds -= secondsPerFrame;
             Step();
+            if (Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
+            {
+                accumulatedSeconds = 0;
+                break;
+            }
             if (transitionRequested)
             {
                 break;
@@ -278,7 +287,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        if (HasPendingBattle || PendingTripleTriad is not null)
+        if (HasPendingBattle || PendingTripleTriad is not null || Scene.NativeTutorial is not null || Scene.NativeMenuTutorial is not null)
         {
             return;
         }
@@ -474,7 +483,7 @@ public sealed partial class EventEngine
 
     public bool TalkTo(int objectId, bool cardChallenge = false)
     {
-        if (program is null || transitionRequested || PendingTripleTriad is not null || services.IsMoviePlaying || !IsUserControlEnabled || IsDialogueBlocking || objectId < 0 || objectId >= actors.Count || !actors[objectId].Active || !actors[objectId].TalkEnabled)
+        if (program is null || transitionRequested || PendingTripleTriad is not null || Scene.NativeTutorial is not null || services.IsMoviePlaying || !IsUserControlEnabled || IsDialogueBlocking || objectId < 0 || objectId >= actors.Count || !actors[objectId].Active || !actors[objectId].TalkEnabled)
         {
             return false;
         }
@@ -824,6 +833,7 @@ public sealed partial class EventEngine
             WaitReason.NativeMovementFlush => false,
             WaitReason.WorldJump => false,
             WaitReason.TripleTriad => false,
+            WaitReason.NativeTutorial => false,
             WaitReason.NativePartyMenu => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,
             WaitReason.MinimalBattle => Frame >= fiber.WaitUntil && Scene.NativeBattleCompletions![Scene.NativeBattleWaits![fiber.Sequence]].ReturnFrame is not null,

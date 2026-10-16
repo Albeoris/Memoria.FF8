@@ -88,6 +88,7 @@ internal static partial class Program
                     },
                     ["native-player-contacts"] = () => NativePlayerGroundContactContract(selectedGameDirectory),
                     ["world-transition"] = () => NativeWorldTransitionTransaction(selectedGameDirectory),
+                    ["native-tutorial"] = NativeTutorialContract,
                     ["minimal-menu"] = () => MinimalMenuCompletionContract(selectedGameDirectory),
                     ["party-query"] = () => NativePartyQueryContract(selectedGameDirectory),
                     ["inactive-party-request"] = () =>

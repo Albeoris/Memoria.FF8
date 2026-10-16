@@ -66,10 +66,22 @@ internal static class MenuPreview
             throw new ArgumentException("Menu preview requires --output <PNG>, optional --screen <screen-id|battle-debug>, --state <standalone.json>, --character <menu-id>, --expanded and --resolution WxH.");
         }
         UiView view;
+        using GameWorld? tutorialWorld = screen == "native-tutorial" && statePath is not null ? new(new GameSession(GameSession.Load(statePath)), gameDirectory) : null;
         using var mods = new Memoria.FF8.Mods.ModRuntime(watch: false);
         mods.PreparePending(true);
         mods.CommitPending();
-        if (screen == "triple-triad")
+        if (screen == "native-tutorial")
+        {
+            if (tutorialWorld is null)
+            {
+                throw new ArgumentException("Native tutorial preview requires a standalone --state with a pending tutorial.");
+            }
+            tutorialWorld.EnsureField();
+            NativeTutorialPlayer tutorial = tutorialWorld.Tutorial ?? throw new InvalidOperationException("No native tutorial is active in this snapshot.");
+            tutorial.RefreshPresentation();
+            view = tutorial.Menu.BuildView();
+        }
+        else if (screen == "triple-triad")
         {
             if (statePath is null)
             {
@@ -104,6 +116,12 @@ internal static class MenuPreview
                 liveData = LiveMenuData.Build(state, catalog: LiveMenuCatalog.ReadInstalled(assets));
             }
             MenuController menus = liveData is null ? new() : new(() => liveData);
+            if (screen.StartsWith("tutorial", StringComparison.Ordinal))
+            {
+                using GameAssets assets = new(gameDirectory);
+                IReadOnlySet<int> previewUnlocks = statePath is null ? Enumerable.Range(62, 9).ToHashSet() : new HashSet<int>();
+                menus.ConnectNativeTutorials(assets.ReadNativeTutorialCatalog(), assets.ReadNativeTutorialBrowserCatalog(), () => previewUnlocks, _ => throw new NotSupportedException("Start a native tutorial through its saved request for playback preview."));
+            }
             menus.ConnectMods(mods);
             menus.ConnectPreferences(() => preferences, action => preferences = preferences.WithSetting(action.SubjectId, action.Value));
             Dictionary<int, string> names = Enumerable.Range(0, 43).Where(GameNames.IsValidSubject).ToDictionary(subject => subject, GameNames.DefaultName);

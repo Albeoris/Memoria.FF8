@@ -89,6 +89,7 @@ public sealed partial class MenuController
             Place(page, content, 1);
             Place(page, Footer(), 2);
         }
+        AddTutorialMessage(anchored);
         _view = new UiView(root) { DesignWidth = 960, DesignHeight = 672, Cancel = Back };
         _view.Resize(960, 672);
         var focusables = FocusableDescendants(root).ToArray();

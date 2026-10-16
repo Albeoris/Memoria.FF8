@@ -13,7 +13,7 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Projects canonical session owners and supported input kinds without creating or mutating native state.</summary>
 public static class LiveMenuData
 {
-    public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null)
+    public static MenuData Build(GameState state, IReadOnlyDictionary<int, string>? names = null, LiveMenuCatalog? catalog = null, IReadOnlySet<int>? visibleCharacterRows = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         MenuData result = new()
@@ -50,7 +50,7 @@ public static class LiveMenuData
                 NativeCharacterVital native = vitals.Records[row];
                 bool inParty = vitals.CombatParty.Contains((byte)row);
                 bool member = native.CharacterId < 8 ? (native.MemberFlags & 1) != 0 : state.WorldControls is { } controls && (controls.EventFlags104 & (1u << (native.CharacterId - 8))) != 0;
-                if (!inParty && !member)
+                if (!inParty && !member && visibleCharacterRows?.Contains(row) != true)
                 {
                     continue;
                 }

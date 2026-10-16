@@ -154,6 +154,14 @@ public sealed partial class MenuController
         {
             return;
         }
+        if (TryNavigateNativeTutorialBrowser(input))
+        {
+            return;
+        }
+        if (TryNavigateNativeTutorialExam(input))
+        {
+            return;
+        }
         if (IsSelectingCharacter)
         {
             NavigateCharacterSelection(input);
@@ -423,6 +431,14 @@ public sealed partial class MenuController
     public void Execute(MenuAction action)
     {
         _view = null;
+        if (TryExecuteNativeTutorialBrowser(action))
+        {
+            return;
+        }
+        if (TryExecuteNativeTutorialExam(action))
+        {
+            return;
+        }
         if (ExecuteModAction(action))
         {
             return;

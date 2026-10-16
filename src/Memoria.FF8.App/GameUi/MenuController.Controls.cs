@@ -43,6 +43,15 @@ public sealed partial class MenuController
         _view = null;
     }
 
+    internal void ConnectReadOnlyTutorialControls(Func<ControlsProfile> read, Func<ControllerPresentation> presentation, Func<ControlDevice> inputDevice)
+    {
+        _readControls = read;
+        _writeControls = null;
+        _readControllerPresentation = presentation;
+        _readControlDevice = inputDevice;
+        _view = null;
+    }
+
     internal void RegisterControlsScreens()
     {
         Register(new MenuScreenDefinition

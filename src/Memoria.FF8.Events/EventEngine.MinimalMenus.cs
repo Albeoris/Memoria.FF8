@@ -16,9 +16,16 @@ public sealed partial class EventEngine
 {
     private string? UnsupportedMinimalMenu(Fiber fiber, JsmOperation operation)
     {
-        if (operation.Opcode == Jsm.Opcode.MENUTUTO)
+        if (operation.Opcode is Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO)
         {
-            return null;
+            if (Scene.NativeTutorial is not null || PendingTripleTriad is not null || HasPendingBattle || transitionRequested || services.IsMoviePlaying || partyMenu is not null || synchronousFieldInitialization)
+            {
+                return "Native tutorial requires its ordinary issuing field fiber without a competing scene owner";
+            }
+            if (operation.Opcode == Jsm.Opcode.MENUTUTO)
+            {
+                return null;
+            }
         }
         if (operation.Opcode is not (Jsm.Opcode.TUTO or Jsm.Opcode.MENUNAME))
         {
@@ -49,26 +56,15 @@ public sealed partial class EventEngine
 
     private void CompleteMinimalMenu(Fiber fiber, Jsm.Opcode opcode, int argument)
     {
-        // TODO(TD-011): replace automatic menu completion with the original menu UI
-        bool tutorial = opcode is Jsm.Opcode.TUTO or Jsm.Opcode.MENUTUTO;
-        bool browser = opcode == Jsm.Opcode.MENUTUTO;
-        int menuId = browser ? 26 : 29;
-        int? guardianForce = null;
-        if (!tutorial)
+        // TODO(TD-011): replace automatic GF naming with the original menu UI
+        if (opcode != Jsm.Opcode.MENUNAME || !TryNativeGuardianForceName(argument, out int menuId, out int guardianForceId))
         {
-            if (!TryNativeGuardianForceName(argument, out menuId, out int guardianForceId))
-            {
-                throw new InvalidOperationException("Character naming must use its existing name prompt rather than a GF completion.");
-            }
-            guardianForce = guardianForceId;
+            throw new InvalidOperationException("Only GF naming uses automatic minimal menu completion.");
         }
-        MinimalMenuCompletion completion = new(1, browser ? MinimalMenuKind.TutorialBrowser : tutorial ? MinimalMenuKind.Tutorial : MinimalMenuKind.GuardianForceName, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, argument, menuId, browser ? (byte)1 : tutorial ? (byte)argument : (byte)1, guardianForce);
-        if (guardianForce is int id)
-        {
-            // Native47E480 ORs mask1 only, preserving every other saved GF input
-            // and its last produced maximum. Acquisition does not rebuild stats.
-            CommitSavedCharacters(fiber, services.CharacterVitals!.AcquireGuardianForce(id), opcode);
-        }
+        MinimalMenuCompletion completion = new(1, MinimalMenuKind.GuardianForceName, FieldId, programHash, Frame, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, argument, menuId, 1, guardianForceId);
+        // Native47E480 ORs mask1 only, preserving every other saved GF input
+        // and its last produced maximum. Acquisition does not rebuild stats.
+        CommitSavedCharacters(fiber, services.CharacterVitals!.AcquireGuardianForce(guardianForceId), opcode);
         Scene.MinimalMenuWaits.Add(fiber.Sequence, Scene.MinimalMenuCompletions.Count);
         Scene.MinimalMenuCompletions.Add(completion);
         // Native return3 advances the PC and ends this instruction budget.

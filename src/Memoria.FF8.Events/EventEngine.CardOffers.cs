@@ -10,7 +10,7 @@ public sealed partial class EventEngine
     /// <summary>Read-only native challenge analysis. Unknown predicates and unsupported paths produce no offer.</summary>
     public IReadOnlyList<RareCardOffer> GetRareCardOffers()
     {
-        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || services.IsMoviePlaying || HasPendingBattle || PendingTripleTriad is not null || !IsUserControlEnabled || IsDialogueOpen || services.CardInventory is not NativeCardInventory cards)
+        if (program is null || !defaultsStarted || transitionRequested || LastFault is not null || services.IsMoviePlaying || HasPendingBattle || PendingTripleTriad is not null || Scene.NativeTutorial is not null || !IsUserControlEnabled || IsDialogueOpen || services.CardInventory is not NativeCardInventory cards)
         {
             return [];
         }

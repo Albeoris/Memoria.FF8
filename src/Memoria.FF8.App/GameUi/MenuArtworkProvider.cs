@@ -9,6 +9,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
 {
     private NativeMenuArtwork? portraits;
     private CardArtwork? cards;
+    private NativeTutorialArtwork? tutorials;
 
     public PixelImage Read(UiImageSource source)
     {
@@ -19,6 +20,7 @@ internal sealed class MenuArtworkProvider(string gameDirectory)
             UiImageKind.Card => (cards ??= CardArtwork.Load(gameDirectory)).GetFront(source.Id),
             UiImageKind.CardBack => (cards ??= CardArtwork.Load(gameDirectory)).Back,
             UiImageKind.Icon => (portraits ??= NativeMenuArtwork.Load(gameDirectory)).GetIcon(source.Id, source.Palette),
+            UiImageKind.NativeTutorialPage => (tutorials ??= NativeTutorialArtwork.Load(gameDirectory)).Read(source.Id),
             _ => throw new NotSupportedException($"Unsupported menu artwork kind {source.Kind}.")
         };
     }

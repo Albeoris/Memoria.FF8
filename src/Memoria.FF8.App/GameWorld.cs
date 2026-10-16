@@ -411,6 +411,10 @@ internal sealed partial class GameWorld : IDisposable
     public PlayerActionResult Apply(PlayerAction action)
     {
         EnsureField();
+        if (Events.Scene.NativeTutorial is not null || Events.Scene.NativeMenuTutorial is not null)
+        {
+            return ApplyNativeTutorial(action);
+        }
         if (action.Kind is PlayerActionKind.TriadSelectCard or PlayerActionKind.TriadPlaceCard or PlayerActionKind.TriadAutoMove or PlayerActionKind.TriadTradeCard || Events.PendingTripleTriad is not null && action.Kind is PlayerActionKind.Confirm or PlayerActionKind.Cancel or PlayerActionKind.Wait)
         {
             return ApplyTripleTriad(action);

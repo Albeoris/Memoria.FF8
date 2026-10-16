@@ -712,7 +712,7 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.TUTO:
                 args = Pop(fiber, 1);
-                CompleteMinimalMenu(fiber, opcode, args[0]);
+                RequestNativeTutorial(fiber, opcode, args[0]);
                 break;
             case Jsm.Opcode.MENUPHS:
             case Jsm.Opcode.MENUSAVE:
@@ -723,7 +723,7 @@ public sealed partial class EventEngine
                 args = RequestNativeShop(fiber);
                 break;
             case Jsm.Opcode.MENUTUTO:
-                CompleteMinimalMenu(fiber, opcode, 0);
+                RequestNativeTutorial(fiber, opcode, 0);
                 break;
             case Jsm.Opcode.RUNENABLE:
             case Jsm.Opcode.RUNDISABLE:

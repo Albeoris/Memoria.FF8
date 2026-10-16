@@ -4,6 +4,7 @@ using System.Text;
 using Memoria.FF8.Runtime;
 using Memoria.FF8.Assets;
 using Memoria.FF8.Events;
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Rendering;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -436,7 +437,7 @@ internal sealed partial class RecreateGame : Game
                     events.Step();
                     metrics.Simulate(1);
                 }
-                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null)
+                if (session.State.Scene != SceneKind.Field || session.State.FieldId != field!.Id || events.NextTrigger.Kind == PlayerTriggerKind.FieldTransition || events.PendingInteractiveBattle is not null || events.PendingTripleTriad is not null || events.Scene.NativeTutorial is not null)
                 {
                     fieldSeconds = 0;
                     return;
@@ -764,6 +765,17 @@ internal sealed partial class RecreateGame : Game
         }
         else if (request.Command.Equals("action", StringComparison.OrdinalIgnoreCase) || request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase))
         {
+            if (world?.Tutorial is NativeTutorialPlayer player)
+            {
+                PlayerAction tutorialAction = request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase) ? new PlayerAction(PlayerActionKind.Wait, Frames: request.Frames) : request.Action ?? throw new ArgumentException("An action payload is required.");
+                if (tutorialAction.Kind is not (PlayerActionKind.Wait or PlayerActionKind.Confirm or PlayerActionKind.Cancel))
+                {
+                    throw new InvalidOperationException("The native tutorial owns input until its original close boundary.");
+                }
+                PresentTutorial(player);
+                ApplyTutorialInput(tutorialAction);
+                return ControlStatus(request.Compact);
+            }
             if (gameMenus?.IsOpen == true)
             {
                 throw new InvalidOperationException("Close the UI before advancing the game-owned simulation.");

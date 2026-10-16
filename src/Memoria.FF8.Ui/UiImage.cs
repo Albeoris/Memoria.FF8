@@ -6,7 +6,8 @@ public enum UiImageKind
     GuardianForcePortrait,
     Card,
     Icon,
-    CardBack
+    CardBack,
+    NativeTutorialPage
 }
 
 /// <summary>Stable artwork identity, independent of translated or player-assigned display names.</summary>

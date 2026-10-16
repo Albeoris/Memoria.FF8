@@ -31,6 +31,7 @@ internal sealed partial class RecreateGame
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
+        ConnectNativeTutorialUi();
         gameMenus.ScreenOpened += screen =>
         {
             if (!gameMenus.IsDemo && screen is "main" or "card")
@@ -278,6 +279,10 @@ internal sealed partial class RecreateGame
 
     private bool UpdateGameUi(TimeSpan elapsed, InputFrame input)
     {
+        if (UpdateNativeTutorialUi(elapsed, input))
+        {
+            return true;
+        }
         if (gameMenus is null)
         {
             return false;
@@ -479,6 +484,24 @@ internal sealed partial class RecreateGame
             throw new InvalidOperationException("UI is not initialized.");
         }
         UiControlCommand command = request.Ui ?? new UiControlCommand();
+        NativeTutorialPlayer? tutorial = world?.Tutorial;
+        if (tutorial is not null)
+        {
+            PresentTutorial(tutorial);
+            if (request.Command.Equals("ui-close", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyTutorialInput(new PlayerAction(PlayerActionKind.Cancel));
+            }
+            else if (request.Command.Equals("ui-input", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyTutorialInput(new PlayerAction(command.Input switch { MenuInput.Confirm => PlayerActionKind.Confirm, MenuInput.Cancel => PlayerActionKind.Cancel, null => PlayerActionKind.Wait, _ => throw new InvalidOperationException("The tutorial owns semantic menu selection; only confirmation/cancellation is player input.") }));
+            }
+            else if (!request.Command.Equals("ui-status", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Close the native tutorial at its original confirmation boundary before opening another menu.");
+            }
+            return GameUiStatus()!;
+        }
         bool nativeMainWasOpen = IsNativeGridMenuActive && gameMenus.IsOpen && !gameMenus.IsDemo;
         if (request.Command.Equals("ui-close", StringComparison.OrdinalIgnoreCase))
         {
@@ -517,6 +540,6 @@ internal sealed partial class RecreateGame
 
     private object? GameUiStatus()
     {
-        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex };
+        return gameMenus is null ? null : new { gameMenus.IsOpen, gameMenus.IsDemo, gameMenus.ScreenId, gameMenus.Message, gameMenus.ScreenIds, Entries = gameMenus.Entries.Select(entry => new { entry.Id, entry.Label, entry.Enabled }).ToArray(), gameMenus.SelectedIndex, Tutorial = world?.Tutorial?.Status };
     }
 }

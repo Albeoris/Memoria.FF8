@@ -26,6 +26,7 @@ internal static class HeadlessControlHost
             session.State.Scene, session.State.FieldId, session.State.FieldName, session.State.FieldArrival,
             session.State.MovieIndex, session.State.MovieSeconds, session.State.MoviePlayback, World = session.State.World,
             Trigger = world.NextTrigger, Dialogue = world.CurrentDialogue,
+            TutorialRequest = world.Events.Scene.NativeTutorial, MenuTutorialRequest = world.Events.Scene.NativeMenuTutorial, Tutorial = world.Tutorial?.Status,
             PartyMenu = world.Events.PartyMenu, PartyMenuCandidates = world.Events.PartyMenuCandidates,
             FieldBars = session.State.FieldBars,
             IsUserControlEnabled = session.State.Scene == SceneKind.WorldMap || world.Events.IsUserControlEnabled,
@@ -100,7 +101,7 @@ internal static class HeadlessControlHost
                             {
                                 session.SetDialogueDraft(null);
                             }
-                            if (!applied.Accepted || session.State.FieldId != firstField || session.State.Scene != firstScene || world.CurrentDialogue?.CanConfirm == true || world.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.Battle or PlayerTriggerKind.Faulted)
+                            if (!applied.Accepted || session.State.FieldId != firstField || session.State.Scene != firstScene || world.CurrentDialogue?.CanConfirm == true || world.NextTrigger.Kind is PlayerTriggerKind.FieldTransition or PlayerTriggerKind.Battle or PlayerTriggerKind.Tutorial or PlayerTriggerKind.Faulted)
                             {
                                 break;
                             }

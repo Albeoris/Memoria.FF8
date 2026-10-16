@@ -206,7 +206,7 @@ internal static class HeadlessPlayer
                         break;
                     }
                 }
-                if (!result.Accepted || result.Trigger.Kind is PlayerTriggerKind.Dialogue or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.Movie or PlayerTriggerKind.Faulted)
+                if (!result.Accepted || result.Trigger.Kind is PlayerTriggerKind.Dialogue or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.Movie or PlayerTriggerKind.Tutorial or PlayerTriggerKind.Faulted)
                 {
                     break;
                 }

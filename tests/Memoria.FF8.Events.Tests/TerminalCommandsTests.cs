@@ -67,15 +67,16 @@ internal static partial class Program
         GameSession menuSession = new(new GameState());
         EventEngine menu = new(menuSession);
         byte[] content = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.MENUTUTO, 0), (Jsm.Opcode.POPM_B, 5000), (Jsm.Opcode.RET, 0));
-        menu.LoadField(600, content, []);
+        menu.LoadField(600, NativeTutorialOrdinaryProgram(content), []);
         menu.Step();
-        Require(menu.Scene.MinimalMenuCompletions.Single() is { Kind: MinimalMenuKind.TutorialBrowser, RawArgument: 0, MenuId: 26, Selection: 1, GuardianForceId: null } && !menuSession.State.Variables.ContainsKey(5000), "MENUTUTO changed its zero-operand request or immediate return3 yield.");
+        menu.Step();
+        Require(menu.Scene.NativeTutorial is { RawArgument: 0, MenuId: 26, TutorialId: null } && menu.Scene.MinimalMenuCompletions.Count == 0 && !menuSession.State.Variables.ContainsKey(5000), "MENUTUTO changed its zero-operand request or immediate return3 yield.");
         GameSession menuRestoredSession = new(new GameState());
         EventEngine menuRestored = new(menuRestoredSession);
-        menuRestored.LoadField(600, content, []);
+        menuRestored.LoadField(600, NativeTutorialOrdinaryProgram(content), []);
         menuRestored.Restore(menu.Capture());
-        menu.Step();
-        menuRestored.Step();
+        menu.CompleteNativeTutorial();
+        menuRestored.CompleteNativeTutorial();
         Require(menuSession.State.Variables[5000] == 77 && JsonElement.DeepEquals(menu.Capture(), menuRestored.Capture()), "MENUTUTO consumed an operand or lost its exact next-update continuation.");
         Console.WriteLine("Terminal commands: LSCROLL2 widths/history/inclusive endpoint/zero duration/refusal/layer0 ownership and zero-operand MENUTUTO restored yield passed.");
     }

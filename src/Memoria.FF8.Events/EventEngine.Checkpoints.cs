@@ -43,7 +43,8 @@ public enum WaitReason
     NativeBackgroundShade,
     NativeTurnCompletion,
     NativeMovementFlush,
-    TripleTriad
+    TripleTriad,
+    NativeTutorial
 }
 
 public sealed partial class EventEngine
@@ -525,6 +526,7 @@ public sealed partial class EventEngine
         ValidateNativeCopiedPositions(saved);
         ValidateWorldTransitionCheckpoint(saved, bySequence, IsDormantWorldReturnCheckpoint(snapshot));
         ValidateMinimalMenuCheckpoint(saved, bySequence);
+        ValidateNativeTutorialCheckpoint(saved, bySequence);
         ValidatePartyMenuCheckpoint(saved, bySequence);
         ValidateNativeBattleCheckpoint(saved, bySequence);
         ValidateTripleTriadCheckpoint(saved, bySequence);

@@ -199,6 +199,14 @@ public sealed class SceneEventState
     [JsonInclude]
     public int NativePlayerMovementVersion { get; internal set; }
     public List<int> NativeActorObjectIds { get; } = [];
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeTutorialRequest? NativeTutorial { get; internal set; }
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeMenuTutorialRequest? NativeMenuTutorial { get; internal set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public System.Text.Json.JsonElement? NativeTutorialPlayback { get; set; }
     public SortedSet<int> UnlockedTutorials { get; } = [];
     public List<MinimalMenuCompletion> MinimalMenuCompletions { get; } = [];
     public Dictionary<long, int> MinimalMenuWaits { get; } = [];
