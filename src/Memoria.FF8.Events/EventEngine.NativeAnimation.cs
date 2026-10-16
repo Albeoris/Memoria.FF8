@@ -83,6 +83,10 @@ public sealed partial class EventEngine
                 throw new NotSupportedException("Native model binding requires the represented original model mapping.");
             }
             int bound = actor.ModelId is -1 or ushort.MaxValue ? -1 : actor.ModelId;
+            if (actor.NativeEyes is { Mode: not 0 } retainedEyes && retainedEyes.BoundModelId != bound)
+            {
+                throw new NotSupportedException("Native model binding cannot replace a retained eye resource without a proved backend rebind contract.");
+            }
             actor.NativeAnimationHeader = RequireNativeAnimationHeader(actor) with { BoundModelId = bound };
             SelectNativeBodyAnimation(actor, unchecked((byte)actor.BaseAnimationId), AnimationRepeating);
         }

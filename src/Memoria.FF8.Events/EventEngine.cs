@@ -209,6 +209,7 @@ public sealed partial class EventEngine
                 actors[^1].RunAnimationId = 0;
                 actors[^1].NativeBaseAnimationVersion = 1;
                 actors[^1].NativeAnimationHeader = new NativeActorAnimationHeader(1, 255, 0, 16, 0, 0, 0, null);
+                actors[^1].NativeEyes = new NativeActorEyes(1, 0, null, null, null);
                 actors[^1].NativeAnimationBackup = new NativeActorAnimationBackup(1, 0, 0, 0, 0, 0, 0);
                 actors[^1].NativeShadowAllocation = new NativeActorShadowAllocation(1, fieldId, obj.Index, programHash, nativeRuntimeProfile.ExecutableHash, 96);
                 //Fresh52BC00 writes actual actor BYTE394/395/396=128; generic objects have no such producer.
@@ -620,7 +621,7 @@ public sealed partial class EventEngine
             }
             int operationIndex = fiber.Position;
             JsmOperation operation = program.Operations[operationIndex];
-            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedNativeActorReturn(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
+            string? unsupportedContext = UnsupportedFieldInitializationInstruction(fiber, operation) ?? UnsupportedNativeAnimation(fiber, operation) ?? UnsupportedNativeEyes(fiber, operation) ?? UnsupportedNativeRequestHeaderWrite(fiber, operation) ?? UnsupportedNativeActorReturn(fiber, operation) ?? UnsupportedDirectedLinearTurn(fiber, operation) ?? UnsupportedNativeActorVisibility(fiber, operation) ?? UnsupportedRequestContext(fiber, operation) ?? UnsupportedNativeRequestTiming(fiber, operation);
             if (!Supports(operation.Opcode) || unsupportedContext is not null)
             {
                 string reason = unsupportedContext ?? $"Unsupported required opcode {operation.Opcode} (parameter {operation.Parameter})";

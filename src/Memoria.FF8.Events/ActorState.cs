@@ -58,6 +58,9 @@ public sealed class ActorState
     public NativeActorAnimationHeader? NativeAnimationHeader { get; internal set; }
     [JsonInclude]
     [JsonRequired]
+    public NativeActorEyes? NativeEyes { get; internal set; }
+    [JsonInclude]
+    [JsonRequired]
     public NativeActorAnimationBackup? NativeAnimationBackup { get; internal set; }
     /// <summary>Physical actor bytes594..596, zeroed by fresh530710 allocation and written by51DA00.</summary>
     [JsonInclude]

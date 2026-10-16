@@ -170,6 +170,7 @@ public sealed partial class EventEngine
             }
         }
         ValidateNativeAnimationCheckpoint(saved);
+        ValidateNativeEyes(saved.Actors);
         if (snapshot.GetProperty("Dialogues").EnumerateArray().Any(dialogue => !dialogue.TryGetProperty("CanConfirm", out _)))
         {
             throw new InvalidDataException("Saved dialogue lacks native confirmability; the snapshot is missing required native state");

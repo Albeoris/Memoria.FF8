@@ -31,6 +31,10 @@ public sealed partial class EventEngine
                 break;
             case Jsm.Opcode.NOP:
                 break;
+            case Jsm.Opcode.OPENEYES:
+            case Jsm.Opcode.CLOSEEYES:
+                actor.NativeEyes = PrepareNativeEyes(actor, opcode == Jsm.Opcode.CLOSEEYES);
+                break;
             case Jsm.Opcode.DISPBAR:
             case Jsm.Opcode.SETBAR:
             case Jsm.Opcode.KILLBAR:

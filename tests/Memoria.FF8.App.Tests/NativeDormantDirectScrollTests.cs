@@ -19,7 +19,16 @@ public sealed class NativeDormantDirectScrollTests
         JsonElement checkpoint = document.RootElement.GetProperty("EventState");
         JsonSerializerOptions options = new() { Converters = { new JsonStringEnumConverter() } };
         SceneEventState scene = checkpoint.GetProperty("Scene").Deserialize<SceneEventState>(options)!;
-        ActorState[] actors = checkpoint.GetProperty("Actors").Deserialize<ActorState[]>(options)!;
+        // This preserved pre-eyes snapshot predates the required nullable field.
+        // Explicit fixture migration mirrors;
+        // no historical eye flags or texture copies are inferred.
+        JsonArray migratedActors = JsonNode.Parse(checkpoint.GetProperty("Actors").GetRawText())!.AsArray();
+        foreach (JsonNode? actor in migratedActors)
+        {
+            Assert.False(actor!.AsObject().ContainsKey("NativeEyes"));
+            actor["NativeEyes"] = null;
+        }
+        ActorState[] actors = migratedActors.Deserialize<ActorState[]>(options)!;
         using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
         FieldAssets field = assets.LoadField(688);
         JsmProgram original = JsmProgram.Read(field.Jsm);

@@ -97,6 +97,11 @@ internal sealed partial class GameWorld
     {
         DebugActorView? view = session.State.DebugView?.Actors.GetValueOrDefault(actor.ObjectId);
         bool visible = view?.Visible ?? actor.Active && actor.Visible;
+        if (visible && actor.NativeEyes?.Patch is not null)
+        {
+            // TODO(TD-015): project the authenticated native VRAM eye copy;.
+            throw new NotSupportedException("Drawing a native eye VRAM copy is not implemented; its authenticated headless state is retained.");
+        }
         IReadOnlyDictionary<int, Vector3>? translations = visible && actor.RenderModelId >= 0 ? Events.GetNativeModelPartTranslations(actor.ObjectId) : null;
         return new ActorVisual(actor.ObjectId, actor.RenderModelId, view?.X ?? actor.X + actor.DisplayOffset.X, view?.Y ?? actor.Y + actor.DisplayOffset.Y, view?.Z ?? actor.Z + actor.DisplayOffset.Z, actor.Direction, view?.AnimationId ?? actor.AnimationId, view?.Frame ?? actor.AnimationFrame, visible, RootTranslationZ: actor.RootTranslationZ, FirstControlRotation: actor.FirstControlRotation, AdditionalControlDisabled: actor.AdditionalControlDisabled, PolygonColor: actor.PolygonColor, GroundShadowRadius601To608: actor.NativeShadowSet?.Radius601To608, GroundShadowLevel609: actor.NativeShadowLevel?.Level609 ?? actor.NativeShadowAllocation?.Level609, GroundShadowCentre: new Vector3(actor.X, actor.Y, actor.Z), GroundShadowRadii601To608: actor.NativeShadowForm?.Radii601To608, SkinTranslations: translations, PrimitiveTransparencyEnabled: actor.PrimitiveTransparencyEnabled);
     }

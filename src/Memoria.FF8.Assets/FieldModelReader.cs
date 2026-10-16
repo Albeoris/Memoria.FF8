@@ -95,7 +95,7 @@ internal static class FieldModelReader
                 {
                     throw new InvalidDataException($"ONE model {header.Name} aliases an absent texture slot0.");
                 }
-                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]]);
+                result = ReadModel(header.Name, one, header.Offset + header.ModelOffset, [], header.Offset, null, 0, decodedTextures: [source.Textures[0]], nativeEyeTexture: source.NativeEyes?.Texture);
             }
             else if (header.ModelOffset >= 0)
             {
@@ -112,13 +112,13 @@ internal static class FieldModelReader
         return Enumerable.Range(0, headers.Count).Select(Resolve).ToArray();
     }
 
-    internal static FieldModel ReadModel(string name, byte[] content, int modelOffset, IEnumerable<int> textureOffsets, int textureBase, byte[]? animationContent, int animationOffset, IReadOnlyList<ModelAnimation>? animations = null, IReadOnlyList<PixelImage>? decodedTextures = null)
+    internal static FieldModel ReadModel(string name, byte[] content, int modelOffset, IEnumerable<int> textureOffsets, int textureBase, byte[]? animationContent, int animationOffset, IReadOnlyList<ModelAnimation>? animations = null, IReadOnlyList<PixelImage>? decodedTextures = null, NativeEyeTexture? nativeEyeTexture = null)
     {
         using BinaryReader reader = Reader(content);
         reader.BaseStream.Position = modelOffset;
         int boneCount = Count(reader.ReadUInt32(), 100, "MCH bones");
         int vertexCount = Count(reader.ReadUInt32(), 10000, "MCH vertices");
-        reader.ReadUInt32();
+        int eyeDataCount = Count(reader.ReadUInt32(), 10000, "MCH native eye data");
         int faceCount = Count(reader.ReadUInt32(), 20000, "MCH faces");
         int partCount = Count(reader.ReadUInt32(), 1000, "MCH parts");
         int skinCount = Count(reader.ReadUInt32(), 1000, "MCH skin groups");
@@ -126,7 +126,7 @@ internal static class FieldModelReader
         reader.ReadUInt32();
         int boneOffset = checked(modelOffset + (int)reader.ReadUInt32());
         int vertexOffset = checked(modelOffset + (int)reader.ReadUInt32());
-        reader.ReadUInt32();
+        int eyeOffset = checked(modelOffset + (int)reader.ReadUInt32());
         int faceOffset = checked(modelOffset + (int)reader.ReadUInt32());
         int partOffset = checked(modelOffset + (int)reader.ReadUInt32());
         int skinOffset = checked(modelOffset + (int)reader.ReadUInt32());
@@ -212,7 +212,38 @@ internal static class FieldModelReader
             throw new InvalidDataException($"{name}: face references an absent texture.");
         }
         animations ??= ReadAnimations(animationContent ?? content, animationContent is null ? embeddedAnimation : animationOffset, boneCount);
-        return new FieldModel(name, bones, vertices, faces, textures, animations) { ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+        return new FieldModel(name, bones, vertices, faces, textures, animations) { NativeEyes = new NativeFieldEyeDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, eyeOffset, content.AsSpan(eyeOffset, eyeDataCount).ToArray(), nativeEyeTexture ?? ReadEyeTexture(content, textureOffsets.Select(offset => textureBase + offset).FirstOrDefault(-1))), ControlBones = controls, NativeParts = new NativeModelPartsDefinition(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)), modelOffset, parts, skinBindings) };
+    }
+
+    private static NativeEyeTexture? ReadEyeTexture(byte[] content, int offset)
+    {
+        if (offset < 0)
+        {
+            return null;
+        }
+        using BinaryReader reader = Reader(content);
+        reader.BaseStream.Position = offset;
+        if (reader.ReadUInt32() != 0x10)
+        {
+            throw new InvalidDataException("Native eye texture is not a TIM resource.");
+        }
+        uint flags = reader.ReadUInt32();
+        if ((flags & 8) != 0)
+        {
+            uint size = reader.ReadUInt32();
+            reader.BaseStream.Position += size - 4;
+        }
+        uint imageSize = reader.ReadUInt32();
+        reader.ReadUInt16();
+        reader.ReadUInt16();
+        int width = reader.ReadUInt16();
+        int height = reader.ReadUInt16();
+        byte[] words = reader.ReadBytes(checked(width * height * 2));
+        if (imageSize != words.Length + 12 || words.Length != width * height * 2)
+        {
+            throw new InvalidDataException("Native eye texture image extent is invalid.");
+        }
+        return new NativeEyeTexture((int)(flags & 3), width, height, words);
     }
 
     private static PixelImage DecodeTim(byte[] content, int offset)

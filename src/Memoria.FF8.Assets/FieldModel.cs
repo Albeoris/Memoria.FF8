@@ -16,6 +16,7 @@ public sealed record ModelControlBones(int First, int Second, int Additional, ui
 public sealed record FieldModel(string Name, IReadOnlyList<ModelBone> Bones, IReadOnlyList<ModelVertex> Vertices, IReadOnlyList<ModelFace> Faces, IReadOnlyList<PixelImage> Textures, IReadOnlyList<ModelAnimation> Animations)
 {
     public NativeModelPartsDefinition? NativeParts { get; init; }
+    public NativeFieldEyeDefinition? NativeEyes { get; init; }
 
     public ModelControlBones ControlBones { get; init; } = new(-1, -1, -1, 0);
 
