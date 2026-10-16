@@ -61,25 +61,67 @@ public sealed partial class BattleHudController
     public IReadOnlyList<string> VisibleRewardLines => RewardLines.Skip(RewardPage * RewardLinesPerPage).Take(RewardLinesPerPage).ToArray();
     public IReadOnlyList<BattleCombatant> Party => session.Combatants.Where(actor => actor.IsPlayer).ToArray();
     public IReadOnlyList<BattleAbility> Commands => GetPlayerCommandChoices();
-    public BattleAbility SelectedCommand => Commands.Count == 0 ? BattleAbility.Attack : Commands[Math.Clamp(commandIndex, 0, Commands.Count - 1)];
-    public IReadOnlyList<BattleActionDefinition> ActionChoices => SelectedActor is not { } actor ? [] : SelectedCommand == BattleAbility.Draw ? DrawActionChoices() : SelectedCommand is BattleAbility.NativeCommand or BattleAbility.LimitBreak ? session.GetNativePlayerActionChoices(actor.Id, SelectedCommand == BattleAbility.LimitBreak) : session.ActionDefinitions.Where(action => SelectedCommand switch
+    public BattleAbility SelectedCommand
     {
-        BattleAbility.Magic => action.Ability == BattleAbility.Magic && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0),
-        BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
-        BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
-        BattleAbility.Draw => action.Ability == BattleAbility.Magic && session.Combatants.Any(enemy => enemy.IsAlive && !enemy.IsPlayer && enemy.DrawSpells.Any(spell => spell.Id == action.Id)),
-        _ => false
-    }).ToArray();
-    public BattleActionDefinition? SelectedAction => ActionChoices.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, ActionChoices.Count - 1)));
-    public IReadOnlyList<string> ChoiceLabels => NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(command => command == BattleAbility.GuardianForce ? "GF" : command.ToString()).ToArray());
-    public int ChoiceIndex => SelectingAction ? actionIndex : commandIndex;
-    public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 3));
-    public IReadOnlyList<BattleCombatant> Targets => SelectedCommand == BattleAbility.Draw ? DrawTargets() : session.Combatants.Where(actor =>
+        get
+        {
+            IReadOnlyList<BattleAbility> commands = Commands;
+            return commands.Count == 0 ? BattleAbility.Attack : commands[Math.Clamp(commandIndex, 0, commands.Count - 1)];
+        }
+    }
+    public IReadOnlyList<BattleActionDefinition> ActionChoices
     {
-        bool allies = SelectedCommand != BattleAbility.Attack && SelectedCommand != BattleAbility.Draw && SelectedAction?.Allies == true;
-        bool fixedSelf = SelectedAction?.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
-        return actor.IsPlayer == allies && (!fixedSelf || actor.Id == SelectedActor?.Id) && (SelectedAction is { } action ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive);
-    }).ToArray();
+        get
+        {
+            BattleAbility command = SelectedCommand;
+            if (command == BattleAbility.Attack || SelectedActor is not { } actor)
+            {
+                return [];
+            }
+            if (command == BattleAbility.Draw)
+            {
+                return DrawActionChoices();
+            }
+            if (command is BattleAbility.NativeCommand or BattleAbility.LimitBreak)
+            {
+                return session.GetNativePlayerActionChoices(actor.Id, command == BattleAbility.LimitBreak);
+            }
+            return session.ActionDefinitions.Where(action => command switch
+            {
+                BattleAbility.Magic => action.Ability == BattleAbility.Magic && actor.MagicStocks.Any(stock => stock.Id == action.Id && stock.Count > 0),
+                BattleAbility.Item => action.Ability == BattleAbility.Item && session.Items.Any(stock => stock.Id == action.Id && stock.Count > 0),
+                BattleAbility.GuardianForce => action.Ability == BattleAbility.GuardianForce && actor.EquipmentIds.Contains(action.Id) && action.Available && (session.GuardianForces.Count == 0 || session.GuardianForces.Any(gf => gf.Id == action.Id && gf.Acquired && gf.HitPoints > 0)) && !session.GuardianForceCasts.Any(cast => cast.Command.ActionId == action.Id),
+                _ => false
+            }).ToArray();
+        }
+    }
+    public BattleActionDefinition? SelectedAction
+    {
+        get
+        {
+            IReadOnlyList<BattleActionDefinition> actions = ActionChoices;
+            return actions.ElementAtOrDefault(Math.Clamp(actionIndex, 0, Math.Max(0, actions.Count - 1)));
+        }
+    }
+    public IReadOnlyList<string> ChoiceLabels => SelectingDrawMode ? SelectedAction?.Id >= 64 ? ["Stock"] : ["Stock", "Cast"] : NativeDuelChoiceLabels ?? (SelectingAction ? ActionChoices.Select(ChoiceLabel).ToArray() : Commands.Select(command => command == BattleAbility.GuardianForce ? "GF" : command.ToString()).ToArray());
+    public int ChoiceIndex => SelectingDrawMode ? DrawCast ? 1 : 0 : SelectingAction ? actionIndex : commandIndex;
+    public int ChoiceStart => Math.Clamp(ChoiceIndex - 1, 0, Math.Max(0, ChoiceLabels.Count - 4));
+    public IReadOnlyList<BattleCombatant> Targets
+    {
+        get
+        {
+            BattleAbility command = SelectedCommand;
+            if (command == BattleAbility.Draw)
+            {
+                return DrawTargets();
+            }
+            BattleActionDefinition? action = command == BattleAbility.Attack ? null : SelectedAction;
+            bool allies = action?.Allies == true;
+            bool fixedSelf = action?.NativeAction?.TargetFlags is byte flags && NativeBattleLimitRules.IsFixedAllyTarget(flags);
+            string? actorId = fixedSelf ? SelectedActor?.Id : null;
+            return session.Combatants.Where(actor => actor.IsPlayer == allies && (!fixedSelf || actor.Id == actorId) && (action is not null ? BattleSession.HasValidTargetLifeState(action, actor) : actor.IsAlive)).ToArray();
+        }
+    }
     public IReadOnlyList<BattleCombatant> VisibleTargets
     {
         get
@@ -105,7 +147,8 @@ public sealed partial class BattleHudController
     {
         get
         {
-            BattleCombatant? selected = Targets.FirstOrDefault(actor => actor.Id == selectedTargetId) ?? Targets.FirstOrDefault();
+            IReadOnlyList<BattleCombatant> targets = Targets;
+            BattleCombatant? selected = targets.FirstOrDefault(actor => actor.Id == selectedTargetId) ?? targets.FirstOrDefault();
             selectedTargetId = selected?.Id;
             return selected;
         }
@@ -116,7 +159,7 @@ public sealed partial class BattleHudController
         RefreshNativeLimitSelection();
         PresentNativeShot();
         CollectBattleMessages();
-        BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Draw" or "Scan" or "GunbladeTrigger");
+        BattleEvent? notification = session.Events.LastOrDefault(item => item.Kind is "Scan" or "GunbladeTrigger");
         if (notification is not null && notification != lastNotification)
         {
             Message = notification.Message;
@@ -126,6 +169,8 @@ public sealed partial class BattleHudController
         {
             SelectingTarget = false;
             SelectingAction = false;
+            SelectingDrawMode = false;
+            selectedDrawSourceId = null;
             session.CloseNativeActionMenu();
             selectedMagicTargets.Clear();
         }
@@ -172,6 +217,15 @@ public sealed partial class BattleHudController
         }
         else if (input is MenuInput.Up or MenuInput.Down or MenuInput.Left or MenuInput.Right or MenuInput.PageLeft or MenuInput.PageRight)
         {
+            if (SelectingDrawMode)
+            {
+                if (SelectedAction?.Id < 64)
+                {
+                    DrawCast = !DrawCast;
+                    SoundRequested?.Invoke(MenuSound.Move);
+                }
+                return;
+            }
             if (SelectingAction && !SelectingTarget && SelectedCommand == BattleAbility.Magic && input is MenuInput.PageLeft or MenuInput.PageRight)
             {
                 ChangeMagicCastCount(input == MenuInput.PageLeft ? -1 : 1);
@@ -210,7 +264,7 @@ public sealed partial class BattleHudController
             }
             else if (SelectingAction && SelectedCommand == BattleAbility.Draw)
             {
-                DrawCast = !DrawCast;
+                return;
             }
             else
             {
@@ -235,6 +289,10 @@ public sealed partial class BattleHudController
             Message = "Waiting for a character's ATB gauge.";
             return;
         }
+        if (ConfirmDrawSelection())
+        {
+            return;
+        }
         if (SelectedCommand != BattleAbility.Attack && !SelectingAction && !SelectingTarget)
         {
             selectedMagicTargets.Clear();
@@ -242,12 +300,12 @@ public sealed partial class BattleHudController
             selectedDrawSourceId = null;
             PrepareNativeLimitChoices();
             SelectingAction = true;
-            if (SelectedCommand is BattleAbility.Magic or BattleAbility.Item or BattleAbility.GuardianForce or BattleAbility.Draw or BattleAbility.LimitBreak)
+            if (SelectedCommand is BattleAbility.Magic or BattleAbility.Item or BattleAbility.GuardianForce or BattleAbility.LimitBreak)
             {
                 session.OpenNativeActionMenu();
             }
             actionIndex = 0;
-            Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Draw ? "Choose magic. Left/Right switches Stock/Cast." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
+            Message = ActionChoices.Count == 0 ? "No available stock or junctioned GF for this command." : SelectedCommand == BattleAbility.Magic ? "Choose magic. Page Left/Right: number of casts." : SelectedCommand == BattleAbility.GuardianForce ? "Choose a Guardian Force." : $"Choose {SelectedCommand}.";
             if (SelectedCommand == BattleAbility.LimitBreak && actor.NativeLimit?.Command == 16)
             {
                 Message = "Choose magic. Page Left/Right: Do over.";
@@ -259,7 +317,7 @@ public sealed partial class BattleHudController
         {
             if (SelectedAction is { Available: false })
             {
-                Message = "The selected action is unavailable.";
+                ShowCommandError("The selected action is unavailable.");
                 return;
             }
             if (SelectedCommand != BattleAbility.Attack && SelectedAction is null)
@@ -298,7 +356,7 @@ public sealed partial class BattleHudController
             {
                 selectedMagicTargets.RemoveAt(selectedMagicTargets.Count - 1);
             }
-            Message = error.Message;
+            ShowCommandError(error.Message);
             Console.Error.WriteLine(error);
             return;
         }
@@ -315,7 +373,11 @@ public sealed partial class BattleHudController
 
     public void Choose(int index)
     {
-        if (SelectingAction)
+        if (SelectingDrawMode)
+        {
+            DrawCast = index == 1 && SelectedAction?.Id < 64;
+        }
+        else if (SelectingAction)
         {
             actionIndex = index;
         }
@@ -335,7 +397,7 @@ public sealed partial class BattleHudController
         }
         return SelectedCommand switch
         {
-            BattleAbility.Draw => label + (CastSelectedDraw ? " · Cast" : " · Stock"),
+            BattleAbility.Draw => label,
             BattleAbility.Magic => label + (magicCastCount > 1 ? $" ×{magicCastCount}" : "") + "  " + SelectedActor!.MagicStocks.Single(stock => stock.Id == action.Id).Count,
             BattleAbility.Item => label + "  " + session.Items.Single(stock => stock.Id == action.Id).Count,
             _ => label
@@ -350,6 +412,8 @@ public sealed partial class BattleHudController
                 selectedMagicTargets.Clear();
                 magicCastCount = 1;
                 SelectingAction = false;
+                SelectingDrawMode = false;
+                selectedDrawSourceId = null;
                 session.CloseNativeActionMenu();
                 SelectingTarget = false;
                 SoundRequested?.Invoke(MenuSound.Move);
@@ -463,9 +527,27 @@ public sealed partial class BattleHudController
     {
         if (SelectingDrawCastRecipient)
         {
+            SelectingTarget = false;
+            SelectingDrawMode = true;
+            Message = "Stock or Cast?";
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
+        if (SelectingDrawMode)
+        {
+            SelectingDrawMode = false;
+            Message = "Choose magic to draw.";
+            SoundRequested?.Invoke(MenuSound.Cancel);
+            return;
+        }
+        if (SelectedCommand == BattleAbility.Draw && SelectingAction)
+        {
             selectedTargetId = selectedDrawSourceId;
             selectedDrawSourceId = null;
-            Message = "Draw Cast: select a source.";
+            SelectingAction = false;
+            SelectingTarget = true;
+            session.CloseNativeActionMenu();
+            Message = "Choose a source to draw from.";
             SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
@@ -478,6 +560,14 @@ public sealed partial class BattleHudController
         }
         if (SelectingTarget)
         {
+            if (SelectingAction)
+            {
+                SelectingTarget = false;
+                selectedMagicTargets.Clear();
+                Message = $"Choose {SelectedCommand}.";
+                SoundRequested?.Invoke(MenuSound.Cancel);
+                return;
+            }
             SoundRequested?.Invoke(MenuSound.Cancel);
         }
         SelectingTarget = false;

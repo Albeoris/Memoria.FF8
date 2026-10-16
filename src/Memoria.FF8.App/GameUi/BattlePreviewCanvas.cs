@@ -9,7 +9,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8.GameUi;
 
 /// <summary>GPU-independent canvas for the same retained controls and text rasterizer used by the live host.</summary>
-internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
+internal sealed class BattlePreviewCanvas : IUiCanvas, IBattleMessageCanvas, IDisposable
 {
     private readonly Graphics graphics;
     private readonly Stack<GraphicsState> clips = [];
@@ -106,6 +106,31 @@ internal sealed class BattlePreviewCanvas : IUiCanvas, IDisposable
     public void Text(string text, float fontSize, UiRect bounds, UiColor color)
     {
         Text(text, fontSize, bounds, color, UiAlignment.Start);
+    }
+
+    public void BattleMessage(DialogueDocument document, float size, UiRect bounds, double seconds)
+    {
+        using SystemTextMeasurer measure = new(size, null);
+        DialogueVisualLine[] lines = document.Pages.SelectMany(page => page.Lines).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, measure.Measure, false, measure.LineHeight)).ToArray();
+        float y = bounds.Y + Math.Max(0, (bounds.Height - lines.Length * measure.LineHeight) / 2);
+        PushClip(bounds);
+        try
+        {
+            foreach (DialogueVisualLine line in lines)
+            {
+                foreach (DialoguePlacedRun placed in line.Runs)
+                {
+                    Microsoft.Xna.Framework.Color color = placed.Run.Color * (placed.Run.Blink ? DialogueBlink.Opacity(seconds) : 1);
+                    float x = Math.Max(0, (bounds.Width - line.Width) / 2) + placed.X;
+                    Text(placed.Run.Text, size, new UiRect(bounds.X + x, y, bounds.Width - x, measure.LineHeight), new UiColor(color.R, color.G, color.B, color.A));
+                }
+                y += measure.LineHeight;
+            }
+        }
+        finally
+        {
+            PopClip();
+        }
     }
 
     public void OutlinedText(string text, float fontSize, UiRect bounds, UiColor color, UiColor outline, float thickness)

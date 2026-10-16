@@ -632,7 +632,7 @@ internal sealed partial class RecreateGame : Game
         }
         CaptureSession();
         playerSaves.Save(slot, session);
-        ShowSaveNotice(slot == 0 ? "Quick saved." : $"Saved in {PlayerSaveStore.GetLabel(slot)}.");
+        ShowSaveNotice(slot == 0 ? "Quick saved." : $"Saved in {PlayerSaveStore.GetLabel(slot)}.", slot == 0 ? 1 : 5);
     }
 
     private void LoadPlayerSlot(int slot)
@@ -640,7 +640,7 @@ internal sealed partial class RecreateGame : Game
         GameState state = playerSaves.Load(slot);
         ValidatePlayerState(state);
         RestorePlayerState(state);
-        ShowSaveNotice(slot == 0 ? "Quick loaded." : $"Loaded {PlayerSaveStore.GetLabel(slot)}.");
+        ShowSaveNotice(slot == 0 ? "Quick loaded." : $"Loaded {PlayerSaveStore.GetLabel(slot)}.", slot == 0 ? 1 : 5);
     }
 
 
@@ -673,10 +673,10 @@ internal sealed partial class RecreateGame : Game
         fieldRenderFaulted = false;
     }
 
-    private void ShowSaveNotice(string message)
+    private void ShowSaveNotice(string message, double durationSeconds = 5)
     {
         saveNotice = message;
-        saveNoticeSeconds = 5;
+        saveNoticeSeconds = durationSeconds;
     }
 
     private void StartNewGameSession()

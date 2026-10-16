@@ -33,57 +33,63 @@ internal sealed class BattleHudElement : UiElement
         BattleSession session = controller.Session;
         if (controller.BattleMessageDocument is { } battleMessage && session.Outcome == BattleOutcome.Active)
         {
-            theme.Panel(canvas, Rect(32, 22, 896, 100));
+            theme.Panel(canvas, Rect(240, 12, 480, 84));
             if (canvas is IBattleMessageCanvas rich)
             {
-                rich.BattleMessage(battleMessage, 20 * Scale * controller.TextScale, Rect(52, 36, 856, 76), controller.BattlePresentationSeconds);
+                rich.BattleMessage(battleMessage, 20 * Scale * controller.TextScale, Rect(256, 24, 448, 60), controller.BattlePresentationSeconds);
             }
             else
             {
-                Text(canvas, theme, battleMessage.Text, 52, 36, 856, 76, 20);
+                Text(canvas, theme, battleMessage.Text, 256, 24, 448, 60, 20);
             }
         }
-        theme.Panel(canvas, Rect(16, 494, 252, 130));
-        theme.Panel(canvas, Rect(280, 494, 664, 130));
-        Text(canvas, theme, session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectedActor?.Name ?? "COMMAND", 34, 508, 220, 26, 20);
         bool canAttack = controller.SelectedActor is not null && session.Outcome == BattleOutcome.Active;
+        IReadOnlyList<string> choices = controller.ChoiceLabels;
+        string caption = session.Outcome != BattleOutcome.Active ? "RESULT" : controller.SelectingTarget ? "TARGET" : controller.SelectingDrawMode ? "DRAW" : controller.SelectingAction ? controller.SelectedCommand.ToString().ToUpperInvariant() : "COMMAND";
+        int rows = controller.SelectingTarget ? controller.VisibleTargets.Count : choices.Count;
+        float menuHeight = session.Outcome != BattleOutcome.Active ? 76 : 20 + Math.Max(1, Math.Min(4, rows)) * 28;
+        if (canAttack || session.Outcome != BattleOutcome.Active)
+        {
+            theme.Panel(canvas, Rect(30, 516, 194, menuHeight), caption, 17 * Scale * controller.TextScale);
+        }
         if (session.Outcome != BattleOutcome.Active)
         {
-            theme.Pointer(canvas, Left + 32 * Scale, Top + 554 * Scale, 12 * Scale);
-            Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 56, 546, 186, 30, 24);
-            Text(canvas, theme, "Confirm / Click", 34, 588, 220, 26, 15);
+            theme.Pointer(canvas, Left + 38 * Scale, Top + 540 * Scale, 12 * Scale);
+            Text(canvas, theme, session.CanReturnToField ? "Continue" : "Load / Retry", 60, 532, 156, 30, 21);
         }
         else if (controller.SelectingTarget)
         {
             DrawTargets(canvas, theme);
         }
-        else
+        else if (canAttack)
         {
-            int start = controller.ChoiceStart;
-            for (int row = 0; row < 3 && start + row < controller.ChoiceLabels.Count; row++)
+            int start = Math.Clamp(controller.ChoiceIndex - 1, 0, Math.Max(0, choices.Count - 4));
+            IReadOnlyList<BattleActionDefinition> actions = controller.SelectingAction && !controller.SelectingDrawMode ? controller.ActionChoices : [];
+            for (int row = 0; row < 4 && start + row < choices.Count; row++)
             {
-                float y = 544 + row * 24;
+                float y = 530 + row * 28;
                 if (start + row == controller.ChoiceIndex)
                 {
-                    theme.Pointer(canvas, Left + 32 * Scale, Top + (y + 5) * Scale, 10 * Scale);
+                    theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
                 }
-                bool unavailable = controller.SelectingAction && !controller.ActionChoices[start + row].Available;
-                Text(canvas, theme, controller.ChoiceLabels[start + row], 52, y, 198, 24, 17, !canAttack || unavailable);
+                bool unavailable = actions.Count > start + row && !actions[start + row].Available;
+                Text(canvas, theme, choices[start + row], 60, y, 156, 26, 20, unavailable);
             }
-            if (!canAttack)
-            {
-                Text(canvas, theme, "Waiting for ATB", 34, 588, 220, 26, 15, true);
-            }
+        }
+
+        if (canAttack && (controller.SelectingAction || controller.SelectingTarget) && controller.BattleMessageDocument is null)
+        {
+            Text(canvas, theme, controller.CommandHelpMessage, 30, 468, 440, 42, 15);
         }
 
         IReadOnlyList<BattleCombatant> party = controller.Party;
         for (int index = 0; index < party.Count; index++)
         {
             BattleCombatant actor = party[index];
-            float y = 508 + index * 35;
+            float y = 528 + index * 38;
             if (controller.SelectedActor?.Id == actor.Id)
             {
-                theme.Pointer(canvas, Left + 294 * Scale, Top + (y + 8) * Scale, 10 * Scale);
+                theme.Pointer(canvas, Left + 496 * Scale, Top + (y + 8) * Scale, 10 * Scale);
             }
             BattleGuardianForceCast? cast = session.GuardianForceCasts.FirstOrDefault(cast => cast.ActorId == actor.Id);
             BattleGuardianForceVital? gf = cast is null ? null : session.GuardianForces.Single(gf => gf.Id == cast.Command.ActionId);
@@ -93,27 +99,25 @@ internal sealed class BattleHudElement : UiElement
             int maximumHp = presented.MaximumHitPoints;
             bool shownAlive = hp > 0;
             float gauge = cast is null ? actor.Atb / (float)BattleSession.AtbMaximum : cast.InitialTicks == 0 ? 1 : 1 - cast.RemainingTicks / (float)cast.InitialTicks;
-            Text(canvas, theme, label, 314, y, 190, 27, 20, !shownAlive);
-            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 508, y, 228, 27, 20, !shownAlive);
-            DrawGauge(canvas, Rect(746, y + 6, 176, 15), gauge, cast is null && actor.IsReady, shownAlive);
+            Text(canvas, theme, label, 520, y, 150, 30, 22, !shownAlive);
+            Text(canvas, theme, $"{hp,4} / {maximumHp,4}", 674, y, 150, 30, 22, !shownAlive);
+            DrawGauge(canvas, Rect(830, y + 11, 104, 12), gauge, cast is null && actor.IsReady, shownAlive);
         }
         if (session.Outcome == BattleOutcome.Victory)
         {
             DrawRewards(canvas, theme);
         }
-        theme.Panel(canvas, Rect(16, 634, 928, 30));
-        string message = session.GunbladeTriggerWindowOpen ? $"Gunblade: press {controller.GunbladeBindingHint}!" : session.Outcome == BattleOutcome.Active ? controller.Message : session.Outcome.ToString().ToUpperInvariant();
-        Text(canvas, theme, message, 28, 639, 904, 24, 15);
+        if (session.GunbladeTriggerWindowOpen)
+        {
+            Text(canvas, theme, $"Gunblade: {controller.GunbladeBindingHint}", 368, 112, 280, 30, 20);
+        }
         if (session.ActiveAction is { Phase: BattleActionPhase.Recovery } action && session.Events.Any(item => item.Kind == "GunbladeTrigger" && item.ActorId == action.ActorId && session.Frame - item.Frame < BattleSession.AttackRecoveryFrames))
         {
             Text(canvas, theme, "TRIGGER!", 372, 100, 280, 48, 30);
         }
-        theme.Panel(canvas, Rect(794, 444, 150, 36));
-        Text(canvas, theme, "Debug Battle", 808, 450, 128, 28, 16);
         if (session.Mode == BattleAtbMode.TurnBased)
         {
-            theme.Panel(canvas, Rect(568, 444, 214, 36));
-            Text(canvas, theme, "Advance Turn  [Space]", 582, 450, 196, 28, 16);
+            Text(canvas, theme, "Advance Turn  [Space]", 706, 640, 228, 26, 16);
         }
     }
 
@@ -123,12 +127,12 @@ internal sealed class BattleHudElement : UiElement
         for (int index = 0; index < targets.Count && index < 3; index++)
         {
             BattleCombatant actor = targets[index];
-            float y = 544 + index * 24;
+            float y = 530 + index * 28;
             if (controller.SelectedTarget?.Id == actor.Id)
             {
-                theme.Pointer(canvas, Left + 32 * Scale, Top + (y + 5) * Scale, 10 * Scale);
+                theme.Pointer(canvas, Left + 38 * Scale, Top + (y + 5) * Scale, 10 * Scale);
             }
-            Text(canvas, theme, actor.Name, 52, y, 198, 24, 17);
+            Text(canvas, theme, actor.Name, 60, y, 156, 26, 20);
         }
     }
 
@@ -178,15 +182,11 @@ internal sealed class BattleHudElement : UiElement
         {
             controller.ChangeRewardPage(x < Rect(480, 0, 0, 0).X ? -1 : 1);
         }
-        else if (Rect(794, 444, 150, 36).Contains(x, y))
-        {
-            controller.OpenDebug();
-        }
-        else if (controller.Session.Mode == BattleAtbMode.TurnBased && Rect(568, 444, 214, 36).Contains(x, y))
+        else if (controller.Session.Mode == BattleAtbMode.TurnBased && Rect(706, 640, 228, 26).Contains(x, y))
         {
             controller.AdvanceTurn();
         }
-        else if (Rect(16, 494, 252, 130).Contains(x, y))
+        else if (Rect(30, 516, 194, 132).Contains(x, y))
         {
             if (controller.Session.Outcome != BattleOutcome.Active)
             {
@@ -194,7 +194,7 @@ internal sealed class BattleHudElement : UiElement
             }
             else if (controller.SelectingTarget)
             {
-                int index = (int)((y - Rect(0, 544, 0, 0).Y) / (24 * Scale));
+                int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale));
                 if (index >= 0 && index < controller.VisibleTargets.Count)
                 {
                     controller.SelectTarget(controller.VisibleTargets[index].Id, true);
@@ -202,16 +202,16 @@ internal sealed class BattleHudElement : UiElement
             }
             else
             {
-                int index = (int)((y - Rect(0, 544, 0, 0).Y) / (24 * Scale)) + controller.ChoiceStart;
+                int index = (int)Math.Floor((y - Rect(0, 530, 0, 0).Y) / (28 * Scale)) + controller.ChoiceStart;
                 if (index >= 0 && index < controller.ChoiceLabels.Count)
                 {
                     controller.Choose(index);
                 }
             }
         }
-        else if (Rect(280, 494, 664, 130).Contains(x, y))
+        else if (Rect(496, 528, 438, 114).Contains(x, y))
         {
-            int index = (int)((y - Rect(0, 508, 0, 0).Y) / (35 * Scale));
+            int index = (int)((y - Rect(0, 528, 0, 0).Y) / (38 * Scale));
             if (index >= 0 && index < controller.Party.Count)
             {
                 controller.SelectParty(controller.Party[index].Id);

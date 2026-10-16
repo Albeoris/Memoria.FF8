@@ -18,7 +18,7 @@ public sealed partial class BattleSession
         NativeGraphics = graphics with { PresentationSubticks = subticks % TimeSpan.TicksPerSecond };
         for (long count = subticks / TimeSpan.TicksPerSecond; count > 0; count--)
         {
-            PumpNativeHostFrame();
+            DispatchTurnBasedFrame();
         }
     }
 

@@ -15,7 +15,7 @@ public sealed class NativeBattlePosePresentationTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleEncounter encounter = assets.LoadEncounter(94);
         BattleStage stage = assets.LoadStage(encounter.StageId);
-        BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0 }, new() { Id = "ifrit", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
+        BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, InitialAtb = BattleSession.AtbMaximum }, new() { Id = "ifrit", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
         BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(0), NativeModuleResources = game.ReadNativeBattleModuleResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
         BattleSession session = new(definition, BattleAtbMode.TurnBased);
         for (int frame = 0; frame < 100 && !session.NativeGraphics!.EntryReady; frame++)
@@ -23,6 +23,7 @@ public sealed class NativeBattlePosePresentationTests
             session.Tick();
         }
         Assert.True(session.NativeGraphics!.EntryReady);
+        Assert.True(session.Combatants[0].IsReady);
         BattleSnapshot saved = session.Capture();
         session = BattleSession.Restore(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = saved.NativeGraphics.ModuleEffects.AppendModelResource(0, definition.NativeModuleResources[39], 0x100027) } });
         List<NativeBattleModuleSound> heard = [];
@@ -35,6 +36,9 @@ public sealed class NativeBattlePosePresentationTests
             audio.Update(session);
         }
         NativeBattleModuleSound sound = Assert.Single(heard);
+        Assert.Equal(0, session.Frame);
+        Assert.Null(session.ActiveAction);
+        Assert.Empty(session.QueuedActions);
         Assert.Equal((ushort)0x72, sound.Sound);
         Assert.Equal((ushort)0x8000, sound.Flags);
         BattleEvent receipt = Assert.Single(session.Events, item => item.NativeModuleSound is not null);

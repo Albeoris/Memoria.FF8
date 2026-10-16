@@ -25,6 +25,22 @@ public sealed class BattleUiTests
     }
 
     [Fact]
+    public void Failed_command_displays_a_compact_timed_error_without_closing_target_selection()
+    {
+        BattleSession session = new(Definition(), BattleAtbMode.TurnBased);
+        BattleHudController hud = new(session, (_, _) => throw new InvalidOperationException("Rejected command"), () => { }, () => { });
+        hud.Navigate(MenuInput.Confirm);
+        hud.Navigate(MenuInput.Confirm);
+        TestCanvas canvas = new();
+        hud.BuildView().Draw(canvas, new UiTheme());
+        Assert.Contains("Rejected command", canvas.Texts);
+        Assert.True(hud.SelectingTarget);
+        Assert.Empty(session.QueuedActions);
+        hud.AdvancePresentation(TimeSpan.FromSeconds(5));
+        Assert.Null(hud.BattleMessage);
+    }
+
+    [Fact]
     public void Ready_sleeping_player_waits_for_automatic_status_expiry_before_command_selection()
     {
         BattleDefinition definition = Definition();

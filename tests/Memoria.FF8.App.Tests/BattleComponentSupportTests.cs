@@ -7,6 +7,53 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class BattleComponentSupportTests
 {
+    [Fact]
+    public void Live_turn_based_component_automatically_refills_after_queued_action_completion_and_restores_at_the_boundary()
+    {
+        using GameAssets assets = new(LaunchOptions.DefaultGameDirectory);
+        using GameWorld world = new(CreateSession(assets, 0), assets.GameDirectory);
+        BattleDefinition seed = ComponentDefinition(world, 512);
+        BattleCombatantDefinition party = seed.Combatants.First(actor => actor.IsPlayer) with { Speed = 1_000 };
+        BattleCombatantDefinition enemy = seed.Combatants.First(actor => !actor.IsPlayer) with { MaximumHp = 50_000, CurrentHp = 50_000 };
+        BattleSession battle = GameWorld.CreateLiveBattleSession(seed with { Combatants = [party, enemy] }, BattleAtbMode.TurnBased);
+        Assert.Null(battle.NativeGraphics);
+        for (int callback = 0; callback < 128 && battle.QueuedActions.Count != 0; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Empty(battle.QueuedActions);
+        long before = battle.Frame;
+
+        battle.Tick();
+
+        Assert.True(battle.Combatants[0].IsReady);
+        Assert.True(battle.Frame > before + 1);
+        long decision = battle.Frame;
+        battle.Tick();
+        Assert.Equal(decision, battle.Frame);
+        battle.QueueAttack(party.Id, enemy.Id);
+        battle.Tick();
+        Assert.NotNull(battle.ActiveAction);
+        for (int callback = 0; callback < 256 && (battle.ActiveAction is not null || battle.QueuedActions.Count != 0 || battle.Capture().NativeActionScratch!.ComponentCompletion is not null); callback++)
+        {
+            battle.Tick();
+        }
+        Assert.Null(battle.ActiveAction);
+        Assert.Empty(battle.QueuedActions);
+        Assert.Null(battle.Capture().NativeActionScratch!.ComponentCompletion);
+        Assert.Contains(battle.Events, item => item.Kind == "ActionComplete" && item.ActorId == party.Id);
+        Assert.False(battle.Combatants[0].IsReady);
+        before = battle.Frame;
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+
+        battle.Tick();
+        restored.Tick();
+
+        Assert.True(battle.Combatants[0].IsReady);
+        Assert.True(battle.Frame > before + 1);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+    }
+
     [Theory]
     [InlineData(2, 0)]
     [InlineData(8, 10)]

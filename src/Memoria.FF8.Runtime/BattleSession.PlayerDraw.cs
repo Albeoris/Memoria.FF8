@@ -97,7 +97,6 @@ public sealed partial class BattleSession
             }
         }
         BattleNativeDrawContext result = new(checked((byte)command.ActionId), checked((byte)quantity), checked((byte)added), failed);
-        PresentNativeDrawResult(actor, source, result, command.DrawCast);
         return command with { NativeDraw = result, NativeAction = native, NativeTargetMask = mask };
     }
 
@@ -116,12 +115,48 @@ public sealed partial class BattleSession
             {
                 ResolveAction(actor, recipient, command with { Ability = BattleAbility.Magic, NativeDraw = null });
             }
+            if (NativeGraphics is not null)
+            {
+                PresentNativeDrawResult(actor, source, result, true);
+            }
             return;
         }
-        ApplyDamage(actor, source, 0, "Draw");
+        if (nativeProductionContext is not null)
+        {
+            //48D200/48FE20 Stock is an executable zero contact, including GF IDs without a magic record.
+            BattleNativeAction stock = new(result.Failed ? (byte)0 : (byte)6, result.Failed ? (ushort)9 : result.Selection, -1, -1) { Name = "Draw", MagicId = result.Failed ? (ushort)0 : (ushort)15, AttackType = 0, Power = 0, HitCount = 1, TargetFlags = null, AttackFlags = 3, DamagePresentation = 0, Element = 0, ElementPercent = null, StatusAttack = 0, Statuses0 = 0, Statuses1 = 0, Hit = null, Critical = null, PowerModifier = null, LevelModifier = null, RawRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty, SupplementalRecord = System.Collections.Immutable.ImmutableArray<byte>.Empty };
+            ResolveInstalledNativeAction(actor, source, command, new(BattleAbility.Draw, result.Selection, "Draw", BattleActionEffect.Native, 0, false) { NativeAction = stock });
+        }
+        else
+        {
+            ApplyDamage(actor, source, 0, "Draw");
+        }
+        if (NativeGraphics is not null)
+        {
+            PresentNativeDrawResult(actor, source, result, command.DrawCast);
+        }
+    }
+
+    private void PublishNativeDrawComponentResult(BattleActionPresentation command)
+    {
+        if (NativeGraphics is null && command.NativeDraw is { } result)
+        {
+            PresentNativeDrawResult(GetActor(command.ActorId), GetActor(command.TargetId), result, command.DrawCast);
+        }
     }
 
     private void PresentNativeDrawResult(BattleCombatant actor, BattleCombatant source, BattleNativeDrawContext result, bool cast)
+    {
+        string text = NativeDrawResultText(actor, result, cast);
+        if (definition.NativeGlobalMessages.Length != 0)
+        {
+            int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native Draw text requires its saved message-speed byte.")) + 8;
+            QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, source.Id, duration, text) { NativeMessageMode = 3 });
+        }
+        Log("Draw", actor.Id, source.Id, result.Added, text);
+    }
+
+    private string NativeDrawResultText(BattleCombatant actor, BattleNativeDrawContext result, bool cast)
     {
         string name = result.Selection >= 64 ? $"{{Name {GameNames.DefaultName(GameNames.GuardianForceSubject(result.Selection - 64))}}}" : FindAction(BattleAbility.Magic, result.Selection).Name;
         string text = result.Failed ? "Draw failed." : result.Selection >= 64 ? $"Acquired {name}." : cast ? $"Cast {name}." : $"{actor.Name} stocks {result.Added} {name}.";
@@ -135,10 +170,8 @@ public sealed partial class BattleSession
             string quantity = string.Concat(result.Added.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(digit => digits[digit - '0' + 1]));
             string castName = cast && !result.Failed ? definition.NativeCommandNames.ElementAtOrDefault(9) ?? throw new NotSupportedException("Draw Cast text requires the original kernel command9 name.") : "";
             text = result.Failed ? NativeBattleGlobalText(5) : result.Selection >= 64 ? NativeBattleGlobalText(51) + digits[0] + name + NativeBattleGlobalText(118) : cast ? castName + digits[0] + name : NativeBattleGlobalText(9) + digits[0] + quantity + digits[0] + name + NativeBattleGlobalText(result.Added == 1 ? 118 : 8);
-            int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native Draw text requires its saved message-speed byte.")) + 8;
-            QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, source.Id, duration, text) { NativeMessageMode = 3 });
         }
-        Log("Draw", actor.Id, source.Id, result.Added, text);
+        return text;
     }
 
     private void ResetNativeDrawAllocation(BattleCombatant actor)

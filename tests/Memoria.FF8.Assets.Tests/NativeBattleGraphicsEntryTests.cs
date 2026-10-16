@@ -94,7 +94,7 @@ public sealed class NativeBattleGraphicsEntryTests
         using BattleAssets assets = new(game.GameDirectory);
         BattleSession seed = Create(game, assets, 61, ready: false);
         BattleDefinition definition = seed.Capture().Definition with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Capture().Definition.Combatants.Select(actor => actor with { Speed = 1 }).ToArray() };
-        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        BattleSession battle = new(definition, BattleAtbMode.Normal);
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
@@ -109,6 +109,7 @@ public sealed class NativeBattleGraphicsEntryTests
         BattleCombatantSnapshot[] actors = snapshot.Combatants.ToArray();
         actors[0] = actors[0] with { NativeAtb = new(12000, 11990), Atb = 9991 };
         battle = BattleSession.Restore(snapshot with { Combatants = actors });
+        battle.SetMode(BattleAtbMode.TurnBased);
         long beforeFrame = battle.Frame;
         long beforeGraphics = battle.NativeGraphics!.Callback;
         battle.Tick();
@@ -167,6 +168,58 @@ public sealed class NativeBattleGraphicsEntryTests
             Assert.Equal(gauge, battle.Combatants[3].NativeAtb!.Current);
             Assert.Equal((byte)0, battle.Capture().NativeClock!.AtbAdmitted);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TurnBased_raw_host_automatically_reaches_readiness_and_explicit_advance_preserves_waiting_actor(bool presentationDriven)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleDefinition seed = Create(game, assets, 61, ready: false).Capture().Definition;
+        BattleDefinition definition = seed with { NativeClockRules = new(10), NativeBattleSpeed = 2, Combatants = seed.Combatants.Select((actor, index) => actor with { Speed = index == 0 ? 100 : actor.IsPlayer ? 10 : 1 }).ToArray() };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        TimeSpan frame = TimeSpan.FromTicks((TimeSpan.TicksPerSecond + BattleSession.FramesPerSecond - 1) / BattleSession.FramesPerSecond);
+        for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
+        {
+            battle.Tick();
+        }
+        Assert.True(battle.NativeEntryReady);
+        long before = battle.NativeGraphics!.Callback;
+
+        if (presentationDriven)
+        {
+            battle.AdvanceNativeGraphicsPresentation(frame);
+        }
+        else
+        {
+            battle.Tick();
+        }
+
+        Assert.True(battle.Combatants[0].IsReady);
+        Assert.False(battle.Combatants[1].IsReady);
+        Assert.True(battle.NativeGraphics!.Callback > before + 1);
+        long waitingFrame = battle.Frame;
+        int waitingGauge = battle.Combatants[1].NativeAtb!.Current;
+        if (presentationDriven)
+        {
+            battle.AdvanceNativeGraphicsPresentation(frame);
+        }
+        else
+        {
+            battle.Tick();
+        }
+        Assert.Equal(waitingFrame, battle.Frame);
+        Assert.Equal(waitingGauge, battle.Combatants[1].NativeAtb!.Current);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+
+        int advanced = battle.AdvanceTurn();
+        Assert.Equal(advanced, restored.AdvanceTurn());
+        Assert.True(advanced > 1);
+        Assert.True(battle.Combatants[0].IsReady);
+        Assert.True(battle.Combatants[1].IsReady);
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public sealed class NativePlayerDrawMetadataTests
                 battle.Tick();
                 Assert.True(battle.KnownMagic!.Contains(spell.Id));
                 BattleSession restored = BattleSession.Restore(battle.Capture());
-                for (int frame = 0; frame < 30; frame++)
+                for (int frame = 0; frame < 30 && battle.Combatants[0].IsBusy; frame++)
                 {
                     battle.Tick();
                     restored.Tick();
@@ -41,6 +41,60 @@ public sealed class NativePlayerDrawMetadataTests
             }
         }
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(65, false)]
+    public void InstalledStockAndFailurePublishTheOriginalFactualPacketExactlyOnceAcrossRestore(int selection, bool failed)
+    {
+        string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? @"C:\Steam\steamapps\common\FINAL FANTASY VIII";
+        Assert.SkipUnless(Directory.Exists(directory), "Installed battle resources are required.");
+        using GameAssets game = new(directory);
+        using BattleAssets assets = new(directory);
+        BattleActionDefinition spell = assets.ActionDefinitions.Single(action => action.Ability == BattleAbility.Magic && action.Id == 1);
+        BattleDefinition definition = Create(game, assets, spell).Capture().Definition;
+        BattleCombatantDefinition[] actors = definition.Combatants.ToArray();
+        actors[0] = actors[0] with { GuardianForceCompatibility = Enumerable.Repeat((ushort)4000, 16).ToArray() };
+        actors[3] = actors[3] with { DrawSpells = [], NativeDrawSlots = [new(checked((byte)selection), failed ? (byte)255 : (byte)0), new(0, 0), new(0, 0), new(0, 0)] };
+        BattleSession battle = new(definition with { Combatants = actors, NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(), GuardianForces = [new(1, 1000, 100, false)] }, BattleAtbMode.TurnBased);
+        int[] hp = battle.Combatants.Select(actor => actor.CurrentHp).ToArray();
+        battle.QueueAction("caster", "source", BattleAbility.Draw, selection);
+        battle.Tick();
+        BattleNativeDrawContext result = Assert.IsType<BattleNativeDrawContext>(battle.ActiveAction!.NativeDraw);
+        Assert.Equal(failed, result.Failed);
+        Assert.Equal((byte)1, battle.NativeActionPackets.ActionCount);
+        Assert.Equal((byte)1, battle.NativeActionPackets.ContactCount);
+        NativeBattleActionHeaderSlot header = battle.NativeActionPackets.Headers[0];
+        Assert.Equal(failed ? (byte)0 : (byte)6, header.ReadByte(1));
+        Assert.Equal(failed ? (byte)10 : game.ReadNativeBattleCommandSequences()[10], header.ReadByte(2));
+        Assert.Equal(failed ? (ushort)9 : checked((ushort)selection), NativeBattleActionGraphics.Word(header, 4));
+        Assert.Equal(failed ? (ushort)0 : (ushort)15, NativeBattleActionGraphics.Word(header, 6));
+        Assert.Equal(failed ? (byte)0 : (byte)1, header.ReadByte(16));
+        Assert.Equal(0x47EBD0u, header.Data!.ProducerAddress);
+        Assert.Equal((ushort)6, header.Data.Argument);
+        NativeBattleContactHalf contact = battle.NativeActionPackets.ReadContact(0).Primary;
+        Assert.Equal((byte)3, contact.ActorIndex);
+        Assert.Equal((ushort)0, contact.Amount6);
+        Assert.Equal(hp, battle.Combatants.Select(actor => actor.CurrentHp));
+        Assert.Equal(Enumerable.Repeat((ushort)4000, 16), battle.Capture().Combatants[0].GuardianForceCompatibility);
+        Assert.DoesNotContain(battle.Events, item => item.Kind == "NativeText");
+        int stock = battle.Combatants[0].MagicStocks.Sum(stock => stock.Count);
+        Assert.Equal(selection < 64 ? result.Added : 0, stock);
+        Assert.Equal(selection >= 64, Assert.Single(battle.GuardianForces).Acquired);
+        BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
+        for (int frame = 0; frame < 40 && battle.Combatants[0].IsBusy; frame++)
+        {
+            battle.Tick();
+            restored.Tick();
+            Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
+        }
+        Assert.Null(battle.ActiveAction);
+        BattleEvent message = Assert.Single(battle.Events, item => item.Kind == "NativeText");
+        Assert.True(message.Frame > 1);
+        Assert.Equal(stock, battle.Combatants[0].MagicStocks.Sum(stock => stock.Count));
+        Assert.Equal(hp, battle.Combatants.Select(actor => actor.CurrentHp));
     }
 
     [Fact]

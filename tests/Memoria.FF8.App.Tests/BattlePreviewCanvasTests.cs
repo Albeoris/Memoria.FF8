@@ -68,6 +68,33 @@ public sealed class BattlePreviewCanvasTests
     }
 
     [Fact]
+    public void Rich_battle_message_centers_each_line_and_preserves_native_colors()
+    {
+        using Bitmap bitmap = new(400, 160, PixelFormat.Format32bppArgb);
+        using (BattlePreviewCanvas canvas = new(bitmap))
+        {
+            DialogueDocument message = DialogueTextFormatter.Parse("{Color Red}Ready", new Dictionary<int, string>());
+            canvas.BattleMessage(message, 20, new UiRect(50, 20, 300, 100), 0);
+        }
+        int left = bitmap.Width;
+        int right = -1;
+        for (int y = 20; y < 120; y++)
+        {
+            for (int x = 50; x < 350; x++)
+            {
+                Color color = bitmap.GetPixel(x, y);
+                if (color.R > 150 && color.G < 70 && color.B < 70)
+                {
+                    left = Math.Min(left, x);
+                    right = Math.Max(right, x);
+                }
+            }
+        }
+        Assert.True(right > left);
+        Assert.InRange((left + right) / 2f, 196, 204);
+    }
+
+    [Fact]
     public void Rgba_conversion_preserves_channel_order_and_transparency()
     {
         using Bitmap bitmap = BattlePreviewCanvas.BitmapFromRgba([17, 45, 93, 128, 201, 151, 101, 255], 2, 1);
@@ -114,7 +141,9 @@ public sealed class BattlePreviewCanvasTests
         }
         Assert.True(hud.SelectingTarget);
         Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(20, 20).ToArgb());
-        Assert.NotEqual(Color.Black.ToArgb(), bitmap.GetPixel(20, 500).ToArgb());
+        Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(300, 550).ToArgb());
+        Assert.Equal(Color.Black.ToArgb(), bitmap.GetPixel(940, 620).ToArgb());
+        Assert.NotEqual(Color.Black.ToArgb(), bitmap.GetPixel(32, 520).ToArgb());
         Assert.Equal(0, session.Frame);
         Assert.Empty(session.QueuedActions);
     }

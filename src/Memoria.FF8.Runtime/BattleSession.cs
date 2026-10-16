@@ -138,7 +138,7 @@ public sealed partial class BattleSession
         {
             if (!nativeGraphicsPresentationDriven)
             {
-                PumpNativeHostFrame();
+                DispatchTurnBasedFrame();
             }
             return;
         }
@@ -161,7 +161,33 @@ public sealed partial class BattleSession
             }
             return;
         }
-        DispatchFrame(!nativeGraphicsPresentationDriven);
+        DispatchTurnBasedFrame();
+    }
+
+    private bool HasPendingTurn => nativeScriptState.WaitCounters.Length != 0 || guardianForceCasts.Count != 0 || QueuedActions.Count != 0 || ActiveAction is not null || nativeTimedAction is not null || nativeActionScratch.ComponentCompletion is not null || NativeScriptAllocationPending || NativeGraphics is { Requests.IsEmpty: false } || NativeGraphics is { Descriptors.Queue.IsEmpty: false };
+
+    private bool CanAutomaticallyAdvanceTurn => Mode == BattleAtbMode.TurnBased && Outcome == BattleOutcome.Active && NativeEntryReady && !HasPendingTurn && !combatants.Any(actor => actor.IsReady) && combatants.Any(actor => IsNativeBattleCapable(actor) && !actor.Suspended);
+
+    private void DispatchTurnBasedFrame()
+    {
+        // Skip idle gauge time through the ordinary dispatcher. A ready actor or any newly produced action/wait ends the skip, preserving the action's presentation frames.
+        bool advanceToReadiness = CanAutomaticallyAdvanceTurn;
+        for (int count = 1; count <= MaximumAdvanceFrames; count++)
+        {
+            if (NativeGraphics is null)
+            {
+                DispatchFrame(!nativeGraphicsPresentationDriven);
+            }
+            else
+            {
+                PumpNativeHostFrame();
+            }
+            if (!advanceToReadiness || !CanAutomaticallyAdvanceTurn)
+            {
+                return;
+            }
+        }
+        throw new TimeoutException($"No combatant became ready within {MaximumAdvanceFrames} dispatched battle frames.");
     }
 
     public int AdvanceTurn(int maxFrames = MaximumAdvanceFrames)
@@ -544,6 +570,7 @@ public sealed partial class BattleSession
             return;
         }
         byId[action.ActorId].IsBusy = CompleteNativeDuelAction(action) || CompleteNativeShotAction(action) || QueuedActions.Any(command => command.NativeCallback is null && command.ActorId == action.ActorId);
+        PublishNativeDrawComponentResult(action);
         CompleteNativeComponentPacketPresentation(action);
         ActiveAction = null;
         CompleteNativeGraphicsAction();

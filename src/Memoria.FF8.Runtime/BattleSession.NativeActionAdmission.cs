@@ -4,7 +4,7 @@ public sealed partial class BattleSession
 {
     private static byte NativeHeaderCommand(BattleActionPresentation command, BattleNativeAction native)
     {
-        return command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
+        return command.NativeDraw is { Failed: true } ? (byte)0 : command.IndependentGuardian?.Action?.Command == 244 && command.NativeQueuedCommand is 4 or 13 ? (byte)244 : command.NativeQueuedCommand ?? native.Command;
     }
 
     private NativeBattleActionHeaderPreparation BuildNativeActionHeaderPreparation(BattleCombatant actor, BattleActionPresentation command, BattleNativeAction native)
@@ -14,6 +14,15 @@ public sealed partial class BattleSession
             BattleActionDefinition item = FindAction(BattleAbility.Item, command.ActionId);
             NativeBattleActionDataReference title = new(0x47EA30, checked((ushort)command.ActionId)) { FormattedText = item.NativeAction?.Name ?? item.Name };
             return new(checked((byte)actor.NativeIndex), 0, 10, -1, 9, 0, title);
+        }
+        if (command.NativeDraw is { } draw)
+        {
+            byte drawCommand = draw.Failed ? (byte)0 : (byte)6;
+            byte drawSequence = draw.Failed ? (byte)10 : ResolveNativeDispatchSequence(actor, command.DrawCast ? (byte)9 : (byte)10, command.NativeSequence ?? 0, native.ActionId);
+            ushort drawAction = draw.Failed ? (ushort)9 : draw.Selection;
+            ushort drawEffect = draw.Failed ? (ushort)0 : command.DrawCast ? native.MagicId : (ushort)15;
+            NativeBattleActionDataReference drawTitle = command.DrawCast && !draw.Failed ? new(0x495280, 0) { FormattedText = NativeDrawResultText(actor, draw, true) } : new(0x47EBD0, 6) { FormattedText = definition.NativeCommandNames.ElementAtOrDefault(6) };
+            return new(checked((byte)actor.NativeIndex), drawCommand, drawSequence, -1, drawAction, drawEffect, drawTitle);
         }
         byte original = NativeHeaderCommand(command, native);
         byte sequence = ResolveNativeDispatchSequence(actor, original, command.NativeSequence ?? 0, native.ActionId);
@@ -168,7 +177,7 @@ public sealed partial class BattleSession
 
     private bool HasInstalledNativeAction(BattleCombatant actor, BattleAttackCommand command)
     {
-        return command.NativeAction is not null || command.NativeGraphic is not null || command.IndependentGuardian is not null || command.Ability == BattleAbility.Attack && actor.NativeAttack is not null || definition.ActionDefinitions.Any(action => action.Ability == (command.Ability == BattleAbility.Draw ? BattleAbility.Magic : command.Ability) && action.Id == command.ActionId && action.NativeAction is not null);
+        return command.Ability == BattleAbility.Draw && command.ActionId >= 64 && definition.NativeCommandSequences.Length == 39 || command.NativeAction is not null || command.NativeGraphic is not null || command.IndependentGuardian is not null || command.Ability == BattleAbility.Attack && actor.NativeAttack is not null || definition.ActionDefinitions.Any(action => action.Ability == (command.Ability == BattleAbility.Draw ? BattleAbility.Magic : command.Ability) && action.Id == command.ActionId && action.NativeAction is not null);
     }
 
     private void ValidateNativeHeaderReference(BattleCombatant actor, int? headerIndex)

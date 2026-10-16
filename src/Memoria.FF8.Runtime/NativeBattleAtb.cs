@@ -67,7 +67,7 @@ public sealed partial class BattleSession
             return;
         }
         bool uiAllows = ui.AllowsAtb(definition.NativeSavedOptions is uint options ? unchecked((ushort)options) : null);
-        bool stepAllows = nativeUiForceGaugeAdvance || Mode != BattleAtbMode.TurnBased || !combatants.Any(actor => actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor));
+        bool stepAllows = nativeUiForceGaugeAdvance || !WaitingForTurnBasedDecision;
         if (!stepAllows && NativeBattleClockRules.Admit(nativeBattleClock, uiAllows, false, NativeScriptAllocationPaused).AtbAdmitted != 0)
         {
             //The host decision hold freezes gauge/GF growth, not registration of an already-full native gauge.

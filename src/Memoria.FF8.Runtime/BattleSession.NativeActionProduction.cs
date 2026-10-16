@@ -14,7 +14,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native contact production contradicts its48D200 header or original completion callback.");
         }
         NativeProducedContacts produced = ProduceNativeInstalledContacts(actor, target, command, action, context);
-        byte count = command.IndependentGuardian?.FailureMessage is null ? produced.PublishedCount : (byte)0;
+        byte count = command.IndependentGuardian?.FailureMessage is null && command.NativeDraw is not { Failed: true } ? produced.PublishedCount : (byte)0;
         return new(header, produced.Contacts, count, produced.DeferredContact, produced.ReflectorIndex);
     }
 
@@ -22,7 +22,7 @@ public sealed partial class BattleSession
     {
         BattleNativeAction native = action.NativeAction!;
         ValidateNativeActionContract(native);
-        if (actor.IsPlayer && native.Command is 2 or 6 or 254)
+        if (actor.IsPlayer && native.Command is 2 or 6 or 254 && (command.NativeDraw is null || command.DrawCast && !command.NativeDraw.Failed))
         {
             nativeAffinityAction = native;
         }

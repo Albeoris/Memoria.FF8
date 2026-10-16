@@ -12,8 +12,11 @@ public sealed partial class BattleHudController
     private BattleEvent? formattedBattleMessageEvent;
     private DialogueDocument? formattedBattleMessage;
     private double battlePresentationSeconds;
+    private DialogueDocument? commandError;
+    private double commandErrorUntil;
 
     public string? BattleMessage => BattleMessageDocument?.Text;
+    internal string CommandHelpMessage => commandError?.Text == Message ? "" : Message;
 
     internal double BattlePresentationSeconds => battlePresentationSeconds;
 
@@ -23,7 +26,7 @@ public sealed partial class BattleHudController
         {
             if (activeBattleMessage is not { } message || battleMessageFrames < message.NativeMessageDelayFrames)
             {
-                return null;
+                return battlePresentationSeconds < commandErrorUntil ? commandError : null;
             }
             if (!ReferenceEquals(message, formattedBattleMessageEvent))
             {
@@ -49,6 +52,13 @@ public sealed partial class BattleHudController
             }
             return formattedBattleMessage;
         }
+    }
+
+    private void ShowCommandError(string message)
+    {
+        Message = message;
+        commandError = DialogueTextFormatter.Parse(message, new Dictionary<int, string>());
+        commandErrorUntil = battlePresentationSeconds + 5;
     }
 
     public void AdvancePresentation(TimeSpan elapsed)

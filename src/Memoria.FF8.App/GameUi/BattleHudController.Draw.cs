@@ -5,12 +5,14 @@ namespace Memoria.FF8.GameUi;
 public sealed partial class BattleHudController
 {
     private string? selectedDrawSourceId;
-    public bool SelectingDrawCastRecipient => SelectedCommand == BattleAbility.Draw && selectedDrawSourceId is not null;
+    public bool SelectingDrawMode { get; private set; }
+    public bool SelectingDrawSource => SelectedCommand == BattleAbility.Draw && SelectingTarget && selectedDrawSourceId is null;
+    public bool SelectingDrawCastRecipient => SelectedCommand == BattleAbility.Draw && SelectingTarget && selectedDrawSourceId is not null;
     private bool CastSelectedDraw => DrawCast && SelectedAction?.Id < 64;
 
     private IReadOnlyList<BattleActionDefinition> DrawActionChoices()
     {
-        int[] selections = session.Combatants.Where(actor => actor.IsAlive && !actor.IsPlayer && !actor.Untargetable).SelectMany(actor => actor.NativeDrawSlots).Select(slot => (int)slot.Id).Where(id => id != 0).Distinct().ToArray();
+        int[] selections = session.Combatants.Where(actor => actor.Id == selectedDrawSourceId).SelectMany(actor => actor.NativeDrawSlots).Select(slot => (int)slot.Id).Where(id => id != 0).Distinct().ToArray();
         return selections.Select(id => id >= 64 ? new BattleActionDefinition(BattleAbility.Draw, id, guardianForceName(id - 64), BattleActionEffect.Native, 0, false) : DrawMagicChoice(id)).ToArray();
     }
 
@@ -27,9 +29,9 @@ public sealed partial class BattleHudController
 
     private IReadOnlyList<BattleCombatant> DrawTargets()
     {
-        if (!SelectingDrawCastRecipient)
+        if (SelectingDrawSource)
         {
-            return session.Combatants.Where(actor => actor.IsAlive && !actor.IsPlayer && !actor.Untargetable && actor.NativeDrawSlots.Any(slot => slot.Id == SelectedAction?.Id)).ToArray();
+            return session.Combatants.Where(actor => actor.IsAlive && !actor.IsPlayer && !actor.Untargetable).ToArray();
         }
         if (SelectedAction is not { } action || SelectedActor is not { } caster)
         {
@@ -41,15 +43,80 @@ public sealed partial class BattleHudController
 
     private bool CollectDrawTarget(BattleCombatant target)
     {
-        if (SelectedCommand != BattleAbility.Draw || !CastSelectedDraw || selectedDrawSourceId is not null)
+        if (!SelectingDrawSource)
         {
             return true;
         }
         selectedDrawSourceId = target.Id;
         selectedTargetId = null;
-        Message = "Draw Cast: select the spell recipient. Cancel: return to source.";
+        SelectingTarget = false;
+        SelectingAction = true;
+        actionIndex = 0;
+        session.OpenNativeActionMenu();
+        Message = "Choose magic to draw.";
         SoundRequested?.Invoke(MenuSound.Confirm);
         return false;
+    }
+
+    private bool ConfirmDrawSelection()
+    {
+        if (SelectedCommand != BattleAbility.Draw || SelectingTarget)
+        {
+            return false;
+        }
+        if (!SelectingAction)
+        {
+            selectedDrawSourceId = null;
+            SelectingTarget = true;
+            DrawCast = false;
+            Message = "Choose a source to draw from.";
+        }
+        else if (SelectedAction is null)
+        {
+            return true;
+        }
+        else if (!SelectingDrawMode)
+        {
+            SelectingDrawMode = true;
+            DrawCast = false;
+            Message = "Stock or Cast?";
+        }
+        else if (CastSelectedDraw)
+        {
+            SelectingDrawMode = false;
+            SelectingTarget = true;
+            selectedTargetId = null;
+            Message = "Choose the spell recipient.";
+        }
+        else
+        {
+            SubmitDrawStock();
+            return true;
+        }
+        SoundRequested?.Invoke(MenuSound.Confirm);
+        return true;
+    }
+
+    private void SubmitDrawStock()
+    {
+        BattleCombatant actor = SelectedActor!;
+        try
+        {
+            (execute ?? throw new NotSupportedException("Battle action dispatcher is unavailable."))(new BattleInput(BattleInputKind.Action, ActorId: actor.Id, TargetId: selectedDrawSourceId, Ability: BattleAbility.Draw, ActionId: SelectedAction!.Id));
+        }
+        catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
+        {
+            ShowCommandError(error.Message);
+            return;
+        }
+        SelectingDrawMode = false;
+        SelectingAction = false;
+        SelectingTarget = false;
+        session.CloseNativeActionMenu();
+        selectedDrawSourceId = null;
+        selectedActorId = null;
+        commandIndex = 0;
+        SoundRequested?.Invoke(MenuSound.Confirm);
     }
 
     private BattleInput WithDrawTarget(BattleInput input)

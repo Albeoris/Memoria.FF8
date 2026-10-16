@@ -5,7 +5,7 @@ public sealed partial class BattleSession
     private HashSet<string>? nativeUiBecameReady;
     private bool nativeUiForceGaugeAdvance;
 
-    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && nativeScriptState.WaitCounters.Length == 0 && guardianForceCasts.Count == 0 && QueuedActions.Count == 0 && ActiveAction is null && combatants.Any(actor => actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor)) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady && CanNativeBattleActorAct(actor));
+    private bool WaitingForTurnBasedDecision => Mode == BattleAtbMode.TurnBased && !HasPendingTurn && combatants.Any(actor => actor.IsPlayer && actor.IsReady) && !combatants.Any(actor => !actor.IsPlayer && actor.IsReady);
 
     private HashSet<string> PumpNativeHostFrame(bool forceGauge = false)
     {

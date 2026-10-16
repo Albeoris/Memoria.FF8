@@ -42,12 +42,9 @@ public sealed class BattleSessionTests
     }
 
     [Fact]
-    public void TurnBasedClockRunsUntilPlayerReadyAndPausesForCommand()
+    public void TurnBasedClockAutomaticallyReachesPlayerReadinessAndPausesForCommand()
     {
         BattleSession session = new(Definition(Player(speed: 1_000), Enemy(speed: 1)), BattleAtbMode.TurnBased);
-        Dispatch(session, 9);
-        Assert.Equal(9, session.Frame);
-        Assert.Equal(9_000, session.Combatants[0].Atb);
         session.Tick();
         Assert.True(session.Combatants[0].IsReady);
         Assert.Equal(10, session.Frame);
@@ -60,7 +57,7 @@ public sealed class BattleSessionTests
     public void TurnBasedEnemiesBecomeReadyAndResolveWithoutManualAdvance()
     {
         BattleSession session = new(Definition(Player(speed: 1), Enemy(speed: 1_000)), BattleAtbMode.TurnBased);
-        Dispatch(session, 10);
+        session.Tick();
         Assert.Equal("enemy", session.ActiveAction!.ActorId);
         Dispatch(session, BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames);
         Assert.Null(session.ActiveAction);
@@ -68,7 +65,10 @@ public sealed class BattleSessionTests
         Assert.Equal(34, session.Frame);
         session.Tick();
         Assert.Equal(35, session.Frame);
-        Assert.Equal(1_000, session.Combatants[1].Atb);
+        Assert.Empty(session.QueuedActions);
+        session.Tick();
+        Assert.Equal(44, session.Frame);
+        Assert.Equal("enemy", session.ActiveAction!.ActorId);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class BattleSessionTests
         Dispatch(session, 1 + BattleSession.AttackWindupFrames + BattleSession.AttackRecoveryFrames);
         Assert.Null(session.ActiveAction);
         Assert.False(session.Combatants[0].IsReady);
-        Dispatch(session, 10);
+        session.Tick();
         Assert.True(session.Combatants[0].IsReady);
         Assert.Equal(35, session.Frame);
         session.Tick();
@@ -92,7 +92,7 @@ public sealed class BattleSessionTests
         BattleCombatantDefinition sleeping = Player(initialAtb: BattleSession.AtbMaximum) with { StatusEffects = [new BattleStatusEffectDefinition { Kind = BattleStatusKind.Sleep, DurationFrames = 2 }] };
         BattleSession session = new(Definition(sleeping, Enemy(speed: 1)), BattleAtbMode.TurnBased);
         Assert.Throws<InvalidOperationException>(() => session.QueueAttack("player", "enemy"));
-        Dispatch(session, 2);
+        session.Tick();
         Assert.Equal(2, session.Frame);
         Assert.Empty(session.Combatants[0].StatusEffects);
         Assert.True(session.Combatants[0].IsReady);

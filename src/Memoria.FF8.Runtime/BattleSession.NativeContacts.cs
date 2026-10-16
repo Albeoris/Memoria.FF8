@@ -59,8 +59,16 @@ public sealed partial class BattleSession
         NativeContactWorking? previous = nativeContactWorking;
         NativeContactWorking contact = new(actor, recipient, preliminary ? native with { AttackFlags = 3, DamagePresentation = 0 } : native, specialSource);
         byte attackClass = preliminary || native.Command is 0 or 14 or 238 or 246 or 252 || native.Command == 241 && native.ActionId is 65530 or 65532 ? (byte)3 : native.Command is 1 or 12 or 28 or 243 or 248 or 251 or 253 ? (byte)0 : (byte)(native.AttackFlags & 3);
+        if (native.Command == 6 && command.NativeDraw is not null && !command.DrawCast)
+        {
+            //48FE20 Stock writes no B99; its zero contact keeps the target's previous attack class.
+            attackClass = recipient.LastNativeAction?.AttackType ?? throw new NotSupportedException("Native Stock Draw requires its retained B99 attack class.");
+        }
+        else
+        {
+            StoreNativeAttackClass(recipient, attackClass);
+        }
         contact.AttackClass = attackClass;
-        StoreNativeAttackClass(recipient, attackClass);
         nativeContactWorking = contact;
         try
         {

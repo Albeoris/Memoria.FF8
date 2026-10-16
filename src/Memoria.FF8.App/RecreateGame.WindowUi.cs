@@ -176,10 +176,10 @@ internal sealed partial class RecreateGame
         if (view is null || previous != message)
         {
             UiAnchorPanel root = new();
-            UiPanel panel = new() { Anchors = bottom ? new UiAnchors(0.03f, 0.69f, 0.97f, 0.97f) : new UiAnchors(0.03f, 0.03f, 0.97f, 0.2f), Padding = 14 };
+            UiPanel panel = new() { Anchors = bottom ? new UiAnchors(0.03f, 0.69f, 0.97f, 0.97f) : new UiAnchors(0.25f, 0.018f, 0.75f, 0.143f), Padding = 14 };
             panel.Children.Add(new UiLabel { Text = message, FontSize = 19 });
             root.Children.Add(panel);
-            view = CreateWindowView(root);
+            view = bottom ? CreateWindowView(root) : new UiView(new GameUi.NoticeElement(message));
             if (bottom)
             {
                 bottomNoticeWindowUi = view;

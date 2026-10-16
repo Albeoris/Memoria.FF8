@@ -15,9 +15,13 @@ public sealed class BattleHudDrawTests
         List<BattleInput> inputs = [];
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
         hud.Choose(0);
-        hud.Navigate(MenuInput.Right);
+        Assert.True(hud.SelectingDrawSource);
+        Assert.Equal(new[] { "source", "other" }, hud.Targets.Select(target => target.Id));
         hud.Navigate(MenuInput.Confirm);
-        Assert.Equal("source", Assert.Single(hud.Targets).Id);
+        Assert.True(hud.SelectingAction);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingDrawMode);
+        hud.Navigate(MenuInput.Down);
         hud.Navigate(MenuInput.Confirm);
         Assert.True(hud.SelectingDrawCastRecipient);
         Assert.Empty(inputs);
@@ -31,19 +35,30 @@ public sealed class BattleHudDrawTests
     }
 
     [Fact]
-    public void CancelReturnsFromCastRecipientToSourceWithoutSubmitting()
+    public void CancelReturnsThroughModeSpellSourceAndCommandWithoutSubmitting()
     {
         BattleSession battle = Create(false);
         List<BattleInput> inputs = [];
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
         hud.Choose(0);
-        hud.Navigate(MenuInput.Right);
         hud.Navigate(MenuInput.Confirm);
         hud.Navigate(MenuInput.Confirm);
+        hud.Navigate(MenuInput.Down);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.True(hud.SelectingDrawCastRecipient);
         hud.Navigate(MenuInput.Cancel);
         Assert.False(hud.SelectingDrawCastRecipient);
+        Assert.True(hud.SelectingDrawMode);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.True(hud.SelectingAction);
+        Assert.False(hud.SelectingDrawMode);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.True(hud.SelectingDrawSource);
         Assert.True(hud.SelectingTarget);
-        Assert.Equal("source", Assert.Single(hud.Targets).Id);
+        Assert.Equal("source", hud.SelectedTarget!.Id);
+        hud.Navigate(MenuInput.Cancel);
+        Assert.False(hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
         Assert.Empty(inputs);
     }
 
@@ -54,15 +69,42 @@ public sealed class BattleHudDrawTests
         List<BattleInput> inputs = [];
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add, guardianForceName: id => id == 1 ? "Custom Shiva" : $"GF{id}");
         hud.Choose(0);
-        Assert.Contains("Custom Shiva · Stock", hud.ChoiceLabels);
-        hud.Navigate(MenuInput.Right);
         hud.Navigate(MenuInput.Confirm);
+        Assert.Contains("Custom Shiva", hud.ChoiceLabels);
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal("Stock", Assert.Single(hud.ChoiceLabels));
+        hud.Navigate(MenuInput.Right);
         hud.Navigate(MenuInput.Confirm);
         BattleInput input = Assert.Single(inputs);
         Assert.Equal(65, input.ActionId);
         Assert.Equal("source", input.TargetId);
         Assert.False(input.DrawCast);
         Assert.Null(input.DrawCastTargetId);
+    }
+
+    [Fact]
+    public void SourceSelectionShowsOnlyItsOwnSpellsAndStockSubmitsWithoutARecipient()
+    {
+        BattleDefinition definition = Create(false).Capture().Definition;
+        definition.Combatants[4] = definition.Combatants[4] with { NativeDrawSlots = [new(3, 0), new(0, 0), new(0, 0), new(0, 0)] };
+        definition = definition with { ActionDefinitions = [.. definition.ActionDefinitions, new(BattleAbility.Magic, 3, "Fire", BattleActionEffect.Damage, 10, false)] };
+        BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        List<BattleInput> inputs = [];
+        BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { }, execute: inputs.Add);
+        hud.Choose(0);
+        hud.SelectTarget("other", true);
+        Assert.Equal("Fire", Assert.Single(hud.ChoiceLabels));
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal(new[] { "Stock", "Cast" }, hud.ChoiceLabels);
+        hud.Navigate(MenuInput.Confirm);
+        BattleInput input = Assert.Single(inputs);
+        Assert.Equal("other", input.TargetId);
+        Assert.Equal(3, input.ActionId);
+        Assert.False(input.DrawCast);
+        Assert.Null(input.DrawCastTargetId);
+        Assert.False(hud.SelectingAction);
+        Assert.False(hud.SelectingTarget);
+        Assert.False(hud.SelectingDrawMode);
     }
 
     [Fact]
@@ -73,7 +115,8 @@ public sealed class BattleHudDrawTests
         BattleSession battle = new(definition with { NativeKnownMagic = empty }, BattleAtbMode.TurnBased);
         BattleHudController hud = new(battle, (_, _) => { }, () => { }, () => { });
         hud.Choose(0);
-        Assert.Equal("???? · Stock", Assert.Single(hud.ChoiceLabels));
+        hud.Navigate(MenuInput.Confirm);
+        Assert.Equal("????", Assert.Single(hud.ChoiceLabels));
         Assert.Equal(2, hud.SelectedAction!.Id);
     }
 

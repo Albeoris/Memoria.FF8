@@ -27,7 +27,7 @@ internal sealed partial class MonoGameUiCanvas
             battleMessageLayouts.Add(key, layout);
         }
         Rectangle clip = Rectangle.Intersect(RectangleFor(bounds), CurrentClip);
-        float y = bounds.Y;
+        float y = bounds.Y + Math.Max(0, (bounds.Height - layout.Lines.Length * layout.LineHeight) / 2);
         foreach (DialogueVisualLine line in layout.Lines)
         {
             if (y >= bounds.Bottom)
@@ -37,7 +37,8 @@ internal sealed partial class MonoGameUiCanvas
             foreach (DialoguePlacedRun placed in line.Runs)
             {
                 Color color = placed.Run.Color * (placed.Run.Blink ? DialogueBlink.Opacity(seconds) : 1);
-                text.DrawWrappedClipped(batch, placed.Run.Text, size, new Vector2(bounds.X + placed.X, y), Math.Max(1, bounds.Width - placed.X), color, clip);
+                float x = Math.Max(0, (bounds.Width - line.Width) / 2) + placed.X;
+                text.DrawWrappedClipped(batch, placed.Run.Text, size, new Vector2(bounds.X + x, y), Math.Max(1, bounds.Width - x), color, clip);
             }
             y += layout.LineHeight;
         }
