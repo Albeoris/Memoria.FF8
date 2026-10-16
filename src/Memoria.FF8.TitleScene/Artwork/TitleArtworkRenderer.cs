@@ -82,16 +82,20 @@ public sealed class TitleArtworkRenderer : IDisposable
             effect.World = Matrix.CreateScale(crestScale, crestScale, 1f) * Matrix.CreateTranslation(bounds.Center.X - 800f * crestScale, bounds.Y + bounds.Height * 0.08f - 72f * crestScale, 0f);
             effect.View = Matrix.Identity;
             effect.Projection = Matrix.CreateOrthographicOffCenter(0f, graphicsDevice.Viewport.Width, graphicsDevice.Viewport.Height, 0f, -1f, 1f);
+            float light = (float)TitleSceneAnimation.LightIntensity(seconds);
+            float pulse = Math.Clamp((light - 0.78f) / 0.44f, 0f, 1f);
+            effect.DiffuseColor = new Vector3(0.94f + pulse * 0.06f);
             effect.Alpha = 1f;
             DrawBuffer(metalBuffer, metalPrimitiveCount);
-            effect.Alpha = 0.33f + (float)Math.Sin(seconds * 0.55) * 0.13f;
+            effect.DiffuseColor = Vector3.One;
+            effect.Alpha = 0.26f + pulse * 0.24f;
             DrawBuffer(glintBuffer, glintPrimitiveCount);
-            float sheenCenter = (float)(seconds * 1.8 % sheenBuffers.Length);
+            float sheenCenter = (float)(seconds / 16.0 % 1.0) * sheenBuffers.Length;
             for (int index = 0; index < sheenBuffers.Length; index++)
             {
                 float distance = MathF.Abs(index - sheenCenter);
                 distance = Math.Min(distance, sheenBuffers.Length - distance);
-                float alpha = MathF.Exp(-distance * distance * 0.16f) * 0.12f;
+                float alpha = (MathF.Exp(-distance * distance * 0.16f) * 0.07f + MathF.Exp(-distance * distance * 0.65f) * 0.11f) * (0.7f + pulse * 0.8f);
                 if (alpha > 0.004f)
                 {
                     effect.Alpha = alpha;
@@ -101,9 +105,11 @@ public sealed class TitleArtworkRenderer : IDisposable
 
             float wordmarkScale = Math.Min(bounds.Width / DesignWidth, bounds.Height / DesignHeight);
             effect.World = Matrix.CreateScale(wordmarkScale, wordmarkScale, 1f) * Matrix.CreateTranslation(bounds.Center.X - 800f * wordmarkScale, bounds.Y + bounds.Height * (469f / DesignHeight) - 469f * wordmarkScale, 0f);
+            effect.DiffuseColor = new Vector3(0.96f + pulse * 0.04f);
             effect.Alpha = 1f;
             DrawBuffer(wordmarkBuffer, wordmarkPrimitiveCount);
-            effect.Alpha = 0.4f;
+            effect.DiffuseColor = Vector3.One;
+            effect.Alpha = 0.29f + pulse * 0.22f;
             DrawBuffer(wordmarkGlintBuffer, wordmarkGlintPrimitiveCount);
         }
         finally

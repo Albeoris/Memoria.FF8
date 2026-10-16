@@ -62,6 +62,9 @@ public sealed class TitleSceneRenderer : IDisposable
         try
         {
             effect.Parameters["Time"].SetValue((float)seconds);
+            effect.Parameters["LightIntensity"].SetValue(TitleSceneAnimation.LightIntensity(seconds));
+            effect.Parameters["VortexRotation"].SetValue(TitleSceneAnimation.VortexRotation(seconds));
+            effect.Parameters["VortexTravel"].SetValue(TitleSceneAnimation.VortexTravel(seconds));
             effect.Parameters["Aspect"].SetValue((float)bounds.Width / bounds.Height);
             effect.Parameters["InverseHeight"].SetValue(1.0f / bounds.Height);
             graphicsDevice.SetRenderTarget(surface);

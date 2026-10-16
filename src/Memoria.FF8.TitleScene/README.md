@@ -29,6 +29,14 @@ The scene fades to black between 49% and 59% of viewport height. A thin red unde
 
 The native composite still scales with destination pixel count. Measure performance on the target hardware; the surface cap bounds the volume/material work rather than establishing a universal frame budget.
 
+## Light and continuous inward motion
+
+`TitleSceneAnimation` supplies one shared 8-second light pulse (intensity 0.78–1.22). The halo/core size and brightness, cloud illumination, fabric glints, water highlights and foreground silver reflections follow that pulse. The crest also has a narrow 16-second travelling reflection. Foreground paths and buffers remain static.
+
+The fabric is sampled in cylindrical material coordinates around the existing distant point. The material angle advances at 0.025 radians/second and logarithmic radius at 0.0225/second. Visible features therefore turn slowly and contract toward the point, with fresh procedural material arriving from outside. There is no zoom reset, crossfade between repeated clips, or finite texture to exhaust. Surface and native-resolution detail use the same coordinates.
+
+
+
 ## Rebuild the shader
 
 On Windows, from this directory:

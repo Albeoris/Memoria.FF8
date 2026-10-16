@@ -31,6 +31,9 @@ internal static class Program
 
 internal sealed record PreviewOptions(int Width, int Height, double Time, string Output, bool Benchmark, bool BackgroundOnly)
 {
+    public int SequenceFrames { get; init; }
+    public double SequenceStep { get; init; } = 0.25;
+
     public static PreviewOptions Parse(string[] args)
     {
         PreviewOptions options = new(1440, 1080, 4, Path.GetFullPath("title-scene.png"), false, false);
@@ -73,8 +76,24 @@ internal sealed record PreviewOptions(int Width, int Height, double Time, string
                 case "--background-only":
                     options = options with { BackgroundOnly = true };
                     break;
+                case "--sequence":
+                    int count = int.Parse(Value(), CultureInfo.InvariantCulture);
+                    if (count < 2 || count > 240)
+                    {
+                        throw new ArgumentException("Sequence length must be within 2..240 frames.");
+                    }
+                    options = options with { SequenceFrames = count };
+                    break;
+                case "--step":
+                    double step = double.Parse(Value(), CultureInfo.InvariantCulture);
+                    if (!double.IsFinite(step) || step <= 0 || step > 60)
+                    {
+                        throw new ArgumentException("Sequence step must be positive and at most 60 seconds.");
+                    }
+                    options = options with { SequenceStep = step };
+                    break;
                 default:
-                    throw new ArgumentException($"Unknown argument: {argument}. Options: --resolution WxH --time seconds --output path.png --benchmark --background-only.");
+                    throw new ArgumentException($"Unknown argument: {argument}. Options: --resolution WxH --time seconds --output path.png --benchmark --background-only --sequence 2..240 --step seconds.");
             }
         }
         return options;
@@ -198,11 +217,23 @@ internal sealed class PreviewGame : Game
                 MaximumRepeatRgbDifference = maximumRepeatDifference,
                 RepeatRgbTolerance = repeatTolerance,
                 RepeatAlphaMatches = alphaMatches,
+                LightIntensity = TitleSceneAnimation.LightIntensity(options.Time),
+                VortexRotationRadians = TitleSceneAnimation.VortexRotation(options.Time),
+                VortexLogTravel = TitleSceneAnimation.VortexTravel(options.Time),
+                options.SequenceFrames,
+                options.SequenceStep,
                 Output = options.Output
             };
             string json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(Path.ChangeExtension(options.Output, ".json"), json);
             Console.WriteLine(json);
+            for (int index = 0; index < options.SequenceFrames; index++)
+            {
+                Render(options.Time + index * options.SequenceStep);
+                GraphicsDevice.GetBackBufferData(pixels);
+                string prefix = Path.Combine(Path.GetDirectoryName(options.Output)!, Path.GetFileNameWithoutExtension(options.Output));
+                SaveImage($"{prefix}-{index:D4}.png", pixels);
+            }
             Exit();
         }
         frame++;
