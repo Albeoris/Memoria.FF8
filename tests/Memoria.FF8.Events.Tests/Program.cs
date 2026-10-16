@@ -201,6 +201,7 @@ internal static partial class Program
                     ["native-push-preemption"] = NativeEmptyPushPreemptionContract,
                     ["push-contact"] = () => GardenNativePushContactBoundary(selectedGameDirectory),
                     ["follow-on"] = NativeFollowOnContract,
+                    ["native-follow-off"] = () => NativeFollowOffContract(selectedGameDirectory),
                     ["music-fade"] = NativeMusicFadeContract,
                     ["music-volume-sync"] = NativeMusicVolumeSyncContract,
                     ["scroll-ratio"] = NativeScrollRatioContract,
