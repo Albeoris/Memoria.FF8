@@ -100,7 +100,7 @@ internal sealed partial class GameWorld
                 {
                     throw new InvalidOperationException("A random battle is already active.");
                 }
-                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value, 0), input.Mode);
+                battle = CreateLiveBattleSession(CreateEncounterBattle(request.Formation, input.NativeSeed!.Value, 0), session.State.GameplayPreferences with { AtbMode = input.Mode });
             }
             else
             {

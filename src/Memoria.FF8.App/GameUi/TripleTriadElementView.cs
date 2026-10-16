@@ -27,7 +27,7 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
             canvas.Text("RULES", 28, new UiRect(210, 133, 540, 50), theme.Foreground);
             canvas.Text(controller.Rules == TripleTriadRules.None ? "Basic rules" : controller.Rules.ToString(), 23, new UiRect(210, 209, 540, 140), theme.Foreground);
             canvas.Text("Trade rule: " + controller.TradeRuleDescription, 23, new UiRect(210, 366, 540, 50), theme.Foreground);
-            canvas.Text("Play       Enter / Confirm\nQuit        Esc / Cancel", 19, new UiRect(210, 438, 540, 68), theme.Foreground);
+            canvas.Text("Play\nQuit", 19, new UiRect(210, 438, 540, 68), theme.Foreground);
         }
         else if (controller.TradingHand is not null)
         {
@@ -43,7 +43,6 @@ internal sealed class TripleTriadElementView(TripleTriadController controller) :
         }
         theme.Panel(canvas, new UiRect(16, 566, 928, 90));
         canvas.Text(controller.IsAnimating ? controller.CaptureAnnouncement ?? "" : controller.Message, 20, new UiRect(32, 578, 896, 32), theme.Foreground);
-        canvas.Text("↑ ↓ ← → Move     Enter Confirm     Esc Back     F5 Save     F9 Load", 16, new UiRect(32, 621, 896, 27), theme.Muted);
         if (controller.PromptFade > 0)
         {
             canvas.Fill(Bounds, new UiColor(0, 0, 0, (byte)(Math.Clamp(controller.PromptFade, 0, 1) * 255)));

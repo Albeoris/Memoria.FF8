@@ -303,7 +303,7 @@ public sealed partial class TripleTriadController
         acceptRules = accepted;
         cancelRules = cancelled;
         AwaitingRules = true;
-        Message = "Confirm to play. Cancel to quit.";
+        Message = "Review the rules before playing.";
     }
 
     public void CompleteRulesPrompt(bool accepted)
@@ -341,7 +341,7 @@ public sealed partial class TripleTriadController
     {
         TripleTriadOutcome.PlayerWin => "You win!",
         TripleTriadOutcome.OpponentWin => "You lose.",
-        _ => Match.CanRestartSuddenDeath ? "Draw. Confirm to continue Sudden Death." : "Draw."
+        _ => Match.CanRestartSuddenDeath ? "Draw. Sudden Death continues." : "Draw."
     };
 
     private void SelectFirstHand()

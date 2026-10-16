@@ -45,7 +45,6 @@ internal sealed class BattleDebugElement : UiElement
         BattleDebugRow selected = controller.Rows[controller.SelectedIndex];
         canvas.Text(selected.Label, 21, new UiRect(674, 112, 248, 76), theme.Foreground);
         canvas.Text(selected.Help, 18, new UiRect(674, 208, 248, 238), theme.Foreground);
-        canvas.Text("↑ ↓ Select\n← → Adjust / Expand\nConfirm: Edit / Start\nCancel: Return\nPgUp / PgDn: Scroll", 16, new UiRect(674, 446, 248, 140), theme.Muted);
         theme.Panel(canvas, new UiRect(18, 614, 924, 40));
         canvas.Text(controller.Message, 16, new UiRect(32, 623, 896, 30), theme.Foreground);
     }

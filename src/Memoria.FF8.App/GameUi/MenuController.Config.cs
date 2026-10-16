@@ -5,13 +5,40 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
+    private static readonly (string Id, string Label, string Help)[] ConfigCategories =
+    [
+        ("gameplay", "Gameplay", "Battle rules and assistance. Gameplay options belong to this save; Title sets defaults for a new game."),
+        ("display", "Display", "V-Sync and scene presentation limits. Shared by every save on this installation."),
+        ("audio", "Audio", "Music and sound-effect output. Shared by every save on this installation."),
+        ("interface", "Interface", "Text, fonts, cursors and dialogue presentation. Shared by every save on this installation."),
+        ("controls", "Controls", "Keyboard and controller mappings, dead zones and vibration. Shared by every save on this installation.")
+    ];
+    private bool IsConfigSettingsScreen => ScreenId is "config" or "config-gameplay" or "config-display" or "config-audio" or "config-interface" or "config-controls" or "new-game-options";
+
+    private static string ConfigCategory(string id) => id switch
+    {
+        "V-Sync" or "Field FPS" or "Battle FPS" or "Menu FPS" => "display",
+        "Music volume" or "Effect volume" or "Sound" => "audio",
+        "Controller" or "Vibration" => "controls",
+        "Cursor" or "Field message" or "Rare card markers" or "Text scale" or "UI font" or "UI font size" or "Dialogue font" or "Dialogue font size" => "interface",
+        _ => "gameplay"
+    };
+
     private int ConfigRowsPerPage => Math.Max(5, (int)(495 / (44 * TextScale)));
 
     internal IReadOnlyList<MenuEntry> ConfigEntries()
     {
+        if (ScreenId == "config")
+        {
+            return ConfigCategories.Select(category => new MenuEntry("config-" + category.Id, category.Label, category.Help, "config-" + category.Id)).ToArray();
+        }
         List<MenuEntry> entries = [];
         foreach (MenuSetting setting in MenuSettings.Definitions)
         {
+            if (ScreenId == "new-game-options" ? setting.Id != "Battle ATB mode" : ConfigCategory(setting.Id) != ScreenId["config-".Length..])
+            {
+                continue;
+            }
             if (setting.Id is "Sound" or "Controller")
             {
                 continue;
@@ -24,8 +51,15 @@ public sealed partial class MenuController
             int next = (Array.IndexOf(setting.Values, value) + 1) % setting.Values.Length;
             entries.Add(new MenuEntry(setting.Id, setting.Id, setting.Description, Action: new MenuAction("config", setting.Id, Value: setting.Values[next])));
         }
-        entries.Add(new MenuEntry("config-controller", "Controller mappings", "Assign controller actions. Bindings are saved globally for every game save.", "config-controller"));
-        entries.Add(new MenuEntry("config-keyboard", "Keyboard mappings", "Assign keyboard actions and combinations. Bindings are saved globally for every game save.", "config-keyboard"));
+        if (ScreenId == "config-controls")
+        {
+            entries.Add(new MenuEntry("config-controller", "Controller mappings", "Assign controller actions. Bindings are saved globally for every game save.", "config-controller"));
+            entries.Add(new MenuEntry("config-keyboard", "Keyboard mappings", "Assign keyboard actions and combinations. Bindings are saved globally for every game save.", "config-keyboard"));
+        }
+        if (ScreenId == "new-game-options")
+        {
+            entries.Add(new MenuEntry("begin", "Begin", "Start a new game with the selected ATB mode.", Action: new MenuAction("new-game-start")));
+        }
         return entries;
     }
 
@@ -59,7 +93,7 @@ public sealed partial class MenuController
             return new UiButton
             {
                 Id = entry.Id,
-                Text = entry.Label + "  ›",
+                Text = entry.Label,
                 FontSize = 24 * TextScale,
                 PointerSize = 20 * TextScale,
                 DrawBackground = false,
@@ -74,7 +108,7 @@ public sealed partial class MenuController
         {
             row = new UiNumericSlider
             {
-                Text = setting.Id,
+                Text = setting.Id == "Battle ATB mode" ? "ATB mode" : setting.Id,
                 Max = numbers[^1],
                 Min = numbers[0],
                 Step = numbers.Zip(numbers.Skip(1), (left, right) => right - left).Min(),
@@ -93,7 +127,7 @@ public sealed partial class MenuController
         {
             row = new UiChoiceRow
             {
-                Text = setting.Id,
+                Text = setting.Id == "Battle ATB mode" ? "ATB mode" : setting.Id,
                 Items = setting.Values,
                 SelectedIndex = Math.Max(0, Array.IndexOf(setting.Values, value)),
                 LabelWidthRatio = 0.45f,

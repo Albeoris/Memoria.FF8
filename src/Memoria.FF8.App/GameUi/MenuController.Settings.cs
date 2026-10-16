@@ -55,7 +55,7 @@ public sealed partial class MenuController
             "Cursor" => preferences.CursorMemory ? "Memory" : "Initial",
             "Field message" => preferences.FieldMessageSpeed.ToString(),
             "Vibration" => CurrentControls.VibrationEnabled ? "On" : "Off",
-            "Battle ATB mode" => preferences.AtbMode.ToString(),
+            "Battle ATB mode" => preferences.AtbMode == Memoria.FF8.Runtime.BattleAtbMode.Normal ? "Classic" : "Turn Based",
             "Gunblade trigger" => preferences.GunbladeMode.ToString(),
             "Battle policy" => preferences.BattlePolicyLabel,
             "Rare card markers" => preferences.RareCardMarkers ? "On" : "Off",

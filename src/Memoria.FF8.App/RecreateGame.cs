@@ -104,11 +104,12 @@ internal sealed partial class RecreateGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        ApplyDisplaySettings();
         resourceHost?.Pump();
         gameMenus?.RefreshModView();
         try
         {
-            UpdateGameFrame(gameTime);
+            UpdateDisplayFrame(gameTime);
         }
         finally
         {
@@ -217,7 +218,7 @@ internal sealed partial class RecreateGame : Game
         {
             if (input.MenuVertical != 0)
             {
-                int nextSelection = input.MenuVertical > 0 ? 1 : 0;
+                int nextSelection = (titleSelection + (input.MenuVertical > 0 ? 1 : -1) + TitleChoices.Length) % TitleChoices.Length;
                 if (titleSelection != nextSelection)
                 {
                     fieldAudio?.PlayUiSound(GameUi.MenuSound.Move);
@@ -229,11 +230,15 @@ internal sealed partial class RecreateGame : Game
                 fieldAudio?.PlayUiSound(GameUi.MenuSound.Confirm);
                 if (titleSelection == 0)
                 {
-                    StartNewGameSession();
+                    gameMenus!.Open("new-game-options", false);
+                }
+                else if (titleSelection == 1)
+                {
+                    OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
                 }
                 else
                 {
-                    OpenPlayerSaveMenu(PlayerSaveMenuMode.Load);
+                    gameMenus!.Open("config", false);
                 }
             }
             if (input.Cancel)
@@ -703,6 +708,7 @@ internal sealed partial class RecreateGame : Game
         world?.Dispose();
         world = null;
         session.StartNewGame();
+        session.SetGameplayPreferences(new GameplayPreferences { AtbMode = uiPreferences.AtbMode, GunbladeMode = uiPreferences.GunbladeMode });
         BattleInput[] battleSettingsInputs = uiPreferences.CreateBattleSettingsInputs();
         if (battleSettingsInputs.Length > 0)
         {
@@ -1043,10 +1049,6 @@ internal sealed partial class RecreateGame : Game
         {
             DrawPartyMenu(bounds);
         }
-        if (session.State.Scene == SceneKind.Movie && movieSkipGesture.Visible)
-        {
-            DrawMovieHintUi(bounds);
-        }
         if (error is not null)
         {
             DrawNoticeUi(bounds, error, true);
@@ -1062,7 +1064,7 @@ internal sealed partial class RecreateGame : Game
         DrawGameUi(bounds);
         if (userPaused)
         {
-            DrawNoticeUi(bounds, "Paused — " + keyboard.BindingHint(ControlAction.Pause) + ": resume", true);
+            DrawNoticeUi(bounds, "Paused", true);
         }
         DrawBattleDebugUi(bounds);
         batch.End();

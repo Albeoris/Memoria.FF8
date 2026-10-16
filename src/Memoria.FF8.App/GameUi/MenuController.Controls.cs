@@ -120,7 +120,7 @@ public sealed partial class MenuController
             return ["Controller settings", "Adjust left and right radial deadzones.", "Choose the tilt needed to run.", "Right stick: camera / car controls.", "Choose button labels for virtual pads.", "Enable or disable controller vibration.", "Changes save automatically."];
         }
         ControlActionDefinition? selected = ControlsProfile.Definitions.FirstOrDefault(definition => definition.Action.ToString() == SelectedEntry?.Id);
-        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Confirm: change binding", "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera / car controls" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemoControls ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
+        List<string> details = [selected is null ? "Restore defaults" : ControlsLabel(selected.Action), selected?.Category ?? "All actions", selected is null ? "" : BindingText(selected.Action, device), "Key / button combinations supported.", device == ControlDevice.Controller ? "Left stick: movement" : "", device == ControlDevice.Controller ? "Right stick: camera / car controls" : "", device == ControlDevice.Controller ? "Stick directions cannot bind actions." : "", IsDemoControls ? "Menu demo: changes stay isolated." : CanWriteControls ? "Changes save automatically." : "Controls are not connected to this host."];
         return details.Where(line => line.Length != 0).ToArray();
     }
 
@@ -137,7 +137,7 @@ public sealed partial class MenuController
     {
         if (_captureControls)
         {
-            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.FormatDisplayName(CurrentControllerPresentation) ?? "Waiting for input...", "Escape or click Cancel to cancel.", "Gameplay input is paused."];
+            return [ControlsActionName, _captureArmed ? "Press the new key / buttons." : "Release all keys and buttons first.", "Hold combination buttons together.", "Release all to finish capture.", _capturedChord?.FormatDisplayName(CurrentControllerPresentation) ?? "Waiting for input...", "Gameplay input is paused."];
         }
         return [ControlsActionName, $"Device: {ControlsDeviceName}", $"Current: {ControlsMapping}", "Capture replaces this action's bindings.", "Hold combination buttons together.", "Confirm and Cancel must stay bound.", IsDemoControls ? "Changes stay in this menu demo." : "Changes save automatically."];
     }

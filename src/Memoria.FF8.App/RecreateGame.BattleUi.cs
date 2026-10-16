@@ -74,7 +74,7 @@ internal sealed partial class RecreateGame
         }
         if (world?.HasPendingBattle == true && world.Battle is null)
         {
-            world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, Mode: uiPreferences.AtbMode));
+            world.ApplyBattleInput(new BattleInput(BattleInputKind.StartEncounter, Mode: session.State.GameplayPreferences.AtbMode));
         }
         BattleSession? active = ActiveBattle;
         if (active is null)
@@ -181,10 +181,6 @@ internal sealed partial class RecreateGame
     {
         if (presentedBattle != active)
         {
-            if (active.GunbladeMode != uiPreferences.GunbladeMode)
-            {
-                ApplyBattleCommand(new BattleInput(BattleInputKind.SetGunbladeMode, GunbladeMode: uiPreferences.GunbladeMode));
-            }
             DisposeBattleTextures();
             presentedBattle = active;
             battleScene = new BattleScenePresentation(PresentationBattleResources, active.Capture().Definition, debugBattle is null);
@@ -323,7 +319,7 @@ internal sealed partial class RecreateGame
         BattleStock[] items = currentEconomy.Items.Where(stock => stock.ItemId > 0 && stock.Count > 0).Select(stock => new BattleStock(stock.ItemId, stock.Count)).ToArray();
         BattleDefinition initial = BattleDebugDefaults.Create(currentParty, lastEnemy, stageId, world?.Battle, actions, items);
         battleDebugPresets ??= new BattleDebugPresets(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.SavePath))!, "battle-presets.json"));
-        battleDebug = new BattleDebugController(initial, catalog, uiPreferences.AtbMode, StartDebugBattle, () => battleDebug = null, battleDebugPresets);
+        battleDebug = new BattleDebugController(initial, catalog, ReadCurrentUiPreferences().AtbMode, StartDebugBattle, () => battleDebug = null, battleDebugPresets);
         battleDebug.SoundRequested += sound => fieldAudio?.PlayUiSound(sound);
         SynchronizeUiMoviePause();
     }
@@ -338,13 +334,17 @@ internal sealed partial class RecreateGame
             ApplyCurrentBattleSettings(nextPreferences, "Random encounters");
         }
         ApplyCurrentBattleSettings(nextPreferences, "Battle ATB mode");
-        nextPreferences.Save(UiPreferencesPath);
-        uiPreferences = nextPreferences;
+        if (session.State.Scene == SceneKind.Title)
+        {
+            nextPreferences.Save(UiPreferencesPath);
+            uiPreferences = nextPreferences;
+        }
     }
 
     private void StartDebugBattle(BattleDefinition definition, BattleAtbMode mode)
     {
         BattleSession next = new(definition, mode);
+        next.SetGunbladeMode(ReadCurrentUiPreferences().GunbladeMode);
         _ = PresentationBattleResources.LoadStage(definition.StageId ?? throw new ArgumentException("A debug battle needs a stage ID."));
         _ = new BattleScenePresentation(PresentationBattleResources, definition, false);
         debugBattle = next;
@@ -397,7 +397,7 @@ internal sealed partial class RecreateGame
         switch (request.Command.ToLowerInvariant())
         {
             case "battle-start":
-                StartDebugBattle(command.Definition ?? throw new ArgumentException("Battle Definition is required."), command.Mode ?? uiPreferences.AtbMode);
+                StartDebugBattle(command.Definition ?? throw new ArgumentException("Battle Definition is required."), command.Mode ?? ReadCurrentUiPreferences().AtbMode);
                 break;
             case "battle-input":
                 ApplyBattleCommand(command.Input ?? throw new ArgumentException("Battle Input is required."));

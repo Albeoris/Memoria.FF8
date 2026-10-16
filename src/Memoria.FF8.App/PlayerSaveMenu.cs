@@ -160,7 +160,7 @@ internal sealed class PlayerSaveMenu
             if (Mode == PlayerSaveMenuMode.Save && File.Exists(store.GetPath(entry.Slot)) && !ConfirmOverwrite)
             {
                 ConfirmOverwrite = true;
-                Message = $"Overwrite {entry.Label}? Enter: overwrite   Escape: keep existing save";
+                Message = $"Overwrite {entry.Label}?";
                 SoundRequested?.Invoke(MenuSound.Confirm);
                 return;
             }

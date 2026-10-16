@@ -171,7 +171,7 @@ public sealed partial class MenuController
         }
         Place(page, Panel(null, commands), 2, 0);
         Place(page, Panel(NamePages[_namePage].Title, keys), 2, 1);
-        Place(page, Panel(null, Label(Message.Length > 0 ? Message : "Enter: confirm · Backspace: delete · Shoulders / PgUp/PgDn: page · 20 characters", 16)), 3, 0, 1, 2);
+        Place(page, Panel(null, Label(Message.Length > 0 ? Message : "20 characters", 16)), 3, 0, 1, 2);
         return page;
     }
 

@@ -159,11 +159,15 @@ public static class MenuSettings
 {
     public static IReadOnlyList<MenuSetting> Definitions { get; } =
     [
+        new("V-Sync", "Synchronize presentation with the display refresh rate. Applies to this installation.", ["On", "Off"]),
+        new("Field FPS", "Presentation limit for fields, world travel and movies. Simulation remains at its original rate; higher limits repeat frames. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
+        new("Battle FPS", "Battle presentation limit. Simulation remains unchanged; higher limits repeat frames. Applies to this installation.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
+        new("Menu FPS", "Title and menu presentation limit. Applies to this installation. V-Sync may limit output further.", ["15", "30", "60", "90", "120", "144", "240", "Unlimited"]),
         new("Sound", "Original stereo / mono output setting.", ["Stereo", "Mono"]),
         new("Controller", "Original normal / custom control mapping.", ["Normal", "Customize"]),
         new("Cursor", "Initial resets the cursor when entering a menu. Memory remembers the last selection.", ["Initial", "Memory"]),
         new("ATB", "Original battle timing mode.", ["Active", "Wait"]),
-        new("Battle ATB mode", "Normal advances continuously. TurnBased advances idle gauges with Advance Turn.", ["Normal", "TurnBased"]),
+        new("Battle ATB mode", "Classic uses continuous ATB. Turn Based advances idle gauges when a turn is requested. Saved with the game; Title sets the new-game default.", ["Classic", "Turn Based"]),
         new("Gunblade trigger", "Automatic assists Squall/Seifer gunblade hits. Manual uses the Gunblade / Rotate right binding at contact (default G / RB).", ["Automatic", "Manual"]),
         new("Battle policy", "Apply immediately: instant victory wins encounters automatically; full combat enables playable battles.", ["Instant victory", "Full combat"]),
         new("Rare card markers", "Show a small rotating card above opponents who can currently offer a unique card.", ["On", "Off"]),

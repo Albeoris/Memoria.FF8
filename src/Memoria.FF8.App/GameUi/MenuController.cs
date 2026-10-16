@@ -179,18 +179,18 @@ public sealed partial class MenuController
             return;
         }
         var entries = Entries;
-        if (ScreenId == "config" && input is MenuInput.PageUp or MenuInput.PageDown)
+        if (IsConfigSettingsScreen && input is MenuInput.PageUp or MenuInput.PageDown)
         {
             Select(Math.Clamp(SelectedIndex + (input == MenuInput.PageUp ? -ConfigRowsPerPage : ConfigRowsPerPage), 0, Math.Max(0, entries.Count - 1)), entries.Count);
             return;
         }
-        if (ScreenId == "config" && input == MenuInput.Confirm && MenuSettings.Definitions.FirstOrDefault(setting => setting.Id == SelectedEntry?.Id) is { } numericSetting && TryConfigNumbers(numericSetting, out _))
+        if (IsConfigSettingsScreen && input == MenuInput.Confirm && MenuSettings.Definitions.FirstOrDefault(setting => setting.Id == SelectedEntry?.Id) is { } numericSetting && TryConfigNumbers(numericSetting, out _))
         {
             return;
         }
         UiView view = BuildView();
         if (view.FocusedElement is UiList { Orientation: UiOrientation.Vertical, Paginated: true } list &&
-            (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && ScreenId != "config" && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
+            (input is MenuInput.PageUp or MenuInput.PageDown || input is MenuInput.Left or MenuInput.Right && !IsConfigSettingsScreen && !IsHostSettingsScreen || list.Id != "commands" && input is MenuInput.Up or MenuInput.Down))
         {
             view.Key(input switch
             {
@@ -220,7 +220,7 @@ public sealed partial class MenuController
                 Select(SelectedIndex + columns, entries.Count);
                 break;
             case MenuInput.Left:
-                if (ScreenId == "config" || IsHostSettingsScreen)
+                if (IsConfigSettingsScreen || IsHostSettingsScreen)
                 {
                     ChangeSetting(-1);
                 }
@@ -230,7 +230,7 @@ public sealed partial class MenuController
                 }
                 break;
             case MenuInput.Right:
-                if (ScreenId == "config" || IsHostSettingsScreen)
+                if (IsConfigSettingsScreen || IsHostSettingsScreen)
                 {
                     ChangeSetting(1);
                 }
@@ -453,7 +453,7 @@ public sealed partial class MenuController
             return;
         }
         var current = IsHostSettingsScreen ? HostSettingValue(setting.Id) : Data.Settings.GetValueOrDefault(setting.Id);
-        if (ScreenId == "config" && TryConfigNumbers(setting, out float[] numbers))
+        if (IsConfigSettingsScreen && TryConfigNumbers(setting, out float[] numbers))
         {
             float number = float.TryParse(current?.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture, out float parsed) ? parsed : numbers[0];
             float next = direction > 0 ? numbers.FirstOrDefault(candidate => candidate > number, numbers[^1]) : numbers.LastOrDefault(candidate => candidate < number, numbers[0]);
@@ -635,7 +635,7 @@ public sealed partial class MenuController
                 ScreenId = "item-use";
                 _itemId = "";
             }
-            Message = "Request sent to the live owner.";
+            Message = action.Kind == "config" ? "" : "Request sent to the live owner.";
             return;
         }
         ApplyDemo(action);

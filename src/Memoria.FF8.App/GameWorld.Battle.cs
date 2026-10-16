@@ -226,7 +226,7 @@ internal sealed partial class GameWorld
             {
                 throw new InvalidOperationException("Start Encounter requires one suspended interactive BATTLE request.");
             }
-            battle = CreateLiveBattleSession(CreateEncounterBattle(request.Encounter, input.NativeSeed!.Value, request.Flags), input.Mode);
+            battle = CreateLiveBattleSession(CreateEncounterBattle(request.Encounter, input.NativeSeed!.Value, request.Flags), session.State.GameplayPreferences with { AtbMode = input.Mode });
             session.SetBattle(battle.Capture());
             return 0;
         }

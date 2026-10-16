@@ -4,11 +4,11 @@ namespace Memoria.FF8.GameUi;
 
 public sealed partial class MenuController
 {
-    private bool IsNativeSecondaryScreen => !IsHostSettingsScreen && !UseHostControls && (ScreenId == "config" || ScreenId.StartsWith("config-", StringComparison.Ordinal) || ScreenId is "save" or "save-confirm" or "load" or "load-confirm" or "seed-test" || ScreenId.StartsWith("shop", StringComparison.Ordinal) || ScreenId.StartsWith("ability", StringComparison.Ordinal) || ScreenId.StartsWith("tutorial", StringComparison.Ordinal));
+    private bool IsNativeSecondaryScreen => !IsHostSettingsScreen && !UseHostControls && (IsConfigSettingsScreen || ScreenId.StartsWith("config-", StringComparison.Ordinal) || ScreenId is "save" or "save-confirm" or "load" or "load-confirm" or "seed-test" || ScreenId.StartsWith("shop", StringComparison.Ordinal) || ScreenId.StartsWith("ability", StringComparison.Ordinal) || ScreenId.StartsWith("tutorial", StringComparison.Ordinal));
 
     private UiElement BuildNativeSecondary()
     {
-        if (ScreenId == "config")
+        if (IsConfigSettingsScreen)
         {
             return BuildSecondaryConfig();
         }
@@ -57,14 +57,16 @@ public sealed partial class MenuController
 
     private UiElement BuildSecondaryConfig()
     {
-        var page = Grid([0.85f, 7.4f], [1], 8);
+        bool newGame = ScreenId == "new-game-options";
+        var page = Grid([1.4f * TextScale, newGame ? 2.5f : 6.85f], [1], 8);
         var header = Grid([1], [3.7f, 1.3f], 5);
-        Place(header, Panel("HELP", Label(Message.Length > 0 ? Message : SelectedEntry is { } setting ? "Set " + setting.Id.ToLowerInvariant() : "Select a setting.", 23)), 0);
-        Place(header, Panel(null, Label("Config", 27)), 0, 1);
+        string help = Message.Length > 0 ? Message : newGame ? "Choose your ATB mode. This choice is saved with the game." : SelectedEntry?.Help ?? "Select a setting.";
+        Place(header, Panel("HELP", new UiLabel { Text = help, FontSize = 18 * TextScale }), 0);
+        Place(header, Panel(null, Label(ScreenId == "new-game-options" ? "New Game" : "Config", 27)), 0, 1);
         Place(page, header, 0);
-        int count = ConfigRowsPerPage;
+        int count = ScreenId == "new-game-options" ? 2 : ConfigRowsPerPage;
         int first = SelectedIndex / count * count;
-        var content = Grid([1, 0.055f], [1], 4);
+        var content = Grid(newGame ? [1] : [1, 0.055f], [1], 4);
         var rows = new UiGrid { Columns = 1, Gap = 0 };
         for (int index = 0; index < count; index++)
         {
@@ -76,8 +78,18 @@ public sealed partial class MenuController
         }
         Place(content, rows, 0);
         int pages = Math.Max(1, (Entries.Count + count - 1) / count);
-        Place(content, Label($"‹  {first / count + 1} / {pages}  ›     Left / Right: adjust     Page Up / Down: page", 15), 1);
+        if (!newGame)
+        {
+            Place(content, Label($"{(ScreenId == "config" ? "Categories" : CurrentScreen.Title)}     {first / count + 1} / {pages}", 15), 1);
+        }
         Place(page, Panel(null, content), 1);
+        if (newGame)
+        {
+            UiAnchorPanel modal = new();
+            page.Anchors = new UiAnchors(0.08f, 0.31f, 0.92f, 0.69f);
+            modal.Children.Add(page);
+            return modal;
+        }
         return page;
     }
 
@@ -205,7 +217,7 @@ public sealed partial class MenuController
             "tutorial" => [],
             "tutorial-seed" => ["Practice test", "Ten questions", "SeeD rank   " + Number(Data.SeeDRank)],
             "seed-test" => TestQuestion >= 10 ? ["Practice completed", $"Score: {TestCorrect}/10"] : [$"Question {TestQuestion + 1} / 10", TestQuestion % 2 == 0 ? "Does Confirm select an entry?" : "Does Cancel increase your gil?"],
-            "tutorial-menu" => ["Directional controls move the cursor.", "Confirm selects an entry.", "Cancel returns to the previous page."],
+            "tutorial-menu" => ["The menu contains character status, junctions, items and magic.", "Character pages show the selected party member.", "Status includes Limit Break information."],
             "tutorial-junction" => CurrentScreen.Details(this).Take(4).ToArray(),
             "tutorial-card" => CurrentScreen.Details(this).Take(4).ToArray(),
             _ => CurrentScreen.Details(this)

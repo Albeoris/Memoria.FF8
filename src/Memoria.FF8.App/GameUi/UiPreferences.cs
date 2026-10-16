@@ -6,6 +6,10 @@ namespace Memoria.FF8.GameUi;
 /// <summary>Local presentation preferences and battle settings applied to the running game.</summary>
 internal sealed record UiPreferences
 {
+    public bool VSync { get; init; } = true;
+    public int FieldFps { get; init; } = 60;
+    public int BattleFps { get; init; } = 60;
+    public int MenuFps { get; init; } = 60;
     public int MusicVolume { get; init; } = 100;
     public int SoundVolume { get; init; } = 100;
     public int TextScale { get; init; } = 100;
@@ -42,6 +46,29 @@ internal sealed record UiPreferences
 
     public UiPreferences WithSetting(string key, string value)
     {
+        if (key == "V-Sync")
+        {
+            return value switch
+            {
+                "On" => this with { VSync = true },
+                "Off" => this with { VSync = false },
+                _ => throw new ArgumentException("V-Sync requires On or Off.")
+            };
+        }
+        if (key is "Field FPS" or "Battle FPS" or "Menu FPS")
+        {
+            int fps = value == "Unlimited" ? 0 : int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+            if (fps is not (0 or 15 or 30 or 60 or 90 or 120 or 144 or 240))
+            {
+                throw new ArgumentException("Unsupported presentation frame limit.");
+            }
+            return key switch
+            {
+                "Field FPS" => this with { FieldFps = fps },
+                "Battle FPS" => this with { BattleFps = fps },
+                _ => this with { MenuFps = fps }
+            };
+        }
         if (key == "Cursor")
         {
             return value switch
@@ -94,8 +121,8 @@ internal sealed record UiPreferences
         {
             return value switch
             {
-                "Normal" => this with { AtbMode = BattleAtbMode.Normal },
-                "TurnBased" => this with { AtbMode = BattleAtbMode.TurnBased },
+                "Classic" or "Normal" => this with { AtbMode = BattleAtbMode.Normal },
+                "Turn Based" or "TurnBased" => this with { AtbMode = BattleAtbMode.TurnBased },
                 _ => throw new ArgumentException("Unsupported battle ATB mode.")
             };
         }
@@ -131,6 +158,15 @@ internal sealed record UiPreferences
         };
     }
 
+    public UiPreferences WithInstallationSetting(string key, string value, bool activeGame)
+    {
+        if (activeGame && key is "Battle ATB mode" or "Gunblade trigger" or "Battle policy" or "Random encounters")
+        {
+            return this;
+        }
+        return WithSetting(key, value);
+    }
+
     public void Save(string path)
     {
         Validate();
@@ -140,9 +176,11 @@ internal sealed record UiPreferences
         File.Move(temporary, path, true);
     }
 
+    private static bool ValidFps(int fps) => fps is 0 or 15 or 30 or 60 or 90 or 120 or 144 or 240;
+
     private void Validate()
     {
-        if (MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
+        if (!ValidFps(FieldFps) || !ValidFps(BattleFps) || !ValidFps(MenuFps) || MusicVolume is < 0 or > 100 || SoundVolume is < 0 or > 100 || TextScale is not (100 or 125 or 150) || FieldMessageSpeed is < 1 or > 5 || UiFontSize is < 6 or > 48 || DialogueFontSize is < 6 or > 48 || string.IsNullOrWhiteSpace(UiFontFamily) || string.IsNullOrWhiteSpace(DialogueFontFamily) || !Enum.IsDefined(AtbMode) || !Enum.IsDefined(GunbladeMode) || BattlePolicy is not ("ResearchInstantVictory" or "NewGameFullCombat"))
         {
             throw new InvalidDataException("UI presentation preferences are outside their supported ranges.");
         }

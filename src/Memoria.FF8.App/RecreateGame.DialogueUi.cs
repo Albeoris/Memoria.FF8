@@ -125,11 +125,6 @@ internal sealed partial class RecreateGame
         }
     }
 
-    private void DrawMovieHintUi(Rectangle bounds)
-    {
-        MovieSkipHint.Draw(uiCanvas!, new UiRect(bounds.X, bounds.Y, bounds.Width, bounds.Height), keyboard.CancelBindingHint, movieSkipGesture.Progress, uiPreferences.UiFontFamily);
-    }
-
     private void DrawTimerUi(Rectangle bounds, NativeExamTimerState timer)
     {
         if (timerUi is null)

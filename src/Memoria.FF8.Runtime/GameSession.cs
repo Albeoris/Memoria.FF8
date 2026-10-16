@@ -558,6 +558,11 @@ public sealed partial class GameSession : IEventServices
 
     private static void Validate(GameState state)
     {
+        if (state.GameplayPreferences is null)
+        {
+            throw new InvalidDataException("Saved gameplay preferences cannot be null.");
+        }
+        state.GameplayPreferences.Validate();
         ValidateEntityNames(state);
         ValidateTripleTriadCheckpoint(state);
         ValidateNativePlaytime(state);

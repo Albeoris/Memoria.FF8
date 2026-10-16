@@ -37,6 +37,7 @@ internal sealed partial class RecreateGame
         {
             uiPreferences.Save(UiPreferencesPath);
         }
+        ApplyDisplaySettings();
         text.FontFamily = uiPreferences.UiFontFamily;
         fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
         gameMenus = new MenuController(ReadLiveMenuData, ApplyLiveMenuAction);
@@ -109,7 +110,7 @@ internal sealed partial class RecreateGame
         data.Settings["UI font size"] = uiPreferences.UiFontSize.ToString();
         data.Settings["Dialogue font"] = uiPreferences.DialogueFontFamily;
         data.Settings["Dialogue font size"] = uiPreferences.DialogueFontSize.ToString();
-        data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode.ToString();
+        data.Settings["Battle ATB mode"] = ReadCurrentUiPreferences().AtbMode == BattleAtbMode.Normal ? "Classic" : "Turn Based";
         data.Settings["Gunblade trigger"] = ReadCurrentUiPreferences().GunbladeMode.ToString();
         data.Settings["Battle policy"] = ReadCurrentUiPreferences().BattlePolicyLabel;
         data.Settings["Rare card markers"] = uiPreferences.RareCardMarkers ? "On" : "Off";
@@ -129,6 +130,15 @@ internal sealed partial class RecreateGame
         data.SupportedActions.Add("config:Gunblade trigger");
         data.SupportedActions.Add("config:Battle policy");
         data.SupportedActions.Add("config:Random encounters");
+        data.Settings["V-Sync"] = uiPreferences.VSync ? "On" : "Off";
+        data.Settings["Field FPS"] = uiPreferences.FieldFps == 0 ? "Unlimited" : uiPreferences.FieldFps.ToString();
+        data.Settings["Battle FPS"] = uiPreferences.BattleFps == 0 ? "Unlimited" : uiPreferences.BattleFps.ToString();
+        data.Settings["Menu FPS"] = uiPreferences.MenuFps == 0 ? "Unlimited" : uiPreferences.MenuFps.ToString();
+        data.SupportedActions.UnionWith(["config:V-Sync", "config:Field FPS", "config:Battle FPS", "config:Menu FPS"]);
+        if (session.State.Scene == SceneKind.Title)
+        {
+            data.SupportedActions.Add("new-game-start");
+        }
         data.SaveAvailable = session.State.Scene != SceneKind.Title && !fieldFaulted;
         if (data.SaveAvailable)
         {
@@ -162,6 +172,11 @@ internal sealed partial class RecreateGame
 
     private void ApplyLiveMenuAction(MenuAction action)
     {
+        if (action.Kind == "new-game-start")
+        {
+            StartNewGameSession();
+            return;
+        }
         if (NativeMagicMenuProjection.IsAction(action))
         {
             PlayerActionResult result = world!.Apply(NativeMagicMenuProjection.PlayerAction(action));
@@ -270,8 +285,10 @@ internal sealed partial class RecreateGame
             }
             UiPreferences nextPreferences = ReadCurrentUiPreferences().WithSetting(action.SubjectId, action.Value);
             ApplyCurrentBattleSettings(nextPreferences, action.SubjectId);
-            nextPreferences.Save(UiPreferencesPath);
-            uiPreferences = nextPreferences;
+            UiPreferences installationPreferences = uiPreferences.WithInstallationSetting(action.SubjectId, action.Value, session.State.Scene != SceneKind.Title);
+            installationPreferences.Save(UiPreferencesPath);
+            uiPreferences = installationPreferences;
+            ApplyDisplaySettings();
             text.FontFamily = uiPreferences.UiFontFamily;
             fieldAudio?.SetOutputPreferences(uiPreferences.MusicVolume, uiPreferences.SoundVolume);
             return;
@@ -286,7 +303,7 @@ internal sealed partial class RecreateGame
             BattlePolicy = session.State.FullBattlePlaythrough == true ? "NewGameFullCombat" : "ResearchInstantVictory",
             RandomEncounters = session.State.RandomEncounters?.Enabled == true
         };
-        return current with { AtbMode = ActiveBattle?.Mode ?? uiPreferences.AtbMode, GunbladeMode = ActiveBattle?.GunbladeMode ?? uiPreferences.GunbladeMode };
+        return current with { AtbMode = session.State.Scene == SceneKind.Title ? uiPreferences.AtbMode : session.State.GameplayPreferences.AtbMode, GunbladeMode = session.State.Scene == SceneKind.Title ? uiPreferences.GunbladeMode : session.State.GameplayPreferences.GunbladeMode };
     }
 
     private void ApplyCurrentBattleSettings(UiPreferences preferences, string key)
@@ -302,6 +319,11 @@ internal sealed partial class RecreateGame
             {
                 world.ApplyBattleInput(new BattleInput(BattleInputKind.ConfigureEncounters, RandomEncounters: preferences.RandomEncounters));
             }
+        }
+        if (session.State.Scene != SceneKind.Title && key is "Battle ATB mode" or "Gunblade trigger")
+        {
+            world ??= CreateWorld();
+            world.ConfigureGameplayPreferences(session.State.GameplayPreferences with { AtbMode = preferences.AtbMode, GunbladeMode = preferences.GunbladeMode });
         }
         if (key == "Battle ATB mode" && ActiveBattle is not null && ActiveBattle.Mode != preferences.AtbMode)
         {
@@ -552,7 +574,7 @@ internal sealed partial class RecreateGame
         {
             if (ActiveBattle is null)
             {
-                batch.Draw(pixel, bounds, Color.Black);
+                batch.Draw(pixel, bounds, gameMenus.ScreenId == "new-game-options" ? Color.Black * 0.65f : Color.Black);
             }
             UiView view = gameMenus.BuildView();
             view.Resize(bounds.Width, bounds.Height);

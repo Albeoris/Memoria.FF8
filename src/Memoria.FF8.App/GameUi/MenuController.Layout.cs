@@ -225,9 +225,9 @@ public sealed partial class MenuController
     {
         if (IsNamingScreen)
         {
-            return Panel(null, Label($"Current game    Confirm: {CurrentBindingText(ControlAction.Confirm)}    Back: {CurrentBindingText(ControlAction.Cancel)}", 14));
+            return Panel(null, Label("Current game", 14));
         }
-        string text = IsCapturingControls ? "Release all to apply · Escape or click Cancel to cancel" : IsControlsScreen ? "Arrow keys: select · Enter: confirm · Escape: back · Mouse supported" : $"{(IsDemo ? "DEMO · " : "")}{Data.Location}    Confirm: {CurrentBindingText(ControlAction.Confirm)}    Back: {CurrentBindingText(ControlAction.Cancel)}    Menu: {CurrentBindingText(ControlAction.Menu)}";
+        string text = $"{(IsDemo ? "DEMO · " : "")}{Data.Location}";
         return Panel(null, Label(text, 14));
     }
 

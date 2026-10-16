@@ -15,13 +15,14 @@ public sealed class ConfigSettingsTests
         List<MenuAction> applied = [];
         MenuController controller = new(() => data, applied.Add);
         controller.Open("config");
-        Assert.Equal(["Cursor", "Music volume", "config-controller", "config-keyboard"], controller.Entries.Select(entry => entry.Id));
+        Assert.Equal(["config-gameplay", "config-display", "config-audio", "config-interface", "config-controls"], controller.Entries.Select(entry => entry.Id));
+        controller.Open("config-interface");
+        Assert.Equal("Cursor", Assert.Single(controller.Entries).Id);
         UiView view = controller.BuildView();
         UiChoiceRow choice = Assert.Single(Descendants(view.Root).OfType<UiChoiceRow>());
         view.Pointer(choice.ValueBounds.Right - 5, choice.Bounds.Y + choice.Bounds.Height / 2, true);
         Assert.Equal("Memory", Assert.Single(applied).Value);
-        controller.Navigate(MenuInput.Down);
-        controller.Navigate(MenuInput.Down);
+        controller.Open("config-controls");
         controller.Navigate(MenuInput.Confirm);
         Assert.Equal("config-controller", controller.ScreenId);
     }
@@ -30,7 +31,7 @@ public sealed class ConfigSettingsTests
     public void Volume_keyboard_and_pointer_share_increasing_clamped_numeric_scale()
     {
         MenuController controller = new();
-        controller.Open("config", demo: true);
+        controller.Open("config-audio", demo: true);
         int index = controller.Entries.ToList().FindIndex(entry => entry.Id == "Music volume");
         for (int step = 0; step < index; step++)
         {
@@ -60,7 +61,7 @@ public sealed class ConfigSettingsTests
     public void Paged_rows_align_columns_and_fit_at_supported_text_scales(string scale, int width, int height)
     {
         MenuController controller = new();
-        controller.Open("config", demo: true);
+        controller.Open("config-interface", demo: true);
         controller.Data.Settings["Text scale"] = scale;
         HashSet<string> seen = [];
         for (int index = 0; index < controller.Entries.Count; index++)
@@ -81,6 +82,54 @@ public sealed class ConfigSettingsTests
         }
         Assert.Contains("Dialogue font size", seen);
         Assert.Contains("Field message", seen);
+    }
+
+    [Fact]
+    public void New_game_only_offers_atb_and_begin_and_does_not_start_on_selection()
+    {
+        MenuData data = new();
+        data.Settings["Battle ATB mode"] = "Classic";
+        data.SupportedActions.UnionWith(["config:Battle ATB mode", "new-game-start"]);
+        List<MenuAction> actions = [];
+        MenuController controller = new(() => data, actions.Add);
+        controller.Open("new-game-options");
+        Assert.Equal(["Battle ATB mode", "begin"], controller.Entries.Select(entry => entry.Id));
+        controller.Navigate(MenuInput.Right);
+        Assert.Equal("Turn Based", Assert.Single(actions).Value);
+        controller.Navigate(MenuInput.Down);
+        controller.Navigate(MenuInput.Confirm);
+        Assert.Equal(1, controller.SelectedIndex);
+        Assert.Equal("new-game-start", actions.Last().Kind);
+    }
+
+    [Fact]
+    public void Display_preferences_round_trip_and_reject_invalid_limits()
+    {
+        UiPreferences preferences = new UiPreferences().WithSetting("V-Sync", "Off").WithSetting("Battle FPS", "120").WithSetting("Field FPS", "30").WithSetting("Menu FPS", "Unlimited");
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json");
+        try
+        {
+            preferences.Save(path);
+            Assert.Equal(preferences, UiPreferences.Load(path));
+            Assert.False(preferences.VSync);
+            Assert.Equal(0, preferences.MenuFps);
+            Assert.Throws<ArgumentException>(() => preferences.WithSetting("Battle FPS", "55"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void In_game_changes_do_not_replace_installation_gameplay_defaults()
+    {
+        UiPreferences defaults = new();
+        Assert.Equal(defaults, defaults.WithInstallationSetting("Battle ATB mode", "Turn Based", activeGame: true));
+        Assert.Equal(Memoria.FF8.Runtime.BattleAtbMode.TurnBased, defaults.WithInstallationSetting("Battle ATB mode", "Turn Based", activeGame: false).AtbMode);
+        UiPreferences volume = defaults.WithInstallationSetting("Music volume", "25%", activeGame: true);
+        Assert.Equal(25, volume.MusicVolume);
+        Assert.Equal(defaults.AtbMode, volume.AtbMode);
     }
 
     private static IEnumerable<UiElement> Descendants(UiElement root)

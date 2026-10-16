@@ -6,7 +6,7 @@ namespace Memoria.FF8;
 
 internal sealed partial class RecreateGame
 {
-    private static readonly string[] TitleChoices = ["NEW GAME", "Continue"];
+    private static readonly string[] TitleChoices = ["NEW GAME", "Continue", "Config"];
     private UiView? savesWindowUi;
     private string? savesWindowKey;
     private UiView? nativePartyWindowUi;
@@ -20,7 +20,7 @@ internal sealed partial class RecreateGame
     {
         float size = Math.Min(bounds.Height * 0.044f, bounds.Width * 0.06f);
         float rowHeight = bounds.Height * 0.074f;
-        float top = bounds.Y + bounds.Height * 0.67f;
+        float top = bounds.Y + bounds.Height * 0.63f;
         for (int index = 0; index < TitleChoices.Length; index++)
         {
             Vector2 measured = text.MeasureWrapped(TitleChoices[index], size, float.PositiveInfinity, "Times New Roman");
@@ -56,7 +56,7 @@ internal sealed partial class RecreateGame
             content.RowDefinitions.Add(UiGridLength.Pixel(50));
             content.RowDefinitions.Add(UiGridLength.Pixel(72));
             content.RowDefinitions.Add(UiGridLength.Star());
-            content.RowDefinitions.Add(UiGridLength.Pixel(32));
+
             bool loading = saveMenu.Mode == PlayerSaveMenuMode.Load;
             UiGrid header = new() { Gap = 5 };
             header.RowDefinitions.Add(UiGridLength.Star());
@@ -81,9 +81,6 @@ internal sealed partial class RecreateGame
             int selectedIndex = Math.Max(0, entries.FindIndex(entry => entry.Slot == saveMenu.SelectedSlot));
             UiButton? selectedBlock = blocks.Children.OfType<UiButton>().ElementAtOrDefault(selectedIndex);
             content.Children.Add(blocks);
-            UiPanel footer = new() { GridRow = 3, Padding = new UiThickness(8, 3) };
-            footer.Children.Add(new UiLabel { Text = $"Select / bank: directions    Page: {keyboard.BindingHint(ControlAction.UiPageUp)} / {keyboard.BindingHint(ControlAction.UiPageDown)}    Confirm: {keyboard.BindingHint(ControlAction.Confirm)}    Back: {keyboard.BindingHint(ControlAction.Cancel)}", FontSize = 16 });
-            content.Children.Add(footer);
             root.Children.Add(content);
             savesWindowUi = CreateWindowView(root);
             savesWindowUi.Resize(960, 672);
@@ -131,7 +128,7 @@ internal sealed partial class RecreateGame
             PlayerActionKind.SelectPartyMember => input.Value == 255 ? "Reserve: Empty (remove member)" : $"Reserve: {Name((byte)input.Value)}",
             _ => "Confirm party"
         }).ToList();
-        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Save ? "Esc: continue without saving" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Esc: return to field" : menu.SelectedPartySlot is not null ? "Select destination   Enter: swap   Esc: cancel selection" : "Select a slot to change, or Confirm party";
+        string instruction = menu.Phase is NativePartyMenuPhase.FieldReentry or NativePartyMenuPhase.FieldResumeInitialization ? "Returning to field" : menu.Kind == NativeFieldMenuKind.Save ? "Continue without saving" : menu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop ? "Return to field" : menu.SelectedPartySlot is not null ? "Select destination" : "Select a slot to change, or Confirm party";
         string key = string.Join("|", title, party, menu.SelectedPartySlot, partyMenuCandidate, instruction, string.Join(";", candidates));
         batch.Draw(pixel, bounds, Color.Black * 0.8f);
         if (nativePartyWindowUi is null || nativePartyWindowKey != key)

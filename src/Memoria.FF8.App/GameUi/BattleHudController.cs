@@ -1,4 +1,4 @@
-﻿using Memoria.FF8.Runtime;
+using Memoria.FF8.Runtime;
 using Memoria.FF8.Ui;
 
 namespace Memoria.FF8.GameUi;
@@ -326,7 +326,7 @@ public sealed partial class BattleHudController
             }
             SelectingTarget = true;
             BeginMagicTargetSelection(actor);
-            Message = "Select a target. Confirm: Execute   Cancel: Return";
+            Message = "Select a target.";
             SoundRequested?.Invoke(MenuSound.Confirm);
             return;
         }

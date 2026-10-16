@@ -331,7 +331,7 @@ public sealed class BattleDebugController
 
     private void AddNumber(string label, int value, int min, int max, int step, Action<int> apply)
     {
-        rows.Add(new(label, value.ToString(), "Left / Right changes the explicit debug scenario value.", direction => apply(Math.Clamp(value + direction * step, min, max))));
+        rows.Add(new(label, value.ToString(), "Adjust the explicit debug scenario value.", direction => apply(Math.Clamp(value + direction * step, min, max))));
     }
 
     private static void SetEffect(List<BattleCombatantDefinition> actors, int index, BattleStatusEffectDefinition changed)
