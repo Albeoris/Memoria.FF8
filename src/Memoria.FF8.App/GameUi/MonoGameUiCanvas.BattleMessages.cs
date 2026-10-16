@@ -19,7 +19,7 @@ internal sealed partial class MonoGameUiCanvas
         if (!battleMessageLayouts.TryGetValue(key, out BattleMessageLayout? layout))
         {
             using SystemTextMeasurer measure = new(size, text.FontFamily);
-            layout = new(document.Pages.SelectMany(page => page.Lines).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, measure.Measure, false)).ToArray(), measure.LineHeight);
+            layout = new(document.Pages.SelectMany(page => page.Lines).SelectMany(line => DialogueLayout.Wrap(line, bounds.Width, measure.Measure, false, measure.LineHeight)).ToArray(), measure.LineHeight);
             if (battleMessageLayouts.Count >= 32)
             {
                 battleMessageLayouts.Clear();

@@ -12,6 +12,9 @@ internal static class DialogueLayout
 {
     internal const float ScreenPadding = 8;
     internal const float SpeakerGap = 3;
+    internal const float ChoicePointerGap = 2;
+
+    internal static float ChoiceIndent(float lineHeight) => lineHeight * 1.5f + ChoicePointerGap;
 
     public static IReadOnlyList<DialogueVisualPage> Create(DialogueDocument document, DialogueState dialogue, DialogueWindow? window, float lineHeight, Func<string, float> measure)
     {
@@ -46,7 +49,7 @@ internal static class DialogueLayout
             foreach (var line in sourcePage.Lines.Where(line => !line.IsSpeaker))
             {
                 bool choice = IsChoice(line);
-                lines.AddRange(Wrap(line, width, measure, choice));
+                lines.AddRange(Wrap(line, width, measure, choice, lineHeight));
             }
             if (lines.Count == 0)
             {
@@ -71,11 +74,11 @@ internal static class DialogueLayout
         return result;
     }
 
-    internal static IEnumerable<DialogueVisualLine> Wrap(DialogueLine source, float maximumWidth, Func<string, float> measure, bool choice)
+    internal static IEnumerable<DialogueVisualLine> Wrap(DialogueLine source, float maximumWidth, Func<string, float> measure, bool choice, float lineHeight)
     {
         if (choice)
         {
-            float x = measure("> ");
+            float x = ChoiceIndent(lineHeight);
             List<DialoguePlacedRun> runs = [];
             foreach (var run in source.Runs)
             {

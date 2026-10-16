@@ -104,7 +104,7 @@ internal sealed partial class RecreateGame
         {
             if (line.IsChoice && line.SourceLineIndex == selectedChoice)
             {
-                text.DrawLine(batch, ">", fontSize, position, Color.White, family);
+                uiCanvas!.MenuPointer(new UiRect(position.X, position.Y, DialogueLayout.ChoiceIndent(lineHeight) - DialogueLayout.ChoicePointerGap, lineHeight));
             }
             foreach (var run in line.Runs)
             {
