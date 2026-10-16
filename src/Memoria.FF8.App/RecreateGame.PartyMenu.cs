@@ -16,6 +16,7 @@ internal sealed partial class RecreateGame
             if (events.PartyMenu.Kind is NativeFieldMenuKind.Normal or NativeFieldMenuKind.Save or NativeFieldMenuKind.Shop or NativeFieldMenuKind.WeaponShop && input.Cancel)
             {
                 world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
+                fieldAudio?.PlayUiSound(MenuSound.Cancel);
                 fieldSeconds = 0;
                 return;
             }
@@ -24,6 +25,7 @@ internal sealed partial class RecreateGame
                 if (input.Cancel && events.PartyMenu.SelectedPartySlot is not null)
                 {
                     world!.Apply(new PlayerAction(PlayerActionKind.Cancel));
+                    fieldAudio?.PlayUiSound(MenuSound.Cancel);
                     partyMenuCandidate = 0;
                     fieldSeconds = 0;
                     return;
@@ -31,11 +33,17 @@ internal sealed partial class RecreateGame
                 IReadOnlyList<PlayerAction> choices = NativePartyMenuProjection.Inputs(events.PartyMenu);
                 if (choices.Count > 0)
                 {
-                    partyMenuCandidate = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, choices.Count - 1);
+                    int next = Math.Clamp(partyMenuCandidate + input.MenuVertical, 0, choices.Count - 1);
+                    if (next != partyMenuCandidate)
+                    {
+                        fieldAudio?.PlayUiSound(MenuSound.Move);
+                    }
+                    partyMenuCandidate = next;
                 }
                 if (input.Confirm && choices.Count > 0)
                 {
                     world!.Apply(choices[partyMenuCandidate]);
+                    fieldAudio?.PlayUiSound(MenuSound.Confirm);
                     partyMenuCandidate = 0;
                     fieldSeconds = 0;
                     return;

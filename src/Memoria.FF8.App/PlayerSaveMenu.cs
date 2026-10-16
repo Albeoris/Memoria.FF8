@@ -1,3 +1,4 @@
+using Memoria.FF8.GameUi;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8;
@@ -31,6 +32,7 @@ internal sealed class PlayerSaveMenu
     public bool ConfirmOverwrite { get; private set; }
     public string? Message { get; private set; }
     public IReadOnlyList<PlayerSaveEntry> Entries { get; private set; } = [];
+    public event Action<MenuSound>? SoundRequested;
 
     public void Open(PlayerSaveMenuMode mode)
     {
@@ -81,16 +83,19 @@ internal sealed class PlayerSaveMenu
                     Message = "Quick saved.";
                     Entries = store.ReadEntries(Mode == PlayerSaveMenuMode.Load);
                 }
+                SoundRequested?.Invoke(MenuSound.Confirm);
             }
             catch (Exception exception)
             {
                 Message = $"{(input.QuickLoad ? "Quick load" : "Quick save")} failed: {exception.Message}";
                 Console.Error.WriteLine(exception);
+                SoundRequested?.Invoke(MenuSound.Cancel);
             }
             return;
         }
         if (input.Cancel)
         {
+            SoundRequested?.Invoke(MenuSound.Cancel);
             if (ConfirmOverwrite)
             {
                 ConfirmOverwrite = false;
@@ -104,6 +109,7 @@ internal sealed class PlayerSaveMenu
         }
         if (input.MenuHorizontal != 0 || input.MenuPage != 0 || input.MenuVertical != 0)
         {
+            (int Bank, int Page, int Selection) previous = (Bank, Page, Selection);
             if (input.MenuHorizontal != 0)
             {
                 int nextBank = Math.Clamp(Bank + Math.Sign(input.MenuHorizontal), 0, PlayerSaveStore.BankCount - 1);
@@ -133,6 +139,10 @@ internal sealed class PlayerSaveMenu
             }
             ConfirmOverwrite = false;
             Message = null;
+            if (previous != (Bank, Page, Selection))
+            {
+                SoundRequested?.Invoke(MenuSound.Move);
+            }
         }
         if (!input.Confirm)
         {
@@ -142,6 +152,7 @@ internal sealed class PlayerSaveMenu
         if (Mode == PlayerSaveMenuMode.Load && !entry.CanLoad)
         {
             Message = entry.Details == "Empty" ? "This slot is empty." : entry.Details;
+            SoundRequested?.Invoke(MenuSound.Cancel);
             return;
         }
         try
@@ -150,6 +161,7 @@ internal sealed class PlayerSaveMenu
             {
                 ConfirmOverwrite = true;
                 Message = $"Overwrite {entry.Label}? Enter: overwrite   Escape: keep existing save";
+                SoundRequested?.Invoke(MenuSound.Confirm);
                 return;
             }
             if (Mode == PlayerSaveMenuMode.Save)
@@ -160,6 +172,7 @@ internal sealed class PlayerSaveMenu
             {
                 load(entry.Slot);
             }
+            SoundRequested?.Invoke(MenuSound.Confirm);
             Close();
         }
         catch (Exception exception)
@@ -168,6 +181,7 @@ internal sealed class PlayerSaveMenu
             Message = $"{Mode} failed: {exception.Message}";
             Console.Error.WriteLine(exception);
             Entries = store.ReadEntries(Mode == PlayerSaveMenuMode.Load);
+            SoundRequested?.Invoke(MenuSound.Cancel);
         }
     }
 

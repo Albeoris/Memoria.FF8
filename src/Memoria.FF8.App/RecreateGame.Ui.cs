@@ -535,11 +535,13 @@ internal sealed partial class RecreateGame
         if (pause && !uiMovieSuspended)
         {
             movie?.Suspend();
+            startupMovie?.Suspend();
             uiMovieSuspended = true;
         }
         else if (!pause && uiMovieSuspended)
         {
             movie?.Resume();
+            startupMovie?.Resume();
             uiMovieSuspended = false;
         }
     }

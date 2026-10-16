@@ -60,9 +60,11 @@ internal sealed partial class RecreateGame : Game
     {
         this.options = options;
         this.session = session;
+        startup = new StartupSequence(StartupSequence.ShouldPlay(options));
         movieClock = new MovieClock(session, options.GameDirectory, options.MediaToolsDirectory);
         playerSaves = new PlayerSaveStore(options.SavePath);
         saveMenu = new PlayerSaveMenu(playerSaves);
+        saveMenu.SoundRequested += cue => fieldAudio?.PlayUiSound(cue);
         graphics = new GraphicsDeviceManager(this) { PreferredBackBufferWidth = options.Width, PreferredBackBufferHeight = options.Height, SynchronizeWithVerticalRetrace = true };
         Window.Title = "Memoria - Final Fantasy VIII";
         Window.AllowUserResizing = true;
@@ -168,6 +170,12 @@ internal sealed partial class RecreateGame : Game
             Exit();
         }
         saveNoticeSeconds = Math.Max(0, saveNoticeSeconds - gameTime.ElapsedGameTime.TotalSeconds);
+        if (UpdateStartup(gameTime.ElapsedGameTime, input))
+        {
+            base.Update(gameTime);
+            metrics.Update(updateStarted);
+            return;
+        }
         if (gameMenus?.IsNamePrompt != true && UpdateBattleDebugUi(input))
         {
             movieSkipGesture.Reset();
@@ -226,6 +234,7 @@ internal sealed partial class RecreateGame : Game
             }
             if (input.Cancel)
             {
+                fieldAudio?.PlayUiSound(GameUi.MenuSound.Cancel);
                 Exit();
             }
         }
@@ -643,6 +652,7 @@ internal sealed partial class RecreateGame : Game
 
     private void RestorePlayerState(GameState state)
     {
+        EndStartup();
         ClearBattlePresentation();
         gameMenus?.Close();
         nativeNamePrompt = null;
@@ -673,6 +683,7 @@ internal sealed partial class RecreateGame : Game
 
     private void StartNewGameSession()
     {
+        EndStartup();
         ClearBattlePresentation();
         gameMenus?.Close();
         nativeNamePrompt = null;
@@ -774,6 +785,12 @@ internal sealed partial class RecreateGame : Game
         }
         else if (request.Command.Equals("action", StringComparison.OrdinalIgnoreCase) || request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase))
         {
+            if (startup.Active && request.Action is { Kind: PlayerActionKind.Confirm or PlayerActionKind.Cancel } startupAction)
+            {
+                startup.HandleInput(startupAction.Kind == PlayerActionKind.Confirm, startupAction.Kind == PlayerActionKind.Cancel);
+                ReleaseStartupStage();
+                return ControlStatus(request.Compact);
+            }
             if (world?.Tutorial is NativeTutorialPlayer player)
             {
                 PlayerAction tutorialAction = request.Command.Equals("advance", StringComparison.OrdinalIgnoreCase) ? new PlayerAction(PlayerActionKind.Wait, Frames: request.Frames) : request.Action ?? throw new ArgumentException("An action payload is required.");
@@ -830,6 +847,7 @@ internal sealed partial class RecreateGame : Game
         return new
         {
             session.State.Scene,
+            Startup = new { Stage = startup.Stage.ToString(), Seconds = startup.Elapsed.TotalSeconds, HasMovieFrame = startupMovie?.HasFrame == true },
             session.State.FieldId,
             FieldName = field?.Id == session.State.FieldId ? field.Name : session.State.FieldName,
             WindowTitle = Window.Title,
@@ -951,7 +969,11 @@ internal sealed partial class RecreateGame : Game
         float uiScale = ViewportLayout.UiScale(bounds.Width, bounds.Height);
         text.BeginFrame();
         batch.Begin(samplerState: SamplerState.LinearClamp);
-        if (world?.ActiveTripleTriad is { } cards)
+        if (startup.Active)
+        {
+            DrawStartup(bounds);
+        }
+        else if (world?.ActiveTripleTriad is { } cards)
         {
             Memoria.FF8.Ui.UiView view = cards.BuildView();
             view.Resize(bounds.Width, bounds.Height);
@@ -1064,6 +1086,7 @@ internal sealed partial class RecreateGame : Game
     {
         if (disposing)
         {
+            DisposeStartup();
             controller?.Dispose();
             fieldAudio?.Dispose();
             movie?.Dispose();
