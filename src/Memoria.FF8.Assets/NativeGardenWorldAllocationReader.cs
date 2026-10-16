@@ -8,14 +8,23 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeGardenWorldAllocationReader
 {
-    public static NativeGardenWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte variant, byte mapDisplay, NativeSavedWorldPose? parkedGardenPose = null)
+    public static NativeGardenWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte variant, byte mapDisplay, NativeSavedWorldPose? parkedGardenPose = null, NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = null)
     {
         entry.Validate();
         saved.Validate();
         memory.Validate();
-        if (unchecked((byte)packet.Mode) is not (0 or 48) || unchecked((byte)packet.Mode) == 0 && parkedGardenPose is null || unchecked((sbyte)packet.Extra) != -1 || memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
+        if (unchecked((byte)packet.Mode) is not (0 or 48) || unchecked((byte)packet.Mode) == 0 && parkedGardenPose is null || unchecked((sbyte)packet.Extra) != -1 || (entry.ReadBytes(264, 1) & 0x10) != 0 || saved.Slot4.ShapeId is not (0 or 255) || saved.Slot5.ShapeId != 0)
         {
-            throw new NotSupportedException("Garden allocation requires ordinary48, inactive auxiliary path channels and the actual unoccupied saved car slots.");
+            throw new NotSupportedException("Garden allocation requires its ordinary packet and the actual unoccupied saved car slots.");
+        }
+        if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
+        {
+            if (auxiliaryEntry is null)
+            {
+                throw new NotSupportedException("Garden allocation requires the actual54D6A0 auxiliary relocation receipt for pending event269/270 selectors.");
+            }
+            auxiliaryEntry.RequireGardenPublication(packet, loadPose);
+            _ = auxiliaryEntry.ApplyTo(memory);
         }
         if (program.Length < 8 || program.Length % 4 != 0 || coordinates.Length < 16 || coordinates[..16].IndexOfAnyExcept((byte)0) >= 0)
         {
@@ -173,10 +182,54 @@ public sealed partial class WorldAssets
         //then548080/548300 writes foot and both Garden poses before first use.
         vitals.Validate();
         NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
-        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, variant, mapDisplay);
+        NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = ReadGardenAuxiliaryRelocations(packet, memory, pose);
+        return NativeGardenWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, variant, mapDisplay, auxiliaryEntry: auxiliaryEntry);
     }
 
     public NativeGardenCameraDefaults ReadGardenCameraDefaults() => NativeGardenWorldAllocationReader.ReadCameraDefaults(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+
+    public NativeWorldAuxiliaryRelocationReceipt? ReadGardenAuxiliaryRelocations(WorldTransition packet, NativeEventMemory memory, NativeSavedWorldPose loadPose)
+    {
+        byte first = checked((byte)memory.Read(269, 1).RequireExact());
+        byte second = checked((byte)memory.Read(270, 1).RequireExact());
+        if (first == 0 && second == 0)
+        {
+            return null;
+        }
+        ReadOnlySpan<byte> table = wmset.AsSpan(sections[35], sections[36] - sections[35]);
+        var rows = ImmutableArray.CreateBuilder<NativeWorldAuxiliaryRelocation>();
+        byte[] selectors = [first, second];
+        for (int channel = 0; channel < selectors.Length; channel++)
+        {
+            byte selector = selectors[channel];
+            if (selector == 0)
+            {
+                continue;
+            }
+            int offset = 12 * selector;
+            if (offset > table.Length - 12)
+            {
+                throw new InvalidDataException("Native auxiliary relocation selector leaves the original WMSET section35 table.");
+            }
+            ReadOnlySpan<byte> row = table.Slice(offset, 12);
+            NativeWorldPathPosition position = new(BinaryPrimitives.ReadInt32LittleEndian(row), BinaryPrimitives.ReadInt16LittleEndian(row[8..]), BinaryPrimitives.ReadInt32LittleEndian(row[4..]));
+            rows.Add(new NativeWorldAuxiliaryRelocation(channel, selector, row[10], position, unchecked((sbyte)row[11])));
+        }
+        var receipt = new NativeWorldAuxiliaryRelocationReceipt(1, NativeWorldAuxiliaryRelocationReceipt.RelocationRule, Convert.ToHexString(SHA256.HashData(table)), first, second, rows.ToImmutable(), packet, loadPose);
+        receipt.RequireGardenPublication(packet, loadPose);
+        return receipt;
+    }
+
+    public void ValidateGardenAuxiliaryRelocations(NativeWorldAuxiliaryRelocationReceipt receipt)
+    {
+        receipt.Validate();
+        NativeEventMemory before = NativeEventMemory.Empty.Write(269, 1, NativeScalarValue.Exact(receipt.Before269)).Write(270, 1, NativeScalarValue.Exact(receipt.Before270));
+        NativeWorldAuxiliaryRelocationReceipt actual = ReadGardenAuxiliaryRelocations(receipt.Packet, before, receipt.FinalLoadPose)!;
+        if (actual.ResourceHash != receipt.ResourceHash || !actual.Relocations.SequenceEqual(receipt.Relocations))
+        {
+            throw new InvalidDataException("Restored Garden auxiliary relocation differs from its actual original resource rows.");
+        }
+    }
 
     public NativeGardenWorldAllocation ReadParkedGardenAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals)
     {

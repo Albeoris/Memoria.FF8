@@ -9,11 +9,12 @@ public sealed class PreparedWorldEntry : IDisposable
     private bool adopted;
     private bool disposed;
 
-    internal PreparedWorldEntry(WorldTransition transition, WorldMapScene scene, NativeSavedWorldState? savedWorld)
+    internal PreparedWorldEntry(WorldTransition transition, WorldMapScene scene, NativeSavedWorldState? savedWorld, NativeEventMemory eventMemory)
     {
         Transition = transition;
         InitialState = scene.State;
         InitialSavedWorld = savedWorld;
+        InitialEventMemory = eventMemory;
         ProgramHash = scene.AllocationProgramSha256;
         this.scene = scene;
     }
@@ -21,6 +22,7 @@ public sealed class PreparedWorldEntry : IDisposable
     public WorldTransition Transition { get; }
     public WorldState InitialState { get; }
     public NativeSavedWorldState? InitialSavedWorld { get; }
+    public NativeEventMemory InitialEventMemory { get; }
     public string ProgramHash { get; }
 
     internal void ValidateAdoption(GameState candidate)
@@ -88,7 +90,7 @@ public static class WorldEntryPreflight
             {
                 _ = scene.Render(320, 224);
             }
-            return new PreparedWorldEntry(transition, scene, temporarySession.State.SavedWorld);
+            return new PreparedWorldEntry(transition, scene, temporarySession.State.SavedWorld, temporarySession.State.EventMemory);
         }
         catch
         {

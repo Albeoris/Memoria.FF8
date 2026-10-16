@@ -35,7 +35,7 @@ internal sealed partial class GameWorld
                 throw new InvalidOperationException("The original prepared world request has already been used or replaced.");
             }
             ValidateWorldDeparture(request);
-            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld);
+            session.CommitPreparedWorldEntry(request.Transition, ticket.InitialState, request.ControlsAtDeparture, ticket.ValidateAdoption, ticket.InitialSavedWorld, ticket.InitialEventMemory);
             worldScene = ticket.Adopt(session);
             worldScene.PrepareFieldEntry = PrepareNativeWorldFieldEntry;
             ConfigureWorldSalaryEffects(worldScene);

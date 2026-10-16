@@ -212,7 +212,8 @@ public sealed partial class GameSession : IEventServices
         Change(State with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = null, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, State.FieldId) });
     }
 
-    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null)
+    /// <summary>Commits live world owners. The field action must finish and capture its VM mirror before a standalone save, as with other native owner writes.</summary>
+    public void CommitPreparedWorldEntry(WorldTransition transition, WorldState initialState, NativeWorldControlState expectedControls, Action<GameState> validatePrepared, NativeSavedWorldState? preparedSavedWorld = null, NativeEventMemory? preparedEventMemory = null)
     {
         ArgumentNullException.ThrowIfNull(transition);
         ArgumentNullException.ThrowIfNull(initialState);
@@ -230,7 +231,13 @@ public sealed partial class GameSession : IEventServices
         {
             throw new InvalidOperationException("Prepared world saved-vehicle state differs from its native entry writes.");
         }
-        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, departure.FieldId), VibrationProcess = departure.VibrationProcess is NativeVibrationProcessState queue ? queue.EndFieldCallback() with { GraphicsSpeed20409F0 = 0 } : null };
+        NativeEventMemory memory = preparedEventMemory ?? departure.EventMemory;
+        NativeEventMemory expectedMemory = initialState.NativeGardenRuntime?.AuxiliaryEntry?.ApplyTo(departure.EventMemory) ?? departure.EventMemory;
+        if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(expectedMemory)))
+        {
+            throw new InvalidOperationException("Prepared world event memory differs from its authenticated native selector consumption.");
+        }
+        GameState candidate = departure with { Scene = SceneKind.WorldMap, WorldArrival = transition, World = initialState, FieldArrival = null, DialogueDraft = null, DebugView = null, WorldControls = expectedControls.WithWorldEntryMenuFlag(), SavedWorld = saved, EventMemory = memory, WorldConfiguration = NativeWorldConfiguration.FromFieldPacket(transition, departure.FieldId), VibrationProcess = departure.VibrationProcess is NativeVibrationProcessState queue ? queue.EndFieldCallback() with { GraphicsSpeed20409F0 = 0 } : null };
         Validate(candidate);
         validatePrepared(candidate);
         if (!ReferenceEquals(State, departure))

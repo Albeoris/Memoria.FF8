@@ -115,6 +115,8 @@ public sealed record NativeGardenWorldRuntimeState
     public required NativeWorldForestState Forest { get; init; }
     [JsonRequired]
     public NativeCactuarWorldState? Cactuar { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldAuxiliaryRelocationReceipt? AuxiliaryEntry { get; init; }
     [JsonRequired]
     public short? CurrentGroundHeight { get; init; }
     [JsonRequired]
@@ -171,6 +173,7 @@ public sealed record NativeGardenWorldRuntimeState
             throw new InvalidDataException("Native Garden runtime lost its current motor, allocation, camera or ground-query owner.");
         }
         Allocation.Validate();
+        AuxiliaryEntry?.RequireGardenPublication(Allocation.Packet, Allocation.LoadPose);
         if ((Allocation.CactuarIndex >= 0) != (Cactuar is not null))
         {
             throw new InvalidDataException("Garden allocation lost its admitted Cactuar process owner.");

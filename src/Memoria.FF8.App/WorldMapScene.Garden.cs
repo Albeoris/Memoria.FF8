@@ -14,6 +14,7 @@ internal sealed partial class WorldMapScene
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Garden allocation requires the current executed world-entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Garden allocation requires its actual saved GF13 flags.");
         NativeGardenWorldAllocation allocation = assets.ReadGardenAllocation(arrival, entry, session.State.EventMemory, saved, vitals);
+        NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = assets.ReadGardenAuxiliaryRelocations(arrival, session.State.EventMemory, allocation.LoadPose);
         if (session.State.World is null)
         {
             NativeSavedWorldPose pose = allocation.LoadPose;
@@ -21,7 +22,7 @@ internal sealed partial class WorldMapScene
             NativeWorldGroundCacheState? retained = session.State.DepartingWorldState?.NativeGardenRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeFootRuntime?.GroundCache ?? session.State.DepartingWorldState?.NativeCarRuntime?.GroundCache;
             NativeWorldGroundCacheState cache = NativeWorldGroundCacheState.CreateFresh(ground.Identity, retained);
             NativeWorldProcess process = session.State.WorldProcess ?? throw new NotSupportedException("Garden entry requires its retained native process owner.");
-            NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, cache, process, assets.ReadGardenCameraDefaults(), currentGroundHeight: unchecked((short)-(int)ground.Ground.Height), priorTerrainOcclusion: ReadInitialGardenTerrainOcclusion());
+            NativeGardenWorldRuntimeState garden = NativeGardenWorldRuntimeState.CreateFresh(saved, allocation, cache, process, assets.ReadGardenCameraDefaults(), currentGroundHeight: unchecked((short)-(int)ground.Ground.Height), priorTerrainOcclusion: ReadInitialGardenTerrainOcclusion()) with { AuxiliaryEntry = auxiliaryEntry };
             WorldState initial = new()
             {
                 X = pose.X,
@@ -37,9 +38,21 @@ internal sealed partial class WorldMapScene
                 NativeGardenRuntime = garden
             };
             session.SetWorldState(initial);
+            if (auxiliaryEntry is not null)
+            {
+                session.SetEventMemory(auxiliaryEntry.ApplyTo(session.State.EventMemory));
+            }
+        }
+        else if (auxiliaryEntry is not null)
+        {
+            throw new InvalidDataException("A restored active Garden cannot re-execute pending loader relocation selectors.");
         }
         NativeGardenWorldRuntimeState current = State.NativeGardenRuntime ?? throw new InvalidDataException("Garden restoration has no executed Garden runtime owner.");
         current.Validate();
+        if (current.AuxiliaryEntry is not null)
+        {
+            assets.ValidateGardenAuxiliaryRelocations(current.AuxiliaryEntry);
+        }
         assets.ValidateNativeGroundCache(current.GroundCache, replacements);
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(allocation), JsonSerializer.SerializeToElement(current.Allocation)))
         {
