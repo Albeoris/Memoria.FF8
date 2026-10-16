@@ -262,6 +262,15 @@ public sealed class SceneEventState
     [JsonInclude]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<int, byte>? NativeDoorPendingEvents { get; internal set; }
-    public Dictionary<int, BackgroundScrollSettings> BackgroundScrollLayers { get; } = [];
-    public Dictionary<int, BackgroundScrollPosition> BackgroundScrollPositions { get; } = [];
+    public Dictionary<int, BackgroundScrollSettings> BackgroundScrollLayers { get; private set; } = [];
+    public Dictionary<int, BackgroundScrollPosition> BackgroundScrollPositions { get; private set; } = [];
+
+    /// <summary>Detached scroll words for read-only renderer admission; other owners are shared and must not be mutated.</summary>
+    public SceneEventState CreateBackgroundScrollProjection(int layer, BackgroundScrollSettings settings)
+    {
+        SceneEventState projection = (SceneEventState)MemberwiseClone();
+        projection.BackgroundScrollLayers = new(BackgroundScrollLayers) { [layer] = settings };
+        projection.BackgroundScrollPositions = BackgroundScrollPositions.ToDictionary(pair => pair.Key, pair => pair.Key is >= 0 and < 8 && pair.Value is { Mode: 3, Status: 0 } pending ? NativeDirectScrollPhase.Commit(pending) : pair.Value);
+        return projection;
+    }
 }

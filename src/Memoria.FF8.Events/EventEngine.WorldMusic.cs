@@ -80,9 +80,12 @@ public sealed partial class EventEngine
         {
             throw new NotSupportedException(aliases);
         }
-        if (services.CurrentScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Pending != false || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
+        //5420C0/542370 consume the retained channel music and bank, independently
+        //of field MUSICLOAD's pending1D9CDE0/B213/B214. World loading neither
+        //requires nor clears that pending owner, even when it replaces the bank.
+        if (services.CurrentScene != SceneKind.Field || NativeRuntimeProfile is not { IsVerified: true } || process.Bank201 is not byte bank || bank > 1 || Scene.MusicChannel108?.MusicId is not byte prior || EventMemory.Cells.Any(pair => pair.Key <= 268 && (long)pair.Key + pair.Value.Width > 268))
         {
-            throw new NotSupportedException("World music requires authenticated native bank, channel, consumed field preload and unaliased BYTE268 authority.");
+            throw new NotSupportedException("World music requires authenticated native bank, channel and unaliased BYTE268 authority.");
         }
         NativeWorldMusicOperation kind = NativeWorldMusicOperation.Keep;
         NativeWorldMusicResource? resource = null;

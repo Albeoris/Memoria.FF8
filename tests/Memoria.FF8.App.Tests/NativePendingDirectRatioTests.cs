@@ -34,7 +34,7 @@ public sealed class NativePendingDirectRatioTests
         string before = JsonSerializer.Serialize(scene, options);
         Assert.Null(DirectBackgroundScrollCertificate.Prepare(field, scene));
         Assert.True(BackgroundScrollCertificate.CanSetRatioForState(field, scene, [], 1, ratio));
-        BackgroundScrollFrame placement = Assert.IsType<BackgroundScrollFrame>(DirectBackgroundScrollCertificate.PreparePendingDirectForNextDraw(field, scene));
+        BackgroundScrollFrame placement = Assert.IsType<BackgroundScrollFrame>(DirectBackgroundScrollCertificate.Prepare(field, scene.CreateBackgroundScrollProjection(1, ratio)));
         Assert.Equal(new Vector2(0, -100), placement.ActorOffset);
         Assert.Equal(before, JsonSerializer.Serialize(scene, options));
 
@@ -52,7 +52,7 @@ public sealed class NativePendingDirectRatioTests
         SceneEventState invalid = actual.GetProperty("Scene").Deserialize<SceneEventState>(options)!;
         invalid.BackgroundScrollPositions[0] = pending with { TargetY = short.MaxValue };
         Assert.False(BackgroundScrollCertificate.CanSetRatioForState(field, invalid, [], 1, ratio));
-        Assert.Null(DirectBackgroundScrollCertificate.PreparePendingDirectForNextDraw(field, invalid));
+        Assert.Null(DirectBackgroundScrollCertificate.Prepare(field, invalid.CreateBackgroundScrollProjection(1, ratio)));
         Assert.Equal(before, JsonSerializer.Serialize(scene, options));
     }
 }

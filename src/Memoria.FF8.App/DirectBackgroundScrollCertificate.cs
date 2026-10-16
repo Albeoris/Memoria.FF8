@@ -82,18 +82,6 @@ internal static class DirectBackgroundScrollCertificate
         return position.X is short x && position.Y is short y ? PrepareCenter(field, scene, x, y) : null;
     }
 
-    internal static BackgroundScrollFrame? PreparePendingDirectForNextDraw(FieldAssets field, SceneEventState scene)
-    {
-        if (!scene.BackgroundScrollPositions.TryGetValue(scene.CameraIndex, out BackgroundScrollPosition? position) || position is not { Mode: 3, Status: 0 } || !HasSelectedDirectBaseline(field, scene) || !ValidPositions(field, scene) || !SupportsCenter(field, scene, position.TargetX, position.TargetY))
-        {
-            return null;
-        }
-        //521460 only changes ratio words. Later475DF0 publishes the mode3 target
-        //before475E60/475480 draw, so admission needs that next placement proof,
-        //not retained current words that this issue will overwrite.
-        return PrepareCenter(field, scene, position.TargetX, position.TargetY);
-    }
-
     internal static BackgroundScrollFrame PrepareCenter(FieldAssets field, SceneEventState scene, short x, short y)
     {
         Vector2 pan = field.GetCamera(scene.CameraIndex).Pan;

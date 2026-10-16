@@ -225,7 +225,7 @@ public sealed partial class EventEngine
             {
                 // Native475DF0 runs after all actor VMs: direct mode records
                 // commit their target in this update without interpolation.
-                Scene.BackgroundScrollPositions[layer] = state with { PreviousX = state.X, PreviousY = state.Y, Counter = 0, X = state.TargetX, Y = state.TargetY, Status = 2 };
+                Scene.BackgroundScrollPositions[layer] = NativeDirectScrollPhase.Commit(state);
             }
         }
     }

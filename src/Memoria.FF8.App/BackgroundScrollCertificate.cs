@@ -59,8 +59,12 @@ public static class BackgroundScrollCertificate
         }
         try
         {
-            BackgroundScrollFrame? current = DirectBackgroundScrollCertificate.PreparePendingDirectForNextDraw(field, scene) ?? ActorBackgroundScrollCertificate.Prepare(field, scene) ?? DirectBackgroundScrollCertificate.Prepare(field, scene) ?? NormalCameraCertificate.Prepare(field, scene, actors);
-            return current is not null && (layer == 0 || BackgroundParallaxPlacement.TryOffset((int)-current.ActorOffset.X, (int)-current.ActorOffset.Y, settings, scene.BackgroundScrollPositions.GetValueOrDefault(layer), out _));
+            //All actor VMs precede475DF0. Project every pending direct row into
+            //detached scroll dictionaries for the next draw; never publish those
+            //future current/previous/status words during opcode admission.
+            SceneEventState projection = scene.CreateBackgroundScrollProjection(layer, settings);
+            BackgroundScrollFrame? current = ActorBackgroundScrollCertificate.Prepare(field, projection) ?? DirectBackgroundScrollCertificate.Prepare(field, projection) ?? NormalCameraCertificate.Prepare(field, projection, actors);
+            return current is not null;
         }
         catch (NotSupportedException)
         {
