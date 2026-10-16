@@ -181,6 +181,7 @@ internal static partial class Program
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,
                     ["choice-music"] = NativeChoiceMusicContract,
+                    ["move-flush"] = () => NativeMoveFlushContract(selectedGameDirectory),
                     ["native-field-fade"] = NativeFadeNoneContract,
                     ["native-fade-player-gate"] = NativeFadeBlackPlayerGateContract,
                     ["native-fade-black-join"] = NativeFadeBlackScriptJoinContract,

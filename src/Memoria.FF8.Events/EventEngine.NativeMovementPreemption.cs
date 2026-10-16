@@ -3,7 +3,7 @@ using Albeoris.Games.FF8.Jsm;
 
 namespace Memoria.FF8.Events;
 
-public sealed record NativeMovementRequestState(int Version, long RequestSequence, int RequestScriptId, byte RequestSlot, NativeScriptMovementState SavedMovement);
+public sealed record NativeMovementRequestState(int Version, long RequestSequence, int RequestScriptId, byte RequestSlot, NativeScriptMovementState SavedMovement, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool RestoreSuppressedByFlush = false);
 
 public sealed partial class EventEngine
 {
@@ -24,7 +24,7 @@ public sealed partial class EventEngine
         {
             return null;
         }
-        if (actor.NativeMovementRequest is { } existing)
+        if (actor.NativeMovementRequest is { RestoreSuppressedByFlush: false } existing)
         {
             if (CanTransferNativeMovementBackup(actor, existing))
             {
@@ -36,6 +36,10 @@ public sealed partial class EventEngine
             }
         }
         if (actor.NativeScriptMovement is not { Active: true } movement)
+        {
+            return null;
+        }
+        if (movement.Suspended && actor.NativeMovementRequest is { RestoreSuppressedByFlush: true })
         {
             return null;
         }
@@ -88,6 +92,12 @@ public sealed partial class EventEngine
         {
             return;
         }
+        if (movement.Suspended && actor.NativeMovementRequest is { RestoreSuppressedByFlush: true })
+        {
+            // MOVEFLUSH leaves mode572=0 and saved physical words intact,
+            // but no higher request may re-enable or transfer the cleared bit.
+            return;
+        }
         Fiber? owner = fibers.FirstOrDefault(fiber => fiber.Sequence == movement.FiberSequence && !fiber.Complete);
         if (owner is null && !movement.Asynchronous)
         {
@@ -112,14 +122,14 @@ public sealed partial class EventEngine
         requested.NativeActorSlot = (byte)requested.Priority;
     }
 
-    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request) => actor.NativeScriptMovement is { Active: false } or { Suspended: true } && actor.NativeJump is not { Active: true } && fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.ObjectId == actor.ObjectId && NativeActorRequestSlot(fiber) == request.RequestSlot && !fiber.Complete);
+    private bool CanTransferNativeMovementBackup(ActorState actor, NativeMovementRequestState request) => !request.RestoreSuppressedByFlush && actor.NativeScriptMovement is { Active: false } or { Suspended: true } && actor.NativeJump is not { Active: true } && fibers.Any(fiber => fiber.Sequence == request.RequestSequence && fiber.ObjectId == actor.ObjectId && NativeActorRequestSlot(fiber) == request.RequestSlot && !fiber.Complete);
 
-    private static bool IsNativeMovementRequestIssue(ActorState actor, Fiber fiber) => actor.NativeMovementRequest is { } request && request.RequestSequence == fiber.Sequence && actor.NativeScriptMovement is { Suspended: true } movement && movement.FiberSequence == request.SavedMovement.FiberSequence;
+    private bool IsNativeMovementRequestIssue(ActorState actor, Fiber fiber) => actor.NativeMovementRequest is { } request && (request.RequestSequence == fiber.Sequence || request.RestoreSuppressedByFlush && NativeActorRequestSlot(fiber) > request.RequestSlot) && actor.NativeScriptMovement is { Suspended: true } movement && movement.FiberSequence == request.SavedMovement.FiberSequence;
 
     private void CompleteNativeMovementRequest(Fiber fiber, int returnSlot)
     {
         ActorState actor = actors[fiber.ObjectId];
-        if (actor.NativeMovementRequest is not { } request || request.RequestSequence != fiber.Sequence)
+        if (actor.NativeMovementRequest is not { RestoreSuppressedByFlush: false } request || request.RequestSequence != fiber.Sequence)
         {
             return;
         }
@@ -164,6 +174,10 @@ public sealed partial class EventEngine
             bool partyTarget = IsNativePartyMove(movement.Operation);
             Fiber? lower = restored.SingleOrDefault(fiber => fiber.Sequence == movement.FiberSequence);
             Fiber? upper = restored.SingleOrDefault(fiber => fiber.Sequence == request.RequestSequence);
+            if (request.RestoreSuppressedByFlush && (upper is null || upper.WaitReason != WaitReason.NativeMovementFlush))
+            {
+                throw new InvalidDataException("Saved cleared movement-restore bit lacks its held original MOVEFLUSH owner.");
+            }
             EventScript? issuingScript = program!.Objects[actor.ObjectId].Scripts.FirstOrDefault(script => script.Id == movement.ScriptId);
             bool validLower = lower is null ? movement.Asynchronous : lower.ObjectId == actor.ObjectId && lower.Script.Id == movement.ScriptId && (movement.Asynchronous && lower.Complete || !lower.Complete && NativeActorRequestSlot(lower) < request.RequestSlot);
             if (movement.Asynchronous && (lower is null || lower.Complete) && !restored.Any(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete && NativeActorRequestSlot(fiber) < request.RequestSlot))
@@ -175,7 +189,7 @@ public sealed partial class EventEngine
                 throw new InvalidDataException("Saved PMOVEA backup lost its original full DWORD party slot.");
             }
             bool jumpBody = actor.NativeJump is { AnimationFlag40000: not null, AsyncFlag20000: not null } jump && jump.FiberSequence == request.RequestSequence && jump.ScriptId == request.RequestScriptId && MatchesNativeJumpPlacement(actor, jump) && actor.NativeMotionAuthority is { Version: 1, FacingHold: <= 1 };
-            if (request.Version != 1 || request.RequestSlot > 7 || !validLower || issuingScript is null || upper is null || upper.Complete || upper.ObjectId != actor.ObjectId || upper.Script.Id != request.RequestScriptId || upper.NativeActorSlot != request.RequestSlot || movement.Version != 1 || !movement.Active || movement.Suspended || !movement.Asynchronous && (movement.Operation != lower!.Position || lower.WaitReason != WaitReason.NativeScriptMovement) || (uint)movement.Operation >= program.Operations.Count || program.Operations[movement.Operation].Opcode is not (Jsm.Opcode.DIRP or Jsm.Opcode.MOVE or Jsm.Opcode.MACCEL or Jsm.Opcode.FMOVE or Jsm.Opcode.MOVEA or Jsm.Opcode.PMOVEA or Jsm.Opcode.CMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA) || movement.TargetNativeObjectId is int target && !movement.Asynchronous && !partyTarget && (lower!.Stack.Count == 0 || lower.Stack.Peek() != target) || actor.NativeScriptMovement is null && !jumpBody)
+            if (request.Version != 1 || request.RequestSlot > 7 || !validLower || issuingScript is null || upper is null || upper.Complete || upper.ObjectId != actor.ObjectId || upper.Script.Id != request.RequestScriptId || upper.NativeActorSlot != request.RequestSlot || movement.Version != 1 || !movement.Active || movement.Suspended || !movement.Asynchronous && (movement.Operation != lower!.Position || lower.WaitReason != WaitReason.NativeScriptMovement) || (uint)movement.Operation >= program.Operations.Count || program.Operations[movement.Operation].Opcode is not (Jsm.Opcode.DIRP or Jsm.Opcode.MOVE or Jsm.Opcode.MACCEL or Jsm.Opcode.FMOVE or Jsm.Opcode.MOVEA or Jsm.Opcode.PMOVEA or Jsm.Opcode.CMOVE or Jsm.Opcode.RMOVE or Jsm.Opcode.RFMOVE or Jsm.Opcode.RCMOVE or Jsm.Opcode.RMOVEA or Jsm.Opcode.RPMOVEA) || movement.TargetNativeObjectId is int target && !movement.Asynchronous && !partyTarget && (lower!.Stack.Count == 0 || lower.Stack.Peek() != target) || actor.NativeScriptMovement is null && !jumpBody && !request.RestoreSuppressedByFlush)
             {
                 throw new InvalidDataException("Saved native movement request lost its single backup, original lower operands or higher-slot owner.");
             }
@@ -213,6 +227,13 @@ public sealed partial class EventEngine
             if (fiber.Complete || (uint)fiber.Position >= program!.Operations.Count || program.Operations[fiber.Position].Opcode != Jsm.Opcode.HALT)
             {
                 throw new InvalidDataException("Saved native HALT lost its held original instruction and occupied slot.");
+            }
+        }
+        foreach (Fiber fiber in restored.Where(fiber => fiber.WaitReason == WaitReason.NativeMovementFlush))
+        {
+            if (fiber.Complete || fiber.Initialization || NativeRuntimeProfile is not { IsVerified: true } || saved.Scene.NativeActorLayoutVersion != 1 || !saved.Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || (uint)fiber.Position >= program!.Operations.Count || program.Operations[fiber.Position].Opcode != Jsm.Opcode.MOVEFLUSH || saved.Actors[fiber.ObjectId].NativeMovementRequest is { RestoreSuppressedByFlush: false } backup && backup.RequestSequence == fiber.Sequence)
+            {
+                throw new InvalidDataException("Saved native MOVEFLUSH lost its held original instruction or cleared restore bit.");
             }
         }
     }

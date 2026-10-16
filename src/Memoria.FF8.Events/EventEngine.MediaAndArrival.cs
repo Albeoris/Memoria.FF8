@@ -52,7 +52,7 @@ public sealed partial class EventEngine
             Jsm.Opcode.SARALYON or Jsm.Opcode.SARALYDISPON or Jsm.Opcode.SARALYDISPOFF or Jsm.Opcode.ADDSEEDLEVEL or Jsm.Opcode.ADDITEM or Jsm.Opcode.ADDGIL or Jsm.Opcode.ADDPASTGIL or Jsm.Opcode.SETPLACE or Jsm.Opcode.REST or Jsm.Opcode.ADDMEMBER or Jsm.Opcode.SUBMEMBER or Jsm.Opcode.ISMEMBER or Jsm.Opcode.ADDPARTY or Jsm.Opcode.SUBPARTY or Jsm.Opcode.SETPARTY or Jsm.Opcode.CHANGEPARTY or
             Jsm.Opcode.JUNCTION or Jsm.Opcode.HOLD or Jsm.Opcode.FOLLOWOFF or Jsm.Opcode.FOLLOWON or Jsm.Opcode.SHAKE or Jsm.Opcode.SHAKEOFF or Jsm.Opcode.SEVOLTRANS or Jsm.Opcode.SEVOL or Jsm.Opcode.SEPOS or Jsm.Opcode.SEPOSTRANS or Jsm.Opcode.KEY or Jsm.Opcode.KEYON or Jsm.Opcode.KEYSCAN or Jsm.Opcode.KEYSCAN2 or Jsm.Opcode.RESETGF or Jsm.Opcode.DYING or Jsm.Opcode.SETHP or Jsm.Opcode.PHSPOWER or Jsm.Opcode.SAVEENABLE or Jsm.Opcode.PHSENABLE or Jsm.Opcode.GETCARD or Jsm.Opcode.HOWMANYCARD or Jsm.Opcode.WHERECARD or Jsm.Opcode.SETCARD or Jsm.Opcode.SETBATTLEMUSIC or Jsm.Opcode.EFFECTLOAD or Jsm.Opcode.EFFECTPLAY2 or Jsm.Opcode.EFFECTPLAY or Jsm.Opcode.SESTOP or Jsm.Opcode.INITSOUND or Jsm.Opcode.MUSICSTOP or Jsm.Opcode.MUSICSTATUS or Jsm.Opcode.MUSICLOAD or Jsm.Opcode.MUSICCHANGE or
             Jsm.Opcode.MUSICSKIP or Jsm.Opcode.CHOICEMUSIC or Jsm.Opcode.CROSSMUSIC or Jsm.Opcode.DUALMUSIC or Jsm.Opcode.MUSICVOL or Jsm.Opcode.MUSICVOLTRANS or Jsm.Opcode.MUSICVOLFADE or Jsm.Opcode.MUSICVOLSYNC or Jsm.Opcode.ALLSEVOLTRANS or Jsm.Opcode.ALLSEVOL or Jsm.Opcode.LSCROLL3 or Jsm.Opcode.LSCROLL2 or Jsm.Opcode.LSCROLL or Jsm.Opcode.SCROLLSYNC2 or Jsm.Opcode.PARTICLEON or Jsm.Opcode.PARTICLEOFF or Jsm.Opcode.PARTICLESET or Jsm.Opcode.MODELDOOROPEN or Jsm.Opcode.MODELDOORCLOSE or Jsm.Opcode.COFFSET or Jsm.Opcode.COFFSETS or Jsm.Opcode.LOFFSET or Jsm.Opcode.LOFFSETS or Jsm.Opcode.OFFSETSYNC => true,
-        Jsm.Opcode.PUSHANIME or Jsm.Opcode.POPANIME => true,
+        Jsm.Opcode.PUSHANIME or Jsm.Opcode.POPANIME or Jsm.Opcode.MOVEFLUSH => true,
         Jsm.Opcode.Unknown13 => true,
             Jsm.Opcode.COPYINFO or Jsm.Opcode.RFACEDIRP or Jsm.Opcode.FACEDIRI or Jsm.Opcode.RFACEDIRI => true,
         _ => false
@@ -60,6 +60,10 @@ public sealed partial class EventEngine
 
     private string? UnsupportedRequestContext(Fiber fiber, JsmOperation operation)
     {
+        if (operation.Opcode == Jsm.Opcode.MOVEFLUSH && (NativeRuntimeProfile is not { IsVerified: true } || Scene.NativeActorLayoutVersion != 1 || !Scene.NativeActorObjectIds.Contains(fiber.ObjectId) || synchronousFieldInitialization || actors[fiber.ObjectId].NativeMovementRequest is { RestoreSuppressedByFlush: false } flushBackup && flushBackup.RequestSequence != fiber.Sequence))
+        {
+            return "Native MOVEFLUSH requires its retained physical body and selected single-backup owner outside nonterminating synchronous initialization";
+        }
         if (UnsupportedWorldFuelMemory(operation) is { } fuelMemory)
         {
             return fuelMemory;

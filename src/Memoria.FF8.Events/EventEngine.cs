@@ -788,6 +788,7 @@ public sealed partial class EventEngine
             WaitReason.NativeLadder => true,
             WaitReason.NativeLadderMode3 => true,
             WaitReason.NativeHalt => false,
+            WaitReason.NativeMovementFlush => false,
             WaitReason.WorldJump => false,
             WaitReason.NativePartyMenu => false,
             WaitReason.MinimalMenu => Frame >= fiber.WaitUntil,

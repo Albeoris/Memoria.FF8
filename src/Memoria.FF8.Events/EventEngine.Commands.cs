@@ -52,6 +52,16 @@ public sealed partial class EventEngine
                     fiber.Complete = true;
                 }
                 break;
+            case Jsm.Opcode.MOVEFLUSH:
+                if (actor.NativeMovementRequest is { } flushedBackup)
+                {
+                    actor.NativeMovementRequest = flushedBackup with { RestoreSuppressedByFlush = true };
+                }
+                // Native5247E0 clears only352.bit10000 on first issue, then
+                // returns1 forever without advancing PC or stopping the body.
+                fiber.Position--;
+                fiber.WaitReason = WaitReason.NativeMovementFlush;
+                break;
             case Jsm.Opcode.PSHN_L:
             case Jsm.Opcode.PSHAC:
                 fiber.Stack.Push(parameter);

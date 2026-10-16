@@ -41,7 +41,8 @@ public enum WaitReason
     NativeAnimationSync,
     NativeDoorRequest,
     NativeBackgroundShade,
-    NativeTurnCompletion
+    NativeTurnCompletion,
+    NativeMovementFlush
 }
 
 public sealed partial class EventEngine
