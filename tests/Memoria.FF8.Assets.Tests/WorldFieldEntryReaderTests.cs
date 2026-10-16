@@ -354,6 +354,37 @@ public sealed class WorldFieldEntryReaderTests
         }
         Assert.Null(assets.FieldEntries.Select(input, 0));
     }
+    [Fact]
+    public void UnknownTextReadinessAndReleasedInputRejectTheWholeBranchBeforeItsCommands()
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF04, 0), (0xFF0A, 0), (0xFF2C, 0x0109), (0xFF20, 0xFFFF), (0xFF0B, 0), (0xFF28, 0x0104), (0xFF05, 0), (0xFF0D, 0), (0xFF28, 0x0105), (0xFF05, 0), (0xFF16, 0)]);
+        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(program, Packet()).ReadWorldEvents(program);
+        var commands = new List<ushort>();
+        Assert.Null(reader.SelectWorldEvent(new(0, 0, 3500, 50), _ => false, NativeWorldEventFlags.CreateNewGame(), (opcode, _) => opcode == 0xFF2C ? null : opcode == 0xFF20 ? false : throw new InvalidOperationException(), (_, operand) => commands.Add(operand)));
+        Assert.Equal(new ushort[] { 0x0105 }, commands);
+    }
+
+    [Theory]
+    [InlineData((ushort)0xFF20)]
+    [InlineData((ushort)0xFF2F)]
+    public void UnknownTextReadinessCannotSelectCommandsOrAdvanceAnImpureQuery(ushort following)
+    {
+        byte[] program = Program([(0xFF01, 0), (0xFF04, 0), (0xFF0A, 0), (0xFF2C, 0x0109), (following, 0xFFFF), (0xFF0B, 0), (0xFF28, 0x0104), (0xFF05, 0), (0xFF16, 0)]);
+        WorldFieldEntryReader reader = WorldFieldEntryReader.Read(program, Packet()).ReadWorldEvents(program);
+        int impureReads = 0;
+        int commands = 0;
+        Assert.Throws<NotSupportedException>(() => reader.SelectWorldEvent(new(0, 0, 3500, 50), _ => false, NativeWorldEventFlags.CreateNewGame(), (opcode, _) =>
+        {
+            if (opcode == 0xFF2F)
+            {
+                impureReads++;
+            }
+            return opcode == 0xFF2C ? null : true;
+        }, (_, _) => commands++));
+        Assert.Equal(0, commands);
+        Assert.Equal(0, impureReads);
+    }
+
     private static byte[] Program(params (ushort Opcode, ushort Operand)[][] clauses)
     {
         int position = (clauses.Length + 1) * 4;

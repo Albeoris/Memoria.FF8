@@ -27,7 +27,7 @@ public static class NativeRagnarokMotor
     public static NativeRagnarokMotorResult StepScripted(NativeRagnarokMotorState before, byte scriptMode, int verticalScale = LoaderVerticalScale)
     {
         before.Validate();
-        if (scriptMode is not (5 or 6))
+        if (scriptMode is not (5 or 6 or 14))
         {
             throw new ArgumentOutOfRangeException(nameof(scriptMode));
         }

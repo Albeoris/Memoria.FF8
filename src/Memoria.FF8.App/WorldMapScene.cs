@@ -304,11 +304,12 @@ internal sealed partial class WorldMapScene : IDisposable
             throw new ArgumentException("Manual world camera input requires an ordinary Move or Wait action.", nameof(action));
         }
         DialogueState? sourceDialogue = CurrentDialogue;
-        bool stationChoice = action.Kind == PlayerActionKind.Choose && sourceDialogue is not null;
+        bool stationChoice = action.Kind == PlayerActionKind.Choose && sourceDialogue is { FirstChoice: not null } && State.NativeTrainRuntime is not null;
         if (stationChoice && action.Value is not (1 or 2))
         {
             throw new ArgumentOutOfRangeException(nameof(action), "Native world station choices use visible lines1 and2.");
         }
+        bool worldMessageConfirm = sourceDialogue is { CanConfirm: true, FirstChoice: null } && action.Kind == PlayerActionKind.Confirm;
         bool gardenAction = (State.NativeGardenRuntime is not null || State.NativeRagnarokRuntime is not null) && action.Kind == PlayerActionKind.Confirm;
         bool ragnarokButtons = State.NativeRagnarokRuntime is not null && State.NativeFootRuntime is null && action.Kind == PlayerActionKind.WorldButtons;
         if (ragnarokButtons && action.Value is < 0 or > ushort.MaxValue)
@@ -319,7 +320,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             throw new NotSupportedException("Ragnarok Move adapts only digital throttle/steering; submit WorldButtons for exact ordinary vertical controls.");
         }
-        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || gardenAction || ragnarokButtons;
+        bool accepted = action.Kind is PlayerActionKind.Move or PlayerActionKind.Wait || stationChoice || gardenAction || ragnarokButtons || worldMessageConfirm;
         int advanced = 0;
         WorldState candidate = State;
         NativeWorldSalaryState salary = NativeWorldSalaryState.Begin(session.State);
@@ -329,6 +330,7 @@ internal sealed partial class WorldMapScene : IDisposable
         {
             for (int index = 0; index < action.Frames; index++)
             {
+                salary = salary.BeginWorldEventCallback();
                 bool advanceUi = candidate.NativeScriptedRuntime?.Path.EndpointRequested != true;
                 if (advanceUi && candidate.NativeCarRuntime is NativeCarWorldRuntimeState car)
                 {
@@ -337,7 +339,7 @@ internal sealed partial class WorldMapScene : IDisposable
                 int priorGraphics = salary.VibrationProcess?.GraphicsSpeed20409F0 ?? throw new NotSupportedException("Native world movement requires its canonical retained graphics magnitude.");
                 bool gardenFootAtCallback = candidate.NativeGardenRuntime is not null && candidate.NativeFootRuntime is not null;
                 bool ragnarokFootAtCallback = candidate.NativeRagnarokRuntime is not null && candidate.NativeFootRuntime is not null;
-                uint buttons = ragnarokButtons ? unchecked((uint)action.Value) : gardenAction && index == 0 ? 0x40u : 0;
+                uint buttons = ragnarokButtons ? unchecked((uint)action.Value) : (gardenAction || worldMessageConfirm) && index == 0 ? 0x40u : 0;
                 if (action.Kind == PlayerActionKind.Move)
                 {
                     buttons |= action.Vertical == -1 ? 0x80u : action.Vertical == 1 ? 0x10u : 0;
@@ -435,7 +437,8 @@ internal sealed partial class WorldMapScene : IDisposable
                         ragnarokFootBoardingTarget = null;
                     }
                 }
-                if (fieldEntry is not null || salary.RandomEncounters?.Pending is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice)
+                candidate = candidate with { EventUi = salary.EventUi };
+                if (fieldEntry is not null || salary.RandomEncounters?.Pending is not null || candidate.NativeTrainRuntime?.Primary.Pause == -1 || stationChoice || candidate.EventUi?.Windows.Length > 0)
                 {
                     break;
                 }

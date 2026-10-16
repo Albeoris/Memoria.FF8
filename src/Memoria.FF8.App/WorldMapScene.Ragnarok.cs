@@ -40,7 +40,8 @@ internal sealed partial class WorldMapScene
                 CameraTargetNativeHeight = pose.Height - 256,
                 GroundType = ground.Ground.Triangle.GroundType,
                 ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, inputs.StoryByte),
-                NativeRagnarokRuntime = runtime
+                NativeRagnarokRuntime = runtime,
+                EventUi = NativeWorldEventUi.Create()
             });
             if (allocation.AuxiliaryEntry is { } auxiliaryEntry)
             {

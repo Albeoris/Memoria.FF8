@@ -13,7 +13,7 @@ public sealed partial class WorldAssets
         {
             throw new ArgumentOutOfRangeException(nameof(selectedGroup));
         }
-        if (scriptMode is not (0 or 5 or 6 or 13))
+        if (scriptMode is not (0 or 5 or 6 or 13 or 14))
         {
             throw new NotSupportedException("Ragnarok ground query requires ordinary0/13 height authority; transition5/6 consumes a native probe pointer WORD and needs its actual transition owner.");
         }
@@ -40,9 +40,9 @@ public sealed partial class WorldAssets
                     bool terrainBlocked = accepted < 0;
                     NativeGroundProbe[] candidate = terrainBlocked ? groups[selection][0] : groups[chosen][accepted];
                     NativeGroundProbe center = candidate[0];
-                    bool scripted = scriptMode is 5 or 6;
+                    bool scripted = scriptMode is 5 or 6 or 14;
                     short nextFlight = terrainBlocked || scripted ? flightHeight : unchecked((short)NativeWorldTerrain.ResolveHeight(50, center.GroundHeight, center.Selected!.Ground.Triangle.GroundType, bodyHeight, scriptMode, flightHeight: flightHeight).FlightHeight);
-                    //53ECE0 returns the input probe pointer's low WORD in phases5/6.
+                    //53ECE0 returns the input probe pointer's low WORD in every nonzero mode except13.
                     short contactHeight = terrainBlocked ? bodyHeight : scripted ? unchecked((short)(0x2035D08 + chosen * 1760 + accepted * 220)) : nextFlight;
                     int primary = contact(PublishNativeGardenProbes(candidate, contactHeight), 0);
                     bool primaryBlocked = primary >= 0 && scriptMode != 13;

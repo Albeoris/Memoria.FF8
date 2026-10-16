@@ -51,7 +51,7 @@ internal sealed partial class WorldMapScene
         return false;
     }
 
-    private bool? EvaluateWorldEventPredicate(WorldState state, byte scriptMode, NativeSavedWorldState saved, ushort opcode, ushort operand, WorldFieldInputContext? callbackInput = null)
+    private bool? EvaluateWorldEventPredicate(WorldState state, byte scriptMode, NativeSavedWorldState saved, ushort opcode, ushort operand, WorldFieldInputContext? callbackInput = null, NativeWorldEventUi? eventUi = null)
     {
         switch (opcode)
         {
@@ -87,7 +87,7 @@ internal sealed partial class WorldMapScene
                 }
                 throw new NotSupportedException($"World event0x{opcode:X4} requires its actual allocated primary/broad contact owner.");
             case 0xFF20:
-                return callbackInput?.Matches(operand);
+                return eventUi?.CloseSuppressedThisCallback == true ? false : callbackInput?.Matches(operand);
             case 0xFF21:
                 //544860 copies event BYTE271 to saved-world BYTE109. The normal gameplay callback has no2040A34 preview override.
                 NativeScalarValue flag109 = session.State.EventMemory.Read(271, 1);
@@ -97,7 +97,9 @@ internal sealed partial class WorldMapScene
                 }
                 return WorldFieldEntryReader.MatchesSavedWorldFlag109(checked((byte)flag109.Values[0]), operand);
             case 0xFF25:
-                return scriptMode == operand;
+                return (state.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : eventUi?.ScriptMode ?? scriptMode) == operand;
+            case 0xFF2C:
+                return eventUi?.MatchesTextComplete(unchecked((sbyte)operand), unchecked((byte)(operand >> 8)));
             case 0xFF29:
                 if (CurrentDialogue is null)
                 {

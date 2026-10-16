@@ -29,6 +29,16 @@ internal sealed partial class WorldMapScene
     {
         get
         {
+            if (State.EventUi?.Windows.LastOrDefault() is { } nativeMessage)
+            {
+                NativeWorldMessage prepared = assets.ReadNativeWorldMessage(nativeMessage.WindowId, nativeMessage.MessageId);
+                if (prepared != (nativeMessage with { TextComplete = false }))
+                {
+                    throw new InvalidDataException("The saved world message differs from its installed source.");
+                }
+                // Confirm supplies a real digital pulse to authored world-event predicates; it does not assert native text completion or close the window itself.
+                return new DialogueState(nativeMessage.Channel, nativeMessage.MessageId, assets.ReadWorldMessage(nativeMessage.MessageId), nativeMessage.X, nativeMessage.Y, Operation: 0x543790);
+            }
             if (State.NativeTrainRuntime is not { Primary.Pause: -1 } train)
             {
                 return null;

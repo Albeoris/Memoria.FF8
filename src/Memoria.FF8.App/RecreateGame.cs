@@ -510,6 +510,15 @@ internal sealed partial class RecreateGame : Game
                     return;
                 }
             }
+            else if (dialogue is { CanConfirm: true } && input.Confirm)
+            {
+                if (!AdvanceDialoguePages())
+                {
+                    metrics.Simulate(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).FramesAdvanced);
+                    dialoguePages.Complete(dialogue);
+                }
+                return;
+            }
             fieldSeconds += options.ControlStep ? 0 : elapsed.TotalSeconds;
             while (fieldSeconds + 1e-9 >= 1d / WorldMapScene.SimulationFps)
             {

@@ -654,6 +654,7 @@ public sealed partial class GameSession : IEventServices
         }
         if (state.World is WorldState world)
         {
+            world.EventUi?.Validate();
             ValidateWorldState(world);
             if (world.NativeFootRuntime?.Forest is NativeWorldForestState forest && (state.WorldProcess is null || forest.CameraCooldown != state.WorldProcess.CameraCooldown))
             {

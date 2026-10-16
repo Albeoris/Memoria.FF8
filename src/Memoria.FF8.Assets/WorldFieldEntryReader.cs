@@ -158,7 +158,7 @@ public sealed partial class WorldFieldEntryReader
                 {
                     //Pure following predicates can reject both alternatives of an unknown read.
                     //FF29's supported absent-window result is a read-only rejection certificate.
-                    if (unresolved is WorldFieldPredicateEvaluation unknown && opcode is not (0xFF02 or 0xFF03 or 0xFF06 or 0xFF07 or 0xFF09 or 0xFF0E or 0xFF0F or 0xFF10 or 0xFF11 or 0xFF12 or 0xFF17 or 0xFF1B or 0xFF21 or 0xFF25 or 0xFF27 or 0xFF29 or 0xFF2D or 0xFF30 or 0xFF31 or 0xFF32))
+                    if (unresolved is WorldFieldPredicateEvaluation unknown && !IsPureSelectionOperation(opcode))
                     {
                         throw UnknownPredicate(unknown);
                     }
@@ -180,6 +180,10 @@ public sealed partial class WorldFieldEntryReader
                         position += 4;
                     }
                     continue;
+                }
+                if (unresolved is WorldFieldPredicateEvaluation unknownBranch && !IsPureSelectionOperation(opcode))
+                {
+                    throw UnknownPredicate(unknownBranch);
                 }
                 switch (opcode)
                 {
@@ -235,11 +239,12 @@ public sealed partial class WorldFieldEntryReader
                                 bool? passed = Evaluate(input, position, opcode, operand, trace, nearAllocatedShape, savedWorldFlags116, evaluateRuntimePredicate);
                                 if (passed is null)
                                 {
-                                    throw UnknownPredicate(trace[^1]);
+                                    unresolved ??= trace[^1];
                                 }
                                 if (passed == false)
                                 {
                                     branch = branch == 1 ? 2 : 5;
+                                    unresolved = null;
                                 }
                                 position += 4;
                             }
@@ -266,6 +271,11 @@ public sealed partial class WorldFieldEntryReader
             }
         }
         return null;
+    }
+
+    private static bool IsPureSelectionOperation(ushort opcode)
+    {
+        return opcode is 0xFF02 or 0xFF03 or 0xFF06 or 0xFF07 or 0xFF09 or 0xFF0E or 0xFF0F or 0xFF10 or 0xFF11 or 0xFF12 or 0xFF17 or 0xFF1B or 0xFF20 or 0xFF21 or 0xFF25 or 0xFF27 or 0xFF29 or 0xFF2C or 0xFF2D or 0xFF30 or 0xFF31 or 0xFF32;
     }
 
     private WorldFieldEntry? ReadSelectedPacket(int position, Action<ushort, ushort>? executeRuntimeCommand)

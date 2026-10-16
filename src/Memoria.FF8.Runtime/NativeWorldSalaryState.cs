@@ -16,6 +16,7 @@ public sealed partial record NativeWorldSalaryState
         VibrationProcess = departure.VibrationProcess;
         FuelDistance112 = departure.SavedWorld?.FuelDistance112;
         SavedWorldEvents = departure.SavedWorld;
+        EventUi = departure.World?.EventUi;
         CarCameraCooldown = departure.World?.NativeCarRuntime is null ? null : departure.WorldProcess?.CameraCooldown ?? throw new NotSupportedException("Native car callbacks require the actual shared camera cooldown owner.");
     }
 
@@ -31,12 +32,30 @@ public sealed partial record NativeWorldSalaryState
     public NativeVibrationProcessState? VibrationProcess { get; private init; }
     public uint? FuelDistance112 { get; private init; }
     public NativeSavedWorldState? SavedWorldEvents { get; private init; }
+    public NativeWorldEventUi? EventUi { get; private init; }
     public int? CarCameraCooldown { get; private init; }
 
     public static NativeWorldSalaryState Begin(GameState departure)
     {
         ArgumentNullException.ThrowIfNull(departure);
         return new NativeWorldSalaryState(departure);
+    }
+
+    public NativeWorldSalaryState BeginWorldEventCallback()
+    {
+        return this with { EventUi = EventUi?.BeginCallback() };
+    }
+
+    public NativeWorldSalaryState WithWorldScriptMode(byte mode)
+    {
+        return this with { EventUi = RequireWorldEventUi().WithScriptMode(mode) };
+    }
+
+    private NativeWorldEventUi RequireWorldEventUi()
+    {
+        NativeWorldEventUi ui = EventUi ?? throw new NotSupportedException("Native world UI commands require authenticated script-mode and window ownership; an omitted historical owner needs an explicit migration.");
+        ui.Validate();
+        return ui;
     }
 
     public NativeWorldSalaryState Advance(NativeSalaryResult? result, NativeSalaryPresentation? presentation, NativeGlobalSoundProcess? soundProcess, uint movementUnits, int uiTicks)
@@ -72,12 +91,13 @@ public sealed partial record NativeWorldSalaryState
         SoundProcess?.Validate();
         EventRandom?.Validate();
         VibrationProcess?.Validate();
+        EventUi?.Validate();
         if (Economy is not null && Departure.CharacterVitals is not null && Economy.InitOutSha256 != Departure.CharacterVitals.InitOutSha256)
         {
             throw new InvalidDataException("World salary and character owners have different authentic initialization.");
         }
         WorldEntryMemory?.ValidateEventMemory(candidate.EventMemory);
-        return candidate with { SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = ApplySavedWorldOwners(candidate.SavedWorld), WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
+        return candidate with { World = candidate.World is { } world ? world with { EventUi = EventUi } : candidate.World, SeeD = SeeD, Economy = Economy?.DeepCopy(), SalaryPresentation = Presentation, GlobalSoundProcess = SoundProcess, EventRandom = EventRandom, RandomEncounters = RandomEncounters, VibrationProcess = VibrationProcess, WorldEntryMemory = WorldEntryMemory, SavedWorld = ApplySavedWorldOwners(candidate.SavedWorld), WorldProcess = CarCameraCooldown is int cooldown ? candidate.WorldProcess! with { CameraCooldown = cooldown } : candidate.WorldProcess };
     }
 
     public NativeWorldSalaryState PrepareDrawPointAging(uint movementUnits)

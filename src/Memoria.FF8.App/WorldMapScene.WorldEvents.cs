@@ -19,8 +19,9 @@ internal sealed partial class WorldMapScene
         //PlayerAction is the digital input adapter; no analog controller axes are submitted.
         WorldFieldInputContext callbackInput = new(currentButtons, previousButtons, activity, -1, -1, -1, -1);
         WorldFieldSelectionInput input = new(accepted.X, accepted.Z, story, entityType);
-        WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand));
-        if (selected is null && scriptMode == 0)
+        WorldFieldSelection? selected = assets.WorldEvents.SelectWorldEvent(input, shape => IsNearWorldEventShape(accepted, cameraState, shape), flags, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi), (opcode, operand) => staged = staged.WithWorldEventCommand(opcode, operand, opcode == 0xFF1F ? assets.ReadNativeWorldMessage(unchecked((sbyte)operand), unchecked((byte)(operand >> 8))) : null));
+        byte modeAfterCommands = accepted.NativeRagnarokRuntime?.Transfer is not null ? scriptMode : staged.EventUi?.ScriptMode ?? scriptMode;
+        if (selected is null && modeAfterCommands == 0)
         {
             NativeWorldGroundCacheState cache = accepted.NativeFootRuntime?.GroundCache ?? accepted.NativeCarRuntime?.GroundCache ?? accepted.NativeGardenRuntime?.GroundCache ?? accepted.NativeRagnarokRuntime?.GroundCache ?? throw new NotSupportedException("World terrain entry requires its accepted ground owner.");
             bool? entrance = null;
@@ -33,7 +34,7 @@ internal sealed partial class WorldMapScene
                 }
                 entrance = candidate;
             }
-            selected = assets.FieldEntries.Select(input, entrance == true ? (byte)8 : (byte)0, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput));
+            selected = assets.FieldEntries.Select(input, entrance == true ? (byte)8 : (byte)0, (opcode, operand) => EvaluateWorldEventPredicate(accepted, scriptMode, staged.SavedWorldEvents!, opcode, operand, callbackInput, staged.EventUi));
         }
         salary = staged;
         return selected;

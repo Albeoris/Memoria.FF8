@@ -9,7 +9,8 @@ public sealed class NativeRagnarokGroundAssetsTests
     [Theory]
     [InlineData((byte)5)]
     [InlineData((byte)6)]
-    public void ScriptedTransferCommitsGroundButRetainsBodyAndFlightUsingProbePointerContactHeight(byte mode)
+    [InlineData((byte)14)]
+    public void NonzeroScriptModeCommitsGroundButRetainsBodyAndFlightUsingProbePointerContactHeight(byte mode)
     {
         using WorldAssets assets = new(GameDirectory);
         IReadOnlyDictionary<int, int> replacements = WorldTerrainSelection.Replacements(321);

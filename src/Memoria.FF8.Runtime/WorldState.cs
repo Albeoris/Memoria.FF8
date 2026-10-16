@@ -8,6 +8,9 @@ public sealed record WorldTransition(short EntryIndex, short Mode, short Extra);
 /// <summary>Native world coordinates and temporal state; independent from the departing field VM.</summary>
 public sealed record WorldState
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldEventUi? EventUi { get; init; }
+
     public long Frame { get; init; }
     public int X { get; init; }
     public int Z { get; init; }

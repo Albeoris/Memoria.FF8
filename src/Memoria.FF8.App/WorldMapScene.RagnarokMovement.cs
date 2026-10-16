@@ -13,7 +13,7 @@ internal sealed partial class WorldMapScene
         {
             throw new NotSupportedException("Ragnarok ordinary variant0 has no manual camera input; WorldButtons supplies real throttle/steering/vertical masks.");
         }
-        byte scriptMode = runtime.Transfer is null ? (byte)0 : runtime.Transfer.Kind == NativeRagnarokTransferKind.Landing ? (byte)5 : (byte)6;
+        byte scriptMode = runtime.Transfer is null ? salary.EventUi?.ScriptMode ?? 0 : runtime.Transfer.Kind == NativeRagnarokTransferKind.Landing ? (byte)5 : (byte)6;
         int cooldown = NativeWorldEntryControl.DelayAfterCallback(before.Frame + 1, 0);
         NativeRagnarokInputPacket input = NativeRagnarokWorldInput.ReadDigitalButtons(cooldown > 0 || scriptMode != 0 ? 0 : buttons);
         NativeRagnarokMotorResult motor = scriptMode == 0 ? NativeRagnarokMotor.Step(runtime.Motor, input.Steering13, input.Throttle11, input.Vertical12) : NativeRagnarokMotor.StepScripted(runtime.Motor, scriptMode, scriptMode == 5 ? 16 : 120);
