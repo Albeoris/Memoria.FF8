@@ -15,7 +15,7 @@ internal static class HeadlessControlHost
         }
         GameSession session = new(options.InitialState);
         using GameResourceHost resources = new(options.GameDirectory);
-        using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources);
+        using GameWorld world = new(session, options.GameDirectory, resources: resources.Resources, validateWorldPresentation: false);
         world.EnsureField();
         bool running = true;
         bool faulted = world.Events.LastFault is not null;

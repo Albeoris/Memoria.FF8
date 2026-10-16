@@ -58,7 +58,7 @@ public sealed class NativeRagnarokAllocationAssetsTests
     }
 
     [Fact]
-    public void ReloadRefusesUnknownPoseCameraVariantAuxiliaryAndUnreachedStoryClauses()
+    public void ReloadRefusesUnknownPoseCameraVariantAndUnreachedStoryClauses()
     {
         using WorldAssets assets = new(GameDirectory);
         using GameAssets game = new(GameDirectory);
@@ -69,7 +69,8 @@ public sealed class NativeRagnarokAllocationAssetsTests
         Assert.Throws<NotSupportedException>(() => assets.ReadRagnarokAllocation(new(62, 50, -1), entry, NativeEventMemory.Empty, saved, vitals, new(1, 2, -300, 0), 0));
         Assert.Throws<NotSupportedException>(() => Read(assets, game, 3900, 0, 0));
         Assert.Throws<NotSupportedException>(() => Read(assets, game, 3099, 0, 0));
-        Assert.Throws<NotSupportedException>(() => assets.ReadRagnarokAllocation(new(62, 50, -1), entry, NativeEventMemory.Empty.Write(269, 1, NativeScalarValue.Exact(1)), saved, vitals, new(1, 2, -300, 0), 0, 0));
+        NativeRagnarokWorldAllocation relocated = assets.ReadRagnarokAllocation(new(62, 50, -1), entry, NativeEventMemory.Empty.Write(269, 1, NativeScalarValue.Exact(1)), saved, vitals, new(1, 2, -300, 0), 0, 0);
+        Assert.Equal((short)9, relocated.Objects.Single(item => item.ShapeId == 64).Yaw);
     }
 
     private static NativeRagnarokWorldAllocation Read(WorldAssets assets, GameAssets game, ushort story, byte chocobo, byte replacements)

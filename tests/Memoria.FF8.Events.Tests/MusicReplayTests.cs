@@ -41,6 +41,17 @@ internal static partial class Program
         live.Engine.LoadField(100, stopped, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         live.Engine.Step();
         Require(live.Engine.Scene.MusicReplayRequest is { Bank: 1, Music: 34, PriorKeepBit400: false } && live.Engine.Scene.MusicChannel108 is { ChannelId: 0, MusicId: 255 } && live.Session.WorldControls is { MusicKeep207: 1 }, "MUSICREPLAY changed native BYTE199 after stop or lost the clear-bit keep branch.");
+        byte[] laterPlay = SyntheticProgram((Jsm.Opcode.LBL, 0), (Jsm.Opcode.PSHN_L, 55), (Jsm.Opcode.MUSICLOAD, 0), (Jsm.Opcode.MUSICCHANGE, 0), (Jsm.Opcode.PSHN_L, 10), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 0));
+        live.Engine.LoadField(101, laterPlay, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        live.Engine.Step();
+        Require(live.Engine.Scene.MusicPlayRequest is { FieldId: 101, Music: 55 } && live.Engine.Scene.MusicReplayRequest is { FieldId: 100, Music: 34 }, "Later field did not retain replay history independently of its new music resource.");
+        GameSession laterSession = CreateNativeMusicSession();
+        EventEngine laterRestore = new(laterSession) { AnimationFrameCount = (_, _) => 4 };
+        laterRestore.LoadField(101, laterPlay, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+        laterRestore.Restore(live.Engine.Capture());
+        live.Engine.Step();
+        laterRestore.Step();
+        Require(JsonElement.DeepEquals(live.Engine.Capture(), laterRestore.Capture()), "Historical MUSICREPLAY was compared against a later field's replacement music or diverged after restoration.");
         JsonNode malformed = JsonNode.Parse(held.GetRawText())!;
         malformed["Scene"]!["MusicReplayRequest"]!["Music"] = 99;
         JsonElement before = restored.Engine.Capture();

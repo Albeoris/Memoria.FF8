@@ -13,16 +13,18 @@ internal sealed partial class GameWorld : IDisposable
     private readonly GameSession session;
     private readonly GameAssets assets;
     private readonly ResourceService? resources;
+    private readonly bool validateWorldPresentation;
     private FieldRenderer? renderer;
     private WorldMapScene? worldScene;
     private SpuWaveAudioOutput? spuAudio;
     private int renderWidth = FieldRenderer.Width;
     private int renderHeight = FieldRenderer.Height;
 
-    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false)
+    public GameWorld(GameSession session, string gameDirectory, MovieClock? movieClock = null, ResourceService? resources = null, nint audioWindow = default, bool audioEnabled = false, bool validateWorldPresentation = true)
     {
         this.session = session;
         this.resources = resources;
+        this.validateWorldPresentation = validateWorldPresentation;
         assets = new GameAssets(gameDirectory, resources: resources);
         bool initializedNativeParty = false;
         if (session.State.KnownMagic is null && session.State.Scene == SceneKind.Field && session.State.FieldId == 74 && session.State.EventState is null && session.State.SavedWorld?.Origin.Kind == NativeSavedWorldOriginKind.NativeNewGame)

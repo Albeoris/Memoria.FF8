@@ -13,7 +13,7 @@ internal sealed partial class WorldMapScene
         NativeSavedWorldState saved = session.State.SavedWorld!;
         NativeWorldEntryMemory entry = session.State.WorldEntryMemory ?? throw new NotSupportedException("Ragnarok allocation requires current executed entry bytes.");
         NativeCharacterVitals vitals = session.State.CharacterVitals ?? throw new NotSupportedException("Ragnarok allocation requires current original GF13 flags.");
-        NativeRagnarokWorldAllocation allocation = assets.ReadRagnarokAllocation(arrival, entry, session.State.EventMemory, saved, vitals, saved.RagnarokPose2, saved.RagnarokReturn?.CameraYaw96 ?? saved.GardenReturn?.CameraYaw96 ?? saved.FootReturn?.CameraYaw96, saved.RagnarokReturn is not null ? (byte)0 : saved.GardenReturn?.AnimationVariant108 ?? saved.FootReturn?.AnimationVariant108);
+        NativeRagnarokWorldAllocation allocation = assets.ReadRagnarokAllocation(arrival, entry, session.State.EventMemory, saved, vitals, saved.RagnarokPose2, saved.RagnarokReturn?.CameraYaw96 ?? saved.GardenReturn?.CameraYaw96 ?? saved.FootReturn?.CameraYaw96, saved.RagnarokReturn is not null ? (byte)0 : saved.GardenReturn?.AnimationVariant108 ?? saved.FootReturn?.AnimationVariant108, session.State.World?.NativeRagnarokRuntime?.Allocation.AuxiliaryEntry);
         if (session.State.World is null)
         {
             NativeSavedWorldPose pose = allocation.LoadPose;
@@ -42,6 +42,10 @@ internal sealed partial class WorldMapScene
                 ReplacementMask = WorldTerrainSelection.ReplacementMask(inputs.ReplacementFlags, inputs.StoryByte),
                 NativeRagnarokRuntime = runtime
             });
+            if (allocation.AuxiliaryEntry is { } auxiliaryEntry)
+            {
+                session.SetEventMemory(auxiliaryEntry.ApplyTo(session.State.EventMemory));
+            }
         }
         NativeRagnarokWorldRuntimeState restored = State.NativeRagnarokRuntime ?? throw new InvalidDataException("Ragnarok restore requires its retained scene runtime.");
         restored.RequireSceneState();

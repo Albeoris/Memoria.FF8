@@ -234,7 +234,8 @@ public sealed partial class GameSession : IEventServices
             throw new InvalidOperationException("Prepared world saved-vehicle state differs from its native entry writes.");
         }
         NativeEventMemory memory = preparedEventMemory ?? departure.EventMemory;
-        NativeEventMemory expectedMemory = initialState.NativeGardenRuntime?.AuxiliaryEntry?.ApplyTo(departure.EventMemory) ?? departure.EventMemory;
+        NativeWorldAuxiliaryRelocationReceipt? relocation = initialState.NativeGardenRuntime?.AuxiliaryEntry ?? initialState.NativeRagnarokRuntime?.Allocation.AuxiliaryEntry;
+        NativeEventMemory expectedMemory = relocation?.ApplyTo(departure.EventMemory) ?? departure.EventMemory;
         if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(memory), JsonSerializer.SerializeToElement(expectedMemory)))
         {
             throw new InvalidOperationException("Prepared world event memory differs from its authenticated native selector consumption.");

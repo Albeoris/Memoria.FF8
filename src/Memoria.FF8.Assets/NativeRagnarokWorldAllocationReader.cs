@@ -7,7 +7,7 @@ namespace Memoria.FF8.Assets;
 
 public static class NativeRagnarokWorldAllocationReader
 {
-    public static NativeRagnarokWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay, NativeSavedWorldPose? parkedRagnarokPose2 = null)
+    public static NativeRagnarokWorldAllocation Read(ReadOnlySpan<byte> program, ReadOnlySpan<byte> coordinates, WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, byte guardianForce13Flags, NativeWorldPathPosition cactuarLoadPosition, NativeSavedWorldPose loadPose, ushort cameraYaw, byte mapDisplay, NativeSavedWorldPose? parkedRagnarokPose2 = null, NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = null)
     {
         entry.Validate();
         memory.Validate();
@@ -18,8 +18,13 @@ public static class NativeRagnarokWorldAllocationReader
         }
         if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
         {
-            throw new NotSupportedException("Ragnarok allocation requires actual54D6A0 relocation ownership for pending event269/270; it cannot borrow Garden relocation receipts.");
+            if (auxiliaryEntry is null)
+            {
+                throw new NotSupportedException("Ragnarok allocation requires its actual54D6A0 relocation receipt for pending event269/270.");
+            }
+            _ = auxiliaryEntry.ApplyTo(memory);
         }
+        auxiliaryEntry?.RequireRagnarokPublication(packet, loadPose);
         if (program.Length < 8 || program.Length % 4 != 0 || coordinates.Length < 16 || coordinates[..16].IndexOfAnyExcept((byte)0) >= 0)
         {
             throw new InvalidDataException("Ragnarok allocation lacks its aligned original program or zero coordinate row.");
@@ -101,6 +106,21 @@ public static class NativeRagnarokWorldAllocationReader
         {
             objects.Add(new(94, 0, cactuarLoadPosition, 0, 0, 0));
         }
+        if (auxiliaryEntry is not null)
+        {
+            ImmutableArray<NativeRagnarokWorldObject> relocated = auxiliaryEntry.RelocateRagnarokObjects(objects.ToImmutable());
+            objects.Clear();
+            objects.AddRange(relocated);
+            //54D6A0 precedes548080/548300. Foot and conditional chocobo always
+            //receive the final load pose; controlled50 also republishes shape1.
+            for (int index = 0; index < objects.Count; index++)
+            {
+                if (objects[index].ShapeId is 0 or 3 || objects[index].ShapeId == 1 && unchecked((byte)packet.Mode) == 50)
+                {
+                    objects[index] = objects[index] with { Position = body, Pitch = 0, Yaw = unchecked((short)loadPose.Yaw), Roll = 0 };
+                }
+            }
+        }
         for (int group = 0; group < 3; group++)
         {
             if ((entry.ReplacementFlags264 & (1 << group)) != 0)
@@ -109,7 +129,7 @@ public static class NativeRagnarokWorldAllocationReader
                 AddCoordinate(objects, coordinates, 80, 31 + group, 4);
             }
         }
-        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2 };
+        var result = new NativeRagnarokWorldAllocation(Hash(program), Hash(coordinates), Hash(selected), story, chocobo, entry.ReplacementFlags264, guardianForce13Flags, expected.ToImmutableArray(), objects.ToImmutable(), ragnarokIndex, packet, loadPose, cameraYaw, mapDisplay) { ParkedRagnarokPose2 = parkedRagnarokPose2, AuxiliaryEntry = auxiliaryEntry };
         result.Validate();
         return result;
     }
@@ -139,7 +159,7 @@ public static class NativeRagnarokWorldAllocationReader
 
 public sealed partial class WorldAssets
 {
-    public NativeRagnarokWorldAllocation ReadRagnarokAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeSavedWorldPose? savedRagnarokPose2 = null, ushort? savedCameraYaw96 = null, byte? savedVariant108 = null)
+    public NativeRagnarokWorldAllocation ReadRagnarokAllocation(WorldTransition packet, NativeWorldEntryMemory entry, NativeEventMemory memory, NativeSavedWorldState saved, NativeCharacterVitals vitals, NativeSavedWorldPose? savedRagnarokPose2 = null, ushort? savedCameraYaw96 = null, byte? savedVariant108 = null, NativeWorldAuxiliaryRelocationReceipt? retainedAuxiliary = null)
     {
         int spawn = unchecked((sbyte)packet.EntryIndex);
         NativeSavedWorldPose pose;
@@ -164,7 +184,16 @@ public sealed partial class WorldAssets
             cameraYaw = (ushort)((source.Unknown & 255) * 16);
         }
         vitals.Validate();
+        if (retainedAuxiliary is not null)
+        {
+            if (memory.Read(269, 1).RequireExact() != 0 || memory.Read(270, 1).RequireExact() != 0)
+            {
+                throw new InvalidDataException("Restored Ragnarok cannot consume pending auxiliary relocation selectors again.");
+            }
+            ValidateWorldAuxiliaryRelocations(retainedAuxiliary);
+        }
+        NativeWorldAuxiliaryRelocationReceipt? auxiliaryEntry = retainedAuxiliary ?? ReadWorldAuxiliaryRelocations(packet, memory, pose);
         NativeWorldPathPosition cactuar = NativeGardenWorldAllocationReader.ReadCactuarLoadPosition(contactExecutable ??= File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
-        return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, saved.ReadMapDisplayModeForFreshFootLoader());
+        return NativeRagnarokWorldAllocationReader.Read(wmset.AsSpan(sections[9], sections[10] - sections[9]), wmset.AsSpan(sections[10], sections[11] - sections[10]), packet, entry, memory, saved, vitals.GuardianForces[13].Flags, cactuar, pose, cameraYaw, saved.ReadMapDisplayModeForFreshFootLoader(), auxiliaryEntry: auxiliaryEntry);
     }
 }

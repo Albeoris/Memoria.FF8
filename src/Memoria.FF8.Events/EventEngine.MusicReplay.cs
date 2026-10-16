@@ -79,7 +79,9 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved MUSICREPLAY lost its selected native buffer/resource provenance.");
         }
-        if (replay.ResourceOwner == "MusicPlayRequest" && saved.Scene.MusicPlayRequest is { } play && play.Frame <= replay.Frame && (play.Bank != replay.Bank || play.Music != replay.Music || !play.ConsumedPending || play.Opcode == nameof(Jsm.Opcode.DUALMUSIC)))
+        // Frame is local to each field. A later field's play replaces this receipt's
+        // original resource owner and cannot be ordered against its old frame.
+        if (replay.ResourceOwner == "MusicPlayRequest" && saved.Scene.MusicPlayRequest is { } play && play.FieldId == replay.FieldId && play.Frame <= replay.Frame && (play.Bank != replay.Bank || play.Music != replay.Music || !play.ConsumedPending || play.Opcode == nameof(Jsm.Opcode.DUALMUSIC)))
         {
             throw new InvalidDataException("Saved MUSICREPLAY disagrees with its retained executed buffer resource.");
         }

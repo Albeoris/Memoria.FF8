@@ -218,6 +218,13 @@ public sealed partial class WorldAssets
 
     public NativeWorldAuxiliaryRelocationReceipt? ReadGardenAuxiliaryRelocations(WorldTransition packet, NativeEventMemory memory, NativeSavedWorldPose loadPose)
     {
+        NativeWorldAuxiliaryRelocationReceipt? receipt = ReadWorldAuxiliaryRelocations(packet, memory, loadPose);
+        receipt?.RequireGardenPublication(packet, loadPose);
+        return receipt;
+    }
+
+    public NativeWorldAuxiliaryRelocationReceipt? ReadWorldAuxiliaryRelocations(WorldTransition packet, NativeEventMemory memory, NativeSavedWorldPose loadPose)
+    {
         byte first = checked((byte)memory.Read(269, 1).RequireExact());
         byte second = checked((byte)memory.Read(270, 1).RequireExact());
         if (first == 0 && second == 0)
@@ -244,18 +251,24 @@ public sealed partial class WorldAssets
             rows.Add(new NativeWorldAuxiliaryRelocation(channel, selector, row[10], position, unchecked((sbyte)row[11])));
         }
         var receipt = new NativeWorldAuxiliaryRelocationReceipt(1, NativeWorldAuxiliaryRelocationReceipt.RelocationRule, Convert.ToHexString(SHA256.HashData(table)), first, second, rows.ToImmutable(), packet, loadPose);
-        receipt.RequireGardenPublication(packet, loadPose);
+        receipt.Validate();
         return receipt;
     }
 
     public void ValidateGardenAuxiliaryRelocations(NativeWorldAuxiliaryRelocationReceipt receipt)
     {
+        receipt.RequireGardenPublication(receipt.Packet, receipt.FinalLoadPose);
+        ValidateWorldAuxiliaryRelocations(receipt);
+    }
+
+    public void ValidateWorldAuxiliaryRelocations(NativeWorldAuxiliaryRelocationReceipt receipt)
+    {
         receipt.Validate();
         NativeEventMemory before = NativeEventMemory.Empty.Write(269, 1, NativeScalarValue.Exact(receipt.Before269)).Write(270, 1, NativeScalarValue.Exact(receipt.Before270));
-        NativeWorldAuxiliaryRelocationReceipt actual = ReadGardenAuxiliaryRelocations(receipt.Packet, before, receipt.FinalLoadPose)!;
+        NativeWorldAuxiliaryRelocationReceipt actual = ReadWorldAuxiliaryRelocations(receipt.Packet, before, receipt.FinalLoadPose)!;
         if (actual.ResourceHash != receipt.ResourceHash || !actual.Relocations.SequenceEqual(receipt.Relocations))
         {
-            throw new InvalidDataException("Restored Garden auxiliary relocation differs from its actual original resource rows.");
+            throw new InvalidDataException("Restored world auxiliary relocation differs from its actual original resource rows.");
         }
     }
 

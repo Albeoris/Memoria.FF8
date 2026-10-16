@@ -11,6 +11,8 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
     public const string Rule = "ff8-en-ragnarok-section9-clause14-544860-548080-548300-v1";
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeSavedWorldPose? ParkedRagnarokPose2 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeWorldAuxiliaryRelocationReceipt? AuxiliaryEntry { get; init; }
 
     public void Validate()
     {
@@ -40,11 +42,18 @@ public sealed record NativeRagnarokWorldAllocation([property: JsonRequired] stri
         {
             throw new InvalidDataException("Ragnarok allocation lost the native dense shape1 owner or original conditional objects.");
         }
+        AuxiliaryEntry?.RequireRagnarokPublication(Packet, LoadPose);
         foreach (NativeRagnarokWorldObject item in Objects.Where(item => item.ShapeId is 0 or 1 or 3))
         {
             NativeSavedWorldPose pose = item.ShapeId == 1 && ParkedRagnarokPose2 is not null ? ParkedRagnarokPose2 : LoadPose;
             NativeWorldPathPosition expectedPosition = new(pose.X, pose.Height, -pose.RawZ);
-            if (pose.X is < -131072 or >= 131072 || pose.RawZ is < -98304 or >= 98304 || pose.Yaw >= 4096 || item.Position != expectedPosition || item.Pitch != 0 || item.Yaw != pose.Yaw || item.Roll != 0)
+            short expectedYaw = unchecked((short)pose.Yaw);
+            if (item.ShapeId == 1 && unchecked((byte)Packet.Mode) == 0 && AuxiliaryEntry?.Relocations.LastOrDefault(row => row.EntityType == 50) is { } parkedRelocation)
+            {
+                expectedPosition = parkedRelocation.Position;
+                expectedYaw = parkedRelocation.Yaw;
+            }
+            if (pose.X is < -131072 or >= 131072 || pose.RawZ is < -98304 or >= 98304 || pose.Yaw >= 4096 || item.Position != expectedPosition || item.Pitch != 0 || item.Yaw != expectedYaw || item.Roll != 0)
             {
                 throw new InvalidDataException("Ragnarok fresh548300 publication differs from its foot, conditional chocobo or shape1 pose owner.");
             }

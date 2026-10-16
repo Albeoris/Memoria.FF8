@@ -14,7 +14,7 @@ internal sealed partial class GameWorld
         ValidateWorldDeparture(request);
         GameState departure = session.State;
         preparedWorldEntry?.Dispose();
-        PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, assets.GameDirectory, request.Transition);
+        PreparedWorldEntry ticket = WorldEntryPreflight.Prepare(session.State, assets.GameDirectory, request.Transition, validateWorldPresentation);
         Action publishMusic;
         try
         {

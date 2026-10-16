@@ -48,4 +48,58 @@ public sealed record NativeWorldAuxiliaryRelocationReceipt([property: JsonRequir
         }
         return result;
     }
+
+    public void RequireRagnarokPublication(WorldTransition packet, NativeSavedWorldPose loadPose)
+    {
+        Validate();
+        if (Packet != packet || FinalLoadPose != loadPose || unchecked((byte)packet.Mode) is not (0 or 50))
+        {
+            throw new NotSupportedException("Native auxiliary relocation requires its actual Ragnarok allocation packet and final548080/548300 loader pose.");
+        }
+    }
+
+    public ImmutableArray<NativeRagnarokWorldObject> RelocateRagnarokObjects(ImmutableArray<NativeRagnarokWorldObject> objects)
+    {
+        Validate();
+        var result = objects.ToBuilder();
+        foreach (NativeWorldAuxiliaryRelocation relocation in Relocations)
+        {
+            int shape = relocation.EntityType switch
+            {
+                0 or 3 or 4 or 5 or 7 or 8 or 9 => 0,
+                1 => 4,
+                2 => 5,
+                6 => 6,
+                32 => 74,
+                33 => 73,
+                >= 34 and <= 40 => relocation.EntityType + 47,
+                48 => 64,
+                49 => 2,
+                50 => 1,
+                65 => 77,
+                66 => 78,
+                131 => 70,
+                _ => -1
+            };
+            int[] targets = shape == 64 ? [64, 65] : [shape];
+            foreach (int target in targets)
+            {
+                int index = -1;
+                for (int candidate = 0; candidate < result.Count; candidate++)
+                {
+                    if (result[candidate].ShapeId == target)
+                    {
+                        index = candidate;
+                        break;
+                    }
+                }
+                if (index < 0)
+                {
+                    throw new NotSupportedException("Native54D6A0 relocation target has no actual allocated object; invalid-index native memory aliases are unsupported.");
+                }
+                result[index] = result[index] with { Position = relocation.Position, Yaw = relocation.Yaw };
+            }
+        }
+        return result.ToImmutable();
+    }
 }
