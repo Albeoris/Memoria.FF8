@@ -20,8 +20,8 @@ internal static partial class Program
         session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         EventEngine engine = new(session);
-        //Declared native command component; no fabricated field journey or original raster claim.
-        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 258), (Jsm.Opcode.DISC, 0), (Jsm.Opcode.PSHSM_B, 204), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.MENUSAVE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 501), (Jsm.Opcode.RET, 8)]]);
+        // Declared native command component; the default controller halts because it has no requested LBL return frame.
+        byte[] content = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 258), (Jsm.Opcode.DISC, 0), (Jsm.Opcode.PSHSM_B, 204), (Jsm.Opcode.POPM_B, 500), (Jsm.Opcode.MENUSAVE, 0), (Jsm.Opcode.PSHN_L, 77), (Jsm.Opcode.POPM_B, 501), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         engine.Step();
         engine.Step();
@@ -64,7 +64,7 @@ internal static partial class Program
         signedSession.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
         signedSession.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
         EventEngine signed = new(signedSession);
-        byte[] signedContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DISC, 0), (Jsm.Opcode.PSHSM_B, 204), (Jsm.Opcode.POPM_L, 510), (Jsm.Opcode.RET, 8)]]);
+        byte[] signedContent = SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.PSHN_L, 255), (Jsm.Opcode.DISC, 0), (Jsm.Opcode.PSHSM_B, 204), (Jsm.Opcode.POPM_L, 510), (Jsm.Opcode.HALT, 0), (Jsm.Opcode.RET, 8)]]);
         signed.LoadField(74, signedContent, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
         signed.Step();
         signed.Step();
