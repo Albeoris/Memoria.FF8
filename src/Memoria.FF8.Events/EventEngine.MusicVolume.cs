@@ -49,7 +49,7 @@ public sealed partial class EventEngine
         {
             EventScript? script = program!.Objects.FirstOrDefault(actor => actor.Index == volume.ObjectId)?.Scripts.FirstOrDefault(script => script.Id == volume.ScriptId);
             Jsm.Opcode opcode = volume.FadeInitialVolumeOperand is not null ? Jsm.Opcode.MUSICVOLFADE : volume.TransitionDurationOperand is null ? Jsm.Opcode.MUSICVOL : Jsm.Opcode.MUSICVOLTRANS;
-            if (script is null || volume.Operation < script.Start || volume.Operation >= script.End || program.Operations[volume.Operation].Opcode != opcode)
+            if (script is null || !script.ContainsOperation(volume.Operation) || program.Operations[volume.Operation].Opcode != opcode)
             {
                 throw new InvalidDataException("Saved music volume request does not match its original instruction.");
             }

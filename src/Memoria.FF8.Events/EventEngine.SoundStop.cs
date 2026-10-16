@@ -66,7 +66,7 @@ public sealed partial class EventEngine
         if (stopped.FieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(actor => actor.Index == stopped.ObjectId)?.Scripts.FirstOrDefault(script => script.Id == stopped.ScriptId);
-            if (script is null || stopped.Operation < script.Start || stopped.Operation >= script.End || program.Operations[stopped.Operation].Opcode != Jsm.Opcode.SESTOP)
+            if (script is null || !script.ContainsOperation(stopped.Operation) || program.Operations[stopped.Operation].Opcode != Jsm.Opcode.SESTOP)
             {
                 throw new InvalidDataException("Saved sound stop does not match its original field instruction.");
             }

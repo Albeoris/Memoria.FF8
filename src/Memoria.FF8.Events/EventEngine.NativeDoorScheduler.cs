@@ -146,13 +146,13 @@ public sealed partial class EventEngine
             Fiber? initialization = restored.SingleOrDefault(fiber => fiber.Sequence == scheduler.InitializationSequence);
             Fiber? root = restored.SingleOrDefault(fiber => fiber.Sequence == scheduler.DefaultSequence);
             Fiber? current = restored.SingleOrDefault(fiber => fiber.Sequence == scheduler.CurrentSequence);
-            if (scheduler.Version != 1 || scheduler.CurrentSlot > 7 || initialization is null || !initialization.Initialization || !initialization.Complete || initialization.ObjectId != actor.ObjectId || initialization.Script.Id != program.Objects[actor.ObjectId].Scripts[0].Id || root is null || root.Initialization || root.Complete || root.ObjectId != actor.ObjectId || root.Sequence <= initialization.Sequence || !root.NativeDoorDefaultFrame || root.NativeResultFrameEntered || root.NativeDoorSlot is not null || root.NativeActorSlot is not null || root.Priority != 7 || root.Script.Id != program.Objects[actor.ObjectId].Scripts[1].Id || root.Position <= root.Script.Start || root.Position >= root.Script.End || current is null || current.ObjectId != actor.ObjectId || current.Initialization || NativeActorRequestSlot(current) != scheduler.CurrentSlot || current.Sequence < root.Sequence)
+            if (scheduler.Version != 1 || scheduler.CurrentSlot > 7 || initialization is null || !initialization.Initialization || !initialization.Complete || initialization.ObjectId != actor.ObjectId || initialization.Script.Id != program.Objects[actor.ObjectId].Scripts[0].Id || root is null || root.Initialization || root.Complete || root.ObjectId != actor.ObjectId || root.Sequence <= initialization.Sequence || !root.NativeDoorDefaultFrame || root.NativeResultFrameEntered || root.NativeDoorSlot is not null || root.NativeActorSlot is not null || root.Priority != 7 || root.Script.Id != program.Objects[actor.ObjectId].Scripts[1].Id || root.Position == root.Script.Start || !root.Script.ContainsOperation(root.Position) || current is null || current.ObjectId != actor.ObjectId || current.Initialization || NativeActorRequestSlot(current) != scheduler.CurrentSlot || current.Sequence < root.Sequence)
             {
                 throw new InvalidDataException("Saved native door scheduler lost its initialization, default entry or selected physical slot");
             }
             if (scheduler.RetiredOperation is int retired)
             {
-                if (!current.Complete || !current.NativeResultFrameEntered || current.NativeDoorDefaultFrame || retired != current.Position - 1 || retired < current.Script.Start || retired >= current.Script.End || program.Operations[retired].Opcode != Jsm.Opcode.RET || program.Operations[retired].Parameter != 8 || restored.Any(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete))
+                if (!current.Complete || !current.NativeResultFrameEntered || current.NativeDoorDefaultFrame || retired != current.Position - 1 || !current.Script.ContainsOperation(retired) || program.Operations[retired].Opcode != Jsm.Opcode.RET || program.Operations[retired].Parameter != 8 || restored.Any(fiber => fiber.ObjectId == actor.ObjectId && !fiber.Complete))
                 {
                     throw new InvalidDataException("Saved native door sticky current slot lacks its exact empty-bank RET owner");
                 }
@@ -188,7 +188,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native LBL bank belongs to an unproved context");
         }
-        if (restored.Any(fiber => fiber.NativeDoorDefaultFrame && (fiber.Initialization || fiber.NativeResultFrameEntered || fiber.Priority != 7 || program!.Objects[fiber.ObjectId].Scripts.Count < 2 || fiber.Script.Id != program.Objects[fiber.ObjectId].Scripts[1].Id || fiber.Position <= fiber.Script.Start || !restored.Any(init => init.Initialization && init.Complete && init.ObjectId == fiber.ObjectId && init.Sequence < fiber.Sequence) || program.Objects[fiber.ObjectId].IsDoor && saved.Actors[fiber.ObjectId].NativeDoorScheduler?.DefaultSequence != fiber.Sequence)))
+        if (restored.Any(fiber => fiber.NativeDoorDefaultFrame && (fiber.Initialization || fiber.NativeResultFrameEntered || fiber.Priority != 7 || program!.Objects[fiber.ObjectId].Scripts.Count < 2 || fiber.Script.Id != program.Objects[fiber.ObjectId].Scripts[1].Id || fiber.Position == fiber.Script.Start || !fiber.Script.ContainsPosition(fiber.Position, fiber.Complete) || !restored.Any(init => init.Initialization && init.Complete && init.ObjectId == fiber.ObjectId && init.Sequence < fiber.Sequence) || program.Objects[fiber.ObjectId].IsDoor && saved.Actors[fiber.ObjectId].NativeDoorScheduler?.DefaultSequence != fiber.Sequence)))
         {
             throw new InvalidDataException("Saved default-without-frame marker lacks its original52C960 entity reset");
         }

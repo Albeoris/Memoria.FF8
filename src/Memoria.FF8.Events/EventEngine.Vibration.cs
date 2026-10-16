@@ -77,7 +77,7 @@ public sealed partial class EventEngine
         if (request.FieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(actor => actor.Index == request.ObjectId)?.Scripts.FirstOrDefault(candidate => candidate.Id == request.ScriptId);
-            if (script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.SETVIBRATE)
+            if (script is null || !script.ContainsOperation(request.Operation) || program.Operations[request.Operation].Opcode != Jsm.Opcode.SETVIBRATE)
             {
                 throw new InvalidDataException("Saved SETVIBRATE receipt does not identify its executed original instruction.");
             }

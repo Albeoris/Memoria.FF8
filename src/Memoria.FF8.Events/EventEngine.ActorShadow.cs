@@ -107,7 +107,7 @@ public sealed partial class EventEngine
     private void ValidateActorShadowSite(ActorState actor, int scriptId, int operation, Jsm.Opcode opcode)
     {
         EventScript? script = program!.Objects.FirstOrDefault(item => item.Index == actor.ObjectId)?.Scripts.FirstOrDefault(item => item.Id == scriptId);
-        if (script is null || operation < script.Start || operation >= script.End || program.Operations[operation].Opcode != opcode)
+        if (script is null || !script.ContainsOperation(operation) || program.Operations[operation].Opcode != opcode)
         {
             throw new InvalidDataException("Saved actor-shadow request does not match its original instruction.");
         }

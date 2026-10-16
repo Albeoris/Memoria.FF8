@@ -1,9 +1,15 @@
 using System.Buffers.Binary;
+using System.Collections.Frozen;
 using Albeoris.Games.FF8.Jsm;
 
 namespace Memoria.FF8.Events;
 
-public sealed record EventScript(int Id, int Start, int End);
+public sealed record EventScript(int Id, int Start, int End, FrozenSet<int> ReachableOperations, FrozenSet<int> TerminalSuccessors)
+{
+    public bool ContainsOperation(int operation) => ReachableOperations.Contains(operation);
+
+    public bool ContainsPosition(int position, bool complete) => ContainsOperation(position) || complete && TerminalSuccessors.Contains(position);
+}
 public sealed record EventObject(int Index, int Label, IReadOnlyList<EventScript> Scripts, int? BackgroundModuleIndex = null, bool IsArea = false, bool IsDoor = false);
 
 /// <summary>Validated bytecode ranges correlated with Albeoris's source-backed operations.</summary>
@@ -37,6 +43,15 @@ public sealed class JsmProgram
             throw new InvalidDataException("JSM group, script or operation boundaries are invalid.");
         }
         int operationCount = (content.Length - operationsOffset) / 4;
+        if (operationCount > ushort.MaxValue + 1)
+        {
+            throw new InvalidDataException("JSM operations exceed the original unsigned WORD instruction-pointer domain.");
+        }
+        IReadOnlyList<JsmOperation> operations = JsmDocument.ReadOperations(content);
+        if (operations.Count != operationCount)
+        {
+            throw new InvalidDataException("Albeoris JSM operation count does not match the validated source.");
+        }
         ushort[] groups = new ushort[groupCount];
         for (int index = 0; index < groupCount; index++)
         {
@@ -68,8 +83,8 @@ public sealed class JsmProgram
                 {
                     throw new InvalidDataException($"Invalid or overlapping JSM script label/range {label + index}: {start}..{end}.");
                 }
-                ValidateScript(content, operationsOffset, label + index, start, end);
-                scripts.Add(new EventScript(label + index, start, end));
+                ValidateScript(content, operationsOffset, label + index, start, end, operationCount);
+                scripts.Add(CreateScript(label + index, start, end, operations));
                 positionIndex++;
             }
             int moduleIndex = -1;
@@ -84,17 +99,45 @@ public sealed class JsmProgram
             }
             objects.Add(new EventObject(objects.Count, label, scripts, moduleIndex < 0 ? null : moduleIndex, areaGroups.Contains(group), doorGroups.Contains(group)));
         }
-        // Native interpretation uses the existing lossless operation reader;
-        // presentation AST factories do not govern executable opcode admission.
-        IReadOnlyList<JsmOperation> operations = JsmDocument.ReadOperations(content);
-        if (operations.Count != operationCount)
-        {
-            throw new InvalidDataException("Albeoris JSM operation count does not match the validated source.");
-        }
         return new JsmProgram(objects, operations, nativeGroups.Select(group => objects.Single(obj => obj.Label == group >> 7).Index).ToArray(), content[3]);
     }
 
-    private static void ValidateScript(byte[] content, int operationsOffset, int label, int start, int end)
+    public static int JumpTarget(int operation, int parameter) => unchecked((ushort)(operation + unchecked((short)parameter)));
+
+    private static EventScript CreateScript(int label, int start, int end, IReadOnlyList<JsmOperation> operations)
+    {
+        HashSet<int> reachable = [];
+        HashSet<int> terminalSuccessors = [];
+        Stack<int> pending = new([start]);
+        while (pending.TryPop(out int index))
+        {
+            if ((uint)index >= operations.Count)
+            {
+                throw new InvalidDataException($"JSM script {label} reaches operation {index} outside the original global code.");
+            }
+            if (!reachable.Add(index))
+            {
+                continue;
+            }
+            JsmOperation operation = operations[index];
+            if (operation.Opcode is Jsm.Opcode.RET or Jsm.Opcode.HALT)
+            {
+                terminalSuccessors.Add(index + 1);
+                continue;
+            }
+            if (operation.Opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
+            {
+                pending.Push(JumpTarget(index, operation.Parameter));
+            }
+            if (operation.Opcode != Jsm.Opcode.JMP)
+            {
+                pending.Push(index + 1);
+            }
+        }
+        return new EventScript(label, start, end, reachable.ToFrozenSet(), terminalSuccessors.ToFrozenSet());
+    }
+
+    private static void ValidateScript(byte[] content, int operationsOffset, int label, int start, int end, int operationCount)
     {
         for (int index = start; index < end; index++)
         {
@@ -107,10 +150,10 @@ public sealed class JsmProgram
             }
             if (opcode is Jsm.Opcode.JMP or Jsm.Opcode.JPF)
             {
-                int target = index + parameter;
-                if (target < start || target >= end)
+                int target = JumpTarget(index, parameter);
+                if ((uint)target >= operationCount)
                 {
-                    throw new InvalidDataException($"JSM script {label} jump at {index} targets {target} outside its range.");
+                    throw new InvalidDataException($"JSM script {label} jump at {index} targets {target} outside the original global code.");
                 }
             }
         }

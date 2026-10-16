@@ -64,7 +64,7 @@ public sealed partial class EventEngine
         {
             try
             {
-                while (branch.Position >= script.Start && branch.Position < script.End && budget-- > 0)
+                while (script.ContainsOperation(branch.Position) && budget-- > 0)
                 {
                     JsmOperation operation = program!.Operations[branch.Position++];
                     int parameter = operation.Parameter;
@@ -129,13 +129,13 @@ public sealed partial class EventEngine
                             branch.Stack.Add(right is int r && left is int l ? NativeScalarCalculation.Resolve(parameter, l, r).RequireExact() : null);
                             break;
                         case Jsm.Opcode.JMP:
-                            branch.Position = operation.Index + parameter;
+                            branch.Position = JsmProgram.JumpTarget(operation.Index, parameter);
                             break;
                         case Jsm.Opcode.JPF:
                             int condition = branch.Pop() ?? throw new NotSupportedException("Unknown challenge predicate.");
                             if (condition == 0)
                             {
-                                branch.Position = operation.Index + parameter;
+                                branch.Position = JsmProgram.JumpTarget(operation.Index, parameter);
                             }
                             break;
                         case Jsm.Opcode.WHERECARD:
@@ -171,7 +171,7 @@ public sealed partial class EventEngine
                                 //its native LBL starts R0..R7 at0. Parent results stay local.
                                 CardOfferBranch called = new(targetScript.Start) { Writes = new(branch.Writes), Results = [] };
                                 owners.UnionWith(ReadCardChallengeOwners(targetScript, target, called, depth + 1));
-                                branch.Position = script.End;
+                                branch.Position = -1;
                                 break;
                             }
                             InvalidateCardOfferRequest(branch, parameter, requested, priority, []);
@@ -209,7 +209,7 @@ public sealed partial class EventEngine
                                 next.Results[0] = choice;
                                 pending.Enqueue(next);
                             }
-                            branch.Position = script.End;
+                            branch.Position = -1;
                             break;
                         case Jsm.Opcode.CARDGAME:
                             int?[] arguments = branch.Pop(7);
@@ -219,7 +219,7 @@ public sealed partial class EventEngine
                                 //subsequent half-chance remains>=100, forcing the first five.
                                 owners.Add((owner, unchecked((byte)chance) >= 200 ? 5 : int.MaxValue, objectId));
                             }
-                            branch.Position = script.End;
+                            branch.Position = -1;
                             break;
                         case Jsm.Opcode.AMESW:
                         case Jsm.Opcode.AMES:
@@ -237,7 +237,7 @@ public sealed partial class EventEngine
                             break;
                         case Jsm.Opcode.RET:
                         case Jsm.Opcode.HALT:
-                            branch.Position = script.End;
+                            branch.Position = -1;
                             break;
                         default:
                             int presentationOperands = CardOfferPresentationOperandCount(operation.Opcode);
@@ -264,13 +264,13 @@ public sealed partial class EventEngine
         {
             return false;
         }
-        foreach (JsmOperation operation in program.Operations.Skip(script.Start).Take(script.End - script.Start))
+        foreach (JsmOperation operation in program.Operations.Where(operation => script.ContainsOperation(operation.Index)))
         {
             if (operation.Opcode == Jsm.Opcode.CARDGAME)
             {
                 return true;
             }
-            if (operation.Opcode is Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW && operation.Index >= script.Start + 2 && program.Operations[operation.Index - 1].Opcode == Jsm.Opcode.PSHN_L && (uint)operation.Parameter < program.NativeObjects.Count)
+            if (operation.Opcode is Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW && script.ContainsOperation(operation.Index - 2) && program.Operations[operation.Index - 1].Opcode == Jsm.Opcode.PSHN_L && (uint)operation.Parameter < program.NativeObjects.Count)
             {
                 int target = program.NativeObjects[operation.Parameter];
                 int requested = unchecked((ushort)program.Operations[operation.Index - 1].Parameter);
@@ -300,7 +300,7 @@ public sealed partial class EventEngine
         {
             return;
         }
-        foreach (JsmOperation operation in program.Operations.Skip(requested.Start).Take(requested.End - requested.Start))
+        foreach (JsmOperation operation in program.Operations.Where(operation => requested.ContainsOperation(operation.Index)))
         {
             if (operation.Opcode is Jsm.Opcode.POPM_B or Jsm.Opcode.POPM_W or Jsm.Opcode.POPM_L)
             {
@@ -314,7 +314,7 @@ public sealed partial class EventEngine
             {
                 // Transitive calls require literal source operands before their effects can be bounded.
                 int index = operation.Index;
-                if (index < requested.Start + 2 || program.Operations[index - 1].Opcode != Jsm.Opcode.PSHN_L || program.Operations[index - 2].Opcode != Jsm.Opcode.PSHN_L)
+                if (!requested.ContainsOperation(index - 2) || program.Operations[index - 1].Opcode != Jsm.Opcode.PSHN_L || program.Operations[index - 2].Opcode != Jsm.Opcode.PSHN_L)
                 {
                     throw new NotSupportedException("Dynamic prerequisite request.");
                 }

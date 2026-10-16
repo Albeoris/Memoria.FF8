@@ -180,7 +180,7 @@ public sealed partial class EventEngine
         if (value.ActorInfoOrigin is NativeActorInfoReadOrigin actorRead)
         {
             EventScript? actorScript = (uint)actorRead.ObjectId < program!.Objects.Count ? program.Objects[actorRead.ObjectId].Scripts.FirstOrDefault(script => script.Id == actorRead.ScriptId) : null;
-            if (actorRead.FieldId != fieldId || actorRead.ProgramHash != sourceHash || actorRead.RetainedActorCount != scene.NativeActorObjectIds.Count || actorRead.Frame > frame || actorScript is null || actorRead.Operation < actorScript.Start || actorRead.Operation >= actorScript.End || program.Operations[actorRead.Operation].Opcode != Jsm.Opcode.PGETINFO)
+            if (actorRead.FieldId != fieldId || actorRead.ProgramHash != sourceHash || actorRead.RetainedActorCount != scene.NativeActorObjectIds.Count || actorRead.Frame > frame || actorScript is null || !actorScript.ContainsOperation(actorRead.Operation) || program.Operations[actorRead.Operation].Opcode != Jsm.Opcode.PGETINFO)
             {
                 throw new InvalidDataException("Unknown actor-info scalar source does not identify its executed PGETINFO operation.");
             }
@@ -195,7 +195,7 @@ public sealed partial class EventEngine
         // before the captured allocation clock belongs to an earlier load, whose
         // local frame must not be compared with the reset current field frame.
         bool earlierLoad = initialization?.TimerClockCallsAtAllocation is long allocationClock && origin.Timer.ClockCalls <= allocationClock;
-        if (origin.ProgramHash != sourceHash || !earlierLoad && origin.Frame > frame || timer is not null && origin.Timer.ClockCalls > timer.ClockCalls || script is null || origin.Operation < script.Start || origin.Operation >= script.End || program.Operations[origin.Operation].Opcode != Jsm.Opcode.GETTIMER)
+        if (origin.ProgramHash != sourceHash || !earlierLoad && origin.Frame > frame || timer is not null && origin.Timer.ClockCalls > timer.ClockCalls || script is null || !script.ContainsOperation(origin.Operation) || program.Operations[origin.Operation].Opcode != Jsm.Opcode.GETTIMER)
         {
             throw new InvalidDataException("Native scalar source does not identify its original executed GETTIMER operation.");
         }

@@ -172,7 +172,7 @@ public sealed partial class EventEngine
                 NativeBattleFlagWriter.DisplayTimer => Jsm.Opcode.DISPTIMER,
                 _ => Jsm.Opcode.KILLTIMER
             };
-            if (index >= lastLoad && (write.FieldId != saved.FieldId || write.ProgramHash != saved.ProgramHash || write.Frame > saved.Frame || write.Writer != NativeBattleFlagWriter.FieldLoad && ((uint)write.Operation >= program!.Operations.Count || program.Operations[write.Operation].Opcode != expectedOpcode || (uint)write.ObjectId >= program.Objects.Count || !program.Objects[write.ObjectId].Scripts.Any(script => script.Id == write.ScriptId && write.Operation >= script.Start && write.Operation < script.End))))
+            if (index >= lastLoad && (write.FieldId != saved.FieldId || write.ProgramHash != saved.ProgramHash || write.Frame > saved.Frame || write.Writer != NativeBattleFlagWriter.FieldLoad && ((uint)write.Operation >= program!.Operations.Count || program.Operations[write.Operation].Opcode != expectedOpcode || (uint)write.ObjectId >= program.Objects.Count || !program.Objects[write.ObjectId].Scripts.Any(script => script.Id == write.ScriptId && script.ContainsOperation(write.Operation)))))
             {
                 throw new InvalidDataException("Native battle-mode writer disagrees with its reached original command.");
             }

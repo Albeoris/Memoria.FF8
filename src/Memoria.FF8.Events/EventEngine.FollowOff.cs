@@ -71,7 +71,7 @@ public sealed partial class EventEngine
                 continue;
             }
             EventScript? script = program!.Objects[actor.ObjectId].Scripts.FirstOrDefault(item => item.Id == receipt.ScriptId);
-            if (receipt.Version != 1 || receipt.FieldId != saved.FieldId || receipt.ObjectId != actor.ObjectId || receipt.Frame is < 1 || receipt.Frame > saved.Frame || receipt.PartySlot is < 0 or >= 3 || receipt.AnimationFrames is null && actor.NativeAnimationHeader?.BoundModelId != -1 || receipt.AnimationFrames is < 1 || receipt.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[receipt.NativeActorId] != actor.ObjectId || script is null || receipt.Operation < script.Start || receipt.Operation >= script.End || program.Operations[receipt.Operation].Opcode != Jsm.Opcode.FOLLOWOFF)
+            if (receipt.Version != 1 || receipt.FieldId != saved.FieldId || receipt.ObjectId != actor.ObjectId || receipt.Frame is < 1 || receipt.Frame > saved.Frame || receipt.PartySlot is < 0 or >= 3 || receipt.AnimationFrames is null && actor.NativeAnimationHeader?.BoundModelId != -1 || receipt.AnimationFrames is < 1 || receipt.NativeActorId >= saved.Scene.NativeActorObjectIds.Count || saved.Scene.NativeActorObjectIds[receipt.NativeActorId] != actor.ObjectId || script is null || !script.ContainsOperation(receipt.Operation) || program.Operations[receipt.Operation].Opcode != Jsm.Opcode.FOLLOWOFF)
             {
                 throw new InvalidDataException("Saved FOLLOWOFF receipt lost its original actor, animation or instruction provenance.");
             }

@@ -68,7 +68,7 @@ public sealed partial class EventEngine
         if (request.FieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(item => item.Index == request.ObjectId)?.Scripts.FirstOrDefault(item => item.Id == request.ScriptId);
-            if (script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode.ToString() != request.Opcode)
+            if (script is null || !script.ContainsOperation(request.Operation) || program.Operations[request.Operation].Opcode.ToString() != request.Opcode)
             {
                 throw new InvalidDataException("Saved sound position does not identify its executed original instruction.");
             }

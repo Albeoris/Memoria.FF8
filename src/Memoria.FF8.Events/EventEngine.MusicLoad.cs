@@ -292,7 +292,7 @@ public sealed partial class EventEngine
         if (fieldId == saved.FieldId)
         {
             EventScript? script = program!.Objects.FirstOrDefault(actor => actor.Index == objectId)?.Scripts.FirstOrDefault(script => script.Id == scriptId);
-            if (script is null || operation < script.Start || operation >= script.End || program.Operations[operation].Opcode != opcode)
+            if (script is null || !script.ContainsOperation(operation) || program.Operations[operation].Opcode != opcode)
             {
                 throw new InvalidDataException("Saved native music request does not match its original instruction.");
             }

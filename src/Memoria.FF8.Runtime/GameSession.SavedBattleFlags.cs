@@ -2,10 +2,19 @@ namespace Memoria.FF8.Runtime;
 
 public sealed partial class GameSession
 {
+    public void SetNativeSavedBattleFlagBit4(NativeSavedBattleFlagFieldWrite write)
+    {
+        NativeCharacterVitals vitals = State.CharacterVitals ?? throw new NotSupportedException("Native529EB0 requires the independently known dream bit0 alias.");
+        NativeSavedBattleFlags flags = State.SavedBattleFlags ?? new NativeSavedBattleFlags(vitals.InitOutSha256, (byte)((vitals.DreamEnabled ? 1 : 0) | (write.RawOperand != 0 ? 0x10 : 0)), 0x11, write);
+        GameState candidate = State with { SavedBattleFlags = flags.WithFieldBit4(write) };
+        ValidateNativeSavedBattleFlagsCheckpoint(candidate);
+        State = candidate;
+    }
+
     public void InitializeNewGameSavedBattleFlags(NativeSavedBattleFlags flags)
     {
         flags.Validate();
-        if (flags.Value != 0 || State.SavedBattleFlags is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame || State.CharacterVitals?.DreamEnabled == true)
+        if (flags.Value != 0 || flags.KnownMask is not null || flags.FieldWrite is not null || State.SavedBattleFlags is not null || State.Scene != SceneKind.Field || State.FieldId != 74 || State.EventState is not null || State.SavedWorld?.Origin.Kind != NativeSavedWorldOriginKind.NativeNewGame || State.CharacterVitals?.DreamEnabled == true)
         {
             throw new NotSupportedException("Saved battle flag initialization requires the untouched authentic New Game clear.");
         }

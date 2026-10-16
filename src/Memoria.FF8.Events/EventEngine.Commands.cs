@@ -15,6 +15,9 @@ public sealed partial class EventEngine
         NativeScalarValue[]? scalarArgs = null;
         switch (opcode)
         {
+            case Jsm.Opcode.Unknown1:
+                args = ExecuteNativeSavedBattleFlagBit4(fiber);
+                break;
             case Jsm.Opcode.LBL:
                 if (NativeRuntimeProfile is { IsVerified: true })
                 {
@@ -147,14 +150,14 @@ public sealed partial class EventEngine
                 Calculate(fiber, parameter);
                 return;
             case Jsm.Opcode.JMP:
-                fiber.Position = operation.Index + parameter;
+                fiber.Position = JsmProgram.JumpTarget(operation.Index, parameter);
                 return;
             case Jsm.Opcode.JPF:
                 int condition = Pop(fiber, 1)[0];
-                RecordBranch(fiber, operation.Index, fiber.LastExpressions[0], condition, operation.Index + parameter);
+                RecordBranch(fiber, operation.Index, fiber.LastExpressions[0], condition, JsmProgram.JumpTarget(operation.Index, parameter));
                 if (condition == 0)
                 {
-                    fiber.Position = operation.Index + parameter;
+                    fiber.Position = JsmProgram.JumpTarget(operation.Index, parameter);
                 }
                 return;
             case Jsm.Opcode.RND:

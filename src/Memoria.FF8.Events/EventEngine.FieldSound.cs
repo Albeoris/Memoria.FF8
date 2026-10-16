@@ -146,6 +146,6 @@ public sealed partial class EventEngine
 
     private bool MatchesNativeMediaInstruction(int objectId, int scriptId, int operation)
     {
-        return program is not null && (uint)objectId < program.Objects.Count && program.Objects[objectId].Scripts.Any(script => script.Id == scriptId && operation >= script.Start && operation < script.End);
+        return program is not null && (uint)objectId < program.Objects.Count && program.Objects[objectId].Scripts.Any(script => script.Id == scriptId && script.ContainsOperation(operation));
     }
 }

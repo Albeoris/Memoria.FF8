@@ -58,7 +58,7 @@ public sealed partial class EventEngine
         if (line.NativeSetLineReceipt is NativeSetLineReceipt receipt)
         {
             EventScript? script = program!.Objects[line.ObjectId].Scripts.SingleOrDefault(script => script.Id == receipt.ScriptId);
-            return receipt.Version == 1 && receipt.FieldId == FieldId && receipt.ProgramHash == programHash && receipt.ObjectId == line.ObjectId && receipt.NativeDoorOrdinal == NativeDoorOrdinal(line.ObjectId) && receipt.Operation == line.LineOperation && receipt.Frame > 0 && receipt.Frame <= frame && receipt.Start is not null && receipt.End is not null && receipt.Start.Position == start && receipt.End.Position == end && script is not null && receipt.Operation >= script.Start && receipt.Operation < script.End;
+            return receipt.Version == 1 && receipt.FieldId == FieldId && receipt.ProgramHash == programHash && receipt.ObjectId == line.ObjectId && receipt.NativeDoorOrdinal == NativeDoorOrdinal(line.ObjectId) && receipt.Operation == line.LineOperation && receipt.Frame > 0 && receipt.Frame <= frame && receipt.Start is not null && receipt.End is not null && receipt.Start.Position == start && receipt.End.Position == end && script is not null && script.ContainsOperation(receipt.Operation);
         }
         return false;
     }

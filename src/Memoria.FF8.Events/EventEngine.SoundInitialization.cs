@@ -105,7 +105,7 @@ public sealed partial class EventEngine
         {
             EventScript? script = program!.Objects.FirstOrDefault(actor => actor.Index == reset.ObjectId)?.Scripts.FirstOrDefault(script => script.Id == reset.ScriptId);
             // Last reset survives field reloads, whose local frame starts at0.
-            if (script is null || reset.Operation < script.Start || reset.Operation >= script.End || program.Operations[reset.Operation].Opcode != Jsm.Opcode.INITSOUND)
+            if (script is null || !script.ContainsOperation(reset.Operation) || program.Operations[reset.Operation].Opcode != Jsm.Opcode.INITSOUND)
             {
                 throw new InvalidDataException("Saved sound initialization does not match its original field instruction.");
             }

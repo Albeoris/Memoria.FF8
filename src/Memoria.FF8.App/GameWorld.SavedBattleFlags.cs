@@ -12,7 +12,7 @@ internal sealed partial class GameWorld
         }
         NativeSavedBattleFlags current = session.State.SavedBattleFlags ?? throw new InvalidDataException("Battle saved flag effects require their current full canonical BYTE owner.");
         current.Validate();
-        if (current.Value != before)
+        if (current.EffectiveKnownMask != byte.MaxValue || current.Value != before)
         {
             throw new InvalidDataException("Battle saved flag effect before value disagrees with its current canonical owner.");
         }

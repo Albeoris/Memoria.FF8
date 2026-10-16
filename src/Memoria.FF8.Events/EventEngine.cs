@@ -586,8 +586,8 @@ public sealed partial class EventEngine
             {
                 return 0;
             }
-            bool nativeDialogueCompleted = fiber.WaitReason == WaitReason.Dialogue && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.AMESW or Jsm.Opcode.AASK;
-            bool nativeRequestCompleted = NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && fiber.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && fiber.Position > fiber.Script.Start && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
+            bool nativeDialogueCompleted = fiber.WaitReason == WaitReason.Dialogue && fiber.Script.ContainsOperation(fiber.Position - 1) && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.AMESW or Jsm.Opcode.AASK;
+            bool nativeRequestCompleted = NativeRuntimeProfile is { IsVerified: true } && !fiber.Initialization && fiber.WaitReason is WaitReason.RequestStart or WaitReason.RequestEnd && fiber.Script.ContainsOperation(fiber.Position - 1) && program!.Operations[fiber.Position - 1].Opcode is Jsm.Opcode.REQSW or Jsm.Opcode.REQEW or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
             bool nativeAnimationCompleted = fiber.WaitReason == WaitReason.NativeAnimationBlocking;
             if (fiber.WaitReason == WaitReason.MinimalMenu)
             {
@@ -617,7 +617,7 @@ public sealed partial class EventEngine
         // Exhausting that budget preserves its PC and resumes on the next frame.
         for (int count = 0; count < instructionBudget; count++)
         {
-            if (program is null || fiber.Position < fiber.Script.Start || fiber.Position >= fiber.Script.End)
+            if (program is null || !fiber.Script.ContainsOperation(fiber.Position))
             {
                 throw Fault(fiber, "Instruction pointer left its script range.");
             }

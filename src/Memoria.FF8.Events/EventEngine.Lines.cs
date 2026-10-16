@@ -81,7 +81,7 @@ public sealed partial class EventEngine
             return false;
         }
         EventObject obj = program.Objects[line.ObjectId];
-        return obj.IsDoor && obj.Scripts.Any(script => line.LineOperation >= script.Start && line.LineOperation < script.End);
+        return obj.IsDoor && obj.Scripts.Any(script => script.ContainsOperation(line.LineOperation));
     }
 
     private bool EmptyNativeLineScript(ActorState line, int local)

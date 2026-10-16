@@ -134,7 +134,7 @@ public sealed partial class EventEngine
     private void ValidateFootstepSite(int objectId, int scriptId, int operation, Jsm.Opcode opcode, int? parameter = null)
     {
         EventScript? script = program!.Objects[objectId].Scripts.FirstOrDefault(item => item.Id == scriptId);
-        if (script is null || operation < script.Start || operation >= script.End || program.Operations[operation].Opcode != opcode || parameter is int expected && program.Operations[operation].Parameter != expected)
+        if (script is null || !script.ContainsOperation(operation) || program.Operations[operation].Opcode != opcode || parameter is int expected && program.Operations[operation].Parameter != expected)
         {
             throw new InvalidDataException("Saved footstep source does not match its original instruction.");
         }

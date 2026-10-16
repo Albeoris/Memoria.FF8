@@ -37,7 +37,7 @@ public sealed partial class EventEngine
             throw new InvalidDataException("Saved FOOTSTEPOFFALL lost its original runtime, dense actor targets, mask or issuing clock.");
         }
         EventScript? script = program.Objects.FirstOrDefault(item => item.Index == request.ObjectId)?.Scripts.FirstOrDefault(item => item.Id == request.ScriptId);
-        if (script is null || request.Operation < script.Start || request.Operation >= script.End || program.Operations[request.Operation].Opcode != Jsm.Opcode.FOOTSTEPOFFALL)
+        if (script is null || !script.ContainsOperation(request.Operation) || program.Operations[request.Operation].Opcode != Jsm.Opcode.FOOTSTEPOFFALL)
         {
             throw new InvalidDataException("Saved FOOTSTEPOFFALL source does not match its original instruction.");
         }

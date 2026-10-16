@@ -171,7 +171,7 @@ public sealed partial class EventEngine
         foreach (int local in locals)
         {
             EventScript script = program!.Objects[line.ObjectId].Scripts[local];
-            if (program.Operations.Skip(script.Start).Take(script.End - script.Start).Any(operation => operation.Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.RET && operation.Parameter != 8))
+            if (program.Operations.Where(operation => script.ContainsOperation(operation.Index)).Any(operation => operation.Opcode == Albeoris.Games.FF8.Jsm.Jsm.Opcode.RET && operation.Parameter != 8))
             {
                 throw new NotSupportedException("Native door competition requires proved RET8 slot resumption; explicit RET slot cancellation preserves the original requests.");
             }

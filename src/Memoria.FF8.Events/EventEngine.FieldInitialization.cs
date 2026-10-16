@@ -28,7 +28,7 @@ public sealed partial class EventEngine
                 Fiber fiber = fibers.Single(item => item.Initialization && item.ObjectId == objectId);
                 while (!fiber.Complete)
                 {
-                    if (fiber.Position < fiber.Script.Start || fiber.Position >= fiber.Script.End)
+                    if (!fiber.Script.ContainsOperation(fiber.Position))
                     {
                         throw Fault(fiber, "Native initialization instruction pointer left its original script.");
                     }
