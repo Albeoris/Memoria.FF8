@@ -7,19 +7,12 @@ public sealed partial class BattleSession
 
     private void QueueNativeWait(int callbacks)
     {
-        nativeScriptState = nativeScriptState with { WaitCounters = [.. nativeScriptState.WaitCounters, checked((ushort)callbacks)] };
+        nativeScriptState = nativeScriptState with { Tasks = nativeScriptState.Tasks.AppendWait(checked((ushort)callbacks)) };
     }
 
     private bool DispatchNativeWaits()
     {
-        if (nativeScriptState.WaitCounters.Length == 0)
-        {
-            return false;
-        }
-        //48ACD0 decrements each event WORD independently; zero releases the dispatch gate on its next callback.
-        bool held = nativeScriptState.WaitCounters.Any(counter => counter != 0);
-        nativeScriptState = nativeScriptState with { WaitCounters = nativeScriptState.WaitCounters.Where(counter => counter != 0).Select(counter => (ushort)(counter - 1)).ToArray() };
-        return held;
+        return NativeScriptAllocationPaused;
     }
 
     private void AcquireNativeGuardianForce(byte id)

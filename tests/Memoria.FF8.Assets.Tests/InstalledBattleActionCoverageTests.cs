@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Collections.Immutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets.Tests;
@@ -56,12 +57,22 @@ public sealed class InstalledBattleActionCoverageTests
 
     private static BattleSession Create(GameAssets game, BattleAssets assets, BattleActionDefinition action)
     {
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        NativeCharacterVital character = vitals.Records[0];
+        BattleNativePlayerStatRules? itemRules = action.Ability == BattleAbility.Item ? assets.ReadPlayerNativeStatRules(vitals, 0) : null;
+        BattleNativeCharacterGrowth growth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray());
+        BattleNativePlayerStatistics? itemStatistics = itemRules?.Project(character.MagicInventory, growth);
+        int maximumHp = itemStatistics?.MaximumHp ?? 1000;
         BattleCombatantDefinition caster = new()
         {
-            Id = "caster", Name = "Caster", ModelId = 0, IsPlayer = true, Level = 8, MaximumHp = 1000, CurrentHp = 900, InitialAtb = BattleSession.AtbMaximum,
+            Id = "caster", Name = "Caster", ModelId = 0, IsPlayer = true, Level = itemRules?.Level ?? 8, MaximumHp = maximumHp, CurrentHp = maximumHp * 9 / 10, InitialAtb = BattleSession.AtbMaximum,
             Abilities = [action.Ability], EquipmentIds = Enumerable.Range(0, 16).ToArray(), GuardianForceCompatibility = Enumerable.Repeat((ushort)1000, 16).ToArray(),
-            MagicStocks = action.Ability == BattleAbility.Magic ? [new(action.Id, 2)] : [], NativeStatusResistances = new byte[40]
+            MagicStocks = action.Ability == BattleAbility.Magic ? [new(action.Id, 2)] : [], NativeMagicInventory = itemRules is null ? null : character.MagicInventory.ToArray(), NativeStatusResistances = new byte[40], NativePlayerStatRules = itemRules, NativeGrowth = itemRules is null ? null : growth
         };
+        if (itemStatistics is { } stats)
+        {
+            caster = caster with { Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = Math.Max(1, stats.Speed), Luck = stats.Luck, Hit = stats.Hit, Evasion = stats.Evasion, ElementDefenses = stats.ElementDefenses.ToArray(), ElementAttack = stats.ElementAttack, ElementAttackPercent = stats.ElementAttackPercent, NativeStatusResistances = itemRules!.ProjectStatusResistances(character.MagicInventory).ToArray() };
+        }
         return new(new BattleDefinition
         {
             Name = "Declared exhaustive installed player action component",

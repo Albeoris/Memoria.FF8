@@ -48,6 +48,7 @@ public sealed partial class BattleSession
         }
         CompleteNativeOrdinaryCommandCost(actor, command);
         CompleteNativeActionStatuses(actor);
+        CompleteNativeAiReturnDamage(actor, command);
     }
 
     private void QueueNativeReaction(BattleCombatant actor, int stage)

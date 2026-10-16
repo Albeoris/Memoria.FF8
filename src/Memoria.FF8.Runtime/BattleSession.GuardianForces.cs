@@ -35,6 +35,9 @@ public sealed partial class BattleSession
         byte speed = definition.NativeBattleSpeed ?? throw new NotSupportedException("Native GF charge requires the saved battle speed BYTE.");
         //48D200 stores the compatibility/speed product as a WORD;4842B0 decrements it by2,3or1.
         ushort ticks = unchecked((ushort)(4 * ((speed + 1) * compatibility[gf.Id] / 35)));
+        byte flags = FindAction(BattleAbility.GuardianForce, gf.Id).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native GF summoning requires its original target flags BYTE.");
+        ushort mask = NativeBattleLimitRules.PlayerTargetMask(flags, GetActor(command.TargetId).NativeIndex);
+        EnqueueNativeGuardianScriptTask(actor, mask, checked((byte)(64 + gf.Id)));
         guardianForceCasts.Add(actor.Id, new(actor.Id, command, ticks, ticks));
         actor.NativeStatus1 |= 0x80000000;
         Log("GuardianForceCharging", actor.Id, actor.Id, ticks, $"{actor.Name}: {ActionName(command.Ability, command.ActionId)} charging.");
@@ -42,17 +45,13 @@ public sealed partial class BattleSession
 
     private void DispatchGuardianForceCasts()
     {
-        // TODO(TD-009): Use the current battle callback projection until47CCB0 owns its native pause gates
         foreach (BattleGuardianForceCast cast in guardianForceCasts.Values.ToArray())
         {
             BattleCombatant actor = byId[cast.ActorId];
             BattleGuardianForceVital gf = guardianForces[cast.Command.ActionId];
             if (gf.HitPoints == 0 || (actor.NativeStatus0 & 0x35) != 0 || (actor.NativeStatus1 & 0x14000) != 0 || !actor.IsActive)
             {
-                guardianForceCasts.Remove(actor.Id);
                 actor.NativeStatus1 &= 0x7FFFFFFF;
-                actor.IsBusy = false;
-                Log("GuardianForceCancelled", actor.Id, actor.Id, gf.Id, "GF summoning interrupted.");
                 continue;
             }
             if (actor.Suspended || (actor.NativeStatus1 & 9) != 0)
@@ -65,16 +64,54 @@ public sealed partial class BattleSession
                 decrement = 1;
             }
             ushort remaining = (ushort)Math.Max(0, cast.RemainingTicks - decrement);
-            if (remaining != 0)
-            {
-                guardianForceCasts[actor.Id] = cast with { RemainingTicks = remaining };
-                continue;
-            }
-            guardianForceCasts.Remove(actor.Id);
-            actor.NativeStatus1 &= 0x7FFFFFFF;
-            actions.Enqueue(cast.Command);
-            Log("GuardianForceReady", actor.Id, cast.Command.TargetId, gf.Id, "GF charge completed.");
+            guardianForceCasts[actor.Id] = cast with { RemainingTicks = remaining };
         }
+    }
+
+    private bool PollNativeGuardianScriptTask(NativeBattleScriptTask task)
+    {
+        byte index = task.ReadByte(12);
+        byte nativeId = task.ReadByte(14);
+        BattleCombatant actor = combatants.Single(actor => actor.NativeIndex == index);
+        BattleGuardianForceCast cast = guardianForceCasts.GetValueOrDefault(actor.Id) ?? throw new InvalidDataException("Native48E620 lacks its character-owned GF charge record.");
+        if (nativeId != cast.Command.ActionId + 64 || task.ReadByte(13) != 254)
+        {
+            throw new InvalidDataException("Native48E620 task differs from its character GF charge owner.");
+        }
+        if ((actor.NativeCombatantFlags & 0x400) != 0)
+        {
+            return false;
+        }
+        bool summoning = (actor.NativeStatus1 & 0x80000000) != 0;
+        if (summoning && cast.RemainingTicks != 0)
+        {
+            return false;
+        }
+        if (summoning)
+        {
+            byte targetFlags = FindAction(BattleAbility.GuardianForce, cast.Command.ActionId).NativeAction?.TargetFlags ?? throw new NotSupportedException("Native48F2C0 GF completion requires its original target flags BYTE.");
+            ushort mask = NativeAutomaticActionTargetMask(targetFlags);
+            actions.Enqueue(cast.Command with { NativeTargetMask = mask });
+            Log("GuardianForceReady", actor.Id, cast.Command.TargetId, cast.Command.ActionId, "GF charge completed.");
+        }
+        else
+        {
+            if ((actor.NativeStatus0 & 1) == 0)
+            {
+                actor.Atb = 0;
+                actor.NativeCombatantFlags &= ~0xCu;
+                if (NativeGraphics is { } graphics)
+                {
+                    NativeGraphics = QueueNativeDescriptor(graphics, 114, 240, index);
+                }
+            }
+            actor.IsBusy = false;
+            Log("GuardianForceCancelled", actor.Id, actor.Id, cast.Command.ActionId, "GF summoning interrupted.");
+        }
+        guardianForceCasts.Remove(actor.Id);
+        actor.NativeStatus1 &= 0x7FFFFFFF;
+        actor.NativeCombatantFlags &= ~0x400u;
+        return true;
     }
 
     private bool ApplyGuardianForceShield(BattleCombatant actor, int amount)
@@ -158,9 +195,15 @@ public sealed partial class BattleSession
         foreach (BattleGuardianForceCast cast in saved.GuardianForceCasts)
         {
             BattleCombatant actor = GetActor(cast.ActorId);
-            if (saved.Outcome != BattleOutcome.Active || cast.Command.ActorId != actor.Id || cast.Command.Ability != BattleAbility.GuardianForce || !guardianForces.ContainsKey(cast.Command.ActionId) || !actor.EquipmentIds.Contains(cast.Command.ActionId) || cast.RemainingTicks > cast.InitialTicks || !guardianForceCasts.TryAdd(actor.Id, cast) || actor.Atb != 0 || (actor.NativeStatus1 & 0x80000000) == 0)
+            if (saved.Outcome != BattleOutcome.Active || cast.Command.ActorId != actor.Id || cast.Command.Ability != BattleAbility.GuardianForce || !guardianForces.ContainsKey(cast.Command.ActionId) || !actor.EquipmentIds.Contains(cast.Command.ActionId) || cast.RemainingTicks > cast.InitialTicks || !guardianForceCasts.TryAdd(actor.Id, cast) || actor.Atb != 0)
             {
                 throw new InvalidDataException("Invalid saved GF cast owner.");
+            }
+            NativeBattleScriptTasks tasks = saved.NativeScriptState.Tasks;
+            int callbacks = Enumerable.Range(0, 16).Count(index => tasks.Allocated(index) && tasks.Slots[index].ReadDword(0) == 0x48E620 && tasks.Slots[index].ReadByte(12) == actor.NativeIndex && tasks.Slots[index].ReadByte(14) == 64 + cast.Command.ActionId);
+            if (callbacks != 1)
+            {
+                throw new InvalidDataException("Saved GF charge requires its single canonical48E620 callback record.");
             }
             actor.IsBusy = true;
         }

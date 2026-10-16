@@ -291,6 +291,19 @@ internal sealed class FieldAudioPresentation(nint window, string gameDirectory, 
         });
     }
 
+    public void PlayBattleModuleSound(NativeBattleModuleSound sound)
+    {
+        TryOutput(() =>
+        {
+            if (sound.Flags != 0x8000)
+            {
+                throw new NotSupportedException("Native effect-module audio requires its reached original sound flags.");
+            }
+            // TODO(TD-009): Retain the original sound ID/flags/anchor; device voice allocation and spatialization use the current presentation output
+            PlayPresentationSound(sound.Sound, -10 - battleVoice++ % 16);
+        });
+    }
+
     private void PlayPresentationSound(uint effect, int voice)
     {
         int sample = EventEngine.MapGlobalSoundSample(effect);

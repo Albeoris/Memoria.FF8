@@ -35,6 +35,7 @@ public sealed partial class BattleSession
         BattleCombatant spawned = CreateNativeAllocation(allocation);
         nativeAllocations.Add(allocation);
         spawned.NativeIndex = physicalIndex;
+        spawned.NativeReturnDamage = 0;
         spawned.LastNativeHealing = previous?.LastNativeHealing;
         spawned.LastNativeAction = previous?.LastNativeAction is { } last ? last with { AttackType = 0, AttackerIndex = 0 } : null;
         nativeLastAllocatedIndex = physicalIndex;
@@ -100,6 +101,7 @@ public sealed partial class BattleSession
             throw new InvalidDataException("Native allocation references a scene without an original allocation template.");
         }
         BattleCombatant actor = new(prototype with { Id = allocation.Id, InitialActive = false, InitialAtb = 0 });
+        InitializeNativeAtb(actor);
         combatants.Add(actor);
         byId.Add(actor.Id, actor);
         return actor;

@@ -12,7 +12,7 @@ internal sealed partial class RecreateGame
         {
             return;
         }
-        battleAudio ??= new BattleAudioPresentation(fieldAudio.StopAll, fieldAudio.PlayBattleMusic, fieldAudio.PlayBattleImpact, fieldAudio.PlayBattleSequenceSound);
+        battleAudio ??= new BattleAudioPresentation(fieldAudio.StopAll, fieldAudio.PlayBattleMusic, fieldAudio.PlayBattleImpact, fieldAudio.PlayBattleSequenceSound, fieldAudio.PlayBattleModuleSound);
         BattleSession? active = ActiveBattle;
         if (battleAudio.Update(active, active is not null && presentedBattle == active ? battleScene?.CollectSounds(active) : null))
         {

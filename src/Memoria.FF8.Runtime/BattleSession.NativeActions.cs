@@ -11,6 +11,10 @@ public sealed partial class BattleSession
 
     private BattleNativeAction FindNativeCommandAction(BattleCombatant actor, byte command, ushort id, byte? crisis = null)
     {
+        if (command == 0 && id == 5)
+        {
+            return NativeReturnDamageAction();
+        }
         if (command == 0 && id == 8)
         {
             return NativePhoenixRevivalAction();
@@ -38,7 +42,7 @@ public sealed partial class BattleSession
             targetMask |= 0x4000;
         }
         BattleCombatant target = combatants.FirstOrDefault(candidate => candidate.NativeIndex is >= 0 and < 16 && (targetMask & (1 << candidate.NativeIndex)) != 0) ?? actor;
-        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
+        BattleAttackCommand queued = new(actor.Id, target.Id, BattleAbility.EnemyAbility, id) { NativeAiCallbackStage = nativeAiCallbackStage, NativeLimitCallback = callback, NativeQueuedCommand = command, NativeAction = native, NativeSequence = sequence, NativeTargetMask = targetMask };
         EnqueueNativePacket(actor, queued, native.Name ?? $"native command {command}/{id}");
     }
 
@@ -233,6 +237,10 @@ public sealed partial class BattleSession
         {
             recipient.NativeCombatantFlags &= ~0x4000u;
         }
+        if (TryResolveNativeReturnDamage(actor, recipient, command, native))
+        {
+            return;
+        }
         if (TryResolveNativeSpecialHit(actor, recipient, command, native))
         {
             return;
@@ -282,7 +290,13 @@ public sealed partial class BattleSession
                 {
                     MarkNativeContactFlags(0, 4);
                 }
-                int revived = native.AttackType == 6 ? recipient.MaximumHp : Math.Max(1, recipient.MaximumHp / 8);
+                int divisor = 8;
+                if (native.AttackType == 5 && native.Command is 4 or 13 && actor.NativeIndex < 3)
+                {
+                    uint passiveFlags = actor.NativePlayerStatRules?.NativeStatusPassiveFlags ?? throw new NotSupportedException("Native item revival requires the equipped character-ability flags.");
+                    divisor = (passiveFlags & 2) != 0 ? 4 : 8;
+                }
+                int revived = native.AttackType == 6 ? recipient.MaximumHp : Math.Max(1, recipient.MaximumHp / divisor);
                 SetNativeContactDamage(-revived);
                 FinalizeNativeContactPresentation();
                 recipient.LastNativeHealing = 1;

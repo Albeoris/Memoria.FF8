@@ -41,6 +41,17 @@ public sealed record NativeBattlePoseSource(ImmutableArray<byte> Skeleton, Immut
 
 public static class NativeBattlePoseDecoder
 {
+    public static ImmutableArray<byte> ReadFrameCounts(ReadOnlySpan<byte> section)
+    {
+        int count = ReadCount(section);
+        ImmutableArray<byte>.Builder frames = ImmutableArray.CreateBuilder<byte>(count);
+        for (int index = 0; index < count; index++)
+        {
+            frames.Add(section[FramePointer(section, index)]);
+        }
+        return frames.MoveToImmutable();
+    }
+
     public static ImmutableArray<ImmutableArray<NativeBattleDecodedPose>> DecodeFrames(ReadOnlySpan<byte> section, int bones)
     {
         int count = ReadCount(section);
@@ -104,13 +115,19 @@ public static class NativeBattlePoseDecoder
         {
             throw new InvalidDataException("Native animation selector or bone count is invalid.");
         }
+        int pointer = FramePointer(section, animation);
+        frames = section[pointer];
+        return new(section[(pointer + 1)..].ToArray(), bones);
+    }
+
+    private static int FramePointer(ReadOnlySpan<byte> section, int animation)
+    {
         int pointer = BinaryPrimitives.ReadInt32LittleEndian(section.Slice(4 + animation * 4));
         if (pointer < 0 || pointer >= section.Length || section[pointer] == 0)
         {
             throw new InvalidDataException("Native animation frame-count pointer is invalid.");
         }
-        frames = section[pointer];
-        return new(section[(pointer + 1)..].ToArray(), bones);
+        return pointer;
     }
 
     private static NativeBattleDecodedPose Empty(int bones) => new(default, Enumerable.Repeat(new NativeBattleBonePose(default, new(1024, 1024, 1024)), bones).ToImmutableArray(), false);

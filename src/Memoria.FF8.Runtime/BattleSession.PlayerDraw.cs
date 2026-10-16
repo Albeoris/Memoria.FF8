@@ -136,7 +136,7 @@ public sealed partial class BattleSession
             string castName = cast && !result.Failed ? definition.NativeCommandNames.ElementAtOrDefault(9) ?? throw new NotSupportedException("Draw Cast text requires the original kernel command9 name.") : "";
             text = result.Failed ? NativeBattleGlobalText(5) : result.Selection >= 64 ? NativeBattleGlobalText(51) + digits[0] + name + NativeBattleGlobalText(118) : cast ? castName + digits[0] + name : NativeBattleGlobalText(9) + digits[0] + quantity + digits[0] + name + NativeBattleGlobalText(result.Added == 1 ? 118 : 8);
             int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native Draw text requires its saved message-speed byte.")) + 8;
-            events.Add(new BattleEvent(Frame, "NativeText", actor.Id, source.Id, duration, text) { NativeMessageMode = 3 });
+            QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, source.Id, duration, text) { NativeMessageMode = 3 });
         }
         Log("Draw", actor.Id, source.Id, result.Added, text);
     }

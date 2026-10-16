@@ -107,18 +107,33 @@ internal sealed class BattleAnimationPresentation(BattleModel model, BattleSeque
         {
             return new(0, 0, Vector3.Zero, 0);
         }
+        return SampleNativePose(model, pose, counter, state.PoseFlags109);
+    }
+
+    internal static BattleAnimationSample SampleNativeLinkedModel(NativeBattleGraphicsModel graphics, BattleModel linked)
+    {
+        if ((graphics.Flags0 & 0x200) != 0)
+        {
+            return new(0, 0, Vector3.Zero, 0);
+        }
+        NativeBattlePoseProgress progress = graphics.SequenceState?.LinkedPose ?? throw new NotSupportedException("Native linked weapon rendering requires its independently decoded pose owner.");
+        return SampleNativePose(linked, progress.Pose, progress.Frame, progress.Flags);
+    }
+
+    private static BattleAnimationSample SampleNativePose(BattleModel model, byte pose, byte counter, byte flags)
+    {
         if (pose >= model.Animations.Count || counter == 0)
         {
             throw new InvalidDataException($"{model.Name} native pose has no decoded animation frame.");
         }
         //509440 decodes the first frame immediately.508F90 advances twice for fast and half-deltas for slow poses.
-        float frame = (counter - 1) / ((state.PoseFlags109 & 1) != 0 ? 2f : 1f);
+        float frame = (counter - 1) / ((flags & 1) != 0 ? 2f : 1f);
         if (frame >= model.Animations[pose].Frames.Count)
         {
             throw new InvalidDataException($"{model.Name} native pose counter exceeds its original body animation.");
         }
         NativeBattlePoseSource source = model.NativePoseSource ?? throw new NotSupportedException($"{model.Name} raw pose rendering requires its original compressed source.");
-        return new(pose, frame, Vector3.Zero) { NativePose = source.Sample(pose, counter, state.PoseFlags109) };
+        return new(pose, frame, Vector3.Zero) { NativePose = source.Sample(pose, counter, flags) };
     }
 
     internal BattleAnimationSample SampleNativeSequence(int sequence, double poseFrames)

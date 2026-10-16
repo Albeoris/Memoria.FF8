@@ -6,10 +6,14 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record NativeBattleDescriptorPacket([property: JsonRequired] ImmutableArray<byte> Bytes)
 {
+    [JsonRequired]
+    public ushort UnknownByteMask { get; init; }
+    [JsonRequired]
+    public BattleEvent? Message { get; init; }
     [JsonIgnore] public byte Serial => Bytes[0];
     [JsonIgnore] public byte PriorityState => Bytes[1];
     [JsonIgnore] public ushort Command => BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(2));
-    [JsonIgnore] public uint Argument => BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(4));
+    [JsonIgnore] public uint Argument => (UnknownByteMask & 0xF0) == 0 ? BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(4)) : throw new NotSupportedException("Native descriptor argument is a logical text binding, not an invented native heap address.");
     [JsonIgnore] public short Index => BinaryPrimitives.ReadInt16LittleEndian(Bytes.AsSpan().Slice(8));
     [JsonIgnore] public ushort Value => BinaryPrimitives.ReadUInt16LittleEndian(Bytes.AsSpan().Slice(10));
     [JsonIgnore] public uint Data => BinaryPrimitives.ReadUInt32LittleEndian(Bytes.AsSpan().Slice(8));
@@ -62,7 +66,7 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
 
     public void Validate()
     {
-        if (Packets.IsDefault || Packets.Length != 30 || Packets.Any(packet => packet is null || packet.Bytes.IsDefault || packet.Bytes.Length != 12) || Nodes.IsDefault || Nodes.Length != 30 || Nodes.Any(node => node is null || node.Next is < 0 or >= 30) || Root is < 0 or >= 30 || Priorities.IsDefault || Priorities.Length != 16 || Depth >= 16 || Tasks.IsDefault || Tasks.Length != 4 || Tasks.Any(task => task is null || task.Next is < 0 or >= 4 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 8 || (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.None) || TaskHead is < 0 or >= 4 || TaskTail is < 0 or >= 4)
+        if (Packets.IsDefault || Packets.Length != 30 || Packets.Any(packet => packet is null || packet.Bytes.IsDefault || packet.Bytes.Length != 12 || (packet.UnknownByteMask & ~0xF0) != 0 || (packet.UnknownByteMask == 0) != (packet.Message is null) || packet.Message is not null && packet.Message.Kind != "NativeText") || Nodes.IsDefault || Nodes.Length != 30 || Nodes.Any(node => node is null || node.Next is < 0 or >= 30) || Root is < 0 or >= 30 || Priorities.IsDefault || Priorities.Length != 16 || Depth >= 16 || Tasks.IsDefault || Tasks.Length != 4 || Tasks.Any(task => task is null || task.Next is < 0 or >= 4 || !Enum.IsDefined(task.Kind) || task.Payload.IsDefault || task.Payload.Length != 8 || (task.Flags & 1) != 0 && task.Kind == NativeBattleDescriptorTaskKind.None) || TaskHead is < 0 or >= 4 || TaskTail is < 0 or >= 4)
         {
             throw new InvalidDataException("Native descriptors require their physical packet/node/task banks and priority stack.");
         }
@@ -149,6 +153,16 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
         return (this with { Nodes = nodes, Root = root, Packets = Packets.SetItem(packet, new(bytes.ToImmutableArray())), Serial = unchecked((byte)(Serial + 1)) }, packet);
     }
 
+    public (NativeBattleDescriptorState State, int Slot) EnqueueMessage(BattleEvent message, byte priority, byte tag)
+    {
+        if (message.Kind != "NativeText" || message.NativeMessageMode is not (>= 0 and <= 255))
+        {
+            throw new InvalidDataException("Native text descriptor requires its message and original mode BYTE.");
+        }
+        (NativeBattleDescriptorState state, int slot) = Enqueue(8, priority, 0, unchecked((ushort)message.Amount), (ushort)(message.NativeMessageMode.Value | tag << 8));
+        return (state with { Packets = state.Packets.SetItem(slot, state.Packets[slot] with { UnknownByteMask = 0xF0, Message = message }) }, slot);
+    }
+
     public NativeBattleDescriptorState Rotate()
     {
         if (Root is not int root || Nodes[root].Next is not int first || Nodes[first].Next is null)
@@ -180,14 +194,14 @@ public sealed partial record NativeBattleDescriptorState([property: JsonRequired
             nodes = nodes.SetItem(root, nodes[root] with { Data = 0 });
             newRoot = null;
         }
-        return this with { Nodes = nodes, Root = newRoot, Packets = Packets.SetItem(packet, new(bytes.ToImmutableArray())) };
+        return this with { Nodes = nodes, Root = newRoot, Packets = Packets.SetItem(packet, Packets[packet] with { Bytes = bytes.ToImmutableArray() }) };
     }
 
     public NativeBattleDescriptorState SetPacketState(int slot, byte value)
     {
         byte[] bytes = Packets[slot].Bytes.ToArray();
         bytes[1] = value;
-        return this with { Packets = Packets.SetItem(slot, new(bytes.ToImmutableArray())) };
+        return this with { Packets = Packets.SetItem(slot, Packets[slot] with { Bytes = bytes.ToImmutableArray() }) };
     }
 
     public (NativeBattleDescriptorState State, int Slot) AppendTask(NativeBattleDescriptorTaskKind kind, int? packet = null)

@@ -23,7 +23,7 @@ public sealed class NativeAutomaticGuardianTests
             new() { Id = "enemy", Name = "Ifrit", ModelId = 61, MaximumHp = 10000, CurrentHp = 10000, Speed = 1, NativeStatusResistances = resistances }
         ];
         ImmutableArray<NativeBattleGraphicsBinding> bindings = actors.Select(actor => new NativeBattleGraphicsBinding(actor.Id, checked((byte)(actor.IsPlayer ? actor.ModelId : actor.ModelId + 16)), assets.ReadNativeGraphicsResource(actor))).ToImmutableArray();
-        BattleDefinition definition = Definition(game, assets, savedFlags, actors) with { NativeClockRules = assets.ReadNativeClockRules(), NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], NativeGraphics = new(game.ReadNativeBattleGraphicsRules(), bindings, ["enemy", "party-0"]) };
+        BattleDefinition definition = Definition(game, assets, savedFlags, actors) with { NativeClockRules = assets.ReadNativeClockRules(), NativeBattleSpeed = 0, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCommandSequences = game.ReadNativeBattleCommandSequences(), NativeStageCameraBank = new([0, 0]), NativeStageCameraSelectors = [0, 0], NativeStageCameraControl = [2], NativeGraphics = new(game.ReadNativeBattleGraphicsRules(), bindings, ["enemy", "party-0"]) };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
         Assert.False(battle.Capture().NativeSupport!.EntryInitialized);
         Assert.Empty(battle.QueuedActions);
@@ -44,9 +44,9 @@ public sealed class NativeAutomaticGuardianTests
         else
         {
             BattleAttackCommand queued = Assert.Single(battle.QueuedActions);
-            Assert.Equal(BattleNativePlayerReaction.AutomaticGuardian, queued.NativePlayerReaction);
-            Assert.Equal((byte)245, queued.NativeQueuedCommand);
-            Assert.Equal(expectedId, queued.ActionId);
+            Assert.Equal(new BattleNativeCallback(0, 7), queued.NativeCallback);
+            Assert.Null(queued.NativeAction);
+            Assert.Equal((byte)expectedId, state.SelectedAction);
         }
         Assert.Equal(0, battle.Frame);
         string snapshot = JsonSerializer.Serialize(battle.Capture());
@@ -70,9 +70,8 @@ public sealed class NativeAutomaticGuardianTests
         }
         Assert.False(battle.Combatants[0].IsAlive);
         Assert.Equal(BattleOutcome.Active, battle.Outcome);
-        Assert.Equal(new byte?[] { 245, 0 }, battle.QueuedActions.Select(command => command.NativeQueuedCommand));
-        Assert.Equal(new[] { 1, 8 }, battle.QueuedActions.Select(command => command.ActionId));
-        Assert.Equal((ushort)0xC007, battle.QueuedActions[1].NativeTargetMask);
+        Assert.Equal(new BattleNativeCallback(0, 7), Assert.Single(battle.QueuedActions).NativeCallback);
+        Assert.Equal((byte)1, battle.Capture().NativeSupport!.SelectedAction);
         BattleSession restored = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(battle.Capture()))!);
         for (int frame = 0; frame < 80 && !battle.Combatants[0].IsAlive; frame++)
         {
@@ -80,6 +79,7 @@ public sealed class NativeAutomaticGuardianTests
             restored.Tick();
         }
         Assert.True(battle.Combatants[0].IsAlive);
+        Assert.Equal(new[] { 1, 8 }, battle.Events.Where(item => item.Kind == "Queued" && item.ActorId == "party-0").Select(item => item.Amount));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         Assert.Equal((ushort)1, battle.Combatants[0].NativeDeathCount);
     }
@@ -128,7 +128,7 @@ public sealed class NativeAutomaticGuardianTests
             battle.Tick();
         }
         Assert.Equal(expected, battle.Outcome);
-        Assert.Equal(expected == BattleOutcome.Active ? 2 : 0, battle.QueuedActions.Count);
+        Assert.Equal(expected == BattleOutcome.Active ? 1 : 0, battle.QueuedActions.Count);
     }
 
     private static BattleSession CreateFatalBattle(GameAssets game, BattleAssets assets, byte flags, int encounterId, byte randomIndex)

@@ -39,7 +39,19 @@ public sealed partial class BattleSession
 
     private NativeBattleCameraPoint TransformNativeCameraReference(byte reference, NativeBattleCameraPoint local, uint graphicsFlags)
     {
+        if (reference is 0xF2 or >= 0xF5 and <= 0xF9 || reference >= 0xB0)
+        {
+            NativeBattleActionGeometry context = RequireNativeGraphics().ActionContext ?? throw new NotSupportedException("Native50D790 matrix references require their captured50D300 action context.");
+            NativeBattleActionMatrix matrix = NativeBattleCameraGraphics.ReadMatrix(context, reference);
+            NativeBattleVector result = NativeBattlePoseMatrices.TransformCameraPoint(matrix, new(local.X, local.Y, local.Z), (graphicsFlags & 0x20) != 0);
+            return new(result.X, result.Y, result.Z);
+        }
         int model = reference >> 4;
+        if (model is 9 or 10)
+        {
+            NativeBattleActionGeometry context = RequireNativeGraphics().ActionContext ?? throw new NotSupportedException("Native50D790 camera aliases require the actual50D300 command geometry owner.");
+            model = model == 9 ? context.ActorIndex : context.TargetIndex ?? throw new NotSupportedException("Native camera target alias requires its resolved physical target packet.");
+        }
         if (model >= 7)
         {
             throw new NotSupportedException($"Native camera reference{reference:X2} requires its active command or auxiliary matrix owner.");
@@ -80,11 +92,6 @@ public sealed partial class BattleSession
     private int ReadNativeCameraExternal(byte variable)
     {
         NativeBattleGraphicsState graphics = NativeGraphics ?? throw new NotSupportedException("Native camera participant queries require the actual loaded model bank.");
-        return variable switch
-        {
-            19 => graphics.Models.Take(3).Count(model => (model.Flags0 & 2) != 0 && ((model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) & 2) == 0),
-            27 => graphics.Models.Count(model => (model.Flags0 & 2) != 0 && (model.Flags8 ?? throw new InvalidDataException("Native camera requires loaded model status flags.")) == 0),
-            _ => throw new NotSupportedException($"Native camera variable{variable} requires its active command descriptor owner.")
-        };
+        return NativeBattleCameraGraphics.ReadVariable(graphics, variable);
     }
 }

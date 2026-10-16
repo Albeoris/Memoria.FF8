@@ -8,6 +8,21 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleSequenceMachineTests
 {
     [Fact]
+    public void Linked_weapon_decodes_its_own_frame_limit_without_completing_the_body_pose_early()
+    {
+        NativeBattleGraphicsResource resource = Resource((1, "A300E6FF"), (2, "00AAA2")) with { AnimationFrames = [3], LinkedAnimationFrames = [1] };
+        NativeBattleGraphicsModel model = NativeBattleSequenceMachine.Advance(Model(2), resource, new(null, null)).Model;
+        Assert.Equal((byte)1, model.SequenceState!.LinkedPose!.Frame);
+        Assert.Equal((byte)1, model.SequenceState.LinkedPose.Limit);
+        NativeBattleSequenceStep next = NativeBattleSequenceMachine.Advance(model, resource, new(null, null));
+        Assert.Equal((byte)2, next.Model.SequenceState!.PoseFrame114);
+        Assert.Equal((byte)1, next.Model.SequenceState.LinkedPose!.Frame);
+        Assert.DoesNotContain(next.Cues, cue => cue.Kind == NativeBattleSequenceCueKind.ActionCallback);
+        NativeBattleGraphicsModel restored = JsonSerializer.Deserialize<NativeBattleGraphicsModel>(JsonSerializer.Serialize(next.Model))!;
+        Assert.Equal(JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(next.Model, resource, new(null, null))), JsonSerializer.Serialize(NativeBattleSequenceMachine.Advance(restored, resource, new(null, null))));
+    }
+
+    [Fact]
     public void IfritLocalCounterPublishesTextOnceAndResumesFromTheOwnedCursor()
     {
         NativeBattleGraphicsResource resource = Resource((1, "A300E6FF"), (14, "C100E500BBA000C300E57FC100CB7FEA0791031EE610C300E57FC11ECB7FEA06E60DE602A1C300C501E500E6DAAAA2"));

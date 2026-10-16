@@ -22,8 +22,9 @@ public sealed partial class BattleAssets
         {
             BattleModel body = LoadPlayer(actor.ModelId, actor.Costume);
             BattleModel owner = LoadPlayerSequenceOwner(actor.ModelId, actor.WeaponId, body);
+            BattleModel? linked = actor.WeaponId is int weapon ? ResolveWeaponModel(actor.ModelId, weapon, body) : null;
             //507BF0/507E20 replace the primary resource's sequence pointer while retaining its body animation pointer.
-            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource };
+            return (owner.Sequences ?? throw new InvalidDataException("Native player sequence owner lacks its original resource.")).NativeResource with { AnimationFrames = body.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), PoseSource = body.NativePoseSource, LinkedAnimationFrames = linked is null ? [] : linked.Animations.Select(animation => checked((byte)animation.Frames.Count)).ToImmutableArray(), LinkedPoseSource = linked?.NativePoseSource };
         }
         return ReadEnemyNativeGraphicsResource(actor.ModelId);
     }

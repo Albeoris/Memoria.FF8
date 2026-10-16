@@ -14,7 +14,9 @@ public sealed class NativeBattleScriptStateTests
         {
             battle.Tick();
         }
-        Assert.Equal(0, battle.Combatants[0].Atb);
+        // Both callbacks write the same DFD byte. The shorter wait clears it
+        // on its final callback even while the first physical task remains.
+        Assert.Equal(200, battle.Combatants[0].Atb);
         BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int frame = 0; frame < 11; frame++)
         {

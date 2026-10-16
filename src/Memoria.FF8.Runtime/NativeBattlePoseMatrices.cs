@@ -14,6 +14,21 @@ public static class NativeBattlePoseMatrices
 {
     private sealed record Matrix(short[] Rotation, int X = 0, int Y = 0, int Z = 0);
 
+    public static ImmutableArray<short> RotationWords(NativeBattleVector rotation) => Rotation(rotation).Rotation.ToImmutableArray();
+
+    public static NativeBattleVector TransformCameraPoint(NativeBattleActionMatrix source, NativeBattleVector local, bool mirror)
+    {
+        source.Validate();
+        if (source.Scale == 0)
+        {
+            return local with { Z = mirror ? unchecked((short)-local.Z) : local.Z };
+        }
+        Matrix matrix = Scale(new(source.Rotation.ToArray(), source.X, source.Y, source.Z), [source.Scale, source.Scale, source.Scale]);
+        short x = mirror ? unchecked((short)-local.X) : local.X;
+        (int dx, int dy, int dz) = ApplyRounded(matrix, x, local.Y, local.Z);
+        return new(unchecked((short)(matrix.X + dx)), unchecked((short)(matrix.Y + dy)), unchecked((short)(matrix.Z + dz)));
+    }
+
     public static NativeBattleModuleAnchor ReadAnchor(NativeBattleGraphicsModel model, NativeBattlePoseSource source)
     {
         NativeBattleModelTransform transform = model.Transform ?? throw new NotSupportedException("Native571400 requires the model's original position/scale WORD owners.");
@@ -45,7 +60,7 @@ public static class NativeBattlePoseMatrices
             {
                 throw new NotSupportedException("Native selector exceeds its skeleton header aliases.");
             }
-            bone = source.Skeleton[offset];
+            bone = offset == 4 ? state.Geometry4 ?? source.Skeleton[offset] : offset == 5 ? state.Geometry5 ?? source.Skeleton[offset] : source.Skeleton[offset];
             if ((bone & 0x80) != 0)
             {
                 fraction = 4096;

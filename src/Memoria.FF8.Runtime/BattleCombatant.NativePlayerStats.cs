@@ -15,6 +15,7 @@ public sealed partial class BattleCombatant
         System.Collections.Immutable.ImmutableArray<byte> resistance = rules.ProjectStatusResistances(NativeMagicSlots);
         BattleNativeAction? attack = definition.NativeAttack is { } source ? rules.ProjectAttack(source, NativeMagicSlots, stats) : null;
         definition = definition with { MaximumHp = stats.MaximumHp, Attack = stats.Strength, Defense = stats.Vitality, Magic = stats.Magic, Spirit = stats.Spirit, Speed = Math.Max(1, stats.Speed), Luck = stats.Luck, Hit = stats.Hit, Evasion = stats.Evasion, ElementDefenses = stats.ElementDefenses.ToArray(), ElementAttack = stats.ElementAttack, ElementAttackPercent = stats.ElementAttackPercent, NativeAttack = attack };
+        RefreshNativeAtbSpeed();
         MutableNativeStatusResistances = resistance.ToArray();
         if (CurrentHp > MaximumHp)
         {

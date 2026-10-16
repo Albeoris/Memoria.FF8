@@ -140,7 +140,7 @@ public sealed partial class BattleSession
     private void QueueNativeSpecialText(BattleCombatant actor, BattleCombatant recipient, string text)
     {
         int frames = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native special-action text requires the saved message speed BYTE.")) + 8;
-        events.Add(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, frames, text) { NativeMessageMode = 3 });
+        QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, frames, text) { NativeMessageMode = 3 });
     }
 
     private void CommitNativeEjection(BattleCombatant actor, BattleCombatant recipient, BattleActionPresentation command, string source)

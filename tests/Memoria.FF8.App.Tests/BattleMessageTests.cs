@@ -10,33 +10,46 @@ public sealed class BattleMessageTests
     public void OriginalTextCommandsQueueMessagesWithTheirNativeDurationAndMode()
     {
         BattleSession battle = Create([1, 0, 24, 1, 26, 2, 34, 3, 2, 0]);
+        Assert.Equal(new[] { "First message", "Second message" }, battle.Events.Where(item => item.Kind == "NativeText").Select(item => item.Message));
+        BattleSession restored = BattleSession.Restore(battle.Capture());
+        for (int callback = 0; callback < 3; callback++)
+        {
+            battle.Tick();
+            restored.Tick();
+        }
+        Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         BattleEvent[] messages = battle.Events.Where(item => item.Kind == "NativeText").ToArray();
         Assert.Equal(new[] { "First message", "Second message", "Third message", "Delayed message" }, messages.Select(item => item.Message));
         Assert.Equal(new[] { 30, 32, 30, 30 }, messages.Select(item => item.Amount));
         Assert.Equal(new int?[] { 3, 1, 3, 3 }, messages.Select(item => item.NativeMessageMode));
-        Assert.Equal(new[] { 0, 0, 0, 2 }, messages.Select(item => item.NativeMessageDelayFrames));
+        Assert.All(messages, item => Assert.Equal(0, item.NativeMessageDelayFrames));
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(BattleSession.Restore(battle.Capture()).Capture()));
     }
 
     [Fact]
-    public void EveryQueuedMessageIsVisibleWhileGameplayTimeAndStateStayPaused()
+    public void EveryQueuedMessageIsVisibleWhileGameplayTimeAndVitalsStayPaused()
     {
         BattleSession battle = Create([1, 0, 24, 1, 26, 2, 34, 3, 2, 0]);
         BattleHudController hud = new(battle, battle.QueueAttack, () => { }, () => battle.AdvanceTurn());
-        string before = JsonSerializer.Serialize(battle.Capture());
+        BattleSnapshot before = battle.Capture();
         hud.BuildView();
         Assert.Equal("First message", hud.BattleMessage);
         hud.AdvancePresentation(TimeSpan.FromSeconds(1));
         Assert.Equal("Second message", hud.BattleMessage);
+        battle.Tick();
         hud.AdvancePresentation(FrameDuration(32));
         Assert.Equal("Third message", hud.BattleMessage);
         hud.AdvancePresentation(TimeSpan.FromSeconds(1));
         Assert.Null(hud.BattleMessage);
-        hud.AdvancePresentation(FrameDuration(2));
+        battle.Tick();
+        battle.Tick();
+        hud.AdvancePresentation(TimeSpan.Zero);
         Assert.Equal("Delayed message", hud.BattleMessage);
         hud.AdvancePresentation(TimeSpan.FromSeconds(1));
         Assert.Null(hud.BattleMessage);
-        Assert.Equal(before, JsonSerializer.Serialize(battle.Capture()));
+        Assert.Equal(before.Frame, battle.Frame);
+        Assert.Equal(JsonSerializer.Serialize(before.Combatants), JsonSerializer.Serialize(battle.Capture().Combatants));
+        Assert.Empty(battle.NativeScriptState.Tasks.Links.Where(link => link.Previous != 0 || link.Next != 0));
     }
 
     [Fact]

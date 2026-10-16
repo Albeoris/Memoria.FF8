@@ -159,11 +159,19 @@ internal sealed class BattleScenePresentation
             float ground = animation.GroundOffset(pose, actor.IsAlive, groundOffsets[actor.Id]);
             // Original502070 party0/enemy2048 plus world(x,-y,-z) and DAT-local(-x,-y,z)
             // bases yields renderer partyPI/enemy0
-            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose };
+            BattleActorDraw drawing = new(shownModel, positions[actor.Id], actor.IsPlayer ? MathF.PI : 0, Animation: pose.Animation, Frame: pose.Frame, AttackOffset: pose.Offset, Opacity: pose.Opacity, GroundOffset: ground, LoopAnimation: pose.Loop) { NativePose = pose.NativePose, MeshMask = session.NativeGraphics?.Models[nativeIndex].SequenceState?.MeshMask124 ?? uint.MaxValue };
             actors.Add(drawing);
             if (shownWeapon is BattleModel weapon)
             {
-                actors.Add(drawing with { Model = weapon });
+                if (session.NativeGraphics is { } raw)
+                {
+                    BattleAnimationSample linkedPose = BattleAnimationPresentation.SampleNativeLinkedModel(raw.Models[nativeIndex], weapon);
+                    actors.Add(drawing with { Model = weapon, NativePose = linkedPose.NativePose, Animation = linkedPose.Animation, Frame = linkedPose.Frame, Opacity = linkedPose.Opacity, MeshMask = uint.MaxValue });
+                }
+                else
+                {
+                    actors.Add(drawing with { Model = weapon });
+                }
             }
         }
         return renderer!.Render(stage, actors, selectedCamera ?? throw new InvalidOperationException("The original camera has not published its first pose."));

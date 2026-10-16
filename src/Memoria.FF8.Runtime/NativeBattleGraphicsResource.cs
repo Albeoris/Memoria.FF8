@@ -8,10 +8,13 @@ public sealed record NativeBattleGraphicsResource(ImmutableArray<byte> SequenceS
 {
     public ImmutableArray<byte> AnimationFrames { get; init; }
     public NativeBattlePoseSource? PoseSource { get; init; }
+    public ImmutableArray<byte> LinkedAnimationFrames { get; init; } = [];
+    public NativeBattlePoseSource? LinkedPoseSource { get; init; }
 
     public void Validate()
     {
         PoseSource?.Validate();
+        LinkedPoseSource?.Validate();
         if (SequenceSection.IsDefault || SequenceSection.Length < 2 || BinaryPrimitives.ReadUInt16LittleEndian(SequenceSection.AsSpan()) * 2 + 2 > SequenceSection.Length)
         {
             throw new InvalidDataException("Native graphics resource lacks its original bounded sequence directory.");

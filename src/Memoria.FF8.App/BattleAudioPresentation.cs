@@ -3,7 +3,7 @@ using Memoria.FF8.Runtime;
 namespace Memoria.FF8;
 
 /// <summary>Transient audio follows committed battle events without becoming saved simulation state.</summary>
-internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic, Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null)
+internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic, Action<int> playImpact, Action<BattleCombatant, BattleSequenceSoundCue>? playSequence = null, Action<NativeBattleModuleSound>? playModule = null)
 {
     private BattleSession? battle;
     private int consumedEvents;
@@ -31,7 +31,11 @@ internal sealed class BattleAudioPresentation(Action stop, Action<int> playMusic
         for (int index = consumedEvents; index < active.Events.Count; index++)
         {
             BattleEvent entry = active.Events[index];
-            if (entry.Kind == "Damage" && entry.ActorId is not null)
+            if (entry.NativeModuleSound is { } module)
+            {
+                playModule?.Invoke(module);
+            }
+            if (active.NativeGraphics is null && entry.Kind == "Damage" && entry.ActorId is not null)
             {
                 BattleCombatant actor = active.Combatants.Single(actor => actor.Id == entry.ActorId);
                 // Native47D970→502670 retains scene.out's enemy identity;507120 maps identity+150 to C0M(model).DAT.

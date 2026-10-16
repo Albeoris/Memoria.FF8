@@ -118,7 +118,7 @@ public sealed partial class BattleSession
             {
                 NativeBattleGraphicsBinding binding = FindNativeGraphicsBinding(graphics.ActorIds[index]!) ?? throw new InvalidDataException("Native graphics callback lost its immutable resource binding.");
                 NativeBattleGraphicsResource resource = NativeGraphicsPoseResource(graphics, index);
-                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask) { OriginalResource = binding.Resource, GlobalRandom = NextNativeGlobalRandom });
+                NativeBattleSequenceStep step = NativeBattleSequenceMachine.Advance(model, resource, new(NativeEntryAdvantage, NativeCamera?.Mask) { OriginalResource = binding.Resource, GlobalRandom = NextNativeGlobalRandom, ReadExternal = variable => ReadNativeGraphicsActionVariable(graphics, variable) });
                 model = step.Model with { Flags2 = (ushort)(step.Model.Flags2!.Value & ~4) };
                 foreach (NativeBattleSequenceCue cue in step.Cues)
                 {

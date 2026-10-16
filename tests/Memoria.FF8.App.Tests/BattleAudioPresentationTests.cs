@@ -49,7 +49,7 @@ public sealed class BattleAudioPresentationTests
     [Fact]
     public void EnemyDamageUsesNativeActorIdentityAndDefeatChangesMusic()
     {
-        BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1, CurrentHp = 1 }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, InitialAtb = BattleSession.AtbMaximum }] }, BattleAtbMode.Normal);
+        BattleSession battle = new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Party", IsPlayer = true, MaximumHp = 1, CurrentHp = 1, NativeDeathCount = 0 }, new() { Id = "enemy", Name = "Enemy", ModelId = 1, InitialAtb = BattleSession.AtbMaximum }] }, BattleAtbMode.Normal);
         List<string> cues = [];
         BattleAudioPresentation output = Output(cues);
         output.Update(battle);
@@ -159,7 +159,7 @@ public sealed class BattleAudioPresentationTests
 
     private static BattleAudioPresentation Output(List<string> cues) => new(() => cues.Add("stop"), track => cues.Add($"music:{track}"), actor => cues.Add($"impact:{actor}"));
 
-    private static BattleSession Battle(int enemyHp = 1000) => new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Attack = 30 }, new() { Id = "enemy", Name = "Enemy", MaximumHp = enemyHp, CurrentHp = enemyHp, Speed = 1 }] }, BattleAtbMode.Normal);
+    private static BattleSession Battle(int enemyHp = 1000) => new(new BattleDefinition { Combatants = [new() { Id = "party", Name = "Squall", IsPlayer = true, InitialAtb = BattleSession.AtbMaximum, Attack = 30, NativeDeathCount = 0 }, new() { Id = "enemy", Name = "Enemy", MaximumHp = enemyHp, CurrentHp = enemyHp, Speed = 1 }] }, BattleAtbMode.Normal);
 
     private static void TickAttack(BattleSession battle)
     {

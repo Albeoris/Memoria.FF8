@@ -44,6 +44,7 @@ public sealed partial class BattleSession
             graphics = QueueNativeDescriptor(graphics, 103, NativeParticipantAddress(actor.NativeIndex), checked((ushort)actor.NativeIndex), 0);
         }
         graphics = QueueNativeDescriptor(graphics, 10, 0x4A94B0);
+        graphics = QueueNativeEntryAdvantageMessage(graphics);
         (NativeBattleDescriptorState descriptors, int barrier) = graphics.Descriptors.Enqueue(112, 128, 0);
         graphics = graphics with { Descriptors = descriptors, EntryBarrierPacket = barrier, EntryLifecycle = 2 };
         return QueueNativeDescriptor(graphics, 10, 0x47DD70);
@@ -67,6 +68,9 @@ public sealed partial class BattleSession
                 case 9:
                     kind = NativeBattleDescriptorTaskKind.Map500AC0;
                     break;
+                case 8:
+                    graphics = PublishNativeDescriptorMessage(graphics, packet);
+                    return new(graphics.Descriptors, 15);
                 case 10:
                     graphics = InvokeNativeDescriptorCallback(graphics, packet.Argument, packet.Data);
                     return new(graphics.Descriptors, 15);
@@ -99,6 +103,18 @@ public sealed partial class BattleSession
                 case 113:
                     kind = NativeBattleDescriptorTaskKind.Callback502F30;
                     break;
+                case 114:
+                    //502380 ->503190(index,23,0) ->509CD0 then509C80.
+                    int cancelledIndex = RequireDescriptorModel(packet.Index);
+                    NativeBattleGraphicsModel cancelled = SetNativeGraphicsFlags(graphics.Models[cancelledIndex], graphics.Models[cancelledIndex].Flags8!.Value & ~0x800000u);
+                    if (cancelled.ModelId4 < 16)
+                    {
+                        NativeBattleSequenceState cancelledState = cancelled.SequenceState ?? throw new InvalidDataException("Native114 requires its loaded player's sequence owner.");
+                        byte standing = NativeStandingSequence(cancelled.Flags8!.Value);
+                        cancelled = cancelledState.Pending3 != 0 ? cancelled with { SequenceState = cancelledState with { Pending3 = standing != cancelled.Sequence ? standing : (byte)0 } } : standing != cancelled.Sequence ? QueueNativeModelSequence(cancelled, standing) : cancelled;
+                    }
+                    graphics = graphics with { Models = graphics.Models.SetItem(cancelledIndex, cancelled) };
+                    return new(graphics.Descriptors, 15);
                 case 1002:
                     kind = NativeBattleDescriptorTaskKind.Stage506CF0;
                     break;

@@ -39,6 +39,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native graphical command lacks its loaded sequence or serialized callback owner.");
         }
+        graphics = PrepareNativeActionGeometry(graphics, actor, command);
         NativeBattleGraphicsModel model = NativeBattleGraphicsModels.SelectSequence(graphics.Models[index], sequence);
         NativeGraphics = graphics with { Models = graphics.Models.SetItem(index, model), ActionActorId = actor.Id, ActionCallbackReady = false };
         return command with { NativeSequence = sequence };

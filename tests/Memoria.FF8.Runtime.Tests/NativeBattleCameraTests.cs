@@ -7,6 +7,18 @@ namespace Memoria.FF8.Runtime.Tests;
 
 public sealed class NativeBattleCameraTests
 {
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(0x20u)]
+    public void CurrentEyeAndTargetAliasesUseTranslationOnlyEvenForNonzeroLocalPoints(uint flags)
+    {
+        NativeBattleCameraPose retained = new(new(100, 200, 300), new(400, 500, 600), 512, 0);
+        NativeBattleCameraState state = NativeBattleCameraState.Initialize() with { CurrentPose = retained };
+        state = state.Start(PoseBank(0x40, [], [1, 0xF3, 10, 20, 30, 0xF4, 40, 50, 60]), 0).Tick(flags);
+        Assert.Equal(retained.Eye, state.CurrentPose!.Eye);
+        Assert.Equal(retained.Target, state.CurrentPose.Target);
+    }
+
     [Fact]
     public void ZeroHoldFinalKnotDoesNotFabricateASampleAfterTrackCompletion()
     {

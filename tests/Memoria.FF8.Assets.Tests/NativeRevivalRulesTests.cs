@@ -1,9 +1,42 @@
 using Memoria.FF8.Runtime;
+using System.Collections.Immutable;
 
 namespace Memoria.FF8.Assets.Tests;
 
 public sealed class NativeRevivalRulesTests
 {
+    [Theory]
+    [InlineData(0, 125)]
+    [InlineData(2, 250)]
+    public void Native_item_revival_uses_quarter_max_HP_only_with_the_equipped_item_passive(uint passive, int expectedHp)
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeCharacterVitals vitals = game.ReadNewGameCharacterVitals();
+        NativeCharacterVital character = vitals.Records[0];
+        BattleNativePlayerStatRules rules = assets.ReadPlayerNativeStatRules(vitals, 0) with { NativeStatusPassiveFlags = passive };
+        BattleActionDefinition item = assets.ActionDefinitions.First(action => action.Ability == BattleAbility.Item && action.NativeAction?.AttackType == 5);
+        BattleSession battle = new(new BattleDefinition
+        {
+            NativeFieldBattleRules = 0,
+            NativeStatusRules = assets.ReadNativeStatusRules(0),
+            ActionDefinitions = [item],
+            Items = [new(item.Id, 1)],
+            Combatants =
+            [
+                new() { Id = "caster", Name = "Caster", IsPlayer = true, Level = rules.Level, Abilities = [BattleAbility.Item], InitialAtb = BattleSession.AtbMaximum, NativePlayerStatRules = rules, NativeGrowth = new(character.HitPointBonus, character.StatBonuses.ToImmutableArray()), NativeStatusResistances = new byte[40] },
+                new() { Id = "ko", Name = "KO", IsPlayer = true, MaximumHp = 1000, CurrentHp = 0, NativeStatus0 = 1, Speed = 1, NativeStatusResistances = new byte[40] },
+                new() { Id = "enemy", Name = "Enemy", Speed = 1 }
+            ]
+        }, BattleAtbMode.TurnBased);
+        battle.QueueAction("caster", "ko", BattleAbility.Item, item.Id);
+        for (int frame = 0; frame <= BattleSession.AttackWindupFrames; frame++)
+        {
+            battle.Tick();
+        }
+        Assert.Equal(expectedHp, battle.Combatants.Single(actor => actor.Id == "ko").CurrentHp);
+    }
+
     [Theory]
     [InlineData(5, 0, 125, true)]
     [InlineData(5, 0x40, 125, false)]

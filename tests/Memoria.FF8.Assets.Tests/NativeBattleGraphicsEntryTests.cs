@@ -117,7 +117,7 @@ public sealed class NativeBattleGraphicsEntryTests
         }
         Assert.Equal((byte)14, battle.ActiveAction!.NativeSequence);
         BattleSnapshot beforeText = battle.Capture();
-        battle = BattleSession.Restore(beforeText with { NativeScriptState = beforeText.NativeScriptState with { WaitCounters = [40] } });
+        battle = BattleSession.Restore(beforeText with { NativeScriptState = beforeText.NativeScriptState with { Tasks = beforeText.NativeScriptState.Tasks.AppendWait(40) } });
         battle.Tick();
         Assert.Equal(original.Texts[3], Assert.Single(battle.Events, item => item.Kind == "NativeText").Message);
         if (Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_GRAPHICS_COMPONENT_OUTPUT") is string output)

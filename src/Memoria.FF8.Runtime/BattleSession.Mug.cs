@@ -40,6 +40,6 @@ public sealed partial class BattleSession
     {
         //48E5F0/48E600 ->485420/485610 ->47E220 uses message-speed duration and mode3.
         int duration = 8 * (definition.NativeMessageSpeed ?? throw new NotSupportedException("Native Mug message requires its saved message-speed BYTE.")) + 8;
-        events.Add(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, duration, message) { NativeMessageMode = 3 });
+        QueueNativeDescriptorMessage(new BattleEvent(Frame, "NativeText", actor.Id, recipient.Id, duration, message) { NativeMessageMode = 3 });
     }
 }

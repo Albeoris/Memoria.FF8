@@ -8,6 +8,41 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeBattlePosePresentationTests
 {
+    [Fact]
+    public void Native_module_sound_is_committed_at_its_callback_and_played_once_without_an_actor_substitute()
+    {
+        using GameAssets game = new(LaunchOptions.DefaultGameDirectory);
+        using BattleAssets assets = new(game.GameDirectory);
+        BattleEncounter encounter = assets.LoadEncounter(94);
+        BattleStage stage = assets.LoadStage(encounter.StageId);
+        BattleCombatantDefinition[] actors = [new() { Id = "party", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0 }, new() { Id = "ifrit", Name = "Ifrit", ModelId = 61, SceneSlot = encounter.Enemies.Single(enemy => enemy.ModelId == 61).Slot }];
+        BattleDefinition definition = new() { EncounterId = 94, StageId = encounter.StageId, NativeFlags = 0x80, NativeEntry = new(0, 0), NativeGlobalRandom = new(0), NativeCrtRandom = new(0), NativeModuleResources = game.ReadNativeBattleModuleResources(), NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter), NativeStageCameraBank = stage.NativeCameraBank, NativeStageCameraSelectors = [encounter.PrimaryCamera, encounter.AlternativeCamera], NativeStageCameraControl = stage.NativeCameraControl, Combatants = actors };
+        BattleSession session = new(definition, BattleAtbMode.TurnBased);
+        for (int frame = 0; frame < 100 && !session.NativeGraphics!.EntryReady; frame++)
+        {
+            session.Tick();
+        }
+        Assert.True(session.NativeGraphics!.EntryReady);
+        BattleSnapshot saved = session.Capture();
+        session = BattleSession.Restore(saved with { NativeGraphics = saved.NativeGraphics! with { ModuleEffects = saved.NativeGraphics.ModuleEffects.AppendModelResource(0, definition.NativeModuleResources[39], 0x100027) } });
+        List<NativeBattleModuleSound> heard = [];
+        BattleAudioPresentation audio = new(() => { }, _ => { }, _ => { }, playModule: heard.Add);
+        audio.Update(session);
+        for (int callback = 0; callback < 3; callback++)
+        {
+            session.AdvanceNativeGraphicsPresentation(TimeSpan.FromTicks((TimeSpan.TicksPerSecond + 29) / 30));
+            audio.Update(session);
+            audio.Update(session);
+        }
+        NativeBattleModuleSound sound = Assert.Single(heard);
+        Assert.Equal((ushort)0x72, sound.Sound);
+        Assert.Equal((ushort)0x8000, sound.Flags);
+        BattleEvent receipt = Assert.Single(session.Events, item => item.NativeModuleSound is not null);
+        Assert.Null(receipt.ActorId);
+        audio.Update(BattleSession.Restore(session.Capture()));
+        Assert.Single(heard);
+    }
+
     [Theory]
     [InlineData(1, 0, 0)]
     [InlineData(2, 0, 1)]

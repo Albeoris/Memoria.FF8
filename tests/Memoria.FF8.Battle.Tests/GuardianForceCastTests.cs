@@ -6,6 +6,34 @@ namespace Memoria.FF8.Battle.Tests;
 
 public sealed class GuardianForceCastTests
 {
+    [Fact]
+    public void Native_script_pool_owns_the_completion_packet_and_retains_it_while_B8C400_is_set()
+    {
+        BattleDefinition definition = Create(compatibility: 0).Capture().Definition;
+        definition = definition with { Combatants = definition.Combatants.Select(actor => actor.IsPlayer ? actor with { NativeCombatantFlags = actor.NativeCombatantFlags | 0x400 } : actor).ToArray() };
+        BattleSession session = new(definition, BattleAtbMode.Normal);
+        session.QueueAction("player", "enemy", BattleAbility.GuardianForce, 0);
+        session.Tick();
+        BattleSnapshot pending = session.Capture();
+        int slot = Assert.Single(Enumerable.Range(0, 16), pending.NativeScriptState.Tasks.Allocated);
+        NativeBattleScriptTask task = pending.NativeScriptState.Tasks.Slots[slot];
+        Assert.Equal(0x48E620u, task.ReadDword(0));
+        Assert.Equal((byte)64, task.ReadByte(14));
+        Assert.Equal((byte)254, task.ReadByte(13));
+        Assert.Equal((ushort)0, Assert.Single(session.GuardianForceCasts).RemainingTicks);
+        Assert.Empty(session.QueuedActions);
+        BattleCombatantSnapshot player = pending.Combatants[0];
+        pending = pending with { Combatants = [player with { NativeParticipant = player.NativeParticipant! with { NativeCombatantFlags = player.NativeParticipant.NativeCombatantFlags!.Value & ~0x400u } }, .. pending.Combatants.Skip(1)] };
+        BattleSession restored = BattleSession.Restore(pending);
+        restored.Tick();
+        Assert.Empty(restored.GuardianForceCasts);
+        Assert.Equal((byte)255, restored.Capture().NativeScriptState.Tasks.Tail);
+        BattleAttackCommand completed = Assert.Single(restored.QueuedActions);
+        Assert.Equal((ushort)0x80F8, completed.NativeTargetMask);
+        Assert.Single(restored.Events, item => item.Kind == "GuardianForceReady");
+        Assert.Equal(JsonSerializer.Serialize(restored.Capture()), JsonSerializer.Serialize(BattleSession.Restore(restored.Capture()).Capture()));
+    }
+
     [Theory]
     [InlineData(0u, 2)]
     [InlineData(2u, 3)]
@@ -168,6 +196,6 @@ public sealed class GuardianForceCastTests
 
     private static BattleNativeAction Native(byte command, ushort id, byte type)
     {
-        return new(command, id, 2, 0) { TargetFlags = null, ElementPercent = null, Hit = 255, Critical = null, PowerModifier = null, LevelModifier = null, MagicId = 0, AttackType = type, Power = 10, HitCount = 1, AttackFlags = 0, DamagePresentation = 0, Element = 0, StatusAttack = 255, Statuses0 = 0, Statuses1 = 0, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
+        return new(command, id, 2, 0) { TargetFlags = 0x48, ElementPercent = null, Hit = 255, Critical = null, PowerModifier = null, LevelModifier = null, MagicId = 0, AttackType = type, Power = 10, HitCount = 1, AttackFlags = 0, DamagePresentation = 0, Element = 0, StatusAttack = 255, Statuses0 = 0, Statuses1 = 0, RawRecord = ImmutableArray<byte>.Empty, SupplementalRecord = ImmutableArray<byte>.Empty };
     }
 }

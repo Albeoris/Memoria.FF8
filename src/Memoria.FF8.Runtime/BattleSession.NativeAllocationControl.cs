@@ -1,6 +1,6 @@
 namespace Memoria.FF8.Runtime;
 
-public sealed record NativeBattleAllocationControl(byte SceneSlot, bool ActionGate, bool PauseGate);
+public sealed record NativeBattleAllocationControl(byte? SceneSlot, bool ActionGate, bool PauseGate);
 
 public sealed partial class BattleSession
 {
@@ -13,31 +13,6 @@ public sealed partial class BattleSession
         {
             throw new NotSupportedException("Native allocation statistics are not yet initialized by its113/48AD10 callback.");
         }
-    }
-
-    private void QueueNativeParticipantInitialization(BattleCombatant actor)
-    {
-        nativeScriptState = nativeScriptState with { PendingInitializations = [.. nativeScriptState.PendingInitializations, actor.NativeIndex] };
-    }
-
-    private void QueueNativeInitialParticipants()
-    {
-        foreach (BattleCombatant actor in combatants.Where(actor => actor.NativeIndex is >= 0 and < 7 && actor.IsActive && (actor.NativeCombatantFlags & 0x10) != 0 && (actor.NativeCombatantFlags & 0x80000000) == 0).OrderBy(actor => actor.NativeIndex))
-        {
-            QueueNativeParticipantInitialization(actor);
-        }
-    }
-
-    private void DispatchNativeParticipantInitialization()
-    {
-        if (nativeScriptState.PendingInitializations.Length == 0)
-        {
-            return;
-        }
-        int index = nativeScriptState.PendingInitializations[0];
-        nativeScriptState = nativeScriptState with { PendingInitializations = nativeScriptState.PendingInitializations[1..] };
-        BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == index);
-        RunNativeAi(actor, 0);
     }
 
     private void CompleteNativeAllocationGate()
@@ -64,7 +39,7 @@ public sealed partial class BattleSession
     {
         NativeBattleAllocationControl control = nativeScriptState.AllocationControl ?? throw new InvalidDataException("Native48AD10 has no current allocation scene owner.");
         BattleCombatant actor = combatants.Single(candidate => candidate.NativeIndex == nativeLastAllocatedIndex);
-        if (actor.SceneSlot != control.SceneSlot)
+        if (control.SceneSlot is null || actor.SceneSlot != control.SceneSlot)
         {
             throw new InvalidDataException("Native allocation globals disagree with the current physical scene resource.");
         }

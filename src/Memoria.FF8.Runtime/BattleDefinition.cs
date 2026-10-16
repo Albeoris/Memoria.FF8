@@ -203,6 +203,9 @@ public enum BattleActionPhase
 
 public sealed record BattleAttackCommand(string ActorId, string TargetId, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    public BattleNativeCallback? NativeCallback { get; init; }
+    [System.Text.Json.Serialization.JsonRequired]
+    public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
     public BattleNativeDrawContext? NativeDraw { get; init; }
@@ -221,6 +224,8 @@ public sealed record BattleAttackCommand(string ActorId, string TargetId, Battle
 }
 public sealed record BattleActionPresentation(string ActorId, string TargetId, BattleActionPhase Phase, int RemainingFrames, BattleAbility Ability = BattleAbility.Attack, int ActionId = 0, bool DrawCast = false, int NativeTargetSelector = 0)
 {
+    [System.Text.Json.Serialization.JsonRequired]
+    public byte? NativeAiCallbackStage { get; init; }
     public BattleNativeRenzokukenInvocation? NativeRenzokuken { get; init; }
     public ImmutableArray<ushort> NativeMagicTargets { get; init; } = [];
     public BattleNativeDrawContext? NativeDraw { get; init; }
@@ -242,6 +247,7 @@ public sealed record BattleActionPresentation(string ActorId, string TargetId, B
 public sealed record BattleEvent(long Frame, string Kind, string? ActorId, string? TargetId, int Amount, string Message, BattleAbility Ability = BattleAbility.Attack)
 {
     public NativeBattleSequenceSound? NativeSound { get; init; }
+    public NativeBattleModuleSound? NativeModuleSound { get; init; }
     public byte? NativeGraphicMagicId { get; init; }
     public byte? NativeSequence { get; init; }
     public int? NativeMessageMode { get; init; }
@@ -250,6 +256,7 @@ public sealed record BattleEvent(long Frame, string Kind, string? ActorId, strin
 public sealed record BattleStatusSnapshot(BattleStatusKind Kind, int RemainingFrames, int UntilTickFrames, BattleStatusEffectDefinition? Definition = null);
 public sealed record BattleCombatantSnapshot(string Id, int CurrentHp, int Atb, BattleStatusSnapshot[] StatusEffects)
 {
+    public NativeBattleAtbState? NativeAtb { get; init; }
     public ushort[]? GuardianForceCompatibility { get; init; }
     public NativeBattleStatusSnapshot? NativeStatus { get; init; }
     public BattleStock[] MagicStocks { get; init; } = [];
@@ -346,6 +353,7 @@ public sealed partial class BattleCombatant
         Untargetable = definition.InitialUntargetable;
         Suspended = definition.InitialSuspended;
         ResolvedNativeLevel = definition.NativeTemplate is not null && definition.InitialActive ? definition.Level : null;
+        RefreshNativeAtbSpeed();
     }
 
     public string Id => definition.Id;
@@ -519,7 +527,21 @@ public sealed partial class BattleCombatant
     public IReadOnlyList<int> EquipmentIds => Array.AsReadOnly(definition.EquipmentIds);
     public IReadOnlyList<BattleAbility> Abilities => Array.AsReadOnly(definition.Abilities);
     public IReadOnlyList<BattleStatusSnapshot> StatusEffects => Effects.Select(effect => new BattleStatusSnapshot(effect.Definition.Kind, effect.RemainingFrames, effect.UntilTickFrames, effect.Definition)).ToArray();
-    public int Atb { get; internal set; }
+    public int Atb
+    {
+        get => NativeAtb?.Display ?? displayAtb;
+        internal set
+        {
+            if (NativeAtb is { } native)
+            {
+                NativeAtb = native with { Current = checked((int)((long)native.Maximum * value / BattleSession.AtbMaximum)) };
+            }
+            else
+            {
+                displayAtb = value;
+            }
+        }
+    }
     public bool IsBusy { get; internal set; }
     public bool IsAlive => IsActive && (BattleSession.NativeSavedStatusBits(this) & 1) == 0;
     public bool CanAct => BattleSession.CanNativeBattleActorAct(this);

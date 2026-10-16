@@ -7,7 +7,13 @@ namespace Memoria.FF8.Runtime;
 public sealed record NativeBattleSupportRules([property: JsonRequired] byte Cooldown);
 
 /// <summary>Battle-local482F70/482F80 owners, independent of gameplay or graphics frame counts.</summary>
-public sealed record NativeBattleSupportState([property: JsonRequired] bool EntryInitialized, [property: JsonRequired] ushort Cooldown, [property: JsonRequired] byte GilgameshUsed);
+public sealed record NativeBattleSupportState([property: JsonRequired] bool EntryInitialized, [property: JsonRequired] ushort Cooldown, [property: JsonRequired] byte GilgameshUsed)
+{
+    [JsonRequired]
+    public byte? SelectedAction { get; init; }
+    [JsonRequired]
+    public ushort? SelectedTargets { get; init; }
+}
 
 public sealed partial class BattleSession
 {
@@ -20,7 +26,7 @@ public sealed partial class BattleSession
 
     private void RestoreNativeSupport(NativeBattleSupportState? saved)
     {
-        if ((saved is null) != (definition.NativeSupportRules is null) || saved is { GilgameshUsed: > 1 } || saved is { EntryInitialized: true } && saved.Cooldown > definition.NativeSupportRules!.Cooldown || saved is { EntryInitialized: false } && (saved.Cooldown != 0 || saved.GilgameshUsed != 0))
+        if ((saved is null) != (definition.NativeSupportRules is null) || saved is { GilgameshUsed: > 1 } || saved is { EntryInitialized: true } && saved.Cooldown > definition.NativeSupportRules!.Cooldown || saved is { EntryInitialized: false } && (saved.Cooldown != 0 || saved.GilgameshUsed != 0 || saved.SelectedAction is not null || saved.SelectedTargets is not null))
         {
             throw new InvalidDataException("Native support callback state differs from its original battle-local owners.");
         }
@@ -51,7 +57,7 @@ public sealed partial class BattleSession
 
     private void InitializeNativeSupportCallbacks()
     {
-        if (nativeSupport is not { EntryInitialized: false } state)
+        if (nativeSupport is not { EntryInitialized: false })
         {
             return;
         }
@@ -67,7 +73,7 @@ public sealed partial class BattleSession
             QueueNativeAutomaticGuardian(checked((byte)(NextRandomByte() / 64 + 7)));
             gilgameshUsed = 1;
         }
-        nativeSupport = state with { EntryInitialized = true, Cooldown = definition.NativeSupportRules!.Cooldown, GilgameshUsed = gilgameshUsed };
+        nativeSupport = nativeSupport! with { EntryInitialized = true, Cooldown = definition.NativeSupportRules!.Cooldown, GilgameshUsed = gilgameshUsed };
     }
 
     private bool NativeOdinTargetsEligible()
@@ -95,11 +101,17 @@ public sealed partial class BattleSession
 
     private void QueueNativeAutomaticGuardian(byte id)
     {
-        // TODO(TD-009): Expand the native stage7 request in the shared event queue after initial stage0 packets; current action queue expansion is earlier
+        NativeBattleSupportState state = nativeSupport ?? throw new InvalidOperationException("Native automatic support lacks its battle-local selector owner.");
+        nativeSupport = state with { SelectedAction = id };
+        QueueNativeCallback(NativeSupportActor(), 7);
+    }
+
+    private void ExpandNativeAutomaticGuardian(BattleCombatant actor)
+    {
+        byte id = nativeSupport?.SelectedAction ?? throw new InvalidDataException("Native stage7 lacks its actual selector BYTE1D28E14.");
         BattleNativeAction action = FindInstalledNativeAction(245, id);
         byte flags = action.TargetFlags ?? throw new InvalidDataException("Native independent GF row lacks its original target flags.");
         ushort mask = NativeAutomaticActionTargetMask(flags);
-        BattleCombatant actor = NativeSupportActor();
         QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AutomaticGuardian, 245, id, mask);
         if (id == 1)
         {

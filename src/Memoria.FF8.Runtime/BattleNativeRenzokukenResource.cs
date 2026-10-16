@@ -5,7 +5,7 @@ namespace Memoria.FF8.Runtime;
 
 public sealed record BattleNativeRenzokukenResource(ushort MagicId, uint ServiceAddress, uint ResourceAddress, ImmutableArray<byte> RawResource, ImmutableArray<byte> AnimationFrameCounts, NativeBattleGraphicsResource GraphicsResource, int AbOffset, byte ShowBar, ImmutableArray<byte> Segments, BattleNativeRenzokukenTimeline Timeline)
 {
-    public NativeBattleGraphicsResource BindGraphicsResource(NativeBattlePoseSource original)
+    public NativeBattleGraphicsResource BindGraphicsResource(NativeBattlePoseSource original, NativeBattlePoseSource? originalLinked = null)
     {
         original.Validate();
         if (RawResource.Length < 20 || BinaryPrimitives.ReadUInt32LittleEndian(RawResource.AsSpan()) != 3)
@@ -20,6 +20,17 @@ public sealed record BattleNativeRenzokukenResource(ushort MagicId, uint Service
         }
         NativeBattlePoseSource pose = original with { Animations = RawResource.AsSpan().Slice(animations, sequences - animations).ToArray().ToImmutableArray() };
         pose.Validate();
-        return GraphicsResource with { PoseSource = pose };
+        NativeBattlePoseSource? linked = null;
+        if (originalLinked is not null)
+        {
+            int linkedAnimations = BinaryPrimitives.ReadInt32LittleEndian(RawResource.AsSpan().Slice(12));
+            if (linkedAnimations <= sequences || linkedAnimations >= RawResource.Length)
+            {
+                throw new InvalidDataException("Native Renzokuken linked animation section exceeds its resource.");
+            }
+            linked = originalLinked with { Animations = RawResource.AsSpan().Slice(linkedAnimations).ToArray().ToImmutableArray() };
+            linked.Validate();
+        }
+        return GraphicsResource with { PoseSource = pose, LinkedPoseSource = linked, LinkedAnimationFrames = linked is null ? [] : NativeBattlePoseDecoder.ReadFrameCounts(linked.Animations.AsSpan()) };
     }
 }

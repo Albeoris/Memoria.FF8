@@ -40,7 +40,7 @@ public sealed partial class BattleSession
         actor.Suspended = false;
         actor.AiDeathHandled = false;
         Log("Activated", actor.Id, null, 0, $"{actor.Name} enters battle.");
-        RunNativeAi(actor, 0);
+        QueueNativeParticipantInitialization(actor);
     }
 
     private void InterpretNativeAi(BattleCombatant actor, int callback)
@@ -109,7 +109,7 @@ public sealed partial class BattleSession
                         sequenceOverride = (byte)ReadAiByte(code, ref pc);
                         break;
                     case 6:
-                        QueueNativeCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
                         break;
                     case 7:
                         preparedCommand = 8;
@@ -120,6 +120,7 @@ public sealed partial class BattleSession
                         break;
                     case 9:
                         int damagePresentation = ReadAiByte(code, ref pc);
+                        SetNativeContactSequence((byte)damagePresentation);
                         Log("NativeDamagePresentation", actor.Id, null, damagePresentation, $"Native damage presentation {damagePresentation}.");
                         break;
                     case 11:
@@ -130,12 +131,12 @@ public sealed partial class BattleSession
                         if (chosen != 253)
                         {
                             PrepareNativeAiAbility(actor, chosen, ref preparedCommand, ref preparedId, ref sequenceOverride);
-                            QueueNativeCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                            QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
                         }
                         break;
                     case 12:
                         PrepareNativeAiAbility(actor, ReadAiByte(code, ref pc), ref preparedCommand, ref preparedId, ref sequenceOverride);
-                        QueueNativeCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
+                        QueuePreparedNativeAiCommand(actor, preparedCommand, preparedId, sequenceOverride, targetMask);
                         break;
                     case 14:
                     case 15:
@@ -387,6 +388,17 @@ public sealed partial class BattleSession
         return status < 16 ? (NativeSavedStatusBits(actor) & (1u << status)) != 0 : (NativeBattleStatusBits(actor) & (1u << (status - 16))) != 0;
     }
 
+    private void QueuePreparedNativeAiCommand(BattleCombatant actor, byte command, ushort id, byte sequence, ushort targetMask)
+    {
+        //487DF0 LABEL374 skips a zero prepared WORD ID, including zero-filled ability rows.
+        //This guard belongs to the AI interpreter: ordinary player physical command1 legitimately uses ID0.
+        if (id == 0)
+        {
+            return;
+        }
+        QueueNativeCommand(actor, command, id, sequence, targetMask);
+    }
+
     private static void PrepareNativeAiAbility(BattleCombatant actor, int index, ref byte command, ref ushort id, ref byte sequence)
     {
         NativeBattleAiDefinition ai = actor.NativeAi ?? throw new InvalidDataException("Native ability slot requires its original AI bank.");
@@ -462,12 +474,13 @@ public sealed partial class BattleSession
         return value;
     }
 
-    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell };
+    private static NativeBattleParticipantSnapshot CaptureNativeParticipant(BattleCombatant actor) => new(actor.IsActive, actor.Hidden, actor.Untargetable, actor.Suspended, actor.NativeIndex, actor.ResolvedNativeLevel, actor.AiVariables.ToArray(), actor.AiTurnCount, actor.LastAttackerId, actor.LastAttackerAbility, actor.AiDeathHandled) { StatMultipliers = actor.NativeStatMultipliers.ToArray(), LastAction = actor.LastNativeAction, LastHealing = actor.LastNativeHealing, AllocationPendingStatistics = actor.NativeAllocationPendingStatistics, NativeCombatantFlags = actor.NativeCombatantFlags, KillCount = actor.NativeKillCount, DeathCount = actor.NativeDeathCount, Growth = actor.NativeGrowth, DisplayNameIndex = actor.NativeDisplayNameIndex, ElementDefenses = actor.ElementDefenses.ToArray(), PreviousTargetMask = actor.NativePreviousTargetMask, DrawnSpell = actor.NativeDrawnSpell, ReturnDamage = actor.NativeReturnDamage };
 
     private void RestoreNativeParticipant(BattleCombatant actor, NativeBattleParticipantSnapshot? saved)
     {
         if (saved is null)
         {
+            actor.NativeReturnDamage = null;
             if (actor.NativeAi is not null || actor.SceneSlot is not null)
             {
                 throw new InvalidDataException("Battle participant lacks its explicit native lifecycle state.");
@@ -505,6 +518,7 @@ public sealed partial class BattleSession
         {
             throw new InvalidDataException("Native battle action memory has an invalid attack type or physical attacker index.");
         }
+        actor.NativeReturnDamage = saved.ReturnDamage;
         actor.NativePreviousTargetMask = saved.PreviousTargetMask;
         actor.NativeDrawnSpell = saved.DrawnSpell;
         saved.Growth?.Validate();

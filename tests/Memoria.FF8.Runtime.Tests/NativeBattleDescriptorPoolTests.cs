@@ -84,4 +84,25 @@ public sealed class NativeBattleDescriptorPoolTests
         Assert.Equal((byte)0, state.CurrentCommand);
         state.Validate();
     }
+
+    [Fact]
+    public void TextWritesItsPhysicalDurationModeAndTagThenARecycled113RetainsThatIndexWord()
+    {
+        BattleEvent message = new(7, "NativeText", "enemy", null, 0x1234, "Original text") { NativeMessageMode = 3 };
+        (NativeBattleDescriptorState state, int slot) = NativeBattleDescriptorState.Clear().EnqueueMessage(message, 128, 86);
+        Assert.Equal((ushort)0x1234, unchecked((ushort)state.Packets[slot].Index));
+        Assert.Equal((ushort)0x5603, state.Packets[slot].Value);
+        Assert.Equal((ushort)0xF0, state.Packets[slot].UnknownByteMask);
+        Assert.Throws<NotSupportedException>(() => state.Packets[slot].Argument);
+        NativeBattleDescriptorState restored = JsonSerializer.Deserialize<NativeBattleDescriptorState>(JsonSerializer.Serialize(state))!;
+        restored.Validate();
+        Assert.Equal(message, restored.Packets[slot].Message);
+        state = state.RemoveFirst();
+        (state, int reused) = state.Enqueue(113, 128, 0x48AD10);
+        Assert.Equal(slot, reused);
+        Assert.Equal((short)0x1234, state.Packets[reused].Index);
+        Assert.Equal((ushort)0, state.Packets[reused].UnknownByteMask);
+        Assert.Equal(0x48AD10u, state.Packets[reused].Argument);
+        Assert.Null(state.Packets[reused].Message);
+    }
 }

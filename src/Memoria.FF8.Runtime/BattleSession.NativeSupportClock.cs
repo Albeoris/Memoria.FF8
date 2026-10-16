@@ -65,7 +65,16 @@ public sealed partial class BattleSession
 
     private void QueueNativePeriodicAngelo(ushort id, ushort mask)
     {
-        //4831C0 uses486080's first allocated party actor, which may differ from the Rinoa target/producer.
-        QueueNativePlayerReaction(NativeSupportActor(), BattleNativePlayerReaction.AngeloPeriodic, 240, id, mask);
+        //4831C0 writes the shared selector/mask, then queues stage8 on486080's first allocated party actor.
+        NativeBattleSupportState state = nativeSupport ?? throw new InvalidOperationException("Native periodic support lacks its battle-local selector owners.");
+        nativeSupport = state with { SelectedAction = checked((byte)id), SelectedTargets = mask };
+        QueueNativeCallback(NativeSupportActor(), 8);
+    }
+
+    private void ExpandNativePeriodicAngelo(BattleCombatant actor)
+    {
+        byte id = nativeSupport?.SelectedAction ?? throw new InvalidDataException("Native stage8 lacks its actual selector BYTE1D28E14.");
+        ushort targets = nativeSupport.SelectedTargets ?? throw new InvalidDataException("Native stage8 lacks its actual target WORD1D28DE6.");
+        QueueNativePlayerReaction(actor, BattleNativePlayerReaction.AngeloPeriodic, 240, id, targets);
     }
 }

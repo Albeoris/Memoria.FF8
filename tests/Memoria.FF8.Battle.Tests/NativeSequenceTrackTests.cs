@@ -11,8 +11,8 @@ public sealed class NativeSequenceTrackTests
     public void SequenceCallbackProgressAndMessagesSurviveRestoreWithoutReplayingTheInitialCue(bool gameplayWait)
     {
         NativeBattleSequenceTrack track = new(1, [0x91, 0, 30, 0xA1, 0xA1, 0x91, 1, 30, 0xA1, 0xAA, 0xA2], [new(0, 0, 30), new(2, 1, 30)], 3);
-        NativeBattleAiDefinition ai = new([[5, 1, 7, 0, 6, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 1, 0), 48).ToArray(), 0, ["First", "Second"]) { SequenceTracks = [track] };
-        BattleNativeAction action = Action(0);
+        NativeBattleAiDefinition ai = new([[5, 1, 7, 1, 6, 0], [0], [0], [0], [0]], Enumerable.Repeat(new NativeBattleAiAbility(8, 1, 0), 48).ToArray(), 0, ["First", "Second"]) { SequenceTracks = [track] };
+        BattleNativeAction action = Action(0) with { ActionId = 1 };
         BattleSession battle = new(new BattleDefinition
         {
             NativeActions = [action],
@@ -29,7 +29,7 @@ public sealed class NativeSequenceTrackTests
         if (gameplayWait)
         {
             BattleSnapshot waiting = battle.Capture();
-            battle = BattleSession.Restore(waiting with { NativeScriptState = waiting.NativeScriptState with { WaitCounters = [5] } });
+            battle = BattleSession.Restore(waiting with { NativeScriptState = waiting.NativeScriptState with { Tasks = waiting.NativeScriptState.Tasks.AppendWait(5) } });
         }
         BattleSession restored = BattleSession.Restore(battle.Capture());
         for (int index = 0; index < 3; index++)
@@ -43,7 +43,9 @@ public sealed class NativeSequenceTrackTests
         Assert.Equal(JsonSerializer.Serialize(battle.Capture()), JsonSerializer.Serialize(restored.Capture()));
         if (gameplayWait)
         {
-            for (int frame = 0; frame < 3; frame++)
+            // The callback clears DFD after its zero-count pass; gameplay
+            // resumes on the following frame rather than that cleanup pass.
+            for (int frame = 0; frame < 4; frame++)
             {
                 battle.Tick();
                 restored.Tick();

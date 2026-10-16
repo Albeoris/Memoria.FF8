@@ -43,11 +43,13 @@ public sealed record NativeBattleGraphicsState([property: JsonRequired] Immutabl
     public string? ActionActorId { get; init; }
     [JsonRequired]
     public bool ActionCallbackReady { get; init; }
+    public NativeBattleActionGeometry? ActionContext { get; init; }
     [JsonRequired]
     public long PresentationSubticks { get; init; }
 
     public void Validate()
     {
+        ActionContext?.Validate();
         if (Models.IsDefault || Models.Length != 7 || ActorIds.IsDefault || ActorIds.Length != 7 || Callback < 0 || PresentationSubticks is < 0 or >= TimeSpan.TicksPerSecond || ModelLoadCount < 0 || EntryGatePhase > 2 || EntryBarrierCompletion is not (0 or 255) || EntryLifecycle > 3 || EntryBarrierPacket is < 0 or >= 30 || Descriptors is null || PendingContacts.IsDefault || Models.Where((model, index) => model is null || model.Index != index).Any())
         {
             throw new InvalidDataException("Native graphics state requires seven physical model owners and valid callback gates.");

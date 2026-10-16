@@ -76,15 +76,18 @@ public static class NativeBattleSequenceMachine
 
         bool AdvancePose()
         {
+            if (state.LinkedPose is { } linked)
+            {
+                state = state with { LinkedPose = linked.Advance() };
+            }
             byte frame = state.PoseFrame114 ?? throw new InvalidDataException("Native sequence reads a pose counter before its original selection.");
             byte limit = state.PoseLimit115 ?? throw new InvalidDataException("Native sequence reads a pose limit before its original selection.");
             if (frame >= limit)
             {
                 return true;
             }
-            int steps = (state.PoseFlags109 & 2) != 0 ? 2 : 1;
-            byte interpolation = (byte)(4 * ((((state.PoseFlags109 >> 2) & 3) + 1) % 2));
-            state = state with { PoseFrame114 = (byte)Math.Min(limit, frame + steps), PoseFlags109 = (byte)((state.PoseFlags109 & ~0xC) | interpolation) };
+            NativeBattlePoseProgress progress = new NativeBattlePoseProgress(state.Pose ?? 0, frame, limit, state.PoseFlags109).Advance();
+            state = state with { PoseFrame114 = progress.Frame, PoseFlags109 = progress.Flags };
             return false;
         }
 
@@ -101,7 +104,16 @@ public static class NativeBattleSequenceMachine
                 speed = (byte)((speed & ~3) | ((status & 0x8000) != 0 ? 1 : (status & 0x4000) != 0 ? 2 : 0));
             }
             byte limit = (speed & 1) != 0 ? unchecked((byte)(2 * resource.AnimationFrames[pose] - 1)) : resource.AnimationFrames[pose];
-            state = state with { Pose = pose, PoseFrame114 = 0, PoseLimit115 = limit, PoseFlags109 = (byte)(speed & ~0xC) };
+            NativeBattlePoseProgress? linked = null;
+            if (!resource.LinkedAnimationFrames.IsDefaultOrEmpty)
+            {
+                if (pose >= resource.LinkedAnimationFrames.Length)
+                {
+                    throw new InvalidDataException($"Native linked weapon pose{pose} lacks its own animation frame-count byte.");
+                }
+                linked = new(pose, 0, (speed & 1) != 0 ? unchecked((byte)(2 * resource.LinkedAnimationFrames[pose] - 1)) : resource.LinkedAnimationFrames[pose], (byte)(((state.LinkedPose?.Flags ?? 0) & ~0xF) | (speed & 3)));
+            }
+            state = state with { Pose = pose, PoseFrame114 = 0, PoseLimit115 = limit, PoseFlags109 = (byte)(speed & ~0xC), LinkedPose = linked };
             AdvancePose();
         }
 
@@ -273,12 +285,21 @@ public static class NativeBattleSequenceMachine
                     10 => state.PoseLimit115 ?? throw new InvalidDataException("Native sequence lacks its current pose limit."),
                     11 => state.Default2,
                     12 => unchecked((short)(inputs.GlobalRandom ?? throw new InvalidDataException("Native sequence lacks534AA0 random state."))()),
+                    13 => state.Header36,
+                    14 => state.Header38,
+                    15 => state.Header40,
                     23 => (model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF,
                     27 => model.Index,
                     28 => model.Index >= 3 ? 2048 : ((model.Rotation14 ?? throw new InvalidDataException("Native sequence lacks its model rotationWORD14.")) & 0xFFF) <= 2048 ? 0 : 4096,
                     31 => unchecked((short)(model.Flags8 ?? throw new InvalidDataException("Native sequence lacks projected model flags."))),
                     34 => inputs.EntryAdvantage ?? throw new InvalidDataException("Native sequence lacks48AFD0 entry advantage."),
                     35 => unchecked((short)(inputs.CameraTasks ?? throw new InvalidDataException("Native sequence lacks actual camera task flags."))),
+                    36 => RequireTransform().Scale154,
+                    37 => RequireTransform().Scale148.X,
+                    38 => RequireTransform().Scale148.Y,
+                    39 => RequireTransform().Scale148.Z,
+                    42 => RequireTransform().Scale38,
+                    44 => RequireTransform().Initial20.Z,
                     55 => model.Flags0 & 4,
                     _ when variable is 13 or 14 or 15 or 16 or 17 or 18 or 19 or 20 or 21 or 22 or 24 or 25 or 26 or 36 or 37 or 38 or 39 or 40 or 41 or 42 or 44 or 46 or 51 or 53 or 54 => (inputs.ReadExternal ?? throw new NotSupportedException($"Native sequence variable{variable:X2} requires its original owner."))(variable),
                     _ => 0
@@ -305,6 +326,18 @@ public static class NativeBattleSequenceMachine
                         case 11:
                             state = state with { Default2 = unchecked((byte)value) };
                             break;
+                        case 13:
+                            state = state with { Header36 = unchecked((short)value) };
+                            break;
+                        case 14:
+                            state = state with { Header38 = unchecked((short)value) };
+                            break;
+                        case 15:
+                            state = state with { Header40 = unchecked((short)value) };
+                            break;
+                        case 23:
+                            model = model with { Rotation14 = unchecked((short)value) };
+                            break;
                         case 29:
                             state = state with { Geometry4 = unchecked((byte)value) };
                             break;
@@ -315,7 +348,25 @@ public static class NativeBattleSequenceMachine
                             uint bit = 1u << (value >= 0 ? value - 1 : -1 - value);
                             state = state with { MeshMask124 = value >= 0 ? state.MeshMask124 | bit : state.MeshMask124 & ~bit };
                             break;
-                        case 13 or 14 or 15 or 18 or 19 or 20 or 21 or 22 or 23 or 33 or 36 or 37 or 38 or 39 or 42 or 43 or 44 or 45 or 47 or 48 or 49 or 50 or 52:
+                        case 36:
+                            model = model with { Transform = RequireTransform() with { Scale154 = unchecked((short)value) } };
+                            break;
+                        case 37:
+                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { X = unchecked((short)value) } } };
+                            break;
+                        case 38:
+                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { Y = unchecked((short)value) } } };
+                            break;
+                        case 39:
+                            model = model with { Transform = RequireTransform() with { Scale148 = RequireTransform().Scale148 with { Z = unchecked((short)value) } } };
+                            break;
+                        case 42:
+                            model = model with { Transform = RequireTransform() with { Scale38 = unchecked((short)value) } };
+                            break;
+                        case 44:
+                            model = model with { Transform = RequireTransform() with { Initial20 = RequireTransform().Initial20 with { Z = unchecked((short)value) }, Position28 = RequireTransform().Position28 with { Z = unchecked((short)value) } } };
+                            break;
+                        case 18 or 19 or 20 or 21 or 22 or 33 or 43 or 45 or 47 or 48 or 49 or 50 or 52:
                             (inputs.WriteExternal ?? throw new NotSupportedException($"Native sequence write{variable:X2} requires its original owner."))(variable, value);
                             break;
                     }
@@ -333,6 +384,7 @@ public static class NativeBattleSequenceMachine
         }
 
         ushort RequireFlags2() => model.Flags2 ?? throw new InvalidDataException("Native graphics service requires model Flags2.");
+        NativeBattleModelTransform RequireTransform() => model.Transform ?? throw new NotSupportedException("Native model expression requires its original transform WORD owners.");
 
         void RestoreStanding()
         {

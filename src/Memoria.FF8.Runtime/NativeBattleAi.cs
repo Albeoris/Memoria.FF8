@@ -27,6 +27,8 @@ public sealed record NativeBattleEnemyTemplate(byte SceneLevel, NativeBattleEnem
 }
 public sealed record NativeBattleParticipantSnapshot(bool Active, bool Hidden, bool Untargetable, bool Suspended, int ActorIndex, int? ResolvedLevel, uint[] Variables, byte TurnCount, string? LastAttackerId, BattleAbility? LastAttackerAbility, bool DeathHandled)
 {
+    [System.Text.Json.Serialization.JsonRequired]
+    public ushort? ReturnDamage { get; init; }
     public BattleNativeCharacterGrowth? Growth { get; init; }
     // Older valid snapshots predate opcode40 support, so their six allocation multipliers are still10.
     public byte[] StatMultipliers { get; init; } = [10, 10, 10, 10, 10, 10];

@@ -183,9 +183,8 @@ public sealed partial record NativeBattleCameraState
         if (reference is 0xF3 or 0xF4)
         {
             NativeBattleCameraPose pose = CurrentPose ?? throw new NotSupportedException("Native camera F3/F4 requires its actual current eye/target owner.");
-            NativeBattleCameraPoint origin = reference == 0xF3 ? pose.Eye : pose.Target;
-            int x = (graphicsFlags & 0x20) != 0 ? -point.X : point.X;
-            return new(unchecked((short)(origin.X + x)), unchecked((short)(origin.Y + point.Y)), unchecked((short)(origin.Z + point.Z)));
+            //50D9D0 clears all nine rotation WORDs, so these aliases contribute translation only.
+            return reference == 0xF3 ? pose.Eye : pose.Target;
         }
         return (inputs.TransformReference ?? throw new NotSupportedException($"Native camera reference{reference:X2} requires its current transform/bone owner."))(reference, point);
     }

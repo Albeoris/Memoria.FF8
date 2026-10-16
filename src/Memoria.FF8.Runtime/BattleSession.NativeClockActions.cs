@@ -60,7 +60,16 @@ public sealed partial class BattleSession
         {
             BeginNativeBattleActionPause();
         }
-        InterpretNativeAi(actor, callback);
+        byte? previousStage = nativeAiCallbackStage;
+        nativeAiCallbackStage = checked((byte)callback);
+        try
+        {
+            InterpretNativeAi(actor, callback);
+        }
+        finally
+        {
+            nativeAiCallbackStage = previousStage;
+        }
         if (paused)
         {
             QueueNativeActionClockCompletion(callback == 1 ? 0x47DE70u : 0x47DDA0u);

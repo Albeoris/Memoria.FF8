@@ -11,19 +11,23 @@ public sealed record NativeBattleSequenceState
     public byte Pending3 { get; init; }
     public byte Callback42 { get; init; }
     public byte Alternate43 { get; init; }
+    public short Header36 { get; init; }
+    public short Header38 { get; init; }
+    public short Header40 { get; init; }
     public ImmutableArray<short?> Locals { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public ImmutableArray<short?> Scratch { get; init; } = ImmutableArray.CreateRange(new short?[8]);
     public byte? Pose { get; init; }
     public byte PoseFlags109 { get; init; }
     public byte? PoseFrame114 { get; init; }
     public byte? PoseLimit115 { get; init; }
+    public NativeBattlePoseProgress? LinkedPose { get; init; }
     public byte? Geometry4 { get; init; }
     public byte? Geometry5 { get; init; }
     public uint MeshMask124 { get; init; } = uint.MaxValue;
 
     public void Validate()
     {
-        if (Locals.IsDefault || Locals.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || PoseFrame114 is byte frame && PoseLimit115 is byte limit && frame > limit)
+        if (Locals.IsDefault || Locals.Length != 8 || Scratch.IsDefault || Scratch.Length != 8 || PoseFrame114 is byte frame && PoseLimit115 is byte limit && frame > limit || LinkedPose is { } linked && linked.Frame > linked.Limit)
         {
             throw new InvalidDataException("Native sequence state has invalid local WORD owners or pose counter.");
         }
