@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Rendering;
 
@@ -90,7 +91,7 @@ public sealed partial class FieldRenderer
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null)
     {
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
@@ -170,6 +171,7 @@ public sealed partial class FieldRenderer
         {
             DrawCardMarkers(preparedActors, cardMarkers, elapsed);
         }
+        PrepareDrawPointParticles(drawPointParticles, drawPointParticleTables, drawPointDisplayMask, translucent);
         // Native45D080 draws opaque primitives before the translucent pass.
         // STP texels test the completed opaque/model depth without writing it.
         foreach (var primitive in translucent.OrderByDescending(primitive => primitive.Depth))

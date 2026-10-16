@@ -175,6 +175,8 @@ internal static partial class Program
                     ["native-drawpoint-source-byte"] = () => NativeDrawPointSourceByteContract(selectedGameDirectory),
                     ["native-menu-drawpoint-mask"] = () => NativeMenuDrawPointMaskContract(selectedGameDirectory),
                     ["native-drawpoint-no-eligible"] = () => NativeDrawPointNoEligibleContract(selectedGameDirectory),
+                    ["native-drawpoint-acquisition"] = () => NativeDrawPointAcquisitionContract(selectedGameDirectory),
+                    ["native-drawpoint-corpus"] = () => NativeDrawPointCorpusContract(selectedGameDirectory),
                     ["draw-point-allocated-byte"] = NativeDrawPointAllocatedByteContract,
                     ["music-position"] = () => NativeMusicPositionContract(selectedGameDirectory),
                     ["music-load"] = NativeMusicLoadContract,

@@ -26,6 +26,10 @@ public sealed partial class EventEngine
         {
             return null;
         }
+        if (DrawPointParticleTables is not null && Scene.NativeDrawPointParticles is null)
+        {
+            return "Native SETDRAWPOINT requires explicit migration of its absent current particle owner";
+        }
         ActorState actor = actors[fiber.ObjectId];
         FieldFixedPosition? raw = ReadNativeScriptPosition(actor);
         if (ReadDrawPointSourceByte() is null && (unchecked((byte)fiber.Stack.Peek()) & 1) == 0)
@@ -107,6 +111,7 @@ public sealed partial class EventEngine
         Scene.DrawPointEnabled = 1;
         Scene.DrawPointDisplayParameter = parameter;
         Scene.NativeDrawPointDisplayMask = effective;
+        Scene.NativeDrawPointParticles = Scene.NativeDrawPointParticles?.ResetAnchors(raw.X >> 12, raw.Y >> 12, raw.Z >> 12);
         // Unknown loader BooleanB88 can only be consumed when bit0 is already set.
         // A known source is sampled in this reset receipt, not copied as another bank owner.
         Scene.DrawPointReset = new NativeDrawPointReset(1, FieldId, fiber.ObjectId, fiber.Script.Id, fiber.Position - 1, Frame, raw, effective, Enumerable.Repeat(anchor, 8).ToArray(), source);
@@ -137,6 +142,7 @@ public sealed partial class EventEngine
     private void ValidateDrawPointCheckpoint(Checkpoint saved)
     {
         SceneEventState scene = saved.Scene;
+        scene.NativeDrawPointParticles?.Validate();
         if (scene.NativeDrawPointDisplayMask is > byte.MaxValue || scene.DrawPointEnabled != 0 && (scene.NativeDrawPointDisplayMask is null || (scene.NativeDrawPointDisplayMask.Value & scene.DrawPointDisplayParameter) != scene.DrawPointDisplayParameter))
         {
             throw new InvalidDataException("Saved active draw-point display lacks its current physical WORD1CDBFEA.");

@@ -246,6 +246,10 @@ public sealed class SceneEventState
     public NativeDrawPointInteraction? DrawPointInteraction { get; internal set; }
     [JsonInclude]
     public NativeDrawPointReset? DrawPointReset { get; internal set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeDrawPointParticles? NativeDrawPointParticles { get; internal set; }
     public Dictionary<int, BackgroundShade> BackgroundShades { get; } = [];
     public Dictionary<int, BackgroundShadeLoop> BackgroundShadeLoops { get; } = [];
     public Dictionary<int, DialogueWindow> DialogueWindows { get; } = [];

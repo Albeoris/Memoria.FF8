@@ -25,13 +25,52 @@ public static class NativeDrawPointCatalogReader
         }
         uint commonAddress = BinaryPrimitives.ReadUInt32LittleEndian(ReadAddress(0xB92324, 4));
         ReadOnlySpan<byte> common = ReadAddress(commonAddress, 320);
-        int start = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(common.Slice(28, 4)));
-        int end = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(common.Slice(32, 4)));
-        if (commonAddress != 0xB921E4 || BinaryPrimitives.ReadUInt32LittleEndian(common) != 36 || start < 36 || end <= start || end > common.Length || common[end - 1] != 0)
+        if (commonAddress != 0xB921E4 || BinaryPrimitives.ReadUInt32LittleEndian(common) != 36)
         {
-            throw new InvalidDataException("Original draw-point common message7 bounds are invalid.");
+            throw new InvalidDataException("Original draw-point common message bank header is invalid.");
         }
-        string text = FF8Encoding.CreateEuropean().GetString(common.Slice(start, end - start - 1));
+        FF8Encoding encoding = FF8Encoding.CreateEuropean();
+        ImmutableArray<string>.Builder messages = ImmutableArray.CreateBuilder<string>(8);
+        ImmutableArray<string>.Builder messageHashes = ImmutableArray.CreateBuilder<string>(8);
+        ImmutableArray<ImmutableArray<byte>>.Builder messageBytes = ImmutableArray.CreateBuilder<ImmutableArray<byte>>(8);
+        for (int id = 0; id < 8; id++)
+        {
+            int start = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(common.Slice(id * 4, 4)));
+            int end = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(common.Slice((id + 1) * 4, 4)));
+            if (start < 36 || end <= start || end > common.Length || common[end - 1] != 0)
+            {
+                throw new InvalidDataException($"Original draw-point common message{id} bounds are invalid.");
+            }
+            ReadOnlySpan<byte> bytes = common.Slice(start, end - start);
+            messages.Add(encoding.GetString(bytes[..^1]));
+            messageHashes.Add(Convert.ToHexString(SHA256.HashData(bytes)));
+            messageBytes.Add(ImmutableArray.CreateRange(bytes.ToArray()));
+        }
+        int magicStart = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(kernel.AsSpan(4 + 4 * 1)));
+        int magicEnd = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(kernel.AsSpan(4 + 4 * 2)));
+        int magicNameStart = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(kernel.AsSpan(4 + 4 * 32)));
+        int magicNameEnd = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(kernel.AsSpan(4 + 4 * 33)));
+        if (magicStart < 228 || magicEnd > kernel.Length || magicEnd - magicStart != 57 * 60 || magicNameStart < 228 || magicNameEnd > kernel.Length || magicNameEnd <= magicNameStart)
+        {
+            throw new InvalidDataException("Original magic rows and names require their kernel section1/32 bounds.");
+        }
+        ImmutableArray<string>.Builder magicNames = ImmutableArray.CreateBuilder<string>(57);
+        for (int id = 0; id < 57; id++)
+        {
+            ushort nameOffset = BinaryPrimitives.ReadUInt16LittleEndian(kernel.AsSpan(magicStart + id * 60));
+            if (nameOffset == ushort.MaxValue)
+            {
+                magicNames.Add(string.Empty);
+                continue;
+            }
+            int name = checked(magicNameStart + nameOffset);
+            int zero = name < magicNameEnd ? Array.IndexOf(kernel, (byte)0, name, magicNameEnd - name) : -1;
+            if (zero < 0)
+            {
+                throw new InvalidDataException($"Original magic{id} name is outside its kernel text section.");
+            }
+            magicNames.Add(encoding.GetString(kernel.AsSpan(name, zero - name)));
+        }
         int commandStart = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(kernel.AsSpan(4 + 4 * 12)));
         int commandEnd = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(kernel.AsSpan(8 + 4 * 12)));
         if (commandStart < 228 || commandEnd > kernel.Length || commandEnd - commandStart != 19 * 8)
@@ -39,7 +78,13 @@ public static class NativeDrawPointCatalogReader
             throw new InvalidDataException("Original command ability section12 requires nineteen8-byte records.");
         }
         ImmutableArray<byte> commands = Enumerable.Range(0, 19).Select(index => kernel[commandStart + index * 8 + 5]).ToImmutableArray();
-        NativeDrawPointCatalog catalog = new(executableHash, Convert.ToHexString(SHA256.HashData(kernel)), ReadAddress(0xB92328, 256).ToArray().ToImmutableArray(), commands, text, Convert.ToHexString(SHA256.HashData(common.Slice(start, end - start))));
+        NativeDrawPointCatalog catalog = new(executableHash, Convert.ToHexString(SHA256.HashData(kernel)), ReadAddress(0xB92328, 256).ToArray().ToImmutableArray(), commands, messages[7], messageHashes[7])
+        {
+            CommonMessages = messages.MoveToImmutable(),
+            CommonMessageHashes = messageHashes.MoveToImmutable(),
+            CommonMessageBytes = messageBytes.MoveToImmutable(),
+            MagicNames = magicNames.MoveToImmutable()
+        };
         catalog.Validate();
         return catalog;
     }

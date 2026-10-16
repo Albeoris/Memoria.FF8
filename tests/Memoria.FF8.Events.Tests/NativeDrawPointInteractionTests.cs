@@ -25,6 +25,8 @@ internal static partial class Program
                 session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
                 EventEngine engine = new(session)
                 {
+                    // Declared four-frame component metadata isolates the interaction from model-resource decoding.
+                    AnimationFrameCount = (_, _) => 4,
                     ReadNativeDrawPointCatalog = provider ? assets.ReadNativeDrawPointCatalog : null
                 };
                 engine.LoadField(74, content, [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);

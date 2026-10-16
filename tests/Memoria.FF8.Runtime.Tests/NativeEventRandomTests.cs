@@ -58,6 +58,31 @@ public sealed class NativeEventRandomTests
     }
 
     [Fact]
+    public void RenewableLastPackedPointRegeneratesAcrossMovementThresholdsAndRestore()
+    {
+        NativeEventRandomState live = NativeEventRandomState.FromColdProcess().ClearSavedStateForNewGame();
+        // Index254 is permanent state3; the adjacent renewable index255 starts at state2.
+        live = live with { DrawPoints = live.DrawPoints!.Write(179, 1, 0xB0) };
+        NativeEventRandomState restored = JsonSerializer.Deserialize<NativeEventRandomState>(JsonSerializer.Serialize(live))!;
+        int[] expectedPacked = [0xB0, 0xB0, 0x70, 0x30];
+        uint[] expectedRandom = [0x41C67EA6u, 0x967EB0E7u, 0x2781E494u, 0xC46B9B3Du];
+        for (int pass = 0; pass < expectedPacked.Length; pass++)
+        {
+            for (int callback = 0; callback < 2048; callback++)
+            {
+                live = live.AdvanceMovement(5);
+                restored = restored.AdvanceMovement(5);
+            }
+            Assert.Equal(expectedPacked[pass], live.DrawPoints!.Read(179, 1));
+            Assert.Equal(expectedRandom[pass], live.State);
+            Assert.Equal((ushort)0, live.DrawPoints.RegenerationCounter180);
+            Assert.Equal(live, restored);
+        }
+        Assert.Equal(live, live.AdvanceMovement(0));
+        Assert.All(live.DrawPoints!.Depletion.Take(63), value => Assert.Equal((byte)0, value));
+    }
+
+    [Fact]
     public void NativeWordWrapPrecedesThresholdAndResetDiscardsOvershoot()
     {
         NativeEventRandomState initial = NativeEventRandomState.FromColdProcess().ClearSavedStateForNewGame();

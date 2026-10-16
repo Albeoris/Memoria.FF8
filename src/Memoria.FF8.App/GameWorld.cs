@@ -65,6 +65,8 @@ internal sealed partial class GameWorld : IDisposable
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
+            Events.DrawPointParticleTables = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(assets.GameDirectory, "FF8_EN.exe")));
+            Events.ResolveNativeDrawPointDirection = FieldNativeScriptDirectionProbe.ResolveFacing;
         }
         if (initializedNativeParty)
         {
@@ -339,7 +341,7 @@ internal sealed partial class GameWorld : IDisposable
         shake.Validate();
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
-        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null);
+        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask);
         FieldColorComposite.Apply(pixels, fade.Draw);
         return pixels;
     }

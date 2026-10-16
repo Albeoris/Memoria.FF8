@@ -12,7 +12,8 @@ internal static partial class Program
     private static void NativeDrawPointSourceByteContract(string gameDirectory)
     {
         using GameAssets assets = new(gameDirectory);
-        byte[] Content(int mask) => SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, -1494), (Jsm.Opcode.PSHN_L, 670), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHM_B, 88), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHM_B, 88), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]]);
+        NativeDrawPointParticleTables particles = NativeDrawPointParticleTableReader.Read(File.ReadAllBytes(Path.Combine(gameDirectory, "FF8_EN.exe")));
+        byte[] Content(int mask) => SyntheticObjects([1], [[(Jsm.Opcode.LBL, 0), (Jsm.Opcode.RET, 8)], [(Jsm.Opcode.LBL, 1), (Jsm.Opcode.SETMODEL, 0), (Jsm.Opcode.PSHN_L, -1494), (Jsm.Opcode.PSHN_L, 670), (Jsm.Opcode.PSHN_L, 0), (Jsm.Opcode.SET3, 3), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHM_B, 88), (Jsm.Opcode.POPI_L, 3), (Jsm.Opcode.MENUNORMAL, 0), (Jsm.Opcode.PSHM_B, 88), (Jsm.Opcode.POPI_L, 4), (Jsm.Opcode.PSHN_L, mask), (Jsm.Opcode.SETDRAWPOINT, 0), (Jsm.Opcode.PSHN_L, 13), (Jsm.Opcode.Unknown16, 0), (Jsm.Opcode.PSHN_L, 8), (Jsm.Opcode.WAIT, 0), (Jsm.Opcode.RET, 8)]]);
 
         (GameSession Session, EventEngine Engine) Create(int mask = 0)
         {
@@ -22,8 +23,14 @@ internal static partial class Program
             session.InitializeNewGameEconomy(assets.ReadNewGameEconomy());
             session.InitializeNewGameShotAvailability(assets.ReadNewGameShotAvailability());
             session.InitializeNewGameInputConfiguration(assets.ReadNewGameInputConfiguration());
-            EventEngine engine = new(session);
+            EventEngine engine = new(session)
+            {
+                AnimationFrameCount = (_, _) => 4,
+                DrawPointParticleTables = particles
+            };
             engine.LoadField(74, Content(mask), [], nativeRuntimeProfile: NativeFieldRuntimeProfile.FF8En);
+            // Explicitly initialize this declared component's transient pool before ordinary script setup.
+            engine.RestartNativeDrawPointPresentationForMigration();
             return (session, engine);
         }
 

@@ -166,6 +166,7 @@ public sealed partial class EventEngine
         Scene.DrawPointIndex = previousScene.DrawPointIndex;
         //52BC00 clears dispatch bytes, not physical WORD1CDBFEA.
         Scene.NativeDrawPointDisplayMask = previousScene.NativeDrawPointDisplayMask;
+        InitializeNativeDrawPointParticles(previousScene, coldNativeCamera);
         Scene.SoundInitialization = previousScene.SoundInitialization;
         Scene.SoundStop = previousScene.SoundStop;
         Scene.SoundMusicVolume197 = previousScene.SoundMusicVolume197;
@@ -265,6 +266,7 @@ public sealed partial class EventEngine
             StepPartyMenu();
             return;
         }
+        ValidateNativeDrawPointCallback();
         if (!defaultsStarted)
         {
             //Diagnostic load transaction1 has no native callback: all entities
@@ -308,6 +310,7 @@ public sealed partial class EventEngine
         pendingNativePlayerInput = null;
         AdvanceNativeFieldCallbackClock();
         Frame++;
+        SampleNativeDrawPointParticlePalette();
         SampleFieldButtons();
         CompleteNativeBattleReturnBeforeVm();
         SampleMoviePlayback();
@@ -377,6 +380,7 @@ public sealed partial class EventEngine
                 StepFaceDirection(actor);
             }
             StepNativeModelParts();
+            StepNativeDrawPointParticles();
         }
         StepNativeMovieMask();
         bool movieUi = services.NativeMovieClockFlag ?? (services.IsMoviePlaying ? throw new NotSupportedException("Native UI requires its actual movie callback flag.") : false);

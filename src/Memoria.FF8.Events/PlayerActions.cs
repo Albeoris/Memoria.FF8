@@ -319,6 +319,7 @@ public sealed partial class EventEngine
 
     private void RecordDialogueOutcome(DialogueState dialogue, int? choice, string? name)
     {
+        RecordDrawPointChoice(dialogue, choice);
         DialogueOutcome outcome = new(FieldId, dialogue.ObjectId, dialogue.ScriptId, dialogue.Operation, Frame, dialogue.MessageId, choice, name, activeActionIndex ?? actionLog.Count);
         dialogueOutcomes.Add(outcome);
         DialogueCompleted?.Invoke(outcome);

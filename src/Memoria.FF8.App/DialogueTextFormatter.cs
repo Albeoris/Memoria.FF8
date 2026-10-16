@@ -88,6 +88,10 @@ internal static partial class DialogueTextFormatter
                 case "Term":
                     Append(TermName(ParseEnum<TextTagTerm>(parameter, kind)));
                     break;
+                case "Key" when parameter == "65":
+                    // Native common message4 uses key65 for the junctioned-magic J marker.
+                    Append("J");
+                    break;
                 default:
                     // Preserve unrelated placeholders until their owning UI supplies a presentation contract.
                     Append(match.Value);
