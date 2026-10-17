@@ -6,6 +6,36 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayControllerTests
 {
     [Fact]
+    public void PresentationFailureStopsTheControllerAndPreservesItsCurrentStandaloneState()
+    {
+        using TestRun run = new();
+        AutoPlayController controller = run.Create(() => throw new InvalidOperationException("Capture unavailable."));
+        controller.Start();
+        controller.State.Steps = 17;
+        controller.ReportHostFailure(new InvalidDataException("Synthetic rasterizer fault."));
+        Assert.False(controller.Running);
+        Assert.Contains("Synthetic rasterizer fault.", controller.Error);
+        Assert.NotNull(controller.ReproductionPath);
+        AutoPlayRunState saved = ReadManifest(controller.ReproductionPath);
+        Assert.Equal(17, saved.Steps);
+        Assert.Equal(74, GameSession.Load(Path.Combine(Path.GetDirectoryName(controller.ReproductionPath)!, saved.Snapshot!)).FieldId);
+    }
+
+    [Fact]
+    public void IdleDeadlineFailsAtTenSecondsAndCanBeResetWithoutSleeping()
+    {
+        using TestRun run = new();
+        ManualClock clock = new();
+        AutoPlayController controller = new(run.Session, () => throw new InvalidOperationException(), run.Session.Restore, run.Directory, deadlineTime: clock);
+        clock.Advance(TimeSpan.FromMilliseconds(9999));
+        controller.CheckIdleDeadline();
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.Throws<TimeoutException>(controller.CheckIdleDeadline);
+        controller.ResetIdleDeadline();
+        controller.CheckIdleDeadline();
+    }
+
+    [Fact]
     public void EndingRequiresTheExplicitTerminalSceneMovieAndHaltedEntryScript()
     {
         GameState ending = new() { Scene = SceneKind.Field, FieldId = 76, MovieSource = new NativeMovieSource(3, 5), MoviePlayback = new MoviePlaybackState(100, 100, false, true, false) };

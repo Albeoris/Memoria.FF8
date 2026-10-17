@@ -5,6 +5,50 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayPlannerTests
 {
     [Fact]
+    public void Optional_phase_policy_finishes_known_city_frontiers_before_an_untried_world_cavern()
+    {
+        AutoPlayPlanner planner = new(phaseOrder: (visit, item) => visit.Region == "city" ? 10 : item.Order);
+        planner.Observe(new("world", "world"), [new("city", AutoPlayEventKind.Transition, "city", Order: 10), new("cavern", AutoPlayEventKind.Transition, Order: 20)]);
+        planner.Completed("world", "city");
+        planner.Observe(new("city", "city"), [new("side-room", AutoPlayEventKind.Interaction)]);
+        AutoPlayPlanStep next = planner.Plan("world")!;
+        Assert.Equal("city", next.Event.Id);
+        Assert.True(next.IsTravel);
+        planner.Completed("city", "side-room");
+        Assert.Equal("cavern", planner.Plan("world")!.Event.Id);
+    }
+
+    [Fact]
+    public void Story_deferral_precedes_optional_phase_priority()
+    {
+        AutoPlayPlanner planner = new(phaseOrder: (_, item) => item.ChangesStory ? -100 : 100);
+        planner.Observe(new("room", "region"), [new("story", AutoPlayEventKind.Interaction, ChangesStory: true), new("talk", AutoPlayEventKind.Interaction)]);
+        Assert.Equal("talk", planner.Plan("room")!.Event.Id);
+    }
+
+    [Fact]
+    public void Known_regional_interactions_finish_before_an_untried_exit_at_the_current_gate()
+    {
+        AutoPlayPlanner planner = new();
+        planner.Observe(new("gate", "garden"), [new("world-exit", AutoPlayEventKind.Transition), new("hall", AutoPlayEventKind.Transition, "hall")]);
+        planner.Completed("gate", "hall");
+        planner.Observe(new("hall", "garden"), [new("talk", AutoPlayEventKind.Interaction)]);
+        AutoPlayPlanStep next = planner.Plan("gate")!;
+        Assert.Equal("hall", next.Event.Id);
+        Assert.True(next.IsTravel);
+        planner.Completed("hall", "talk");
+        Assert.Equal("world-exit", planner.Plan("gate")!.Event.Id);
+    }
+
+    [Fact]
+    public void Explicit_event_order_can_override_the_default_interaction_before_exit_preference()
+    {
+        AutoPlayPlanner planner = new();
+        planner.Observe(new("gate", "garden"), [new("exit", AutoPlayEventKind.Transition, Order: -1), new("talk", AutoPlayEventKind.Interaction)]);
+        Assert.Equal("exit", planner.Plan("gate")!.Event.Id);
+    }
+
+    [Fact]
     public void Observed_script_transition_becomes_a_travel_edge_even_when_destination_was_dynamic()
     {
         AutoPlayPlanner planner = new();

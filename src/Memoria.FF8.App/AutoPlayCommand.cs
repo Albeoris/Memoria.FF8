@@ -71,7 +71,15 @@ internal static class AutoPlayCommand
             long lastReport = Environment.TickCount64;
             while (controller.Running)
             {
-                resources.Pump();
+                try
+                {
+                    resources.Pump();
+                }
+                catch (Exception exception)
+                {
+                    controller.ReportHostFailure(exception);
+                    break;
+                }
                 controller.Advance(4096);
                 if (maxSteps is long limit && controller.State.Steps >= limit)
                 {

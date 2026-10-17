@@ -10,13 +10,13 @@ public sealed record ScriptedInputMetadata(string Fingerprint, IReadOnlyList<int
 public sealed partial class EventEngine
 {
     /// <summary>Read-only descriptions of original key queries in active scripts. Masks are raw physical inputs for FieldButtons.</summary>
-    public ScriptedInputMetadata? DiscoverScriptedInput()
+    public ScriptedInputMetadata? DiscoverScriptedInput(int? objectId = null)
     {
         if (program is null || transitionRequested)
         {
             return null;
         }
-        Fiber[] active = fibers.Where(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt).OrderBy(fiber => fiber.ObjectId).ThenBy(fiber => fiber.Script.Id).ThenBy(fiber => fiber.Position).ToArray();
+        Fiber[] active = fibers.Where(fiber => !fiber.Complete && fiber.WaitReason != WaitReason.NativeHalt && (objectId is null || fiber.ObjectId == objectId.Value)).OrderBy(fiber => fiber.ObjectId).ThenBy(fiber => fiber.Script.Id).ThenBy(fiber => fiber.Position).ToArray();
         List<ScriptedInputQuery> queries = [];
         HashSet<int> masks = [];
         HashSet<EventScript> queryOwners = [];

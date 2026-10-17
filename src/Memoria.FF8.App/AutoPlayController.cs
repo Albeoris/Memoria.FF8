@@ -30,10 +30,13 @@ internal sealed class AutoPlayRunState
     public string? Error { get; set; }
     public bool ReachedEnding { get; set; }
     public Dictionary<string, int> ScriptedInputs { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, ScriptedInputMetadata> ScriptedChoiceInputs { get; set; } = new(StringComparer.Ordinal);
     public int ScriptedInputSteps { get; set; }
     public Dictionary<string, int> DialogueSelections { get; set; } = new(StringComparer.Ordinal);
     public long LastProgressStep { get; set; }
     public int LastProgressScore { get; set; }
+    public HashSet<string> ObservedScenes { get; set; } = new(StringComparer.Ordinal);
+    public HashSet<string> ObservedMessages { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>The graphics host and command line drive this same autonomous, deterministic controller.</summary>
@@ -45,20 +48,35 @@ internal sealed class AutoPlayController
     private readonly Action<GameState> restore;
     private readonly string outputDirectory;
     private readonly TimeProvider time;
+    private readonly TimeProvider deadlineTime;
     private long lastSave;
     private AutoPlayRunState run = new();
     private AutoPlayPlanner planner = new();
     private GameState? beforeStep;
     private string? beforeController;
     private string? runDirectory;
+    private long lastProgressTimestamp;
+    private readonly HashSet<GameWorld> watchedWorlds = [];
+    private bool advancing;
+    internal static readonly TimeSpan MaximumIdleTime = TimeSpan.FromSeconds(10);
 
-    public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null)
+    public AutoPlayController(GameSession session, Func<GameWorld> getWorld, Action<GameState> restore, string outputDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null)
     {
         this.session = session;
-        this.getWorld = getWorld;
+        this.getWorld = () =>
+        {
+            GameWorld world = getWorld();
+            if (advancing && watchedWorlds.Add(world))
+            {
+                world.Events.OperationCompleted += CheckIdleDeadline;
+            }
+            return world;
+        };
         this.restore = restore;
         this.outputDirectory = Path.GetFullPath(outputDirectory);
         this.time = time ?? TimeProvider.System;
+        this.deadlineTime = deadlineTime ?? TimeProvider.System;
+        ResetIdleDeadline();
     }
 
     public bool Running { get; private set; }
@@ -75,7 +93,7 @@ internal sealed class AutoPlayController
         cold.StartNewGame();
         restore(cold.State);
         run = new();
-        planner = new(run.Coverage);
+        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order));
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff"));
         Directory.CreateDirectory(runDirectory);
         Running = true;
@@ -84,6 +102,7 @@ internal sealed class AutoPlayController
         ReproductionPath = null;
         lastSave = time.GetTimestamp();
         Status = "Starting New Game; seed 1.";
+        ResetIdleDeadline();
         // This initial standalone also reproduces field allocation failures.
         SaveBundle("start", cold.State);
     }
@@ -104,6 +123,7 @@ internal sealed class AutoPlayController
         {
             Running = true;
             Paused = false;
+            ResetIdleDeadline();
         }
     }
 
@@ -123,6 +143,25 @@ internal sealed class AutoPlayController
     public void ReplayFailure()
     {
         ResumeFrom(ReproductionPath ?? throw new InvalidOperationException("No failure reproduction has been saved."));
+    }
+
+    public void ReportHostFailure(Exception exception)
+    {
+        if (!Running)
+        {
+            return;
+        }
+        beforeController = JsonSerializer.Serialize(run, JsonOptions);
+        beforeStep = session.State;
+        try
+        {
+            beforeStep = CaptureState();
+        }
+        catch
+        {
+            // Retain the last serializable session if presentation also prevents capture.
+        }
+        Fail(exception);
     }
 
     public void ResumeFrom(string manifest)
@@ -153,7 +192,7 @@ internal sealed class AutoPlayController
         run = saved;
         run.Error = null;
         run.LastProgressStep = run.Steps;
-        planner = new(run.Coverage);
+        planner = new(run.Coverage, (visit, item) => AutoPlayTraversalPolicy.PhaseOrder(visit.Region, item.Order));
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
         Directory.CreateDirectory(runDirectory);
         Running = true;
@@ -162,6 +201,7 @@ internal sealed class AutoPlayController
         ReproductionPath = manifest;
         lastSave = time.GetTimestamp();
         Status = $"Resumed at step {run.Steps}.";
+        ResetIdleDeadline();
         SaveBundle("resume-start", session.State);
     }
 
@@ -178,16 +218,19 @@ internal sealed class AutoPlayController
         {
             try
             {
+                advancing = true;
                 beforeStep = session.State;
                 beforeController = JsonSerializer.Serialize(run, JsonOptions);
                 beforeStep = CaptureState();
+                CheckIdleDeadline();
                 Tick();
                 run.Steps++;
-                int score = run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
+                int score = run.ObservedScenes.Count + run.ObservedMessages.Count + run.Coverage.Visits.Count + run.Coverage.Choices.Count + run.Coverage.Visits.Sum(visit => visit.Events.Count(item => item.Completed)) + run.Coverage.Choices.Sum(choice => choice.CompletedOptions.Count);
                 if (score != run.LastProgressScore)
                 {
                     run.LastProgressScore = score;
                     run.LastProgressStep = run.Steps;
+                    ResetIdleDeadline();
                 }
                 else if (Running && run.Steps - run.LastProgressStep > 10000)
                 {
@@ -203,10 +246,32 @@ internal sealed class AutoPlayController
             {
                 Fail(exception);
             }
+            finally
+            {
+                advancing = false;
+                foreach (GameWorld watched in watchedWorlds)
+                {
+                    watched.Events.OperationCompleted -= CheckIdleDeadline;
+                }
+                watchedWorlds.Clear();
+            }
             if (Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(12))
             {
                 break;
             }
+        }
+    }
+
+    internal void ResetIdleDeadline()
+    {
+        lastProgressTimestamp = deadlineTime.GetTimestamp();
+    }
+
+    internal void CheckIdleDeadline()
+    {
+        if (deadlineTime.GetElapsedTime(lastProgressTimestamp) >= MaximumIdleTime)
+        {
+            throw new TimeoutException("Automatic play made no new scene, dialogue, event or branch progress for 10 seconds. The pre-failure state is preserved.");
         }
     }
 
@@ -231,6 +296,19 @@ internal sealed class AutoPlayController
     {
         GameWorld world = getWorld();
         world.EnsureField();
+        if (!world.Events.IsUserControlEnabled && run.ActiveEvent is not null)
+        {
+            run.ObservedControlLoss = true;
+        }
+        bool observedProgress = run.ObservedScenes.Add($"{session.State.Scene}:{VisitKey()}:{(session.State.Scene == SceneKind.Movie ? session.State.MovieIndex : -1)}");
+        if (world.CurrentDialogue is { } observed)
+        {
+            observedProgress |= run.ObservedMessages.Add($"{VisitKey()}:{observed.ObjectId}:{observed.ScriptId}:{observed.Operation}:{observed.MessageId}");
+        }
+        if (observedProgress)
+        {
+            ResetIdleDeadline();
+        }
         if (world.Events.LastFault is { } fault)
         {
             throw new EventScriptException(fault.Message);
@@ -270,7 +348,7 @@ internal sealed class AutoPlayController
         if (world.Events.PartyMenu is not null)
         {
             run.SettleFrames = 0;
-            Apply(new(PlayerActionKind.Cancel));
+            Apply(GameWorld.PlanAutoPlayPartyInput(world.Events.PartyMenu));
             return;
         }
         if (session.State.Scene == SceneKind.WorldMap)
@@ -283,31 +361,15 @@ internal sealed class AutoPlayController
             world.AdvanceAutoPlayInputFrame();
             return;
         }
-        if (!world.Events.IsUserControlEnabled && world.Events.DiscoverScriptedInput() is { Masks.Count: > 0 } input)
+        if (world.Events.IsUserControlEnabled && run.ActiveField == session.State.FieldId && world.Events.HasPendingPlayerInteraction(run.ActiveObjectId) && world.Events.DiscoverScriptedInput(run.ActiveObjectId) is { Masks.Count: > 0 } controlledInput)
         {
-            bool queried = false;
-            void ObserveQuery(ScriptCommand command)
-            {
-                queried |= command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON";
-            }
-            world.Events.CommandExecuted += ObserveQuery;
-            try
-            {
-                world.AdvanceAutoPlayInputFrame();
-            }
-            finally
-            {
-                world.Events.CommandExecuted -= ObserveQuery;
-            }
-            if (queried && session.State.Scene == SceneKind.Field && session.State.FieldId == world.Events.FieldId && world.CurrentDialogue is not { CanConfirm: true } && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null)
-            {
-                DriveScriptedInput(world.Events.DiscoverScriptedInput() ?? input);
-            }
+            DriveWhenQueried(controlledInput, true, run.ActiveObjectId);
             return;
         }
-        if (!world.Events.IsUserControlEnabled && run.ActiveEvent is not null)
+        if (!world.Events.IsUserControlEnabled && world.Events.DiscoverScriptedInput() is { Masks.Count: > 0 } input)
         {
-            run.ObservedControlLoss = true;
+            DriveWhenQueried(input, false, null);
+            return;
         }
         if (world.NextTrigger.Kind != PlayerTriggerKind.Playable || !world.Events.IsUserControlEnabled || !run.ObservedControlLoss && run.ActiveField == session.State.FieldId && world.Events.HasPendingPlayerInteraction(run.ActiveObjectId))
         {
@@ -412,7 +474,30 @@ internal sealed class AutoPlayController
         }
     }
 
-    private void DriveScriptedInput(ScriptedInputMetadata input)
+    private void DriveWhenQueried(ScriptedInputMetadata input, bool allowControlled, int? objectId)
+    {
+        GameWorld world = getWorld();
+        bool queried = false;
+        void ObserveQuery(ScriptCommand command)
+        {
+            queried |= command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && (objectId is null || command.ObjectId == objectId);
+        }
+        world.Events.CommandExecuted += ObserveQuery;
+        try
+        {
+            world.AdvanceAutoPlayInputFrame();
+        }
+        finally
+        {
+            world.Events.CommandExecuted -= ObserveQuery;
+        }
+        if (queried && session.State.Scene == SceneKind.Field && session.State.FieldId == world.Events.FieldId && world.CurrentDialogue is not { CanConfirm: true } && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null)
+        {
+            DriveScriptedInput(world.Events.DiscoverScriptedInput(objectId) ?? input, allowControlled);
+        }
+    }
+
+    private void DriveScriptedInput(ScriptedInputMetadata input, bool allowControlled)
     {
         if (++run.ScriptedInputSteps > 10000)
         {
@@ -421,6 +506,7 @@ internal sealed class AutoPlayController
         int attempt = run.ScriptedInputs.GetValueOrDefault(input.Fingerprint);
         run.ScriptedInputs[input.Fingerprint] = attempt + 1;
         string key = $"input:{session.State.FieldId}:{input.Fingerprint}";
+        run.ScriptedChoiceInputs.TryAdd(key, input);
         planner.ObserveChoice(key, input.Masks.Count);
         AutoPlayChoiceCoverage choice = run.Coverage.Choices.Single(item => item.Key == key);
         int selection = attempt % input.Masks.Count;
@@ -439,15 +525,15 @@ internal sealed class AutoPlayController
                 run.SceneChoices.Add(key);
             }
         }
-        PulseScriptedInput(input.Masks[selection]);
+        PulseScriptedInput(input.Masks[selection], input, allowControlled);
     }
 
-    private void PulseScriptedInput(int mask)
+    private void PulseScriptedInput(int mask, ScriptedInputMetadata input, bool allowControlled)
     {
         Apply(new(PlayerActionKind.FieldButtons, 0));
         GameWorld world = getWorld();
         int field = session.State.FieldId;
-        bool HasOwner() => session.State.Scene == SceneKind.Field && session.State.FieldId == field && !world.Events.IsUserControlEnabled && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null && world.Events.PartyMenu is null;
+        bool HasOwner() => session.State.Scene == SceneKind.Field && session.State.FieldId == field && (allowControlled || !world.Events.IsUserControlEnabled) && world.Events.Scene.NativeTutorial is null && world.Events.Scene.NativeMenuTutorial is null && world.Events.PartyMenu is null;
         for (int release = 0; release < 2 && HasOwner(); release++)
         {
             world.AdvanceAutoPlayInputFrame();
@@ -459,19 +545,31 @@ internal sealed class AutoPlayController
         bool sampled = false;
         void Observe(ScriptCommand command)
         {
-            if (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1)
+            if (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1 && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation))
             {
-                int value = command.Name == "KEYSCAN2" ? mask : session.State.InputConfiguration!.Map((ushort)mask);
+                NativeFieldButtonInput buttons = session.State.FieldButtonInput!;
+                int value = command.Name == "KEYSCAN2" ? buttons.RawHeld : command.Name == "KEYON" ? buttons.Pressed ?? 0 : buttons.Held ?? 0;
                 sampled |= (command.Arguments[0] & value) != 0;
             }
         }
         world.Events.CommandExecuted += Observe;
-        Apply(new(PlayerActionKind.FieldButtons, mask));
         try
         {
-            for (int callback = 0; callback < 120 && HasOwner() && !sampled; callback++)
+            for (int hold = 1, callbacks = 0; callbacks < 256 && HasOwner() && !sampled; hold++)
             {
+                Apply(new(PlayerActionKind.FieldButtons, 0));
                 world.AdvanceAutoPlayInputFrame();
+                callbacks++;
+                if (!HasOwner())
+                {
+                    break;
+                }
+                Apply(new(PlayerActionKind.FieldButtons, mask));
+                for (int held = 0; held < hold && callbacks < 256 && HasOwner() && !sampled; held++)
+                {
+                    world.AdvanceAutoPlayInputFrame();
+                    callbacks++;
+                }
             }
         }
         finally
@@ -616,8 +714,8 @@ internal sealed class AutoPlayController
                 if (choice.Key.StartsWith("input:", StringComparison.Ordinal))
                 {
                     getWorld().EnsureField();
-                    ScriptedInputMetadata input = getWorld().Events.DiscoverScriptedInput() ?? throw new InvalidDataException("The saved scripted input owner is missing.");
-                    PulseScriptedInput(input.Masks[selection]);
+                    ScriptedInputMetadata input = RestoreScriptedChoiceInput(choice);
+                    PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled);
                 }
                 else
                 {
@@ -630,6 +728,54 @@ internal sealed class AutoPlayController
         restore(GameSession.Load(Path.Combine(runDirectory!, run.PrimaryContinuation)));
         run.PrimaryContinuation = null;
         return true;
+    }
+
+    private ScriptedInputMetadata RestoreScriptedChoiceInput(AutoPlayChoiceCoverage choice)
+    {
+        if (run.ScriptedChoiceInputs.TryGetValue(choice.Key, out ScriptedInputMetadata? saved))
+        {
+            if (saved.Masks.Count != choice.OptionCount || saved.Queries.Count == 0)
+            {
+                throw new InvalidDataException("The saved scripted choice metadata does not match its alternatives.");
+            }
+            return saved;
+        }
+        GameWorld world = getWorld();
+        int field = session.State.FieldId;
+        int? source = run.ActiveField == field && run.ActiveObjectId >= 0 ? run.ActiveObjectId : null;
+        // Older manifests may precede retained query metadata. Continuous contact scripts can be between callbacks at the saved boundary.
+        ScriptedInputMetadata? recovered = null;
+        void ObserveQuery(ScriptCommand command)
+        {
+            if (command.Name is not ("KEYSCAN" or "KEYSCAN2" or "KEYON") || source is not null && command.ObjectId != source)
+            {
+                return;
+            }
+            ScriptedInputMetadata? input = world.Events.DiscoverScriptedInput(source);
+            if (input is not null && $"input:{field}:{input.Fingerprint}" == choice.Key && input.Masks.Count == choice.OptionCount)
+            {
+                recovered = input;
+            }
+        }
+        world.Events.CommandExecuted += ObserveQuery;
+        try
+        {
+            for (int callback = 0; callback < 256 && recovered is null && session.State.Scene == SceneKind.Field && session.State.FieldId == field; callback++)
+            {
+                CheckIdleDeadline();
+                world.AdvanceAutoPlayInputFrame();
+            }
+        }
+        finally
+        {
+            world.Events.CommandExecuted -= ObserveQuery;
+        }
+        if (recovered is not null)
+        {
+            run.ScriptedChoiceInputs.Add(choice.Key, recovered);
+            return recovered;
+        }
+        throw new InvalidDataException("The saved scripted input query cannot be recovered from the original callbacks.");
     }
 
     private int ContinuationFrontier()

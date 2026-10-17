@@ -59,11 +59,14 @@ internal sealed class AutoPlayPlannerState
 /// <summary>A deterministic frontier planner. Visit keys include the adapter's relevant story-state fingerprint.</summary>
 internal sealed class AutoPlayPlanner
 {
+    private readonly Func<AutoPlayVisit, AutoPlayEvent, int> phaseOrder;
+
     public AutoPlayPlannerState State { get; }
 
-    public AutoPlayPlanner(AutoPlayPlannerState? state = null)
+    public AutoPlayPlanner(AutoPlayPlannerState? state = null, Func<AutoPlayVisit, AutoPlayEvent, int>? phaseOrder = null)
     {
         State = state ?? new AutoPlayPlannerState();
+        this.phaseOrder = phaseOrder ?? ((_, _) => 0);
     }
 
     public void Observe(AutoPlayVisit visit, IReadOnlyList<AutoPlayEvent> events)
@@ -141,11 +144,12 @@ internal sealed class AutoPlayPlanner
         }
         var candidates = routes.Keys.SelectMany(key => OrderedEvents(FindVisit(key)).Where(item => !item.Completed).Select(item => new { Visit = FindVisit(key), Coverage = item }));
         var selected = candidates.OrderBy(item => item.Coverage.Event.ChangesStory)
+            .ThenBy(item => phaseOrder(item.Visit.Visit, item.Coverage.Event))
             .ThenBy(item => item.Visit.Visit.Region != current.Visit.Region)
             .ThenBy(item => item.Coverage.Event.Order)
+            .ThenBy(item => item.Coverage.Event.Kind)
             .ThenBy(item => distances[item.Visit.Visit.Key])
             .ThenBy(item => item.Visit.Visit.Key, StringComparer.Ordinal)
-            .ThenBy(item => item.Coverage.Event.Kind)
             .ThenBy(item => item.Coverage.Event.Id, StringComparer.Ordinal)
             .FirstOrDefault();
         if (selected is null)

@@ -43,7 +43,7 @@ internal sealed partial class RecreateGame
                     gameMenus!.Close();
                     break;
                 case "stop":
-                    autoPlay.Stop();
+                    autoPlay.SaveAndStop();
                     autoPlayFailureHeld = false;
                     break;
                 case "load-reproduction":
@@ -82,6 +82,7 @@ internal sealed partial class RecreateGame
         }
         if (keyboard.DebugRoomRequested || gameMenus?.IsOpen == true)
         {
+            autoPlay?.ResetIdleDeadline();
             UpdateGameUi(gameTime.ElapsedGameTime, input, hostOnly: true);
             return true;
         }
@@ -111,11 +112,20 @@ internal sealed partial class RecreateGame
         }
     }
 
+    private void ReportAutoPlayHostFailure(Exception exception)
+    {
+        if (autoPlay?.Running == true)
+        {
+            autoPlay.ReportHostFailure(exception);
+            ShowAutoPlayFailure();
+        }
+    }
+
     private void DrawAutoPlayStatus(Rectangle bounds)
     {
         if (autoPlay?.Running == true && gameMenus?.IsOpen != true)
         {
-            DrawNoticeUi(bounds, "Automatic play · " + autoPlay.Status + " · Open Debug Room to pause or stop.", false);
+            DrawNoticeUi(bounds, "Auto · " + autoPlay.Status, false);
         }
     }
 }

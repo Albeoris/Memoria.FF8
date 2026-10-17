@@ -92,7 +92,7 @@ internal sealed partial class GameWorld
             for (int index = 0; index < events.InfGateways.Count; index++)
             {
                 InfGateway gateway = events.InfGateways[index];
-                if (gateway.Destination.FieldId != 0x7FFF && (gateway.Destination.FieldId < 72 || gateway.Destination.Triangle is >= 0 and < 0x7FFF))
+                if (gateway.Destination.FieldId != 0x7FFF && (gateway.Destination.FieldId < 72 || gateway.Destination.Triangle is >= 0 and < 0x7FFF) && AutoPlayTraversalPolicy.CanEnterField(field.Id, gateway.Destination.FieldId, events.Variables.GetValueOrDefault(256), events.ExamTimer))
                 {
                     AddSegment($"gateway:{index}", AutoPlayTargetKind.Gateway, gateway.Start, gateway.End, -1, [], gateway.Destination.FieldId);
                 }
@@ -181,6 +181,10 @@ internal sealed partial class GameWorld
         return AutoPlayScriptClosure(program, script).Any(index =>
         {
             JsmOperation operation = program.Operations[index];
+            if (operation.Opcode == Jsm.Opcode.CLEAR)
+            {
+                return true;
+            }
             int width = operation.Opcode switch { Jsm.Opcode.POPM_B => 1, Jsm.Opcode.POPM_W => 2, Jsm.Opcode.POPM_L => 4, _ => 0 };
             // The canonical global story progress occupies the two bytes at 256.
             return width > 0 && operation.Parameter < 258 && operation.Parameter + width > 256;
@@ -216,15 +220,21 @@ internal sealed partial class GameWorld
                     continue;
                 }
                 JsmOperation operation = program.Operations[index];
-                if (operation.Opcode is not (Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW) || (uint)operation.Parameter >= program.NativeObjects.Count)
+                bool partyRequest = operation.Opcode is Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW;
+                bool objectRequest = operation.Opcode is Jsm.Opcode.REQ or Jsm.Opcode.REQSW or Jsm.Opcode.REQEW;
+                if (!partyRequest && !objectRequest || partyRequest && (uint)operation.Parameter >= 3 || objectRequest && (uint)operation.Parameter >= program.NativeObjects.Count)
                 {
                     continue;
                 }
-                EventObject target = program.Objects[program.NativeObjects[operation.Parameter]];
-                int? label = index >= 1 && program.Operations[index - 1].Opcode == Jsm.Opcode.PSHN_L ? program.Operations[index - 1].Parameter : null;
-                foreach (EventScript requested in target.Scripts.Where(item => label is null || item.Id == unchecked((ushort)label.Value)))
+                // Party requests select a local script index on the execution-time bound actor, not a global script label.
+                IEnumerable<EventObject> targets = partyRequest ? program.NativeObjects.Take(program.NativeActorCount).Select(objectId => program.Objects[objectId]) : [program.Objects[program.NativeObjects[operation.Parameter]]];
+                int? selector = index >= 1 && program.Operations[index - 1].Opcode == Jsm.Opcode.PSHN_L ? program.Operations[index - 1].Parameter : null;
+                foreach (EventObject target in targets)
                 {
-                    pending.Enqueue(requested);
+                    foreach (EventScript requested in target.Scripts.Where((item, local) => selector is null || (partyRequest ? local == selector.Value : item.Id == unchecked((ushort)selector.Value))))
+                    {
+                        pending.Enqueue(requested);
+                    }
                 }
             }
         }

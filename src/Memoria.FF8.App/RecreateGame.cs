@@ -106,11 +106,16 @@ internal sealed partial class RecreateGame : Game
     {
         autoPlayAdvancedThisFrame = false;
         ApplyDisplaySettings();
-        resourceHost?.Pump();
-        gameMenus?.RefreshModView();
         try
         {
+            resourceHost?.Pump();
+            gameMenus?.RefreshModView();
             UpdateDisplayFrame(gameTime);
+        }
+        catch (Exception exception) when (autoPlay?.Running == true)
+        {
+            ReportAutoPlayHostFailure(exception);
+            Console.Error.WriteLine(exception);
         }
         finally
         {
@@ -996,6 +1001,7 @@ internal sealed partial class RecreateGame : Game
                 error = exception.Message;
                 fieldFaulted = true;
                 fieldRenderFaulted = true;
+                ReportAutoPlayHostFailure(exception);
                 Console.Error.WriteLine(exception);
             }
         }

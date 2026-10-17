@@ -7,6 +7,45 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayAcceptanceTests
 {
     [Fact]
+    public void ScriptedChoiceReplayRecoversAContactOwnerBetweenNativeCallbacks()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.2");
+        using InstalledRun run = new(gameDirectory);
+        run.Controller.ResumeFrom(manifest);
+        long before = run.Controller.State.Steps;
+        run.Controller.Advance(1);
+        Assert.Null(run.Controller.Error);
+        Assert.Equal(before + 1, run.Controller.State.Steps);
+        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key.StartsWith("input:", StringComparison.Ordinal));
+        Assert.Equal(1, choice.ActiveOption);
+        Assert.Contains(0, choice.CompletedOptions);
+        Assert.True(run.Controller.State.ScriptedChoiceInputs.ContainsKey(choice.Key));
+    }
+
+    [Fact]
+    public void TenSecondDeadlinePreservesAStandaloneFailureAndReplayResetsTheDeadline()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        ManualClock clock = new();
+        using InstalledRun run = new(gameDirectory, deadlineTime: clock);
+        run.Controller.Start();
+        clock.Advance(TimeSpan.FromSeconds(10));
+        run.Controller.Advance(1);
+        Assert.False(run.Controller.Running);
+        Assert.Contains("10 seconds", run.Controller.Error);
+        Assert.NotNull(run.Controller.ReproductionPath);
+        AutoPlayRunState saved = JsonSerializer.Deserialize<AutoPlayRunState>(File.ReadAllText(run.Controller.ReproductionPath), AutoPlayController.JsonOptions)!;
+        GameState snapshot = GameSession.Load(Path.Combine(Path.GetDirectoryName(run.Controller.ReproductionPath)!, saved.Snapshot!));
+        Assert.Equal(74, snapshot.FieldId);
+        run.Controller.ReplayFailure();
+        run.Pump();
+        run.Controller.Advance(1);
+        Assert.Null(run.Controller.Error);
+        Assert.True(run.Controller.Running);
+    }
+
+    [Fact]
     public void ExhaustedNestedChoiceUsesItsBackOptionWhileParentAlternativeIsActive()
     {
         string gameDirectory = TestResources.GameDirectory;
@@ -115,11 +154,11 @@ public sealed class AutoPlayAcceptanceTests
         private readonly string outputDirectory = Path.Combine(Path.GetTempPath(), "ff8-autoplay-acceptance-" + Guid.NewGuid().ToString("N"));
         private GameWorld? world;
 
-        public InstalledRun(string gameDirectory, TimeProvider? time = null)
+        public InstalledRun(string gameDirectory, TimeProvider? time = null, TimeProvider? deadlineTime = null)
         {
             this.gameDirectory = gameDirectory;
             resources = new GameResourceHost(gameDirectory, watch: false);
-            Controller = new AutoPlayController(session, GetWorld, Restore, outputDirectory, time);
+            Controller = new AutoPlayController(session, GetWorld, Restore, outputDirectory, time, deadlineTime);
         }
 
         public AutoPlayController Controller { get; }

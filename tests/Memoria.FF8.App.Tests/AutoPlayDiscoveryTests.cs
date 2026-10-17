@@ -10,6 +10,21 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayDiscoveryTests
 {
+    [Fact]
+    public void CavernDiscoveryKeepsTheGuardInteractionBeforeTheUnpreparedExamEntrance()
+    {
+        string directory = TestResources.GameDirectory;
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.AutoPlayDiscoveryTests.9")));
+        using var world = new GameWorld(session, directory);
+        world.EnsureField();
+        Assert.Equal(129, session.State.FieldId);
+        Assert.False(session.State.ExamTimer!.TimerMemoryActivated);
+        IReadOnlyList<AutoPlayTarget> targets = world.DiscoverAutoPlayTargets();
+        Assert.DoesNotContain(targets, target => target.DestinationField == 131);
+        Assert.Contains(targets, target => target.Kind == AutoPlayTargetKind.Talk && target.ObjectId is 9 or 10);
+        Assert.Null(world.Events.LastFault);
+    }
+
     [Theory]
     [InlineData(Jsm.Opcode.POPM_B, 255, false)]
     [InlineData(Jsm.Opcode.POPM_B, 256, true)]
@@ -18,6 +33,7 @@ public sealed class AutoPlayDiscoveryTests
     [InlineData(Jsm.Opcode.POPM_L, 254, true)]
     [InlineData(Jsm.Opcode.POPM_W, 258, false)]
     [InlineData(Jsm.Opcode.PSHM_W, 256, false)]
+    [InlineData(Jsm.Opcode.POPI_L, 0, false)]
     public void StoryClassifierUsesTypedWriteOverlap(Jsm.Opcode opcode, int address, bool expected)
     {
         JsmProgram program = JsmProgram.Read(Program([(Jsm.Opcode.PSHN_L, 1), (opcode, address)]));
@@ -32,6 +48,36 @@ public sealed class AutoPlayDiscoveryTests
         Assert.True(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
         source = Program([(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 2), (Jsm.Opcode.REQ, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]);
         program = JsmProgram.Read(source);
+        Assert.False(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+    }
+
+    [Fact]
+    public void ClearClassifiesItsCanonicalStoryBankMutation()
+    {
+        JsmProgram program = JsmProgram.Read(Program([(Jsm.Opcode.CLEAR, 0)]));
+        Assert.True(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+    }
+
+    [Theory]
+    [InlineData(Jsm.Opcode.PREQ)]
+    [InlineData(Jsm.Opcode.PREQSW)]
+    [InlineData(Jsm.Opcode.PREQEW)]
+    public void PartyRequestsFollowLocalIndicesRatherThanGlobalLabels(Jsm.Opcode opcode)
+    {
+        JsmProgram program = JsmProgram.Read(ProgramWithLabel(40, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]));
+        Assert.True(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+        program = JsmProgram.Read(ProgramWithLabel(40, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 2), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)], [(Jsm.Opcode.PSHN_L, 9), (Jsm.Opcode.POPM_W, 700)]));
+        Assert.False(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+        program = JsmProgram.Read(ProgramWithLabel(40, [(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 41), (opcode, 0)], [(Jsm.Opcode.PSHN_L, 5), (Jsm.Opcode.POPM_W, 256)]));
+        Assert.False(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+    }
+
+    [Fact]
+    public void DynamicPartyScriptSelectionIsConservativeButInvalidPartySlotsDoNotCreateEdges()
+    {
+        JsmProgram program = JsmProgram.Read(Program([(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHI_L, 0), (Jsm.Opcode.PREQ, 0)], [(Jsm.Opcode.CLEAR, 0)]));
+        Assert.True(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
+        program = JsmProgram.Read(Program([(Jsm.Opcode.PSHN_L, 7), (Jsm.Opcode.PSHN_L, 1), (Jsm.Opcode.PREQ, 3)], [(Jsm.Opcode.CLEAR, 0)]));
         Assert.False(GameWorld.AutoPlayScriptChangesStory(program, program.Objects[0].Scripts[0]));
     }
 
@@ -289,14 +335,58 @@ public sealed class AutoPlayDiscoveryTests
         Assert.Null(world.Events.LastFault);
     }
 
+    [Fact]
+    public void ControlledContactPollingRequiresAnActualRisingEdgeAtItsOriginalKeyQuery()
+    {
+        string directory = TestResources.GameDirectory;
+        Assert.SkipUnless(Directory.Exists(directory), "Installed field corpus is required.");
+        var session = new GameSession(GameSession.Load(TestResources.FixturePath("App.Tests.AutoPlayDiscoveryTests.8")));
+        using var world = new GameWorld(session, directory);
+        world.EnsureField();
+        Assert.True(world.Events.IsUserControlEnabled);
+        Assert.True(world.Events.HasPendingPlayerInteraction(19));
+        ScriptedInputMetadata metadata = Assert.IsType<ScriptedInputMetadata>(world.Events.DiscoverScriptedInput(19));
+        Assert.All(metadata.Queries, query => Assert.Equal(19, query.ObjectId));
+        Assert.Contains(metadata.Queries, query => query.Opcode == "KEYON" && query.Mask == 192);
+        Assert.Contains(64, metadata.Masks);
+        bool edgeConsumed = false;
+        world.Events.CommandExecuted += command =>
+        {
+            if (command.Name == "KEYON" && command.ObjectId == 19)
+            {
+                edgeConsumed |= (world.Events.ButtonInput!.Pressed!.Value & command.Arguments[0] & 64) != 0;
+            }
+        };
+        for (int attempt = 0; attempt < 8 && !edgeConsumed; attempt++)
+        {
+            world.Apply(new PlayerAction(PlayerActionKind.FieldButtons));
+            world.Apply(new PlayerAction(PlayerActionKind.Wait));
+            world.Apply(new PlayerAction(PlayerActionKind.FieldButtons, 64));
+            world.Apply(new PlayerAction(PlayerActionKind.Wait));
+        }
+        world.Apply(new PlayerAction(PlayerActionKind.FieldButtons));
+        Assert.True(edgeConsumed);
+        for (int callback = 0; callback < 8 && world.Events.IsUserControlEnabled; callback++)
+        {
+            world.Apply(new PlayerAction(PlayerActionKind.Wait));
+        }
+        Assert.False(world.Events.IsUserControlEnabled);
+        Assert.Null(world.Events.LastFault);
+    }
+
     private static byte[] Program(params (Jsm.Opcode Opcode, int Parameter)[][] scripts)
+    {
+        return ProgramWithLabel(0, scripts);
+    }
+
+    private static byte[] ProgramWithLabel(int firstLabel, params (Jsm.Opcode Opcode, int Parameter)[][] scripts)
     {
         List<(Jsm.Opcode Opcode, int Parameter)> operations = [];
         List<ushort> positions = [];
         for (int index = 0; index < scripts.Length; index++)
         {
             positions.Add(checked((ushort)operations.Count));
-            operations.Add((Jsm.Opcode.LBL, index));
+            operations.Add((Jsm.Opcode.LBL, firstLabel + index));
             operations.AddRange(scripts[index]);
             operations.Add((Jsm.Opcode.RET, 8));
         }
@@ -306,7 +396,7 @@ public sealed class AutoPlayDiscoveryTests
         bytes[3] = 1;
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4), 10);
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(6), checked((ushort)operationsOffset));
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), checked((ushort)(scripts.Length - 1)));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8), checked((ushort)((firstLabel << 7) | (scripts.Length - 1))));
         for (int index = 0; index < positions.Count; index++)
         {
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10 + index * 2), positions[index]);
@@ -314,7 +404,7 @@ public sealed class AutoPlayDiscoveryTests
         for (int index = 0; index < operations.Count; index++)
         {
             (Jsm.Opcode opcode, int parameter) = operations[index];
-            int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.REQ or Jsm.Opcode.LBL ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
+            int encoded = parameter != 0 || opcode is Jsm.Opcode.PSHN_L or Jsm.Opcode.PSHI_L or Jsm.Opcode.REQ or Jsm.Opcode.PREQ or Jsm.Opcode.PREQSW or Jsm.Opcode.PREQEW or Jsm.Opcode.LBL ? (int)opcode << 24 | parameter & 0xFFFFFF : (int)opcode;
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(operationsOffset + index * 4), encoded);
         }
         return bytes;
