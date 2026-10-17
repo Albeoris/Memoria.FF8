@@ -174,7 +174,7 @@ public sealed partial class FieldRenderer
         {
             if (actor.Visible && (uint)actor.ModelId < field.Models.Count)
             {
-                DrawActorShadow(actor);
+                DrawActorShadow(actor, translucent);
                 DrawActor(actor, translucent);
             }
         }

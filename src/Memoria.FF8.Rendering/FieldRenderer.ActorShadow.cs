@@ -12,7 +12,7 @@ public sealed partial class FieldRenderer
     private static readonly int[] ShadowSine = [0, 2896, 4096, 2896, 0, -2896, -4096, -2896];
     private static readonly int[] ShadowCosine = [4096, 2896, 0, -2896, -4096, -2896, 0, 2896];
 
-    private void DrawActorShadow(ActorVisual actor)
+    private void DrawActorShadow(ActorVisual actor, List<(float Depth, Action Draw)> translucent)
     {
         IReadOnlyList<byte>? radii = actor.GroundShadowRadii601To608;
         if (radii is not null && (radii.Count != 8 || actor.GroundShadowRadius601To608 is not null))
@@ -48,7 +48,10 @@ public sealed partial class FieldRenderer
         }
         for (int index = 0; index < edge.Length; index++)
         {
-            DrawShadowTriangle(middle, edge[index], edge[(index + 1) & 7], orderingDepth, level);
+            ProjectedPoint b = edge[index];
+            ProjectedPoint c = edge[(index + 1) & 7];
+            // Native opcode 0x32 joins the translucent OT pass; its three stored depths are independent of the OT bucket.
+            translucent.Add((orderingDepth, () => DrawShadowTriangle(middle, b, c, level)));
         }
     }
 
@@ -57,7 +60,7 @@ public sealed partial class FieldRenderer
         return ToViewport(camera.Project(point));
     }
 
-    private void DrawShadowTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, float orderingDepth, byte level)
+    private void DrawShadowTriangle(ProjectedPoint a, ProjectedPoint b, ProjectedPoint c, byte level)
     {
         if (b.Depth <= 1 || c.Depth <= 1)
         {
@@ -70,8 +73,8 @@ public sealed partial class FieldRenderer
         }
         if (TriangleRenderer is not null)
         {
-            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Subtract, true) with { DepthComparison = TriangleDepthComparison.Less };
-            TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, new Vector4(new Vector3(level / 255f), 1), orderingDepth, false), GpuVertex(b, Vector2.Zero, new Vector4(0, 0, 0, 1), orderingDepth, false), GpuVertex(c, Vector2.Zero, new Vector4(0, 0, 0, 1), orderingDepth, false), material);
+            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Subtract, false);
+            TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, new Vector4(new Vector3(level / 255f), 1), perspective: false), GpuVertex(b, Vector2.Zero, new Vector4(0, 0, 0, 1), perspective: false), GpuVertex(c, Vector2.Zero, new Vector4(0, 0, 0, 1), perspective: false), material);
             return;
         }
         int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);
@@ -91,15 +94,14 @@ public sealed partial class FieldRenderer
                     continue;
                 }
                 int index = y * OutputWidth + x;
-                if (orderingDepth >= depth[index])
+                float z = wA * a.Depth + wB * b.Depth + wC * c.Depth;
+                if (z > depth[index])
                 {
                     continue;
                 }
                 byte shade = (byte)Math.Clamp((int)(level * wA), 0, 255);
                 WritePixel(index, new Rgba32(shade, shade, shade, 255), MapBlendMode.Subtract);
-                // Preserve this primitive's ordering depth for foreground MAP
-                // blending, while subsequent nearer model fragments still win.
-                depth[index] = orderingDepth;
+                // Native translucent primitives test opaque depth without writing it.
             }
         }
     }

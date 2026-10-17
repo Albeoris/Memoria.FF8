@@ -9,6 +9,53 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class NativeActorShadowTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void SlopedGroundShadowPreservesRaisedModelRegardlessOfActorSubmissionOrder(bool reverse, bool movie)
+    {
+        (FieldAssets field, ActorVisual actor) = RaisedModelFixture();
+        FieldRenderer renderer = new(field, modelTextureSampling: ModelTextureSampling.Nearest);
+        byte[] moviePixels = Enumerable.Range(0, 320 * 240).SelectMany(_ => new byte[] { 200, 180, 160, 255 }).ToArray();
+        byte[] Render(ActorVisual[] actors)
+        {
+            return movie ? renderer.RenderMovieFrame(moviePixels, 320, 240, field.Camera, actors, null).ToArray() : renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero).ToArray();
+        }
+        byte[] baseline = Render([actor]);
+        ActorVisual shadow = actor with { ModelId = 1, GroundShadowRadius601To608 = 8, GroundShadowLevel609 = 96, GroundShadowCentre = Vector3.Zero };
+        byte[] actual = Render(reverse ? [shadow, actor] : [actor, shadow]);
+        int modelPixels = 0;
+        int shadowPixels = 0;
+        for (int index = 0; index < baseline.Length; index += 4)
+        {
+            if (baseline[index + 2] == 220)
+            {
+                modelPixels++;
+                Assert.Equal(baseline.AsSpan(index, 4).ToArray(), actual.AsSpan(index, 4).ToArray());
+            }
+            else if (actual[index] < baseline[index])
+            {
+                shadowPixels++;
+            }
+        }
+        Assert.True(modelPixels > 500, $"Model pixels: {modelPixels}");
+        Assert.True(shadowPixels > 500, $"Shadow pixels: {shadowPixels}");
+    }
+
+    internal static (FieldAssets Field, ActorVisual Actor) RaisedModelFixture()
+    {
+        PixelImage ground = new(1, 1, [new Rgba32(200, 180, 160, 255)]);
+        PixelImage texture = new(1, 1, [new Rgba32(40, 100, 220, 255)]);
+        ModelVertex[] vertices = [new(new Vector3(8, -16, -16), 0), new(new Vector3(8, -16, 16), 0), new(new Vector3(8, 16, -16), 0), new(new Vector3(8, 16, 16), 0)];
+        FieldModel model = new("raised-quad", [new(-1, 0)], vertices, [new([0, 1, 2, 3], [Vector2.Zero, Vector2.Zero, Vector2.Zero, Vector2.Zero], 0, true)], [texture], [new([new(Vector3.Zero, [Vector3.Zero])])]);
+        BackgroundTile[] tiles = Enumerable.Range(0, 300).Select(index => new BackgroundTile((index % 20) * 16 - 160, (index / 20) * 16 - 120, 1000, 255, 0, 0, MapBlendMode.None, false, true, ground)).ToArray();
+        FieldCamera camera = new(Vector3.UnitX, new Vector3(0, 0.8f, 0.6f), new Vector3(0, -0.6f, 0.8f), new Vector3(0, 0, 256), Vector2.Zero, 256);
+        FieldAssets field = new(100, "sloped-shadow", [], [], tiles, camera, new FieldWalkmesh([]), [model, new("shadow-only", [], [], [], [], [])]) { NativeExecutableHash = NativeFieldRuntimeProfile.FF8EnExecutableHash };
+        return (field, new ActorVisual(0, 0, 0, 0, 0, 192, 0, 0, true, PolygonColor: new Vector3(128)));
+    }
+
     [Fact]
     public void DegenerateNativeShadowPreservesTexturedAvatarAndEntireFramebuffer()
     {

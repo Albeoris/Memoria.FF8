@@ -1,7 +1,9 @@
 using System.Numerics;
+using System.Text.Json;
 using Albeoris.Games.FF8.Imaging;
 using Albeoris.Games.FF8.Imaging.Map;
 using Memoria.FF8.Assets;
+using Memoria.FF8.Events;
 using Memoria.FF8.Rendering;
 using Memoria.FF8.Runtime;
 using Color = Microsoft.Xna.Framework.Color;
@@ -11,6 +13,86 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class GpuFieldRenderingTests
 {
+    [Fact]
+    public void OptionalStandaloneFieldShadowRendersWithoutChangingContinuation()
+    {
+        string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_FIELD_SHADOW_SNAPSHOT");
+        Assert.SkipUnless(source is not null && File.Exists(source), "An optional standalone field fixture is required.");
+        GameSession session = new(GameSession.Load(source!));
+        using GameWorld world = new(session, TestResources.GameDirectory);
+        world.EnsureField();
+        world.SetRenderSize(1024, 768);
+        JsonElement before = world.Events.Capture();
+        byte[] software = world.Render(TimeSpan.Zero).ToArray();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        world.Render(TimeSpan.Zero, triangleRenderer: gpu);
+        Color[] hardware = GpuTestDevice.Read(gpu.Target);
+        Assert.True(JsonElement.DeepEquals(before, world.Events.Capture()));
+        long error = 0;
+        for (int index = 0; index < hardware.Length; index++)
+        {
+            error += Math.Abs(hardware[index].R - software[index * 4]);
+            error += Math.Abs(hardware[index].G - software[index * 4 + 1]);
+            error += Math.Abs(hardware[index].B - software[index * 4 + 2]);
+        }
+        Assert.InRange(error / (double)(hardware.Length * 3), 0, 2);
+        session.SetEventState(before);
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_TEST_OUTPUT_DIRECTORY");
+        if (output is not null)
+        {
+            Directory.CreateDirectory(output);
+            using (FileStream image = new(Path.Combine(output, "gpu-field.png"), FileMode.Create))
+            {
+                gpu.Target.SaveAsPng(image, 1024, 768);
+            }
+            session.Save(Path.Combine(output, "rendered-checkpoint.json"));
+        }
+        using GameWorld restored = new(new GameSession(session.State), TestResources.GameDirectory);
+        restored.EnsureField();
+        Assert.True(world.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+        Assert.True(restored.Apply(new PlayerAction(PlayerActionKind.Confirm)).Accepted);
+        Assert.True(JsonElement.DeepEquals(world.Events.Capture(), restored.Events.Capture()));
+        if (output is not null)
+        {
+            session.SetEventState(world.Events.Capture());
+            session.Save(Path.Combine(output, "continued-checkpoint.json"));
+        }
+    }
+
+    [Fact]
+    public void SlopedGroundShadowPreservesRaisedModelOnHardware()
+    {
+        (FieldAssets field, ActorVisual actor) = NativeActorShadowTests.RaisedModelFixture();
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        FieldRenderer renderer = new(field, modelTextureSampling: ModelTextureSampling.Nearest) { TriangleRenderer = gpu };
+        renderer.Render(new Dictionary<int, int>(), [actor], TimeSpan.Zero);
+        Color[] baseline = GpuTestDevice.Read(gpu.Target);
+        ActorVisual shadow = actor with { ModelId = 1, GroundShadowRadius601To608 = 8, GroundShadowLevel609 = 96, GroundShadowCentre = Vector3.Zero };
+        foreach (ActorVisual[] actors in new ActorVisual[][] { [actor, shadow], [shadow, actor] })
+        {
+            renderer.Render(new Dictionary<int, int>(), actors, TimeSpan.Zero);
+            Color[] actual = GpuTestDevice.Read(gpu.Target);
+            int modelPixels = 0;
+            int shadowPixels = 0;
+            for (int index = 0; index < baseline.Length; index++)
+            {
+                if (baseline[index].B == 220)
+                {
+                    modelPixels++;
+                    Assert.Equal(baseline[index], actual[index]);
+                }
+                else if (actual[index].R < baseline[index].R)
+                {
+                    shadowPixels++;
+                }
+            }
+            Assert.True(modelPixels > 500);
+            Assert.True(shadowPixels > 500);
+        }
+    }
+
     [Theory]
     [InlineData(MapBlendMode.None, 320, 240)]
     [InlineData(MapBlendMode.Average, 320, 240)]

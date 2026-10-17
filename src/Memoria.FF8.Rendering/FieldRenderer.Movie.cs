@@ -58,7 +58,7 @@ public sealed partial class FieldRenderer
         List<(float Depth, Action Draw)> translucent = [];
         foreach (ActorVisual actor in visible)
         {
-            DrawActorShadow(actor);
+            DrawActorShadow(actor, translucent);
             DrawActor(actor, translucent);
         }
         foreach (var primitive in translucent.OrderByDescending(primitive => primitive.Depth))
