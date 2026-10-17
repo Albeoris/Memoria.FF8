@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
 using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Runtime;
 
@@ -71,12 +70,8 @@ public sealed partial class GameAssets
         }
         if (nativeFieldPlacementWords.IsDefault)
         {
-            byte[] image = ReadNativeExecutable();
-            using PEReader reader = new(new MemoryStream(image, false));
-            long rva = 0xB80880 - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 192 <= section.VirtualAddress + section.SizeOfRawData);
-            int offset = checked((int)(rva - section.VirtualAddress + section.PointerToRawData));
-            nativeFieldPlacementWords = Enumerable.Range(0, 48).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(image.AsSpan(offset + index * 4, 4))).ToImmutableArray();
+            byte[] words = ReadNativeMemory().Read(0xB80880, 192);
+            nativeFieldPlacementWords = Enumerable.Range(0, 48).Select(index => BinaryPrimitives.ReadUInt32LittleEndian(words.AsSpan(index * 4, 4))).ToImmutableArray();
         }
         string name = fieldNames[fieldId];
         NativeFieldModelSource Source(string member, byte[] data) => new($"field/{name}/{member}", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)), data.ToImmutableArray());

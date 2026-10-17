@@ -114,7 +114,7 @@ internal sealed partial class GameWorld : IDisposable
         if (assets.NativeRuntimeProfile is { IsVerified: true })
         {
             Events.ShakeTables = assets.ReadNativeShakeTables();
-            Events.DrawPointParticleTables = NativeDrawPointParticleTableReader.Read(assets.ReadNativeExecutable());
+            Events.DrawPointParticleTables = assets.ReadNativeDrawPointParticleTables();
             Events.ResolveNativeDrawPointDirection = FieldNativeScriptDirectionProbe.ResolveFacing;
         }
         if (initializedNativeParty)

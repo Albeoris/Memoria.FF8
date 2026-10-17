@@ -1,7 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
-using System.Security.Cryptography;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -10,12 +8,12 @@ public static class NativeBattleRetainedMemoryReader
 {
     public static NativeBattleRetainedMemory ReadColdProcess(byte[] executable)
     {
-        string hash = Convert.ToHexString(SHA256.HashData(executable));
-        if (hash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new NotSupportedException("Cold battle memory requires the authenticated English executable loader image.");
-        }
-        using PEReader reader = new(new MemoryStream(executable));
+        return ReadColdProcess(new NativeExecutableMemory(executable));
+    }
+
+    public static NativeBattleRetainedMemory ReadColdProcess(IGameNativeMemorySource memory)
+    {
+        string hash = memory.SourceHash;
         byte[] counts = ReadLoaderBytes(0x1D280C0, 2);
         byte[] active = ReadLoaderBytes(0x1D99A50, 4);
         if (counts.Any(value => value != 0) || active.Any(value => value != 0))
@@ -80,8 +78,8 @@ public static class NativeBattleRetainedMemoryReader
             SequenceSine = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x1D981FC, 2)),
             SequenceCosine = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x1D981FE, 2)),
             SequenceParticlePreviousBone = ReadLoaderBytes(0x1D98208, 1)[0],
-            DoubleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes),
-            TripleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes),
+            DoubleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x163FFD0u).Bytes),
+            TripleMorph = new(NativeBattleEffectStaticResourcesReader.ReadMesh(memory, 0x1627970u).Bytes),
             CureContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x278C8DC, 2)),
             CuraContextF4 = BinaryPrimitives.ReadInt16LittleEndian(ReadLoaderBytes(0x270046C, 2)),
             CuraSceneFade = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x2700360, 4)),
@@ -90,7 +88,7 @@ public static class NativeBattleRetainedMemoryReader
             FullLifeExecutable = new(27, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.FullLife.ExecutableAddress, 4)), null),
             Effect57Executable = new(57, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Effect57.ExecutableAddress, 4)), null),
             RemedyExecutable = new(67, BinaryPrimitives.ReadUInt32LittleEndian(ReadLoaderBytes(NativeBattleRestorationProfile.Remedy.ExecutableAddress, 4)), null),
-            RecoveryExecutables = new ushort[] { 53, 58, 59 }.Select(effect => NativeBattleRecoveryResourcesReader.ReadColdProcessState(executable, effect)).ToImmutableArray(),
+            RecoveryExecutables = new ushort[] { 53, 58, 59 }.Select(effect => NativeBattleRecoveryResourcesReader.ReadColdProcessState(memory, effect)).ToImmutableArray(),
             QuezacotlExecutableMemory = new(ReadLoaderBytes(NativeBattleQuezacotlExecutableMemory.Address, NativeBattleQuezacotlExecutableMemory.Length).ToImmutableArray()),
             Active = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A64, 4)),
             SelectedIndex = BinaryPrimitives.ReadInt32LittleEndian(ReadLoaderBytes(0x1D99A68, 4)),
@@ -167,17 +165,7 @@ public static class NativeBattleRetainedMemoryReader
 
         byte[] ReadLoaderBytes(uint address, int length)
         {
-            long rva = address - (long)reader.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = reader.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + length <= (long)section.VirtualAddress + section.VirtualSize);
-            long sectionOffset = rva - section.VirtualAddress;
-            byte[] bytes = new byte[length];
-            int mapped = checked((int)Math.Clamp(section.SizeOfRawData - sectionOffset, 0, length));
-            if (mapped != 0)
-            {
-                executable.AsSpan(checked((int)(section.PointerToRawData + sectionOffset)), mapped).CopyTo(bytes);
-            }
-            //The PE loader initializes the part of VirtualSize beyond SizeOfRawData to zero.
-            return bytes;
+            return memory.ReadLoader(address, length);
         }
     }
 }
@@ -188,6 +176,6 @@ public sealed partial class GameAssets
 
     public NativeBattleRetainedMemory ReadColdProcessNativeBattleMemory()
     {
-        return coldProcessNativeBattleMemory ??= NativeBattleRetainedMemoryReader.ReadColdProcess(GameDataResources.ReadNativeExecutable(this.resources));
+        return coldProcessNativeBattleMemory ??= NativeBattleRetainedMemoryReader.ReadColdProcess(ReadNativeMemory());
     }
 }

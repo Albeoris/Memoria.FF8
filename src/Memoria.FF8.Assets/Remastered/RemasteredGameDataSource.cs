@@ -83,10 +83,6 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
 
     private ResourceContent? FindCore(ResourceKey key)
     {
-        if (key.Path is "files/sound/audio.fmt" or "files/sound/audio.dat")
-        {
-            throw new NotImplementedException($"Remastered sound resource '{key}' has no implemented edition contract.");
-        }
         if (FindNamedTable(key) is { } table)
         {
             return table;
@@ -134,7 +130,7 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
         }
         string basename = parts[^1];
         string extension = Path.GetExtension(basename);
-        if (family == "field" && (extension is ".jsm" or ".msd" || language == "jp" && extension == ".inf"))
+        if (family == "field" && (extension is ".jsm" or ".msd" or ".map" or ".mim" || language == "jp" && extension == ".inf"))
         {
             string localized = Path.GetFileNameWithoutExtension(basename) + "_" + language + extension;
             if (Entry(archive, localized) is { } translated)
@@ -196,22 +192,23 @@ public sealed partial class RemasteredGameDataSource : IResourceSource, IGameArc
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         string relative = new ResourceKey(relativeDataPath).Path;
-        if (relative is "sound/audio.fmt" or "sound/audio.dat")
-        {
-            throw new NotImplementedException($"Remastered sound resource '{relative}' has no implemented edition contract.");
-        }
         if (files.TryGetValue(relative, out string? cached))
         {
             return cached;
         }
-        string localized = $"data/lang-{language}/{relative}";
-        string path = Contains(localized) ? localized : "data/" + relative;
+        string mountedRelative = relative;
+        if (relative.StartsWith("music/dmusic/", StringComparison.OrdinalIgnoreCase) && Path.GetExtension(relative).Equals(".sgt", StringComparison.OrdinalIgnoreCase))
+        {
+            mountedRelative = "music/dmusic/ogg/" + Path.GetFileNameWithoutExtension(relative) + ".ogg";
+        }
+        string localized = $"data/lang-{language}/{mountedRelative}";
+        string path = Contains(localized) ? localized : "data/" + mountedRelative;
         if (!Contains(path))
         {
             throw new FileNotFoundException($"Data resource '{relative}' is unavailable.");
         }
         Directory.CreateDirectory(cacheDirectory);
-        string target = Path.Combine(cacheDirectory, Guid.NewGuid().ToString("N") + Path.GetExtension(relative));
+        string target = Path.Combine(cacheDirectory, Guid.NewGuid().ToString("N") + Path.GetExtension(path));
         using (Stream source = Open(path))
         using (FileStream destination = new(target, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         {

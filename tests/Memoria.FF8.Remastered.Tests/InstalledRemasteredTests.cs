@@ -69,7 +69,60 @@ public sealed class InstalledRemasteredTests
         Assert.Equal(384, texture.Variants["eyes-closed"].Width);
         resources.Prepare(null).Commit();
         Assert.Equal(texture.Image.Pixels, textures.GetTexture(0).Image.Pixels);
-        Assert.Null(assets.NativeRuntimeProfile);
+        Assert.Equal(Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEn, assets.NativeRuntimeProfile);
+    }
+
+    [Fact]
+    public void ShortFieldImageRetainsNativeThreefoldUvScaleAndEyePlanes()
+    {
+        using RemasteredGameDataSource source = new(InstalledDirectory());
+        ResourceService resources = new(source);
+        ResourceKey owner = new("field/bghoke_2/chara.one");
+        IReadOnlyList<FieldModel> models = source.ReadModels(owner, resources.Read(owner), name => resources.Read(new ResourceKey($"field/main_chr/{name}.mch")));
+        int index = Enumerable.Range(0, models.Count).Single(index => models[index].Name.StartsWith("d019", StringComparison.OrdinalIgnoreCase));
+        FieldModel model = models[index];
+        Assert.Equal(128, model.Textures[1].Height);
+        float maxV = model.Faces.Where(face => face.Texture == 1).SelectMany(face => face.TextureCoordinates).Max(uv => uv.Y);
+        Assert.Equal(127, maxV);
+        TextureBuildContext context = new(new TextureKey(owner, $"model/{index}/texture/1"), source.Descriptor, 0, "classic-model", 128, 128, () => model.Textures[1]);
+        TextureReplacement texture = Assert.IsType<TextureReplacement>(source.Resolve(context));
+        Assert.Equal(128, texture.LogicalWidth);
+        Assert.Equal(128, texture.LogicalHeight);
+        Assert.Equal(384, texture.Image.Width);
+        Assert.Equal(384, texture.Image.Height);
+        Assert.Equal(384, texture.Variants!["eyes-closed"].Width);
+        Assert.Equal(384, texture.Variants["eyes-closed"].Height);
+        using ZzzArchive main = new(Path.Combine(InstalledDirectory(), "main.zzz"));
+        using Stream image = main.Open("textures/field.fs/field_hd_new/d019_0.png");
+        using MemoryStream bytes = new();
+        image.CopyTo(bytes);
+        DecodedTextureImage encoded = TextureImageDecoder.Decode(bytes.ToArray(), "d019_0.png");
+        for (int row = 0; row < 288; row++)
+        {
+            Assert.Equal(encoded.Image.Pixels.AsSpan(row * 768, 384).ToArray(), texture.Image.Pixels.AsSpan(row * 384, 384).ToArray());
+            Assert.Equal(encoded.Image.Pixels.AsSpan(row * 768 + 384, 384).ToArray(), texture.Variants["eyes-closed"].Pixels.AsSpan(row * 384, 384).ToArray());
+        }
+        Assert.All(texture.Image.Pixels.Skip(384 * 288), pixel => Assert.Equal(default, pixel));
+        Assert.All(texture.Variants["eyes-closed"].Pixels.Skip(384 * 288), pixel => Assert.Equal(default, pixel));
+    }
+
+    [Theory]
+    [InlineData(229, "bgroad_6", true)]
+    [InlineData(232, "bgroom_1", false)]
+    public void OpeningBackgroundsResolveLocalizedOrSharedMapAndImagePairs(int fieldId, string name, bool localized)
+    {
+        using RemasteredGameDataSource source = new(InstalledDirectory());
+        ResourceService resources = new(source);
+        Assert.Equal(name, FieldName(resources, fieldId));
+        foreach (string extension in new[] { "map", "mim" })
+        {
+            ResourceKey logical = new($"field/{name}/{name}.{extension}");
+            ResourceKey selected = new($"field/{name}/{name}{(localized ? "_en" : "")}.{extension}");
+            Assert.NotEmpty(resources.Read(logical));
+            Assert.Equal(resources.Read(selected), resources.Read(logical));
+        }
+        using GameAssets assets = new(InstalledDirectory(), resources: resources);
+        Assert.Equal(fieldId, assets.LoadField(fieldId).Id);
     }
 
     [Fact]
@@ -134,14 +187,12 @@ public sealed class InstalledRemasteredTests
         assets.ReadNativeVibrationBank().Validate();
         Assert.Throws<NotImplementedException>(() => assets.ReadNativeExecutable());
         Assert.Throws<NotImplementedException>(() => assets.ReadNativeEncounterTables());
-        Assert.Throws<NotImplementedException>(() => assets.ReadNewGameCharacterVitals());
+        Assert.NotNull(assets.ReadNewGameCharacterVitals());
     }
 
     [Theory]
     [InlineData("runtime/native-executable")]
     [InlineData("runtime/unknown")]
-    [InlineData("files/sound/audio.fmt")]
-    [InlineData("files/sound/audio.dat")]
     public void UnsupportedEditionResourcesHaveExplicitBoundaries(string key)
     {
         using RemasteredGameDataSource source = new(InstalledDirectory());

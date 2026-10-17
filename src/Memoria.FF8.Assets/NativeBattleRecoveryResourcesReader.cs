@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
 using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
@@ -9,22 +8,30 @@ public static class NativeBattleRecoveryResourcesReader
 {
     public static NativeBattleRecoveryExecutableState ReadColdProcessState(byte[] executable, ushort effect)
     {
-        NativeBattleRecoveryResources resources = Read(executable, effect);
+        return ReadColdProcessState(new NativeExecutableMemory(executable), effect);
+    }
+
+    public static NativeBattleRecoveryExecutableState ReadColdProcessState(IGameNativeMemorySource memory, ushort effect)
+    {
+        NativeBattleRecoveryResources resources = Read(memory, effect);
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
-        using PEReader image = new(new MemoryStream(executable));
-        long rva = profile.ChannelAddress - (long)image.PEHeaders.PEHeader!.ImageBase;
-        SectionHeader section = image.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + profile.ChannelLength <= (long)section.VirtualAddress + section.VirtualSize);
-        if (rva < (long)section.VirtualAddress + section.SizeOfRawData)
+        byte[] channels = memory.ReadLoader(profile.ChannelAddress, profile.ChannelLength);
+        if (channels.Any(value => value != 0))
         {
-            throw new InvalidDataException("Native recovery channel bank is not wholly in its authenticated loader-zero virtual tail.");
+            throw new InvalidDataException("Native recovery channel bank contradicts its authenticated loader-zero storage.");
         }
-        return NativeBattleRecoveryExecutableState.FromAuthenticatedColdProcess(resources.Executable, new byte[profile.ChannelLength].ToImmutableArray());
+        return NativeBattleRecoveryExecutableState.FromAuthenticatedColdProcess(resources.Executable, channels.ToImmutableArray());
     }
 
     public static NativeBattleRecoveryResources Read(byte[] executable, ushort effect)
     {
+        return Read(new NativeExecutableMemory(executable), effect);
+    }
+
+    public static NativeBattleRecoveryResources Read(IGameNativeMemorySource memory, ushort effect)
+    {
         NativeBattleRecoveryProfile profile = NativeBattleRecoveryProfile.ForEffect(effect);
-        ImmutableArray<byte> bytes = NativeBattleEffectStaticResourcesReader.Read(executable, profile.ExecutableAddress, profile.ExecutableLength);
+        ImmutableArray<byte> bytes = NativeBattleEffectStaticResourcesReader.Read(memory, profile.ExecutableAddress, profile.ExecutableLength);
         NativeBattleRecoveryExecutableSource source = new(effect, bytes);
         NativeBattleRecoveryExecutableState original = new(effect, bytes);
         original.Validate();
@@ -32,8 +39,8 @@ public static class NativeBattleRecoveryResourcesReader
         {
             throw new InvalidDataException("Native recovery source directory requires original flag1/absolute pointers.");
         }
-        uint sound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(executable, profile.SoundAddress, 4).AsSpan());
-        string filename = System.Text.Encoding.ASCII.GetString(NativeBattleEffectStaticResourcesReader.Read(executable, profile.FilenameAddress, profile.TextureName.Length + 1).AsSpan());
+        uint sound = BinaryPrimitives.ReadUInt32LittleEndian(NativeBattleEffectStaticResourcesReader.Read(memory, profile.SoundAddress, 4).AsSpan());
+        string filename = System.Text.Encoding.ASCII.GetString(NativeBattleEffectStaticResourcesReader.Read(memory, profile.FilenameAddress, profile.TextureName.Length + 1).AsSpan());
         if (filename != profile.TextureName + "\0")
         {
             throw new InvalidDataException("Native recovery resource filename contradicts its original initializer.");
@@ -64,11 +71,11 @@ public static class NativeBattleRecoveryResourcesReader
                         }
                         break;
                     case 1:
-                        ImmutableArray<byte> sprite = NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(executable, pointer);
+                        ImmutableArray<byte> sprite = NativeBattleEffectStaticResourcesReader.ReadProjectedSprite(memory, pointer);
                         _ = original.Read(pointer, sprite.Length);
                         break;
                     case 2:
-                        NativeBattleStaticMeshResource mesh = NativeBattleEffectStaticResourcesReader.ReadMesh(executable, pointer);
+                        NativeBattleStaticMeshResource mesh = NativeBattleEffectStaticResourcesReader.ReadMesh(memory, pointer);
                         _ = original.Read(pointer, mesh.Bytes.Length);
                         break;
                     case 3:
@@ -98,7 +105,7 @@ public sealed partial class GameAssets
         _ = NativeBattleRecoveryProfile.ForEffect(effect);
         if (!nativeRecoveryResources.TryGetValue(effect, out NativeBattleRecoveryResources? resources))
         {
-            resources = NativeBattleRecoveryResourcesReader.Read(GameDataResources.ReadNativeExecutable(this.resources), effect);
+            resources = NativeBattleRecoveryResourcesReader.Read(ReadNativeMemory(), effect);
             nativeRecoveryResources.Add(effect, resources);
         }
         return resources;

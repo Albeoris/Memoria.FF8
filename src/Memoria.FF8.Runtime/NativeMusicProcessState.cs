@@ -47,7 +47,7 @@ public sealed record NativeMusicProcessState(int Version, bool? Pending, byte? R
         {
             throw new InvalidDataException("Native music process lost its actual selector, pending request or completion byte.");
         }
-        if (Bootstrap is { } bootstrap && (bootstrap.Version != 1 || bootstrap.Rule != "ff8-en-music-new-game-470560-52ca90-v1" || bootstrap.ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash))
+        if (Bootstrap is { } bootstrap && (bootstrap.Version != 1 || bootstrap.Rule != "ff8-en-music-new-game-470560-52ca90-v1" || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
         {
             throw new InvalidDataException("Native music bootstrap lacks authenticated New Game provenance.");
         }

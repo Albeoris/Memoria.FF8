@@ -21,7 +21,7 @@ public sealed class NativeDrawPointParticleTables
 
     public NativeDrawPointParticleTables(string executableHash, ReadOnlySpan<byte> random, ReadOnlySpan<byte> sine, ReadOnlySpan<byte> cosine, ReadOnlySpan<byte> colors)
     {
-        if (executableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || random.Length != 256 || sine.Length != 512 || cosine.Length != 512 || colors.Length != 64)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(executableHash) || random.Length != 256 || sine.Length != 512 || cosine.Length != 512 || colors.Length != 64)
         {
             throw new InvalidDataException("Draw-point particle tables require the authenticated original executable ranges.");
         }

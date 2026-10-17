@@ -13,7 +13,7 @@ public sealed record NativeActorInfoArenaDefinition(int Version, string Executab
 
     public void Validate()
     {
-        if (Version != 1 || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || MaximumDeclaredRecords is < 1 or > 255 || KernelBytes <= 0 || (long)KernelAddress + KernelBytes > ZeroStartAddress || WorldTableBytes <= 0 || (long)WorldTableAddress + WorldTableBytes > ZeroStartAddress)
+        if (Version != 1 || !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || MaximumDeclaredRecords is < 1 or > 255 || KernelBytes <= 0 || (long)KernelAddress + KernelBytes > ZeroStartAddress || WorldTableBytes <= 0 || (long)WorldTableAddress + WorldTableBytes > ZeroStartAddress)
         {
             throw new InvalidDataException("Native actor-info arena requires the authenticated executable, bounded declared records and resource writes below its physical zero range.");
         }

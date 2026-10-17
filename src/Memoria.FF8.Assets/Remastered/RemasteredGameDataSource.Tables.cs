@@ -3,17 +3,47 @@ using Memoria.FF8.Resources;
 
 namespace Memoria.FF8.Assets.Remastered;
 
-public sealed partial class RemasteredGameDataSource : IGameRuntimeSource
+public sealed partial class RemasteredGameDataSource : IGameRuntimeSource, IGameNativeMemorySource
 {
     private RemasteredGuestImage? guestImage;
+    private bool runtimeCodeVerified;
 
-    public string? NativeExecutableHash => null;
-    public Memoria.FF8.Runtime.NativeFieldRuntimeProfile? NativeRuntimeProfile => null;
+    public string? NativeExecutableHash => language == "en" && File.Exists(Path.Combine(gameDirectory, "FFVIII_EN.exe.dat")) ? SourceHash : null;
+    public string SourceHash
+    {
+        get
+        {
+            _ = RequireGuestImage();
+            return Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash;
+        }
+    }
+    public byte[] Read(uint address, int count) => RequireGuestImage().Read(address, count);
+    public byte[] ReadLoader(uint address, int count) => RequireGuestImage().ReadLoader(address, count);
+    public Memoria.FF8.Runtime.NativeFieldRuntimeProfile? NativeRuntimeProfile
+    {
+        get
+        {
+            if (NativeExecutableHash is null)
+            {
+                return null;
+            }
+            if (!runtimeCodeVerified)
+            {
+                using FileStream file = File.OpenRead(Path.Combine(gameDirectory, "FFVIII_EFIGS.dll"));
+                if (Convert.ToHexString(SHA256.HashData(file)) != "B0097E4EDD96FA2C32745B04328939EB8D182C2E89121D51405BC486B13F9108")
+                {
+                    throw new NotImplementedException("Remastered runtime contracts require authenticated translated English code.");
+                }
+                runtimeCodeVerified = true;
+            }
+            return Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEn;
+        }
+    }
 
     public Memoria.FF8.Runtime.NativeFieldRuntimeProfile RequireNativeRuntimeProfile()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        throw new NotImplementedException("Remastered native runtime contracts have no implemented edition profile.");
+        return NativeRuntimeProfile ?? throw new NotImplementedException("Remastered runtime contracts require the authenticated English image.");
     }
 
     private ResourceContent? FindNamedTable(ResourceKey key)
@@ -40,28 +70,31 @@ public sealed partial class RemasteredGameDataSource : IGameRuntimeSource
         {
             return null;
         }
-        Lazy<byte[]> bytes = new(() =>
-        {
-            if (language != "en")
-            {
-                throw new NotImplementedException("Named guest tables have no authenticated layout for the selected language.");
-            }
-            if (guestImage is null)
-            {
-                string path = Path.Combine(gameDirectory, "FFVIII_EN.exe.dat");
-                using FileStream file = File.OpenRead(path);
-                if (!Convert.ToHexString(SHA256.HashData(file)).Equals("C52C42DBFE0EB3BBE17E3AA5A1E0607921B5A23CB9B2906D81844905106EA26F", StringComparison.Ordinal))
-                {
-                    throw new NotImplementedException("Named guest tables require an authenticated source image.");
-                }
-                guestImage = new RemasteredGuestImage(path);
-            }
-            return guestImage.Read(layout.Address, layout.Length);
-        });
+        Lazy<byte[]> bytes = new(() => Read(layout.Address, layout.Length));
         return new ResourceContent(key, "bin", 1, $"{Descriptor.Id}:{key}", () =>
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             return new MemoryStream(bytes.Value, false);
         });
+    }
+
+    private RemasteredGuestImage RequireGuestImage()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (language != "en")
+        {
+            throw new NotImplementedException("Native guest data has no authenticated layout for the selected language.");
+        }
+        if (guestImage is null)
+        {
+            string path = Path.Combine(gameDirectory, "FFVIII_EN.exe.dat");
+            using FileStream file = File.OpenRead(path);
+            if (Convert.ToHexString(SHA256.HashData(file)) != Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash)
+            {
+                throw new NotImplementedException("Native guest data requires an authenticated source image.");
+            }
+            guestImage = new RemasteredGuestImage(path);
+        }
+        return guestImage;
     }
 }

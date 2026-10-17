@@ -220,7 +220,7 @@ public sealed partial class GameAssets : IDisposable
         {
             throw UnsupportedRuntime("Salary lookup requires the authenticated original executable.");
         }
-        byte[] raw = ReadNativeExecutable().AsSpan(0x78E474, 64).ToArray();
+        byte[] raw = ReadNativeMemory().Read(0xB8E474, 64);
         ushort[] entries = new ushort[32];
         for (int index = 0; index < entries.Length; index++)
         {

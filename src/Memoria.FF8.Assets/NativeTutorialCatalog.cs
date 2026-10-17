@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
 using Albeoris.Games.FF8.TextEncoding;
@@ -87,24 +86,22 @@ public sealed partial class NativeTutorialCatalog
 
     public static NativeTutorialCatalog Read(byte[] executable, byte[] menuHeader, byte[] menuContent, byte[] initial, byte[] kernel)
     {
-        string executableHash = Convert.ToHexString(SHA256.HashData(executable));
-        if (executableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new NotSupportedException("Native tutorials require the authenticated English executable.");
-        }
+        return Read(new NativeExecutableMemory(executable), menuHeader, menuContent, initial, kernel);
+    }
+
+    public static NativeTutorialCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] initial, byte[] kernel)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
         if (menuHeader.Length != 256 * 8 || initial.Length != 2812)
         {
             throw new InvalidDataException("Native tutorials require the complete original menu directory and initialization template.");
         }
-        using PEReader pe = new(new MemoryStream(executable));
-        long rva = 0xB88360 - (long)pe.PEHeaders.PEHeader!.ImageBase;
-        SectionHeader section = pe.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + 9 * 12 <= section.VirtualAddress + section.SizeOfRawData);
-        int descriptorOffset = checked((int)(rva - section.VirtualAddress + section.PointerToRawData));
+        byte[] descriptors = memory.Read(0xB88360, 9 * 12);
         ImmutableArray<NativeTutorialText> titles = ReadGroupedTexts(Resource(2), 13);
         ImmutableArray<NativeTutorialDefinition>.Builder tutorials = ImmutableArray.CreateBuilder<NativeTutorialDefinition>(9);
         for (int id = 0; id < 9; id++)
         {
-            ReadOnlySpan<byte> row = executable.AsSpan(descriptorOffset + id * 12, 12);
+            ReadOnlySpan<byte> row = descriptors.AsSpan(id * 12, 12);
             NativeTutorialDescriptor descriptor = new(id, row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], BinaryPrimitives.ReadUInt32LittleEndian(row[8..]));
             ImmutableArray<byte> texts = Resource(descriptor.TextResource);
             ImmutableArray<byte> inputs = Resource(descriptor.InputResource);
@@ -120,7 +117,7 @@ public sealed partial class NativeTutorialCatalog
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         hash.AppendData(menuHeader);
         hash.AppendData(menuContent);
-        return new NativeTutorialCatalog(executableHash, Convert.ToHexString(hash.GetHashAndReset()), tutorials.MoveToImmutable(), ReadGroupedTexts(Resource(2), 7), ReadGroupedTexts(Resource(2), 4), initial.ToArray(), kernel.ToArray());
+        return new NativeTutorialCatalog(memory.SourceHash, Convert.ToHexString(hash.GetHashAndReset()), tutorials.MoveToImmutable(), ReadGroupedTexts(Resource(2), 7), ReadGroupedTexts(Resource(2), 4), initial.ToArray(), kernel.ToArray());
 
         ImmutableArray<byte> Resource(int slot)
         {
@@ -222,6 +219,6 @@ public sealed partial class GameAssets
         }
         using IFlArchive menu = OpenArchive("menu");
         using IFlArchive main = OpenArchive("main");
-        return nativeTutorials = NativeTutorialCatalog.Read(ReadNativeExecutable(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(main, "init.out"), Read(main, "kernel.bin"));
+        return nativeTutorials = NativeTutorialCatalog.Read(ReadNativeMemory(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(main, "init.out"), Read(main, "kernel.bin"));
     }
 }

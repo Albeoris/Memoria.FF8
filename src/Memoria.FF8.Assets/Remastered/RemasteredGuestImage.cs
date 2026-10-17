@@ -119,6 +119,31 @@ public sealed class RemasteredGuestImage
         return result;
     }
 
+    public byte[] ReadLoader(uint guestAddress, int count)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        if (guestAddress < ImageBase || (ulong)guestAddress + (uint)count > (ulong)ImageBase + SizeOfImage)
+        {
+            throw new InvalidDataException("Guest loader read exceeds the Remastered image bounds.");
+        }
+        byte[] result = new byte[count];
+        int copied = 0;
+        while (copied < count)
+        {
+            ulong rva = (ulong)guestAddress + (uint)copied - ImageBase;
+            Section section = sections.FirstOrDefault(section => section.Rva <= rva && rva < (ulong)section.Rva + section.Extent) ?? throw new InvalidDataException($"No Remastered loader section at guest address 0x{(ulong)guestAddress + (uint)copied:X8}.");
+            int offset = checked((int)(rva - section.Rva));
+            int length = checked((int)Math.Min((uint)(count - copied), section.Extent - (uint)offset));
+            int mapped = Math.Clamp(section.Data.Length - offset, 0, length);
+            if (mapped != 0)
+            {
+                section.Data.AsSpan(offset, mapped).CopyTo(result.AsSpan(copied));
+            }
+            copied += length;
+        }
+        return result;
+    }
+
     private void ReadSymbols(BinaryReader reader, uint count, List<uint>? addresses)
     {
         for (uint index = 0; index < count; index++)

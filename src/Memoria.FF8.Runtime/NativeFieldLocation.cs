@@ -17,7 +17,7 @@ public sealed record NativeFieldLocation([property: JsonRequired] ushort FieldId
 {
     public void Validate()
     {
-        if (FieldId < 72 || NativeKind != 1 || Slots.IsDefault || Slots.Length != 3 || Slots.Any(slot => slot is null || slot.Pose is not null && (slot.RuntimeBinding is null or >= 48)) || ProgramHash is not { Length: 64 } || !ProgramHash.All(Uri.IsHexDigit) || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || Frame < 0 || ObjectId < 0 || ScriptId < 0 || Operation < 0)
+        if (FieldId < 72 || NativeKind != 1 || Slots.IsDefault || Slots.Length != 3 || Slots.Any(slot => slot is null || slot.Pose is not null && (slot.RuntimeBinding is null or >= 48)) || ProgramHash is not { Length: 64 } || !ProgramHash.All(Uri.IsHexDigit) || !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || Frame < 0 || ObjectId < 0 || ScriptId < 0 || Operation < 0)
         {
             throw new InvalidDataException("Native saved field location lacks its actual470250 field/menu request and three physical read results.");
         }

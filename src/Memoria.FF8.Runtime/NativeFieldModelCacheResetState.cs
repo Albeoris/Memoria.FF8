@@ -17,7 +17,7 @@ public sealed record NativeFieldModelCacheResetState([property: JsonRequired] in
 
     public void Validate()
     {
-        if (Version != 1 || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
+        if (Version != 1 || !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash))
         {
             throw new InvalidDataException("Native model cache reset lacks executed5310F0 provenance.");
         }

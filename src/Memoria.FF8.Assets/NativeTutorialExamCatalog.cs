@@ -185,6 +185,15 @@ public sealed class NativeTutorialExamCatalog
         {
             throw new NotSupportedException("Original SeeD tests require the authenticated English executable and native menu directory.");
         }
+        return Read(header, content);
+    }
+
+    public static NativeTutorialExamCatalog Read(byte[] header, byte[] content)
+    {
+        if (header.Length != 2048)
+        {
+            throw new InvalidDataException("Native SeeD tests require the complete menu directory.");
+        }
         byte[] Resource(int slot)
         {
             uint offset = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(slot * 8));
@@ -274,6 +283,6 @@ public sealed partial class GameAssets
     public NativeTutorialExamCatalog ReadNativeTutorialExamCatalog()
     {
         using IFlArchive menu = OpenArchive("menu");
-        return nativeTutorialExams ??= NativeTutorialExamCatalog.Read(ReadNativeExecutable(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"));
+        return nativeTutorialExams ??= NativeTutorialExamCatalog.Read(Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"));
     }
 }

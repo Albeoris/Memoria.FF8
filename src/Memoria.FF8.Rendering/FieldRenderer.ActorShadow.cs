@@ -24,7 +24,7 @@ public sealed partial class FieldRenderer
             // All eight native fan edges coincide with the center for radius0.
             return;
         }
-        if (field.NativeExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || actor.GroundShadowLevel609 is not byte level || actor.GroundShadowCentre is not Vector3 body)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(field.NativeExecutableHash) || actor.GroundShadowLevel609 is not byte level || actor.GroundShadowCentre is not Vector3 body)
         {
             throw new NotSupportedException("Native ground-shadow geometry requires authenticated tables, body XYZ and exact BYTE609 authority.");
         }

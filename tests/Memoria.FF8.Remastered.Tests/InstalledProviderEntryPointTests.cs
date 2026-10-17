@@ -17,12 +17,25 @@ public sealed class InstalledProviderEntryPointTests
     public void UnsupportedClassicNativeConsumersRejectRemasteredThroughTheProvider()
     {
         string directory = InstalledDirectory();
-        Assert.Throws<NotImplementedException>(() => new NativeMusicCatalog(directory));
+        Assert.EndsWith(".sgt", new NativeMusicCatalog(directory).MusicFileResolved(0));
         Assert.Throws<NotImplementedException>(() => new NativeWorldForestTables(directory));
         Assert.Throws<NotImplementedException>(() => NativeTripleTriadArtwork.Load(directory));
         Assert.Throws<NotImplementedException>(() => TripleTriadCatalog.Load(directory));
-        Assert.Throws<NotImplementedException>(() => GlobalAudioFormat.Read(directory, 0));
         Assert.Throws<NotImplementedException>(() => NativeSteamDiscMountReader.Read(directory, 1));
+    }
+
+    [Fact]
+    public void NativeUiCatalogsInitializeFromAuthenticatedRemasteredData()
+    {
+        using GameAssets assets = new(InstalledDirectory());
+        NativeTutorialCatalog tutorials = assets.ReadNativeTutorialCatalog();
+        Assert.Equal(Memoria.FF8.Runtime.NativeFieldRuntimeProfile.RemasteredEnImageHash, tutorials.ExecutableHash);
+        Assert.Equal(9, tutorials.Tutorials.Length);
+        Assert.NotNull(tutorials.CreateIsolatedParty(0));
+        NativeTutorialBrowserCatalog browser = assets.ReadNativeTutorialBrowserCatalog();
+        Assert.Equal(tutorials.ExecutableHash, browser.ExecutableHash);
+        Assert.Equal(25, browser.Categories.Sum(category => category.Pages.Length));
+        Assert.Equal(30, assets.ReadNativeTutorialExamCatalog().Levels.Length);
     }
 
     private static string InstalledDirectory()

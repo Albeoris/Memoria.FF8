@@ -23,7 +23,7 @@ public sealed record NativeSalaryTable([property: JsonRequired] string Executabl
 
     public void Validate()
     {
-        if (ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash || Entries.IsDefault || Entries.Length != 32)
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableSha256) || Entries.IsDefault || Entries.Length != 32)
         {
             throw new InvalidDataException("Salary lookup requires the authenticated original32 unsignedWORD entries.");
         }

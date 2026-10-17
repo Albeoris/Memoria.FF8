@@ -139,7 +139,7 @@ public sealed partial class EventEngine
             {
                 persistent = active = 0;
             }
-            else if (write.Writer == NativeBattleFlagWriter.SavedStateMigration && prior is null && write.RawOperand is null && (write.PersistentFlags & ~4) == 0 && saved.Scene.MusicProcess?.Bootstrap is { Version: 1, Rule: "ff8-en-music-new-game-470560-52ca90-v1", ExecutableHash: NativeFieldRuntimeProfile.FF8EnExecutableHash })
+            else if (write.Writer == NativeBattleFlagWriter.SavedStateMigration && prior is null && write.RawOperand is null && (write.PersistentFlags & ~4) == 0 && saved.Scene.MusicProcess?.Bootstrap is { Version: 1, Rule: "ff8-en-music-new-game-470560-52ca90-v1" } bootstrap && NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash))
             {
                 persistent = active = write.PersistentFlags;
             }

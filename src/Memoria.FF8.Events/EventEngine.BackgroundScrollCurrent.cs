@@ -10,7 +10,7 @@ public sealed partial class EventEngine
     private static Dictionary<int, NativeBackgroundScrollCurrent> CaptureNativeBackgroundScrollCurrents(SceneEventState scene, bool executedCallback)
     {
         Dictionary<int, NativeBackgroundScrollCurrent> currents = [];
-        bool nativeAllocation = scene.NativeFieldLoadVersion == 1 && scene.NativeFieldInitialization is { Version: 1, Stage: NativeFieldInitializationStage.Completed, ExecutableHash: NativeFieldRuntimeProfile.FF8EnExecutableHash, FieldClock: 20 };
+        bool nativeAllocation = scene.NativeFieldLoadVersion == 1 && scene.NativeFieldInitialization is { Version: 1, Stage: NativeFieldInitializationStage.Completed, FieldClock: 20 } initialization && NativeFieldRuntimeProfile.IsSupportedImage(initialization.ExecutableHash);
         bool normalCallback = nativeAllocation && scene.NormalBackgroundScrollCenter is { Version: 1, Frame: > 0 } normal && normal.CameraIndex == scene.CameraIndex && normal.FieldId == scene.NativeFieldInitialization!.FieldId;
         bool actorCallback = nativeAllocation && scene.ActorBackgroundScroll is { Status: 1 or 2 } actor && NativeActorScrollPhase.IsValid(actor);
         bool physicalCallback = nativeAllocation && (executedCallback || normalCallback || actorCallback);

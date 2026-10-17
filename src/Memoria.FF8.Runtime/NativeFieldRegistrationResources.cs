@@ -44,7 +44,7 @@ public sealed record NativeFieldRegistrationResources([property: JsonRequired] i
 
     public void Validate()
     {
-        if (FieldId is < 72 or > ushort.MaxValue || string.IsNullOrWhiteSpace(FieldName) || ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || One is null || Directory.IsDefault || MainCharacters.IsDefault || MainCharacters.Any(source => source is null) || MainCharacters.Select(source => source.Member).Distinct(StringComparer.Ordinal).Count() != MainCharacters.Length)
+        if (FieldId is < 72 or > ushort.MaxValue || string.IsNullOrWhiteSpace(FieldName) || !NativeFieldRuntimeProfile.IsSupportedImage(ExecutableHash) || ProgramHash is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit) || One is null || Directory.IsDefault || MainCharacters.IsDefault || MainCharacters.Any(source => source is null) || MainCharacters.Select(source => source.Member).Distinct(StringComparer.Ordinal).Count() != MainCharacters.Length)
         {
             throw new InvalidDataException("Native kind3 registration requires original field identity, program and actual ONE inputs.");
         }

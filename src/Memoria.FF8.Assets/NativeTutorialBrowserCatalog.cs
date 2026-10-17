@@ -1,9 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Immutable;
-using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using Albeoris.Games.FF8.FlArchives.Abstractions;
-using Memoria.FF8.Runtime;
 
 namespace Memoria.FF8.Assets;
 
@@ -35,22 +33,24 @@ public sealed class NativeTutorialBrowserCatalog
 
     public static NativeTutorialBrowserCatalog Read(byte[] executable, byte[] menuHeader, byte[] menuContent, byte[] ranges, byte[] metadata)
     {
-        string executableHash = Convert.ToHexString(SHA256.HashData(executable));
-        if (executableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash)
-        {
-            throw new NotSupportedException("Native tutorial browser requires the authenticated English executable.");
-        }
+        return Read(new NativeExecutableMemory(executable), menuHeader, menuContent, ranges, metadata);
+    }
+
+    public static NativeTutorialBrowserCatalog Read(IGameNativeMemorySource memory, byte[] menuHeader, byte[] menuContent, byte[] ranges, byte[] metadata)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
         if (menuHeader.Length != 256 * 8 || ranges.Length != 12 || metadata.Length % 68 != 0)
         {
             throw new InvalidDataException("Native tutorial browser requires complete original menu, mtmag and mmag tables.");
         }
-        using PEReader pe = new(new MemoryStream(executable));
+        byte[] descriptors = memory.Read(0xB88340, 7 * 4);
+        int[] contentResourceBases = [28, 20, 24, 44, 48, 71, 180];
         ImmutableArray<NativeTutorialText> tutorialLabels = NativeTutorialCatalog.ReadGroupedTexts(Resource(2), 13);
         ImmutableArray<NativeTutorialText> mainLabels = NativeTutorialCatalog.ReadGroupedTexts(Resource(0), 0);
         ImmutableArray<NativeTutorialBrowserCategory>.Builder categories = ImmutableArray.CreateBuilder<NativeTutorialBrowserCategory>(7);
         for (int id = 0; id < 7; id++)
         {
-            ReadOnlySpan<byte> row = executable.AsSpan(Offset(0xB88340u + (uint)id * 4, 4), 4);
+            ReadOnlySpan<byte> row = descriptors.AsSpan(id * 4, 4);
             ImmutableArray<NativeTutorialText> labels = row[1] == 0 ? mainLabels : tutorialLabels;
             int labelIndex = row[0] * 2;
             if (row[1] > 1 || labelIndex + 1 >= labels.Length)
@@ -82,14 +82,8 @@ public sealed class NativeTutorialBrowserCatalog
                     {
                         throw new InvalidDataException("Native tutorial page has an unsupported content resource group.");
                     }
-                    uint branch = BinaryPrimitives.ReadUInt32LittleEndian(executable.AsSpan(Offset(0x4C998Cu + (uint)group * 4, 4), 4));
-                    ReadOnlySpan<byte> selector = executable.AsSpan(Offset(branch, 9), 9);
-                    // Native4C9920 loads the local index, then adds this group's original resource base.
-                    if (!selector[..4].SequenceEqual(new byte[] { 0x8B, 0x44, 0x24, 0x08 }))
-                    {
-                        throw new NotSupportedException("Native tutorial content group no longer uses its proved stack argument selector.");
-                    }
-                    int resourceBase = selector[4] == 0x83 && selector[5] == 0xC0 ? selector[6] : selector[4] == 0x05 ? checked((int)BinaryPrimitives.ReadUInt32LittleEndian(selector[5..])) : throw new NotSupportedException("Native tutorial content group no longer uses its proved ADD EAX selector.");
+                    // Native4C9920 selects the same menu resource groups in both supported editions.
+                    int resourceBase = contentResourceBases[group];
                     int contentResource = pageRow[23] + resourceBase;
                     ImmutableArray<byte> textBytes = Resource(textResource);
                     ImmutableArray<NativeTutorialText> texts = NativeTutorialCatalog.ReadTexts(textBytes);
@@ -117,14 +111,7 @@ public sealed class NativeTutorialBrowserCatalog
         hash.AppendData(menuContent);
         hash.AppendData(ranges);
         hash.AppendData(metadata);
-        return new NativeTutorialBrowserCatalog(executableHash, Convert.ToHexString(hash.GetHashAndReset()), categories.MoveToImmutable(), ImmutableArray.CreateRange(ranges), ImmutableArray.CreateRange(metadata), tutorialLabels);
-
-        int Offset(uint address, int length)
-        {
-            long rva = address - (long)pe.PEHeaders.PEHeader!.ImageBase;
-            SectionHeader section = pe.PEHeaders.SectionHeaders.Single(section => rva >= section.VirtualAddress && rva + length <= section.VirtualAddress + section.SizeOfRawData);
-            return checked((int)(rva - section.VirtualAddress + section.PointerToRawData));
-        }
+        return new NativeTutorialBrowserCatalog(memory.SourceHash, Convert.ToHexString(hash.GetHashAndReset()), categories.MoveToImmutable(), ImmutableArray.CreateRange(ranges), ImmutableArray.CreateRange(metadata), tutorialLabels);
 
         ImmutableArray<byte> Resource(int slot)
         {
@@ -154,6 +141,6 @@ public sealed partial class GameAssets
             return nativeTutorialBrowser;
         }
         using IFlArchive menu = OpenArchive("menu");
-        return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(ReadNativeExecutable(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"));
+        return nativeTutorialBrowser = NativeTutorialBrowserCatalog.Read(ReadNativeMemory(), Read(menu, "mngrphd.bin"), Read(menu, "mngrp.bin"), Read(menu, "mtmag.bin"), Read(menu, "mmag.bin"));
     }
 }

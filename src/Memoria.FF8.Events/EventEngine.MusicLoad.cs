@@ -262,7 +262,7 @@ public sealed partial class EventEngine
         {
             throw new InvalidDataException("Saved native music process lacks its pending load/completion authority.");
         }
-        if (process?.Bootstrap is NativeMusicBootstrap bootstrap && (bootstrap.Version != 1 || bootstrap.Rule != "ff8-en-music-new-game-470560-52ca90-v1" || bootstrap.ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash))
+        if (process?.Bootstrap is NativeMusicBootstrap bootstrap && (bootstrap.Version != 1 || bootstrap.Rule != "ff8-en-music-new-game-470560-52ca90-v1" || !NativeFieldRuntimeProfile.IsSupportedImage(bootstrap.ExecutableHash)))
         {
             throw new InvalidDataException("Saved native music bootstrap is not the authenticated New Game reset.");
         }

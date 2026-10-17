@@ -8,6 +8,6 @@ internal static class NativeFieldEntryStackAdapter
 {
     public static bool Supports(FieldAssets field, FieldTransition arrival)
     {
-        return field.Id >= 72 && arrival.FieldId == field.Id && field.NativeExecutableHash == NativeFieldRuntimeProfile.FF8EnExecutableHash && field.WalkmeshHash is { Length: 64 } hash && hash.All(Uri.IsHexDigit);
+        return field.Id >= 72 && arrival.FieldId == field.Id && NativeFieldRuntimeProfile.IsSupportedImage(field.NativeExecutableHash) && field.WalkmeshHash is { Length: 64 } hash && hash.All(Uri.IsHexDigit);
     }
 }

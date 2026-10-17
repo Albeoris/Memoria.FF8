@@ -32,6 +32,6 @@ public static class NativeJoinMovementAdapter
 
     private static bool IsSavedPartyBinding(FieldAssets field, SceneEventState scene, int objectId)
     {
-        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.IsFrom(NativeFieldRuntimeProfile.FF8En, field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativePartyTraceVersion == 1 && scene.NativeActorLayoutVersion == 1 && scene.PartyBindingMemory is { Version: 1 } memory && Enumerable.Range(0, 3).Select(memory.At).Any(index => index != byte.MaxValue && index < scene.NativeActorObjectIds.Count && scene.NativeActorObjectIds[index] == objectId);
+        return scene.NativeFieldInitialization is { Stage: NativeFieldInitializationStage.Completed } initialization && initialization.IsFrom(NativeFieldRuntimeProfile.ForImage(field.NativeExecutableHash), field.Id, Convert.ToHexString(SHA256.HashData(field.Jsm))) && scene.NativeFieldLoadVersion == 1 && scene.NativePartyTraceVersion == 1 && scene.NativeActorLayoutVersion == 1 && scene.PartyBindingMemory is { Version: 1 } memory && Enumerable.Range(0, 3).Select(memory.At).Any(index => index != byte.MaxValue && index < scene.NativeActorObjectIds.Count && scene.NativeActorObjectIds[index] == objectId);
     }
 }

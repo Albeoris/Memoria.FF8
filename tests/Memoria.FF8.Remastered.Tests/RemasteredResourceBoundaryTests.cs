@@ -39,8 +39,6 @@ public sealed class RemasteredResourceBoundaryTests
     [InlineData("runtime/native-executable")]
     [InlineData("runtime/disc-wrapper")]
     [InlineData("runtime/unknown")]
-    [InlineData("files/sound/audio.fmt")]
-    [InlineData("files/sound/audio.dat")]
     public void UnsupportedRuntimeResourcesFailWithoutOpeningClassicFiles(string key)
     {
         using SyntheticResources files = new();
@@ -56,13 +54,13 @@ public sealed class RemasteredResourceBoundaryTests
     [Theory]
     [InlineData("sound/audio.fmt")]
     [InlineData("sound/audio.dat")]
-    public void UnsupportedSoundFileResolutionDoesNotReturnAClassicPath(string path)
+    public void MissingSoundFileResolutionDoesNotReturnAClassicPath(string path)
     {
         using SyntheticResources files = new();
         string directory = Path.GetDirectoryName(files.Write([]))!;
         File.WriteAllBytes(Path.Combine(directory, "main.zzz"), SyntheticResources.Zzz());
         File.WriteAllBytes(Path.Combine(directory, "other.zzz"), SyntheticResources.Zzz());
         using RemasteredGameDataSource source = new(directory);
-        Assert.Throws<NotImplementedException>(() => source.ResolveFile(path));
+        Assert.Throws<FileNotFoundException>(() => source.ResolveFile(path));
     }
 }

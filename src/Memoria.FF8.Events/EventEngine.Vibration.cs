@@ -69,7 +69,7 @@ public sealed partial class EventEngine
             return;
         }
         NativeVibrationBank? bank = ReadNativeVibrationBank?.Invoke();
-        if (bank is null || request.Version != 2 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 1 || request.EffectivePriority != (request.RawPriority | 1) || request.ExecutableHash != NativeFieldRuntimeProfile.FF8EnExecutableHash || request.BankSourceHash != bank.SourceHash || request.PatternOffset != ((uint)request.RawPattern < bank.Offsets.Length ? bank.Offsets[request.RawPattern] : (int?)null) || request.NativeReturn < -1 || request.NativeReturn > 16371)
+        if (bank is null || request.Version != 2 || request.FieldId is < 72 or > ushort.MaxValue || request.ObjectId < 0 || request.ScriptId < 0 || request.Operation < 0 || request.Frame < 1 || request.EffectivePriority != (request.RawPriority | 1) || !NativeFieldRuntimeProfile.IsSupportedImage(request.ExecutableHash) || request.BankSourceHash != bank.SourceHash || request.PatternOffset != ((uint)request.RawPattern < bank.Offsets.Length ? bank.Offsets[request.RawPattern] : (int?)null) || request.NativeReturn < -1 || request.NativeReturn > 16371)
         {
             throw new InvalidDataException("Saved SETVIBRATE receipt lost its original operands, bank or exact native result.");
         }

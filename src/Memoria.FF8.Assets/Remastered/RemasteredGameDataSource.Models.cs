@@ -102,24 +102,34 @@ public sealed partial class RemasteredGameDataSource
         DecodedTextureImage decoded = TextureImageDecoder.Decode(Read(stream), binding.Path);
         PixelImage image = decoded.Image;
         IReadOnlyDictionary<string, PixelImage>? variants = null;
-        if (binding.EyeVariants && (long)image.Width * context.LogicalHeight == (long)image.Height * context.LogicalWidth * 2)
+        const int nativeScale = 3;
+        const int nativeRowWidth = 384;
+        int width = checked(context.LogicalWidth * nativeScale);
+        int height = checked(context.LogicalHeight * nativeScale);
+        if (width != nativeRowWidth || image.Width is not (nativeRowWidth or nativeRowWidth * 2) || image.Height > height)
         {
-            variants = new Dictionary<string, PixelImage> { ["eyes-closed"] = Crop(image, image.Width / 2, 0, image.Width / 2, image.Height) };
-            image = Crop(image, 0, 0, image.Width / 2, image.Height);
+            throw new NotSupportedException($"The selected model image {binding.Path} ({image.Width}x{image.Height}) does not fit the native texture row {context.LogicalWidth}x{context.LogicalHeight} at scale {nativeScale}.");
         }
-        if ((long)image.Width * context.LogicalHeight != (long)image.Height * context.LogicalWidth)
+        if (binding.EyeVariants && image.Width == nativeRowWidth * 2)
         {
-            throw new NotSupportedException("The selected model image does not fit its logical texture rectangle.");
+            variants = new Dictionary<string, PixelImage> { ["eyes-closed"] = RowPlane(image, nativeRowWidth, width, height) };
         }
+        image = RowPlane(image, 0, width, height);
         return new TextureReplacement(image, $"{Descriptor.Id}:{context.Key}", context.LogicalWidth, context.LogicalHeight, [image], variants);
     }
 
-    private static PixelImage Crop(PixelImage source, int x, int y, int width, int height)
+    private static PixelImage RowPlane(PixelImage source, int x, int width, int height)
     {
-        Rgba32[] pixels = new Rgba32[checked(width * height)];
-        for (int row = 0; row < height; row++)
+        if (x == 0 && source.Width == width && source.Height == height)
         {
-            source.Pixels.AsSpan((y + row) * source.Width + x, width).CopyTo(pixels.AsSpan(row * width));
+            return source;
+        }
+        // Native uploads each image into a fixed atlas row. Unuploaded GL storage is unspecified;
+        // the managed backing allocation uses transparent pixels for that uncovered area.
+        Rgba32[] pixels = new Rgba32[checked(width * height)];
+        for (int row = 0; row < source.Height; row++)
+        {
+            source.Pixels.AsSpan(row * source.Width + x, width).CopyTo(pixels.AsSpan(row * width));
         }
         return new PixelImage(width, height, pixels);
     }

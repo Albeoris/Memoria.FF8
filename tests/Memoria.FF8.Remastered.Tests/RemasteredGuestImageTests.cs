@@ -21,6 +21,21 @@ public sealed class RemasteredGuestImageTests
         Assert.Throws<InvalidDataException>(() => image.Read(uint.MaxValue, 2));
     }
 
+    [Fact]
+    public void LoaderReadsZeroTailWithoutTreatingGapsAsInitializedStorage()
+    {
+        using SyntheticResources files = new();
+        byte[] bytes = SyntheticResources.Dat(new SerializedSection(".data", 0x1000, [1, 2, 3, 4]));
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(256), 8);
+        RemasteredGuestImage image = new(files.Write(bytes));
+        Assert.Equal(new byte[] { 3, 4, 0, 0, 0, 0 }, image.ReadLoader(0x401002, 6));
+        Assert.Throws<InvalidDataException>(() => image.Read(0x401004, 1));
+        Assert.Throws<InvalidDataException>(() => image.ReadLoader(0x401008, 1));
+        Assert.Throws<InvalidDataException>(() => image.ReadLoader(0x400FFF, 2));
+        Assert.Throws<InvalidDataException>(() => image.ReadLoader(uint.MaxValue, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => image.ReadLoader(0x401000, -1));
+    }
+
     [Theory]
     [InlineData("short-expanded")]
     [InlineData("long-expanded")]

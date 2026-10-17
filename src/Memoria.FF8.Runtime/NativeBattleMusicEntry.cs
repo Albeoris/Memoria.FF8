@@ -8,7 +8,7 @@ public sealed record NativeBattleMusicEntryResources([property: JsonRequired] st
 {
     public void Validate(bool requireTemplate = true)
     {
-        if (ExecutableSha256 != NativeFieldRuntimeProfile.FF8EnExecutableHash || SpecialEncounters.IsDefault || SpecialEncounters.Length != 43 || SpecialEncounters.Contains(ushort.MaxValue))
+        if (!NativeFieldRuntimeProfile.IsSupportedImage(ExecutableSha256) || SpecialEncounters.IsDefault || SpecialEncounters.Length != 43 || SpecialEncounters.Contains(ushort.MaxValue))
         {
             throw new InvalidDataException("Native52CE30 requires the authenticated original47CC70 encounter table.");
         }

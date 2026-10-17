@@ -6,7 +6,7 @@ Set these in the shell before starting the launcher, engine or test process. An 
 
 | Variable | Purpose and precedence |
 | --- | --- |
-| `MEMORIA_FF8_GAME_DIR` | Original installed game directory. Used when `--game-dir` is absent. |
+| `MEMORIA_FF8_GAME_DIR` | Installed game directory. Used when `--game-dir` is absent. |
 | `FF8_GAME_DIRECTORY` | Fallback game directory when `MEMORIA_FF8_GAME_DIR` is unset. |
 | `MEMORIA_FF8_MEDIA_TOOLS` | Directory containing `ffmpeg.exe` and `ffprobe.exe`, used by both the launcher and engine. Direct engine startup can override it with `--media-tools`. Default `%LOCALAPPDATA%/Memoria.FF8/media-tools/`, beside `player-saves/`. |
 | `MEMORIA_FF8_FFMPEG_RELEASE_URL` | Override the HTTPS release-download directory used by optional FFmpeg installation. Default `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/`. |
@@ -37,7 +37,8 @@ Tests that need installed resources or external fixtures require explicit config
 | `MEMORIA_FF8_GAME_DIR` / `FF8_GAME_DIRECTORY` | Original game resources for installed-resource tests. |
 | `MEMORIA_FF8_TEST_FIXTURE_CATALOG` | JSON object mapping neutral test resource IDs to externally supplied fixture paths. |
 | `MEMORIA_FF8_TEST_FIXTURES` | Fixture base directory. If unset, the catalog's containing directory is used. Relative catalog entries resolve against this base. |
-| `MEMORIA_FF8_REMASTERED_DIR` | Optional Remastered installation for installed Remastered tests. It does not select the playable engine's main installation. |
+| `MEMORIA_FF8_REMASTERED_DIR` | Optional Remastered installation for installed Remastered tests. It also selects the optional opening-route acceptance installation; normal engine launch still uses `--game-dir` or `MEMORIA_FF8_GAME_DIR`. |
+| `MEMORIA_FF8_REMASTERED_PROOF_DIR` | Optional output root retaining the opening acceptance standalone save, image and report. |
 | `MEMORIA_FF8_AUTOPLAY_ACCEPTANCE` | Set to `1` to opt in to the full autonomous exploration acceptance test. This does not enable the CLI mode, which needs no environment flag. |
 | `FF8_DEMASTER_PACKAGE` | Optional texture-package root used by Demaster texture tests. |
 | `MEMORIA_FF8_JUNCTION_CINEMA_ARCHIVE` | Optional Junction archive override for the resource-host test; otherwise that test checks `Mods/Junction/cinema-rf.iroj` in the configured game directory. |

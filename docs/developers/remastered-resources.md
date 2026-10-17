@@ -1,10 +1,10 @@
 # Experimental Remastered resources
 
-The provider can read a user-selected Steam Remastered installation without extracting complete archives or modifying installed files. This is resource support, not Remastered gameplay support: the playable engine profile remains English Steam 2013 Classic. The launcher accepts complete English Remastered installations for development. Unimplemented runtime contracts stop with `NotImplementedException`.
+The provider can read a user-selected Steam Remastered installation without extracting complete archives or modifying installed files. English Remastered has an authenticated runtime profile for the opening route from a cold New Game through the infirmary and corridor into the classroom. The launcher accepts complete English Remastered installations. Unimplemented runtime contracts still stop explicitly; this bounded route does not establish complete Remastered playability.
 
 ## Storage and APIs
 
-[GameDataSourceFactory.Open(directory)](../../src/Memoria.FF8.Assets/GameDataSourceFactory.cs) selects Remastered when the selected directory contains `main.zzz`. [RemasteredGameDataSource](../../src/Memoria.FF8.Assets/Remastered/RemasteredGameDataSource.cs) requires both `main.zzz` and `other.zzz`. It implements `IGameRuntimeSource`, `IResourceSource`, `IGameArchiveSource`, `IGameFileSource`, `IFieldModelSource`, `IBattleModelSource` and `ITextureReplacementResolver`.
+[GameDataSourceFactory.Open(directory)](../../src/Memoria.FF8.Assets/GameDataSourceFactory.cs) selects Remastered when the selected directory contains `main.zzz`. [RemasteredGameDataSource](../../src/Memoria.FF8.Assets/Remastered/RemasteredGameDataSource.cs) requires both `main.zzz` and `other.zzz`. It implements `IGameNativeMemorySource`, `IGameRuntimeSource`, `IResourceSource`, `IGameArchiveSource`, `IGameFileSource`, `IFieldModelSource`, `IBattleModelSource` and `ITextureReplacementResolver`.
 
 Consumers use [logical resource/texture contracts](rendering.md), RGBA images and shared model, skeleton and animation types. ZZZ mounting, localized names, serialized guest-image tables and stock HD selection stay inside `Memoria.FF8.Assets.Remastered`. Mounted name collisions fail because precedence is not established. Loose Demaster extraction directories are not automatically mounted.
 
@@ -22,13 +22,13 @@ Named guest tables require the authenticated English serialized image. The const
 
 All asset entry points select or borrow a resource provider, including field, battle, world, menu, card, audio and movie loading. Consumers use archive families, logical keys and provider-resolved files; they do not open installation executables or assume an archive directory layout. Providers own materialized file lifetimes.
 
-`runtime/native-executable` identifies the authenticated native image required by the existing Classic parsers. Classic supplies its original PE bytes; Remastered throws `NotImplementedException`. Serialized Remastered guest bytes are never substituted for that PE contract. Supported guest tables instead use the named `tables/*` keys and can be consumed independently, including field shake and vibration. `runtime/disc-wrapper` is also provider-owned and currently implemented only for Classic.
+`runtime/native-executable` identifies the authenticated native image required by the existing Classic parsers. Classic supplies its original PE bytes; Remastered throws `NotImplementedException`. Serialized Remastered guest bytes are never substituted for that PE contract. Supported guest tables use named `tables/*` keys or `IGameNativeMemorySource` address reads. The semantic memory API authenticates the edition container, preserves its actual source hash and distinguishes explicit serialized data from section-backed loader zero tails. It supplies tutorial, music, field registration, salary, particle and cold-process data without constructing a PE. `runtime/disc-wrapper` is also provider-owned and currently implemented only for Classic.
 
-`IGameRuntimeSource.NativeRuntimeProfile` is nullable for resource inspection. `RequireNativeRuntimeProfile()` is the explicit gameplay requirement: Classic authenticates its profile and Remastered currently throws `NotImplementedException`. Original sound containers also throw `NotImplementedException` on Remastered until an edition-specific audio implementation exists. Missing members of a supported archive still report ordinary missing-resource errors.
+`IGameRuntimeSource.NativeRuntimeProfile` is nullable for resource inspection. `RequireNativeRuntimeProfile()` is the explicit gameplay requirement. English Remastered authenticates both its serialized image and translated runtime DLL. Field allocation, movement and camera receipts retain that edition identity. Sound containers are read from mounted archives through the shared PCM/ADPCM decoder. Native segment music requests resolve to the corresponding mounted OGG sibling. Missing members of a supported archive report ordinary missing-resource errors.
 
 ## Models and images
 
-Enhanced MCH geometry and animations decode into the shared representation. Stock field HD images use the source page row, preferring the new family before the base family. Logical UV dimensions remain independent of physical image size. Battle-character images use the two-row family. Side-by-side eye images expose the normal image and an `eyes-closed` entry in `TextureValue.Variants`; automatic eye-state rendering is not implemented.
+Enhanced MCH geometry and animations decode into the shared representation. Stock field HD images use the source page row, preferring the new family before the base family. Logical UV dimensions remain independent of physical image size. Field images occupy fixed 384-column atlas planes at three physical pixels per logical UV unit; short images retain that scale instead of stretching. Native storage outside uploaded subimages is unspecified; managed texture backing uses transparent pixels there. Battle-character images use the two-row family. Side-by-side eye images expose the normal image and an `eyes-closed` entry in `TextureValue.Variants`; automatic eye-state rendering is not implemented.
 
 Stock image selection belongs to the source; external adapters can precede it through the shared resolver pipeline. PNG and DDS decoding is shared with texture packages, although stock archives contain PNGs. World and battle archives, including original embedded textures, are readable through the same source.
 
@@ -43,3 +43,11 @@ dotnet run --project tests/Memoria.FF8.Remastered.Tests -c Release
 ```
 
 Set `MEMORIA_FF8_REMASTERED_DIR` to a selected Remastered installation to enable additional read-only installed-resource checks. They skip when absent. No game process is launched, and no proprietary data or fixtures are distributed.
+
+The optional opening acceptance additionally requires FFmpeg tools and runs in the App test project:
+
+```powershell
+dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*RemasteredOpeningTests'
+```
+
+Set `MEMORIA_FF8_MEDIA_TOOLS` to the FFmpeg tools directory. `MEMORIA_FF8_REMASTERED_PROOF_DIR` optionally retains a distinct standalone classroom save, render and report in a selected output directory. The check starts through the same cold-process owner as graphical launch, applies ordinary opening inputs, and validates a save/load plus the next input and render. Movies are skipped through their normal engine callbacks.
