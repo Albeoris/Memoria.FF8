@@ -7,6 +7,55 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayAcceptanceTests
 {
     [Fact]
+    public void AnUnsampledContinuousContactInputDoesNotCompleteItsAlternative()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.5");
+        using InstalledRun run = new(gameDirectory);
+        run.Controller.ResumeFrom(manifest);
+        for (int step = 0; step < 8 && run.Controller.State.ActiveObservedInput is null; step++)
+        {
+            run.Controller.Advance(1);
+            Assert.Null(run.Controller.Error);
+        }
+        ScriptedInputMetadata input = Assert.IsType<ScriptedInputMetadata>(run.Controller.State.ActiveObservedInput);
+        run.Controller.State.ActiveObservedInput = input with { Queries = input.Queries.Select(query => query with { Operation = int.MaxValue }).ToArray() };
+        run.Controller.Advance(1);
+        Assert.Contains("did not sample physical mask", run.Controller.Error);
+        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key == "input:240:" + input.Fingerprint);
+        Assert.Empty(choice.CompletedOptions);
+    }
+
+    [Fact]
+    public void ContinuousWardrobeContactReceivesOrdinaryInputAndExploresGetChanged()
+    {
+        string gameDirectory = TestResources.GameDirectory;
+        string manifest = TestResources.FixturePath("App.Tests.AutoPlayAcceptanceTests.5");
+        using InstalledRun run = new(gameDirectory);
+        run.Controller.ResumeFrom(manifest);
+        bool sawWardrobe = false;
+        bool choseGetChanged = false;
+        bool WardrobeChoicesFinished() => run.Controller.State.Coverage.Choices.Where(choice => choice.Key.StartsWith("240:", StringComparison.Ordinal) || choice.Key.StartsWith("input:240:", StringComparison.Ordinal)).All(choice => choice.Finished);
+        for (int step = 0; step < 128 && (run.Variables.GetValueOrDefault(256) != 34 || !WardrobeChoicesFinished() || run.Controller.State.PrimaryContinuation is not null); step++)
+        {
+            run.Controller.Advance(1);
+            Assert.Null(run.Controller.Error);
+            choseGetChanged |= run.DialogueOutcomes.Any(outcome => outcome.ObjectId == 12 && outcome.ScriptId == 53 && outcome.Operation == 316 && outcome.Choice == 2);
+            JsonElement snapshot = run.Snapshot();
+            if (snapshot.TryGetProperty("EventState", out JsonElement events) && events.ValueKind == JsonValueKind.Object)
+            {
+                sawWardrobe |= events.GetProperty("Dialogues").EnumerateArray().Any(dialogue => dialogue.GetProperty("ObjectId").GetInt32() == 12 && dialogue.GetProperty("ScriptId").GetInt32() == 53 && dialogue.GetProperty("Operation").GetInt32() == 316 && dialogue.GetProperty("MessageId").GetInt32() == 1);
+            }
+        }
+        Assert.True(sawWardrobe, "The admitted continuous contact never opened its original wardrobe prompt.");
+        Assert.True(choseGetChanged, "The original wardrobe prompt never received its visible Get changed answer.");
+        Assert.True(WardrobeChoicesFinished());
+        Assert.Null(run.Controller.State.PrimaryContinuation);
+        Assert.Equal(34, run.Variables.GetValueOrDefault(256));
+        Assert.Equal(1, run.Variables.GetValueOrDefault(720));
+    }
+
+    [Fact]
     public void ResumedChoiceReplayIsIndependentOfItsOriginalDirectory()
     {
         string gameDirectory = TestResources.GameDirectory;

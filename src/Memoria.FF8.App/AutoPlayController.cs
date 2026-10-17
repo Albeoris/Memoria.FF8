@@ -19,6 +19,8 @@ internal sealed class AutoPlayRunState
     public int ActiveField { get; set; }
     public int? ActiveStory { get; set; }
     public int ActiveObjectId { get; set; } = -1;
+    public ScriptedInputMetadata? ActiveObservedInput { get; set; }
+    public bool ObserveContactInput { get; set; }
     public bool ObservedControlLoss { get; set; }
     public int SettleFrames { get; set; }
     public long SceneFrames { get; set; }
@@ -363,6 +365,8 @@ internal sealed class AutoPlayController
         }
         if (world.CurrentDialogue is { CanConfirm: true } dialogue)
         {
+            run.ActiveObservedInput = null;
+            run.ObserveContactInput = false;
             HandleDialogue(dialogue);
             run.SettleFrames = 0;
             return;
@@ -381,6 +385,13 @@ internal sealed class AutoPlayController
         if (!world.Events.IsUserControlEnabled && session.State.FieldButtonInput is { PhysicalHeld: 0 } buttons && (buttons.PendingPulse != 0 || buttons.RawHeld != 0))
         {
             world.AdvanceAutoPlayInputFrame();
+            return;
+        }
+        if (run.ActiveObservedInput is { Masks.Count: > 0 } observedInput && run.ActiveEvent is not null && run.ActiveField == session.State.FieldId)
+        {
+            run.ActiveObservedInput = null;
+            run.ObserveContactInput = false;
+            DriveScriptedInput(observedInput, world.Events.IsUserControlEnabled);
             return;
         }
         if (world.Events.IsUserControlEnabled && run.ActiveField == session.State.FieldId && world.Events.HasPendingPlayerInteraction(run.ActiveObjectId) && world.Events.DiscoverScriptedInput(run.ActiveObjectId) is { Masks.Count: > 0 } controlledInput)
@@ -425,6 +436,8 @@ internal sealed class AutoPlayController
             run.ActiveVisit = null;
             run.ActiveEvent = null;
             run.ActiveStory = null;
+            run.ActiveObservedInput = null;
+            run.ObserveContactInput = false;
         }
         AutoPlayPlanStep? next = planner.Plan(visit);
         if (next is null)
@@ -446,6 +459,8 @@ internal sealed class AutoPlayController
         run.ActiveField = session.State.FieldId;
         run.ActiveStory = session.State.Variables.GetValueOrDefault(256);
         run.ActiveObjectId = target.ObjectId;
+        run.ActiveObservedInput = null;
+        run.ObserveContactInput = target.Kind != AutoPlayTargetKind.Talk;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
         if (target.Kind == AutoPlayTargetKind.Talk)
@@ -499,6 +514,33 @@ internal sealed class AutoPlayController
                 run.ActiveObjectId = -1;
             }
             Apply(new(PlayerActionKind.Wait));
+        }
+    }
+
+    private PlayerActionResult ApplyContactInput(PlayerAction action)
+    {
+        GameWorld world = getWorld();
+        int field = session.State.FieldId;
+        void ObserveQuery(ScriptCommand command)
+        {
+            if (run.ObserveContactInput && run.ActiveEvent is not null && run.ActiveField == field && command.ObjectId == run.ActiveObjectId && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON")
+            {
+                // Continuous contact callbacks can query and return in one frame, leaving no active fiber at the next controller tick.
+                if (world.Events.DiscoverScriptedInput(command.ObjectId) is { Masks.Count: > 0 } input)
+                {
+                    run.ActiveObservedInput = input;
+                    run.ObserveContactInput = false;
+                }
+            }
+        }
+        world.Events.CommandExecuted += ObserveQuery;
+        try
+        {
+            return world.Apply(action);
+        }
+        finally
+        {
+            world.Events.CommandExecuted -= ObserveQuery;
         }
     }
 
@@ -568,7 +610,7 @@ internal sealed class AutoPlayController
         }
         if (!HasOwner())
         {
-            return;
+            throw new NotSupportedException($"Scripted input {input.Fingerprint} lost its field owner before physical mask {mask} was sampled.");
         }
         bool sampled = false;
         void Observe(ScriptCommand command)
@@ -577,7 +619,7 @@ internal sealed class AutoPlayController
             {
                 NativeFieldButtonInput buttons = session.State.FieldButtonInput!;
                 int value = command.Name == "KEYSCAN2" ? buttons.RawHeld : command.Name == "KEYON" ? buttons.Pressed ?? 0 : buttons.Held ?? 0;
-                sampled |= (command.Arguments[0] & value) != 0;
+                sampled |= (buttons.PhysicalHeld & mask) == mask && (command.Arguments[0] & value) != 0;
             }
         }
         world.Events.CommandExecuted += Observe;
@@ -608,6 +650,10 @@ internal sealed class AutoPlayController
             {
                 session.SetFieldButtonInput(sampler with { PhysicalHeld = 0 });
             }
+        }
+        if (!sampled)
+        {
+            throw new NotSupportedException($"Scripted input {input.Fingerprint} did not sample physical mask {mask} within 256 native callbacks; the alternative is not completed.");
         }
         run.SettleFrames = 0;
         run.SceneFrames = 0;
@@ -645,6 +691,8 @@ internal sealed class AutoPlayController
         run.ActiveVisit = null;
         run.ActiveEvent = null;
         run.ActiveStory = null;
+        run.ActiveObservedInput = null;
+        run.ObserveContactInput = false;
         AutoPlayPlanStep next = planner.Plan(visit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         SaveBundle($"world-{run.Steps:D10}", CaptureState());
@@ -822,7 +870,7 @@ internal sealed class AutoPlayController
 
     private PlayerActionResult Apply(PlayerAction action)
     {
-        PlayerActionResult result = getWorld().Apply(action);
+        PlayerActionResult result = run.ObserveContactInput ? ApplyContactInput(action) : getWorld().Apply(action);
         if (!result.Accepted)
         {
             throw new NotSupportedException($"Automatic input {action.Kind} rejected: {result.Detail}");
