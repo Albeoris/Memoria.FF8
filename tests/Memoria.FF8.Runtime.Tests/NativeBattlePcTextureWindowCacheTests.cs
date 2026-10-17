@@ -5,6 +5,41 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattlePcTextureWindowCacheTests
 {
     [Fact]
+    public void Repeated_polygon_selection_preserves_an_unchanged_immutable_cache()
+    {
+        NativeBattlePcTextureWindowCache prepared = Prepared();
+        Assert.Same(prepared, prepared.Preprocess462F90(0, 0));
+        Assert.Same(prepared, prepared.Resolve465CE0(0, 0, 0).Cache);
+
+        uint window = Window(8, 0, 64, 32);
+        NativeBattlePcTextureWindowCache selected = prepared.Resolve465CE0(0x40, 0xFFFF, window).Cache.Preprocess462F90(0x40, 0x7FFF);
+        string before = JsonSerializer.Serialize(selected);
+        Assert.Same(selected, selected.Resolve465CE0(0x40, 0x7FFF, window).Cache);
+        Assert.Same(selected, selected.Preprocess462F90(0x40, 0x7FFF));
+        NativeBattlePcTextureWindowCache changedClut = selected.Resolve465CE0(0x40, 1, window).Cache;
+        Assert.NotSame(selected, changedClut);
+        Assert.Equal((ushort)1, changedClut.Rows[0].AlternateClut);
+        Assert.Equal(before, JsonSerializer.Serialize(selected));
+    }
+
+    [Fact]
+    public void Validation_memoization_does_not_admit_modified_records_or_malformed_external_rows()
+    {
+        NativeBattlePcTextureWindowCache valid = Prepared();
+        valid.Validate();
+        valid.Validate();
+        Assert.Throws<InvalidDataException>(() => (valid with { ScaleU = float.NaN, ScaleV = 1 }).Validate());
+        NativeBattlePcTextureWindowRow row = valid.Rows[0];
+        NativeBattlePcTextureWindowRegion invalidRegion = row.Regions[0] with { Rectangle = new(0, 0, 255, 256) };
+        NativeBattlePcTextureWindowCache invalid = valid with { Rows = valid.Rows.SetItem(0, row with { Regions = row.Regions.SetItem(0, invalidRegion) }) };
+        Assert.Throws<InvalidDataException>(invalid.Validate);
+        Assert.Throws<InvalidDataException>(invalid.Validate);
+        NativeBattlePcTextureWindowCache external = JsonSerializer.Deserialize<NativeBattlePcTextureWindowCache>(JsonSerializer.Serialize(invalid))!;
+        Assert.Throws<InvalidDataException>(() => external.Preprocess462F90(0, 0));
+        Assert.Throws<InvalidDataException>(() => external.Resolve465CE0(0, 0, 0));
+    }
+
+    [Fact]
     public void Native_reset_clears96rows_but_preserves_global_scales_and_does_not_guess_unknown_scales()
     {
         NativeBattlePcTextureWindowCache unknown = NativeBattlePcTextureWindowCache.Reset4647A0(null);

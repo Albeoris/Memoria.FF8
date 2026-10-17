@@ -9,6 +9,13 @@ namespace Memoria.FF8.Rendering;
 public sealed partial class BattleRenderer
 {
     private readonly record struct PrimitiveVertex(float X, float Y, float Z, float ReciprocalW, Vector2 Uv, Vector3 Color, float Alpha);
+    private readonly record struct NativeTextureKey(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels);
+    private Dictionary<NativeTextureKey, PixelImage> nativeTexturePages = [];
+    private Dictionary<NativeTextureKey, PixelImage> previousNativeTexturePages = [];
+    private NativeBattleEffectTextureState? nativeTextureOwner;
+    private NativeBattlePcDirectTextureFormat? nativeDirectTextureFormat;
+    private readonly List<NativeRasterTriangle> nativeTriangles = [];
+    private readonly record struct NativeRasterTriangle(PrimitiveVertex A, PrimitiveVertex B, PrimitiveVertex C, PixelImage? Texture, int Blend, byte Pass, float Area, int Left, int Right, int Top, int Bottom);
 
     /// <summary>Render the executed original battle OT into a viewport representing its320x216 draw environment.</summary>
     public byte[] RenderNativePrimitiveFrame(NativeBattlePrimitiveFrame frame, NativeBattleEffectTextureState? textures, BattleCamera? overlayCamera = null, NativeBattlePrimitiveCapabilities? capabilities = null, NativeBattlePcTextureWindowCache? textureWindowCache = null)
@@ -24,11 +31,19 @@ public sealed partial class BattleRenderer
         Array.Clear(pixels);
         Array.Fill(depth, float.PositiveInfinity);
         DrawnTriangles = 0;
+        nativeTriangles.Clear();
         for (int index = 3; index < pixels.Length; index += 4)
         {
             pixels[index] = 255;
         }
-        Dictionary<(ushort Page, ushort Clut, byte? AlternateShift, int X, int Y, int Width, int Height, NativeBattlePcTextureWindowPixels? Pixels), PixelImage> pages = [];
+        (nativeTexturePages, previousNativeTexturePages) = (previousNativeTexturePages, nativeTexturePages);
+        nativeTexturePages.Clear();
+        if (!ReferenceEquals(nativeTextureOwner, textures) || nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
+        {
+            previousNativeTexturePages.Clear();
+        }
+        nativeTextureOwner = textures;
+        nativeDirectTextureFormat = capabilities?.DirectTextureFormat;
         foreach (NativeBattleLogicalResolvedCommand resolved in frame.LastCommands)
         {
             if (resolved.Pass == 0 || resolved.Command.Opcode is 0xE1 or 0xE2)
@@ -82,10 +97,14 @@ public sealed partial class BattleRenderer
                     }
                     alternateShift = colorState.AlternatePaletteShift ?? throw new NotSupportedException("Native PC ABR2 requires its retained45B540 alternate-palette shift.");
                 }
-                if (!pages.TryGetValue((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels), out texture))
+                NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels);
+                if (!nativeTexturePages.TryGetValue(key, out texture))
                 {
-                    texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
-                    pages.Add((page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels), texture);
+                    if (!previousNativeTexturePages.TryGetValue(key, out texture))
+                    {
+                        texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
+                    }
+                    nativeTexturePages.Add(key, texture);
                 }
             }
             PrimitiveVertex At(int corner)
@@ -109,13 +128,33 @@ public sealed partial class BattleRenderer
             PrimitiveVertex a = At(0);
             PrimitiveVertex b = At(1);
             PrimitiveVertex c = At(2);
-            RasterNativePrimitive(a, b, c, texture, blend, resolved.Pass);
+            QueueNativePrimitive(a, b, c, texture, blend, resolved.Pass);
             if (quad)
             {
-                RasterNativePrimitive(b, At(3), c, texture, blend, resolved.Pass);
+                QueueNativePrimitive(b, At(3), c, texture, blend, resolved.Pass);
             }
         }
+        int stripes = Math.Min(8, Math.Min(Environment.ProcessorCount, Math.Max(1, Height / 90)));
+        if (stripes == 1)
+        {
+            RasterStripe(0);
+        }
+        else
+        {
+            Parallel.For(0, stripes, new ParallelOptions { MaxDegreeOfParallelism = stripes }, RasterStripe);
+        }
         return pixels;
+
+        void RasterStripe(int stripe)
+        {
+            int top = Height * stripe / stripes;
+            int bottom = Height * (stripe + 1) / stripes - 1;
+            // Every stripe executes the original submission order, with exclusive color/depth rows.
+            foreach (NativeRasterTriangle triangle in nativeTriangles)
+            {
+                RasterNativePrimitive(triangle, top, bottom);
+            }
+        }
     }
 
     private void DrawNativePrimitiveTile(NativeBattlePrimitiveFrame frame, NativeBattleLogicalResolvedCommand resolved)
@@ -142,14 +181,13 @@ public sealed partial class BattleRenderer
         PrimitiveVertex a = At(x, y);
         PrimitiveVertex b = At(x + width, y);
         PrimitiveVertex c = At(x, y + height);
-        RasterNativePrimitive(a, b, c, null, semi ? blend : -1, resolved.Pass);
-        RasterNativePrimitive(b, At(x + width, y + height), c, null, semi ? blend : -1, resolved.Pass);
+        QueueNativePrimitive(a, b, c, null, semi ? blend : -1, resolved.Pass);
+        QueueNativePrimitive(b, At(x + width, y + height), c, null, semi ? blend : -1, resolved.Pass);
     }
 
-    private void RasterNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass)
+    private void QueueNativePrimitive(PrimitiveVertex a, PrimitiveVertex b, PrimitiveVertex c, PixelImage? texture, int blend, byte pass)
     {
         static float Edge(PrimitiveVertex first, PrimitiveVertex second, float x, float y) => (second.X - first.X) * (y - first.Y) - (second.Y - first.Y) * (x - first.X);
-        static bool Inside(float value, PrimitiveVertex first, PrimitiveVertex second) => value > 0 || value == 0 && (second.Y < first.Y || second.Y == first.Y && second.X > first.X);
         float area = Edge(a, b, c.X, c.Y);
         if (!float.IsFinite(area) || area == 0)
         {
@@ -165,6 +203,24 @@ public sealed partial class BattleRenderer
         int top = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, Height - 1);
         int bottom = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, Height - 1);
         DrawnTriangles++;
+        nativeTriangles.Add(new(a, b, c, texture, blend, pass, area, left, right, top, bottom));
+    }
+
+    private void RasterNativePrimitive(NativeRasterTriangle triangle, int stripeTop, int stripeBottom)
+    {
+        static float Edge(PrimitiveVertex first, PrimitiveVertex second, float x, float y) => (second.X - first.X) * (y - first.Y) - (second.Y - first.Y) * (x - first.X);
+        static bool Inside(float value, PrimitiveVertex first, PrimitiveVertex second) => value > 0 || value == 0 && (second.Y < first.Y || second.Y == first.Y && second.X > first.X);
+        PrimitiveVertex a = triangle.A;
+        PrimitiveVertex b = triangle.B;
+        PrimitiveVertex c = triangle.C;
+        PixelImage? texture = triangle.Texture;
+        int blend = triangle.Blend;
+        byte pass = triangle.Pass;
+        float area = triangle.Area;
+        int left = triangle.Left;
+        int right = triangle.Right;
+        int top = Math.Max(triangle.Top, stripeTop);
+        int bottom = Math.Min(triangle.Bottom, stripeBottom);
         for (int y = top; y <= bottom; y++)
         {
             for (int x = left; x <= right; x++)

@@ -8,6 +8,45 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
     [Fact]
+    public void Cached_materials_follow_VRAM_and_device_format_changes_on_the_same_renderer()
+    {
+        BattleRenderer renderer = new(960, 720);
+        NativeBattlePrimitiveFrame indexed = Frame([TexturedQuad(1)]);
+        NativeBattleEffectTextureState first = Texture(31);
+        NativeBattleEffectTextureState second = Texture(0x3E0);
+        foreach (NativeBattleEffectTextureState texture in new[] { first, first, second, second, first })
+        {
+            byte[] expected = new BattleRenderer(960, 720).RenderNativePrimitiveFrame(indexed, texture).ToArray();
+            Assert.Equal(expected, renderer.RenderNativePrimitiveFrame(indexed, texture));
+        }
+        NativeBattleLogicalCommand command = new(new("off_B6D070", 0, 0), 1, 0x2C, [0x2C808080, Point(10, 10), 0, Point(30, 10), 0x01000000, Point(10, 30), 0, Point(30, 30), 0], 1, [], null) { OrderingBucket = 50 };
+        NativeBattlePrimitiveFrame direct = Frame([new(command, TexturedMode(0x100), 1)]);
+        NativeBattleEffectTextureState directTexture = NativeBattleEffectTextureState.FromColdProcess() with { VramRegions = [new(0, [0xE0, 3])] };
+        foreach (NativeBattlePcDirectTextureFormat format in new[] { NativeBattlePcDirectTextureFormat.Rgb555, NativeBattlePcDirectTextureFormat.Rgb565, NativeBattlePcDirectTextureFormat.Rgb555 })
+        {
+            NativeBattlePrimitiveCapabilities capabilities = NativeBattlePrimitiveCapabilities.PrimaryRgba8() with { DirectTextureFormat = format };
+            byte[] expected = new BattleRenderer(960, 720).RenderNativePrimitiveFrame(direct, directTexture, capabilities: capabilities).ToArray();
+            Assert.Equal(expected, renderer.RenderNativePrimitiveFrame(direct, directTexture, capabilities: capabilities));
+        }
+    }
+
+    [Fact]
+    public void Parallel_stripes_preserve_opaque_depth_and_semi_submission_order_across_every_row()
+    {
+        NativeBattleLogicalResolvedCommand Cover(byte opcode, uint color, int bucket, byte pass)
+        {
+            NativeBattleLogicalResolvedCommand item = Quad(opcode, color, bucket, pass);
+            return item with { Command = item.Command with { Words = [(uint)opcode << 24 | color, Point(0, 0), Point(320, 0), Point(0, 216), Point(320, 216)] } };
+        }
+        NativeBattlePrimitiveFrame frame = Frame([Cover(0x28, 0x000064, 100, 1), Cover(0x28, 0x640000, 200, 1), Cover(0x2A, 0xFFFFFF, 50, 2), Cover(0x2A, 0xFFFFFF, 50, 2)]);
+        byte[] pixels = new BattleRenderer(960, 721).RenderNativePrimitiveFrame(frame, null);
+        for (int index = 0; index < pixels.Length; index += 4)
+        {
+            Assert.Equal(new byte[] { 215, 190, 190, 255 }, pixels.AsSpan(index, 4).ToArray());
+        }
+    }
+
+    [Fact]
     public void Empty_original_draw_environment_is_black_and_does_not_require_a_fabricated_camera()
     {
         BattleRenderer renderer = new(320, 216);

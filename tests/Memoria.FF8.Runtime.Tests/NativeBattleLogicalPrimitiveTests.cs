@@ -6,6 +6,48 @@ namespace Memoria.FF8.Runtime.Tests;
 public sealed class NativeBattleLogicalPrimitiveTests
 {
     [Fact]
+    public void Producer_batch_matches_scalar_links_and_keeps_prior_snapshots_independent()
+    {
+        NativeBattleLogicalOrdering initial = NativeBattleLogicalOrdering.Clear().Prepend(17, new("off_B6D070", 0, 0), Tile(1), 1, []);
+        string original = JsonSerializer.Serialize(initial);
+        NativeBattleLogicalOrdering scalar = initial;
+        NativeBattleLogicalOrdering.Builder batch = new(initial);
+        for (int index = 1; index < 200; index++)
+        {
+            NativeBattlePrimitiveReference reference = new("off_B6D070", 0, index * 16);
+            scalar = scalar.Prepend(index % 29, reference, Tile((byte)index), 1, [], index % 3);
+            batch.Prepend(index % 29, reference, Tile((byte)index), 1, [], index % 3);
+        }
+        NativeBattleLogicalOrdering published = batch.ToImmutable();
+        Assert.Equal(JsonSerializer.Serialize(scalar), JsonSerializer.Serialize(published));
+        Assert.Equal(JsonSerializer.Serialize(scalar.Traverse(Tables().WordLengths)), JsonSerializer.Serialize(published.Traverse(Tables().WordLengths)));
+        batch.Prepend(17, new("off_B6D070", 0, 4000), Tile(1), 1, []);
+        Assert.Equal(200, published.Proxies.Length);
+        Assert.Equal(original, JsonSerializer.Serialize(initial));
+    }
+
+    [Fact]
+    public void Producer_batch_preserves_physical_alias_cycles_and_proxy_capacity()
+    {
+        NativeBattlePrimitiveReference reference = new("off_B6D070", 0, 0);
+        NativeBattleLogicalOrdering.Builder aliases = new(NativeBattleLogicalOrdering.Clear());
+        aliases.Prepend(17, reference, Tile(10), 1, []);
+        aliases.Prepend(17, reference, Tile(20), 1, []);
+        Assert.Single(aliases.ToImmutable().Packets);
+        Assert.Throws<InvalidDataException>(() => aliases.ToImmutable().Traverse(Tables().WordLengths));
+
+        NativeBattleLogicalOrdering.Builder full = new(NativeBattleLogicalOrdering.Clear());
+        for (int index = 0; index < NativeBattlePrimitiveOrdering.ProxyCapacity; index++)
+        {
+            full.Prepend(17, new("off_B6D070", 0, index * 16), Tile(10), 1, []);
+        }
+        NativeBattleLogicalOrdering before = full.ToImmutable();
+        full.Prepend(18, new("off_B6D070", 0, 0), Tile(20), 1, []);
+        Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(full.ToImmutable()));
+        Assert.Throws<InvalidDataException>(() => full.Prepend(-1, reference, Tile(20), 1, []));
+    }
+
+    [Fact]
     public void Logical_banks_preserve_native_descending_bucket_and_same_bucket_LIFO_without_fake_addresses()
     {
         NativeBattleLogicalOrdering ordering = NativeBattleLogicalOrdering.Clear();

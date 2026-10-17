@@ -83,6 +83,16 @@ public sealed partial class GameSession
     public void SetBattle(BattleSnapshot? snapshot)
     {
         BattleSnapshot? owned = snapshot is null ? null : BattleSession.Restore(snapshot).Capture();
+        SetOwnedBattle(owned);
+    }
+
+    public void SetLiveBattle(BattleSession? active)
+    {
+        SetOwnedBattle(active?.Capture());
+    }
+
+    private void SetOwnedBattle(BattleSnapshot? owned)
+    {
         NativeBattleRetainedMemory? memory = owned is null ? State.NativeBattleMemory : NativeBattleRetainedMemory.Capture(owned, State.NativeBattleMemory?.ColdExecutableSha256 ?? owned.Definition.NativeRetainedMemory?.ColdExecutableSha256);
         State = State with { Battle = owned, NativeBattleMemory = memory, VibrationProcess = owned?.NativeVibrationProcess ?? State.VibrationProcess, GlobalSoundProcess = owned?.NativeGlobalSoundProcess ?? State.GlobalSoundProcess };
     }

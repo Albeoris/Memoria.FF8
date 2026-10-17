@@ -20,10 +20,7 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
 
     public NativeBattleLogicalOrdering Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
     {
-        if ((uint)bucket >= Table.Length || string.IsNullOrWhiteSpace(reference.Bank) || reference.Buffer > 1 || reference.ByteOffset < 0 || (reference.ByteOffset & 3) != 0 || words.IsDefaultOrEmpty || words.Length < 1 + (words[0] >> 24) || vertexPayload4.IsDefault || vertexPayload4.Length is not (0 or 4))
-        {
-            throw new InvalidDataException("Native logical primitive insertion lacks its original bounded packet or bank identity.");
-        }
+        ValidateInsertion(Table.Length, bucket, reference, words, vertexPayload4);
         if (Proxies.Length >= NativeBattlePrimitiveOrdering.ProxyCapacity)
         {
             return this;
@@ -44,6 +41,60 @@ public sealed record NativeBattleLogicalOrdering(ImmutableArray<NativeBattlePrim
             Proxies = Proxies.Add(new(reference, flags20, vertexPayload4, moduleDraw)),
             Packets = existing < 0 ? Packets.Add(packet) : Packets.SetItem(existing, packet)
         };
+    }
+
+    private static void ValidateInsertion(int tableLength, int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ImmutableArray<int> vertexPayload4)
+    {
+        if ((uint)bucket >= tableLength || string.IsNullOrWhiteSpace(reference.Bank) || reference.Buffer > 1 || reference.ByteOffset < 0 || (reference.ByteOffset & 3) != 0 || words.IsDefaultOrEmpty || words.Length < 1 + (words[0] >> 24) || vertexPayload4.IsDefault || vertexPayload4.Length is not (0 or 4))
+        {
+            throw new InvalidDataException("Native logical primitive insertion lacks its original bounded packet or bank identity.");
+        }
+    }
+
+    /// <summary>Transient producer pass; published ordering arrays remain immutable and independently owned.</summary>
+    internal sealed class Builder
+    {
+        private readonly ImmutableArray<NativeBattlePrimitiveLink>.Builder table;
+        private readonly ImmutableArray<NativeBattleLogicalProxy>.Builder proxies;
+        private readonly ImmutableArray<NativeBattleLogicalPacket>.Builder packets;
+        private readonly Dictionary<NativeBattlePrimitiveReference, int> packetIndices;
+
+        public Builder(NativeBattleLogicalOrdering source)
+        {
+            table = source.Table.ToBuilder();
+            proxies = source.Proxies.ToBuilder();
+            packets = source.Packets.ToBuilder();
+            packetIndices = new(source.Packets.Length);
+            for (int index = 0; index < source.Packets.Length; index++)
+            {
+                packetIndices.TryAdd(source.Packets[index].Reference, index);
+            }
+        }
+
+        public int ProxyCount => proxies.Count;
+
+        public void Prepend(int bucket, NativeBattlePrimitiveReference reference, ImmutableArray<uint> words, ushort flags20, ImmutableArray<int> vertexPayload4, int? moduleDraw = null)
+        {
+            ValidateInsertion(table.Count, bucket, reference, words, vertexPayload4);
+            if (proxies.Count >= NativeBattlePrimitiveOrdering.ProxyCapacity)
+            {
+                return;
+            }
+            NativeBattleLogicalPacket packet = new(reference, words, table[bucket]);
+            if (packetIndices.TryGetValue(reference, out int existing))
+            {
+                packets[existing] = packet;
+            }
+            else
+            {
+                packetIndices.Add(reference, packets.Count);
+                packets.Add(packet);
+            }
+            table[bucket] = new(true, proxies.Count);
+            proxies.Add(new(reference, flags20, vertexPayload4, moduleDraw));
+        }
+
+        public NativeBattleLogicalOrdering ToImmutable() => new(table.ToImmutable(), proxies.ToImmutable(), packets.ToImmutable());
     }
 
     public ImmutableArray<NativeBattleLogicalCommand> Traverse(ImmutableArray<byte> wordLengths)

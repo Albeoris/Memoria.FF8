@@ -364,7 +364,12 @@ internal sealed partial class RecreateGame
             battleTexture?.Dispose();
             battleTexture = new Texture2D(GraphicsDevice, size.Width, size.Height);
         }
-        battleTexture!.SetData(battleScene!.Render(active, size.Width, size.Height));
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        byte[] pixels = battleScene!.Render(active, size.Width, size.Height);
+        double renderMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        started = System.Diagnostics.Stopwatch.GetTimestamp();
+        battleTexture!.SetData(pixels);
+        metrics.Render(renderMilliseconds, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
         batch.Draw(battleTexture, new Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height), Color.White);
         battleScene.DrawEffects(active, uiCanvas!, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));

@@ -23,9 +23,8 @@ internal sealed partial class GameWorld
 
     private void PublishBattleSnapshot(BattleSession? active)
     {
-        BattleSnapshot? snapshot = active?.Capture();
-        session.SetBattle(snapshot);
-        Events.SynchronizeNativeBattleMusicProcess(snapshot?.NativeMusicProcess);
+        session.SetLiveBattle(active);
+        Events.SynchronizeNativeBattleMusicProcess(session.State.Battle?.NativeMusicProcess);
     }
 
     private void ValidateBattleMusicHostState(BattleSession active)

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Memoria.FF8.Runtime;
@@ -30,6 +31,8 @@ public sealed record NativeBattlePcTextureWindowResolve(NativeBattlePcTextureWin
 /// <summary>4647A0/464B60/464BD0/465CE0's96 page-depth rows, eight regions and retained global UV scales.</summary>
 public sealed record NativeBattlePcTextureWindowCache([property: JsonRequired] ImmutableArray<NativeBattlePcTextureWindowRow> Rows, [property: JsonRequired] float? ScaleU, [property: JsonRequired] float? ScaleV)
 {
+    private static readonly ConditionalWeakTable<NativeBattlePcTextureWindowCache, object> validated = new();
+
     public static NativeBattlePcTextureWindowCache Reset4647A0(NativeBattlePcTextureWindowCache? prior)
     {
         prior?.Validate();
@@ -38,6 +41,16 @@ public sealed record NativeBattlePcTextureWindowCache([property: JsonRequired] I
     }
 
     public void Validate()
+    {
+        //All rows, regions and pixel words are immutable; a record copy has a distinct validation identity.
+        _ = validated.GetValue(this, static cache =>
+        {
+            cache.ValidateCore();
+            return new object();
+        });
+    }
+
+    private void ValidateCore()
     {
         if (Rows.IsDefault || Rows.Length != 96 || (ScaleU is null) != (ScaleV is null) || ScaleU is float u && !float.IsFinite(u) || ScaleV is float v && !float.IsFinite(v))
         {
@@ -70,7 +83,8 @@ public sealed record NativeBattlePcTextureWindowCache([property: JsonRequired] I
         Validate();
         int index = RowIndex(texturePage);
         NativeBattlePcTextureWindowRow row = Rows[index];
-        return this with { Rows = Rows.SetItem(index, Mark(row, 0, texturePage, clut)) };
+        NativeBattlePcTextureWindowRow marked = Mark(row, 0, texturePage, clut);
+        return ReferenceEquals(row, marked) ? this : this with { Rows = Rows.SetItem(index, marked) };
     }
 
     public NativeBattlePcTextureWindowPixels? PixelWords(NativeBattlePcTextureWindowSelection selection)
@@ -223,7 +237,8 @@ public sealed record NativeBattlePcTextureWindowCache([property: JsonRequired] I
         float actualV = windowBits == 0 ? 1f / 256 : scaleV ?? throw new NotSupportedException("Native465CE0 fallback requires its retained1CB6038 V scale DWORD.");
         NativeBattlePrimitiveTextureWindow result = selected.Rectangle;
         NativeBattlePcTextureWindowSelection selection = new(index, slot, result.X, result.Y, result.Width, result.Height, actualU, actualV, windowBits != 0, fallback) { UsesRetainedPixelWords = !selected.CurrentPixels };
-        return new(this with { Rows = Rows.SetItem(index, row), ScaleU = scaleU, ScaleV = scaleV }, selection);
+        NativeBattlePcTextureWindowCache cache = ReferenceEquals(Rows[index], row) && ScaleU == scaleU && ScaleV == scaleV ? this : this with { Rows = Rows.SetItem(index, row), ScaleU = scaleU, ScaleV = scaleV };
+        return new(cache, selection);
     }
 
     private static int RowIndex(ushort texturePage)
@@ -239,6 +254,13 @@ public sealed record NativeBattlePcTextureWindowCache([property: JsonRequired] I
     private static NativeBattlePcTextureWindowRow Mark(NativeBattlePcTextureWindowRow row, int slot, ushort texturePage, ushort clut)
     {
         uint bit = 1u << slot;
-        return (texturePage & 0x60) == 0x40 ? row with { UsedMask = row.UsedMask | bit, AlternateMask = row.AlternateMask | bit, AlternateClut = (ushort)(clut & 0x7FFF) } : row with { UsedMask = row.UsedMask | bit };
+        uint used = row.UsedMask | bit;
+        if ((texturePage & 0x60) == 0x40)
+        {
+            uint alternate = row.AlternateMask | bit;
+            ushort alternateClut = (ushort)(clut & 0x7FFF);
+            return used == row.UsedMask && alternate == row.AlternateMask && alternateClut == row.AlternateClut ? row : row with { UsedMask = used, AlternateMask = alternate, AlternateClut = alternateClut };
+        }
+        return used == row.UsedMask ? row : row with { UsedMask = used };
     }
 }

@@ -25,6 +25,10 @@ internal sealed class BattleScenePresentation
     private readonly BattleCamera? camera;
     private BattleCamera? renderedCamera;
     private BattleRenderer? renderer;
+    private NativeBattlePrimitiveFrame? renderedPrimitiveFrame;
+    private NativeBattleEffectTextureState? renderedTextures;
+    private NativeBattlePcTextureWindowCache? renderedTextureWindows;
+    private byte[]? renderedPixels;
 
     public BattleScenePresentation(BattleAssets assets, BattleDefinition definition, bool useEncounter)
     {
@@ -93,6 +97,7 @@ internal sealed class BattleScenePresentation
         if (renderer?.Width != width || renderer.Height != height)
         {
             renderer = new BattleRenderer(width, height);
+            renderedPixels = null;
         }
         BattleCamera? selectedCamera = camera;
         if (session.NativeGraphics is { } rawGraphics)
@@ -101,8 +106,19 @@ internal sealed class BattleScenePresentation
             {
                 selectedCamera = BattleCamera.FromNative(new(new(nativeCamera.Eye.X, nativeCamera.Eye.Y, nativeCamera.Eye.Z), new(nativeCamera.Target.X, nativeCamera.Target.Y, nativeCamera.Target.Z), nativeCamera.FocalLength!.Value), nativeCamera.Roll);
             }
+            NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
+            NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
+            NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
+            if (renderedPixels is not null && ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera)
+            {
+                return renderedPixels;
+            }
+            renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
+            renderedPrimitiveFrame = frame;
+            renderedTextures = textures;
+            renderedTextureWindows = windows;
             renderedCamera = selectedCamera;
-            return renderer.RenderNativePrimitiveFrame(rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly."), session.NativeEffectMemory?.Textures, selectedCamera, primitiveCapabilities, session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache);
+            return renderedPixels;
         }
         renderedCamera = selectedCamera;
         List<BattleActorDraw> actors = [];

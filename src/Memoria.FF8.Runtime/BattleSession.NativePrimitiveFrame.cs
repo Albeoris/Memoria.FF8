@@ -27,7 +27,7 @@ public sealed partial class BattleSession
         NativeBattlePrimitiveProcess process = memory.PrimitiveProcess ?? throw new NotSupportedException("Native callback primitive submission requires its retained native packet bank.");
         string bank = process.PacketBank ?? throw new NotSupportedException("Native callback primitive submission has no allocated logical packet bank.");
         int cursor = process.ByteCursor ?? throw new NotSupportedException("Native callback primitive submission has no observed packet cursor.");
-        NativeBattleLogicalOrdering ordering = frame.Pending;
+        NativeBattleLogicalOrdering.Builder ordering = new(frame.Pending);
         ImmutableArray<NativeBattleCommonPacketStore>.Builder stores = ImmutableArray.CreateBuilder<NativeBattleCommonPacketStore>();
         foreach (NativeBattleGeometryPrimitive primitive in primitives)
         {
@@ -37,13 +37,13 @@ public sealed partial class BattleSession
             {
                 throw new NotSupportedException("Native primitive packet cursor reaches its original arena capacity.");
             }
-            bool linked = ordering.Proxies.Length < NativeBattlePrimitiveOrdering.ProxyCapacity;
+            bool linked = ordering.ProxyCount < NativeBattlePrimitiveOrdering.ProxyCapacity;
             stores.AddRange(NativeBattleCommonPacketArena.PrimitiveStores(cursor, primitive, linked));
-            ordering = ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw);
+            ordering.Prepend(primitive.Bucket, new(bank, process.PacketBuffer, cursor), primitive.Words, primitive.VertexPayload4.IsEmpty ? (ushort)1 : (ushort)0, primitive.VertexPayload4, moduleDraw);
             cursor = next;
         }
         NativeEffectMemory = memory with { PrimitiveProcess = process.ApplyCommonWrites(stores.ToImmutable()) with { ByteCursor = cursor } };
-        return graphics with { PrimitiveFrame = frame with { Pending = ordering } };
+        return graphics with { PrimitiveFrame = frame with { Pending = ordering.ToImmutable() } };
     }
 
     private NativeBattleGraphicsState SubmitNativeStagePackets(NativeBattleGraphicsState graphics, NativeBattleStageState stage)
