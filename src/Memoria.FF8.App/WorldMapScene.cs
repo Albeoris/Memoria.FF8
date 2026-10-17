@@ -482,13 +482,14 @@ internal sealed partial class WorldMapScene : IDisposable
 
     }
 
-    public byte[] Render(int width, int height)
+    public byte[] Render(int width, int height, ITriangleRenderer? triangleRenderer = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (renderer is null || renderer.Width != width || renderer.Height != height)
         {
             renderer = new WorldTerrainRenderer(assets, width, height);
         }
+        renderer.TriangleRenderer = triangleRenderer;
         WorldState state = State;
         if (state.NativeFootRuntime is { StationTrains: { } source, StationTrainProcess.ProjectionCamera: null })
         {

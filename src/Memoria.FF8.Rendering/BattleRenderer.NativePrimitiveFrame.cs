@@ -28,11 +28,15 @@ public sealed partial class BattleRenderer
         {
             sceneProjectionReady = false;
         }
-        Array.Clear(pixels);
-        Array.Fill(depth, float.PositiveInfinity);
+        TriangleRenderer?.Begin(Width, Height, new Vector4(0, 0, 0, 1));
+        if (TriangleRenderer is null)
+        {
+            Array.Clear(pixels);
+            Array.Fill(depth, float.PositiveInfinity);
+        }
         DrawnTriangles = 0;
         nativeTriangles.Clear();
-        for (int index = 3; index < pixels.Length; index += 4)
+        for (int index = 3; TriangleRenderer is null && index < pixels.Length; index += 4)
         {
             pixels[index] = 255;
         }
@@ -134,6 +138,11 @@ public sealed partial class BattleRenderer
                 QueueNativePrimitive(b, At(3), c, texture, blend, resolved.Pass);
             }
         }
+        if (TriangleRenderer is not null)
+        {
+            TriangleRenderer.End();
+            return pixels;
+        }
         int stripes = Math.Min(8, Math.Min(Environment.ProcessorCount, Math.Max(1, Height / 90)));
         if (stripes == 1)
         {
@@ -203,6 +212,22 @@ public sealed partial class BattleRenderer
         int top = Math.Clamp((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), 0, Height - 1);
         int bottom = Math.Clamp((int)MathF.Ceiling(Math.Max(a.Y, Math.Max(b.Y, c.Y))), 0, Height - 1);
         DrawnTriangles++;
+        if (TriangleRenderer is { } renderer)
+        {
+            static TriangleVertex Convert(PrimitiveVertex vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.Z, vertex.ReciprocalW, vertex.Uv, new Vector4(vertex.Color / 255f, vertex.Alpha / 255f));
+            TriangleBlend equation = blend switch
+            {
+                -1 => TriangleBlend.Replace,
+                0 or 2 => TriangleBlend.Alpha,
+                1 => TriangleBlend.Add,
+                3 => TriangleBlend.AlphaAdd,
+                _ => throw new NotSupportedException("Unsupported native blend equation.")
+            };
+            float minimumAlpha = texture is null ? 0 : pass == 1 ? 112f / 255 : pass == 2 && blend == 0 ? 122f / 255 : 1f / 255;
+            TriangleMaterial material = new(texture, equation, TriangleDepthComparison.LessEqual, pass == 1, minimumAlpha, TriangleSampler.PointWrap);
+            renderer.Draw(Convert(a), Convert(b), Convert(c), material);
+            return;
+        }
         nativeTriangles.Add(new(a, b, c, texture, blend, pass, area, left, right, top, bottom));
     }
 

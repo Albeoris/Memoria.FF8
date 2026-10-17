@@ -11,3 +11,20 @@ Background tiles are sorted and their nearest source sampling runs are calculate
 Verified: selected installed field data, layered/animated tiles, texture transparency, skeletal hierarchy and compound rotations, camera/entity/root transforms, foreground depth units, declared control bones, classroom root placement, filtered model cutouts and arbitrary-aspect output. Sixteen Assets test cases include captured native matrix, depth-unit and scalar background sampling/blending regressions at integral, fractional, clipped and portrait output sizes.
 
 Remaining fidelity limits: integer animation-frame sampling (native interpolation deferred), simplified per-pixel depth rasterization instead of native primitive ordering, no eye-blink VRAM updates, no face-specific PSX semi-transparency/bias, and no native validation of BGSHADE timing. Original DirectMusic SGT/DLS field music and sound effects are outside this renderer. Original images are read locally and are not distributed with source.
+
+## Live GPU rendering and software diagnostics
+
+The Windows host renders battle ordering tables, component battle meshes, field tiles/actors/particles, world geometry/sky/fog and movie masks through the Direct3D GPU triangle backend. Shared scene code prepares the same ordered primitives for both backends. The live host renders directly into GPU targets; it uploads source textures and decoded video frames, without uploading a software scene framebuffer or reading GPU pixels back each frame. Consecutive primitives with the same material are batched while preserving submission order.
+
+Normal launches use GPU rendering in Debug and Release, including controlled launches. Pass `--software-renderer` explicitly to use the CPU rasterizer in a live diagnostic session. The `scene-renderer` startup log and `SceneRenderer` control status identify the selected backend. Headless previews and tests without a graphics device continue to use the deterministic CPU renderer. Unsupported contracts fail with their original errors; the live host does not silently select a software backend.
+
+Depth tests, alpha cutouts, texture windows, per-pixel perspective UVs, ordering and blend equations are retained by the GPU material stream. Hardware depth precision, sampling boundaries and color conversion can differ from the CPU reference by small rounding amounts. GPU regression tests use a hidden real graphics device and exercise blends, depth, field/movie composition and world/battle comparisons.
+
+The application embeds `src/Memoria.FF8.App/Shaders/Triangles.mgfxo`; ordinary builds do not require a shader compiler. After editing `Triangles.fx`, regenerate it from the product root with the pinned tool:
+
+```powershell
+dotnet tool restore
+dotnet tool run mgfxc src/Memoria.FF8.App/Shaders/Triangles.fx src/Memoria.FF8.App/Shaders/Triangles.mgfxo /Profile:DirectX_11
+```
+
+Run hardware checks on Windows with `dotnet run --project tests/Memoria.FF8.App.Tests -c Release -- --filter-class '*Gpu*'`. Installed-resource checks require `MEMORIA_FF8_GAME_DIR`; an optional standalone battle comparison additionally reads `MEMORIA_FF8_BATTLE_PERFORMANCE_SNAPSHOT`. Neither switch changes the saved simulation schema.

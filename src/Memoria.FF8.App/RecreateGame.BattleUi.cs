@@ -354,25 +354,42 @@ internal sealed partial class RecreateGame
         SynchronizeBattleAudio();
     }
 
-    private void DrawBattle(Rectangle bounds)
+    private void PrepareBattleTexture(Rectangle bounds)
     {
         BattleSession active = ActiveBattle!;
         EnsureBattleHud(active);
         PixelBounds size = ViewportLayout.WorldRenderTarget(bounds.Width, bounds.Height, options.WorldRenderLimit, false);
-        if (battleTexture?.Width != size.Width || battleTexture.Height != size.Height)
+        if (battleGpu is null && (battleTexture?.Width != size.Width || battleTexture.Height != size.Height))
         {
             battleTexture?.Dispose();
             battleTexture = new Texture2D(GraphicsDevice, size.Width, size.Height);
         }
         long started = System.Diagnostics.Stopwatch.GetTimestamp();
-        byte[] pixels = battleScene!.Render(active, size.Width, size.Height);
+        byte[] pixels;
+        try
+        {
+            pixels = battleScene!.Render(active, size.Width, size.Height, battleGpu);
+        }
+        catch
+        {
+            battleGpu?.Abort();
+            throw;
+        }
         double renderMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = System.Diagnostics.Stopwatch.GetTimestamp();
-        battleTexture!.SetData(pixels);
+        if (battleGpu is null)
+        {
+            battleTexture!.SetData(pixels);
+        }
         metrics.Render(renderMilliseconds, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    }
+
+    private void DrawBattle(Rectangle bounds)
+    {
+        BattleSession active = ActiveBattle!;
         PixelBounds viewport = ViewportLayout.Fit(320, 240, bounds.Width, bounds.Height);
-        batch.Draw(battleTexture, new Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height), Color.White);
-        battleScene.DrawEffects(active, uiCanvas!, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
+        batch.Draw(battleGpu?.Target ?? battleTexture!, new Rectangle(viewport.X, viewport.Y, viewport.Width, viewport.Height), Color.White);
+        battleScene!.DrawEffects(active, uiCanvas!, new UiRect(viewport.X, viewport.Y, viewport.Width, viewport.Height));
         UiView view = battleHud!.BuildView();
         view.Resize(bounds.Width, bounds.Height);
         view.Draw(uiCanvas!, uiTheme);

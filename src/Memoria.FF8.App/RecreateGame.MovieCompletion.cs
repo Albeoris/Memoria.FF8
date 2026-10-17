@@ -38,5 +38,6 @@ internal sealed partial class RecreateGame
         retained.SetData(pixels.ToArray());
         fieldTexture.Dispose();
         fieldTexture = retained;
+        fieldGpuPresented = false;
     }
 }

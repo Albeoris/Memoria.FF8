@@ -74,7 +74,7 @@ public readonly record struct NativeWorldStaticModelPose(Vector3 Anchor, NativeW
 public readonly record struct NativeWorldStaticModelDraw(WorldStaticModel Model, NativeWorldStaticModelPose Pose);
 
 /// <summary>Perspective rasterizer for selected original WMX terrain and world Squall; no installed resources are altered.</summary>
-public sealed class WorldTerrainRenderer
+public sealed partial class WorldTerrainRenderer
 {
     private readonly WorldAssets assets;
     private readonly byte[] pixels;
@@ -105,6 +105,7 @@ public sealed class WorldTerrainRenderer
     public int Width { get; }
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
+    public ITriangleRenderer? TriangleRenderer { get; set; }
 
     public byte[] Render(Vector3 position, float heading, int animationId, float animationFrame, WorldCamera camera, IReadOnlyDictionary<int, int>? replacements = null, WorldSky? skyOverride = null, bool avatarVisible = true, FieldModel? avatarModel = null, IReadOnlyList<NativeWorldStaticModelDraw>? staticModels = null, NativeWorldForestState? forest = null)
     {
@@ -112,7 +113,14 @@ public sealed class WorldTerrainRenderer
         {
             throw new ArgumentOutOfRangeException(nameof(camera));
         }
-        Array.Fill(depth, float.NegativeInfinity);
+        if (TriangleRenderer is null)
+        {
+            Array.Fill(depth, float.NegativeInfinity);
+        }
+        else
+        {
+            TriangleRenderer.Begin(Width, Height, new Vector4(0, 0, 0, 1), 0);
+        }
         rasterTriangles.Clear();
         DrawnTriangles = 0;
         WorldSky sky = skyOverride ?? assets.Skies[camera.SkyIndex];
@@ -180,6 +188,11 @@ public sealed class WorldTerrainRenderer
         {
             DrawForest(forest, position);
         }
+        if (TriangleRenderer is not null)
+        {
+            TriangleRenderer.End();
+            return [];
+        }
         int workers = Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
         Parallel.For(0, workers, worker =>
         {
@@ -226,6 +239,11 @@ public sealed class WorldTerrainRenderer
 
     private void DrawSky(WorldSky sky, WorldSkyGradient? nativeGradient)
     {
+        if (TriangleRenderer is not null)
+        {
+            DrawGpuSky(sky, nativeGradient);
+            return;
+        }
         for (int y = 0; y < Height; y++)
         {
             float fraction = y / (float)Math.Max(1, Height - 1);
@@ -338,7 +356,15 @@ public sealed class WorldTerrainRenderer
             {
                 continue;
             }
-            rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent));
+            if (TriangleRenderer is not null)
+            {
+                DrawGpuTriangle(first, second, third, texture, transparent);
+                DrawnTriangles++;
+            }
+            else
+            {
+                rasterTriangles.Add(new RasterTriangle(first, second, third, texture, transparent));
+            }
         }
     }
 

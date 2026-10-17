@@ -57,6 +57,8 @@ public sealed partial class BattleRenderer
         depth = new float[width * height];
     }
 
+    public ITriangleRenderer? TriangleRenderer { get; set; }
+
     public int Width { get; }
     public int Height { get; }
     public int DrawnTriangles { get; private set; }
@@ -81,6 +83,7 @@ public sealed partial class BattleRenderer
     public byte[] Render(BattleStage stage, IReadOnlyList<BattleActorDraw> actors, BattleCamera? camera = null)
     {
         Begin(camera ?? BattleCamera.NativeInitial);
+        TriangleRenderer?.Begin(Width, Height, new Vector4(17f / 255, 20f / 255, 29f / 255, 1), 0);
         foreach (BattleMesh mesh in stage.Meshes)
         {
             Draw(mesh, mesh.Vertices.Select(vertex => vertex.Position).ToArray(), stage.Textures, 1);
@@ -89,6 +92,7 @@ public sealed partial class BattleRenderer
         {
             DrawActor(actor);
         }
+        TriangleRenderer?.End();
         return pixels;
     }
 
@@ -105,10 +109,13 @@ public sealed partial class BattleRenderer
         view = roll * Matrix4x4.CreateLookAt(Vector3.Transform(camera.Eye, roll), Vector3.Transform(camera.Target, roll), Vector3.UnitY);
         focal = Height / (2 * MathF.Tan(camera.FieldOfView / 2));
         centerY = Height * camera.VerticalCenter;
-        Array.Clear(pixels);
-        Array.Fill(depth, float.NegativeInfinity);
+        if (TriangleRenderer is null)
+        {
+            Array.Clear(pixels);
+            Array.Fill(depth, float.NegativeInfinity);
+        }
         DrawnTriangles = 0;
-        for (int index = 0; index < pixels.Length; index += 4)
+        for (int index = 0; TriangleRenderer is null && index < pixels.Length; index += 4)
         {
             pixels[index] = 17;
             pixels[index + 1] = 20;
@@ -203,6 +210,25 @@ public sealed partial class BattleRenderer
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
         {
+            return;
+        }
+        if (TriangleRenderer is { } renderer)
+        {
+            if (opacity <= 0)
+            {
+                return;
+            }
+            Vector4 tint = new(color.R / 128f, color.G / 128f, color.B / 128f, opacity);
+            TriangleVertex Convert(Screen vertex) => new(new Vector2(vertex.X, vertex.Y), vertex.InverseZ, vertex.InverseZ, vertex.UvOverZ / vertex.InverseZ / new Vector2(texture.Width, texture.Height), tint);
+            TriangleMaterial material = new(texture, TriangleBlend.Replace, TriangleDepthComparison.Greater, true, 1f / 255, TriangleSampler.PointClamp)
+            {
+                DepthMapping = TriangleDepthMapping.Positive,
+                DepthScale = 0.25f,
+                TextureSelectsAlpha = false,
+                PreserveTargetAlpha = false
+            };
+            renderer.Draw(Convert(a), Convert(b), Convert(c), material);
+            DrawnTriangles++;
             return;
         }
         int left = Math.Clamp((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), 0, Width - 1);

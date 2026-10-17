@@ -348,7 +348,7 @@ internal sealed partial class GameWorld : IDisposable
         return true;
     }
 
-    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true)
+    public byte[] Render(TimeSpan elapsed, bool rareCardMarkers = true, ITriangleRenderer? triangleRenderer = null)
     {
         if (Events.PendingTripleTriad is not null)
         {
@@ -358,7 +358,7 @@ internal sealed partial class GameWorld : IDisposable
         if (session.State.Scene == SceneKind.WorldMap)
         {
             EnsureField();
-            return worldScene!.Render(renderWidth, renderHeight);
+            return worldScene!.Render(renderWidth, renderHeight, triangleRenderer);
         }
         IEnumerable<ActorVisual> visuals = Events.Actors.Select(CreateVisual);
         BackgroundScrollFrame scroll = ActorBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? DirectBackgroundScrollCertificate.Prepare(Field!, Events.Scene) ?? NativeWrappedBackgroundScrollCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? NormalCameraCertificate.Prepare(Field!, Events.Scene, Events.Actors) ?? throw new NotSupportedException("Field rendering requires a supported current native camera contract.");
@@ -367,8 +367,12 @@ internal sealed partial class GameWorld : IDisposable
         shake.Validate();
         NativeFieldFadeState fade = Events.FieldFade ?? throw new NotSupportedException("Native field rendering requires its actual fade process owner.");
         fade.Validate();
-        byte[] pixels = renderer!.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask);
-        FieldColorComposite.Apply(pixels, fade.Draw);
+        renderer!.TriangleRenderer = triangleRenderer;
+        byte[] pixels = renderer.Render(Events.BackgroundStates, visuals, elapsed, cameraIndex: Events.Scene.CameraIndex, backgroundModuleShades: Events.GetBackgroundModuleShades(), backgroundVisible: view?.BackgroundVisible ?? true, hiddenBackgroundModules: view?.HiddenBackgroundModules, backgroundScrollOffsets: scroll.LayerOffsets, actorScrollOffset: scroll.ActorOffset, nativeWrapFrame: scroll.NativeWrap, drawingJitterX: shake.X.Output, drawingJitterY: shake.Y.Output, cardMarkers: rareCardMarkers ? CreateCardMarkers(elapsed) : null, drawPointParticles: Events.DrawPointParticleFrame, drawPointParticleTables: Events.DrawPointParticleTables, drawPointDisplayMask: Events.Scene.NativeDrawPointDisplayMask, fade: fade.Draw);
+        if (triangleRenderer is null)
+        {
+            FieldColorComposite.Apply(pixels, fade.Draw);
+        }
         return pixels;
     }
 

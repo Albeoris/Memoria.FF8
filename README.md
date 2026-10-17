@@ -72,3 +72,5 @@ The [documentation index](docs/README.md) is the starting point for players, mod
 Successful pushes to `main` update the `nightly` prerelease. Tags matching `v*` publish versioned releases. GitHub Actions uses the .NET 10 SDK supplied by its Windows runner.
 
 The source is MIT licensed. See [LICENSE](LICENSE) and [third-party notices](THIRD-PARTY.md).
+
+Live scenes use GPU rendering by default. The `--software-renderer` option selects CPU rendering explicitly for controlled debugging; headless previews keep their software renderer. See [rendering and shader development](src/Memoria.FF8.Rendering/README.md#live-gpu-rendering-and-software-diagnostics).

@@ -1,10 +1,13 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
+using Albeoris.Games.FF8.Imaging;
 using Memoria.FF8.Assets;
 
 namespace Memoria.FF8.Rendering;
 
 public sealed partial class FieldRenderer
 {
+    private PixelImage? movieImage;
     /// <summary>Composites the current original CAM/MSK and actors over the actual decoded movie pixels.</summary>
     public byte[] RenderMovieFrame(ReadOnlySpan<byte> moviePixels, int movieWidth, int movieHeight, FieldCamera movieCamera, IEnumerable<ActorVisual> actors, FieldMovieMask? mask)
     {
@@ -23,9 +26,28 @@ public sealed partial class FieldRenderer
         //476450's active-movie branch subtracts CAM WORD32, adds WORD34, and does not apply the ordinary tracking/shake offsets.
         camera = movieCamera with { Pan = new Vector2(-movieCamera.Pan.X, movieCamera.Pan.Y) };
         actorScrollOffset = Vector2.Zero;
-        Array.Clear(pixels);
-        CopyMovieFrame(moviePixels, movieWidth, movieHeight);
-        Array.Fill(depth, float.PositiveInfinity);
+        if (TriangleRenderer is not null)
+        {
+            TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(0, 0, 0, 1));
+            if (movieImage is null || movieImage.Width != movieWidth || movieImage.Height != movieHeight)
+            {
+                movieImage = new PixelImage(movieWidth, movieHeight);
+            }
+            MemoryMarshal.Cast<byte, Rgba32>(moviePixels).CopyTo(movieImage.Pixels);
+            TriangleMaterial material = GpuMaterial(movieImage, TriangleBlend.Replace, false) with
+            {
+                DepthComparison = TriangleDepthComparison.Always,
+                Sampler = TriangleSampler.LinearClamp,
+                DynamicTexture = true
+            };
+            GpuQuad(new Vector2(offsetX, offsetY), new Vector2(Width * scale, NativeDrawingHeight * scale), 0, Vector4.One, material, Vector2.One);
+        }
+        else
+        {
+            Array.Clear(pixels);
+            CopyMovieFrame(moviePixels, movieWidth, movieHeight);
+            Array.Fill(depth, float.PositiveInfinity);
+        }
         if (mask is not null)
         {
             foreach (FieldMovieMaskTriangle triangle in mask.Triangles)
@@ -43,6 +65,7 @@ public sealed partial class FieldRenderer
         {
             primitive.Draw();
         }
+        TriangleRenderer?.End();
         return pixels;
     }
 
@@ -81,6 +104,12 @@ public sealed partial class FieldRenderer
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
         {
+            return;
+        }
+        if (TriangleRenderer is not null)
+        {
+            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Replace, true) with { ColorWrite = false };
+            TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, Vector4.One, 10, false), GpuVertex(b, Vector2.Zero, Vector4.One, 10, false), GpuVertex(c, Vector2.Zero, Vector4.One, 10, false), material);
             return;
         }
         int left = Math.Max(clipLeft, (int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))));

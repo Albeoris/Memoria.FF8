@@ -21,6 +21,7 @@ public sealed record LaunchOptions
     public bool MuteAudio { get; init; }
     public bool AudioEnabled => !MuteAudio && ControlDirectory is null && !System.Diagnostics.Debugger.IsAttached;
     public int WorldRenderLimit { get; init; } = 2048;
+    public bool SoftwareRenderer { get; init; }
     public string? DebugUiScreen { get; init; }
 
     public static LaunchOptions Parse(string[] args)
@@ -58,6 +59,7 @@ public sealed record LaunchOptions
                 "--control-step" => options with { ControlStep = true },
                 "--mute-audio" => options with { MuteAudio = true },
                 "--world-render-limit" => options with { WorldRenderLimit = int.Parse(Value()) },
+                "--software-renderer" => options with { SoftwareRenderer = true },
                 "--debug-room" => options with { DebugUiScreen = "debug-room" },
                 "--ui-screen" => options with { DebugUiScreen = Value() },
                 _ => throw new ArgumentException($"Unknown argument: {argument}")

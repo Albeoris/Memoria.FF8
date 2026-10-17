@@ -68,6 +68,12 @@ public sealed partial class FieldRenderer
         {
             return;
         }
+        if (TriangleRenderer is not null)
+        {
+            TriangleMaterial material = GpuMaterial(null, TriangleBlend.Subtract, true) with { DepthComparison = TriangleDepthComparison.Less };
+            TriangleRenderer.Draw(GpuVertex(a, Vector2.Zero, new Vector4(new Vector3(level / 255f), 1), orderingDepth, false), GpuVertex(b, Vector2.Zero, new Vector4(0, 0, 0, 1), orderingDepth, false), GpuVertex(c, Vector2.Zero, new Vector4(0, 0, 0, 1), orderingDepth, false), material);
+            return;
+        }
         int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);
         int maxX = Math.Min((int)MathF.Ceiling(Math.Max(a.X, Math.Max(b.X, c.X))), clipRight - 1);
         int minY = Math.Max((int)MathF.Floor(Math.Min(a.Y, Math.Min(b.Y, c.Y))), clipTop);

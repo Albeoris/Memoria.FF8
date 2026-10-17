@@ -78,7 +78,7 @@ internal sealed partial class GameWorld
         }
     }
 
-    internal byte[] RenderMovieFrame(ReadOnlySpan<byte> decodedPixels, int decodedWidth, int decodedHeight)
+    internal byte[] RenderMovieFrame(ReadOnlySpan<byte> decodedPixels, int decodedWidth, int decodedHeight, ITriangleRenderer? triangleRenderer = null)
     {
         RequireSupportedMovieMaskRender();
         FieldAssets currentField = Field ?? throw new NotSupportedException("Movie field compositing requires the allocated field.");
@@ -124,6 +124,7 @@ internal sealed partial class GameWorld
         //4767B0's movie branch returns before47B980 submits the field fade packets.
         //The retained ordinary-field sample is state for the next field callback,
         //not a movie overlay (the opening legitimately retains a black sample).
+        movieRenderer.TriangleRenderer = triangleRenderer;
         return movieRenderer.RenderMovieFrame(decodedPixels, decodedWidth, decodedHeight, camera, actors, mask);
     }
 }

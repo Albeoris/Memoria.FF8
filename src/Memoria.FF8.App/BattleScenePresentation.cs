@@ -92,13 +92,14 @@ internal sealed class BattleScenePresentation
         weapons.Add(actor.Id, weapon);
     }
 
-    public byte[] Render(BattleSession session, int width, int height)
+    public byte[] Render(BattleSession session, int width, int height, ITriangleRenderer? triangleRenderer = null)
     {
         if (renderer?.Width != width || renderer.Height != height)
         {
             renderer = new BattleRenderer(width, height);
             renderedPixels = null;
         }
+        renderer.TriangleRenderer = triangleRenderer;
         BattleCamera? selectedCamera = camera;
         if (session.NativeGraphics is { } rawGraphics)
         {
@@ -109,9 +110,15 @@ internal sealed class BattleScenePresentation
             NativeBattlePrimitiveFrame frame = rawGraphics.PrimitiveFrame ?? throw new NotSupportedException("Native battle presentation requires its executed original primitive frame; migrate the named standalone snapshot explicitly.");
             NativeBattleEffectTextureState? textures = session.NativeEffectMemory?.Textures;
             NativeBattlePcTextureWindowCache? windows = session.NativeEffectMemory?.PrimitiveProcess?.TextureWindowCache;
-            if (renderedPixels is not null && ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera)
+            if (triangleRenderer is null && renderedPixels is not null && ReferenceEquals(renderedPrimitiveFrame, frame) && ReferenceEquals(renderedTextures, textures) && ReferenceEquals(renderedTextureWindows, windows) && renderedCamera == selectedCamera)
             {
                 return renderedPixels;
+            }
+            if (triangleRenderer is not null)
+            {
+                renderedPixels = null;
+                renderedCamera = selectedCamera;
+                return renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
             }
             renderedPixels = renderer.RenderNativePrimitiveFrame(frame, textures, selectedCamera, primitiveCapabilities, windows);
             renderedPrimitiveFrame = frame;

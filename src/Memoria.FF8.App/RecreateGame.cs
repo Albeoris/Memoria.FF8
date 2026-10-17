@@ -43,6 +43,10 @@ internal sealed partial class RecreateGame : Game
     private FieldAssets? field => world?.Field;
     private EventEngine? events => world?.Events;
     private Texture2D fieldTexture = null!;
+    private GpuTriangleRenderer? fieldGpu;
+    private GpuTriangleRenderer? battleGpu;
+    private bool fieldGpuPresented;
+    private Texture2D PresentedFieldTexture => fieldGpuPresented ? fieldGpu!.Target : fieldTexture;
     private DialogueState? presentedDialogue;
     private int selectedChoice;
     private string enteredName = "Squall";
@@ -102,7 +106,12 @@ internal sealed partial class RecreateGame : Game
         {
             controls = new ControlQueue(options.ControlDirectory, DispatchControl);
         }
-        Console.WriteLine($"graphics={GraphicsDevice.Adapter.Description} cwd={Environment.CurrentDirectory}");
+        if (!options.SoftwareRenderer)
+        {
+            fieldGpu = new GpuTriangleRenderer(GraphicsDevice);
+            battleGpu = new GpuTriangleRenderer(GraphicsDevice);
+        }
+        Console.WriteLine($"graphics={GraphicsDevice.Adapter.Description} scene-renderer={(options.SoftwareRenderer ? "software-diagnostic" : "gpu")} cwd={Environment.CurrentDirectory}");
     }
 
     protected override void Update(GameTime gameTime)
@@ -932,6 +941,7 @@ internal sealed partial class RecreateGame : Game
             RawDialogueText = world?.CurrentDialogue?.Text,
             IsUserControlEnabled = session.State.Scene == SceneKind.WorldMap || events?.IsUserControlEnabled == true,
             CameraIndex = events?.Scene.CameraIndex,
+            SceneRenderer = options.SoftwareRenderer ? "software-diagnostic" : "gpu",
             WorldRenderTarget = world is null ? null : new { Width = world.RenderWidth, Height = world.RenderHeight, Limit = options.WorldRenderLimit },
             LockedTriangles = events?.Scene.LockedTriangles,
             Actors = events?.Actors,
@@ -969,17 +979,21 @@ internal sealed partial class RecreateGame : Game
         Rectangle viewport = GraphicsDevice.Viewport.Bounds;
         PixelBounds target = ViewportLayout.WorldRenderTarget(viewport.Width, viewport.Height, options.WorldRenderLimit, session.State.Scene == SceneKind.WorldMap);
         world!.SetRenderSize(target.Width, target.Height);
-        if (fieldTexture.Width != target.Width || fieldTexture.Height != target.Height)
+        if (fieldGpu is null && (fieldTexture.Width != target.Width || fieldTexture.Height != target.Height))
         {
             Texture2D next = new(GraphicsDevice, target.Width, target.Height);
             fieldTexture.Dispose();
             fieldTexture = next;
         }
         long started = Stopwatch.GetTimestamp();
-        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers);
+        byte[] pixels = world.Render(elapsed, uiPreferences.RareCardMarkers, fieldGpu);
         double renderMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         started = Stopwatch.GetTimestamp();
-        fieldTexture.SetData(pixels);
+        if (fieldGpu is null)
+        {
+            fieldTexture.SetData(pixels);
+        }
+        fieldGpuPresented = fieldGpu is not null;
         metrics.Render(renderMilliseconds, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 
@@ -994,7 +1008,17 @@ internal sealed partial class RecreateGame : Game
                 switch (FieldPresentationReadiness.SelectRenderer(session.State.Scene, world.CanPresentCurrentField, movie?.HasFrame == true))
                 {
                     case FieldPresentationRenderer.Movie:
-                        fieldTexture.SetData(world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height));
+                        byte[] moviePixels = world.RenderMovieFrame(movie!.DecodedPixels, movie.Texture.Width, movie.Texture.Height, fieldGpu);
+                        if (fieldGpu is null)
+                        {
+                            if (fieldTexture.Width != world.RenderWidth || fieldTexture.Height != world.RenderHeight)
+                            {
+                                fieldTexture.Dispose();
+                                fieldTexture = new Texture2D(GraphicsDevice, world.RenderWidth, world.RenderHeight);
+                            }
+                            fieldTexture.SetData(moviePixels);
+                        }
+                        fieldGpuPresented = fieldGpu is not null;
                         break;
                     case FieldPresentationRenderer.Field:
                         UploadField(gameplayClock.Total);
@@ -1008,6 +1032,7 @@ internal sealed partial class RecreateGame : Game
             }
             catch (NativeWorldPresentationDeferredException exception)
             {
+                fieldGpu?.Abort();
                 if (!worldPresentationDeferred || error != exception.Message)
                 {
                     Console.Error.WriteLine(exception);
@@ -1020,9 +1045,14 @@ internal sealed partial class RecreateGame : Game
                 error = exception.Message;
                 fieldFaulted = true;
                 fieldRenderFaulted = true;
+                fieldGpu?.Abort();
                 ReportAutoPlayHostFailure(exception);
                 Console.Error.WriteLine(exception);
             }
+        }
+        if (ActiveBattle is not null && !startup.Active && !autoPlayFailureHeld && world?.ActiveTripleTriad is null)
+        {
+            PrepareBattleTexture(GraphicsDevice.Viewport.Bounds);
         }
         GraphicsDevice.Clear(Color.Black);
         Rectangle bounds = GraphicsDevice.Viewport.Bounds;
@@ -1060,8 +1090,8 @@ internal sealed partial class RecreateGame : Game
             {
                 if (world?.Field is not null)
                 {
-                    PixelBounds fit = ViewportLayout.Fit(fieldTexture.Width, fieldTexture.Height, bounds.Width, bounds.Height);
-                    batch.Draw(fieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
+                    PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, bounds.Width, bounds.Height);
+                    batch.Draw(PresentedFieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
                 }
                 else
                 {
@@ -1071,8 +1101,8 @@ internal sealed partial class RecreateGame : Game
         }
         else if (session.State.Scene == SceneKind.WorldMap || session.State.Scene == SceneKind.Field && world?.Field is not null)
         {
-            PixelBounds fit = ViewportLayout.Fit(fieldTexture.Width, fieldTexture.Height, bounds.Width, bounds.Height);
-            batch.Draw(fieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
+            PixelBounds fit = ViewportLayout.Fit(PresentedFieldTexture.Width, PresentedFieldTexture.Height, bounds.Width, bounds.Height);
+            batch.Draw(PresentedFieldTexture, new Rectangle(fit.X, fit.Y, fit.Width, fit.Height), Color.White);
         }
         if (events is not null && (session.State.Scene == SceneKind.WorldMap || field?.Id == session.State.FieldId && session.State.Scene is SceneKind.Field or SceneKind.Movie) && session.State.DebugView?.DialogueVisible != false)
         {
@@ -1161,6 +1191,8 @@ internal sealed partial class RecreateGame : Game
             resourceHost?.Dispose();
             DisposeBattlePresentation();
             fieldTexture?.Dispose();
+            fieldGpu?.Dispose();
+            battleGpu?.Dispose();
             uiCanvas?.Dispose();
             pixel?.Dispose();
             text?.Dispose();

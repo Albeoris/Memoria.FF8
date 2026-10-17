@@ -87,11 +87,13 @@ public sealed partial class FieldRenderer
         renderBackground = PrepareBackgroundRasters(EmptyScrollOffsets, null, Vector2.Zero);
     }
 
+    public ITriangleRenderer? TriangleRenderer { get; set; }
+
     public int OutputWidth { get; }
     public int OutputHeight { get; }
 
     /// <summary>The returned reusable framebuffer is valid until the next Render call.</summary>
-    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null)
+    public byte[] Render(IReadOnlyDictionary<int, int> backgroundStates, IEnumerable<ActorVisual> actors, TimeSpan elapsed, Vector3? backgroundShade = null, int cameraIndex = 0, IReadOnlyDictionary<int, Vector3>? backgroundModuleShades = null, bool backgroundVisible = true, IReadOnlySet<int>? hiddenBackgroundModules = null, IReadOnlyDictionary<int, Vector2>? backgroundScrollOffsets = null, Vector2 actorScrollOffset = default, FieldNativeBackgroundWrapFrame? nativeWrapFrame = null, sbyte drawingJitterX = 0, sbyte drawingJitterY = 0, IReadOnlyList<CardMarkerVisual>? cardMarkers = null, NativeDrawPointParticles? drawPointParticles = null, NativeDrawPointParticleTables? drawPointParticleTables = null, ushort? drawPointDisplayMask = null, NativeFadeDraw? fade = null)
     {
         ActorVisual[] preparedActors = actors.ToArray();
         foreach (ActorVisual actor in preparedActors.Where(actor => actor.Visible && (uint)actor.ModelId < field.Models.Count && field.Models[actor.ModelId].Bones.Count > 0 && field.Models[actor.ModelId].Faces.Count > 0))
@@ -142,8 +144,15 @@ public sealed partial class FieldRenderer
             backgroundJitter = jitter;
             renderBackground = nextBackground;
         }
-        MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
-        Array.Fill(depth, float.PositiveInfinity);
+        if (TriangleRenderer is not null)
+        {
+            TriangleRenderer.Begin(OutputWidth, OutputHeight, new Vector4(0, 0, 0, 1));
+        }
+        else
+        {
+            MemoryMarshal.Cast<byte, uint>(pixels.AsSpan()).Fill(BitConverter.IsLittleEndian ? 0xFF000000u : 0x000000FFu);
+            Array.Fill(depth, float.PositiveInfinity);
+        }
         List<(float Depth, Action Draw)> translucent = [];
         foreach (TileRaster raster in renderBackground)
         {
@@ -177,6 +186,11 @@ public sealed partial class FieldRenderer
         foreach (var primitive in translucent.OrderByDescending(primitive => primitive.Depth))
         {
             primitive.Draw();
+        }
+        if (TriangleRenderer is not null)
+        {
+            DrawGpuFade(fade);
+            TriangleRenderer.End();
         }
         return pixels;
     }
@@ -285,7 +299,11 @@ public sealed partial class FieldRenderer
             float logicalY = (destinationY + 0.5f - offsetY) / verticalScale - tile.Y - drawingOrigin.Y - scrollOffset.Y;
             return Math.Clamp((int)(logicalY * image.Height / 16), 0, image.Height - 1);
         });
-        return new TileRaster(tile, columns, rows);
+        return new TileRaster(tile, columns, rows)
+        {
+            Origin = new Vector2(offsetX + (tile.X + drawingOrigin.X + scrollOffset.X) * scale, offsetY + (tile.Y + drawingOrigin.Y + scrollOffset.Y) * verticalScale),
+            Size = new Vector2(16 * scale, 16 * verticalScale)
+        };
     }
 
     private static RasterRun[] CreateRuns(int start, int end, Func<int, int> sourceIndex)
@@ -312,6 +330,11 @@ public sealed partial class FieldRenderer
         // Native MAP byte 14 indexes the module RGB/frame array directly; 255 has no module.
         Vector3 shade = moduleColors is not null && tile.AnimationId != 255 && moduleColors.TryGetValue(tile.AnimationId, out Vector3 moduleShade) ? moduleShade : backgroundColor;
         float tileDepth = raster.Depth;
+        if (TriangleRenderer is not null)
+        {
+            DrawGpuTile(raster, shade, translucentPass);
+            return;
+        }
         Span<uint> packedPixels = MemoryMarshal.Cast<byte, uint>(pixels.AsSpan());
         foreach (RasterRun row in raster.Rows)
         {
@@ -375,6 +398,8 @@ public sealed partial class FieldRenderer
         public int SourceWidth { get; } = Tile.ResolvedImage.Width;
         public int SourceHeight { get; } = Tile.ResolvedImage.Height;
         public float Depth { get; init; }
+        public Vector2 Origin { get; init; }
+        public Vector2 Size { get; init; }
     }
 
     private void DrawActor(ActorVisual actor, List<(float Depth, Action Draw)> translucent)
@@ -453,6 +478,18 @@ public sealed partial class FieldRenderer
         float area = Edge(a, b, c.X, c.Y);
         if (Math.Abs(area) < 0.001f)
         {
+            return;
+        }
+        if (TriangleRenderer is not null)
+        {
+            TriangleMaterial material = GpuMaterial(texture, primitiveTransparencyEnabled ? TriangleBlend.Add : TriangleBlend.Replace, !primitiveTransparencyEnabled) with
+            {
+                DepthComparison = primitiveTransparencyEnabled ? TriangleDepthComparison.LessEqual : TriangleDepthComparison.Less,
+                PerspectiveDepth = true,
+                Sampler = modelTextureSampling == ModelTextureSampling.Nearest ? TriangleSampler.PointClamp : TriangleSampler.CutoutLinearClamp
+            };
+            Vector4 color = new(polygonColor / 128, 1);
+            TriangleRenderer.Draw(GpuVertex(a, uvA / new Vector2(texture.Width, texture.Height), color), GpuVertex(b, uvB / new Vector2(texture.Width, texture.Height), color), GpuVertex(c, uvC / new Vector2(texture.Width, texture.Height), color), material);
             return;
         }
         int minX = Math.Max((int)MathF.Floor(Math.Min(a.X, Math.Min(b.X, c.X))), clipLeft);
