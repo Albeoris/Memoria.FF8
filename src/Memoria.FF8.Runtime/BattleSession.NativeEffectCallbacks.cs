@@ -42,6 +42,10 @@ public sealed partial class BattleSession
         {
             return AdvanceNativeRestoration(graphics);
         }
+        if (effect.Binding.Entry is 0x811F70 or 0x7F7CB0 or 0x7F2810)
+        {
+            return AdvanceNativeRecovery(graphics);
+        }
         if (effect.Binding.Entry == 0x6C3550)
         {
             NativeBattleQuezacotlPreparation prepared = NativeBattleQuezacotl.Prepare6C3760(NativeEffectMemory ?? throw new NotSupportedException("Native Quezacotl callbacks require retained effect memory."), effect, NativeVibrationProcess, NativeCamera?.Projection?.View);

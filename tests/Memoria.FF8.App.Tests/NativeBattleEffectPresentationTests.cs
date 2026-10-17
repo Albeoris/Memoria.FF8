@@ -14,6 +14,9 @@ public sealed class NativeBattleEffectPresentationTests
     [InlineData((ushort)5, (byte)4, "Phoenix Down", 0x8D4450u, 300021u, false, false)]
     [InlineData((ushort)4, (byte)2, "Double", 0x8D5080u, 300027u, true, true)]
     [InlineData((ushort)21, (byte)2, "Triple", 0x89DEF0u, 300027u, true, true)]
+    [InlineData((ushort)53, (byte)4, "Mega-Potion", 0x811F70u, 300170u, false, false)]
+    [InlineData((ushort)58, (byte)4, "Elixir", 0x7F7CB0u, 300182u, false, false)]
+    [InlineData((ushort)59, (byte)4, "Megalixir", 0x7F2810u, 300182u, false, false)]
     public void Installed_original_effect_runs_cast_pixels_sound_and_one_contact_through_a_saved_midpoint(ushort effect, byte command, string name, uint entry, uint sound, bool requireCasting, bool applyKernelStatuses)
     {
         string directory = Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory;
@@ -32,11 +35,12 @@ public sealed class NativeBattleEffectPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect cast is required.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null || binding.TripleResources is not null);
+        NativeBattleEffectBinding binding = source.NativeGraphics?.OriginalEffect?.Binding ?? Assert.Single(source.Definition.NativeEffectCatalog, binding => binding.LifeResources is not null || binding.DoubleResources is not null || binding.TripleResources is not null || binding.RecoveryResources is not null);
         ushort effect = binding.Effect;
-        Assert.True(effect is 4 or 5 or 21 or 35);
+        Assert.True(effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
         using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
-        RunCurrentCast(source, assets, effect, binding.Entry, effect is 4 or 21 ? 300027u : 300021u, false, false);
+        uint sound = binding.RecoveryResources?.Sound ?? (effect is 4 or 21 ? 300027u : 300021u);
+        RunCurrentCast(source, assets, effect, binding.Entry, sound, false, false);
     }
 
     [Fact]
@@ -45,7 +49,7 @@ public sealed class NativeBattleEffectPresentationTests
         string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_EFFECT_PRESENTATION_SNAPSHOT") ?? Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_LIFE_SNAPSHOT");
         Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone effect checkpoint is required.");
         BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
-        Assert.True(source.NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 21 or 35);
+        Assert.True(source.NativeGraphics?.OriginalEffect?.Binding.Effect is 4 or 5 or 21 or 35 or 53 or 58 or 59);
         BattleSession first = BattleSession.Restore(source);
         BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
         Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
@@ -80,7 +84,9 @@ public sealed class NativeBattleEffectPresentationTests
         NativeBattleStatusSnapshot targetStatus = initial.Combatants.Single(actor => actor.Id == "target").NativeStatus!;
         NativeBattleStatusMirror expectedStatus = new(targetStatus.Saved, targetStatus.Battle);
         int expectedStatusTransitions = targetStatus.Presentation == expectedStatus ? 0 : 1;
-        int expectedHpTransitions = initial.NativePartyPresentation!.Rows[1]!.HitPoints == 100 ? 0 : 1;
+        ushort expectedHp = checked((ushort)initial.Combatants.Single(actor => actor.Id == "target").CurrentHp);
+        ushort initialDisplayedHp = initial.NativePartyPresentation!.Rows[1]!.HitPoints;
+        int expectedHpTransitions = initialDisplayedHp == expectedHp ? 0 : 1;
         string? initialMorph = requireMorphAndFlash ? MorphJson(initial, effect) : null;
         bool morphed = false;
         bool flashed = false;
@@ -126,8 +132,8 @@ public sealed class NativeBattleEffectPresentationTests
                 ushort currentHp = after.NativePartyPresentation!.Rows[1]!.HitPoints;
                 if (priorHp != currentHp)
                 {
-                    Assert.Equal((ushort)0, priorHp);
-                    Assert.Equal((ushort)100, currentHp);
+                    Assert.Equal(initialDisplayedHp, priorHp);
+                    Assert.Equal(expectedHp, currentHp);
                     hpTransitions++;
                 }
                 if (clone is not null)
@@ -192,7 +198,7 @@ public sealed class NativeBattleEffectPresentationTests
         Assert.Equal(0, battle.NativeGraphics.Models[1].Flags0 & 4);
         Assert.All(battle.NativeStage!.Groups, group => Assert.Equal((short)0, group.ColorDepth));
         Assert.Equal(expectedStatus, battle.Capture().Combatants.Single(actor => actor.Id == "target").NativeStatus!.Presentation);
-        Assert.Equal((ushort)100, battle.Capture().NativePartyPresentation!.Rows[1]!.HitPoints);
+        Assert.Equal(expectedHp, battle.Capture().NativePartyPresentation!.Rows[1]!.HitPoints);
         Assert.Equal(initial.Combatants.Select(actor => actor.CurrentHp), battle.Capture().Combatants.Select(actor => actor.CurrentHp));
         Assert.Equal(initial.Random, battle.Capture().Random);
         Assert.DoesNotContain(battle.Events, entry => entry.Kind == "Damage");

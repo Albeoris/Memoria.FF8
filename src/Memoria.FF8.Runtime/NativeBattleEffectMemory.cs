@@ -32,6 +32,7 @@ public sealed partial record NativeBattleEffectMemory([property: JsonRequired] N
         EsunaExecutable?.Validate();
         FullLifeExecutable?.Validate();
         ValidateRestorationVariants();
+        ValidateRecoveryExecutables();
         if (EsunaExecutable is { Effect: not 24 } || FullLifeExecutable is { Effect: not 27 })
         {
             throw new InvalidDataException("Native restoration executable owners cannot be exchanged between spells.");

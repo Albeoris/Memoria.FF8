@@ -25,6 +25,24 @@ public static class NativeBattleEffectStaticResourcesReader
         {
             throw new InvalidDataException("Native effect sprite requires the original kind0 frame layout.");
         }
+        ImmutableArray<byte> bytes = ReadSpriteBytes(executable, reader, address);
+        uint wrapper = BinaryPrimitives.ReadUInt32LittleEndian(Bytes(executable, reader, 0xC7EFB4, 4));
+        uint callback = BinaryPrimitives.ReadUInt32LittleEndian(Bytes(executable, reader, 0xC7EFA0, 4));
+        NativeBattleModuleResource resource = new(0, address, wrapper, callback, bytes);
+        resource.Validate();
+        return resource;
+    }
+
+    public static ImmutableArray<byte> ReadProjectedSprite(byte[] executable, uint address)
+    {
+        Authenticate(executable);
+        using PEReader reader = new(new MemoryStream(executable));
+        return ReadSpriteBytes(executable, reader, address);
+    }
+
+    private static ImmutableArray<byte> ReadSpriteBytes(byte[] executable, PEReader reader, uint address)
+    {
+        ReadOnlySpan<byte> header = Bytes(executable, reader, address, 12);
         int count = BinaryPrimitives.ReadUInt16LittleEndian(header[8..]);
         int length = checked(10 + 2 * (count + 1));
         ReadOnlySpan<byte> directory = Bytes(executable, reader, address, length);
@@ -34,11 +52,7 @@ public static class NativeBattleEffectStaticResourcesReader
             uint quads = BinaryPrimitives.ReadUInt32LittleEndian(Bytes(executable, reader, checked(address + offset), 4)) & 0x7FFFFFFF;
             length = Math.Max(length, checked(offset + 4 + 20 * (int)quads));
         }
-        uint wrapper = BinaryPrimitives.ReadUInt32LittleEndian(Bytes(executable, reader, 0xC7EFB4, 4));
-        uint callback = BinaryPrimitives.ReadUInt32LittleEndian(Bytes(executable, reader, 0xC7EFA0, 4));
-        NativeBattleModuleResource resource = new(0, address, wrapper, callback, Bytes(executable, reader, address, length).ToArray().ToImmutableArray());
-        resource.Validate();
-        return resource;
+        return Bytes(executable, reader, address, length).ToArray().ToImmutableArray();
     }
 
     public static NativeBattleStaticMeshResource ReadMesh(byte[] executable, byte id)

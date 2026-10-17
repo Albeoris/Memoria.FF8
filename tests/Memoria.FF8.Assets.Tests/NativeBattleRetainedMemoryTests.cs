@@ -26,6 +26,8 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Null(generic.EffectMemory.TripleMorph);
         Assert.Null(generic.EffectMemory.Effect57Executable);
         Assert.Null(generic.EffectMemory.RemedyExecutable);
+        Assert.Null(generic.EffectMemory.RecoveryExecutables);
+        Assert.Equal(new ushort[] { 53, 58, 59 }, actual.EffectMemory.RecoveryExecutables!.Value.Select(bank => bank.Effect));
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(57), actual.EffectMemory.Effect57Executable);
         Assert.Equal(NativeBattleRestorationExecutableState.FromColdProcess(67), actual.EffectMemory.RemedyExecutable);
         NativeBattleQuezacotlExecutableMemory executableMemory = Assert.IsType<NativeBattleQuezacotlExecutableMemory>(actual.EffectMemory!.QuezacotlExecutableMemory);
@@ -38,7 +40,7 @@ public sealed class NativeBattleRetainedMemoryTests
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x163FFD0u).Bytes.ToArray(), doubleMorph.Bytes.ToArray());
         NativeBattleTripleMorph tripleMorph = Assert.IsType<NativeBattleTripleMorph>(actual.EffectMemory.TripleMorph);
         Assert.Equal(NativeBattleEffectStaticResourcesReader.ReadMesh(executable, 0x1627970u).Bytes.ToArray(), tripleMorph.Bytes.ToArray());
-        Assert.Equal(JsonSerializer.Serialize(generic), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null } }));
+        Assert.Equal(JsonSerializer.Serialize(generic), JsonSerializer.Serialize(actual with { EffectMemory = actual.EffectMemory with { QuezacotlExecutableMemory = null, DoubleMorph = null, TripleMorph = null, Effect57Executable = null, RemedyExecutable = null, RecoveryExecutables = null } }));
         Assert.Same(actual, assets.ReadColdProcessNativeBattleMemory());
         Assert.Equal(0, actual.ActionPackets.Headers[31].ReadByte(19));
         Assert.Equal(0, actual.ActionPackets.ReadContact(48).Secondary.Amount6);

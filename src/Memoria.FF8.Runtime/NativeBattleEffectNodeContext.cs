@@ -5,7 +5,7 @@ public static class NativeBattleEffectNodeContext
 {
     private const int Context = 0x34;
 
-    public static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleModulePoolTask root, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, uint executableAddress)
+    public static NativeBattleModulePoolTask Initialize(NativeBattleModulePoolTask task, NativeBattleModulePoolTask root, NativeBattleEffectParameters parameters, NativeBattleActionPacketsState packets, Func<int, NativeBattleGraphicsModel> readModel, Func<int, NativeBattlePoseSource> readPoseSource, uint executableAddress, bool singleSelectedTarget = false)
     {
         WriteWord(0x22, task.ReadWord(0x29A));
         WriteWord(0x24, task.ReadWord(0x29C));
@@ -13,14 +13,14 @@ public static class NativeBattleEffectNodeContext
         Write(0x228, executableAddress + 0x44);
         Write(0x22C, executableAddress + 0x84);
         Write(0x230, executableAddress + 0xC4);
-        WriteWord(0x1C, root.ReadWord(0x5A));
+        WriteWord(0x1C, singleSelectedTarget ? (ushort)1 : root.ReadWord(0x5A));
         WriteWord(0x1E, task.ReadByte(0x2C));
         int count = unchecked((short)ReadWord(0x1C));
         int headerIndex = checked(parameters.HeaderIndex7C + unchecked((sbyte)task.ReadByte(0x2A)));
         int firstContact = packets.Headers[headerIndex].FirstContactIndex ?? throw new NotSupportedException("Native87E230 requires the selected group's actual contact pointer.");
         for (int index = 0; index < count; index++)
         {
-            Write(4 + 4 * index, packets.ReadContact(checked(firstContact + index)).Primary.ActorIndex);
+            Write(4 + 4 * index, packets.ReadContact(checked(firstContact + (singleSelectedTarget ? unchecked((sbyte)task.ReadByte(0x2B)) : index))).Primary.ActorIndex);
         }
         WriteWord(0x1A, task.ReadWord(0x29E));
         short mode = unchecked((short)ReadWord(0x24));

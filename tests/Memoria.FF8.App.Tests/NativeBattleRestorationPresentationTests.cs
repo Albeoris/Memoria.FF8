@@ -81,7 +81,8 @@ public sealed class NativeBattleRestorationPresentationTests
         BattleStage stage = assets.LoadStage(formation.StageId);
         const int targetMaximumHp = 200;
         bool resurrection = effect is 5 or 27 or 35;
-        int targetHp = effect == 27 ? 200 : 100;
+        bool healing = effect is 53 or 58 or 59;
+        int targetHp = effect == 27 || healing ? 200 : 100;
         BattleCombatantDefinition[] actors =
         [
             new() { Id = "caster", Name = "Squall", IsPlayer = true, ModelId = 0, WeaponId = 0, MaximumHp = 1000, CurrentHp = 1000, InitialAtb = BattleSession.AtbMaximum, NativeDeathCount = 0 },
@@ -140,7 +141,7 @@ public sealed class NativeBattleRestorationPresentationTests
         Assert.Equal((ushort)0, status.Saved);
         //Controlled post-formula boundary: B90 already holds the successful result. B92 and the HP cache retain the prior display.
         //Esuna's prior poison bit is2; revival's prior KO bit is1. This does not run or admit either formula.
-        ushort priorSaved = applyKernelStatuses ? status.Saved : effect is 24 or 57 or 67 ? (ushort)2 : (ushort)1;
+        ushort priorSaved = applyKernelStatuses || healing ? status.Saved : effect is 24 or 57 or 67 ? (ushort)2 : (ushort)1;
         uint priorBattle = status.Battle;
         if (applyKernelStatuses)
         {
@@ -151,12 +152,13 @@ public sealed class NativeBattleRestorationPresentationTests
         target = target with { NativeStatus = status with { Presentation = new(priorSaved, priorBattle) } };
         NativeBattlePartyPresentation party = before.NativePartyPresentation!;
         NativeBattlePartyPresentedVital targetRow = party.Rows[1]!;
-        party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = resurrection ? (ushort)0 : targetRow.HitPoints }) };
+        party = party with { Rows = party.Rows.SetItem(1, targetRow with { HitPoints = healing ? (ushort)50 : resurrection ? (ushort)0 : targetRow.HitPoints }) };
         before = before with { Combatants = before.Combatants.Select(actor => actor.Id == target.Id ? target : actor).ToArray(), NativePartyPresentation = party, NativePartyStatusMirrors = before.NativePartyStatusMirrors!.Observe(1, priorSaved, priorBattle) };
         NativeBattleActionPacketsState packets = battle.NativeActionPackets;
         byte sequence = definition.NativeCommandSequences[native.Command];
         (packets, int header) = packets.Prepare(new(0, native.Command, sequence, -1, native.ActionId, descriptorEffect ?? native.MagicId, null));
-        (packets, _) = packets.AppendContact(new(new(1, native.DamagePresentation, 0, resurrection ? (byte)1 : (byte)0, status.Saved, resurrection ? checked((ushort)targetHp) : (ushort)0, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
+        ushort amount = healing ? checked((ushort)(targetHp - 50)) : resurrection ? checked((ushort)targetHp) : (ushort)0;
+        (packets, _) = packets.AppendContact(new(new(1, native.DamagePresentation, 0, resurrection || healing ? (byte)1 : (byte)0, status.Saved, amount, status.Battle), new(255, 0, 0, 0, 0, 0, 0)));
         (packets, _) = packets.Publish(1);
         NativeBattleGraphicsState graphics = before.NativeGraphics!;
         NativeBattleGraphicsModel targetModel = graphics.Models[1];

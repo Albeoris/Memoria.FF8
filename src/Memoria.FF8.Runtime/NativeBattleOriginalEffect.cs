@@ -33,6 +33,8 @@ public sealed record NativeBattleOriginalEffectState([property: JsonRequired] us
     public NativeBattleCuragaState? Curaga { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public NativeBattleRestorationState? Restoration { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleRecoveryState? Recovery { get; init; }
 
     public void Validate()
     {

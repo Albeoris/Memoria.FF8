@@ -101,7 +101,7 @@ public static class NativeBattleRestorationMeshPackets
         return new(context.Flags, context.FarColor, context.Fade, null, null, 0, false, context.DepthBias, context.TableBaseBucket, context.DepthShift, new(context.UOffset, context.VOffset, context.WindowBefore, context.WindowAfter));
     }
 
-    private static NativeBattleEffectMeshPacketContext Normalize(NativeBattleFullLifeMeshContext context, bool textured)
+    internal static NativeBattleEffectMeshPacketContext Normalize(NativeBattleFullLifeMeshContext context, bool textured)
     {
         uint uv = textured && (context.Flags & 0x1000) != 0 ? context.UvOffset ?? throw new NotSupportedException("Native884370 requires its preserved UV-offset DWORD18.") : 0;
         return new(context.Flags, context.FarColor, context.Fade, context.TexturePage, context.Clut, uv, true, null, context.TableBaseBucket, context.DepthShift);
