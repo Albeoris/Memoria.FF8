@@ -67,12 +67,16 @@ public sealed class AutoPlayScriptedInputProbeTests
         Assert.Equal(party, run.World.Events.Scene.Party);
         Assert.All(run.PartySamples, sample => Assert.Equal(party, sample));
         Assert.Contains(run.Queries, sample => sample.Command is { FieldId: 235, Name: "KEYSCAN" } && sample.Input is { SampledFieldId: 235, SampledFrame: 316, PhysicalHeld: 16 } && input.Queries.Any(query => query.ObjectId == sample.Command.ObjectId && query.ScriptId == sample.Command.ScriptId && query.Operation == sample.Command.Operation && query.Opcode == sample.Command.Name && query.Mask == sample.Command.Arguments[0]) && (sample.Command.Arguments[0] & sample.Input.Held.GetValueOrDefault()) != 0);
-        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, item => item.Key == key);
+        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, item => item.Key.StartsWith("input:235:", StringComparison.Ordinal) && saved.Coverage.Choices.All(previous => previous.Key != item.Key));
+        key = choice.Key;
         Assert.Equal(0, choice.ActiveOption);
         Assert.Empty(choice.CompletedOptions);
         Assert.False(choice.Finished);
         Assert.True(choice.InputCheckpointPrepared);
-        Assert.Equal(input.Fingerprint, run.Controller.State.ScriptedChoiceInputs[key].Fingerprint);
+        ScriptedInputMetadata observed = run.Controller.State.ScriptedChoiceInputs[key];
+        Assert.True(observed.ObservedQueriesProven);
+        Assert.Equal($"input:235:{observed.Fingerprint}", key);
+        Assert.All(observed.Queries, query => Assert.Contains(query, input.Queries));
         string beforePath = Assert.Single(Directory.GetFiles(run.Output, choice.BeforeCheckpoint!, SearchOption.AllDirectories));
         GameState before = GameSession.Load(beforePath);
         Assert.Equal(315, before.EventState!.Value.GetProperty("Frame").GetInt64());

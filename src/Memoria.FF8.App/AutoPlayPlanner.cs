@@ -74,6 +74,7 @@ internal sealed class AutoPlayChoiceCoverage
     public int FirstOption { get; set; }
     public string? BeforeCheckpoint { get; set; }
     public bool InputCheckpointPrepared { get; set; }
+    public string? SupersededInputDomain { get; set; }
     public string? ContinuationCheckpoint { get; set; }
     public List<int> CompletedOptions { get; set; } = [];
     public int? ActiveOption { get; set; }

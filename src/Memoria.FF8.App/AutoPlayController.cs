@@ -227,6 +227,19 @@ internal sealed partial class AutoPlayController
         {
             throw new InvalidDataException("Unsupported automatic play manifest or seed.");
         }
+        foreach (AutoPlayChoiceCoverage choice in saved.Coverage.Choices.Where(choice => choice.SupersededInputDomain is not null))
+        {
+            HashSet<string> chain = [choice.Key];
+            AutoPlayChoiceCoverage current = choice;
+            while (current.SupersededInputDomain is string replacement)
+            {
+                if (!chain.Add(replacement) || saved.Coverage.Choices.SingleOrDefault(candidate => candidate.Key == replacement) is not { } next || !saved.ScriptedChoiceInputs.TryGetValue(replacement, out ScriptedInputMetadata? input) || !input.ObservedQueriesProven)
+                {
+                    throw new InvalidDataException("A superseded scripted input domain requires its retained observed replacement without a cycle.");
+                }
+                current = next;
+            }
+        }
         string directory = Path.GetDirectoryName(manifest)!;
         restore(GameSession.Load(Path.Combine(directory, saved.Snapshot)));
         runDirectory = Path.Combine(outputDirectory, time.GetUtcNow().ToString("yyyyMMdd-HHmmss-fffffff") + "-resume");
@@ -500,7 +513,14 @@ internal sealed partial class AutoPlayController
         {
             run.ActiveObservedInput = null;
             run.ObserveContactInput = false;
-            DriveScriptedInput(observedInput, world.Events.IsUserControlEnabled);
+            if (observedInput.ObservedQueriesProven)
+            {
+                DriveScriptedInput(observedInput, world.Events.IsUserControlEnabled);
+            }
+            else
+            {
+                DriveWhenQueried(observedInput, world.Events.IsUserControlEnabled, run.ActiveObjectId >= 0 ? run.ActiveObjectId : null);
+            }
             return;
         }
         if (world.Events.IsUserControlEnabled && run.ActiveField == session.State.FieldId && world.Events.HasPendingPlayerInteraction(run.ActiveObjectId) && world.Events.DiscoverScriptedInput(run.ActiveObjectId) is { Masks.Count: > 0 } controlledInput)
@@ -720,7 +740,7 @@ internal sealed partial class AutoPlayController
             if (run.ObserveContactInput && run.ActiveEvent is not null && run.ActiveField == field && command.ObjectId == run.ActiveObjectId && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON")
             {
                 // Continuous contact callbacks can query and return in one frame, leaving no active fiber at the next controller tick.
-                if (world.Events.DiscoverScriptedInput(command.ObjectId) is { Masks.Count: > 0 } input)
+                if (command.Arguments.Count == 1 && world.Events.DiscoverObservedScriptedInput([new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]))], command.ObjectId) is { Masks.Count: > 0 } input)
                 {
                     run.ActiveObservedInput = input;
                     run.ObserveContactInput = false;
@@ -746,7 +766,7 @@ internal sealed partial class AutoPlayController
         int observedObject = -1;
         void ObserveQuery(ScriptCommand command)
         {
-            if (observedInput is null && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && world.Events.DiscoverScriptedInput(command.ObjectId) is { Masks.Count: > 0 } input)
+            if (observedInput is null && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1 && world.Events.DiscoverObservedScriptedInput([new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]))], command.ObjectId) is { Masks.Count: > 0 } input)
             {
                 observedInput = input;
                 observedObject = command.ObjectId;
@@ -773,25 +793,35 @@ internal sealed partial class AutoPlayController
 
     private void DriveWhenQueried(ScriptedInputMetadata input, bool allowControlled, int? objectId)
     {
+        if (ProbeScriptedInput(input, allowControlled, objectId) is { } current)
+        {
+            DriveScriptedInput(current, allowControlled, prepared: true);
+        }
+    }
+
+    private ScriptedInputMetadata? ProbeScriptedInput(ScriptedInputMetadata input, bool allowControlled, int? objectId)
+    {
         GameWorld world = getWorld();
         int field = session.State.FieldId;
         Apply(new(PlayerActionKind.FieldButtons, 0));
         if (!HasNeutralScriptedInput(session.State.FieldButtonInput, field, world.Events.Frame))
         {
             world.AdvanceAutoPlayInputFrame();
-            return;
+            return null;
         }
         GameState checkpoint = CaptureState();
         bool controlled = world.Events.IsUserControlEnabled;
         int? player = world.Events.PlayerActor?.ObjectId;
+        bool? pendingInteraction = objectId is int owner ? world.Events.HasPendingPlayerInteraction(owner) : null;
         DialogueState? dialogue = world.CurrentDialogue;
         ScriptCommand? matchedQuery = null;
+        List<ScriptedInputQuery> observedQueries = [];
         bool queried = false;
         int callbacks = 0;
         long queryBeforeFrame = world.Events.Frame;
         bool HasProbeOwner()
         {
-            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || world.Events.HasPendingPlayerInteraction(objectId.Value)) && Equals(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
+            return HasScriptedInputOwner(world, field, allowControlled) && world.Events.FieldId == field && world.HasCurrentFieldAllocation && world.Events.IsUserControlEnabled == controlled && world.Events.PlayerActor?.ObjectId == player && (objectId is null || world.Events.HasPendingPlayerInteraction(objectId.Value) == pendingInteraction) && Equals(world.CurrentDialogue, dialogue) && world.CurrentDialogue is not { CanConfirm: true } && world.PendingEntityName is null && !world.Events.HasPendingBattle && world.Events.PendingTripleTriad is null && world.Events.LastFault is null && world.NextTrigger.Kind is not (PlayerTriggerKind.Faulted or PlayerTriggerKind.Unloaded or PlayerTriggerKind.Movie or PlayerTriggerKind.FieldTransition or PlayerTriggerKind.WorldMap or PlayerTriggerKind.Battle);
         }
         bool HasMatchedQueryOwner()
         {
@@ -805,6 +835,14 @@ internal sealed partial class AutoPlayController
                 if (matchedQuery is null && (objectId is null || command.ObjectId == objectId) && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name))
                 {
                     matchedQuery = command;
+                }
+                if ((objectId is null || command.ObjectId == objectId) && command.Name != "KEYOFF" && command.Arguments.Count == 1 && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name))
+                {
+                    ScriptedInputQuery observed = new(command.ObjectId, command.ScriptId, command.Operation, command.Name, unchecked((ushort)command.Arguments[0]));
+                    if (!observedQueries.Contains(observed))
+                    {
+                        observedQueries.Add(observed);
+                    }
                 }
             }
         }
@@ -853,13 +891,14 @@ internal sealed partial class AutoPlayController
             {
                 world.Events.CommandExecuted -= ObserveQuery;
             }
-            ScriptedInputMetadata? current = world.Events.DiscoverScriptedInput(objectId);
+            ScriptedInputMetadata? current = world.Events.DiscoverObservedScriptedInput(observedQueries, objectId);
             if (!HasProbeOwner() || world.Events.Frame != queryBeforeFrame || current is not { Masks.Count: > 0 } || !current.Queries.Any(query => query.ObjectId == matchedQuery.ObjectId && query.ScriptId == matchedQuery.ScriptId && query.Operation == matchedQuery.Operation && query.Opcode == matchedQuery.Name))
             {
                 throw new NotSupportedException("The observed native input query has no supported metadata at its exact replayed before-callback checkpoint.");
             }
-            DriveScriptedInput(current, allowControlled, prepared: true);
+            return current;
         }
+        return null;
     }
 
     internal static bool HasNeutralScriptedInput(NativeFieldButtonInput? input, int field, long frame)
@@ -976,7 +1015,7 @@ internal sealed partial class AutoPlayController
         bool sampled = false;
         void Observe(ScriptCommand command)
         {
-            if (command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1 && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation))
+            if (command.FieldId == field && command.Name is "KEYSCAN" or "KEYSCAN2" or "KEYON" && command.Arguments.Count == 1 && input.Queries.Any(query => query.ObjectId == command.ObjectId && query.ScriptId == command.ScriptId && query.Operation == command.Operation && query.Opcode == command.Name && (query.Mask is null || query.Mask == unchecked((ushort)command.Arguments[0]))))
             {
                 NativeFieldButtonInput buttons = session.State.FieldButtonInput!;
                 int value = command.Name == "KEYSCAN2" ? buttons.RawHeld : command.Name == "KEYON" ? buttons.Pressed ?? 0 : buttons.Held ?? 0;
@@ -1296,7 +1335,7 @@ internal sealed partial class AutoPlayController
         {
             return false;
         }
-        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted))
+        foreach (AutoPlayChoiceCoverage choice in run.Coverage.Choices.Where(item => !item.Finished && !item.PolicyExhausted && item.SupersededInputDomain is null))
         {
             AutoPlayChoiceStep next = planner.PlanChoice(choice.Key);
             if (next.Kind == AutoPlayChoiceStepKind.RestoreContinuation)
@@ -1306,20 +1345,43 @@ internal sealed partial class AutoPlayController
             }
             if (next.Kind == AutoPlayChoiceStepKind.Replay && next.Checkpoint is not null && next.Selection is int selection)
             {
-                restore(GameSession.Load(Path.Combine(runDirectory!, next.Checkpoint)));
+                GameState choiceCheckpoint = GameSession.Load(Path.Combine(runDirectory!, next.Checkpoint));
+                restore(choiceCheckpoint);
                 run.ActiveSelections = choice.BeforeSelections?.ToList();
-                planner.BeginChoiceOption(choice.Key, selection);
-                run.SceneChoices.Add(choice.Key);
                 run.SettleFrames = 0;
                 if (choice.Key.StartsWith("input:", StringComparison.Ordinal))
                 {
                     getWorld().EnsureField();
+                    bool recoveringLegacyMetadata = !run.ScriptedChoiceInputs.ContainsKey(choice.Key);
                     ScriptedInputMetadata input = RestoreScriptedChoiceInput(choice);
+                    if (recoveringLegacyMetadata && !input.ObservedQueriesProven)
+                    {
+                        restore(choiceCheckpoint);
+                        getWorld().EnsureField();
+                    }
+                    bool allowControlled = getWorld().Events.IsUserControlEnabled;
+                    if (!input.ObservedQueriesProven)
+                    {
+                        if (!choice.InputCheckpointPrepared && !PrepareScriptedInput(allowControlled))
+                        {
+                            throw new NotSupportedException("The legacy scripted input checkpoint lost its native owner before its query domain could be observed.");
+                        }
+                        int? source = allowControlled && run.ActiveField == session.State.FieldId && run.ActiveObjectId >= 0 ? run.ActiveObjectId : null;
+                        ScriptedInputMetadata current = ProbeScriptedInput(input, allowControlled, source) ?? throw new NotSupportedException("The legacy scripted input checkpoint has no observed native query domain; no old alternative was pressed or completed.");
+                        string replacement = $"input:{session.State.FieldId}:{current.Fingerprint}";
+                        DriveScriptedInput(current, allowControlled, prepared: true);
+                        choice.SupersededInputDomain = replacement;
+                        return true;
+                    }
+                    planner.BeginChoiceOption(choice.Key, selection);
+                    run.SceneChoices.Add(choice.Key);
                     run.ActiveSelections?.Add(new(choice.Key, selection));
-                    PulseScriptedInput(input.Masks[selection], input, getWorld().Events.IsUserControlEnabled, choice.InputCheckpointPrepared);
+                    PulseScriptedInput(input.Masks[selection], input, allowControlled, choice.InputCheckpointPrepared);
                 }
                 else
                 {
+                    planner.BeginChoiceOption(choice.Key, selection);
+                    run.SceneChoices.Add(choice.Key);
                     run.DialogueSelections[choice.Key] = selection;
                     run.ActiveSelections?.Add(new(choice.Key, selection));
                     ApplyDialogueSelection(selection);

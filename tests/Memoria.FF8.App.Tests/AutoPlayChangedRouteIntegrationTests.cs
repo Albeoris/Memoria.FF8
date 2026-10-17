@@ -56,9 +56,13 @@ public sealed class AutoPlayChangedRouteIntegrationTests
         Assert.Equal(retired + 1, Entry(run).RetiredRoutes.Count);
         AutoPlayRetiredRoute retirement = Entry(run).RetiredRoutes[^1];
         Assert.Equal(routeJson, JsonSerializer.Serialize(retirement.Route, AutoPlayController.JsonOptions));
-        Assert.Equal(key, retirement.ActualChoiceKey);
+        key = retirement.ActualChoiceKey;
+        ScriptedInputMetadata scoped = run.Controller.State.ScriptedChoiceInputs[key];
+        Assert.True(scoped.ObservedQueriesProven);
+        Assert.Equal($"input:177:{scoped.Fingerprint}", key);
+        Assert.All(scoped.Queries, query => Assert.Contains(query, input.Queries));
         Assert.Equal(0, retirement.FirstChoice);
-        Assert.Equal(input.Masks.Count - 1, retirement.LastChoice);
+        Assert.Equal(scoped.Masks.Count - 1, retirement.LastChoice);
         Assert.Equal(prefix, retirement.ExecutedPrefix);
         Assert.DoesNotContain(Entry(run).Routes, route => JsonSerializer.Serialize(route, AutoPlayController.JsonOptions) == routeJson);
         Assert.Equal(completed, Entry(run).Completed);

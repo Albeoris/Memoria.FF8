@@ -126,9 +126,7 @@ public sealed class AutoPlayAcceptanceTests
             Directory.Move(sourceDirectory, Path.Combine(temporary, "detached"));
             run.Controller.Advance(1);
             Assert.Null(run.Controller.Error);
-            AutoPlayChoiceCoverage input = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key.StartsWith("input:", StringComparison.Ordinal));
-            Assert.Equal(1, input.ActiveOption);
-            Assert.Contains(0, input.CompletedOptions);
+            AssertRequalifiedInputDomain(run.Controller.State);
         }
         finally
         {
@@ -210,10 +208,20 @@ public sealed class AutoPlayAcceptanceTests
         run.Controller.Advance(1);
         Assert.Null(run.Controller.Error);
         Assert.Equal(before + 1, run.Controller.State.Steps);
-        AutoPlayChoiceCoverage choice = Assert.Single(run.Controller.State.Coverage.Choices, choice => choice.Key.StartsWith("input:", StringComparison.Ordinal));
-        Assert.Equal(1, choice.ActiveOption);
-        Assert.Contains(0, choice.CompletedOptions);
-        Assert.True(run.Controller.State.ScriptedChoiceInputs.ContainsKey(choice.Key));
+        AssertRequalifiedInputDomain(run.Controller.State);
+    }
+
+    private static void AssertRequalifiedInputDomain(AutoPlayRunState state)
+    {
+        AutoPlayChoiceCoverage legacy = Assert.Single(state.Coverage.Choices, choice => choice.SupersededInputDomain is not null);
+        Assert.Null(legacy.ActiveOption);
+        Assert.Contains(0, legacy.CompletedOptions);
+        Assert.False(legacy.Finished);
+        AutoPlayChoiceCoverage observed = Assert.Single(state.Coverage.Choices, choice => choice.Key == legacy.SupersededInputDomain);
+        Assert.Equal(0, observed.ActiveOption);
+        Assert.Empty(observed.CompletedOptions);
+        Assert.False(observed.Finished);
+        Assert.True(state.ScriptedChoiceInputs[observed.Key].ObservedQueriesProven);
     }
 
     [Fact]
