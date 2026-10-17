@@ -8,8 +8,8 @@ float2 TextureSize;
 float DepthScale;
 texture SourceTexture;
 sampler TextureSampler = sampler_state { Texture = <SourceTexture>; };
-struct VSInput { float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; };
-struct VSOutput { float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; };
+struct VSInput { float3 Position : POSITION0; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float4 TextureScreenRectangle : TEXCOORD2; float4 TextureTexelRectangle : TEXCOORD3; };
+struct VSOutput { float4 Position : SV_POSITION; float4 Color : COLOR0; float3 Uv : TEXCOORD0; float Depth : TEXCOORD1; nointerpolation float4 TextureScreenRectangle : TEXCOORD2; nointerpolation float4 TextureTexelRectangle : TEXCOORD3; };
 VSOutput VertexMain(VSInput input)
 {
     VSOutput output;
@@ -17,6 +17,8 @@ VSOutput VertexMain(VSInput input)
     output.Color = input.Color;
     output.Uv = input.Uv;
     output.Depth = input.Position.z;
+    output.TextureScreenRectangle = input.TextureScreenRectangle;
+    output.TextureTexelRectangle = input.TextureTexelRectangle;
     return output;
 }
 struct PSOutput { float4 Color : SV_TARGET0; float Depth : SV_DEPTH; };
@@ -31,7 +33,16 @@ PSOutput PixelMain(VSOutput input)
     if (MaterialParameters.x > 0)
     {
         clip(input.Uv.z - 0.0000000001);
-        float4 texel = tex2D(TextureSampler, input.Uv.xy / input.Uv.z);
+        float2 uv = input.Uv.xy / input.Uv.z;
+        if (input.TextureScreenRectangle.z > 0)
+        {
+            // Reconstruct local source pixels before adding the atlas origin.
+            // Interpolated atlas UVs lose precision at source pixel boundaries.
+            float2 local = (input.Position.xy - input.TextureScreenRectangle.xy) / input.TextureScreenRectangle.zw;
+            float2 pixel = clamp(floor(local * input.TextureTexelRectangle.zw), 0, input.TextureTexelRectangle.zw - 1);
+            uv = (input.TextureTexelRectangle.xy + pixel + 0.5) / TextureSize;
+        }
+        float4 texel = tex2D(TextureSampler, uv);
         if (FogParameters.w > 0)
         {
             float2 texelPosition = clamp(input.Uv.xy / input.Uv.z * TextureSize - 0.5, 0, TextureSize - 1);

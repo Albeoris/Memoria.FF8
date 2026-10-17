@@ -4,7 +4,12 @@ using Albeoris.Games.FF8.Imaging;
 namespace Memoria.FF8.Rendering;
 
 /// <summary>Screen-space geometry. Depth and color interpolate affinely; only UV uses ReciprocalW.</summary>
-public readonly record struct TriangleVertex(Vector2 Position, float Depth, float ReciprocalW, Vector2 Uv, Vector4 Color);
+public readonly record struct TriangleVertex(Vector2 Position, float Depth, float ReciprocalW, Vector2 Uv, Vector4 Color)
+{
+    /// <summary>Optional screen-space rectangle and source texel rectangle for point-sampled atlas quads.</summary>
+    public Vector4 TextureScreenRectangle { get; init; }
+    public Vector4 TextureTexelRectangle { get; init; }
+}
 public enum TriangleBlend
 {
     Replace,

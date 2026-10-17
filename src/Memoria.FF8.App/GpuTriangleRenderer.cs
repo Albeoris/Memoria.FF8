@@ -291,15 +291,19 @@ public sealed class GpuTriangleRenderer : ITriangleRenderer, IDisposable
 
     private readonly struct GpuVertex : IVertexType
     {
-        private static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector4, VertexElementUsage.Color, 0), new VertexElement(28, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 0));
+        private static readonly VertexDeclaration Declaration = new(new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0), new VertexElement(12, VertexElementFormat.Vector4, VertexElementUsage.Color, 0), new VertexElement(28, VertexElementFormat.Vector3, VertexElementUsage.TextureCoordinate, 0), new VertexElement(40, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 2), new VertexElement(56, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 3));
         private readonly Vector3 position;
         private readonly Vector4 color;
         private readonly Vector3 uv;
+        private readonly Vector4 textureScreenRectangle;
+        private readonly Vector4 textureTexelRectangle;
         public VertexDeclaration VertexDeclaration => Declaration;
         public GpuVertex(TriangleVertex vertex)
         {
             position = new Vector3(vertex.Position.X, vertex.Position.Y, vertex.Depth);
             color = new Vector4(vertex.Color.X, vertex.Color.Y, vertex.Color.Z, vertex.Color.W);
+            textureScreenRectangle = new Vector4(vertex.TextureScreenRectangle.X, vertex.TextureScreenRectangle.Y, vertex.TextureScreenRectangle.Z, vertex.TextureScreenRectangle.W);
+            textureTexelRectangle = new Vector4(vertex.TextureTexelRectangle.X, vertex.TextureTexelRectangle.Y, vertex.TextureTexelRectangle.Z, vertex.TextureTexelRectangle.W);
             uv = new Vector3(vertex.Uv.X * vertex.ReciprocalW, vertex.Uv.Y * vertex.ReciprocalW, vertex.ReciprocalW);
         }
     }

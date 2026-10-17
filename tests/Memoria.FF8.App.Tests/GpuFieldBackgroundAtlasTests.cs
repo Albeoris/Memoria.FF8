@@ -34,6 +34,118 @@ public sealed class GpuFieldBackgroundAtlasTests
         Assert.Equal(expected, GpuTestDevice.Read(gpu.Target));
     }
 
+    [Theory]
+    [InlineData(960, 720)]
+    [InlineData(1280, 720)]
+    [InlineData(1920, 1080)]
+    public void Installed_opening_corridor_scrolling_keeps_separate_texture_pixels(int width, int height)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        FieldAssets field = assets.LoadField(229);
+        FieldRenderer renderer = new(field, width, height);
+        Dictionary<int, int> states = field.Background.Where(tile => tile.AnimationId != 255).GroupBy(tile => tile.AnimationId).ToDictionary(group => group.Key, group => (int)group.First().AnimationState);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        SeparateTileTextures separate = new(gpu);
+        for (int frame = 0; frame < 32; frame++)
+        {
+            Dictionary<int, Vector2> offsets = field.Background.Select(tile => tile.Layer).Distinct().ToDictionary(layer => (int)layer, layer => new Vector2(frame - 16, frame - 16));
+            renderer.TriangleRenderer = separate;
+            renderer.Render(states, [], TimeSpan.Zero, backgroundScrollOffsets: offsets);
+            Color[] expected = GpuTestDevice.Read(gpu.Target);
+            string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ATLAS_OUTPUT");
+            if (output is not null && frame == 1)
+            {
+                Directory.CreateDirectory(output);
+                using FileStream image = File.Create(Path.Combine(output, $"separate-{width}x{height}.png"));
+                gpu.Target.SaveAsPng(image, width, height);
+            }
+            renderer.TriangleRenderer = gpu;
+            renderer.Render(states, [], TimeSpan.Zero, backgroundScrollOffsets: offsets);
+            Color[] actual = GpuTestDevice.Read(gpu.Target);
+            if (output is not null && frame == 1)
+            {
+                using FileStream image = File.Create(Path.Combine(output, $"atlas-{width}x{height}.png"));
+                gpu.Target.SaveAsPng(image, width, height);
+            }
+            int differences = expected.Zip(actual).Count(pair => pair.First != pair.Second);
+            Assert.True(differences == 0, $"{width}x{height}, scroll{frame - 16}: {differences} differing pixels.");
+        }
+    }
+
+    [Theory]
+    [InlineData(229)]
+    [InlineData(264)]
+    [InlineData(821)]
+    public void Installed_background_batched_submission_stays_resident(int fieldId)
+    {
+        using GameAssets assets = new(TestResources.GameDirectory);
+        FieldAssets field = assets.LoadField(fieldId);
+        FieldRenderer renderer = new(field, 960, 720);
+        Dictionary<int, int> states = field.Background.Where(tile => tile.AnimationId != 255).GroupBy(tile => tile.AnimationId).ToDictionary(group => group.Key, group => (int)group.First().AnimationState);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        renderer.TriangleRenderer = gpu;
+        for (int warmup = 0; warmup < 30; warmup++)
+        {
+            renderer.Render(states, [], TimeSpan.Zero);
+        }
+        List<double> milliseconds = [];
+        for (int sample = 0; sample < 5; sample++)
+        {
+            System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
+            for (int frame = 0; frame < 120; frame++)
+            {
+                renderer.Render(states, [], TimeSpan.Zero);
+            }
+            GpuTestDevice.Read(gpu.Target);
+            milliseconds.Add(timer.Elapsed.TotalMilliseconds / 120);
+        }
+        Assert.Equal(0, gpu.FrameTextureUploads);
+        Assert.InRange(gpu.FrameDrawCalls, 1, 2);
+        string? output = Environment.GetEnvironmentVariable("MEMORIA_FF8_ATLAS_OUTPUT");
+        if (output is not null)
+        {
+            Directory.CreateDirectory(output);
+            File.WriteAllText(Path.Combine(output, $"submission-{fieldId}.json"), System.Text.Json.JsonSerializer.Serialize(new { Field = fieldId, Milliseconds = milliseconds, gpu.FrameDrawCalls, gpu.FrameTextureUploads }));
+        }
+    }
+
+    [Theory]
+    [InlineData(320, 240)]
+    [InlineData(960, 720)]
+    public void Scrolling_source_pixels_match_software_away_from_exact_boundary_ties(int width, int height)
+    {
+        BackgroundTile[] tiles = Enumerable.Range(0, 280).Select(index => Tile(index % 20 * 16 - 160, index / 20 * 16 - 112, new PixelImage(16, 16, Enumerable.Range(0, 256).Select(texel => new Rgba32((byte)(texel % 16 * 17), (byte)(texel / 16 * 17), (byte)index, 255)).ToArray()))).ToArray();
+        FieldRenderer renderer = new(Field(tiles), width, height);
+        using GpuTestDevice device = new();
+        using GpuTriangleRenderer gpu = new(device.Device);
+        foreach (int offset in new[] { -15, -1, 0, 1, 15 })
+        {
+            Dictionary<int, Vector2> offsets = new() { [0] = new(offset, offset) };
+            renderer.TriangleRenderer = null;
+            byte[] expected = renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets).ToArray();
+            renderer.TriangleRenderer = gpu;
+            renderer.Render(new Dictionary<int, int>(), [], TimeSpan.Zero, backgroundScrollOffsets: offsets);
+            Color[] actual = GpuTestDevice.Read(gpu.Target);
+            for (int pixel = 0; pixel < actual.Length; pixel++)
+            {
+                // Exact source-edge ties may round to either adjacent source
+                // pixel in the independent CPU and hardware arithmetic.
+                double sourceX = (pixel % width + 0.5) * 320 / width - offset;
+                double sourceY = (pixel / width + 0.5) * 224 / height - offset;
+                bool sourceEdge = Math.Abs(sourceX - Math.Round(sourceX)) < 0.0001 || Math.Abs(sourceY - Math.Round(sourceY)) < 0.0001;
+                if (!sourceEdge)
+                {
+                    Assert.Equal(expected[pixel * 4], actual[pixel].R);
+                    Assert.Equal(expected[pixel * 4 + 1], actual[pixel].G);
+                    Assert.Equal(expected[pixel * 4 + 2], actual[pixel].B);
+                    Assert.Equal(expected[pixel * 4 + 3], actual[pixel].A);
+                }
+            }
+        }
+    }
+
     [Fact]
     public void Patterned_tiles_keep_point_sampling_boundaries_at_fractional_vertical_scale()
     {
@@ -234,7 +346,8 @@ public sealed class GpuFieldBackgroundAtlasTests
                 textures.Add(key, image);
             }
             Vector2 size = maximum - minimum;
-            target.Draw(a with { Uv = (a.Uv - minimum) / size }, b with { Uv = (b.Uv - minimum) / size }, c with { Uv = (c.Uv - minimum) / size }, material with { Texture = image });
+            Vector4 texelRectangle = new(0, 0, width, height);
+            target.Draw(a with { Uv = (a.Uv - minimum) / size, TextureTexelRectangle = texelRectangle }, b with { Uv = (b.Uv - minimum) / size, TextureTexelRectangle = texelRectangle }, c with { Uv = (c.Uv - minimum) / size, TextureTexelRectangle = texelRectangle }, material with { Texture = image });
         }
 
         public void End()
