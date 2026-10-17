@@ -167,9 +167,12 @@ public sealed partial class BattleSession
                     phase = 1;
                     break;
                 case NativeBattleDescriptorTaskKind.Map500AC0:
-                    // TODO(TD-009): The original map/texture resources are immutable inputs; native500AC0's IO-ready endpoint is explicit here.
-                    completed = phase == 1;
-                    phase++;
+                    NativeBattleEntryWaveStep wave = AdvanceNativeEntryWave500AC0(phase, task.Payload[2]);
+                    phase = wave.Phase;
+                    completed = wave.Completed;
+                    byte[] wavePayload = task.Payload.ToArray();
+                    wavePayload[2] = wave.Completion;
+                    graphics = graphics with { Descriptors = graphics.Descriptors with { Tasks = graphics.Descriptors.Tasks.SetItem(taskSlot, task with { Payload = wavePayload.ToImmutableArray() }) } };
                     break;
                 case NativeBattleDescriptorTaskKind.Load502670:
                     int modelIndex = RequireDescriptorModel(packet.Index);

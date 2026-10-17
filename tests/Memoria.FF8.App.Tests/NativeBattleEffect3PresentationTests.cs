@@ -39,6 +39,7 @@ public sealed class NativeBattleEffect3PresentationTests
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),

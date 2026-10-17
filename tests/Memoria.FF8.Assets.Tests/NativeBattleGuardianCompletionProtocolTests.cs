@@ -105,6 +105,7 @@ public sealed class NativeBattleGuardianCompletionProtocolTests
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess(),
             NativeFlags = 0x80,

@@ -33,6 +33,7 @@ public sealed class NativeBattleFirePresentationTests
             EncounterId = 94,
             StageId = formation.StageId,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),

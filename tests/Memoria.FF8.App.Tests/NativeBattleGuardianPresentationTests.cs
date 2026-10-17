@@ -28,6 +28,7 @@ public sealed class NativeBattleGuardianPresentationTests
             ActionDefinitions = BattlePartyProjection.CreateActions(game.ReadNewGameCharacterVitals(), assets.ActionDefinitions),
             NativeActions = assets.NativeActions.ToArray(),
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeVibrationProcess = NativeVibrationProcessState.FromColdProcess(),
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeBattleUiRandom = new(0),

@@ -39,6 +39,25 @@ public sealed class NativeBattleRestorationPresentationTests
         RunCurrentCast(source, assets, binding.Effect, false);
     }
 
+    [Fact]
+    public void Resume_the_named_restoration_checkpoint_for_one_native_callback()
+    {
+        string? path = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_SNAPSHOT");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "A concrete standalone restoration checkpoint is required.");
+        BattleSnapshot source = JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(path!))!;
+        BattleSession first = BattleSession.Restore(source);
+        BattleSession second = BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(JsonSerializer.Serialize(source))!);
+        Assert.True(source.NativeGraphics!.OriginalEffect!.Binding.Effect is 24 or 27);
+        Assert.Equal(JsonSerializer.Serialize(source), JsonSerializer.Serialize(first.Capture()));
+        first.AdvanceNativeGraphicsPresentation(Callback);
+        second.AdvanceNativeGraphicsPresentation(Callback);
+        Assert.Equal(source.NativeGraphics.Callback + 1, first.NativeGraphics!.Callback);
+        Assert.Equal(JsonSerializer.Serialize(first.Capture()), JsonSerializer.Serialize(second.Capture()));
+        using BattleAssets assets = new(Environment.GetEnvironmentVariable("MEMORIA_FF8_GAME_DIR") ?? LaunchOptions.DefaultGameDirectory);
+        Assert.Equal(new BattleScenePresentation(assets, source.Definition, true).Render(first, 320, 224).ToArray(), new BattleScenePresentation(assets, source.Definition, true).Render(second, 320, 224).ToArray());
+        Console.WriteLine($"Restoration checkpoint effect{source.NativeGraphics.OriginalEffect.Binding.Effect}, saved{source.Frame}/{source.NativeGraphics.Callback}; actual nextcallback{first.NativeGraphics.Callback}, wholeJSON/copiedpixels agree.");
+    }
+
     private static BattleSession PrepareComponent(GameAssets game, BattleAssets assets, BattleActionDefinition action, ushort effect)
     {
         BattleEncounter formation = assets.LoadEncounter(94);
@@ -68,6 +87,7 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeDefensiveResources = game.ReadNativeBattleDefensiveResources(),
             NativeEffectMeshes = game.ReadNativeEffectMeshes(),
             NativeEffectCatalog = game.ReadNativeEffectCatalogForEffects([effect]),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeSavedOptions = game.ReadNewGameInputConfiguration().Options,
             NativeActionCameraRules = game.ReadNativeActionCameraRules(),
             NativeStageSource = stage.NativeSource,
@@ -76,12 +96,19 @@ public sealed class NativeBattleRestorationPresentationTests
             NativeStageCameraControl = stage.NativeCameraControl
         };
         BattleSession battle = new(definition, BattleAtbMode.TurnBased);
+        string? entryEvidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_RESTORATION_EVIDENCE");
+        string entryId = $"restoration{effect}-native-entry-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff") + "-" + Guid.NewGuid().ToString("N")[..8];
+        BattleSnapshot entrySource = battle.Capture();
+        Publish(entryEvidence, entryId + "-before", entrySource, null);
+        battle = string.IsNullOrWhiteSpace(entryEvidence) ? BattleSession.Restore(entrySource) : BattleSession.Restore(JsonSerializer.Deserialize<BattleSnapshot>(File.ReadAllBytes(Path.Combine(entryEvidence, entryId + "-before.battle.json")))!);
+        Assert.Equal(JsonSerializer.Serialize(entrySource), JsonSerializer.Serialize(battle.Capture()));
         for (int callback = 0; callback < 200 && !battle.NativeEntryReady; callback++)
         {
             battle.Tick();
         }
         Assert.True(battle.NativeEntryReady);
         BattleSnapshot before = battle.Capture();
+        Publish(entryEvidence, entryId + "-after", before, new BattleScenePresentation(assets, definition, true).Render(battle, 320, 224));
         BattleCombatantSnapshot target = before.Combatants.Single(actor => actor.Id == "target");
         NativeBattleStatusSnapshot status = target.NativeStatus ?? throw new InvalidDataException("Restoration component lacks its current target status words.");
         //494360 adds saved0300 below one-quarter HP. Half HP for Esuna and full HP for Full-life keep this controlled result clear.

@@ -70,7 +70,7 @@ public static class NativeBattleModelColors
         {
             if ((model.Flags0 & 0x4004) == 0 && (statuses & 0x82000) != 0)
             {
-                throw new NotSupportedException("Native50A0A0 reached50A410 Doom/Petrify countdown text; its actual shared module producer is not implemented.");
+                throw new NotSupportedException("Native50A0A0 reached50A410 Doom/Petrify countdown text; its retained PC UI texture, depth and draw-batch owners are not implemented.");
             }
             //5711C0 draws into the current common packet heap; the Session invokes it here before50C110/body submission.
         }

@@ -21,6 +21,7 @@ public sealed class NativeBattleStageLifecycleTests
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeGlobalSoundProcess = NativeGlobalSoundProcess.FromBufferlessColdProcess(),
             NativeGlobalRandom = new(0),
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), formation),

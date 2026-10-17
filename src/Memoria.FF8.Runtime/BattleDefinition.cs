@@ -156,6 +156,8 @@ public sealed record BattleDefinition
     public ImmutableArray<NativeBattleStaticMeshResource> NativeEffectMeshes { get; init; } = [];
     public ImmutableArray<NativeBattleEffectBinding> NativeEffectCatalog { get; init; } = [];
     public NativeBattleEffectInitializerAsset? NativeCommonEffectTexture { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public NativeBattleArchiveFile? NativeEntryWaveFile { get; init; }
     public NativeBattleActionCameraRules? NativeActionCameraRules { get; init; }
     public NativeBattleCameraBank? NativeStageCameraBank { get; init; }
     public NativeBattleStageSource? NativeStageSource { get; init; }

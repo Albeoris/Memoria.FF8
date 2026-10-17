@@ -13,6 +13,8 @@ public sealed record NativeBattleEffectTimUpload([property: JsonRequired] Native
     public NativeBattleEffectVramCopy? Copy { get; init; }
     public NativeBattleEffectTextureRectangle? Rectangle { get; init; }
     public int? ArenaOffset { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public uint? StagingAddress { get; init; }
 }
 public sealed record NativeBattleEffectVramUpload(short X, short Y, short Width, short Height, ImmutableArray<byte> Bytes)
 {
@@ -41,7 +43,14 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         new NativeBattleEffectArena(VramRegions).Validate();
         foreach (NativeBattleEffectTimUpload? slot in Slots)
         {
-            if (slot is { Kind: 1, ArenaOffset: int arenaOffset })
+            if (slot is { Kind: 1, StagingAddress: uint stagingAddress })
+            {
+                if (stagingAddress < NativeBattleFileStaging.Address || slot.ArenaOffset is not null || slot.Source is not null || slot.Offset != 0)
+                {
+                    throw new InvalidDataException("Native staging TIM requires its current shared199B018 pointer union.");
+                }
+            }
+            else if (slot is { Kind: 1, ArenaOffset: int arenaOffset })
             {
                 if (arenaOffset is < 0 or > NativeBattleEffectArena.Length - 12)
                 {
@@ -93,7 +102,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         RequireSource(source, offset, 12);
         int imageBlock = checked(offset + 8 + BlockLength(source, offset + 8));
         int next = checked(imageBlock + BlockLength(source, imageBlock));
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Source = source, Offset = offset, Kind = 1, ArenaOffset = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Source = source, Offset = offset, Kind = 1, ArenaOffset = null, StagingAddress = null };
         return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, next);
     }
 
@@ -105,8 +114,20 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
             throw new NotSupportedException("Native505E30 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
         NativeBattleEffectHeapAllocation current = MaterializeArenaTim(arena, offset);
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = offset };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = offset, StagingAddress = null };
         return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, checked(offset + current.Data.Length));
+    }
+
+    public (NativeBattleEffectTextureState State, uint NextAddress) EnqueueStagingTim505E30(NativeBattleFileStaging staging, uint address)
+    {
+        Validate();
+        if (Count == 31)
+        {
+            throw new NotSupportedException("Native505E30 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
+        }
+        NativeBattleEffectHeapAllocation current = MaterializeStagingTim(staging, address);
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Source = null, Offset = 0, Kind = 1, ArenaOffset = null, StagingAddress = address };
+        return (this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 }, unchecked(address + (uint)current.Data.Length));
     }
 
     public NativeBattleEffectTextureState EnqueueCopy505EB0(short sourceX, short sourceY, short width, short height, short destinationX, short destinationY)
@@ -116,7 +137,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505EB0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 3, Copy = new(sourceX, sourceY, width, height, destinationX, destinationY), ArenaOffset = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(null, 0)) with { Kind = 3, Copy = new(sourceX, sourceY, width, height, destinationX, destinationY), ArenaOffset = null, StagingAddress = null };
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
@@ -129,11 +150,11 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
         {
             throw new NotSupportedException("Native505DF0 increments its count to32 without writing the final slot; the resulting stale-slot drain is unsupported.");
         }
-        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Kind = 0, Source = source, Offset = offset, Rectangle = rectangle, ArenaOffset = null };
+        NativeBattleEffectTimUpload slot = (Slots[Count] ?? new(source, offset)) with { Kind = 0, Source = source, Offset = offset, Rectangle = rectangle, ArenaOffset = null, StagingAddress = null };
         return this with { Slots = Slots.SetItem(Count, slot), Count = Count + 1 };
     }
 
-    public NativeBattleEffectTextureDrain Drain505D20(NativeBattleEffectArena? arenaSource = null)
+    public NativeBattleEffectTextureDrain Drain505D20(NativeBattleEffectArena? arenaSource = null, NativeBattleFileStaging? stagingSource = null)
     {
         Validate();
         if (Count == 0)
@@ -150,7 +171,7 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
                 Copy(pending.Copy!);
                 continue;
             }
-            NativeBattleEffectHeapAllocation source = pending.ArenaOffset is int arenaOffset ? MaterializeArenaTim(arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable TIM pointer."), arenaOffset) : pending.Source ?? throw new InvalidDataException("Native TIM upload lost its source.");
+            NativeBattleEffectHeapAllocation source = pending.Kind == 1 && pending.StagingAddress is uint stagingAddress ? MaterializeStagingTim(stagingSource ?? throw new NotSupportedException("Native505D20 requires the latest shared199B018 staging for its retained mutable TIM pointer."), stagingAddress) : pending.Kind == 1 && pending.ArenaOffset is int arenaOffset ? MaterializeArenaTim(arenaSource ?? throw new NotSupportedException("Native505D20 requires the latest effect arena for its retained mutable TIM pointer."), arenaOffset) : pending.Source ?? throw new InvalidDataException("Native TIM upload lost its source.");
             if (pending.Kind == 0)
             {
                 NativeBattleEffectTextureRectangle rectangle = pending.Rectangle!;
@@ -245,17 +266,27 @@ public sealed record NativeBattleEffectTextureState([property: JsonRequired] Imm
 
     private static NativeBattleEffectHeapAllocation MaterializeArenaTim(NativeBattleEffectArena arena, int offset)
     {
-        int first = BinaryPrimitives.ReadInt32LittleEndian(arena.Read(checked(offset + 8), 4));
+        return MaterializeMutableTim($"20DFAB8+{offset:X}", (relative, count) => arena.Read(checked(offset + relative), count));
+    }
+
+    private static NativeBattleEffectHeapAllocation MaterializeStagingTim(NativeBattleFileStaging staging, uint address)
+    {
+        return MaterializeMutableTim($"199B018:{address:X8}", (relative, count) => staging.Read(unchecked(address + (uint)relative), count));
+    }
+
+    private static NativeBattleEffectHeapAllocation MaterializeMutableTim(string name, Func<int, int, byte[]> read)
+    {
+        int first = BinaryPrimitives.ReadInt32LittleEndian(read(8, 4));
         if (first < 12)
         {
-            throw new InvalidDataException("Native mutable arena TIM has no actual CLUT block.");
+            throw new InvalidDataException("Native mutable TIM has no actual CLUT block.");
         }
-        int second = BinaryPrimitives.ReadInt32LittleEndian(arena.Read(checked(offset + 8 + first), 4));
+        int second = BinaryPrimitives.ReadInt32LittleEndian(read(checked(8 + first), 4));
         if (second < 12)
         {
-            throw new InvalidDataException("Native mutable arena TIM has no actual image block.");
+            throw new InvalidDataException("Native mutable TIM has no actual image block.");
         }
-        return new($"20DFAB8+{offset:X}", arena.Read(offset, checked(8 + first + second)).ToImmutableArray());
+        return new(name, read(0, checked(8 + first + second)).ToImmutableArray());
     }
 
     private static void RequireRectangle(NativeBattleEffectTextureRectangle rectangle)

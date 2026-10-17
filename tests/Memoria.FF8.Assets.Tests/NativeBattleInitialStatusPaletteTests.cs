@@ -25,6 +25,7 @@ public sealed class NativeBattleInitialStatusPaletteTests
             StageId = encounter.StageId,
             Combatants = actors,
             NativeRetainedMemory = game.ReadColdProcessNativeBattleMemory(),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeFlags = 0x80,
             NativeEntry = new(0, 0),
             NativeGlobalRandom = new(0),

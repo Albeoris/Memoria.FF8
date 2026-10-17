@@ -40,6 +40,14 @@ public sealed class NativeBattleStatusIconResourcesTests
         NativeBattleGraphicsRules oldMetadata = game.ReadNativeBattleGraphicsRules() with { StatusIcons = null };
         Assert.DoesNotContain("StatusIcons", JsonSerializer.Serialize(oldMetadata));
         Assert.Null(JsonSerializer.Deserialize<NativeBattleGraphicsRules>(JsonSerializer.Serialize(oldMetadata))!.StatusIcons);
+        using BattleAssets assets = new(game.GameDirectory);
+        NativeBattleArchiveFile wave = assets.ReadNativeBattleFile(0xA5);
+        Assert.Equal("b0wave.dat", wave.Name);
+        Assert.Equal(171164, wave.Bytes.Length);
+        Assert.Equal(20, wave.Section(0));
+        Assert.Equal(99188, wave.Section(1));
+        Assert.Equal(116492, wave.Section(2));
+        Assert.Equal(game.ReadNativeCommonEffectTexture().Data.ToArray(), wave.Bytes.AsSpan().Slice(wave.Section(0), wave.Section(1) - wave.Section(0)).ToArray());
     }
 
     [Fact]
@@ -66,6 +74,7 @@ public sealed class NativeBattleStatusIconResourcesTests
             NativeGlobalRandom = new(0),
             NativeCrtRandom = new(1),
             NativeGraphics = assets.ReadNativeGraphicsDefinition(actors, game.ReadNativeBattleGraphicsRules(), encounter),
+            NativeEntryWaveFile = assets.ReadNativeBattleFile(0xA5),
             NativeCommandSequences = game.ReadNativeBattleCommandSequences(),
             NativeStageSource = stage.NativeSource,
             NativeStageCameraBank = stage.NativeCameraBank,
@@ -79,6 +88,7 @@ public sealed class NativeBattleStatusIconResourcesTests
         Assert.True(session.NativeEntryReady);
         //DispatchTurnBasedFrame skips idle gauge time until readiness; this callback test explicitly starts with a ready player.
         Assert.True(session.Combatants.Single(actor => actor.Id == "party").IsReady);
+        AssertCommonTexture(session, game.ReadNativeCommonEffectTexture());
         NativeBattleGraphicsState before = session.NativeGraphics!;
         Assert.Equal(0x20u, before.Models[0].Flags8!.Value & 0x11E0);
         Assert.Equal(0u, before.Flags & 0x410);
@@ -101,5 +111,30 @@ public sealed class NativeBattleStatusIconResourcesTests
         int drawIndex = after.ModuleDraws.IndexOf(draw);
         Assert.Contains(after.PrimitiveFrame!.LastCommands, command => command.Command.ModuleDraw == drawIndex);
         Assert.Equal(session.Capture().Combatants.Select(actor => actor.CurrentHp), clone.Capture().Combatants.Select(actor => actor.CurrentHp));
+    }
+
+    private static void AssertCommonTexture(BattleSession session, NativeBattleEffectInitializerAsset common)
+    {
+        NativeBattleEffectTextureState textures = session.NativeEffectMemory!.Textures!;
+        Assert.Equal(0, textures.Count);
+        NativeBattleEffectArena vram = new(textures.VramRegions);
+        int offset = 8;
+        List<(short X, short Y, short Width, short Height)> rectangles = [];
+        for (int block = 0; block < 2; block++)
+        {
+            ReadOnlySpan<byte> bytes = common.Data.AsSpan().Slice(offset);
+            int length = BinaryPrimitives.ReadInt32LittleEndian(bytes);
+            short x = BinaryPrimitives.ReadInt16LittleEndian(bytes[4..]);
+            short y = BinaryPrimitives.ReadInt16LittleEndian(bytes[6..]);
+            short width = BinaryPrimitives.ReadInt16LittleEndian(bytes[8..]);
+            short height = BinaryPrimitives.ReadInt16LittleEndian(bytes[10..]);
+            rectangles.Add((x, y, width, height));
+            for (int row = 0; row < height; row++)
+            {
+                Assert.Equal(bytes.Slice(12 + row * width * 2, width * 2).ToArray(), vram.Read(2 * ((y + row) * 1024 + x), width * 2));
+            }
+            offset += length;
+        }
+        Assert.Equal(new[] { ((short)624, (short)225, (short)16, (short)26), ((short)704, (short)256, (short)192, (short)256) }, rectangles.ToArray());
     }
 }
