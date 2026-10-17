@@ -17,6 +17,7 @@ internal sealed class AutoPlayRunState
     public string? ActiveVisit { get; set; }
     public string? ActiveEvent { get; set; }
     public int ActiveField { get; set; }
+    public int? ActiveStory { get; set; }
     public int ActiveObjectId { get; set; } = -1;
     public bool ObservedControlLoss { get; set; }
     public int SettleFrames { get; set; }
@@ -420,9 +421,10 @@ internal sealed class AutoPlayController
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
             string? exitSignature = run.ActiveField == session.State.FieldId ? world.ReadAutoPlayConditions(run.ActiveEvent, run.ActiveObjectId).Fingerprint : null;
-            planner.Completed(run.ActiveVisit, run.ActiveEvent, run.ActiveVisit == visit ? null : visit, exitSignature);
+            planner.Completed(run.ActiveVisit, run.ActiveEvent, run.ActiveVisit == visit ? null : visit, exitSignature, ObserveStoryChange(run.ActiveStory, run.ActiveVisit, session.State.Variables.GetValueOrDefault(256)));
             run.ActiveVisit = null;
             run.ActiveEvent = null;
+            run.ActiveStory = null;
         }
         AutoPlayPlanStep? next = planner.Plan(visit);
         if (next is null)
@@ -442,6 +444,7 @@ internal sealed class AutoPlayController
         run.ActiveVisit = visit;
         run.ActiveEvent = target.CoverageId;
         run.ActiveField = session.State.FieldId;
+        run.ActiveStory = session.State.Variables.GetValueOrDefault(256);
         run.ActiveObjectId = target.ObjectId;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
@@ -463,6 +466,7 @@ internal sealed class AutoPlayController
                 planner.Block(visit, target.CoverageId, "No discovered approach selects this actor with the ordinary talk query.");
                 run.ActiveVisit = null;
                 run.ActiveEvent = null;
+                run.ActiveStory = null;
             }
         }
         else
@@ -491,6 +495,7 @@ internal sealed class AutoPlayController
                 planner.Block(visit, target.CoverageId, "None of the discovered coordinate approaches activated a native contact callback.");
                 run.ActiveVisit = null;
                 run.ActiveEvent = null;
+                run.ActiveStory = null;
                 run.ActiveObjectId = -1;
             }
             Apply(new(PlayerActionKind.Wait));
@@ -635,16 +640,18 @@ internal sealed class AutoPlayController
         planner.Observe(new(visit, "world"), targets.Select(target => new AutoPlayEvent(target.Id, AutoPlayEventKind.Transition, Order: target.Order)).ToArray());
         if (run.ActiveVisit is not null && run.ActiveEvent is not null)
         {
-            planner.Completed(run.ActiveVisit, run.ActiveEvent, visit);
+            planner.Completed(run.ActiveVisit, run.ActiveEvent, visit, observedStoryChanged: ObserveStoryChange(run.ActiveStory, run.ActiveVisit, session.State.Variables.GetValueOrDefault(256)));
         }
         run.ActiveVisit = null;
         run.ActiveEvent = null;
+        run.ActiveStory = null;
         AutoPlayPlanStep next = planner.Plan(visit) ?? throw new NotSupportedException("Reachable world frontier exhausted before the ending.");
         WorldAutoPlayTarget target = targets.Single(item => item.Id == next.Event.Id);
         SaveBundle($"world-{run.Steps:D10}", CaptureState());
         run.ActiveVisit = visit;
         run.ActiveEvent = target.Id;
         run.ActiveField = session.State.FieldId;
+        run.ActiveStory = session.State.Variables.GetValueOrDefault(256);
         run.ActiveObjectId = -1;
         run.ObservedControlLoss = false;
         run.SettleFrames = 0;
@@ -822,6 +829,20 @@ internal sealed class AutoPlayController
         }
         session.SetDialogueDraft(null);
         return result;
+    }
+
+    internal static bool? ObserveStoryChange(int? entryStory, string entryVisit, int exitStory)
+    {
+        if (entryStory is null)
+        {
+            int separator = entryVisit.LastIndexOf(':');
+            if (separator < 0 || !int.TryParse(entryVisit.AsSpan(separator + 1), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int recorded))
+            {
+                return null;
+            }
+            entryStory = recorded;
+        }
+        return entryStory.Value != exitStory;
     }
 
     private string VisitKey() => $"{session.State.FieldId}:{session.State.Variables.GetValueOrDefault(256)}";

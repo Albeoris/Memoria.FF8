@@ -5,6 +5,63 @@ namespace Memoria.FF8.App.Tests;
 public sealed class AutoPlayPlannerTests
 {
     [Fact]
+    public void Observed_unchanged_story_transition_provides_travel_without_changing_static_priority_metadata()
+    {
+        AutoPlayPlanner planner = new();
+        planner.Observe(new("lobby", "region"), [new("exit", AutoPlayEventKind.Transition, ChangesStory: true, ConditionSignature: "entry")]);
+        planner.BeginEvent("lobby", "exit");
+        planner.Completed("lobby", "exit", "annex", observedStoryChanged: false);
+        planner.Observe(new("annex", "region"), [new("talk", AutoPlayEventKind.Interaction)]);
+        planner = new AutoPlayPlanner(JsonSerializer.Deserialize<AutoPlayPlannerState>(JsonSerializer.Serialize(planner.State))!);
+        planner.Observe(new("lobby", "region"), [new("exit", AutoPlayEventKind.Transition, ChangesStory: true, ConditionSignature: "entry")]);
+        AutoPlayPlanStep next = planner.Plan("lobby")!;
+        Assert.True(next.IsTravel);
+        Assert.Equal("exit", next.Event.Id);
+        Assert.True(next.Event.ChangesStory);
+        AutoPlayEventCoverage edge = planner.State.Visits.Single(item => item.Visit.Key == "lobby").Events.Single();
+        Assert.False(edge.ObservedStoryChanged);
+        Assert.Equal("entry", edge.ObservedConditionSignature);
+    }
+
+    [Fact]
+    public void Observed_story_change_prevents_travel_even_when_static_metadata_missed_the_write()
+    {
+        AutoPlayPlanner planner = new();
+        planner.Observe(new("lobby", "region"), [new("exit", AutoPlayEventKind.Transition, ConditionSignature: "entry")]);
+        planner.BeginEvent("lobby", "exit");
+        planner.Completed("lobby", "exit", "annex", observedStoryChanged: true);
+        planner.Observe(new("annex", "region"), [new("talk", AutoPlayEventKind.Interaction)]);
+        Assert.Null(planner.Plan("lobby"));
+    }
+
+    [Fact]
+    public void Changed_conditions_invalidate_the_observed_transition_classification()
+    {
+        AutoPlayPlanner planner = new();
+        planner.Observe(new("lobby", "region"), [new("exit", AutoPlayEventKind.Transition, ChangesStory: true, ConditionSignature: "before")]);
+        planner.BeginEvent("lobby", "exit");
+        planner.Completed("lobby", "exit", "annex", observedStoryChanged: false);
+        planner.Observe(new("annex", "region"), [new("talk", AutoPlayEventKind.Interaction)]);
+        planner.Observe(new("lobby", "region"), [new("exit", AutoPlayEventKind.Transition, ChangesStory: true, ConditionSignature: "after")]);
+        AutoPlayEventCoverage edge = planner.State.Visits.Single(item => item.Visit.Key == "lobby").Events.Single();
+        Assert.Null(edge.ObservedStoryChanged);
+        Assert.Null(edge.ObservedConditionSignature);
+        AutoPlayPlanStep next = planner.Plan("lobby")!;
+        Assert.False(next.IsTravel);
+        Assert.Equal("exit", next.Event.Id);
+    }
+
+    [Fact]
+    public void Legacy_story_edges_do_not_infer_observed_changes_from_visit_key_text()
+    {
+        AutoPlayPlanner planner = new();
+        planner.Observe(new("172:33", "region"), [new("exit", AutoPlayEventKind.Transition, ChangesStory: true)]);
+        planner.Completed("172:33", "exit", "137:33");
+        planner.Observe(new("137:33", "region"), [new("talk", AutoPlayEventKind.Interaction)]);
+        Assert.Null(planner.Plan("172:33"));
+    }
+
+    [Fact]
     public void Optional_phase_policy_finishes_known_city_frontiers_before_an_untried_world_cavern()
     {
         AutoPlayPlanner planner = new(phaseOrder: (visit, item) => visit.Region == "city" ? 10 : item.Order);

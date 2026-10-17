@@ -5,6 +5,17 @@ namespace Memoria.FF8.App.Tests;
 
 public sealed class AutoPlayControllerTests
 {
+    [Theory]
+    [InlineData(33, "172:33", 33, false)]
+    [InlineData(33, "172:33", 34, true)]
+    [InlineData(null, "172:33", 33, false)]
+    [InlineData(null, "world:33", 34, true)]
+    [InlineData(null, "unknown", 33, null)]
+    public void Transition_story_observation_uses_recorded_entry_and_actual_exit_without_inventing_missing_metadata(int? entry, string visit, int exit, bool? expected)
+    {
+        Assert.Equal(expected, AutoPlayController.ObserveStoryChange(entry, visit, exit));
+    }
+
     [Fact]
     public void PresentationFailureStopsTheControllerAndPreservesItsCurrentStandaloneState()
     {

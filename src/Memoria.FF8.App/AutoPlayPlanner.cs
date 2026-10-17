@@ -29,6 +29,8 @@ internal sealed class AutoPlayEventCoverage
     public bool Completed { get; set; }
     public string? BlockedReason { get; set; }
     public AutoPlayConditionCoverage? Conditions { get; set; }
+    public bool? ObservedStoryChanged { get; set; }
+    public string? ObservedConditionSignature { get; set; }
 }
 
 internal sealed class AutoPlayVisitCoverage
@@ -107,6 +109,11 @@ internal sealed class AutoPlayPlanner
             }
             else
             {
+                if (!StringComparer.Ordinal.Equals(item.ConditionSignature, previous.ObservedConditionSignature))
+                {
+                    previous.ObservedStoryChanged = null;
+                    previous.ObservedConditionSignature = null;
+                }
                 previous.Event = item with { DestinationVisitKey = item.DestinationVisitKey ?? previous.Event.DestinationVisitKey, Kind = previous.Event.DestinationVisitKey is not null ? AutoPlayEventKind.Transition : item.Kind };
                 previous.Available = true;
                 if (item.ConditionSignature is string signature)
@@ -139,10 +146,12 @@ internal sealed class AutoPlayPlanner
         }
     }
 
-    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null)
+    public void Completed(string visitKey, string eventId, string? destinationVisitKey = null, string? exitSignature = null, bool? observedStoryChanged = null)
     {
         AutoPlayEventCoverage item = FindEvent(visitKey, eventId);
         item.Completed = true;
+        item.ObservedStoryChanged = observedStoryChanged;
+        item.ObservedConditionSignature = observedStoryChanged is null ? null : item.Conditions?.ActiveEntry ?? item.Event.ConditionSignature;
         ConsumeConditions(item, exitSignature);
         if (destinationVisitKey is not null)
         {
@@ -169,7 +178,7 @@ internal sealed class AutoPlayPlanner
         while (pending.TryDequeue(out string? key))
         {
             AutoPlayVisitCoverage visit = FindVisit(key);
-            foreach (AutoPlayEventCoverage edge in OrderedEvents(visit).Where(item => item.Completed && !item.Event.ChangesStory && item.Event.Kind == AutoPlayEventKind.Transition))
+            foreach (AutoPlayEventCoverage edge in OrderedEvents(visit).Where(CanTravel))
             {
                 string? destination = edge.Event.DestinationVisitKey;
                 if (destination is null || routes.ContainsKey(destination) || !State.Visits.Any(item => item.Visit.Key == destination))
@@ -289,6 +298,12 @@ internal sealed class AutoPlayPlanner
     private static bool NeedsExecution(AutoPlayEventCoverage item)
     {
         return item.Event.ConditionSignature is string signature && item.Conditions is not null ? !item.Conditions.Contains(signature) : !item.Completed;
+    }
+
+    private static bool CanTravel(AutoPlayEventCoverage item)
+    {
+        bool changesStory = item.ObservedStoryChanged is bool observed && StringComparer.Ordinal.Equals(item.ObservedConditionSignature, item.Event.ConditionSignature) ? observed : item.Event.ChangesStory;
+        return item.Completed && !changesStory && item.Event.Kind == AutoPlayEventKind.Transition;
     }
 
     private static void ConsumeConditions(AutoPlayEventCoverage item, string? exitSignature)
