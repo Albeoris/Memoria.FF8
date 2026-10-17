@@ -10,6 +10,61 @@ public static class NativeBattleEffectTextureReader
 {
     private static readonly ConditionalWeakTable<NativeBattleEffectTextureState, byte[]> Banks = new();
 
+    /// <summary>Compare the raw texture words and palette used by an already decoded PC material.</summary>
+    public static bool HasSamePcRegionSource(NativeBattleEffectTextureState previous, NativeBattleEffectTextureState current, ushort texturePage, ushort clut, int u, int v, int width, int height, NativeBattlePcTextureWindowPixels? pixelWords = null)
+    {
+        if (u is < 0 or > 255 || v is < 0 or > 255 || width is < 1 or > 256 || height is < 1 or > 256)
+        {
+            throw new InvalidDataException("Native texture region requires byte UVs and dimensions within one256x256 page.");
+        }
+        int depth = (texturePage >> 7) & 3;
+        if (depth == 3)
+        {
+            throw new NotSupportedException("Native texture page pixel depth3 is reserved.");
+        }
+        pixelWords?.Validate();
+        byte[] before = Banks.GetValue(previous, key => key.ReadVram());
+        byte[] after = Banks.GetValue(current, key => key.ReadVram());
+        if (depth < 2)
+        {
+            int paletteX = (clut & 63) * 16;
+            int paletteWords = depth == 0 ? 16 : 256;
+            if (paletteX + paletteWords > 1024)
+            {
+                return false;
+            }
+            int paletteOffset = 2 * (((clut & 0x7FFF) >> 6) * 1024 + paletteX);
+            if (!before.AsSpan(paletteOffset, paletteWords * 2).SequenceEqual(after.AsSpan(paletteOffset, paletteWords * 2)))
+            {
+                return false;
+            }
+        }
+        if (pixelWords is not null)
+        {
+            return true;
+        }
+        int pixelsPerWord = 4 >> depth;
+        int pageX = (texturePage & 15) * 64;
+        int pageY = (texturePage & 16) * 16;
+        int firstPixels = Math.Min(width, 256 - u);
+        for (int row = 0; row < height; row++)
+        {
+            int line = 2 * ((pageY + ((v + row) & 255)) * 1024 + pageX);
+            int firstWord = u / pixelsPerWord;
+            int endWord = (u + firstPixels + pixelsPerWord - 1) / pixelsPerWord;
+            if (!before.AsSpan(line + firstWord * 2, (endWord - firstWord) * 2).SequenceEqual(after.AsSpan(line + firstWord * 2, (endWord - firstWord) * 2)))
+            {
+                return false;
+            }
+            int wrappedWords = (width - firstPixels + pixelsPerWord - 1) / pixelsPerWord;
+            if (!before.AsSpan(line, wrappedWords * 2).SequenceEqual(after.AsSpan(line, wrappedWords * 2)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static PixelImage DecodeRegion(NativeBattleEffectTextureState state, ushort texturePage, ushort clut, int u, int v, int width, int height)
     {
         return DecodeRegionCore(state, texturePage, clut, u, v, width, height, false, null, null, null);

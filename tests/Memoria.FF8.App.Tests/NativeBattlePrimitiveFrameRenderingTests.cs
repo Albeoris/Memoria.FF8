@@ -8,6 +8,76 @@ namespace Memoria.FF8.App.Tests;
 public sealed class NativeBattlePrimitiveFrameRenderingTests
 {
     [Fact]
+    public void Unrelated_VRAM_upload_reuses_decoded_material_but_palette_and_page_changes_replace_it()
+    {
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        NativeBattlePrimitiveFrame frame = Frame([TexturedQuad(1)]);
+        NativeBattleEffectTextureState initial = Texture(31);
+        renderer.RenderNativePrimitiveFrame(frame, initial);
+        object first = capture.Texture!;
+        NativeBattleEffectArena bank = new(initial.VramRegions);
+        NativeBattleEffectTextureState unrelated = initial with { VramRegions = bank.Write(2 * (400 * 1024 + 400), [9, 10]).Regions };
+        renderer.RenderNativePrimitiveFrame(frame, unrelated);
+        Assert.Same(first, capture.Texture);
+        renderer.RenderNativePrimitiveFrame(frame, Texture(0x3E0));
+        Assert.NotSame(first, capture.Texture);
+        object changedPalette = capture.Texture!;
+        NativeBattleEffectTextureState changedPage = Texture(0x3E0) with { VramRegions = new NativeBattleEffectArena(Texture(0x3E0).VramRegions).Write(0, [0x22, 0x22]).Regions };
+        renderer.RenderNativePrimitiveFrame(frame, changedPage);
+        Assert.NotSame(changedPalette, capture.Texture);
+        NativeBattleEffectTextureState invalid = changedPage with { Slots = [] };
+        Assert.Throws<InvalidDataException>(() => renderer.RenderNativePrimitiveFrame(frame, invalid));
+    }
+
+    [Fact]
+    public void Retained_pixel_words_keep_their_material_across_live_page_changes_but_changed_retained_words_replace_it()
+    {
+        TextureCapture capture = new();
+        BattleRenderer renderer = new(320, 216) { TriangleRenderer = capture };
+        NativeBattleEffectTextureState initial = Texture(31);
+        NativeBattleLogicalResolvedCommand command = TexturedQuad(1);
+        NativeBattlePcTextureWindowSelection selection = command.DrawMode.TextureSelection! with { UsesRetainedPixelWords = true };
+        NativeBattlePrimitiveFrame frame = Frame([command with { DrawMode = command.DrawMode with { TextureSelection = selection } }]);
+        NativeBattlePcTextureWindowCache cache = NativeBattlePcTextureWindowCache.Reset4647A0(null).Preprocess462F90(0x20, 0x4000).Prepare464BD0().Cache;
+        NativeBattlePrimitiveTextureWindow rectangle = new(0, 0, 256, 256);
+        NativeBattlePcTextureWindowRow row = cache.Rows[selection.Row];
+        NativeBattlePcTextureWindowRegion region = row.Regions[0] with { CurrentPixels = false, RetainedPixels = NativeBattlePcTextureWindowPixels.Capture(selection.Row, rectangle, initial) };
+        cache = cache with { Rows = cache.Rows.SetItem(selection.Row, row with { Regions = [region] }) };
+        renderer.RenderNativePrimitiveFrame(frame, initial, textureWindowCache: cache);
+        object first = capture.Texture!;
+        NativeBattleEffectTextureState changedPage = initial with { VramRegions = new NativeBattleEffectArena(initial.VramRegions).Write(0, [0x22, 0x22]).Regions };
+        renderer.RenderNativePrimitiveFrame(frame, changedPage, textureWindowCache: cache);
+        Assert.Same(first, capture.Texture);
+        NativeBattlePcTextureWindowRegion changed = region with { RetainedPixels = NativeBattlePcTextureWindowPixels.Capture(selection.Row, rectangle, changedPage) };
+        cache = cache with { Rows = cache.Rows.SetItem(selection.Row, row with { Regions = [changed] }) };
+        renderer.RenderNativePrimitiveFrame(frame, changedPage, textureWindowCache: cache);
+        Assert.NotSame(first, capture.Texture);
+        object retained = capture.Texture!;
+        renderer.RenderNativePrimitiveFrame(frame, Texture(0x3E0), textureWindowCache: cache);
+        Assert.NotSame(retained, capture.Texture);
+    }
+
+    private sealed class TextureCapture : ITriangleRenderer
+    {
+        public Albeoris.Games.FF8.Imaging.PixelImage? Texture { get; private set; }
+
+        public void Begin(int width, int height, System.Numerics.Vector4 clearColor, float clearDepth = 1)
+        {
+            Texture = null;
+        }
+
+        public void Draw(in TriangleVertex a, in TriangleVertex b, in TriangleVertex c, in TriangleMaterial material)
+        {
+            Texture = material.Texture;
+        }
+
+        public void End()
+        {
+        }
+    }
+
+    [Fact]
     public void Cached_materials_follow_VRAM_and_device_format_changes_on_the_same_renderer()
     {
         BattleRenderer renderer = new(960, 720);

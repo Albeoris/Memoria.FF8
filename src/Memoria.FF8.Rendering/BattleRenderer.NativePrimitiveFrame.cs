@@ -42,7 +42,8 @@ public sealed partial class BattleRenderer
         }
         (nativeTexturePages, previousNativeTexturePages) = (previousNativeTexturePages, nativeTexturePages);
         nativeTexturePages.Clear();
-        if (!ReferenceEquals(nativeTextureOwner, textures) || nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
+        NativeBattleEffectTextureState? previousTextureOwner = nativeTextureOwner;
+        if (nativeDirectTextureFormat != capabilities?.DirectTextureFormat)
         {
             previousNativeTexturePages.Clear();
         }
@@ -104,11 +105,12 @@ public sealed partial class BattleRenderer
                 NativeTextureKey key = new(page, clut, alternateShift, window.X, window.Y, window.Width, window.Height, retainedPixels);
                 if (!nativeTexturePages.TryGetValue(key, out texture))
                 {
-                    if (!previousNativeTexturePages.TryGetValue(key, out texture))
+                    bool reusable = previousNativeTexturePages.TryGetValue(key, out texture) && (ReferenceEquals(previousTextureOwner, textures) || previousTextureOwner is not null && textures is not null && NativeBattleEffectTextureReader.HasSamePcRegionSource(previousTextureOwner, textures, page, clut, window.X, window.Y, window.Width, window.Height, retainedPixels));
+                    if (!reusable)
                     {
                         texture = NativeBattleEffectTextureReader.DecodePcRegion(textures ?? throw new NotSupportedException("Native polygon texture sampling requires its retained VRAM owner."), page, clut, window.X, window.Y, window.Width, window.Height, alternateShift, capabilities?.DirectTextureFormat, retainedPixels);
                     }
-                    nativeTexturePages.Add(key, texture);
+                    nativeTexturePages.Add(key, texture!);
                 }
             }
             PrimitiveVertex At(int corner)

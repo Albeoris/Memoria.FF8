@@ -8,8 +8,10 @@ namespace Memoria.FF8.App.Tests;
 [Collection("GPU rendering")]
 public sealed class BattleHostLoopPerformanceTests
 {
-    [Fact]
-    public void Named_standalone_advances_inside_the_complete_graphics_host_loop()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void Named_standalone_advances_inside_the_complete_graphics_host_loop(int speed)
     {
         string? source = Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_PERFORMANCE_SNAPSHOT");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("MEMORIA_FF8_BATTLE_HOST_PERFORMANCE") == "1" && source is not null && File.Exists(source), "An optional battle fixture and interactive graphics diagnostic opt-in are required.");
@@ -25,19 +27,23 @@ public sealed class BattleHostLoopPerformanceTests
         Set(game, "world", world);
         Set(game, "globalSettings", new GlobalSettingsPaths(directory));
         Set(game, "uiPreferences", new UiPreferences { WindowWidth = 960, WindowHeight = 720, VSync = false });
+        if (speed == 3)
+        {
+            Get<GameplayClock>(game, "gameplayClock").ToggleSpeed();
+        }
         Stopwatch timer = Stopwatch.StartNew();
         game.Run();
         double seconds = timer.Elapsed.TotalSeconds;
         GameLoopSample sample = Get<GameLoopMetrics>(game, "metrics").Latest!;
         Assert.NotNull(sample);
         string? evidence = Environment.GetEnvironmentVariable("MEMORIA_FF8_NATIVE_PRODUCTION_EFFECT_EVIDENCE");
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "host-loop-measurement", new { Seconds = seconds, sample, InitialFrame = initialFrame, FinalFrame = battle.Frame, InitialCallback = initialCallback, FinalCallback = battle.NativeGraphics.Callback });
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-measurement", new { Speed = speed, Seconds = seconds, sample, InitialFrame = initialFrame, FinalFrame = battle.Frame, InitialCallback = initialCallback, FinalCallback = battle.NativeGraphics.Callback });
         session.SetLiveBattle(battle);
         session.SetEventState(world.Events.Capture());
-        NativeBattleProductionEffectAdmissionTests.Publish(evidence, "host-loop-after", session.State);
+        NativeBattleProductionEffectAdmissionTests.Publish(evidence, $"host-loop-x{speed}-after", session.State);
         Assert.False(Get<bool>(game, "fieldFaulted"), Get<string?>(game, "error"));
-        Assert.True(battle.Frame > initialFrame + 200, $"Frame {initialFrame} -> {battle.Frame}; callback {initialCallback} -> {battle.NativeGraphics.Callback}; mode {battle.Mode}; outcome {battle.Outcome}");
-        Assert.True(battle.NativeGraphics.Callback > initialCallback + 200);
+        Assert.True(battle.Frame > initialFrame + 200 * speed, $"Frame {initialFrame} -> {battle.Frame}; callback {initialCallback} -> {battle.NativeGraphics.Callback}; mode {battle.Mode}; outcome {battle.Outcome}");
+        Assert.True(battle.NativeGraphics.Callback > initialCallback + 200 * speed);
     }
 
     private static T Get<T>(RecreateGame game, string name) => (T)typeof(RecreateGame).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(game)!;

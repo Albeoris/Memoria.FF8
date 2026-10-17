@@ -8,6 +8,28 @@ namespace Memoria.FF8.Assets.Tests;
 public sealed class NativeBattlePcTextureReaderTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(0x80)]
+    [InlineData(0x100)]
+    [InlineData(0x110)]
+    public void Material_source_comparison_tracks_wrapped_page_words_and_indexed_CLUTs(ushort page)
+    {
+        NativeBattleEffectTextureState source = NativeBattleEffectTextureState.FromColdProcess();
+        const ushort clut = 300 << 6;
+        int pageY = (page & 16) * 16;
+        NativeBattleEffectTextureState Changed(int x, int y)
+        {
+            return source with { VramRegions = [new(2 * (y * 1024 + x), [1, 0])] };
+        }
+        Assert.True(NativeBattleEffectTextureReader.HasSamePcRegionSource(source, Changed(800, 400), page, clut, 255, 255, 2, 2));
+        Assert.False(NativeBattleEffectTextureReader.HasSamePcRegionSource(source, Changed(0, pageY), page, clut, 255, 255, 2, 2));
+        int lastWord = 255 / (4 >> ((page >> 7) & 3));
+        Assert.False(NativeBattleEffectTextureReader.HasSamePcRegionSource(source, Changed(lastWord, pageY + 255), page, clut, 255, 255, 2, 2));
+        bool direct = (page & 0x180) == 0x100;
+        Assert.Equal(direct, NativeBattleEffectTextureReader.HasSamePcRegionSource(source, Changed(0, 300), page, clut, 255, 255, 2, 2));
+    }
+
+    [Theory]
     [InlineData(NativeBattlePcDirectTextureFormat.Rgb555, 255)]
     [InlineData(NativeBattlePcDirectTextureFormat.Rgb565, 250)]
     public void Selected_direct_format_expands_RGB_and_keeps_both_black_words_opaque(NativeBattlePcDirectTextureFormat format, byte maximumGreen)
